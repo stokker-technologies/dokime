@@ -61,6 +61,11 @@ class FilesStub:
                 request_serializer=dokime_dot_host_dot_v1_dot_files__pb2.FilesDeleteRequest.SerializeToString,
                 response_deserializer=dokime_dot_host_dot_v1_dot_files__pb2.FilesDeleteResponse.FromString,
                 _registered_method=True)
+        self.Capture = channel.unary_unary(
+                '/dokime.host.v1.Files/Capture',
+                request_serializer=dokime_dot_host_dot_v1_dot_files__pb2.FilesCaptureRequest.SerializeToString,
+                response_deserializer=dokime_dot_host_dot_v1_dot_files__pb2.FilesCaptureResponse.FromString,
+                _registered_method=True)
 
 
 class FilesServicer:
@@ -101,6 +106,13 @@ class FilesServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Capture(self, request, context):
+        """Capture files through the calling plugin's declared source.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_FilesServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -123,6 +135,11 @@ def add_FilesServicer_to_server(servicer, server):
                     servicer.Delete,
                     request_deserializer=dokime_dot_host_dot_v1_dot_files__pb2.FilesDeleteRequest.FromString,
                     response_serializer=dokime_dot_host_dot_v1_dot_files__pb2.FilesDeleteResponse.SerializeToString,
+            ),
+            'Capture': grpc.unary_unary_rpc_method_handler(
+                    servicer.Capture,
+                    request_deserializer=dokime_dot_host_dot_v1_dot_files__pb2.FilesCaptureRequest.FromString,
+                    response_serializer=dokime_dot_host_dot_v1_dot_files__pb2.FilesCaptureResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -240,6 +257,33 @@ class Files:
             '/dokime.host.v1.Files/Delete',
             dokime_dot_host_dot_v1_dot_files__pb2.FilesDeleteRequest.SerializeToString,
             dokime_dot_host_dot_v1_dot_files__pb2.FilesDeleteResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Capture(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dokime.host.v1.Files/Capture',
+            dokime_dot_host_dot_v1_dot_files__pb2.FilesCaptureRequest.SerializeToString,
+            dokime_dot_host_dot_v1_dot_files__pb2.FilesCaptureResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -22,7 +22,7 @@ from typing import cast
 from harmos.plugin import Plugin as LibraryPlugin
 
 # Third Party Imports
-import dokime
+from dokime.plugin import Plugin
 
 # Local Imports
 
@@ -48,7 +48,7 @@ class ConformanceStory(unittest.IsolatedAsyncioTestCase):
             fixture = cast(LibraryPlugin, import_module(Path(source).name).plugin())
         finally:
             sys.path.pop(0)
-        remote = dokime.Plugin(
+        remote = Plugin(
             fixture.id,
             fixture.version,
             requires=fixture.requires,

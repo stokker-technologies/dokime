@@ -7,6 +7,7 @@ packages = ["harmos.model.v1", "harmos.host.v1", "harmos.plugin.v1"]
 
 # Product Admission Restrictions
 [callers]
+# Merge these descriptor packages before projecting either public surface.
 # Plugins use admitted requirements, not host-wide operation discovery.
 "harmos.host.v1.Operations/List" = "CLIENTS"
 "harmos.host.v1.Operations/Get" = "CLIENTS"

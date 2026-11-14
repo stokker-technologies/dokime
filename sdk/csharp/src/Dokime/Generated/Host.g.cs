@@ -9,6 +9,8 @@ using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using BackendEnvironmentRequest = global::Dokime.Clients.BackendEnvironmentRequest;
 using BackendEnvironmentResponse = global::Dokime.Clients.BackendEnvironmentResponse;
+using ArtifactsCreateRequest = global::Dokime.Clients.ContentResources.ArtifactsCreateRequest;
+using ArtifactsCreateResponse = global::Dokime.Clients.ContentResources.ArtifactsCreateResponse;
 using DocumentsAppendPartsRequest = global::Dokime.Clients.DocumentsAppendPartsRequest;
 using DocumentsAppendPartsResponse = global::Dokime.Clients.DocumentsAppendPartsResponse;
 using EffectsCreateRequest = global::Dokime.Clients.EffectsCreateRequest;
@@ -57,29 +59,57 @@ using FilesWatchRequest = global::Dokime.Clients.FilesWatchRequest;
 using FilesWatchResponse = global::Dokime.Clients.FilesWatchResponse;
 using FilesDeleteRequest = global::Dokime.Clients.FilesDeleteRequest;
 using FilesDeleteResponse = global::Dokime.Clients.FilesDeleteResponse;
+using FilesCaptureRequest = global::Dokime.Clients.FilesCaptureRequest;
+using FilesCaptureResponse = global::Dokime.Clients.FilesCaptureResponse;
 using PromptsCreateRequest = global::Dokime.Clients.PromptsCreateRequest;
 using PromptsCreateResponse = global::Dokime.Clients.PromptsCreateResponse;
 using SecretsGetRequest = global::Dokime.Clients.SecretsGetRequest;
 using SecretsGetResponse = global::Dokime.Clients.SecretsGetResponse;
-using InvocationsGetRequest = global::Harmos.Clients.InvocationsGetRequest;
-using InvocationsGetResponse = global::Harmos.Clients.InvocationsGetResponse;
-using InvocationsCancelRequest = global::Harmos.Clients.InvocationsCancelRequest;
-using InvocationsCancelResponse = global::Harmos.Clients.InvocationsCancelResponse;
-using InvocationsWatchRequest = global::Harmos.Clients.InvocationsWatchRequest;
-using InvocationsWatchResponse = global::Harmos.Clients.InvocationsWatchResponse;
-using SettingsListRequest = global::Harmos.Clients.SettingsListRequest;
 using SettingsListResponse = global::Harmos.Clients.SettingsListResponse;
-using TimeGetRequest = global::Harmos.Clients.TimeGetRequest;
-using TimeGetResponse = global::Harmos.Clients.TimeGetResponse;
-using TimeSleepRequest = global::Harmos.Clients.TimeSleepRequest;
 using TimeSleepResponse = global::Harmos.Clients.TimeSleepResponse;
+using Position = global::Harmos.Position;
+using FileReference = global::Harmos.FileReference;
+using ArtifactScope = global::Dokime.ArtifactScope;
+using Metadata = global::Dokime.Metadata;
+using Section = global::Dokime.Section;
+using Card = global::Dokime.Card;
+using Receipt = global::Harmos.Receipt;
+using EffectWritable = global::Dokime.Clients.EffectWritable;
+using Severity = global::Dokime.Severity;
+using Timestamp = global::Google.Protobuf.WellKnownTypes.Timestamp;
+using RecordScope = global::Dokime.Clients.EvidenceResources.RecordScope;
+using Window = global::Dokime.Window;
+using CapturedRecordSelection = global::Dokime.Clients.EvidenceResources.CapturedRecordSelection;
+using ReadCut = global::Harmos.ReadCut;
+using PageRequest = global::Harmos.PageRequest;
+using EvidenceScope = global::Dokime.EvidenceScope;
+using TraceabilityEntry = global::Dokime.TraceabilityEntry;
+using Output = global::Dokime.Clients.Output;
+using ExecutionProgressValue = global::Dokime.ExecutionProgressValue;
+using FileSource = global::Dokime.FileSource;
+using CaptureMode = global::Dokime.Clients.FilesResources.CaptureMode;
+using FileMetadata = global::Harmos.FileMetadata;
+using Upload = global::Harmos.Upload;
+using Value = global::Dokime.Value;
+using Prompt = global::Dokime.Prompt;
+using InstanceState = global::Harmos.InstanceState;
+using Duration = global::Google.Protobuf.WellKnownTypes.Duration;
 namespace Dokime.Plugins;
 using Harmos;
 using Harmos.Plugins;
 using Dokime.Clients;
+public sealed partial class Plugin
+{
+  internal Plugin RequiresLibrary(Harmos.Plugins.HostOperation operation)
+  {
+    transport.Requires(operation);
+    return this;
+  }
+}
 public enum HostOperation
 {
   BackendEnvironment,
+  ContentArtifactsCreate,
   DocumentsAppendParts,
   EffectsCreate,
   EffectsGet,
@@ -104,6 +134,7 @@ public enum HostOperation
   FilesRead,
   FilesWatch,
   FilesDelete,
+  FilesCapture,
   PromptsCreate,
   SecretsGet,
   InvocationsGet,
@@ -116,6 +147,7 @@ public enum HostOperation
 internal static class HostContracts
 {
   internal static readonly Operation<BackendEnvironmentRequest, BackendEnvironmentResponse> BackendEnvironment = new("dokime.host.v1.Backend/Environment", Visibility.Public, watch: false);
+  internal static readonly Operation<ArtifactsCreateRequest, ArtifactsCreateResponse> ContentArtifactsCreate = new("dokime.host.v1.content.Artifacts/Create", Visibility.Public, watch: false);
   internal static readonly Operation<DocumentsAppendPartsRequest, DocumentsAppendPartsResponse> DocumentsAppendParts = new("dokime.host.v1.Documents/AppendParts", Visibility.Public, watch: false);
   internal static readonly Operation<EffectsCreateRequest, EffectsCreateResponse> EffectsCreate = new("dokime.host.v1.Effects/Create", Visibility.Public, watch: false);
   internal static readonly Operation<EffectsGetRequest, EffectsGetResponse> EffectsGet = new("dokime.host.v1.Effects/Get", Visibility.Public, watch: false);
@@ -140,20 +172,16 @@ internal static class HostContracts
   internal static readonly Operation<FilesReadRequest, FilesReadResponse> FilesRead = new("dokime.host.v1.Files/Read", Visibility.Public, watch: false);
   internal static readonly Operation<FilesWatchRequest, FilesWatchResponse> FilesWatch = new("dokime.host.v1.Files/Watch", Visibility.Public, watch: true);
   internal static readonly Operation<FilesDeleteRequest, FilesDeleteResponse> FilesDelete = new("dokime.host.v1.Files/Delete", Visibility.Public, watch: false);
+  internal static readonly Operation<FilesCaptureRequest, FilesCaptureResponse> FilesCapture = new("dokime.host.v1.Files/Capture", Visibility.Public, watch: false);
   internal static readonly Operation<PromptsCreateRequest, PromptsCreateResponse> PromptsCreate = new("dokime.host.v1.Prompts/Create", Visibility.Public, watch: false);
   internal static readonly Operation<SecretsGetRequest, SecretsGetResponse> SecretsGet = new("dokime.host.v1.Secrets/Get", Visibility.Public, watch: false);
-  internal static readonly Operation<InvocationsGetRequest, InvocationsGetResponse> InvocationsGet = new("harmos.host.v1.Invocations/Get", Visibility.Public, watch: false);
-  internal static readonly Operation<InvocationsCancelRequest, InvocationsCancelResponse> InvocationsCancel = new("harmos.host.v1.Invocations/Cancel", Visibility.Public, watch: false);
-  internal static readonly Operation<InvocationsWatchRequest, InvocationsWatchResponse> InvocationsWatch = new("harmos.host.v1.Invocations/Watch", Visibility.Public, watch: true);
-  internal static readonly Operation<SettingsListRequest, SettingsListResponse> PluginsSettingsList = new("harmos.host.v1.plugins.Settings/List", Visibility.Public, watch: false);
-  internal static readonly Operation<TimeGetRequest, TimeGetResponse> TimeGet = new("harmos.host.v1.Time/Get", Visibility.Public, watch: false);
-  internal static readonly Operation<TimeSleepRequest, TimeSleepResponse> TimeSleep = new("harmos.host.v1.Time/Sleep", Visibility.Public, watch: false);
 }
 public static class HostRequirements
 {
   public static Plugin Requires(this Plugin plugin, HostOperation operation) => operation switch
   {
     HostOperation.BackendEnvironment => plugin.Requires(HostContracts.BackendEnvironment),
+    HostOperation.ContentArtifactsCreate => plugin.Requires(HostContracts.ContentArtifactsCreate),
     HostOperation.DocumentsAppendParts => plugin.Requires(HostContracts.DocumentsAppendParts),
     HostOperation.EffectsCreate => plugin.Requires(HostContracts.EffectsCreate),
     HostOperation.EffectsGet => plugin.Requires(HostContracts.EffectsGet),
@@ -178,20 +206,22 @@ public static class HostRequirements
     HostOperation.FilesRead => plugin.Requires(HostContracts.FilesRead),
     HostOperation.FilesWatch => plugin.Requires(HostContracts.FilesWatch),
     HostOperation.FilesDelete => plugin.Requires(HostContracts.FilesDelete),
+    HostOperation.FilesCapture => plugin.Requires(HostContracts.FilesCapture),
     HostOperation.PromptsCreate => plugin.Requires(HostContracts.PromptsCreate),
     HostOperation.SecretsGet => plugin.Requires(HostContracts.SecretsGet),
-    HostOperation.InvocationsGet => plugin.Requires(HostContracts.InvocationsGet),
-    HostOperation.InvocationsCancel => plugin.Requires(HostContracts.InvocationsCancel),
-    HostOperation.InvocationsWatch => plugin.Requires(HostContracts.InvocationsWatch),
-    HostOperation.PluginsSettingsList => plugin.Requires(HostContracts.PluginsSettingsList),
-    HostOperation.TimeGet => plugin.Requires(HostContracts.TimeGet),
-    HostOperation.TimeSleep => plugin.Requires(HostContracts.TimeSleep),
+    HostOperation.InvocationsGet => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.InvocationsGet),
+    HostOperation.InvocationsCancel => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.InvocationsCancel),
+    HostOperation.InvocationsWatch => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.InvocationsWatch),
+    HostOperation.PluginsSettingsList => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.PluginsSettingsList),
+    HostOperation.TimeGet => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.TimeGet),
+    HostOperation.TimeSleep => plugin.RequiresLibrary(Harmos.Plugins.HostOperation.TimeSleep),
     _ => throw new ArgumentOutOfRangeException(nameof(operation), "Declare Host Requirement: Unknown Operation")
   };
 }
 public sealed class HostRoot(Context context)
 {
   public HostBackendResource Backend { get; } = new(context);
+  public HostContentResource Content { get; } = new(context);
   public HostDocumentsResource Documents { get; } = new(context);
   public HostEffectsResource Effects { get; } = new(context);
   public HostEvidenceResource Evidence { get; } = new(context);
@@ -205,7 +235,7 @@ public sealed class HostRoot(Context context)
 }
 public sealed class HostBackendResource(Context context)
 {
-  public async Task<BackendEnvironmentResponse> Environment(Position? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<BackendEnvironmentResponse> Environment(global::Harmos.Position? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new BackendEnvironmentRequest
     {
@@ -215,9 +245,31 @@ public sealed class HostBackendResource(Context context)
     return response;
   }
 }
+public sealed class HostContentResource(Context context)
+{
+  public HostContentArtifactsResource Artifacts { get; } = new(context);
+}
+public sealed class HostContentArtifactsResource(Context context)
+{
+  public async Task<ArtifactsCreateResponse> Create(global::Harmos.FileReference file, string filename, string content_type, global::Dokime.ArtifactScope? scope = null, string? request_id = null, global::Dokime.Metadata? metadata = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  {
+    var request = new ArtifactsCreateRequest
+    {
+      File = file,
+      Filename = filename,
+      ContentType = content_type,
+    };
+    request.RequestId = request_id ?? Guid.NewGuid().ToString("N");
+    if (scope is not null) request.Scope = scope;
+    if (request_id is not null) request.RequestId = request_id;
+    if (metadata is not null) request.Metadata = metadata;
+    var response = await context.CallAsync(HostContracts.ContentArtifactsCreate, request, policy, cancellationToken);
+    return response;
+  }
+}
 public sealed class HostDocumentsResource(Context context)
 {
-  public async Task<Receipt> AppendParts(string execution, string document, string section, Section? subsection = null, Card? card = null, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<global::Harmos.Receipt> AppendParts(string execution, string document, string section, global::Dokime.Section? subsection = null, global::Dokime.Card? card = null, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     if ((subsection is null ? 0 : 1) + (card is null ? 0 : 1) != 1)
     {
@@ -253,7 +305,7 @@ public sealed class HostEffectsResource(Context context)
     var response = await context.CallAsync(HostContracts.EffectsCreate, request, policy, cancellationToken);
     return response;
   }
-  public async Task<EffectsGetResponse> Get(string name, Position? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<EffectsGetResponse> Get(string name, global::Harmos.Position? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new EffectsGetRequest
     {
@@ -263,7 +315,7 @@ public sealed class HostEffectsResource(Context context)
     var response = await context.CallAsync(HostContracts.EffectsGet, request, policy, cancellationToken);
     return response;
   }
-  public async Task<EffectsSetResponse> Set(string name, EffectWritable value, ByteString expected_revision, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<EffectsSetResponse> Set(string name, global::Dokime.Clients.EffectWritable value, ByteString expected_revision, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new EffectsSetRequest
     {
@@ -282,7 +334,7 @@ public sealed class HostEvidenceResource(Context context)
   public HostEvidenceLogsResource Logs { get; } = new(context);
   public HostEvidenceRecordsResource Records { get; } = new(context);
   public HostEvidenceTraceabilityResource Traceability { get; } = new(context);
-  public async Task<EvidenceStatisticsResponse> Statistics(string stream, IReadOnlyList<uint> versions, Window between, IReadOnlyList<Output> outputs, string field, string step, EvidenceScope? scope = null, ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<EvidenceStatisticsResponse> Statistics(string stream, IReadOnlyList<uint> versions, global::Dokime.Window between, IReadOnlyList<global::Dokime.Clients.Output> outputs, string field, string step, global::Dokime.EvidenceScope? scope = null, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new EvidenceStatisticsRequest
     {
@@ -301,7 +353,7 @@ public sealed class HostEvidenceResource(Context context)
 }
 public sealed class HostEvidenceLogsResource(Context context)
 {
-  public async Task<Receipt> Append(string execution, Severity severity, string message, Timestamp at, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<global::Harmos.Receipt> Append(string execution, global::Dokime.Severity severity, string message, global::Google.Protobuf.WellKnownTypes.Timestamp at, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new LogsAppendRequest
     {
@@ -318,7 +370,7 @@ public sealed class HostEvidenceLogsResource(Context context)
 }
 public sealed class HostEvidenceRecordsResource(Context context)
 {
-  public async Task<RecordsListResponse> List(string record_type, IReadOnlyList<uint> versions, Window between, string step, CapturedRecordSelection selection, RecordScope? scope = null, ReadCut? at = null, PageRequest? page = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<RecordsListResponse> List(string record_type, IReadOnlyList<uint> versions, global::Dokime.Window between, string step, global::Dokime.Clients.EvidenceResources.CapturedRecordSelection selection, global::Dokime.Clients.EvidenceResources.RecordScope? scope = null, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new RecordsListRequest
     {
@@ -334,7 +386,7 @@ public sealed class HostEvidenceRecordsResource(Context context)
     var response = await context.CallAsync(HostContracts.EvidenceRecordsList, request, policy, cancellationToken);
     return response;
   }
-  public async Task<RecordsAppendResponse> Append(string execution, string kind, ByteString payload, Timestamp source_at, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<RecordsAppendResponse> Append(string execution, string kind, ByteString payload, global::Google.Protobuf.WellKnownTypes.Timestamp source_at, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new RecordsAppendRequest
     {
@@ -351,7 +403,7 @@ public sealed class HostEvidenceRecordsResource(Context context)
 }
 public sealed class HostEvidenceTraceabilityResource(Context context)
 {
-  public async Task<TraceabilityGetResponse> Get(EvidenceScope? scope = null, PageRequest? page = null, ReadCut? at = null, string? entry = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<TraceabilityGetResponse> Get(global::Dokime.EvidenceScope? scope = null, global::Harmos.PageRequest? page = null, global::Harmos.ReadCut? at = null, string? entry = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new TraceabilityGetRequest
     {
@@ -363,7 +415,7 @@ public sealed class HostEvidenceTraceabilityResource(Context context)
     var response = await context.CallAsync(HostContracts.EvidenceTraceabilityGet, request, policy, cancellationToken);
     return response;
   }
-  public async Task<TraceabilitySetResponse> Set(TraceabilityEntry value, ByteString expected_revision, string entry, string? name = null, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<TraceabilitySetResponse> Set(global::Dokime.TraceabilityEntry value, ByteString expected_revision, string entry, string? name = null, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new TraceabilitySetRequest
     {
@@ -384,7 +436,7 @@ public sealed class HostExecutionsResource(Context context)
 }
 public sealed class HostExecutionsProgressResource(Context context)
 {
-  public async Task<ProgressGetResponse> Get(string? name = null, Position? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<ProgressGetResponse> Get(string? name = null, global::Harmos.Position? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new ProgressGetRequest
     {
@@ -394,7 +446,7 @@ public sealed class HostExecutionsProgressResource(Context context)
     var response = await context.CallAsync(HostContracts.ExecutionsProgressGet, request, policy, cancellationToken);
     return response;
   }
-  public async Task<ProgressSetResponse> Set(ExecutionProgressValue value, ByteString expected_revision, string? name = null, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<ProgressSetResponse> Set(global::Dokime.ExecutionProgressValue value, ByteString expected_revision, string? name = null, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new ProgressSetRequest
     {
@@ -412,7 +464,7 @@ public sealed class HostFilesResource(Context context)
 {
   public HostFilesCapturesResource Captures { get; } = new(context);
   public HostFilesUploadsResource Uploads { get; } = new(context);
-  public async Task<FilesGetResponse> Get(FileReference file, ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<FilesGetResponse> Get(global::Harmos.FileReference file, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new FilesGetRequest
     {
@@ -422,7 +474,7 @@ public sealed class HostFilesResource(Context context)
     var response = await context.CallAsync(HostContracts.FilesGet, request, policy, cancellationToken);
     return response;
   }
-  public async Task<FilesReadResponse> Read(FileReference file, ulong offset, ulong max_bytes, ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<FilesReadResponse> Read(global::Harmos.FileReference file, ulong offset, ulong max_bytes, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new FilesReadRequest
     {
@@ -434,7 +486,7 @@ public sealed class HostFilesResource(Context context)
     var response = await context.CallAsync(HostContracts.FilesRead, request, policy, cancellationToken);
     return response;
   }
-  public async IAsyncEnumerable<FilesWatchResponse> Watch(FileReference file, ulong offset, ulong maxItemBytes, ReadCut? at = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<FilesWatchResponse> Watch(global::Harmos.FileReference file, ulong offset, ulong maxItemBytes, global::Harmos.ReadCut? at = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
     var request = new FilesWatchRequest
     {
@@ -447,7 +499,7 @@ public sealed class HostFilesResource(Context context)
       yield return response;
     }
   }
-  public async Task<Receipt> Delete(FileReference file, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<global::Harmos.Receipt> Delete(global::Harmos.FileReference file, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new FilesDeleteRequest
     {
@@ -458,10 +510,20 @@ public sealed class HostFilesResource(Context context)
     var response = await context.CallAsync(HostContracts.FilesDelete, request, policy, cancellationToken);
     return response.Receipt ?? throw new InvalidOperationException("Read FilesDelete: Missing Payload");
   }
+  public async Task<FilesCaptureResponse> Capture(global::Dokime.FileSource source, string output, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  {
+    var request = new FilesCaptureRequest
+    {
+      Source = source,
+      Output = output,
+    };
+    var response = await context.CallAsync(HostContracts.FilesCapture, request, policy, cancellationToken);
+    return response;
+  }
 }
 public sealed class HostFilesCapturesResource(Context context)
 {
-  public async Task<ulong> Start(FileSource source, string output, CaptureMode mode, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<ulong> Start(global::Dokime.FileSource source, string output, global::Dokime.Clients.FilesResources.CaptureMode mode, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new CapturesStartRequest
     {
@@ -484,7 +546,7 @@ public sealed class HostFilesCapturesResource(Context context)
 }
 public sealed class HostFilesUploadsResource(Context context)
 {
-  public async Task<UploadsCreateResponse> Create(FileMetadata metadata, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<UploadsCreateResponse> Create(global::Harmos.FileMetadata metadata, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new UploadsCreateRequest
     {
@@ -495,7 +557,7 @@ public sealed class HostFilesUploadsResource(Context context)
     var response = await context.CallAsync(HostContracts.FilesUploadsCreate, request, policy, cancellationToken);
     return response;
   }
-  public async Task<UploadsGetResponse> Get(Upload upload, ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<UploadsGetResponse> Get(global::Harmos.Upload upload, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new UploadsGetRequest
     {
@@ -505,7 +567,7 @@ public sealed class HostFilesUploadsResource(Context context)
     var response = await context.CallAsync(HostContracts.FilesUploadsGet, request, policy, cancellationToken);
     return response;
   }
-  public async Task<UploadsResumeResponse> Resume(Upload upload, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<UploadsResumeResponse> Resume(global::Harmos.Upload upload, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new UploadsResumeRequest
     {
@@ -516,7 +578,7 @@ public sealed class HostFilesUploadsResource(Context context)
     var response = await context.CallAsync(HostContracts.FilesUploadsResume, request, policy, cancellationToken);
     return response;
   }
-  public async Task<UploadsAppendResponse> Append(Upload upload, ulong offset, ByteString data, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<UploadsAppendResponse> Append(global::Harmos.Upload upload, ulong offset, ByteString data, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new UploadsAppendRequest
     {
@@ -529,7 +591,7 @@ public sealed class HostFilesUploadsResource(Context context)
     var response = await context.CallAsync(HostContracts.FilesUploadsAppend, request, policy, cancellationToken);
     return response;
   }
-  public async Task<UploadsPublishResponse> Publish(Upload upload, ulong length, ByteString sha256, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<UploadsPublishResponse> Publish(global::Harmos.Upload upload, ulong length, ByteString sha256, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new UploadsPublishRequest
     {
@@ -542,7 +604,7 @@ public sealed class HostFilesUploadsResource(Context context)
     var response = await context.CallAsync(HostContracts.FilesUploadsPublish, request, policy, cancellationToken);
     return response;
   }
-  public async Task<UploadsDeleteResponse> Delete(Upload upload, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<UploadsDeleteResponse> Delete(global::Harmos.Upload upload, string? request_id = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new UploadsDeleteRequest
     {
@@ -556,35 +618,17 @@ public sealed class HostFilesUploadsResource(Context context)
 }
 public sealed class HostInvocationsResource(Context context)
 {
-  public async Task<InstanceState> Get(ulong instance, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<global::Harmos.InstanceState> Get(ulong instance, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
-    var request = new InvocationsGetRequest
-    {
-      Instance = instance,
-    };
-    var response = await context.CallAsync(HostContracts.InvocationsGet, request, policy, cancellationToken);
-    return response.Invocation ?? throw new InvalidOperationException("Read InvocationsGet: Missing Payload");
+    return await context.Transport.Host.Invocations.Get(instance, policy, cancellationToken);
   }
-  public async Task<InstanceState> Cancel(ulong instance, string reason, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<global::Harmos.InstanceState> Cancel(ulong instance, string reason, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
-    var request = new InvocationsCancelRequest
-    {
-      Instance = instance,
-      Reason = reason,
-    };
-    var response = await context.CallAsync(HostContracts.InvocationsCancel, request, policy, cancellationToken);
-    return response.Invocation ?? throw new InvalidOperationException("Read InvocationsCancel: Missing Payload");
+    return await context.Transport.Host.Invocations.Cancel(instance, reason, policy, cancellationToken);
   }
-  public async IAsyncEnumerable<InstanceState> Watch(ulong instance, ulong maxItemBytes, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Harmos.InstanceState> Watch(ulong instance, ulong maxItemBytes, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new InvocationsWatchRequest
-    {
-      Instance = instance,
-    };
-    await foreach (var response in context.WatchAsync(HostContracts.InvocationsWatch, request, maxItemBytes, cancellationToken))
-    {
-      yield return response.Invocation ?? throw new InvalidOperationException("Read InvocationsWatch: Missing Payload");
-    }
+    await foreach (var response in context.Transport.Host.Invocations.Watch(instance, maxItemBytes, cancellationToken)) { yield return response; }
   }
 }
 public sealed class HostPluginsResource(Context context)
@@ -593,20 +637,14 @@ public sealed class HostPluginsResource(Context context)
 }
 public sealed class HostPluginsSettingsResource(Context context)
 {
-  public async Task<SettingsListResponse> List(string? name = null, ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<SettingsListResponse> List(string? name = null, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
-    var request = new SettingsListRequest
-    {
-    };
-    if (name is not null) request.Name = name;
-    if (at is not null) request.At = at;
-    var response = await context.CallAsync(HostContracts.PluginsSettingsList, request, policy, cancellationToken);
-    return response;
+    return await context.Transport.Host.Plugins.Settings.List(name, at, policy, cancellationToken);
   }
 }
 public sealed class HostPromptsResource(Context context)
 {
-  public async Task<PromptsCreateResponse> Create(string prompt, string prompt_type, IReadOnlyDictionary<string, Value> values, Prompt? definition = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<PromptsCreateResponse> Create(string prompt, string prompt_type, IReadOnlyDictionary<string, global::Dokime.Value> values, global::Dokime.Prompt? definition = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new PromptsCreateRequest
     {
@@ -624,7 +662,7 @@ public sealed class HostPromptsResource(Context context)
 }
 public sealed class HostSecretsResource(Context context)
 {
-  public async Task<SecretsGetResponse> Get(string name, ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<SecretsGetResponse> Get(string name, global::Harmos.ReadCut? at = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var request = new SecretsGetRequest
     {
@@ -637,21 +675,12 @@ public sealed class HostSecretsResource(Context context)
 }
 public sealed class HostTimeResource(Context context)
 {
-  public async Task<Timestamp> Get(OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<global::Google.Protobuf.WellKnownTypes.Timestamp> Get(OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
-    var request = new TimeGetRequest
-    {
-    };
-    var response = await context.CallAsync(HostContracts.TimeGet, request, policy, cancellationToken);
-    return response.Now ?? throw new InvalidOperationException("Read TimeGet: Missing Payload");
+    return await context.Transport.Host.Time.Get(policy, cancellationToken);
   }
-  public async Task<TimeSleepResponse> Sleep(Duration duration, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
+  public async Task<TimeSleepResponse> Sleep(global::Google.Protobuf.WellKnownTypes.Duration duration, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
-    var request = new TimeSleepRequest
-    {
-      Duration = duration,
-    };
-    var response = await context.CallAsync(HostContracts.TimeSleep, request, policy, cancellationToken);
-    return response;
+    return await context.Transport.Host.Time.Sleep(duration, policy, cancellationToken);
   }
 }

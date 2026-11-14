@@ -15,20 +15,17 @@ from collections.abc import Iterable
 from enum import IntEnum
 from typing import Self, cast
 
-from dokime._wire.model.v1.expressions_pb2 import DataExpression, FieldReference
-
 # Third Party Imports
 # Local Imports
-from ._wire.model.v1.expressions_pb2 import Aggregate as AggregateValue
-from ._wire.model.v1.expressions_pb2 import TransformExpression
-from ._wire.model.v1.plots_pb2 import AxisScale as AxisScaleValue
-from ._wire.model.v1.plots_pb2 import BarArrangement as BarArrangementValue
-from ._wire.model.v1.plots_pb2 import ContourRender as ContourRenderValue
-from ._wire.model.v1.plots_pb2 import GridAxisEntry, GridHighlight, PlotKind, ReferenceBand, ReferenceLine
-from ._wire.model.v1.plots_pb2 import Plot as PlotValue
-from ._wire.model.v1.plots_pb2 import PlotStyle as PlotStyleValue
-from ._wire.model.v1.plots_pb2 import Reduction as ReductionValue
-from ._wire.model.v1.plots_pb2 import XyInterval as XyIntervalValue
+from dokime import Aggregate as AggregateValue
+from dokime import AxisScale as AxisScaleValue
+from dokime import BarArrangement as BarArrangementValue
+from dokime import ContourRender as ContourRenderValue
+from dokime import DataExpression, FieldReference, GridAxisEntry, GridHighlight, PlotKind, ReferenceBand, ReferenceLine, TransformExpression
+from dokime import Plot as PlotValue
+from dokime import PlotStyle as PlotStyleValue
+from dokime import Reduction as ReductionValue
+from dokime import XyInterval as XyIntervalValue
 
 # Type Checking Imports
 

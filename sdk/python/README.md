@@ -1,7 +1,7 @@
 # Dokime Python SDK
 
 `dokime-sdk` is a pure Python package for async clients and remote plugin authoring.
-It composes Harmos at immutable revision `2124adafd52e1c50085521389c82720387edd46d`.
+It composes Harmos at immutable revision `299b7ce492e3a82bc4ddf61dc60c2161b6824110`.
 Python connects to an existing host; the application owns the plugin endpoint and its shutdown.
 
 ## Install
@@ -36,7 +36,7 @@ async def inspect(endpoint: str) -> None:
         await client.close()
 ```
 
-`dokime.Client` and `dokime.client.Client` expose one composed resource tree.
+`dokime.client.Client` exposes one composed resource tree.
 Pass request content as arguments, such as `client.executions.get(name)` and
 `client.plugins.settings.list(name)`. Operations with one response field return
 that field; operations with several return their typed response. Client calls accept
@@ -168,6 +168,7 @@ mise -C sdk/python run install
 mise -C sdk/python run unit
 mise -C sdk/python run test
 mise -C sdk/python run generated
+mise -C sdk/python run test:generation
 mise -C sdk/python run package
 mise -C sdk/python run wheel
 ```
@@ -178,6 +179,9 @@ temporary storage and reports drift without writing committed output. `generated
 checks the installed wheel's source manifest, private descriptor set, message
 shapes, RPC cardinalities and serializers. `tools/stubs.py` checks authored public
 modules and generated resource signatures against the installed package.
+`test:generation` imports the public barrels and type-checks client and plugin
+content calls independently of the product host, using the same lint and typing
+rules as authored code.
 
 Build exports a pure wheel and source distribution under
 `target/build/dev/any/python`; package verifies and copies those bytes to

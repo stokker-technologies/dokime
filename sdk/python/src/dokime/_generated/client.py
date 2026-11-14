@@ -8,9 +8,9 @@ from google.protobuf.duration_pb2 import Duration
 from google.protobuf.timestamp_pb2 import Timestamp
 from grpc import CallCredentials
 from grpc.aio import AioRpcError, Channel
-from harmos import Client as LibraryClient
 from harmos._client_transport import Metadata as CallMetadata
 from harmos._client_transport import call_error, stream, unary
+from harmos._connection import Connection as LibraryConnection
 from harmos._wire.host.v1.access.certificates_pb2 import CertificatesCreateRequest as AccessCertificatesCreateRequest
 from harmos._wire.host.v1.access.certificates_pb2 import CertificatesCreateResponse as AccessCertificatesCreateResponse
 from harmos._wire.host.v1.access.listener_pb2 import ListenerGetRequest as AccessListenerGetRequest
@@ -81,21 +81,6 @@ from harmos._wire.model.v1.page_pb2 import PageRequest
 from harmos._wire.model.v1.position_pb2 import Position, ReadCut
 from harmos._wire.model.v1.receipt_pb2 import Receipt
 from harmos._wire.model.v1.setting_pb2 import SettingValues
-from harmos.client import AccessCertificatesResource as LibraryAccessCertificatesResource
-from harmos.client import AccessListenerResource as LibraryAccessListenerResource
-from harmos.client import AccessPairingsResource as LibraryAccessPairingsResource
-from harmos.client import AccessResource as LibraryAccessResource
-from harmos.client import InvocationsResource as LibraryInvocationsResource
-from harmos.client import OperationsResource as LibraryOperationsResource
-from harmos.client import PluginsResource as LibraryPluginsResource
-from harmos.client import PluginsSettingsResource as LibraryPluginsSettingsResource
-from harmos.client import SchemasResource as LibrarySchemasResource
-from harmos.client import StatusDiagnosticsResource as LibraryStatusDiagnosticsResource
-from harmos.client import StatusLogsResource as LibraryStatusLogsResource
-from harmos.client import StatusResource as LibraryStatusResource
-from harmos.client import StatusTraceEventsResource as LibraryStatusTraceEventsResource
-from harmos.client import StreamsResource as LibraryStreamsResource
-from harmos.client import TimeResource as LibraryTimeResource
 
 from dokime._wire.host.v1.aggregates_pb2 import AggregatesGetRequest, AggregatesGetResponse, QueryAggregate, QueryFilter, QuerySource
 from dokime._wire.host.v1.analyses_pb2 import AnalysesListRequest, AnalysesListResponse
@@ -365,9 +350,8 @@ from dokime._wire.model.v1.metadata_pb2 import Metadata
 from dokime._wire.model.v1.scalar_pb2 import MapValue
 
 
-class AccessCertificatesResource(LibraryAccessCertificatesResource):
+class AccessCertificatesResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def create(
@@ -387,9 +371,8 @@ class AccessCertificatesResource(LibraryAccessCertificatesResource):
         return response.certificate_pem
 
 
-class AccessListenerResource(LibraryAccessListenerResource):
+class AccessListenerResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def get(
@@ -431,9 +414,8 @@ class AccessListenerResource(LibraryAccessListenerResource):
         return response
 
 
-class AccessPairingsResource(LibraryAccessPairingsResource):
+class AccessPairingsResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def create(
@@ -581,10 +563,10 @@ class ContentArtifactsResource:
     async def create(
         self,
         file: FileReference,
+        scope: ArtifactScope,
         filename: str,
         content_type: str,
         *,
-        scope: ArtifactScope | None = None,
         request_id: str | None = None,
         metadata: Metadata | None = None,
         call_metadata: CallMetadata | None = None,
@@ -1752,9 +1734,8 @@ class PluginsSecretsResource:
         return response.receipt
 
 
-class PluginsSettingsResource(LibraryPluginsSettingsResource):
+class PluginsSettingsResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def list(
@@ -1842,9 +1823,8 @@ class PromptsAnswersResource:
         return response
 
 
-class StatusDiagnosticsResource(LibraryStatusDiagnosticsResource):
+class StatusDiagnosticsResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def get(
@@ -1871,9 +1851,8 @@ class StatusDiagnosticsResource(LibraryStatusDiagnosticsResource):
         return response
 
 
-class StatusLogsResource(LibraryStatusLogsResource):
+class StatusLogsResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def list(
@@ -1927,9 +1906,8 @@ class StatusLogsResource(LibraryStatusLogsResource):
             call.cancel()
 
 
-class StatusTraceEventsResource(LibraryStatusTraceEventsResource):
+class StatusTraceEventsResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def list(
@@ -2034,9 +2012,8 @@ class StorageSourcesResource:
         return response
 
 
-class AccessResource(LibraryAccessResource):
+class AccessResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
         self._composed_certificates = AccessCertificatesResource(channel)
         self._composed_listener = AccessListenerResource(channel)
@@ -3027,9 +3004,8 @@ class FilesResource:
         return response.receipt
 
 
-class InvocationsResource(LibraryInvocationsResource):
+class InvocationsResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def create(
@@ -3141,9 +3117,8 @@ class MediaResource:
         return self._composed_captures
 
 
-class OperationsResource(LibraryOperationsResource):
+class OperationsResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def list(
@@ -3201,9 +3176,8 @@ class PlotsResource:
         return self._composed_snapshots
 
 
-class PluginsResource(LibraryPluginsResource):
+class PluginsResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
         self._composed_secrets = PluginsSecretsResource(channel)
         self._composed_settings = PluginsSettingsResource(channel)
@@ -3691,9 +3665,8 @@ class ReportsResource:
         return response
 
 
-class SchemasResource(LibrarySchemasResource):
+class SchemasResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def list(
@@ -3969,9 +3942,8 @@ class SettingsResource:
         return response
 
 
-class StatusResource(LibraryStatusResource):
+class StatusResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
         self._composed_diagnostics = StatusDiagnosticsResource(channel)
         self._composed_logs = StatusLogsResource(channel)
@@ -4093,9 +4065,8 @@ class StreamSchemasResource:
         return response
 
 
-class StreamsResource(LibraryStreamsResource):
+class StreamsResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def list(
@@ -4171,9 +4142,8 @@ class SuitesResource:
         return response
 
 
-class TimeResource(LibraryTimeResource):
+class TimeResource:
     def __init__(self, channel: Channel) -> None:
-        super().__init__(channel)
         self._channel = channel
 
     async def get(
@@ -4216,7 +4186,7 @@ class TimeResource(LibraryTimeResource):
         return response
 
 
-class ClientRoot(LibraryClient):
+class ClientRoot(LibraryConnection):
     def __init__(self, channel: Channel) -> None:
         super().__init__(channel)
         self._channel = channel

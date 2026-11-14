@@ -9,6 +9,8 @@
     <RepositoryUrl>https://github.com/stokker-technologies/dokime</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Generation Proof Excludes the Unrepaired Authored File Convenience. -->
+    <Compile Remove="FileTransfers.cs" Condition="'$(DokimeGeneratedOnly)' == 'true'" />
     <InternalsVisibleTo Include="Stories" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <None Include="$(RepoRoot)docs/sdk-csharp.md" Pack="true" PackagePath="/" />

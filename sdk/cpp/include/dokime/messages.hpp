@@ -1,6 +1,6 @@
 // @generated from protocol descriptors; do not edit.
 #pragma once
-#include "detail/messages_wire.hpp"
+#include "detail/messages.hpp"
 namespace dokime {
 using Value = ::dokime::detail::SharedValue;
 using ExactNumber = ::dokime::detail::SharedExactNumber;
@@ -92,7 +92,7 @@ inline constexpr auto SEVERITY_UNSPECIFIED = ::dokime::detail::SharedSEVERITY_UN
 inline constexpr auto SEVERITY_DEBUG = ::dokime::detail::SharedSEVERITY_DEBUG;
 inline constexpr auto SEVERITY_INFO = ::dokime::detail::SharedSEVERITY_INFO;
 inline constexpr auto SEVERITY_WARNING = ::dokime::detail::SharedSEVERITY_WARNING;
-inline constexpr auto SEVERITY_ERROR = ::dokime::detail::SharedSEVERITY_ERROR;
+inline constexpr auto SEVERITY_FAILURE = ::dokime::detail::SharedSEVERITY_FAILURE;
 inline constexpr auto STREAM_MATCH_OPERATOR_UNSPECIFIED = ::dokime::detail::SharedSTREAM_MATCH_OPERATOR_UNSPECIFIED;
 inline constexpr auto STREAM_MATCH_OPERATOR_EXISTS = ::dokime::detail::SharedSTREAM_MATCH_OPERATOR_EXISTS;
 inline constexpr auto STREAM_MATCH_OPERATOR_EQ = ::dokime::detail::SharedSTREAM_MATCH_OPERATOR_EQ;
@@ -123,6 +123,7 @@ inline constexpr auto TERMINATION_INTERRUPTED = ::dokime::detail::SharedTERMINAT
 using Field = ::dokime::detail::SharedField;
 using Schema = ::dokime::detail::SharedSchema;
 using FieldType = ::dokime::detail::SharedFieldType;
+using ContentArtifactsCreateResponse = ::dokime::detail::SharedContentArtifactsCreateResponse;
 using Plot = ::dokime::detail::SharedPlot;
 using GridAxisEntry = ::dokime::detail::SharedGridAxisEntry;
 using GridHighlight = ::dokime::detail::SharedGridHighlight;
@@ -627,7 +628,6 @@ inline constexpr auto CASE_STATUS_BLOCKED = ::dokime::detail::ClientCASE_STATUS_
 inline constexpr auto CASE_STATUS_CANCELLED = ::dokime::detail::ClientCASE_STATUS_CANCELLED;
 inline constexpr auto CASE_STATUS_INTERRUPTED = ::dokime::detail::ClientCASE_STATUS_INTERRUPTED;
 using ContentArtifactsGetResponse = ::dokime::detail::ClientContentArtifactsGetResponse;
-using ContentArtifactsCreateResponse = ::dokime::detail::ClientContentArtifactsCreateResponse;
 using ContentArtifactsListResponse = ::dokime::detail::ClientContentArtifactsListResponse;
 using ContentArtifactsWatchResponse = ::dokime::detail::ClientContentArtifactsWatchResponse;
 using ContentExecutionFilesGetResponse = ::dokime::detail::ClientContentExecutionFilesGetResponse;
@@ -829,8 +829,6 @@ inline constexpr auto EXECUTION_COMMAND_PHASE_FAILED = ::dokime::detail::ClientE
 inline constexpr auto EXECUTION_COMMAND_PHASE_INTERRUPTED = ::dokime::detail::ClientEXECUTION_COMMAND_PHASE_INTERRUPTED;
 using ExecutionsProgressWatchResponse = ::dokime::detail::ClientExecutionsProgressWatchResponse;
 using ExecutionsSchemasGetResponse = ::dokime::detail::ClientExecutionsSchemasGetResponse;
-using FilesCaptureRequest = ::dokime::detail::ClientFilesCaptureRequest;
-using FilesCaptureResponse = ::dokime::detail::ClientFilesCaptureResponse;
 using MediaCapturesCreateResponse = ::dokime::detail::ClientMediaCapturesCreateResponse;
 using MediaCapturesGetResponse = ::dokime::detail::ClientMediaCapturesGetResponse;
 using MediaCapturesWatchResponse = ::dokime::detail::ClientMediaCapturesWatchResponse;
@@ -975,5 +973,19 @@ using FilesMirrorCapture = ::dokime::detail::PluginFilesMirrorCapture;
 using FilesLineMatcher = ::dokime::detail::PluginFilesLineMatcher;
 using FilesLineField = ::dokime::detail::PluginFilesLineField;
 using FilesLineMarker = ::dokime::detail::PluginFilesLineMarker;
+using FilesCaptureResponse = ::dokime::detail::PluginFilesCaptureResponse;
 using PromptsCreateResponse = ::dokime::detail::PluginPromptsCreateResponse;
+using AnalysesComputeRequest = ::dokime::detail::PluginAnalysesComputeRequest;
+using AnalysesComputeResponse = ::dokime::detail::PluginAnalysesComputeResponse;
+using AnalysisSamples = ::dokime::detail::PluginAnalysisSamples;
+using CriteriaEvaluateRequest = ::dokime::detail::PluginCriteriaEvaluateRequest;
+using CriteriaEvaluateResponse = ::dokime::detail::PluginCriteriaEvaluateResponse;
+using ExecutionsInitializeRequest = ::dokime::detail::PluginExecutionsInitializeRequest;
+using ExecutionsInitializeResponse = ::dokime::detail::PluginExecutionsInitializeResponse;
+using ExecutionsCleanupRequest = ::dokime::detail::PluginExecutionsCleanupRequest;
+using ExecutionsCleanupResponse = ::dokime::detail::PluginExecutionsCleanupResponse;
+using StepsExecuteRequest = ::dokime::detail::PluginStepsExecuteRequest;
+using StepsExecuteResponse = ::dokime::detail::PluginStepsExecuteResponse;
+using TestCasesMaterializeRequest = ::dokime::detail::PluginTestCasesMaterializeRequest;
+using TestCasesMaterializeResponse = ::dokime::detail::PluginTestCasesMaterializeResponse;
 } // namespace dokime::plugin

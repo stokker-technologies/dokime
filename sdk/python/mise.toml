@@ -70,3 +70,7 @@ run = 'uv run --no-sync --project ../../tools/python python tools/generate.py'
 [tasks.unit]
 description = "Test Python SDK Units"
 run = 'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v'
+
+[tasks."test:generation"]
+description = "Compile the Generated Client and Plugin Surfaces"
+run = "mise -C ../.. run check:generated -- --language python"

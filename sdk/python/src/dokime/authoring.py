@@ -22,13 +22,9 @@ from weakref import WeakKeyDictionary
 from google.protobuf.message import Message
 from google.protobuf.wrappers_pb2 import DoubleValue
 
-from dokime._wire.model.v1.execution_pb2 import TestCase
-from dokime._wire.model.v1.expressions_pb2 import DataExpression
-from dokime._wire.model.v1.suites_pb2 import TestCaseTemplate
-
-from ._wire.model.v1.execution_pb2 import Step as StepValue
-from ._wire.model.v1.parameters_pb2 import FileParameter, Parameter
-from ._wire.model.v1.suites_pb2 import Suite as SuiteValue
+from dokime import DataExpression, FileParameter, Parameter, TestCase, TestCaseTemplate
+from dokime import Step as StepValue
+from dokime import Suite as SuiteValue
 
 # Local Imports
 from .documents import Document, metadata

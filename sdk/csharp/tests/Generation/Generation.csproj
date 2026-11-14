@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/Dokime/Dokime.csproj" AdditionalProperties="DokimeGeneratedOnly=true" />
+  </ItemGroup>
+</Project>

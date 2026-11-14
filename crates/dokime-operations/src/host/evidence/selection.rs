@@ -48,7 +48,7 @@ pub(crate) fn validate(selection: &dokime_protocol::host::evidence::CapturedReco
             Ok(dokime_protocol::model::Severity::Debug
                 | dokime_protocol::model::Severity::Info
                 | dokime_protocol::model::Severity::Warning
-                | dokime_protocol::model::Severity::Error)
+                | dokime_protocol::model::Severity::Failure)
         )
     }) {
         return Err(Error::Invalid("List Records: Select Debug, Info, Warning or Error Severity".into()));

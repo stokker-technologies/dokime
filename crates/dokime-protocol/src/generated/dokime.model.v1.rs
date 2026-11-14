@@ -771,7 +771,7 @@ pub enum Severity {
     Debug = 1,
     Info = 2,
     Warning = 3,
-    Error = 4,
+    Failure = 4,
 }
 impl Severity {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -784,7 +784,7 @@ impl Severity {
             Self::Debug => "SEVERITY_DEBUG",
             Self::Info => "SEVERITY_INFO",
             Self::Warning => "SEVERITY_WARNING",
-            Self::Error => "SEVERITY_ERROR",
+            Self::Failure => "SEVERITY_FAILURE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -794,7 +794,7 @@ impl Severity {
             "SEVERITY_DEBUG" => Some(Self::Debug),
             "SEVERITY_INFO" => Some(Self::Info),
             "SEVERITY_WARNING" => Some(Self::Warning),
-            "SEVERITY_ERROR" => Some(Self::Error),
+            "SEVERITY_FAILURE" => Some(Self::Failure),
             _ => None,
         }
     }

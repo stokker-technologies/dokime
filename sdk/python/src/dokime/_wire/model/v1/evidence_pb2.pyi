@@ -17,7 +17,7 @@ class Severity(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     SEVERITY_DEBUG: _ClassVar[Severity]
     SEVERITY_INFO: _ClassVar[Severity]
     SEVERITY_WARNING: _ClassVar[Severity]
-    SEVERITY_ERROR: _ClassVar[Severity]
+    SEVERITY_FAILURE: _ClassVar[Severity]
 
 class StreamMatchOperator(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -41,7 +41,7 @@ SEVERITY_UNSPECIFIED: Severity
 SEVERITY_DEBUG: Severity
 SEVERITY_INFO: Severity
 SEVERITY_WARNING: Severity
-SEVERITY_ERROR: Severity
+SEVERITY_FAILURE: Severity
 STREAM_MATCH_OPERATOR_UNSPECIFIED: StreamMatchOperator
 STREAM_MATCH_OPERATOR_EXISTS: StreamMatchOperator
 STREAM_MATCH_OPERATOR_EQ: StreamMatchOperator

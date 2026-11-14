@@ -5,11 +5,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- The Revision Feed Must Reproduce the Bytes Recorded by Consumer Locks. -->
+    <Deterministic>true</Deterministic>
+    <DeterministicTimestamp>2000-01-01T00:00:00Z</DeterministicTimestamp>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <PathMap>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/..'))=/_/harmos</PathMap>
     <PackageId>Harmos</PackageId>
-    <Version>0.1.0-dev.2124adafd52e</Version>
+    <Version>0.1.0-dev.299b7ce492e3</Version>
     <Description>Pinned Harmos SDK</Description>
-    <SourceRevisionId>2124adafd52e1c50085521389c82720387edd46d</SourceRevisionId>
-    <RepositoryCommit>2124adafd52e1c50085521389c82720387edd46d</RepositoryCommit>
+    <SourceRevisionId>299b7ce492e3a82bc4ddf61dc60c2161b6824110</SourceRevisionId>
+    <RepositoryCommit>299b7ce492e3a82bc4ddf61dc60c2161b6824110</RepositoryCommit>
     <RepositoryUrl>https://github.com/stokker-technologies/harmos</RepositoryUrl>
     <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

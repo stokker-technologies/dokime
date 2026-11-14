@@ -124,13 +124,12 @@ and inspects bundles, admits plugins and controls execution/cycle workflows.
 Exact subcommands are in the [CLI section](execution-host.md#command-line-candidate).
 The CLI uses the Rust SDK's client roots. `catalog list/show` reads the top-level
 Suites resource; `operation list/show/call` discovers contracts through the library's
-CatalogEntries.List. Product identities use `dokime.client.v1`; library operations
-retain `harmos.v1`. Product operations are currently absent from host discovery,
+Operations.List. Product and library operations use their respective host executor packages. Product operations are currently absent from host discovery,
 so raw product calls remain blocked pending host registration. Typed product
 commands and library raw calls use these forms:
 
 ```sh
-dokime --endpoint http://127.0.0.1:7000 operation call harmos.v1.Status/Get --json '{}'
+dokime --endpoint http://127.0.0.1:7000 operation call harmos.host.v1.Status/Get --json '{}'
 dokime --endpoint http://127.0.0.1:7000 execution list --cycle CYCLE --json
 dokime --endpoint http://127.0.0.1:7000 execution show EXECUTION --schemas --json
 ```
@@ -146,7 +145,7 @@ Frozen record/stream metadata and every descriptor page carry each identity's fu
 `plan preview/register --input-file` accepts canonical CasesCreateRequest JSON:
 `{"plan":{"selections":[{"suite_id":"SUITE","template_id":"TEMPLATE"}]},"request_id":"selection-1"}`.
 Preview forces `validate_only`; registration preserves the caller's request identity.
-`cycle append --request` reads encoded `dokime.client.v1.ExecutionsCreateRequest`
+`cycle append --request` reads the `Executions.Create` content arguments
 with `parent`, `executions` and `request_id`. Lifecycle commands and prompt answers
 accept `--request-id`; retain it to retry an unchanged mutation. Omitted identities
 are generated for a single command invocation. Whole-value metadata changes use

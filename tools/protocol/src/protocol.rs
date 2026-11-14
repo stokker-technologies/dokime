@@ -44,10 +44,12 @@ use heck::{ToSnakeCase, ToUpperCamelCase};
 /* === Public Functions === */
 
 pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn std::error::Error>> {
-    // Archived Tests Consume the Transferred Compiler, Not the Producer's Registry.
-    let (compiler, includes) = if let Ok(profile) = std::env::var("TEST_PROFILE") {
+    // Prepared Tests Prefer Their Transferred Compiler; Source-Focused Tests Use the Pinned Package.
+    let vendor = std::env::var("TEST_PROFILE").ok().map(|profile| {
         let target = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
-        let vendor = root.join("target/build").join(profile).join(target).join("fixtures/inputs/vendor");
+        root.join("target/build").join(profile).join(target).join("fixtures/inputs/vendor")
+    });
+    let (compiler, includes) = if let Some(vendor) = vendor.filter(|path| path.is_dir()) {
         let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
             ("linux", "x86_64") => "linux-x86_64",
             ("linux", "aarch64") => "linux-aarch_64",

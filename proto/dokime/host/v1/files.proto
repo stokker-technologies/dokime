@@ -42,6 +42,10 @@ service Files {
   rpc Delete(.dokime.host.v1.FilesDeleteRequest) returns (.dokime.host.v1.FilesDeleteResponse) {
     option (harmos.model.v1.callers) = ALL;
   }
+  // Capture files through the calling plugin's declared source.
+  rpc Capture(.dokime.host.v1.FilesCaptureRequest) returns (.dokime.host.v1.FilesCaptureResponse) {
+    option (harmos.model.v1.callers) = PLUGINS;
+  }
 }
 
 // === Get === //
@@ -107,7 +111,7 @@ message FilesDeleteResponse {
   .harmos.model.v1.Receipt receipt = 1;
 }
 
-// === Resources === //
+// === Capture === //
 
 // FilesCaptureRequest value owned by this resource.
 message FilesCaptureRequest {
@@ -120,6 +124,8 @@ message FilesCaptureResponse {
   repeated .dokime.model.v1.CapturedArtifact artifacts = 1;
   repeated .dokime.model.v1.CaptureGap gaps = 2;
 }
+
+// === Resources === //
 
 // FileBatch value owned by this resource.
 message FileBatch {

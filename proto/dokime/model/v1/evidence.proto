@@ -114,7 +114,7 @@ enum Severity {
   SEVERITY_DEBUG = 1;
   SEVERITY_INFO = 2;
   SEVERITY_WARNING = 3;
-  SEVERITY_ERROR = 4;
+  SEVERITY_FAILURE = 4;
 }
 
 // StreamMatchOperator choices.

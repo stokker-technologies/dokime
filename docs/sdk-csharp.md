@@ -24,7 +24,7 @@ mise -C sdk/csharp run test:starter
 ```
 
 `restore` stages unmodified Harmos sources from revision
-`2124adafd52e1c50085521389c82720387edd46d`, including their checked-in wire output,
+`299b7ce492e3a82bc4ddf61dc60c2161b6824110`, including their checked-in wire output,
 and packs `Harmos` into `target/cs/feed`. Set `HARMOS_SOURCE` to a local library
 checkout to read that exact revision with `git archive`; otherwise preparation
 uses its immutable source archive. Dokime references the resulting NuGet package.
@@ -36,11 +36,21 @@ inventory. It never rewrites that inventory. `build` requires this comparison.
 `check` verifies formatting, generator drift, tooling and declared service coverage.
 The SDK does not compile the checked-in wire inventory again with `Grpc.Tools`.
 
-All compiler outputs, restored package caches and regenerated local-feed locks
-live under `target/cs`. `package` consumes the existing Release build.
+Compiler outputs and restored package caches live under `target/cs`. Dependency
+locks are tracked beside their owning projects, including the immutable source-feed
+lock under tools. `restore --refresh-lock` refreshes them explicitly; ordinary
+restore and feed preparation use locked mode. The source feed uses native
+NuGet deterministic timestamps and compiler path mapping so repeated packs retain
+the content hash recorded by these locks. `package` consumes the existing Release build.
 `build:examples` restores the three standalone consumers against that feed.
 `build:starter -- --project /path/to/Test.csproj` selects an exported consumer.
 Each example pins the NuGet package directly and can be exported independently.
+
+`test:generation` compiles both generated public surfaces and their content calls.
+It excludes the authored FileTransfers.cs, whose nullable deadline and ambiguous
+File references still fail a normal SDK build, and writes only under target/cs/generation.
+Full SDK, installed package and real-host proof remain open in the
+[consumer work list](execution-host.md#c-sdk-7-items).
 
 ## Author a Test
 

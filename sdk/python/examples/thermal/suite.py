@@ -11,7 +11,6 @@ from dokime.plugin import Context, Plugin
 
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 
-import dokime
 from dokime.plugin import HostOperation
 
 
@@ -105,7 +104,7 @@ def plugin() -> Plugin:
         HostOperation.TIME_GET,
         HostOperation.TIME_SLEEP,
     ]
-    return dokime.Plugin(
+    return Plugin(
         "thermal",
         "1.0.0",
         suites=[Suite("thermal", [template], "Thermal")],

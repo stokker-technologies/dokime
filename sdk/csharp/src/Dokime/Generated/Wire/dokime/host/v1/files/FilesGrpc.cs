@@ -61,6 +61,10 @@ namespace Dokime.Internal.Client;
     static readonly grpc::Marshaller<global::Dokime.Clients.FilesDeleteRequest> __Marshaller_dokime_host_v1_FilesDeleteRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.FilesDeleteRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Dokime.Clients.FilesDeleteResponse> __Marshaller_dokime_host_v1_FilesDeleteResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.FilesDeleteResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Dokime.Clients.FilesCaptureRequest> __Marshaller_dokime_host_v1_FilesCaptureRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.FilesCaptureRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Dokime.Clients.FilesCaptureResponse> __Marshaller_dokime_host_v1_FilesCaptureResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.FilesCaptureResponse.Parser));
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Dokime.Clients.FilesGetRequest, global::Dokime.Clients.FilesGetResponse> __Method_Get = new grpc::Method<global::Dokime.Clients.FilesGetRequest, global::Dokime.Clients.FilesGetResponse>(
@@ -94,6 +98,14 @@ namespace Dokime.Internal.Client;
         __Marshaller_dokime_host_v1_FilesDeleteRequest,
         __Marshaller_dokime_host_v1_FilesDeleteResponse);
 
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Dokime.Clients.FilesCaptureRequest, global::Dokime.Clients.FilesCaptureResponse> __Method_Capture = new grpc::Method<global::Dokime.Clients.FilesCaptureRequest, global::Dokime.Clients.FilesCaptureResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "Capture",
+        __Marshaller_dokime_host_v1_FilesCaptureRequest,
+        __Marshaller_dokime_host_v1_FilesCaptureResponse);
+
     /// <summary>Service descriptor</summary>
     public static global::Google.Protobuf.Reflection.ServiceDescriptor Descriptor
     {
@@ -124,6 +136,12 @@ namespace Dokime.Internal.Client;
 
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::System.Threading.Tasks.Task<global::Dokime.Clients.FilesDeleteResponse> Delete(global::Dokime.Clients.FilesDeleteRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Dokime.Clients.FilesCaptureResponse> Capture(global::Dokime.Clients.FilesCaptureRequest request, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
@@ -227,6 +245,26 @@ namespace Dokime.Internal.Client;
       {
         return CallInvoker.AsyncUnaryCall(__Method_Delete, null, options, request);
       }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Dokime.Clients.FilesCaptureResponse Capture(global::Dokime.Clients.FilesCaptureRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return Capture(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Dokime.Clients.FilesCaptureResponse Capture(global::Dokime.Clients.FilesCaptureRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_Capture, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.FilesCaptureResponse> CaptureAsync(global::Dokime.Clients.FilesCaptureRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CaptureAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.FilesCaptureResponse> CaptureAsync(global::Dokime.Clients.FilesCaptureRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_Capture, null, options, request);
+      }
       /// <summary>Creates a new instance of client from given <c>ClientBaseConfiguration</c>.</summary>
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       protected override FilesClient NewInstance(ClientBaseConfiguration configuration)
@@ -244,7 +282,8 @@ namespace Dokime.Internal.Client;
           .AddMethod(__Method_Get, serviceImpl.Get)
           .AddMethod(__Method_Read, serviceImpl.Read)
           .AddMethod(__Method_Watch, serviceImpl.Watch)
-          .AddMethod(__Method_Delete, serviceImpl.Delete).Build();
+          .AddMethod(__Method_Delete, serviceImpl.Delete)
+          .AddMethod(__Method_Capture, serviceImpl.Capture).Build();
     }
 
     /// <summary>Register service method with a service binder with or without implementation. Useful when customizing the service binding logic.
@@ -258,6 +297,7 @@ namespace Dokime.Internal.Client;
       serviceBinder.AddMethod(__Method_Read, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.FilesReadRequest, global::Dokime.Clients.FilesReadResponse>(serviceImpl.Read));
       serviceBinder.AddMethod(__Method_Watch, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Dokime.Clients.FilesWatchRequest, global::Dokime.Clients.FilesWatchResponse>(serviceImpl.Watch));
       serviceBinder.AddMethod(__Method_Delete, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.FilesDeleteRequest, global::Dokime.Clients.FilesDeleteResponse>(serviceImpl.Delete));
+      serviceBinder.AddMethod(__Method_Capture, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.FilesCaptureRequest, global::Dokime.Clients.FilesCaptureResponse>(serviceImpl.Capture));
     }
 
   }

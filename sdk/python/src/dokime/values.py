@@ -17,7 +17,7 @@ from fractions import Fraction
 # Third Party Imports
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from ._wire.model.v1.scalar_pb2 import ExactNumber, Null, Value, ValueList
+from dokime import ExactNumber, Null, Value, ValueList
 
 # Local Imports
 # Type Checking Imports

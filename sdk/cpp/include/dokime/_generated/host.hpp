@@ -3,6 +3,7 @@
 namespace dokime::plugin {
 enum class HostOperation {
   BackendEnvironment,
+  ContentArtifactsCreate,
   DocumentsAppendParts,
   EffectsCreate,
   EffectsGet,
@@ -27,6 +28,7 @@ enum class HostOperation {
   FilesRead,
   FilesWatch,
   FilesDelete,
+  FilesCapture,
   PromptsCreate,
   SecretsGet,
   InvocationsGet,
@@ -38,104 +40,110 @@ enum class HostOperation {
 };
 struct HostBackendEnvironmentOptions {
   std::optional<::harmos::Position> at;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
+};
+struct HostContentArtifactsCreateOptions {
+  std::optional<::dokime::ArtifactScope> scope;
+  std::optional<std::string> request_id;
+  std::optional<::dokime::Metadata> metadata;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostDocumentsAppendPartsOptions {
   std::optional<::dokime::Section> subsection;
   std::optional<::dokime::Card> card;
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEffectsCreateOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEffectsGetOptions {
   std::optional<::harmos::Position> at;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEffectsSetOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEvidenceLogsAppendOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEvidenceRecordsListOptions {
   std::optional<::dokime::EvidenceRecordScope> scope;
   std::optional<::harmos::ReadCut> at;
   std::optional<::harmos::PageRequest> page;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEvidenceRecordsAppendOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEvidenceTraceabilityGetOptions {
   std::optional<::dokime::EvidenceScope> scope;
   std::optional<::harmos::PageRequest> page;
   std::optional<::harmos::ReadCut> at;
   std::optional<std::string> entry;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEvidenceTraceabilitySetOptions {
   std::optional<std::string> name;
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEvidenceStatisticsOptions {
   std::optional<::dokime::EvidenceScope> scope;
   std::optional<::harmos::ReadCut> at;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostExecutionsProgressGetOptions {
   std::optional<std::string> name;
   std::optional<::harmos::Position> at;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostExecutionsProgressSetOptions {
   std::optional<std::string> name;
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesCapturesStartOptions {
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesCapturesStopOptions {
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesUploadsCreateOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesUploadsGetOptions {
   std::optional<::harmos::ReadCut> at;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesUploadsResumeOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesUploadsAppendOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesUploadsPublishOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesUploadsDeleteOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesGetOptions {
   std::optional<::harmos::ReadCut> at;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesReadOptions {
   std::optional<::harmos::ReadCut> at;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostFilesWatchOptions {
   std::optional<::harmos::ReadCut> at;
@@ -150,21 +158,24 @@ private:
 };
 struct HostFilesDeleteOptions {
   std::optional<std::string> request_id;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
+};
+struct HostFilesCaptureOptions {
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostPromptsCreateOptions {
   std::optional<::dokime::Prompt> definition;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostSecretsGetOptions {
   std::optional<::harmos::ReadCut> at;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostInvocationsGetOptions {
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostInvocationsCancelOptions {
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostInvocationsWatchOptions {};
 class HostInvocationsWatch {
@@ -178,13 +189,13 @@ private:
 struct HostPluginsSettingsListOptions {
   std::optional<std::string> name;
   std::optional<::harmos::ReadCut> at;
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostTimeGetOptions {
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostTimeSleepOptions {
-  std::optional<OperationPolicy> policy;
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostTimeResource {
   Context context;
@@ -231,7 +242,7 @@ struct HostFilesUploadsResource {
                                               HostFilesUploadsAppendOptions options = {});
   ::dokime::FilesUploadsPublishResponse publish(const ::harmos::Upload &upload, const std::uint64_t &length, const std::string &sha256,
                                                 HostFilesUploadsPublishOptions options = {});
-  ::dokime::FilesUploadsDeleteResponse delete (const ::harmos::Upload &upload, HostFilesUploadsDeleteOptions options = {});
+  ::dokime::FilesUploadsDeleteResponse delete_(const ::harmos::Upload &upload, HostFilesUploadsDeleteOptions options = {});
 };
 struct HostFilesCapturesResource {
   Context context;
@@ -250,7 +261,9 @@ struct HostFilesResource {
                                    HostFilesReadOptions options = {});
   HostFilesWatch watch(const ::harmos::FileReference &file, const std::uint64_t &offset, std::size_t max_item_bytes,
                        HostFilesWatchOptions options = {});
-  ::harmos::Receipt delete (const ::harmos::FileReference &file, HostFilesDeleteOptions options = {});
+  ::harmos::Receipt delete_(const ::harmos::FileReference &file, HostFilesDeleteOptions options = {});
+  ::dokime::plugin::FilesCaptureResponse capture(const ::dokime::FileSource &source, const std::string &output,
+                                                 HostFilesCaptureOptions options = {});
 };
 struct HostExecutionsProgressResource {
   Context context;
@@ -315,6 +328,17 @@ struct HostDocumentsResource {
   ::harmos::Receipt append_parts(const std::string &execution, const std::string &document, const std::string &section,
                                  HostDocumentsAppendPartsOptions options = {});
 };
+struct HostContentArtifactsResource {
+  Context context;
+  HostContentArtifactsResource(Context value) : context(value) {}
+  ::dokime::ContentArtifactsCreateResponse create(const ::harmos::FileReference &file, const std::string &filename,
+                                                  const std::string &content_type, HostContentArtifactsCreateOptions options = {});
+};
+struct HostContentResource {
+  Context context;
+  HostContentArtifactsResource artifacts;
+  HostContentResource(Context value) : context(value), artifacts(value) {}
+};
 struct HostBackendResource {
   Context context;
   HostBackendResource(Context value) : context(value) {}
@@ -322,6 +346,7 @@ struct HostBackendResource {
 };
 struct HostRoot {
   HostBackendResource backend;
+  HostContentResource content;
   HostDocumentsResource documents;
   HostEffectsResource effects;
   HostEvidenceResource evidence;

@@ -39,7 +39,7 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision: str = "2124adafd52e1c50085521389c82720387edd46d"
+revision: str = "299b7ce492e3a82bc4ddf61dc60c2161b6824110"
 root: Path = Path(__file__).resolve().parents[1]
 feed: Path = root / "../../target/cs/feed"
 feed.mkdir(parents=True, exist_ok=True)
@@ -90,6 +90,9 @@ subprocess.run(
     [
         sys.argv[1],
         "pack",
+        "-p:RestorePackagesWithLockFile=true",
+        f"-p:NuGetLockFilePath={root / 'tools/Harmos.packages.lock.json'}",
+        "-p:RestoreLockedMode=" + ("false" if "--refresh-lock" in sys.argv else "true"),
         str(output / "Harmos.csproj"),
         "--configuration",
         "Release",
@@ -101,5 +104,10 @@ subprocess.run(
     check=True,
 )
 
-# Invalidate Only This SDK's Mutable Local Feed Cache.
-shutil.rmtree(output.parent / "packages/harmos", ignore_errors=True)
+# Explicit Lock Refresh Retires Only This SDK's Owned Library Package Caches.
+if "--refresh-lock" in sys.argv:
+    for relative in ("packages/harmos", "generation/packages/harmos"):
+        cache = (output.parent / relative).resolve()
+        if not cache.is_relative_to(output.parent):
+            raise ValueError("Refresh Library Feed: Cache Must Remain Under the SDK Output")
+        shutil.rmtree(cache, ignore_errors=True)

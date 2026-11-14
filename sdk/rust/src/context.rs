@@ -26,11 +26,11 @@ use std::{
 // Third Party Imports
 
 // Local Imports
+use crate::EvidenceRecordsListResponse;
+use crate::EvidenceStatisticsResponse;
 use crate::OperationPolicy;
 use crate::Record;
 use crate::plugin::EvidenceRecordsAppendResponse;
-use crate::plugin::EvidenceRecordsListResponse;
-use crate::plugin::EvidenceStatisticsResponse;
 use crate::wire::host::EvidenceStatisticsRequest;
 use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
 use crate::{Error, Message, OperationRequest, Result, data, host, host::Call};

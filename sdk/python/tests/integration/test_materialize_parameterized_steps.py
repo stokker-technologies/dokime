@@ -27,7 +27,7 @@ import dokime
 from dokime import Metadata, Parameter
 from dokime.authoring import Case, criterion, materialize, step, suite
 from dokime.client import ExecutionBinding, RegisteredSelection, SelectionPlan
-from dokime.plugin import Context
+from dokime.plugin import Context, Plugin
 from dokime.values import Scalar, encode
 
 # Local Imports
@@ -103,7 +103,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         # Admit The Plugin Through A Real Product Host And Its Client Root.
         mechanical = Path(__file__).resolve().parents[3] / "tests/fixtures/python/starter/host.py"
         host = await runpy.run_path(str(mechanical))["Host"].start(self)
-        plugin = dokime.Plugin("channels", "1.0.0", suites=[Channels], requires=[], operations=Operations())
+        plugin = Plugin("channels", "1.0.0", suites=[Channels], requires=[], operations=Operations())
         self.assertNotIn(reading.id, {operation.id for operation in plugin.declarations().operations})
         endpoint = await plugin.start("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
@@ -151,7 +151,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item.attempts for item in instances], [[(2, 1), (2, 2), (4, 1)]] * 2)
         self.assertFalse(endpoint.plugin._sessions)
         with self.assertRaises(ValueError):
-            dokime.Plugin("duplicate", "1.0.0", suites=[Channels, Channels]).declarations()
+            Plugin("duplicate", "1.0.0", suites=[Channels, Channels]).declarations()
 
 
 # === Public Functions === #

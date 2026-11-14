@@ -1,341 +1,779 @@
 # @generated from protocol descriptors; do not edit.
-from harmos import Failure as Failure
+from harmos import Failure
 
-from ._context import Context as Context
-from ._generated.shared import AGGREGATE_COUNT as AGGREGATE_COUNT
-from ._generated.shared import AGGREGATE_FIRST as AGGREGATE_FIRST
-from ._generated.shared import AGGREGATE_LAST as AGGREGATE_LAST
-from ._generated.shared import AGGREGATE_MAX as AGGREGATE_MAX
-from ._generated.shared import AGGREGATE_MEAN as AGGREGATE_MEAN
-from ._generated.shared import AGGREGATE_MEDIAN as AGGREGATE_MEDIAN
-from ._generated.shared import AGGREGATE_MIN as AGGREGATE_MIN
-from ._generated.shared import AGGREGATE_PERCENTILE as AGGREGATE_PERCENTILE
-from ._generated.shared import AGGREGATE_RMS as AGGREGATE_RMS
-from ._generated.shared import AGGREGATE_STDDEV as AGGREGATE_STDDEV
-from ._generated.shared import AGGREGATE_SUM as AGGREGATE_SUM
-from ._generated.shared import AGGREGATE_UNSPECIFIED as AGGREGATE_UNSPECIFIED
-from ._generated.shared import ALL as ALL
-from ._generated.shared import ANSWER_OPERATOR_AND as ANSWER_OPERATOR_AND
-from ._generated.shared import ANSWER_OPERATOR_CONTAINS as ANSWER_OPERATOR_CONTAINS
-from ._generated.shared import ANSWER_OPERATOR_ENDS_WITH as ANSWER_OPERATOR_ENDS_WITH
-from ._generated.shared import ANSWER_OPERATOR_EQ as ANSWER_OPERATOR_EQ
-from ._generated.shared import ANSWER_OPERATOR_GE as ANSWER_OPERATOR_GE
-from ._generated.shared import ANSWER_OPERATOR_GT as ANSWER_OPERATOR_GT
-from ._generated.shared import ANSWER_OPERATOR_LE as ANSWER_OPERATOR_LE
-from ._generated.shared import ANSWER_OPERATOR_LT as ANSWER_OPERATOR_LT
-from ._generated.shared import ANSWER_OPERATOR_NE as ANSWER_OPERATOR_NE
-from ._generated.shared import ANSWER_OPERATOR_OR as ANSWER_OPERATOR_OR
-from ._generated.shared import ANSWER_OPERATOR_STARTS_WITH as ANSWER_OPERATOR_STARTS_WITH
-from ._generated.shared import ANSWER_OPERATOR_UNSPECIFIED as ANSWER_OPERATOR_UNSPECIFIED
-from ._generated.shared import ARTIFACT_STATE_CANCELLED as ARTIFACT_STATE_CANCELLED
-from ._generated.shared import ARTIFACT_STATE_COMPLETE as ARTIFACT_STATE_COMPLETE
-from ._generated.shared import ARTIFACT_STATE_FAILED as ARTIFACT_STATE_FAILED
-from ._generated.shared import ARTIFACT_STATE_REJECTED as ARTIFACT_STATE_REJECTED
-from ._generated.shared import ARTIFACT_STATE_UNSPECIFIED as ARTIFACT_STATE_UNSPECIFIED
-from ._generated.shared import AXIS_SCALE_LINEAR as AXIS_SCALE_LINEAR
-from ._generated.shared import AXIS_SCALE_LOG as AXIS_SCALE_LOG
-from ._generated.shared import AXIS_SCALE_UNSPECIFIED as AXIS_SCALE_UNSPECIFIED
-from ._generated.shared import BAR_ARRANGEMENT_GROUPED as BAR_ARRANGEMENT_GROUPED
-from ._generated.shared import BAR_ARRANGEMENT_STACKED as BAR_ARRANGEMENT_STACKED
-from ._generated.shared import BAR_ARRANGEMENT_UNSPECIFIED as BAR_ARRANGEMENT_UNSPECIFIED
-from ._generated.shared import CALLERS_UNSPECIFIED as CALLERS_UNSPECIFIED
-from ._generated.shared import CAPTURE_GAP_REASON_REPLACED as CAPTURE_GAP_REASON_REPLACED
-from ._generated.shared import CAPTURE_GAP_REASON_RESUME_UNSUPPORTED as CAPTURE_GAP_REASON_RESUME_UNSUPPORTED
-from ._generated.shared import CAPTURE_GAP_REASON_TRUNCATED as CAPTURE_GAP_REASON_TRUNCATED
-from ._generated.shared import CAPTURE_GAP_REASON_UNSPECIFIED as CAPTURE_GAP_REASON_UNSPECIFIED
-from ._generated.shared import CAPTURE_GAP_REASON_VANISHED as CAPTURE_GAP_REASON_VANISHED
-from ._generated.shared import CLASSIFICATION_CANCELLED as CLASSIFICATION_CANCELLED
-from ._generated.shared import CLASSIFICATION_PERMANENT as CLASSIFICATION_PERMANENT
-from ._generated.shared import CLASSIFICATION_REFUSED as CLASSIFICATION_REFUSED
-from ._generated.shared import CLASSIFICATION_TIMED_OUT as CLASSIFICATION_TIMED_OUT
-from ._generated.shared import CLASSIFICATION_TRANSIENT as CLASSIFICATION_TRANSIENT
-from ._generated.shared import CLASSIFICATION_UNSPECIFIED as CLASSIFICATION_UNSPECIFIED
-from ._generated.shared import CLIENTS as CLIENTS
-from ._generated.shared import CONTOUR_RENDER_BANDS as CONTOUR_RENDER_BANDS
-from ._generated.shared import CONTOUR_RENDER_CELLS as CONTOUR_RENDER_CELLS
-from ._generated.shared import CONTOUR_RENDER_UNSPECIFIED as CONTOUR_RENDER_UNSPECIFIED
-from ._generated.shared import DOWNSAMPLE_AUTO as DOWNSAMPLE_AUTO
-from ._generated.shared import DOWNSAMPLE_LTTB as DOWNSAMPLE_LTTB
-from ._generated.shared import DOWNSAMPLE_MIN_MAX as DOWNSAMPLE_MIN_MAX
-from ._generated.shared import DOWNSAMPLE_RAW as DOWNSAMPLE_RAW
-from ._generated.shared import DOWNSAMPLE_UNSPECIFIED as DOWNSAMPLE_UNSPECIFIED
-from ._generated.shared import DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL as DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL
-from ._generated.shared import DYNAMIC_DEFAULT_KEY_OPERATOR_NAME as DYNAMIC_DEFAULT_KEY_OPERATOR_NAME
-from ._generated.shared import DYNAMIC_DEFAULT_KEY_UNSPECIFIED as DYNAMIC_DEFAULT_KEY_UNSPECIFIED
-from ._generated.shared import EVIDENCE_CARD_ARTIFACTS as EVIDENCE_CARD_ARTIFACTS
-from ._generated.shared import EVIDENCE_CARD_CRITERIA as EVIDENCE_CARD_CRITERIA
-from ._generated.shared import EVIDENCE_CARD_HEALTH as EVIDENCE_CARD_HEALTH
-from ._generated.shared import EVIDENCE_CARD_MEDIA as EVIDENCE_CARD_MEDIA
-from ._generated.shared import EVIDENCE_CARD_NOTES as EVIDENCE_CARD_NOTES
-from ._generated.shared import EVIDENCE_CARD_RECORDS as EVIDENCE_CARD_RECORDS
-from ._generated.shared import EVIDENCE_CARD_STEPS as EVIDENCE_CARD_STEPS
-from ._generated.shared import EVIDENCE_CARD_STREAM_CONTEXT as EVIDENCE_CARD_STREAM_CONTEXT
-from ._generated.shared import EVIDENCE_CARD_TRACEABILITY as EVIDENCE_CARD_TRACEABILITY
-from ._generated.shared import EVIDENCE_CARD_UNSPECIFIED as EVIDENCE_CARD_UNSPECIFIED
-from ._generated.shared import FFT_DETREND_MEAN as FFT_DETREND_MEAN
-from ._generated.shared import FFT_DETREND_NONE as FFT_DETREND_NONE
-from ._generated.shared import FFT_DETREND_UNSPECIFIED as FFT_DETREND_UNSPECIFIED
-from ._generated.shared import FFT_WINDOW_HANN as FFT_WINDOW_HANN
-from ._generated.shared import FFT_WINDOW_RECTANGULAR as FFT_WINDOW_RECTANGULAR
-from ._generated.shared import FFT_WINDOW_UNSPECIFIED as FFT_WINDOW_UNSPECIFIED
-from ._generated.shared import FILE_RULE_ACTION_EXCLUDE as FILE_RULE_ACTION_EXCLUDE
-from ._generated.shared import FILE_RULE_ACTION_INCLUDE as FILE_RULE_ACTION_INCLUDE
-from ._generated.shared import FILE_RULE_ACTION_UNSPECIFIED as FILE_RULE_ACTION_UNSPECIFIED
-from ._generated.shared import FILTER_OPERATOR_CONTAINS as FILTER_OPERATOR_CONTAINS
-from ._generated.shared import FILTER_OPERATOR_EQ as FILTER_OPERATOR_EQ
-from ._generated.shared import FILTER_OPERATOR_EXISTS as FILTER_OPERATOR_EXISTS
-from ._generated.shared import FILTER_OPERATOR_GE as FILTER_OPERATOR_GE
-from ._generated.shared import FILTER_OPERATOR_GT as FILTER_OPERATOR_GT
-from ._generated.shared import FILTER_OPERATOR_LE as FILTER_OPERATOR_LE
-from ._generated.shared import FILTER_OPERATOR_LT as FILTER_OPERATOR_LT
-from ._generated.shared import FILTER_OPERATOR_NE as FILTER_OPERATOR_NE
-from ._generated.shared import FILTER_OPERATOR_UNSPECIFIED as FILTER_OPERATOR_UNSPECIFIED
-from ._generated.shared import FREQUENCY_LEVEL_UNIT_DB as FREQUENCY_LEVEL_UNIT_DB
-from ._generated.shared import FREQUENCY_LEVEL_UNIT_DBM as FREQUENCY_LEVEL_UNIT_DBM
-from ._generated.shared import FREQUENCY_LEVEL_UNIT_DBU as FREQUENCY_LEVEL_UNIT_DBU
-from ._generated.shared import FREQUENCY_LEVEL_UNIT_LINEAR as FREQUENCY_LEVEL_UNIT_LINEAR
-from ._generated.shared import FREQUENCY_LEVEL_UNIT_UNSPECIFIED as FREQUENCY_LEVEL_UNIT_UNSPECIFIED
-from ._generated.shared import LINE_STYLE_LINE as LINE_STYLE_LINE
-from ._generated.shared import LINE_STYLE_LINE_POINTS as LINE_STYLE_LINE_POINTS
-from ._generated.shared import LINE_STYLE_POINTS as LINE_STYLE_POINTS
-from ._generated.shared import LINE_STYLE_STEP as LINE_STYLE_STEP
-from ._generated.shared import LINE_STYLE_UNSPECIFIED as LINE_STYLE_UNSPECIFIED
-from ._generated.shared import PARAMETER_BINARY_OPERATOR_ADD as PARAMETER_BINARY_OPERATOR_ADD
-from ._generated.shared import PARAMETER_BINARY_OPERATOR_DIVIDE as PARAMETER_BINARY_OPERATOR_DIVIDE
-from ._generated.shared import PARAMETER_BINARY_OPERATOR_MULTIPLY as PARAMETER_BINARY_OPERATOR_MULTIPLY
-from ._generated.shared import PARAMETER_BINARY_OPERATOR_SUBTRACT as PARAMETER_BINARY_OPERATOR_SUBTRACT
-from ._generated.shared import PARAMETER_BINARY_OPERATOR_UNSPECIFIED as PARAMETER_BINARY_OPERATOR_UNSPECIFIED
-from ._generated.shared import PARAMETER_UNARY_OPERATOR_NEGATE as PARAMETER_UNARY_OPERATOR_NEGATE
-from ._generated.shared import PARAMETER_UNARY_OPERATOR_UNSPECIFIED as PARAMETER_UNARY_OPERATOR_UNSPECIFIED
-from ._generated.shared import PLOT_KIND_BAR as PLOT_KIND_BAR
-from ._generated.shared import PLOT_KIND_BOX_PLOT as PLOT_KIND_BOX_PLOT
-from ._generated.shared import PLOT_KIND_CONTOUR as PLOT_KIND_CONTOUR
-from ._generated.shared import PLOT_KIND_FREQUENCY_SERIES as PLOT_KIND_FREQUENCY_SERIES
-from ._generated.shared import PLOT_KIND_GRID_CHART as PLOT_KIND_GRID_CHART
-from ._generated.shared import PLOT_KIND_HISTOGRAM as PLOT_KIND_HISTOGRAM
-from ._generated.shared import PLOT_KIND_PIE as PLOT_KIND_PIE
-from ._generated.shared import PLOT_KIND_TIME_SERIES as PLOT_KIND_TIME_SERIES
-from ._generated.shared import PLOT_KIND_TRAJECTORY as PLOT_KIND_TRAJECTORY
-from ._generated.shared import PLOT_KIND_UNSPECIFIED as PLOT_KIND_UNSPECIFIED
-from ._generated.shared import PLOT_KIND_XY as PLOT_KIND_XY
-from ._generated.shared import PLOT_STYLE_LINE as PLOT_STYLE_LINE
-from ._generated.shared import PLOT_STYLE_LINE_POINTS as PLOT_STYLE_LINE_POINTS
-from ._generated.shared import PLOT_STYLE_POINTS as PLOT_STYLE_POINTS
-from ._generated.shared import PLOT_STYLE_STEP as PLOT_STYLE_STEP
-from ._generated.shared import PLOT_STYLE_UNSPECIFIED as PLOT_STYLE_UNSPECIFIED
-from ._generated.shared import PLUGINS as PLUGINS
-from ._generated.shared import PROMPT_ACTION_EMPHASIS_DANGER as PROMPT_ACTION_EMPHASIS_DANGER
-from ._generated.shared import PROMPT_ACTION_EMPHASIS_PRIMARY as PROMPT_ACTION_EMPHASIS_PRIMARY
-from ._generated.shared import PROMPT_ACTION_EMPHASIS_SECONDARY as PROMPT_ACTION_EMPHASIS_SECONDARY
-from ._generated.shared import PROMPT_ACTION_EMPHASIS_UNSPECIFIED as PROMPT_ACTION_EMPHASIS_UNSPECIFIED
-from ._generated.shared import PROMPT_ARCHETYPE_CHOICE as PROMPT_ARCHETYPE_CHOICE
-from ._generated.shared import PROMPT_ARCHETYPE_CONFIRMATION as PROMPT_ARCHETYPE_CONFIRMATION
-from ._generated.shared import PROMPT_ARCHETYPE_FORM as PROMPT_ARCHETYPE_FORM
-from ._generated.shared import PROMPT_ARCHETYPE_STATUS as PROMPT_ARCHETYPE_STATUS
-from ._generated.shared import PROMPT_ARCHETYPE_UNSPECIFIED as PROMPT_ARCHETYPE_UNSPECIFIED
-from ._generated.shared import PROMPT_FIELD_KIND_BOOLEAN as PROMPT_FIELD_KIND_BOOLEAN
-from ._generated.shared import PROMPT_FIELD_KIND_CHOICE as PROMPT_FIELD_KIND_CHOICE
-from ._generated.shared import PROMPT_FIELD_KIND_FLOAT as PROMPT_FIELD_KIND_FLOAT
-from ._generated.shared import PROMPT_FIELD_KIND_INTEGER as PROMPT_FIELD_KIND_INTEGER
-from ._generated.shared import PROMPT_FIELD_KIND_TEXT as PROMPT_FIELD_KIND_TEXT
-from ._generated.shared import PROMPT_FIELD_KIND_UNSPECIFIED as PROMPT_FIELD_KIND_UNSPECIFIED
-from ._generated.shared import REDUCTION_MAX as REDUCTION_MAX
-from ._generated.shared import REDUCTION_MEAN as REDUCTION_MEAN
-from ._generated.shared import REDUCTION_MIN as REDUCTION_MIN
-from ._generated.shared import REDUCTION_UNSPECIFIED as REDUCTION_UNSPECIFIED
-from ._generated.shared import SEVERITY_DEBUG as SEVERITY_DEBUG
-from ._generated.shared import SEVERITY_ERROR as SEVERITY_ERROR
-from ._generated.shared import SEVERITY_INFO as SEVERITY_INFO
-from ._generated.shared import SEVERITY_UNSPECIFIED as SEVERITY_UNSPECIFIED
-from ._generated.shared import SEVERITY_WARNING as SEVERITY_WARNING
-from ._generated.shared import STREAM_MATCH_OPERATOR_EQ as STREAM_MATCH_OPERATOR_EQ
-from ._generated.shared import STREAM_MATCH_OPERATOR_EXISTS as STREAM_MATCH_OPERATOR_EXISTS
-from ._generated.shared import STREAM_MATCH_OPERATOR_GE as STREAM_MATCH_OPERATOR_GE
-from ._generated.shared import STREAM_MATCH_OPERATOR_GT as STREAM_MATCH_OPERATOR_GT
-from ._generated.shared import STREAM_MATCH_OPERATOR_LE as STREAM_MATCH_OPERATOR_LE
-from ._generated.shared import STREAM_MATCH_OPERATOR_LT as STREAM_MATCH_OPERATOR_LT
-from ._generated.shared import STREAM_MATCH_OPERATOR_UNSPECIFIED as STREAM_MATCH_OPERATOR_UNSPECIFIED
-from ._generated.shared import STREAM_MATCH_OPERATOR_WITHIN as STREAM_MATCH_OPERATOR_WITHIN
-from ._generated.shared import TERMINATION_CANCELLED as TERMINATION_CANCELLED
-from ._generated.shared import TERMINATION_COMPLETED as TERMINATION_COMPLETED
-from ._generated.shared import TERMINATION_FAILED as TERMINATION_FAILED
-from ._generated.shared import TERMINATION_INTERRUPTED as TERMINATION_INTERRUPTED
-from ._generated.shared import TERMINATION_UNSPECIFIED as TERMINATION_UNSPECIFIED
-from ._generated.shared import TRANSFER_FRAMING_BYTES as TRANSFER_FRAMING_BYTES
-from ._generated.shared import TRANSFER_FRAMING_UNSPECIFIED as TRANSFER_FRAMING_UNSPECIFIED
-from ._generated.shared import UPLOAD_STATE_ABANDONED as UPLOAD_STATE_ABANDONED
-from ._generated.shared import UPLOAD_STATE_FINISHED as UPLOAD_STATE_FINISHED
-from ._generated.shared import UPLOAD_STATE_PRODUCING as UPLOAD_STATE_PRODUCING
-from ._generated.shared import UPLOAD_STATE_UNSPECIFIED as UPLOAD_STATE_UNSPECIFIED
-from ._generated.shared import VALUE_TYPE_BOOLEAN as VALUE_TYPE_BOOLEAN
-from ._generated.shared import VALUE_TYPE_BYTES as VALUE_TYPE_BYTES
-from ._generated.shared import VALUE_TYPE_DATETIME as VALUE_TYPE_DATETIME
-from ._generated.shared import VALUE_TYPE_INTEGER as VALUE_TYPE_INTEGER
-from ._generated.shared import VALUE_TYPE_LIST as VALUE_TYPE_LIST
-from ._generated.shared import VALUE_TYPE_NUMBER as VALUE_TYPE_NUMBER
-from ._generated.shared import VALUE_TYPE_TEXT as VALUE_TYPE_TEXT
-from ._generated.shared import VALUE_TYPE_UNSIGNED_INTEGER as VALUE_TYPE_UNSIGNED_INTEGER
-from ._generated.shared import VALUE_TYPE_UNSPECIFIED as VALUE_TYPE_UNSPECIFIED
-from ._generated.shared import VISIBILITY_PRIVATE as VISIBILITY_PRIVATE
-from ._generated.shared import VISIBILITY_PROTECTED as VISIBILITY_PROTECTED
-from ._generated.shared import VISIBILITY_PUBLIC as VISIBILITY_PUBLIC
-from ._generated.shared import VISIBILITY_UNSPECIFIED as VISIBILITY_UNSPECIFIED
-from ._generated.shared import XY_INTERVAL_SIGMA as XY_INTERVAL_SIGMA
-from ._generated.shared import XY_INTERVAL_UNSPECIFIED as XY_INTERVAL_UNSPECIFIED
-from ._generated.shared import Aggregate as Aggregate
-from ._generated.shared import AggregateExpression as AggregateExpression
-from ._generated.shared import Analyses as Analyses
-from ._generated.shared import Analysis as Analysis
-from ._generated.shared import AnalysisOutput as AnalysisOutput
-from ._generated.shared import AnalysisSelection as AnalysisSelection
-from ._generated.shared import AnalysisValues as AnalysisValues
-from ._generated.shared import AnswerBinaryPredicate as AnswerBinaryPredicate
-from ._generated.shared import AnswerOperator as AnswerOperator
-from ._generated.shared import AnswerPredicate as AnswerPredicate
-from ._generated.shared import AnswerRule as AnswerRule
-from ._generated.shared import ArtifactMetadata as ArtifactMetadata
-from ._generated.shared import ArtifactScope as ArtifactScope
-from ._generated.shared import ArtifactState as ArtifactState
-from ._generated.shared import AxisScale as AxisScale
-from ._generated.shared import BarArrangement as BarArrangement
-from ._generated.shared import Callers as Callers
-from ._generated.shared import CapturedArtifact as CapturedArtifact
-from ._generated.shared import CaptureGap as CaptureGap
-from ._generated.shared import CaptureGapReason as CaptureGapReason
-from ._generated.shared import Card as Card
-from ._generated.shared import CardLayout as CardLayout
-from ._generated.shared import Classification as Classification
-from ._generated.shared import ContourRender as ContourRender
-from ._generated.shared import Criterion as Criterion
-from ._generated.shared import DataExpression as DataExpression
-from ._generated.shared import Declarations as Declarations
-from ._generated.shared import DiscoveredContract as DiscoveredContract
-from ._generated.shared import DiscoveredOperation as DiscoveredOperation
-from ._generated.shared import Document as Document
-from ._generated.shared import DocumentFilter as DocumentFilter
-from ._generated.shared import Downsample as Downsample
-from ._generated.shared import DynamicDefault as DynamicDefault
-from ._generated.shared import DynamicDefaultKey as DynamicDefaultKey
-from ._generated.shared import EvidenceCard as EvidenceCard
-from ._generated.shared import EvidenceCondition as EvidenceCondition
-from ._generated.shared import EvidenceConditions as EvidenceConditions
-from ._generated.shared import EvidenceOrigin as EvidenceOrigin
-from ._generated.shared import EvidenceOriginKind as EvidenceOriginKind
-from ._generated.shared import EvidenceScope as EvidenceScope
-from ._generated.shared import ExactNumber as ExactNumber
-from ._generated.shared import ExecutionProgressValue as ExecutionProgressValue
-from ._generated.shared import FailureValue as FailureValue
-from ._generated.shared import FftDetrend as FftDetrend
-from ._generated.shared import FftWindow as FftWindow
-from ._generated.shared import FieldReference as FieldReference
-from ._generated.shared import File as File
-from ._generated.shared import FileLocation as FileLocation
-from ._generated.shared import FileMetadata as FileMetadata
-from ._generated.shared import FileParameter as FileParameter
-from ._generated.shared import FileReference as FileReference
-from ._generated.shared import FileRule as FileRule
-from ._generated.shared import FileRuleAction as FileRuleAction
-from ._generated.shared import FileSelection as FileSelection
-from ._generated.shared import FileSource as FileSource
-from ._generated.shared import FilterOperator as FilterOperator
-from ._generated.shared import FrequencyLevelUnit as FrequencyLevelUnit
-from ._generated.shared import FtpLocation as FtpLocation
-from ._generated.shared import Grant as Grant
-from ._generated.shared import GridAxisEntry as GridAxisEntry
-from ._generated.shared import GridChart as GridChart
-from ._generated.shared import GridDefinition as GridDefinition
-from ._generated.shared import GridHighlight as GridHighlight
-from ._generated.shared import Grpc as Grpc
-from ._generated.shared import HarmosSection as HarmosSection
-from ._generated.shared import History as History
-from ._generated.shared import Import as Import
-from ._generated.shared import ImportSource as ImportSource
-from ._generated.shared import InstanceState as InstanceState
-from ._generated.shared import IntegerRange as IntegerRange
-from ._generated.shared import LinearSpace as LinearSpace
-from ._generated.shared import LineStyle as LineStyle
-from ._generated.shared import Listeners as Listeners
-from ._generated.shared import MapValue as MapValue
-from ._generated.shared import MessageSettings as MessageSettings
-from ._generated.shared import Metadata as Metadata
-from ._generated.shared import Null as Null
-from ._generated.shared import NumberRange as NumberRange
-from ._generated.shared import OperationContract as OperationContract
-from ._generated.shared import OperationPolicy as OperationPolicy
-from ._generated.shared import Origin as Origin
-from ._generated.shared import PageRequest as PageRequest
-from ._generated.shared import Parameter as Parameter
-from ._generated.shared import ParameterBinary as ParameterBinary
-from ._generated.shared import ParameterBinaryOperator as ParameterBinaryOperator
-from ._generated.shared import ParameterExpansion as ParameterExpansion
-from ._generated.shared import ParameterExpression as ParameterExpression
-from ._generated.shared import ParameterExpressions as ParameterExpressions
-from ._generated.shared import ParameterUnary as ParameterUnary
-from ._generated.shared import ParameterUnaryOperator as ParameterUnaryOperator
-from ._generated.shared import Plot as Plot
-from ._generated.shared import PlotFftOptions as PlotFftOptions
-from ._generated.shared import PlotFilter as PlotFilter
-from ._generated.shared import PlotHistogramOptions as PlotHistogramOptions
-from ._generated.shared import PlotIntervalOptions as PlotIntervalOptions
-from ._generated.shared import PlotKind as PlotKind
-from ._generated.shared import PlotStyle as PlotStyle
-from ._generated.shared import PluginRun as PluginRun
-from ._generated.shared import Position as Position
-from ._generated.shared import Prompt as Prompt
-from ._generated.shared import PromptAction as PromptAction
-from ._generated.shared import PromptActionEmphasis as PromptActionEmphasis
-from ._generated.shared import PromptArchetype as PromptArchetype
-from ._generated.shared import PromptDefinitions as PromptDefinitions
-from ._generated.shared import PromptField as PromptField
-from ._generated.shared import PromptFieldKind as PromptFieldKind
-from ._generated.shared import PromptFieldValidation as PromptFieldValidation
-from ._generated.shared import PromptValues as PromptValues
-from ._generated.shared import Protobuf as Protobuf
-from ._generated.shared import ReadCut as ReadCut
-from ._generated.shared import Receipt as Receipt
-from ._generated.shared import RecordContract as RecordContract
-from ._generated.shared import RecordContracts as RecordContracts
-from ._generated.shared import RecordListener as RecordListener
-from ._generated.shared import RecordMatch as RecordMatch
-from ._generated.shared import Reduction as Reduction
-from ._generated.shared import ReferenceBand as ReferenceBand
-from ._generated.shared import ReferenceLine as ReferenceLine
-from ._generated.shared import Requirement as Requirement
-from ._generated.shared import ResourceRevision as ResourceRevision
-from ._generated.shared import RetryPolicy as RetryPolicy
-from ._generated.shared import SecretDeclaration as SecretDeclaration
-from ._generated.shared import SecretsDeclarations as SecretsDeclarations
-from ._generated.shared import Section as Section
-from ._generated.shared import SectionRepeat as SectionRepeat
-from ._generated.shared import SettingDeclaration as SettingDeclaration
-from ._generated.shared import SettingsDeclarations as SettingsDeclarations
-from ._generated.shared import SettingValue as SettingValue
-from ._generated.shared import SettingValues as SettingValues
-from ._generated.shared import Severity as Severity
-from ._generated.shared import Step as Step
-from ._generated.shared import StorageTransferSettings as StorageTransferSettings
-from ._generated.shared import StreamDeclaration as StreamDeclaration
-from ._generated.shared import StreamMatch as StreamMatch
-from ._generated.shared import StreamMatchOperator as StreamMatchOperator
-from ._generated.shared import Suite as Suite
-from ._generated.shared import Suites as Suites
-from ._generated.shared import Summary as Summary
-from ._generated.shared import SummaryTile as SummaryTile
-from ._generated.shared import Table as Table
-from ._generated.shared import TableRow as TableRow
-from ._generated.shared import Termination as Termination
-from ._generated.shared import TestCase as TestCase
-from ._generated.shared import TestCaseTemplate as TestCaseTemplate
-from ._generated.shared import TraceabilityEntry as TraceabilityEntry
-from ._generated.shared import TransferFraming as TransferFraming
-from ._generated.shared import TransformExpression as TransformExpression
-from ._generated.shared import Upload as Upload
-from ._generated.shared import UploadState as UploadState
-from ._generated.shared import Value as Value
-from ._generated.shared import ValueList as ValueList
-from ._generated.shared import ValueType as ValueType
-from ._generated.shared import Visibility as Visibility
-from ._generated.shared import Window as Window
-from ._generated.shared import XyInterval as XyInterval
-from ._plugin import Plugin as Plugin
-from .client import Client as Client
+from ._generated.shared import (
+    AGGREGATE_COUNT,
+    AGGREGATE_FIRST,
+    AGGREGATE_LAST,
+    AGGREGATE_MAX,
+    AGGREGATE_MEAN,
+    AGGREGATE_MEDIAN,
+    AGGREGATE_MIN,
+    AGGREGATE_PERCENTILE,
+    AGGREGATE_RMS,
+    AGGREGATE_STDDEV,
+    AGGREGATE_SUM,
+    AGGREGATE_UNSPECIFIED,
+    ALL,
+    ANSWER_OPERATOR_AND,
+    ANSWER_OPERATOR_CONTAINS,
+    ANSWER_OPERATOR_ENDS_WITH,
+    ANSWER_OPERATOR_EQ,
+    ANSWER_OPERATOR_GE,
+    ANSWER_OPERATOR_GT,
+    ANSWER_OPERATOR_LE,
+    ANSWER_OPERATOR_LT,
+    ANSWER_OPERATOR_NE,
+    ANSWER_OPERATOR_OR,
+    ANSWER_OPERATOR_STARTS_WITH,
+    ANSWER_OPERATOR_UNSPECIFIED,
+    ARTIFACT_STATE_CANCELLED,
+    ARTIFACT_STATE_COMPLETE,
+    ARTIFACT_STATE_FAILED,
+    ARTIFACT_STATE_REJECTED,
+    ARTIFACT_STATE_UNSPECIFIED,
+    AXIS_SCALE_LINEAR,
+    AXIS_SCALE_LOG,
+    AXIS_SCALE_UNSPECIFIED,
+    BAR_ARRANGEMENT_GROUPED,
+    BAR_ARRANGEMENT_STACKED,
+    BAR_ARRANGEMENT_UNSPECIFIED,
+    CALLERS_UNSPECIFIED,
+    CAPTURE_GAP_REASON_REPLACED,
+    CAPTURE_GAP_REASON_RESUME_UNSUPPORTED,
+    CAPTURE_GAP_REASON_TRUNCATED,
+    CAPTURE_GAP_REASON_UNSPECIFIED,
+    CAPTURE_GAP_REASON_VANISHED,
+    CLASSIFICATION_CANCELLED,
+    CLASSIFICATION_PERMANENT,
+    CLASSIFICATION_REFUSED,
+    CLASSIFICATION_TIMED_OUT,
+    CLASSIFICATION_TRANSIENT,
+    CLASSIFICATION_UNSPECIFIED,
+    CLIENTS,
+    CONTOUR_RENDER_BANDS,
+    CONTOUR_RENDER_CELLS,
+    CONTOUR_RENDER_UNSPECIFIED,
+    DOWNSAMPLE_AUTO,
+    DOWNSAMPLE_LTTB,
+    DOWNSAMPLE_MIN_MAX,
+    DOWNSAMPLE_RAW,
+    DOWNSAMPLE_UNSPECIFIED,
+    DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL,
+    DYNAMIC_DEFAULT_KEY_OPERATOR_NAME,
+    DYNAMIC_DEFAULT_KEY_UNSPECIFIED,
+    EVIDENCE_CARD_ARTIFACTS,
+    EVIDENCE_CARD_CRITERIA,
+    EVIDENCE_CARD_HEALTH,
+    EVIDENCE_CARD_MEDIA,
+    EVIDENCE_CARD_NOTES,
+    EVIDENCE_CARD_RECORDS,
+    EVIDENCE_CARD_STEPS,
+    EVIDENCE_CARD_STREAM_CONTEXT,
+    EVIDENCE_CARD_TRACEABILITY,
+    EVIDENCE_CARD_UNSPECIFIED,
+    FFT_DETREND_MEAN,
+    FFT_DETREND_NONE,
+    FFT_DETREND_UNSPECIFIED,
+    FFT_WINDOW_HANN,
+    FFT_WINDOW_RECTANGULAR,
+    FFT_WINDOW_UNSPECIFIED,
+    FIELD_TYPE_ARRAY,
+    FIELD_TYPE_BOOLEAN,
+    FIELD_TYPE_DATETIME,
+    FIELD_TYPE_FLOAT64,
+    FIELD_TYPE_INT64,
+    FIELD_TYPE_INTEGER,
+    FIELD_TYPE_OBJECT,
+    FIELD_TYPE_SEVERITY,
+    FIELD_TYPE_TEXT,
+    FIELD_TYPE_UINT64,
+    FIELD_TYPE_UNSPECIFIED,
+    FILE_RULE_ACTION_EXCLUDE,
+    FILE_RULE_ACTION_INCLUDE,
+    FILE_RULE_ACTION_UNSPECIFIED,
+    FILTER_OPERATOR_CONTAINS,
+    FILTER_OPERATOR_EQ,
+    FILTER_OPERATOR_EXISTS,
+    FILTER_OPERATOR_GE,
+    FILTER_OPERATOR_GT,
+    FILTER_OPERATOR_LE,
+    FILTER_OPERATOR_LT,
+    FILTER_OPERATOR_NE,
+    FILTER_OPERATOR_UNSPECIFIED,
+    FREQUENCY_LEVEL_UNIT_DB,
+    FREQUENCY_LEVEL_UNIT_DBM,
+    FREQUENCY_LEVEL_UNIT_DBU,
+    FREQUENCY_LEVEL_UNIT_LINEAR,
+    FREQUENCY_LEVEL_UNIT_UNSPECIFIED,
+    LINE_STYLE_LINE,
+    LINE_STYLE_LINE_POINTS,
+    LINE_STYLE_POINTS,
+    LINE_STYLE_STEP,
+    LINE_STYLE_UNSPECIFIED,
+    PARAMETER_BINARY_OPERATOR_ADD,
+    PARAMETER_BINARY_OPERATOR_DIVIDE,
+    PARAMETER_BINARY_OPERATOR_MULTIPLY,
+    PARAMETER_BINARY_OPERATOR_SUBTRACT,
+    PARAMETER_BINARY_OPERATOR_UNSPECIFIED,
+    PARAMETER_UNARY_OPERATOR_NEGATE,
+    PARAMETER_UNARY_OPERATOR_UNSPECIFIED,
+    PLOT_KIND_BAR,
+    PLOT_KIND_BOX_PLOT,
+    PLOT_KIND_CONTOUR,
+    PLOT_KIND_FREQUENCY_SERIES,
+    PLOT_KIND_GRID_CHART,
+    PLOT_KIND_HISTOGRAM,
+    PLOT_KIND_PIE,
+    PLOT_KIND_TIME_SERIES,
+    PLOT_KIND_TRAJECTORY,
+    PLOT_KIND_UNSPECIFIED,
+    PLOT_KIND_XY,
+    PLOT_STYLE_LINE,
+    PLOT_STYLE_LINE_POINTS,
+    PLOT_STYLE_POINTS,
+    PLOT_STYLE_STEP,
+    PLOT_STYLE_UNSPECIFIED,
+    PLUGINS,
+    PROMPT_ACTION_EMPHASIS_DANGER,
+    PROMPT_ACTION_EMPHASIS_PRIMARY,
+    PROMPT_ACTION_EMPHASIS_SECONDARY,
+    PROMPT_ACTION_EMPHASIS_UNSPECIFIED,
+    PROMPT_ARCHETYPE_CHOICE,
+    PROMPT_ARCHETYPE_CONFIRMATION,
+    PROMPT_ARCHETYPE_FORM,
+    PROMPT_ARCHETYPE_STATUS,
+    PROMPT_ARCHETYPE_UNSPECIFIED,
+    PROMPT_FIELD_KIND_BOOLEAN,
+    PROMPT_FIELD_KIND_CHOICE,
+    PROMPT_FIELD_KIND_FLOAT,
+    PROMPT_FIELD_KIND_INTEGER,
+    PROMPT_FIELD_KIND_TEXT,
+    PROMPT_FIELD_KIND_UNSPECIFIED,
+    REDUCTION_MAX,
+    REDUCTION_MEAN,
+    REDUCTION_MIN,
+    REDUCTION_UNSPECIFIED,
+    SEVERITY_DEBUG,
+    SEVERITY_FAILURE,
+    SEVERITY_INFO,
+    SEVERITY_UNSPECIFIED,
+    SEVERITY_WARNING,
+    STREAM_MATCH_OPERATOR_EQ,
+    STREAM_MATCH_OPERATOR_EXISTS,
+    STREAM_MATCH_OPERATOR_GE,
+    STREAM_MATCH_OPERATOR_GT,
+    STREAM_MATCH_OPERATOR_LE,
+    STREAM_MATCH_OPERATOR_LT,
+    STREAM_MATCH_OPERATOR_UNSPECIFIED,
+    STREAM_MATCH_OPERATOR_WITHIN,
+    TERMINATION_CANCELLED,
+    TERMINATION_COMPLETED,
+    TERMINATION_FAILED,
+    TERMINATION_INTERRUPTED,
+    TERMINATION_UNSPECIFIED,
+    TRANSFER_FRAMING_BYTES,
+    TRANSFER_FRAMING_UNSPECIFIED,
+    UPLOAD_STATE_ABANDONED,
+    UPLOAD_STATE_FINISHED,
+    UPLOAD_STATE_PRODUCING,
+    UPLOAD_STATE_UNSPECIFIED,
+    VALUE_TYPE_BOOLEAN,
+    VALUE_TYPE_BYTES,
+    VALUE_TYPE_DATETIME,
+    VALUE_TYPE_INTEGER,
+    VALUE_TYPE_LIST,
+    VALUE_TYPE_NUMBER,
+    VALUE_TYPE_TEXT,
+    VALUE_TYPE_UNSIGNED_INTEGER,
+    VALUE_TYPE_UNSPECIFIED,
+    VISIBILITY_PRIVATE,
+    VISIBILITY_PROTECTED,
+    VISIBILITY_PUBLIC,
+    VISIBILITY_UNSPECIFIED,
+    XY_INTERVAL_SIGMA,
+    XY_INTERVAL_UNSPECIFIED,
+    Aggregate,
+    AggregateExpression,
+    Analyses,
+    Analysis,
+    AnalysisOutput,
+    AnalysisSelection,
+    AnalysisValues,
+    AnswerBinaryPredicate,
+    AnswerOperator,
+    AnswerPredicate,
+    AnswerRule,
+    ArtifactMetadata,
+    ArtifactScope,
+    ArtifactState,
+    AxisScale,
+    BarArrangement,
+    Callers,
+    CapturedArtifact,
+    CaptureGap,
+    CaptureGapReason,
+    Card,
+    CardLayout,
+    Classification,
+    ContentArtifactsCreateResponse,
+    ContourRender,
+    Criterion,
+    DataExpression,
+    Declarations,
+    DiscoveredContract,
+    DiscoveredOperation,
+    Document,
+    DocumentFilter,
+    Downsample,
+    DynamicDefault,
+    DynamicDefaultKey,
+    EvidenceCapturedErrorCause,
+    EvidenceCapturedRecord,
+    EvidenceCapturedRecordError,
+    EvidenceCapturedRecordSelection,
+    EvidenceCard,
+    EvidenceCondition,
+    EvidenceConditions,
+    EvidenceCycleScope,
+    EvidenceOrigin,
+    EvidenceOriginKind,
+    EvidenceRecordScope,
+    EvidenceRecordsListResponse,
+    EvidenceScope,
+    EvidenceStatisticsResponse,
+    EvidenceTraceabilityGetResponse,
+    EvidenceTraceabilitySnapshot,
+    ExactNumber,
+    ExecutionProgressValue,
+    ExecutionsProgressGetResponse,
+    FailureValue,
+    FftDetrend,
+    FftWindow,
+    Field,
+    FieldReference,
+    FieldType,
+    File,
+    FileBatch,
+    FileCompletion,
+    FileLocation,
+    FileMetadata,
+    FileParameter,
+    FileReference,
+    FileRule,
+    FileRuleAction,
+    FilesDeleteResponse,
+    FileSelection,
+    FilesGetResponse,
+    FileSource,
+    FilesReadResponse,
+    FilesUploadsAppendResponse,
+    FilesUploadsCreateResponse,
+    FilesUploadsDeleteResponse,
+    FilesUploadsGetResponse,
+    FilesUploadsPublishResponse,
+    FilesUploadsResumeResponse,
+    FilesWatchResponse,
+    FilterOperator,
+    FrequencyLevelUnit,
+    FtpLocation,
+    Grant,
+    GridAxisEntry,
+    GridChart,
+    GridDefinition,
+    GridHighlight,
+    Grpc,
+    HarmosSection,
+    History,
+    Import,
+    ImportSource,
+    InstanceState,
+    IntegerRange,
+    InvocationsCancelResponse,
+    InvocationsGetResponse,
+    InvocationsWatchResponse,
+    LinearSpace,
+    LineStyle,
+    Listeners,
+    MapValue,
+    MessageSettings,
+    Metadata,
+    Null,
+    NumberRange,
+    OperationContract,
+    OperationPolicy,
+    OperationsGetResponse,
+    OperationsListResponse,
+    Origin,
+    Output,
+    PageRequest,
+    Parameter,
+    ParameterBinary,
+    ParameterBinaryOperator,
+    ParameterExpansion,
+    ParameterExpression,
+    ParameterExpressions,
+    ParameterUnary,
+    ParameterUnaryOperator,
+    Plot,
+    PlotFftOptions,
+    PlotFilter,
+    PlotHistogramOptions,
+    PlotIntervalOptions,
+    PlotKind,
+    PlotStyle,
+    PluginRun,
+    PluginsSettingsListResponse,
+    Position,
+    Prompt,
+    PromptAction,
+    PromptActionEmphasis,
+    PromptArchetype,
+    PromptDefinitions,
+    PromptField,
+    PromptFieldKind,
+    PromptFieldValidation,
+    PromptValues,
+    Protobuf,
+    ReadCut,
+    Receipt,
+    RecordContract,
+    RecordContracts,
+    RecordListener,
+    RecordMatch,
+    Reduction,
+    ReferenceBand,
+    ReferenceLine,
+    Requirement,
+    ResourceRevision,
+    RetryPolicy,
+    Schema,
+    SecretDeclaration,
+    SecretsDeclarations,
+    SecretsGetResponse,
+    SecretWritable,
+    Section,
+    SectionRepeat,
+    SettingDeclaration,
+    SettingsDeclarations,
+    SettingValue,
+    SettingValues,
+    Severity,
+    Statistics,
+    Step,
+    StorageTransferSettings,
+    StreamDeclaration,
+    StreamMatch,
+    StreamMatchOperator,
+    Suite,
+    Suites,
+    Summary,
+    SummaryTile,
+    Table,
+    TableRow,
+    Termination,
+    TestCase,
+    TestCaseTemplate,
+    TimeGetResponse,
+    TimeSleepResponse,
+    TraceabilityEntry,
+    TransferFraming,
+    TransformExpression,
+    Upload,
+    UploadState,
+    Value,
+    ValueList,
+    ValueType,
+    Visibility,
+    Window,
+    XyInterval,
+)
+
+__all__ = [
+    "AGGREGATE_COUNT",
+    "AGGREGATE_FIRST",
+    "AGGREGATE_LAST",
+    "AGGREGATE_MAX",
+    "AGGREGATE_MEAN",
+    "AGGREGATE_MEDIAN",
+    "AGGREGATE_MIN",
+    "AGGREGATE_PERCENTILE",
+    "AGGREGATE_RMS",
+    "AGGREGATE_STDDEV",
+    "AGGREGATE_SUM",
+    "AGGREGATE_UNSPECIFIED",
+    "ALL",
+    "ANSWER_OPERATOR_AND",
+    "ANSWER_OPERATOR_CONTAINS",
+    "ANSWER_OPERATOR_ENDS_WITH",
+    "ANSWER_OPERATOR_EQ",
+    "ANSWER_OPERATOR_GE",
+    "ANSWER_OPERATOR_GT",
+    "ANSWER_OPERATOR_LE",
+    "ANSWER_OPERATOR_LT",
+    "ANSWER_OPERATOR_NE",
+    "ANSWER_OPERATOR_OR",
+    "ANSWER_OPERATOR_STARTS_WITH",
+    "ANSWER_OPERATOR_UNSPECIFIED",
+    "ARTIFACT_STATE_CANCELLED",
+    "ARTIFACT_STATE_COMPLETE",
+    "ARTIFACT_STATE_FAILED",
+    "ARTIFACT_STATE_REJECTED",
+    "ARTIFACT_STATE_UNSPECIFIED",
+    "AXIS_SCALE_LINEAR",
+    "AXIS_SCALE_LOG",
+    "AXIS_SCALE_UNSPECIFIED",
+    "BAR_ARRANGEMENT_GROUPED",
+    "BAR_ARRANGEMENT_STACKED",
+    "BAR_ARRANGEMENT_UNSPECIFIED",
+    "CALLERS_UNSPECIFIED",
+    "CAPTURE_GAP_REASON_REPLACED",
+    "CAPTURE_GAP_REASON_RESUME_UNSUPPORTED",
+    "CAPTURE_GAP_REASON_TRUNCATED",
+    "CAPTURE_GAP_REASON_UNSPECIFIED",
+    "CAPTURE_GAP_REASON_VANISHED",
+    "CLASSIFICATION_CANCELLED",
+    "CLASSIFICATION_PERMANENT",
+    "CLASSIFICATION_REFUSED",
+    "CLASSIFICATION_TIMED_OUT",
+    "CLASSIFICATION_TRANSIENT",
+    "CLASSIFICATION_UNSPECIFIED",
+    "CLIENTS",
+    "CONTOUR_RENDER_BANDS",
+    "CONTOUR_RENDER_CELLS",
+    "CONTOUR_RENDER_UNSPECIFIED",
+    "DOWNSAMPLE_AUTO",
+    "DOWNSAMPLE_LTTB",
+    "DOWNSAMPLE_MIN_MAX",
+    "DOWNSAMPLE_RAW",
+    "DOWNSAMPLE_UNSPECIFIED",
+    "DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL",
+    "DYNAMIC_DEFAULT_KEY_OPERATOR_NAME",
+    "DYNAMIC_DEFAULT_KEY_UNSPECIFIED",
+    "EVIDENCE_CARD_ARTIFACTS",
+    "EVIDENCE_CARD_CRITERIA",
+    "EVIDENCE_CARD_HEALTH",
+    "EVIDENCE_CARD_MEDIA",
+    "EVIDENCE_CARD_NOTES",
+    "EVIDENCE_CARD_RECORDS",
+    "EVIDENCE_CARD_STEPS",
+    "EVIDENCE_CARD_STREAM_CONTEXT",
+    "EVIDENCE_CARD_TRACEABILITY",
+    "EVIDENCE_CARD_UNSPECIFIED",
+    "FFT_DETREND_MEAN",
+    "FFT_DETREND_NONE",
+    "FFT_DETREND_UNSPECIFIED",
+    "FFT_WINDOW_HANN",
+    "FFT_WINDOW_RECTANGULAR",
+    "FFT_WINDOW_UNSPECIFIED",
+    "FIELD_TYPE_ARRAY",
+    "FIELD_TYPE_BOOLEAN",
+    "FIELD_TYPE_DATETIME",
+    "FIELD_TYPE_FLOAT64",
+    "FIELD_TYPE_INT64",
+    "FIELD_TYPE_INTEGER",
+    "FIELD_TYPE_OBJECT",
+    "FIELD_TYPE_SEVERITY",
+    "FIELD_TYPE_TEXT",
+    "FIELD_TYPE_UINT64",
+    "FIELD_TYPE_UNSPECIFIED",
+    "FILE_RULE_ACTION_EXCLUDE",
+    "FILE_RULE_ACTION_INCLUDE",
+    "FILE_RULE_ACTION_UNSPECIFIED",
+    "FILTER_OPERATOR_CONTAINS",
+    "FILTER_OPERATOR_EQ",
+    "FILTER_OPERATOR_EXISTS",
+    "FILTER_OPERATOR_GE",
+    "FILTER_OPERATOR_GT",
+    "FILTER_OPERATOR_LE",
+    "FILTER_OPERATOR_LT",
+    "FILTER_OPERATOR_NE",
+    "FILTER_OPERATOR_UNSPECIFIED",
+    "FREQUENCY_LEVEL_UNIT_DB",
+    "FREQUENCY_LEVEL_UNIT_DBM",
+    "FREQUENCY_LEVEL_UNIT_DBU",
+    "FREQUENCY_LEVEL_UNIT_LINEAR",
+    "FREQUENCY_LEVEL_UNIT_UNSPECIFIED",
+    "LINE_STYLE_LINE",
+    "LINE_STYLE_LINE_POINTS",
+    "LINE_STYLE_POINTS",
+    "LINE_STYLE_STEP",
+    "LINE_STYLE_UNSPECIFIED",
+    "PARAMETER_BINARY_OPERATOR_ADD",
+    "PARAMETER_BINARY_OPERATOR_DIVIDE",
+    "PARAMETER_BINARY_OPERATOR_MULTIPLY",
+    "PARAMETER_BINARY_OPERATOR_SUBTRACT",
+    "PARAMETER_BINARY_OPERATOR_UNSPECIFIED",
+    "PARAMETER_UNARY_OPERATOR_NEGATE",
+    "PARAMETER_UNARY_OPERATOR_UNSPECIFIED",
+    "PLOT_KIND_BAR",
+    "PLOT_KIND_BOX_PLOT",
+    "PLOT_KIND_CONTOUR",
+    "PLOT_KIND_FREQUENCY_SERIES",
+    "PLOT_KIND_GRID_CHART",
+    "PLOT_KIND_HISTOGRAM",
+    "PLOT_KIND_PIE",
+    "PLOT_KIND_TIME_SERIES",
+    "PLOT_KIND_TRAJECTORY",
+    "PLOT_KIND_UNSPECIFIED",
+    "PLOT_KIND_XY",
+    "PLOT_STYLE_LINE",
+    "PLOT_STYLE_LINE_POINTS",
+    "PLOT_STYLE_POINTS",
+    "PLOT_STYLE_STEP",
+    "PLOT_STYLE_UNSPECIFIED",
+    "PLUGINS",
+    "PROMPT_ACTION_EMPHASIS_DANGER",
+    "PROMPT_ACTION_EMPHASIS_PRIMARY",
+    "PROMPT_ACTION_EMPHASIS_SECONDARY",
+    "PROMPT_ACTION_EMPHASIS_UNSPECIFIED",
+    "PROMPT_ARCHETYPE_CHOICE",
+    "PROMPT_ARCHETYPE_CONFIRMATION",
+    "PROMPT_ARCHETYPE_FORM",
+    "PROMPT_ARCHETYPE_STATUS",
+    "PROMPT_ARCHETYPE_UNSPECIFIED",
+    "PROMPT_FIELD_KIND_BOOLEAN",
+    "PROMPT_FIELD_KIND_CHOICE",
+    "PROMPT_FIELD_KIND_FLOAT",
+    "PROMPT_FIELD_KIND_INTEGER",
+    "PROMPT_FIELD_KIND_TEXT",
+    "PROMPT_FIELD_KIND_UNSPECIFIED",
+    "REDUCTION_MAX",
+    "REDUCTION_MEAN",
+    "REDUCTION_MIN",
+    "REDUCTION_UNSPECIFIED",
+    "SEVERITY_DEBUG",
+    "SEVERITY_FAILURE",
+    "SEVERITY_INFO",
+    "SEVERITY_UNSPECIFIED",
+    "SEVERITY_WARNING",
+    "STREAM_MATCH_OPERATOR_EQ",
+    "STREAM_MATCH_OPERATOR_EXISTS",
+    "STREAM_MATCH_OPERATOR_GE",
+    "STREAM_MATCH_OPERATOR_GT",
+    "STREAM_MATCH_OPERATOR_LE",
+    "STREAM_MATCH_OPERATOR_LT",
+    "STREAM_MATCH_OPERATOR_UNSPECIFIED",
+    "STREAM_MATCH_OPERATOR_WITHIN",
+    "TERMINATION_CANCELLED",
+    "TERMINATION_COMPLETED",
+    "TERMINATION_FAILED",
+    "TERMINATION_INTERRUPTED",
+    "TERMINATION_UNSPECIFIED",
+    "TRANSFER_FRAMING_BYTES",
+    "TRANSFER_FRAMING_UNSPECIFIED",
+    "UPLOAD_STATE_ABANDONED",
+    "UPLOAD_STATE_FINISHED",
+    "UPLOAD_STATE_PRODUCING",
+    "UPLOAD_STATE_UNSPECIFIED",
+    "VALUE_TYPE_BOOLEAN",
+    "VALUE_TYPE_BYTES",
+    "VALUE_TYPE_DATETIME",
+    "VALUE_TYPE_INTEGER",
+    "VALUE_TYPE_LIST",
+    "VALUE_TYPE_NUMBER",
+    "VALUE_TYPE_TEXT",
+    "VALUE_TYPE_UNSIGNED_INTEGER",
+    "VALUE_TYPE_UNSPECIFIED",
+    "VISIBILITY_PRIVATE",
+    "VISIBILITY_PROTECTED",
+    "VISIBILITY_PUBLIC",
+    "VISIBILITY_UNSPECIFIED",
+    "XY_INTERVAL_SIGMA",
+    "XY_INTERVAL_UNSPECIFIED",
+    "Aggregate",
+    "AggregateExpression",
+    "Analyses",
+    "Analysis",
+    "AnalysisOutput",
+    "AnalysisSelection",
+    "AnalysisValues",
+    "AnswerBinaryPredicate",
+    "AnswerOperator",
+    "AnswerPredicate",
+    "AnswerRule",
+    "ArtifactMetadata",
+    "ArtifactScope",
+    "ArtifactState",
+    "AxisScale",
+    "BarArrangement",
+    "Callers",
+    "CaptureGap",
+    "CaptureGapReason",
+    "CapturedArtifact",
+    "Card",
+    "CardLayout",
+    "Classification",
+    "ContentArtifactsCreateResponse",
+    "ContourRender",
+    "Criterion",
+    "DataExpression",
+    "Declarations",
+    "DiscoveredContract",
+    "DiscoveredOperation",
+    "Document",
+    "DocumentFilter",
+    "Downsample",
+    "DynamicDefault",
+    "DynamicDefaultKey",
+    "EvidenceCapturedErrorCause",
+    "EvidenceCapturedRecord",
+    "EvidenceCapturedRecordError",
+    "EvidenceCapturedRecordSelection",
+    "EvidenceCard",
+    "EvidenceCondition",
+    "EvidenceConditions",
+    "EvidenceCycleScope",
+    "EvidenceOrigin",
+    "EvidenceOriginKind",
+    "EvidenceRecordScope",
+    "EvidenceRecordsListResponse",
+    "EvidenceScope",
+    "EvidenceStatisticsResponse",
+    "EvidenceTraceabilityGetResponse",
+    "EvidenceTraceabilitySnapshot",
+    "ExactNumber",
+    "ExecutionProgressValue",
+    "ExecutionsProgressGetResponse",
+    "Failure",
+    "FailureValue",
+    "FftDetrend",
+    "FftWindow",
+    "Field",
+    "FieldReference",
+    "FieldType",
+    "File",
+    "FileBatch",
+    "FileCompletion",
+    "FileLocation",
+    "FileMetadata",
+    "FileParameter",
+    "FileReference",
+    "FileRule",
+    "FileRuleAction",
+    "FileSelection",
+    "FileSource",
+    "FilesDeleteResponse",
+    "FilesGetResponse",
+    "FilesReadResponse",
+    "FilesUploadsAppendResponse",
+    "FilesUploadsCreateResponse",
+    "FilesUploadsDeleteResponse",
+    "FilesUploadsGetResponse",
+    "FilesUploadsPublishResponse",
+    "FilesUploadsResumeResponse",
+    "FilesWatchResponse",
+    "FilterOperator",
+    "FrequencyLevelUnit",
+    "FtpLocation",
+    "Grant",
+    "GridAxisEntry",
+    "GridChart",
+    "GridDefinition",
+    "GridHighlight",
+    "Grpc",
+    "HarmosSection",
+    "History",
+    "Import",
+    "ImportSource",
+    "InstanceState",
+    "IntegerRange",
+    "InvocationsCancelResponse",
+    "InvocationsGetResponse",
+    "InvocationsWatchResponse",
+    "LineStyle",
+    "LinearSpace",
+    "Listeners",
+    "MapValue",
+    "MessageSettings",
+    "Metadata",
+    "Null",
+    "NumberRange",
+    "OperationContract",
+    "OperationPolicy",
+    "OperationsGetResponse",
+    "OperationsListResponse",
+    "Origin",
+    "Output",
+    "PageRequest",
+    "Parameter",
+    "ParameterBinary",
+    "ParameterBinaryOperator",
+    "ParameterExpansion",
+    "ParameterExpression",
+    "ParameterExpressions",
+    "ParameterUnary",
+    "ParameterUnaryOperator",
+    "Plot",
+    "PlotFftOptions",
+    "PlotFilter",
+    "PlotHistogramOptions",
+    "PlotIntervalOptions",
+    "PlotKind",
+    "PlotStyle",
+    "PluginRun",
+    "PluginsSettingsListResponse",
+    "Position",
+    "Prompt",
+    "PromptAction",
+    "PromptActionEmphasis",
+    "PromptArchetype",
+    "PromptDefinitions",
+    "PromptField",
+    "PromptFieldKind",
+    "PromptFieldValidation",
+    "PromptValues",
+    "Protobuf",
+    "ReadCut",
+    "Receipt",
+    "RecordContract",
+    "RecordContracts",
+    "RecordListener",
+    "RecordMatch",
+    "Reduction",
+    "ReferenceBand",
+    "ReferenceLine",
+    "Requirement",
+    "ResourceRevision",
+    "RetryPolicy",
+    "Schema",
+    "SecretDeclaration",
+    "SecretWritable",
+    "SecretsDeclarations",
+    "SecretsGetResponse",
+    "Section",
+    "SectionRepeat",
+    "SettingDeclaration",
+    "SettingValue",
+    "SettingValues",
+    "SettingsDeclarations",
+    "Severity",
+    "Statistics",
+    "Step",
+    "StorageTransferSettings",
+    "StreamDeclaration",
+    "StreamMatch",
+    "StreamMatchOperator",
+    "Suite",
+    "Suites",
+    "Summary",
+    "SummaryTile",
+    "Table",
+    "TableRow",
+    "Termination",
+    "TestCase",
+    "TestCaseTemplate",
+    "TimeGetResponse",
+    "TimeSleepResponse",
+    "TraceabilityEntry",
+    "TransferFraming",
+    "TransformExpression",
+    "Upload",
+    "UploadState",
+    "Value",
+    "ValueList",
+    "ValueType",
+    "Visibility",
+    "Window",
+    "XyInterval",
+]

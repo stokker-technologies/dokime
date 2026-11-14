@@ -13,12 +13,16 @@ dotnet = "10.0.403"
 
 [tasks."prepare:harmos"]
 description = "Prepare the Pinned Harmos NuGet Feed"
-run = ['python tools/prepare_harmos.py "{{tools.dotnet.path}}/dotnet"']
+usage = 'flag "--refresh-lock"'
+run = ['python tools/prepare_harmos.py "{{tools.dotnet.path}}/dotnet"{% if usage.refresh_lock %} --refresh-lock{% endif %}']
 
 [tasks."restore"]
 description = "Restore the C# Solution"
-depends = ["prepare:harmos"]
-run = ['"{{tools.dotnet.path}}/dotnet" restore Dokime.slnx --configfile NuGet.Config --force-evaluate']
+usage = 'flag "--refresh-lock"'
+depends = ["prepare:harmos{% if usage.refresh_lock %} --refresh-lock{% endif %}"]
+run = [
+  '"{{tools.dotnet.path}}/dotnet" restore Dokime.slnx --configfile NuGet.Config {% if usage.refresh_lock %}--force-evaluate{% else %}--locked-mode{% endif %}',
+]
 
 [tasks."generate"]
 description = "Verify Frozen C# Generation"
@@ -116,4 +120,11 @@ run = [
   '"{{tools.dotnet.path}}/dotnet" clean examples/Client/Client.csproj --configuration Release',
   '"{{tools.dotnet.path}}/dotnet" clean examples/Plugin/Plugin.csproj --configuration Release',
   '"{{tools.dotnet.path}}/dotnet" clean ../../target/cs/h/Harmos.csproj --configuration Release --artifacts-path ../../target/cs/harmos',
+]
+
+[tasks."test:generation"]
+description = "Compile the Generated Client and Plugin Consumer"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" restore tests/Generation/Generation.csproj --configfile NuGet.Config --locked-mode -p:DokimeGeneratedOnly=true',
+  '"{{tools.dotnet.path}}/dotnet" build tests/Generation/Generation.csproj --configuration Release --no-restore -p:DokimeGeneratedOnly=true',
 ]

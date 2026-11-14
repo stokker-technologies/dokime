@@ -37,3 +37,7 @@ run = "pnpm run build:report"
 hide = true
 description = "Build the Desktop Frontend from Prepared Messages"
 run = ["pnpm run typecheck", "pnpm run build:live"]
+
+[tasks."test:generation"]
+description = "Compile the Generated Desktop Client"
+run = "mise -C ../.. run check:generated -- --language typescript"

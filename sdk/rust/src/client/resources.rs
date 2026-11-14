@@ -499,7 +499,6 @@ pub struct ContentArtifactsGetOptions {
 }
 #[derive(Default)]
 pub struct ContentArtifactsCreateOptions {
-    pub scope: Option<ArtifactScope>,
     pub request_id: Option<String>,
     pub metadata: Option<Metadata>,
     pub context: CallOptions,
@@ -1606,16 +1605,17 @@ impl ContentArtifacts {
         Ok(response)
     }
     pub async fn create(
-        &self, file: FileReference, filename: impl Into<String>, content_type: impl Into<String>,
+        &self, file: FileReference, scope: ArtifactScope, filename: impl Into<String>, content_type: impl Into<String>,
     ) -> Result<ContentArtifactsCreateResponse, RpcStatus> {
-        self.create_with(file, filename, content_type, ContentArtifactsCreateOptions::default()).await
+        self.create_with(file, scope, filename, content_type, ContentArtifactsCreateOptions::default()).await
     }
     pub async fn create_with(
-        &self, file: FileReference, filename: impl Into<String>, content_type: impl Into<String>, options: ContentArtifactsCreateOptions,
+        &self, file: FileReference, scope: ArtifactScope, filename: impl Into<String>, content_type: impl Into<String>,
+        options: ContentArtifactsCreateOptions,
     ) -> Result<ContentArtifactsCreateResponse, RpcStatus> {
         let value = ContentArtifactsCreateRequest {
             file: Some(file),
-            scope: options.scope,
+            scope: Some(scope),
             filename: filename.into(),
             content_type: content_type.into(),
             request_id: match options.request_id {

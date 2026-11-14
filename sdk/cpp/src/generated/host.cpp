@@ -1,6 +1,7 @@
 // @generated from protocol descriptors; do not edit.
 #include "dokime/dokime.hpp"
 #include "dokime/host/v1/backend.pb.h"
+#include "dokime/host/v1/content/artifacts.pb.h"
 #include "dokime/host/v1/documents.pb.h"
 #include "dokime/host/v1/effects.pb.h"
 #include "dokime/host/v1/evidence.pb.h"
@@ -16,6 +17,7 @@
 #include "harmos/host/v1/invocations.pb.h"
 #include "harmos/host/v1/plugins/settings.pb.h"
 #include "harmos/host/v1/time.pb.h"
+using ::dokime::ContentArtifactsCreateResponse;
 using ::dokime::EvidenceCapturedRecordSelection;
 using ::dokime::EvidenceRecordsListResponse;
 using ::dokime::EvidenceTraceabilityGetResponse;
@@ -45,6 +47,8 @@ using ::dokime::host::v1::EffectsSetRequest;
 using ::dokime::host::v1::EffectsSetResponse;
 using ::dokime::host::v1::EvidenceStatisticsRequest;
 using ::dokime::host::v1::EvidenceStatisticsResponse;
+using ::dokime::host::v1::FilesCaptureRequest;
+using ::dokime::host::v1::FilesCaptureResponse;
 using ::dokime::host::v1::FilesDeleteRequest;
 using ::dokime::host::v1::FilesDeleteResponse;
 using ::dokime::host::v1::FilesGetRequest;
@@ -57,6 +61,8 @@ using ::dokime::host::v1::PromptsCreateRequest;
 using ::dokime::host::v1::PromptsCreateResponse;
 using ::dokime::host::v1::SecretsGetRequest;
 using ::dokime::host::v1::SecretsGetResponse;
+using ::dokime::host::v1::content::ArtifactsCreateRequest;
+using ::dokime::host::v1::content::ArtifactsCreateResponse;
 using ::dokime::host::v1::evidence::LogsAppendRequest;
 using ::dokime::host::v1::evidence::LogsAppendResponse;
 using ::dokime::host::v1::evidence::RecordsAppendRequest;
@@ -121,6 +127,9 @@ using std::uint32_t;
 using std::uint64_t;
 using std::vector;
 namespace dokime::plugin {
+using ::harmos::VISIBILITY_PUBLIC;
+using ::harmos::plugin::Operation;
+using ::harmos::plugin::Watching;
 Timestamp HostTimeResource::get(HostTimeGetOptions options) {
   TimeGetRequest request;
   auto operation = Operation<TimeGetRequest, TimeGetResponse>("harmos.host.v1.Time/Get", VISIBILITY_PUBLIC);
@@ -261,7 +270,7 @@ FilesUploadsPublishResponse HostFilesUploadsResource::publish(const Upload &uplo
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-FilesUploadsDeleteResponse HostFilesUploadsResource::delete (const Upload &upload, HostFilesUploadsDeleteOptions options) {
+FilesUploadsDeleteResponse HostFilesUploadsResource::delete_(const Upload &upload, HostFilesUploadsDeleteOptions options) {
   UploadsDeleteRequest request;
   *request.mutable_upload() = upload;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -329,7 +338,7 @@ HostFilesWatch HostFilesResource::watch(const FileReference &file, const uint64_
     return *response;
   });
 }
-Receipt HostFilesResource::delete (const FileReference &file, HostFilesDeleteOptions options) {
+Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOptions options) {
   FilesDeleteRequest request;
   *request.mutable_file() = file;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -339,6 +348,14 @@ Receipt HostFilesResource::delete (const FileReference &file, HostFilesDeleteOpt
     throw runtime_error("Read FilesDelete: Missing Payload");
   }
   return std::move(*response.mutable_receipt());
+}
+FilesCaptureResponse HostFilesResource::capture(const FileSource &source, const string &output, HostFilesCaptureOptions options) {
+  FilesCaptureRequest request;
+  *request.mutable_source() = source;
+  request.set_output(output);
+  auto operation = Operation<FilesCaptureRequest, FilesCaptureResponse>("dokime.host.v1.Files/Capture", VISIBILITY_PUBLIC);
+  auto response = context.call(operation, request, options.policy).get();
+  return response;
 }
 ExecutionsProgressGetResponse HostExecutionsProgressResource::get(HostExecutionsProgressGetOptions options) {
   ProgressGetRequest request;
@@ -524,6 +541,23 @@ Receipt HostDocumentsResource::append_parts(const string &execution, const strin
   }
   return std::move(*response.mutable_receipt());
 }
+ContentArtifactsCreateResponse HostContentArtifactsResource::create(const FileReference &file, const string &filename,
+                                                                    const string &content_type, HostContentArtifactsCreateOptions options) {
+  ArtifactsCreateRequest request;
+  *request.mutable_file() = file;
+  if (options.scope) {
+    *request.mutable_scope() = *options.scope;
+  }
+  request.set_filename(filename);
+  request.set_content_type(content_type);
+  request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
+  if (options.metadata) {
+    *request.mutable_metadata() = *options.metadata;
+  }
+  auto operation = Operation<ArtifactsCreateRequest, ArtifactsCreateResponse>("dokime.host.v1.content.Artifacts/Create", VISIBILITY_PUBLIC);
+  auto response = context.call(operation, request, options.policy).get();
+  return response;
+}
 BackendEnvironmentResponse HostBackendResource::environment(HostBackendEnvironmentOptions options) {
   BackendEnvironmentRequest request;
   if (options.at) {
@@ -536,12 +570,17 @@ BackendEnvironmentResponse HostBackendResource::environment(HostBackendEnvironme
 }
 } // namespace dokime::plugin
 namespace dokime::plugin {
-HostRoot Context::host() { return {{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}}; }
+HostRoot Context::host() {
+  return {{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}};
+}
 Plugin &Plugin::requires_operation(HostOperation operation) {
   switch (operation) {
   case HostOperation::BackendEnvironment:
     return requires_operation(
         Operation<BackendEnvironmentRequest, BackendEnvironmentResponse>("dokime.host.v1.Backend/Environment", VISIBILITY_PUBLIC));
+  case HostOperation::ContentArtifactsCreate:
+    return requires_operation(
+        Operation<ArtifactsCreateRequest, ArtifactsCreateResponse>("dokime.host.v1.content.Artifacts/Create", VISIBILITY_PUBLIC));
   case HostOperation::DocumentsAppendParts:
     return requires_operation(
         Operation<DocumentsAppendPartsRequest, DocumentsAppendPartsResponse>("dokime.host.v1.Documents/AppendParts", VISIBILITY_PUBLIC));
@@ -605,6 +644,8 @@ Plugin &Plugin::requires_operation(HostOperation operation) {
     return requires_operation(Operation<FilesWatchRequest, FilesWatchResponse>("dokime.host.v1.Files/Watch", VISIBILITY_PUBLIC).watch());
   case HostOperation::FilesDelete:
     return requires_operation(Operation<FilesDeleteRequest, FilesDeleteResponse>("dokime.host.v1.Files/Delete", VISIBILITY_PUBLIC));
+  case HostOperation::FilesCapture:
+    return requires_operation(Operation<FilesCaptureRequest, FilesCaptureResponse>("dokime.host.v1.Files/Capture", VISIBILITY_PUBLIC));
   case HostOperation::PromptsCreate:
     return requires_operation(Operation<PromptsCreateRequest, PromptsCreateResponse>("dokime.host.v1.Prompts/Create", VISIBILITY_PUBLIC));
   case HostOperation::SecretsGet:

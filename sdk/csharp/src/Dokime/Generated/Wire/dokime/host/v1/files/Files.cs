@@ -62,7 +62,7 @@ namespace Dokime.Clients;
             "dHMSLwoEZ2FwcxgCIAMoCzIbLmRva2ltZS5tb2RlbC52MS5DYXB0dXJlR2Fw",
             "UgRnYXBzIjkKCUZpbGVCYXRjaBIWCgZvZmZzZXQYASABKARSBm9mZnNldBIU",
             "CgVieXRlcxgCIAEoDFIFYnl0ZXMiJgoORmlsZUNvbXBsZXRpb24SFAoFYnl0",
-            "ZXMYASABKARSBWJ5dGVzMtsCCgVGaWxlcxJOCgNHZXQSHy5kb2tpbWUuaG9z",
+            "ZXMYASABKARSBWJ5dGVzMrcDCgVGaWxlcxJOCgNHZXQSHy5kb2tpbWUuaG9z",
             "dC52MS5GaWxlc0dldFJlcXVlc3QaIC5kb2tpbWUuaG9zdC52MS5GaWxlc0dl",
             "dFJlc3BvbnNlIgTI8xgDElEKBFJlYWQSIC5kb2tpbWUuaG9zdC52MS5GaWxl",
             "c1JlYWRSZXF1ZXN0GiEuZG9raW1lLmhvc3QudjEuRmlsZXNSZWFkUmVzcG9u",
@@ -70,7 +70,9 @@ namespace Dokime.Clients;
             "UmVxdWVzdBoiLmRva2ltZS5ob3N0LnYxLkZpbGVzV2F0Y2hSZXNwb25zZSIE",
             "yPMYAzABElcKBkRlbGV0ZRIiLmRva2ltZS5ob3N0LnYxLkZpbGVzRGVsZXRl",
             "UmVxdWVzdBojLmRva2ltZS5ob3N0LnYxLkZpbGVzRGVsZXRlUmVzcG9uc2Ui",
-            "BMjzGANCEaoCDkRva2ltZS5DbGllbnRzYgZwcm90bzM="));
+            "BMjzGAMSWgoHQ2FwdHVyZRIjLmRva2ltZS5ob3N0LnYxLkZpbGVzQ2FwdHVy",
+            "ZVJlcXVlc3QaJC5kb2tpbWUuaG9zdC52MS5GaWxlc0NhcHR1cmVSZXNwb25z",
+            "ZSIEyPMYAkIRqgIORG9raW1lLkNsaWVudHNiBnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Dokime.FilesReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.FileReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, global::Harmos.ReceiptReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
@@ -2358,7 +2360,7 @@ namespace Dokime.Clients;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class FilesCaptureRequest : pb::IMessage<FilesCaptureRequest>
+  internal sealed partial class FilesCaptureRequest : pb::IMessage<FilesCaptureRequest>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif

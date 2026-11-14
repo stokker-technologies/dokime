@@ -16,7 +16,7 @@ using TransportPlugin = Harmos.Plugins.Plugin;
 namespace Dokime.Plugins;
 
 /// <summary>Composed suites served through the exact-revision Harmos SDK.</summary>
-public sealed class Plugin(string identifier, string version, params Suite[] suites)
+public sealed partial class Plugin(string identifier, string version, params Suite[] suites)
 {
   private readonly TransportPlugin transport = new(identifier, version);
   private readonly ConcurrentDictionary<string, Lazy<Task<ExecutionResource>>> resources = new();

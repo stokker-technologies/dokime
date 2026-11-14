@@ -22,7 +22,11 @@ from uuid import uuid4
 # Third Party Imports
 from harmos import FileMetadata, FileReference, Upload
 
-from ._wire.host.v1.files.uploads_pb2 import UploadsAppendResponse, UploadsCreateResponse, UploadsDeleteResponse, UploadsPublishResponse
+from dokime import FilesUploadsAppendResponse as UploadsAppendResponse
+from dokime import FilesUploadsCreateResponse as UploadsCreateResponse
+from dokime import FilesUploadsDeleteResponse as UploadsDeleteResponse
+from dokime import FilesUploadsPublishResponse as UploadsPublishResponse
+
 from .client import Client, ReportSubject
 
 # Local Imports

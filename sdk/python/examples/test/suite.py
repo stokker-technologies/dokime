@@ -15,7 +15,6 @@
 # Local Imports
 from google.protobuf.wrappers_pb2 import BoolValue
 
-import dokime
 from dokime import Prompt, PromptDefinitions
 from dokime.authoring import Record, criterion, step, suite
 from dokime.plugin import Context, HostOperation, Plugin
@@ -65,7 +64,7 @@ def plugin() -> Plugin:
             )
         ],
     )
-    return dokime.Plugin(
+    return Plugin(
         "example",
         "0.1.0",
         suites=[Capture],

@@ -1,3 +1,7 @@
+# Compile the Generated Public Barrels Without Linking Handwritten SDK Consumers.
+add_library(dokime-generation OBJECT generation/surface.cpp ../src/generated/host.cpp)
+target_link_libraries(dokime-generation PRIVATE Dokime::Cpp)
+
 find_package(Catch2 3 CONFIG REQUIRED)
 include(Catch)
 add_executable(dokime-builders builders.cpp)

@@ -35,7 +35,7 @@ service Artifacts {
   }
   // Create the Artifacts resource; admission and policy are owned by the executor.
   rpc Create(.dokime.host.v1.content.ArtifactsCreateRequest) returns (.dokime.host.v1.content.ArtifactsCreateResponse) {
-    option (harmos.model.v1.callers) = CLIENTS;
+    option (harmos.model.v1.callers) = ALL;
   }
   // List the Artifacts resource; admission and policy are owned by the executor.
   rpc List(.dokime.host.v1.content.ArtifactsListRequest) returns (.dokime.host.v1.content.ArtifactsListResponse) {

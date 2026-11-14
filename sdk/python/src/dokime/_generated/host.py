@@ -27,6 +27,7 @@ from harmos._wire.model.v1.position_pb2 import Position, ReadCut
 from harmos._wire.model.v1.receipt_pb2 import Receipt
 
 from dokime._wire.host.v1.backend_pb2 import BackendEnvironmentRequest, BackendEnvironmentResponse
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateRequest, ArtifactsCreateResponse
 from dokime._wire.host.v1.documents_pb2 import DocumentsAppendPartsRequest, DocumentsAppendPartsResponse
 from dokime._wire.host.v1.effects_pb2 import (
     EffectsCreateRequest,
@@ -76,6 +77,8 @@ from dokime._wire.host.v1.files.uploads_pb2 import (
     UploadsResumeResponse,
 )
 from dokime._wire.host.v1.files_pb2 import (
+    FilesCaptureRequest,
+    FilesCaptureResponse,
     FilesDeleteRequest,
     FilesDeleteResponse,
     FilesGetRequest,
@@ -88,9 +91,10 @@ from dokime._wire.host.v1.files_pb2 import (
 from dokime._wire.host.v1.prompts_pb2 import PromptsCreateRequest, PromptsCreateResponse
 from dokime._wire.host.v1.secrets_pb2 import SecretsGetRequest, SecretsGetResponse
 from dokime._wire.model.v1.documents_pb2 import Card, Section
-from dokime._wire.model.v1.evidence_pb2 import EvidenceScope, Severity, Window
+from dokime._wire.model.v1.evidence_pb2 import ArtifactScope, EvidenceScope, Severity, Window
 from dokime._wire.model.v1.execution_pb2 import ExecutionProgressValue
 from dokime._wire.model.v1.files_pb2 import FileSource
+from dokime._wire.model.v1.metadata_pb2 import Metadata
 from dokime._wire.model.v1.prompts_pb2 import Prompt
 from dokime._wire.model.v1.scalar_pb2 import Value
 from dokime._wire.model.v1.traceability_pb2 import TraceabilityEntry
@@ -101,6 +105,7 @@ if TYPE_CHECKING:
 
 class HostOperation(Enum):
     BACKEND_ENVIRONMENT = "dokime.host.v1.Backend/Environment"
+    CONTENT_ARTIFACTS_CREATE = "dokime.host.v1.content.Artifacts/Create"
     DOCUMENTS_APPEND_PARTS = "dokime.host.v1.Documents/AppendParts"
     EFFECTS_CREATE = "dokime.host.v1.Effects/Create"
     EFFECTS_GET = "dokime.host.v1.Effects/Get"
@@ -125,6 +130,7 @@ class HostOperation(Enum):
     FILES_READ = "dokime.host.v1.Files/Read"
     FILES_WATCH = "dokime.host.v1.Files/Watch"
     FILES_DELETE = "dokime.host.v1.Files/Delete"
+    FILES_CAPTURE = "dokime.host.v1.Files/Capture"
     PROMPTS_CREATE = "dokime.host.v1.Prompts/Create"
     SECRETS_GET = "dokime.host.v1.Secrets/Get"
     INVOCATIONS_GET = "harmos.host.v1.Invocations/Get"
@@ -141,6 +147,9 @@ _BACKEND_ENVIRONMENT = Operation(
     BackendEnvironmentResponse,
     visibility=VISIBILITY_PUBLIC,
     watch=False,
+)
+_CONTENT_ARTIFACTS_CREATE = Operation(
+    HostOperation.CONTENT_ARTIFACTS_CREATE.value, ArtifactsCreateRequest, ArtifactsCreateResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _DOCUMENTS_APPEND_PARTS = Operation(
     HostOperation.DOCUMENTS_APPEND_PARTS.value,
@@ -220,6 +229,9 @@ _FILES_WATCH = Operation(HostOperation.FILES_WATCH.value, FilesWatchRequest, Fil
 _FILES_DELETE = Operation(
     HostOperation.FILES_DELETE.value, FilesDeleteRequest, FilesDeleteResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
+_FILES_CAPTURE = Operation(
+    HostOperation.FILES_CAPTURE.value, FilesCaptureRequest, FilesCaptureResponse, visibility=VISIBILITY_PUBLIC, watch=False
+)
 _PROMPTS_CREATE = Operation(
     HostOperation.PROMPTS_CREATE.value, PromptsCreateRequest, PromptsCreateResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
@@ -244,6 +256,8 @@ def host_requirement(operation: HostOperation) -> Operation[Message, Message]:
     match operation:
         case HostOperation.BACKEND_ENVIRONMENT:
             return cast(Operation[Message, Message], _BACKEND_ENVIRONMENT)
+        case HostOperation.CONTENT_ARTIFACTS_CREATE:
+            return cast(Operation[Message, Message], _CONTENT_ARTIFACTS_CREATE)
         case HostOperation.DOCUMENTS_APPEND_PARTS:
             return cast(Operation[Message, Message], _DOCUMENTS_APPEND_PARTS)
         case HostOperation.EFFECTS_CREATE:
@@ -292,6 +306,8 @@ def host_requirement(operation: HostOperation) -> Operation[Message, Message]:
             return cast(Operation[Message, Message], _FILES_WATCH)
         case HostOperation.FILES_DELETE:
             return cast(Operation[Message, Message], _FILES_DELETE)
+        case HostOperation.FILES_CAPTURE:
+            return cast(Operation[Message, Message], _FILES_CAPTURE)
         case HostOperation.PROMPTS_CREATE:
             return cast(Operation[Message, Message], _PROMPTS_CREATE)
         case HostOperation.SECRETS_GET:
@@ -314,6 +330,7 @@ def host_requirement(operation: HostOperation) -> Operation[Message, Message]:
 class HostRoot:
     def __init__(self, context: "Context") -> None:
         self.backend = HostBackendResource(context)
+        self.content = HostContentResource(context)
         self.documents = HostDocumentsResource(context)
         self.effects = HostEffectsResource(context)
         self.evidence = HostEvidenceResource(context)
@@ -333,6 +350,39 @@ class HostBackendResource:
     async def environment(self, *, at: Position | None = None, policy: OperationPolicy | None = None) -> BackendEnvironmentResponse:
         request = BackendEnvironmentRequest(at=at)
         response = await self._context.call(_BACKEND_ENVIRONMENT, request, policy=policy)
+        return response
+
+
+class HostContentResource:
+    def __init__(self, context: "Context") -> None:
+        self._context = context
+        self.artifacts = HostContentArtifactsResource(context)
+
+
+class HostContentArtifactsResource:
+    def __init__(self, context: "Context") -> None:
+        self._context = context
+
+    async def create(
+        self,
+        file: FileReference,
+        filename: str,
+        content_type: str,
+        *,
+        scope: ArtifactScope | None = None,
+        request_id: str | None = None,
+        metadata: Metadata | None = None,
+        policy: OperationPolicy | None = None,
+    ) -> ArtifactsCreateResponse:
+        request = ArtifactsCreateRequest(
+            file=file,
+            scope=scope,
+            filename=filename,
+            content_type=content_type,
+            request_id=request_id if request_id is not None else str(uuid4()),
+            metadata=metadata,
+        )
+        response = await self._context.call(_CONTENT_ARTIFACTS_CREATE, request, policy=policy)
         return response
 
 
@@ -616,6 +666,11 @@ class HostFilesResource:
         if not response.HasField("receipt"):
             raise ValueError("Read FILES_DELETE: Missing Payload")
         return response.receipt
+
+    async def capture(self, source: FileSource, output: str, *, policy: OperationPolicy | None = None) -> FilesCaptureResponse:
+        request = FilesCaptureRequest(source=source, output=output)
+        response = await self._context.call(_FILES_CAPTURE, request, policy=policy)
+        return response
 
 
 class HostFilesCapturesResource:

@@ -14,6 +14,10 @@ impl Request for dokime_protocol::host::BackendEnvironmentRequest {
     type Response = dokime_protocol::host::BackendEnvironmentResponse;
     const ID: &'static str = "dokime.host.v1.Backend/Environment";
 }
+impl Request for dokime_protocol::host::content::ArtifactsCreateRequest {
+    type Response = dokime_protocol::host::content::ArtifactsCreateResponse;
+    const ID: &'static str = "dokime.host.v1.content.Artifacts/Create";
+}
 impl Request for dokime_protocol::host::DocumentsAppendPartsRequest {
     type Response = dokime_protocol::host::DocumentsAppendPartsResponse;
     const ID: &'static str = "dokime.host.v1.Documents/AppendParts";
@@ -109,6 +113,10 @@ impl Request for dokime_protocol::host::FilesWatchRequest {
 impl Request for dokime_protocol::host::FilesDeleteRequest {
     type Response = dokime_protocol::host::FilesDeleteResponse;
     const ID: &'static str = "dokime.host.v1.Files/Delete";
+}
+impl Request for dokime_protocol::host::FilesCaptureRequest {
+    type Response = dokime_protocol::host::FilesCaptureResponse;
+    const ID: &'static str = "dokime.host.v1.Files/Capture";
 }
 impl Request for dokime_protocol::host::PromptsCreateRequest {
     type Response = dokime_protocol::host::PromptsCreateResponse;

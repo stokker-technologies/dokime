@@ -186,7 +186,14 @@ def table(descriptors: FileDescriptorSet) -> list[Method]:
 def payload_audiences(descriptors: FileDescriptorSet) -> dict[str, set[str]]:
     definitions = {f"{file.package}.{definition.name}": definition for file in descriptors.file for definition in file.message_type}
     audiences: dict[str, set[str]] = {}
-    for method in table(descriptors):
+    inventory = FileDescriptorSet.FromString(descriptors.SerializeToString())
+    library_path = Path(__file__).resolve().parents[5] / "crates/dokime-protocol/src/descriptors.bin"
+    original = FileDescriptorSet.FromString(library_path.read_bytes())
+    library_files = {file.name: file for file in original.file if file.package.startswith("harmos.")}
+    for file in inventory.file:
+        if file.name in library_files:
+            file.CopyFrom(library_files[file.name])
+    for method in table(inventory):
         if method["face"] == "plugin":
             continue
         pending = [method["request"], method["response"]]
@@ -245,14 +252,15 @@ def python_exports(target: Path, descriptors: FileDescriptorSet) -> None:
                 {"plugin_types"}
                 if ".plugin." in file.package
                 else {"shared"}
-                if ".model." in file.package
+                if ".model." in file.package or len(audiences.get(f"{file.package}.{definition.name}", set())) > 1
                 else {group + "_types" for group in audiences.get(f"{file.package}.{definition.name}", {"client"})}
             )
             for group in groups_for_type:
                 source = module
                 original = definition.name
                 if file.package.startswith("harmos."):
-                    source = "harmos" if group == "shared" else "harmos.client" if group == "client_types" else "harmos.plugin"
+                    library_shared = ".model." in file.package or len(audiences.get(f"{file.package}.{definition.name}", set())) > 1
+                    source = "harmos" if library_shared else "harmos.client" if group == "client_types" else "harmos.plugin"
                     original = "FailureValue" if definition.name == "Failure" else definition.name
                 groups[group].append((source, original, name))
         for definition in file.enum_type:
@@ -260,7 +268,7 @@ def python_exports(target: Path, descriptors: FileDescriptorSet) -> None:
                 {"plugin_types"}
                 if ".plugin." in file.package
                 else {"shared"}
-                if ".model." in file.package
+                if ".model." in file.package or len(audiences.get(f"{file.package}.{definition.name}", set())) > 1
                 else {group + "_types" for group in audiences.get(f"{file.package}.{definition.name}", {"client"})}
             )
             for group in groups_for_type:
@@ -274,10 +282,20 @@ def python_exports(target: Path, descriptors: FileDescriptorSet) -> None:
                     else "harmos.plugin"
                 )
                 groups[group].extend((source, value.name, value.name) for value in definition.value)
+    messages = {
+        (file.name.removesuffix(".proto").replace("/", ".").replace("dokime.", "dokime._wire.", 1) + "_pb2", definition.name)
+        for file in descriptors.file
+        if file.package.startswith("dokime.")
+        for definition in file.message_type
+    }
     target.mkdir(parents=True, exist_ok=True)
     for group, entries in groups.items():
         lines = ["# @generated from protocol descriptors; do not edit."]
         lines += [f"from {module} import {original} as {name}" for module, original, name in sorted(entries)]
+        public_module = "dokime" if group == "shared" else "dokime." + group.removesuffix("_types")
+        for module, original, name in sorted(entries):
+            if (module, original) in messages:
+                lines += [f'{name}.__module__ = "{public_module}"', f'{name}.__qualname__ = "{name}"']
         lines += ["", "__all__ = [", *[f"    {name!r}," for name in sorted(name for _, _, name in entries)], "]", ""]
         (target / f"{group}.py").write_text("\n".join(lines), encoding="utf-8", newline="\n")
 
@@ -308,7 +326,7 @@ def python(target: Path, methods: list[Method], descriptors: FileDescriptorSet, 
     library = Path(__file__).resolve().parents[5] / "crates/dokime-protocol/src/descriptors.bin"
     library_methods = table(FileDescriptorSet.FromString(library.read_bytes()))
     library_leaves = {tuple(method["path"]) for method in library_methods if method["face"] == "client"}
-    narrowed = not library_leaves <= leaves
+    narrowed = composed or not library_leaves <= leaves
     library_nodes: set[tuple[str, ...]] = {()}
     for method in methods:
         if method["owner"] == "harmos":
@@ -455,29 +473,6 @@ def python(target: Path, methods: list[Method], descriptors: FileDescriptorSet, 
                 lines += [f"        return {value}"]
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-    if composed and target.parent.name == "_generated":
-        package = target.parent.parent
-        requests = {method["request"] for method in methods if method["face"] != "plugin"}
-        exports = []
-        for full, (module, name) in sorted(messages.items()):
-            if full.startswith(("harmos.", "google.")) or full in requests or "." in name:
-                continue
-            exports.append((module, name))
-        private_types = [
-            "# @generated from protocol descriptors; do not edit.",
-            *[f"from {module} import {name} as {name}" for module, name in exports],
-        ]
-        (target.parent / "client_types.py").write_text("\n".join(private_types) + "\n", encoding="utf-8", newline="\n")
-        client_exports = [
-            "# @generated from protocol descriptors; do not edit.",
-            *[f"from ._generated.client_types import {name} as {name}" for _, name in exports],
-        ]
-        (package / "client.py").write_text("\n".join(client_exports) + "\n", encoding="utf-8", newline="\n")
-        (package / "__init__.py").write_text(
-            "# @generated from protocol descriptors; do not edit.\nfrom ._generated.client import ClientRoot as Client\n\n__all__ = ['Client']\n",
-            encoding="utf-8",
-            newline="\n",
-        )
 
 
 def python_host(target: Path, methods: list[Method], descriptors: FileDescriptorSet) -> None:
@@ -624,7 +619,11 @@ def rust_exports(root: Path, descriptors: FileDescriptorSet) -> None:
                 .replace("dokime_protocol::plugin", "crate::wire::plugin")
             )
             groups_for_type = (
-                {"plugin"} if ".plugin." in file.package else {"shared"} if ".model." in file.package else audiences.get(full, {"client"})
+                {"plugin"}
+                if ".plugin." in file.package
+                else {"shared"}
+                if ".model." in file.package or len(audiences.get(full, set())) > 1
+                else audiences.get(full, {"client"})
             )
             for group in groups_for_type:
                 alias = public_name(full)
@@ -898,7 +897,7 @@ def rust_host(root: Path, methods: list[Method]) -> None:
                 f"    pub async fn next(&mut self) -> Result<Option<{result}>> {{",
                 "        let Some(response) = self.incoming.next().await? else { return Ok(None); };",
             ]
-            if payload and payload["kind"] == 11:
+            if payload and payload["kind"] == 11 and not payload["repeated"]:
                 lines += [
                     f'        response.{payload["name"]}.map(Some).ok_or_else(|| Error::Invalid("Read {name}: Missing Payload".into()))'
                 ]
@@ -935,6 +934,11 @@ def rust_host(root: Path, methods: list[Method]) -> None:
                 f"        self.{action}_with({', '.join([*args, 'Host' + name + 'Options::default()'])}).await",
                 "    }",
                 f"    pub async fn {action}_with(&self, {', '.join([*parameters, 'options: Host' + name + 'Options'])}) -> Result<{result}> {{",
+                *(
+                    [f"        let Host{name}Options {{}} = options;"]
+                    if method["server_streaming"] and not any(field["optional"] for field in method["fields"])
+                    else []
+                ),
                 f"        let request = {q} {{",
             ]
             for group in sorted({field["oneof"] for field in method["fields"] if field["oneof"]}):
@@ -962,7 +966,7 @@ def rust_host(root: Path, methods: list[Method]) -> None:
                     f"options.{field['name']}"
                     if field["optional"]
                     else f"Some({field['name']})"
-                    if field["kind"] == 11 and not field["map"]
+                    if field["kind"] == 11 and not field["map"] and not field["repeated"]
                     else field["name"]
                 )
                 if field["name"] == "request_id":
@@ -1022,7 +1026,8 @@ def csharp(root: Path, methods: list[Method], *, namespace: str = "harmos", targ
         return value[0].lower() + value[1:]
 
     names = {node: "Client" if not node else "".join(title(part) for part in node) + "Resource" for node in nodes}
-    used = {method[key + "_csharp"] for method in methods for key in ("request", "response")}
+    used = {method[key + "_csharp"] for method in methods if method["owner"] != "harmos" for key in ("request", "response")}
+    used.update(method["response_csharp"] for method in methods if method["payload_field"] is None)
     used.update(
         field["csharp"]
         for method in methods
@@ -1101,7 +1106,7 @@ def csharp(root: Path, methods: list[Method], *, namespace: str = "harmos", targ
                 "  public void Dispose() => ownedChannel?.Dispose();",
             ]
         for method in operations:
-            request, response = (aliases[method[key + "_csharp"]] for key in ("request", "response"))
+            request, response = (aliases.get(method[key + "_csharp"], public_name(method[key])) for key in ("request", "response"))
             required = [field for field in method["fields"] if not field["optional"]]
             optional = [field for field in method["fields"] if field["optional"]]
             parameters = [f"{field_type(field)} {parameter(field['name'])}" for field in required]
@@ -1114,6 +1119,19 @@ def csharp(root: Path, methods: list[Method], *, namespace: str = "harmos", targ
                 parameters += ["[EnumeratorCancellation] CancellationToken cancellationToken = default"]
             returns = f"IAsyncEnumerable<{result}>" if stream else f"Task<{result}>"
             kind = "ServerStreaming" if stream else "Unary"
+            if method["owner"] == "harmos":
+                path = ".".join(title(part) for part in method["path"][:-1])
+                args = [parameter(field["name"]) for field in [*required, *optional]] + ["context"]
+                args += ["cancellationToken"] if stream else []
+                call = f"new Harmos.Client(invoker).{path}.{method['method']}({', '.join(args)})"
+                lines += [f"  public async {returns} {method['method']}({', '.join(parameters)})", "  {"]
+                lines += (
+                    [f"    await foreach (var response in {call}) {{ yield return response; }}"]
+                    if stream
+                    else [f"    return await {call};"]
+                )
+                lines += ["  }"]
+                continue
             lines += [
                 f"  public async {returns} {method['method']}({', '.join(parameters)})",
                 "  {",
@@ -1143,7 +1161,7 @@ def csharp(root: Path, methods: list[Method], *, namespace: str = "harmos", targ
                     continue
                 name = parameter(field["name"])
                 value = name if field["kind"] in (9, 11, 12) else name + ".Value"
-                lines += [f"    if ({name} is not null)", "    {", f"      request.{title(name)} = {value};", "    }"]
+                lines += [f"    if ({name} is not null)", "    {", f"      request.{title(field['name'])} = {value};", "    }"]
             lines += [
                 f'    var method = new Method<{request}, {response}>(MethodType.{kind}, "{method["package"]}.{method["service"]}", "{method["method"]}",',
                 f"        Marshallers.Create<{request}>(value => value.ToByteArray(), bytes => {request}.Parser.ParseFrom(bytes)),",
@@ -1209,7 +1227,7 @@ def csharp_host(root: Path, methods: list[Method], *, check: bool = False) -> No
 
     def field_type(field: Field) -> str:
         if field["type"]:
-            value = field["type"].rsplit(".", 1)[-1]
+            value = "global::" + csharp_message(field["csharp"])
         else:
             value = {1: "double", 2: "float", 8: "bool", 9: "string", 12: "ByteString", 4: "ulong", 13: "uint"}.get(field["kind"], "long")
         return f"IReadOnlyDictionary<string, {value}>" if field["map"] else f"IReadOnlyList<{value}>" if field["repeated"] else value
@@ -1229,12 +1247,35 @@ def csharp_host(root: Path, methods: list[Method], *, check: bool = False) -> No
         *[
             f"using {method[key].rsplit('.', 1)[-1]} = global::{csharp_message(method[key + '_csharp'])};"
             for method in methods
+            if method["owner"] != "harmos"
             for key in ("request", "response")
+        ],
+        *[
+            f"using {method['response'].rsplit('.', 1)[-1]} = global::{csharp_message(method['response_csharp'])};"
+            for method in methods
+            if method["owner"] == "harmos" and method["payload_field"] is None
+        ],
+        *[
+            f"using {field['type'].rsplit('.', 1)[-1]} = global::{csharp_message(field['csharp'])};"
+            for field in {
+                field["type"]: field
+                for method in methods
+                for field in [*method["fields"], *([method["payload_field"]] if method["payload_field"] else [])]
+                if field["csharp"]
+            }.values()
         ],
         "namespace Dokime.Plugins;",
         "using Harmos;",
         "using Harmos.Plugins;",
         "using Dokime.Clients;",
+        "public sealed partial class Plugin",
+        "{",
+        "  internal Plugin RequiresLibrary(Harmos.Plugins.HostOperation operation)",
+        "  {",
+        "    transport.Requires(operation);",
+        "    return this;",
+        "  }",
+        "}",
         "public enum HostOperation",
         "{",
     ]
@@ -1242,6 +1283,8 @@ def csharp_host(root: Path, methods: list[Method], *, check: bool = False) -> No
     lines += ["}", "internal static class HostContracts", "{"]
     for method in methods:
         name = "".join(title(part) for part in method["path"])
+        if method["owner"] == "harmos":
+            continue
         q, r = (method[key].rsplit(".", 1)[-1] for key in ("request", "response"))
         lines += [
             f'  internal static readonly Operation<{q}, {r}> {name} = new("{method["package"]}.{method["service"]}/{method["method"]}", Visibility.Public, watch: {str(method["server_streaming"]).lower()});'
@@ -1255,7 +1298,12 @@ def csharp_host(root: Path, methods: list[Method], *, check: bool = False) -> No
     ]
     for method in methods:
         name = "".join(title(part) for part in method["path"])
-        lines += [f"    HostOperation.{name} => plugin.Requires(HostContracts.{name}),"]
+        lines += [
+            f"    HostOperation.{name} => plugin."
+            + ("RequiresLibrary(" if method["owner"] == "harmos" else "Requires(")
+            + (f"Harmos.Plugins.HostOperation.{name}" if method["owner"] == "harmos" else f"HostContracts.{name}")
+            + "),"
+        ]
     lines += [
         '    _ => throw new ArgumentOutOfRangeException(nameof(operation), "Declare Host Requirement: Unknown Operation")',
         "  };",
@@ -1283,6 +1331,20 @@ def csharp_host(root: Path, methods: list[Method], *, check: bool = False) -> No
             name = "".join(title(part) for part in method["path"])
             result = f"IAsyncEnumerable<{result}>" if stream else f"Task<{result}>"
             lines += [f"  public async {result} {method['method']}({', '.join(parameters)})", "  {"]
+            if method["owner"] == "harmos":
+                path = ".".join(title(part) for part in method["path"][:-1])
+                args = [field["name"] for field in method["fields"] if not field["optional"]]
+                args += ["maxItemBytes"] if stream else []
+                args += [field["name"] for field in method["fields"] if field["optional"]]
+                args += ([] if stream else ["policy"]) + ["cancellationToken"]
+                call = f"context.Transport.Host.{path}.{method['method']}({', '.join(args)})"
+                lines += (
+                    [f"    await foreach (var response in {call}) {{ yield return response; }}"]
+                    if stream
+                    else [f"    return await {call};"]
+                )
+                lines += ["  }"]
+                continue
             for group in sorted({field["oneof"] for field in method["fields"] if field["oneof"]}):
                 terms = " + ".join(f"({field['name']} is null ? 0 : 1)" for field in method["fields"] if field["oneof"] == group)
                 lines += [
@@ -1348,6 +1410,14 @@ def cpp_exports(root: Path, descriptors: FileDescriptorSet) -> None:
     methods = table(descriptors)
     audiences = payload_audiences(descriptors)
     requests = {method["request"] for method in methods if method["face"] != "plugin"}
+    for file in descriptors.file:
+        if not file.package.startswith("harmos."):
+            continue
+        for definition in [*file.message_type, *file.enum_type]:
+            full = f"{file.package}.{definition.name}"
+            faces = audiences.get(full, {"client"})
+            boundary = "" if ".model." in file.package or len(faces) > 1 else next(iter(faces))
+            CPP_TYPES[full] = "::harmos::" + (boundary + "::" if boundary else "") + definition.name
     carriers = {
         "Request",
         "Response",
@@ -1359,11 +1429,11 @@ def cpp_exports(root: Path, descriptors: FileDescriptorSet) -> None:
         "ChildWatchCancel",
     }
     private = ["// @generated from protocol descriptors; do not edit.", "#pragma once"]
-    public = ["// @generated from protocol descriptors; do not edit.", "#pragma once", '#include "detail/messages_wire.hpp"']
+    public = ["// @generated from protocol descriptors; do not edit.", "#pragma once", '#include "detail/messages.hpp"']
     entries = []
     hidden = []
     for file in descriptors.file:
-        if file.name.endswith("guest.proto") or not file.package.startswith("dokime.") or ".plugin." in file.package:
+        if file.name.endswith("guest.proto") or not file.package.startswith("dokime."):
             continue
         private += [f'#include "{file.name.removesuffix(".proto")}.pb.h"']
         boundary = "client" if ".host." in file.package else ""
@@ -1371,7 +1441,7 @@ def cpp_exports(root: Path, descriptors: FileDescriptorSet) -> None:
             groups_for_type = {"plugin"} if ".plugin." in file.package else audiences.get(f"{file.package}.{definition.name}", {"client"})
             boundary = "" if ".model." in file.package or len(groups_for_type) > 1 else next(iter(groups_for_type))
             if f"{file.package}.{definition.name}" in requests or definition.name in carriers:
-                alias = (boundary.title() or "Shared") + definition.name
+                alias = (boundary.title() or "Shared") + public_name(f"{file.package}.{definition.name}")
                 hidden.append(f"using {alias} = ::{file.package.replace(chr(46), chr(58) + chr(58))}::{definition.name};")
                 continue
             name = "FailureValue" if definition.name == "Failure" else public_name(f"{file.package}.{definition.name}")
@@ -1410,9 +1480,9 @@ def cpp_exports(root: Path, descriptors: FileDescriptorSet) -> None:
         public += ["}"]
     destination = root / "sdk/cpp/include/dokime"
     (destination / "detail").mkdir(parents=True, exist_ok=True)
-    (destination / "detail/messages_wire.hpp").write_text("\n".join(private) + "\n", encoding="utf-8", newline="\n")
+    (destination / "detail/messages.hpp").write_text("\n".join(private) + "\n", encoding="utf-8", newline="\n")
     (destination / "messages.hpp").write_text("\n".join(public) + "\n", encoding="utf-8", newline="\n")
-    format_cpp([destination / "messages.hpp", destination / "detail/messages_wire.hpp"])
+    format_cpp([destination / "messages.hpp", destination / "detail/messages.hpp"])
 
 
 def cpp_host(root: Path, methods: list[Method]) -> None:
@@ -1444,13 +1514,18 @@ def cpp_host(root: Path, methods: list[Method]) -> None:
     used = sorted({method[key] for method in methods for key in ("request", "response")})
     # Source Files Import Named Wire Types Once; Headers Mention Only Public Types.
     source += [f"using ::{full.replace('.', '::')};" for full in used]
-    source += ["namespace dokime::plugin {"]
+    source += [
+        "namespace dokime::plugin {",
+        "using ::harmos::plugin::Operation;",
+        "using ::harmos::plugin::Watching;",
+        "using ::harmos::VISIBILITY_PUBLIC;",
+    ]
     for method in methods:
         name = "".join(title(part) for part in method["path"])
         header += [f"struct Host{name}Options {{"]
         header += [f"  std::optional<{field_type(field)}> {field['name']};" for field in method["fields"] if field["optional"]]
         if not method["server_streaming"]:
-            header += ["  std::optional<OperationPolicy> policy;"]
+            header += ["  std::optional<::harmos::OperationPolicy> policy;"]
         header += ["};"]
         if method["server_streaming"]:
             payload = method["payload_field"]
@@ -1479,10 +1554,10 @@ def cpp_host(root: Path, methods: list[Method]) -> None:
             if method["server_streaming"]:
                 parameters += ["std::size_t max_item_bytes"]
             header += [
-                f"  {result} {method['path'][-1] + ('_' if keyword.iskeyword(method['path'][-1]) else '')}({', '.join([*parameters, 'Host' + name + 'Options options = {}'])});"
+                f"  {result} {method['path'][-1] + ('_' if method['path'][-1] in {'delete', 'export', 'import', 'new', 'class', 'default'} else '')}({', '.join([*parameters, 'Host' + name + 'Options options = {}'])});"
             ]
             source += [
-                f"{result} {names[node]}::{method['path'][-1] + ('_' if keyword.iskeyword(method['path'][-1]) else '')}({', '.join([*parameters, 'Host' + name + 'Options options'])}) {{",
+                f"{result} {names[node]}::{method['path'][-1] + ('_' if method['path'][-1] in {'delete', 'export', 'import', 'new', 'class', 'default'} else '')}({', '.join([*parameters, 'Host' + name + 'Options options'])}) {{",
                 f"  {q} request;",
             ]
             for field in method["fields"]:
@@ -1523,7 +1598,7 @@ def cpp_host(root: Path, methods: list[Method]) -> None:
                     if payload
                     else "*response"
                 )
-                if payload and payload["kind"] == 11:
+                if payload and payload["kind"] == 11 and not payload["repeated"]:
                     source += [
                         f'    if (!response->has_{payload["name"]}()) {{ throw std::runtime_error("Read {name}: Missing Payload"); }}'
                     ]
@@ -1532,7 +1607,7 @@ def cpp_host(root: Path, methods: list[Method]) -> None:
                 source += ["  auto response = context.call(operation, request, options.policy).get();"]
                 if payload and payload["repeated"]:
                     value = f"{field_type(payload)}(response.{payload['name']}().begin(), response.{payload['name']}().end())"
-                elif payload and payload["kind"] == 11:
+                elif payload and payload["kind"] == 11 and not payload["repeated"]:
                     source += [f'  if (!response.has_{payload["name"]}()) {{ throw std::runtime_error("Read {name}: Missing Payload"); }}']
                     value = f"std::move(*response.mutable_{payload['name']}())"
                 else:
@@ -1612,8 +1687,8 @@ def cpp_message(full: str) -> str:
         # Shared Host Replies Belong to the Root; Audience-Exclusive Replies to Their Barrel.
         return CPP_TYPES.get(full, "::" + parts[0] + "::client::" + parts[-1])
     if full.startswith(("harmos.model.", "dokime.model.")):
-        return "::" + parts[0] + "::" + parts[-1]
-    return "::" + parts[0] + "::client::" + parts[-1]
+        return CPP_TYPES.get(full, "::" + parts[0] + "::" + parts[-1])
+    return CPP_TYPES.get(full, "::" + parts[0] + "::plugin::" + parts[-1])
 
 
 def cpp(root: Path, methods: list[Method], *, namespace: str = "harmos", target: Path | None = None) -> None:
@@ -1676,11 +1751,12 @@ def cpp(root: Path, methods: list[Method], *, namespace: str = "harmos", target:
     private += ["}"]
     destination = target or root / "sdk/cpp/include/harmos/_generated/client.hpp"
     destination.parent.mkdir(parents=True, exist_ok=True)
-    wire = destination.parent / "client_wire.hpp"
+    wire = destination.parent / "detail/client.hpp"
+    wire.parent.mkdir(parents=True, exist_ok=True)
     wire.write_text("\n".join(private) + "\n", encoding="utf-8", newline="\n")
-    lines += ['#include "client_wire.hpp"']
+    lines += ['#include "detail/client.hpp"']
     if namespace not in {"harmos", "dokime"}:
-        public = ["// @generated from protocol descriptors; do not edit.", "#pragma once", '#include "client_wire.hpp"']
+        public = ["// @generated from protocol descriptors; do not edit.", "#pragma once", '#include "detail/client.hpp"']
         for method in methods:
             if method["owner"] == "harmos":
                 continue
@@ -1732,8 +1808,8 @@ def cpp(root: Path, methods: list[Method], *, namespace: str = "harmos", target:
             stream = method["server_streaming"]
             returns = f"::harmos::ClientStream<{result}>" if stream else result
             name = method["path"][-1]
-            if name == "delete":
-                name = "delete_"
+            if name in {"delete", "export", "import", "new", "class", "default"}:
+                name += "_"
             lines += [f"  {returns} {name}({', '.join(parameters)}) {{", f"    {request} request;"]
             for field in method["fields"]:
                 name = field["name"]

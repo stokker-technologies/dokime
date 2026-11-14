@@ -39,3 +39,7 @@ run = [
 [tasks."sdk:lint"]
 description = "Lint the Focused Rust SDK and Stories"
 run = "cargo clippy --locked --manifest-path tests/consumer/Cargo.toml --package dokime --package dokime-derive --package dokime-rust-stories --all-targets"
+
+[tasks."test:generation"]
+description = "Compile the Generated Client and Plugin Surfaces"
+run = "mise -C ../.. run check:generated -- --language rust"

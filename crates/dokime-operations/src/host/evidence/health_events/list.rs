@@ -88,7 +88,7 @@ pub async fn handle(
                         } else {
                             plugin.reason
                         },
-                        severity: dokime_protocol::model::Severity::Error as i32,
+                        severity: dokime_protocol::model::Severity::Failure as i32,
                         ..Default::default()
                     });
                 }

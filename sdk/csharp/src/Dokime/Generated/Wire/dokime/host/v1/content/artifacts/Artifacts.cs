@@ -71,7 +71,7 @@ namespace Dokime.Clients.ContentResources;
             "ZW50LkFydGlmYWN0c0dldFJlc3BvbnNlIgTI8xgBEm8KBkNyZWF0ZRIuLmRv",
             "a2ltZS5ob3N0LnYxLmNvbnRlbnQuQXJ0aWZhY3RzQ3JlYXRlUmVxdWVzdBov",
             "LmRva2ltZS5ob3N0LnYxLmNvbnRlbnQuQXJ0aWZhY3RzQ3JlYXRlUmVzcG9u",
-            "c2UiBMjzGAESaQoETGlzdBIsLmRva2ltZS5ob3N0LnYxLmNvbnRlbnQuQXJ0",
+            "c2UiBMjzGAMSaQoETGlzdBIsLmRva2ltZS5ob3N0LnYxLmNvbnRlbnQuQXJ0",
             "aWZhY3RzTGlzdFJlcXVlc3QaLS5kb2tpbWUuaG9zdC52MS5jb250ZW50LkFy",
             "dGlmYWN0c0xpc3RSZXNwb25zZSIEyPMYARJuCgVXYXRjaBItLmRva2ltZS5o",
             "b3N0LnYxLmNvbnRlbnQuQXJ0aWZhY3RzV2F0Y2hSZXF1ZXN0Gi4uZG9raW1l",

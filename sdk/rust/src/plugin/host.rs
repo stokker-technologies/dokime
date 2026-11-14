@@ -13,6 +13,8 @@ use dokime_protocol::host::EffectsSetRequest;
 use dokime_protocol::host::EffectsSetResponse;
 use dokime_protocol::host::EvidenceStatisticsRequest;
 use dokime_protocol::host::EvidenceStatisticsResponse;
+use dokime_protocol::host::FilesCaptureRequest;
+use dokime_protocol::host::FilesCaptureResponse;
 use dokime_protocol::host::FilesDeleteRequest;
 use dokime_protocol::host::FilesDeleteResponse;
 use dokime_protocol::host::FilesGetRequest;
@@ -26,6 +28,8 @@ use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
 use dokime_protocol::host::SecretsGetRequest;
 use dokime_protocol::host::SecretsGetResponse;
+use dokime_protocol::host::content::ArtifactsCreateRequest;
+use dokime_protocol::host::content::ArtifactsCreateResponse;
 use dokime_protocol::host::evidence::CapturedRecordSelection;
 use dokime_protocol::host::evidence::LogsAppendRequest;
 use dokime_protocol::host::evidence::LogsAppendResponse;
@@ -59,10 +63,12 @@ use dokime_protocol::host::files::UploadsPublishRequest;
 use dokime_protocol::host::files::UploadsPublishResponse;
 use dokime_protocol::host::files::UploadsResumeRequest;
 use dokime_protocol::host::files::UploadsResumeResponse;
+use dokime_protocol::model::ArtifactScope;
 use dokime_protocol::model::Card;
 use dokime_protocol::model::EvidenceScope;
 use dokime_protocol::model::ExecutionProgressValue;
 use dokime_protocol::model::FileSource;
+use dokime_protocol::model::Metadata;
 use dokime_protocol::model::Prompt;
 use dokime_protocol::model::Section;
 use dokime_protocol::model::Severity;
@@ -94,6 +100,7 @@ use prost_types::Timestamp;
 use std::num::NonZeroUsize;
 pub enum HostOperation {
     BackendEnvironment,
+    ContentArtifactsCreate,
     DocumentsAppendParts,
     EffectsCreate,
     EffectsGet,
@@ -118,6 +125,7 @@ pub enum HostOperation {
     FilesRead,
     FilesWatch,
     FilesDelete,
+    FilesCapture,
     PromptsCreate,
     SecretsGet,
     InvocationsGet,
@@ -131,6 +139,7 @@ impl Plugin {
     pub fn requires_host(self, operation: HostOperation) -> Self {
         match operation {
             HostOperation::BackendEnvironment => self.requires::<BackendEnvironmentRequest>(),
+            HostOperation::ContentArtifactsCreate => self.requires::<ArtifactsCreateRequest>(),
             HostOperation::DocumentsAppendParts => self.requires::<DocumentsAppendPartsRequest>(),
             HostOperation::EffectsCreate => self.requires::<EffectsCreateRequest>(),
             HostOperation::EffectsGet => self.requires::<EffectsGetRequest>(),
@@ -155,6 +164,7 @@ impl Plugin {
             HostOperation::FilesRead => self.requires::<FilesReadRequest>(),
             HostOperation::FilesWatch => self.requires::<FilesWatchRequest>(),
             HostOperation::FilesDelete => self.requires::<FilesDeleteRequest>(),
+            HostOperation::FilesCapture => self.requires::<FilesCaptureRequest>(),
             HostOperation::PromptsCreate => self.requires::<PromptsCreateRequest>(),
             HostOperation::SecretsGet => self.requires::<SecretsGetRequest>(),
             HostOperation::InvocationsGet => self.requires::<InvocationsGetRequest>(),
@@ -174,6 +184,7 @@ impl Context {
 #[derive(Clone)]
 pub struct HostRoot {
     pub backend: HostBackendResource,
+    pub content: HostContentResource,
     pub documents: HostDocumentsResource,
     pub effects: HostEffectsResource,
     pub evidence: HostEvidenceResource,
@@ -189,6 +200,7 @@ impl HostRoot {
     fn new(context: Context) -> Self {
         Self {
             backend: HostBackendResource::new(context.clone()),
+            content: HostContentResource::new(context.clone()),
             documents: HostDocumentsResource::new(context.clone()),
             effects: HostEffectsResource::new(context.clone()),
             evidence: HostEvidenceResource::new(context.clone()),
@@ -205,6 +217,13 @@ impl HostRoot {
 #[derive(Default)]
 pub struct HostBackendEnvironmentOptions {
     pub at: Option<Position>,
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostContentArtifactsCreateOptions {
+    pub scope: Option<ArtifactScope>,
+    pub request_id: Option<String>,
+    pub metadata: Option<Metadata>,
     pub policy: Option<OperationPolicy>,
 }
 #[derive(Default)]
@@ -347,6 +366,10 @@ pub struct HostFilesDeleteOptions {
     pub policy: Option<OperationPolicy>,
 }
 #[derive(Default)]
+pub struct HostFilesCaptureOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
 pub struct HostPromptsCreateOptions {
     pub definition: Option<Prompt>,
     pub policy: Option<OperationPolicy>,
@@ -405,6 +428,46 @@ impl HostBackendResource {
     pub async fn environment_with(&self, options: HostBackendEnvironmentOptions) -> Result<BackendEnvironmentResponse> {
         let request = BackendEnvironmentRequest { at: options.at };
         let response: BackendEnvironmentResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
+}
+#[derive(Clone)]
+pub struct HostContentResource {
+    pub artifacts: HostContentArtifactsResource,
+}
+impl HostContentResource {
+    fn new(context: Context) -> Self {
+        Self {
+            artifacts: HostContentArtifactsResource::new(context.clone()),
+        }
+    }
+}
+#[derive(Clone)]
+pub struct HostContentArtifactsResource {
+    context: Context,
+}
+impl HostContentArtifactsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn create(&self, file: FileReference, filename: String, content_type: String) -> Result<ArtifactsCreateResponse> {
+        self.create_with(file, filename, content_type, HostContentArtifactsCreateOptions::default()).await
+    }
+    pub async fn create_with(
+        &self, file: FileReference, filename: String, content_type: String, options: HostContentArtifactsCreateOptions,
+    ) -> Result<ArtifactsCreateResponse> {
+        let request = ArtifactsCreateRequest {
+            file: Some(file),
+            scope: options.scope,
+            filename,
+            content_type,
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
+            metadata: options.metadata,
+        };
+        let response: ArtifactsCreateResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
 }
@@ -526,7 +589,7 @@ impl HostEvidenceResource {
             stream,
             versions,
             between: Some(between),
-            outputs: Some(outputs),
+            outputs,
             field,
             step,
             at: options.at,
@@ -762,6 +825,14 @@ impl HostFilesResource {
         let response: FilesDeleteResponse = self.context.call_with(request, options.policy).await?;
         response.receipt.ok_or_else(|| Error::Invalid("Read FilesDelete: Missing Payload".into()))
     }
+    pub async fn capture(&self, source: FileSource, output: String) -> Result<FilesCaptureResponse> {
+        self.capture_with(source, output, HostFilesCaptureOptions::default()).await
+    }
+    pub async fn capture_with(&self, source: FileSource, output: String, options: HostFilesCaptureOptions) -> Result<FilesCaptureResponse> {
+        let request = FilesCaptureRequest { source: Some(source), output };
+        let response: FilesCaptureResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response)
+    }
 }
 #[derive(Clone)]
 pub struct HostFilesCapturesResource {
@@ -919,6 +990,7 @@ impl HostInvocationsResource {
     pub async fn watch_with(
         &self, instance: u64, max_item_bytes: NonZeroUsize, options: HostInvocationsWatchOptions,
     ) -> Result<HostInvocationsWatch> {
+        let HostInvocationsWatchOptions {} = options;
         let request = InvocationsWatchRequest { instance };
         Ok(HostInvocationsWatch {
             incoming: self.context.watch(request, max_item_bytes).await?,

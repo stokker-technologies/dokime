@@ -14,12 +14,10 @@
 import re
 from typing import Self
 
-from ._wire.model.v1.documents_pb2 import Card
-from ._wire.model.v1.documents_pb2 import Document as DocumentValue
-from ._wire.model.v1.documents_pb2 import Section as SectionValue
-from ._wire.model.v1.documents_pb2 import Summary as SummaryValue
-from ._wire.model.v1.expressions_pb2 import DataExpression
-from ._wire.model.v1.metadata_pb2 import Metadata
+from dokime import Card, DataExpression, Metadata
+from dokime import Document as DocumentValue
+from dokime import Section as SectionValue
+from dokime import Summary as SummaryValue
 
 # Third Party Imports
 # Local Imports

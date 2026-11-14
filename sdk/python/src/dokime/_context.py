@@ -27,14 +27,18 @@ from ._generated.plugin_types import (
     EffectsCreateResponse,
     EffectsSetResponse,
     EffectWritable,
-    EvidenceCapturedRecordSelection,
     EvidenceRecordsAppendResponse,
-    EvidenceRecordsListResponse,
-    EvidenceStatisticsResponse,
     FilesCaptureMode,
     FilesCapturesStopResponse,
 )
-from ._generated.shared import ExecutionProgressValue, Prompt, TraceabilityEntry
+from ._generated.shared import (
+    EvidenceCapturedRecordSelection,
+    EvidenceRecordsListResponse,
+    EvidenceStatisticsResponse,
+    ExecutionProgressValue,
+    Prompt,
+    TraceabilityEntry,
+)
 from ._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateResponse
 from ._wire.model.v1.documents_pb2 import Card, Section
 from ._wire.model.v1.evidence_pb2 import ArtifactScope, Severity, Window

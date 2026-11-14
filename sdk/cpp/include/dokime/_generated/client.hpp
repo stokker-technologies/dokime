@@ -1,6 +1,6 @@
 // @generated from protocol descriptors; do not edit.
 #pragma once
-#include "client_wire.hpp"
+#include "detail/client.hpp"
 #include "dokime/messages.hpp"
 #include "harmos/client_transport.hpp"
 #include "harmos/messages.hpp"
@@ -135,7 +135,6 @@ struct ContentArtifactsGetOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct ContentArtifactsCreateOptions {
-  std::optional<::dokime::ArtifactScope> scope;
   std::optional<std::string> request_id;
   std::optional<::dokime::Metadata> metadata;
   std::shared_ptr<grpc::ClientContext> context;
@@ -715,14 +714,12 @@ struct ContentArtifactsResource {
     }
     return response;
   }
-  ::dokime::client::ContentArtifactsCreateResponse create(const ::harmos::FileReference &file, const std::string &filename,
-                                                          const std::string &content_type,
-                                                          client::ContentArtifactsCreateOptions options = {}) {
+  ::dokime::ContentArtifactsCreateResponse create(const ::harmos::FileReference &file, const ::dokime::ArtifactScope &scope,
+                                                  const std::string &filename, const std::string &content_type,
+                                                  client::ContentArtifactsCreateOptions options = {}) {
     detail::ContentArtifactsCreateRequest request;
     *request.mutable_file() = file;
-    if (options.scope) {
-      *request.mutable_scope() = *options.scope;
-    }
+    *request.mutable_scope() = scope;
     request.set_filename(filename);
     request.set_content_type(content_type);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -2929,8 +2926,8 @@ struct SecretsResource {
     }
     return response;
   }
-  ::dokime::client::SecretsExportResponse export(const std::vector<std::string> &names, const std::uint64_t &generation,
-                                                 client::SecretsExportOptions options = {}) {
+  ::dokime::client::SecretsExportResponse export_(const std::vector<std::string> &names, const std::uint64_t &generation,
+                                                  client::SecretsExportOptions options = {}) {
     detail::SecretsExportRequest request;
     request.mutable_names()->Assign(names.begin(), names.end());
     request.set_generation(generation);
@@ -2945,9 +2942,9 @@ struct SecretsResource {
     }
     return response;
   }
-  ::dokime::client::SecretsImportResponse import(const std::string &data, const std::vector<::dokime::client::SecretImportChoice> &choices,
-                                                 const std::uint64_t &generation, const bool &validate_only,
-                                                 client::SecretsImportOptions options = {}) {
+  ::dokime::client::SecretsImportResponse import_(const std::string &data, const std::vector<::dokime::client::SecretImportChoice> &choices,
+                                                  const std::uint64_t &generation, const bool &validate_only,
+                                                  client::SecretsImportOptions options = {}) {
     detail::SecretsImportRequest request;
     request.set_data(data);
     request.mutable_choices()->Assign(choices.begin(), choices.end());

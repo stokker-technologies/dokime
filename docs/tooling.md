@@ -49,6 +49,36 @@ names; it never contains secret values. Set replaces the complete binding map at
 the revision returned by List. Delete removes only the named bindings. Revision
 conflicts retain the action and cause and require an explicit retry.
 
+## Generated Surface Proof
+
+```sh
+mise run generate -- --protocol
+mise run generate:typescript
+mise run check:generated
+mise run check:locks
+mise -C sdk/csharp run restore
+```
+
+`generate:typescript` regenerates schemas, dispatch and declared preference types
+without compiling runtime-owned default values. The ordinary `generate` task still
+exports those defaults from their product owner before a full frontend build.
+
+The generated checks compile permanent consumers under each SDK's tests/generation
+(tests/Generation for C#) and the desktop tests/generation. Select one with
+`check:generated --language rust|python|csharp|cpp|typescript`, or use its SDK's
+`test:generation`. These compiler contracts require no product runtime or host fixtures.
+C# excludes the unrepaired authored FileTransfers.cs and uses its own target/cs/generation
+output. Its normal build still exposes those consumer errors. Generated Python obeys
+ordinary lint and typing; only protoc's private `_pb2*` files use the existing exclusion,
+and the public barrels plus compiler consumer are checked explicitly.
+
+`prepare:locks` refreshes Cargo and uv locks after a dependency pin change. C# uses
+`restore --refresh-lock` explicitly, then ordinary `restore` and the generation story
+use locked mode. C++ records its source archive digest and vcpkg baseline as inputs.
+The repository check includes buf, callers, public surfaces and workflow lint. Its
+wire-name allow-list covers private generated directories, canonical
+gRPC paths, architecture and execution-host definition maps, and Markdown link targets.
+
 ## Fixtures and Stories
 
 ```sh
