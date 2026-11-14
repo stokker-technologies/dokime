@@ -315,6 +315,7 @@ async fn drive(
     )
     .await?;
     let resources = Resources {
+        plugin: Arc::new(entry.description.clone()),
         store: host.inner.store.clone(),
         execution: execution.clone(),
         step: String::new(),

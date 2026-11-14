@@ -163,6 +163,14 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    `credentials_leave_with_discarded_roots` proves named access and secret credentials
    are unreadable after normal and failed Windows story teardown, including without
    their publication pointers.
+   Plugins read Secret Storage directly by identifier, without bindings. A plugin
+   may read only identifiers it declares as `Setting.kind.secret` in its
+   `dokime.v1.SettingsDeclarations` catalog section. The context secret handler
+   checks the connected calling plugin's description before any store access;
+   undeclared reads receive the same declaration guidance whether the secret
+   exists or not. Declared but missing secrets fail. Administrative client secret
+   operations retain their separate access. `plugin_reads_only_declared_secrets`
+   exercises this admission through real plugin invocations.
 
 8. **Resource Operation Grammar.** Services name resources; methods use bare verbs
    from Get/List/Watch/Set/Create/Delete/Append, with explicit domain side effects

@@ -39,6 +39,10 @@ name = "dokime-rust-resources"
 path = "../fixtures/resources.rs"
 
 [[bin]]
+name = "dokime-rust-secrets"
+path = "../fixtures/secrets.rs"
+
+[[bin]]
 name = "dokime-rust-starter"
 path = "../../starter/src/main.rs"
 
