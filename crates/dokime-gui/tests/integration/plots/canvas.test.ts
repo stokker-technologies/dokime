@@ -41,14 +41,7 @@ const browserPath =
 
 type Reply = {
   id?: number;
-  result?: {
-    result?: { value?: unknown };
-    exceptionDetails?: unknown;
-    data?: string;
-    loaderId?: string;
-    errorText?: string;
-    sessionId?: string;
-  };
+  result?: { result?: { value?: unknown }; exceptionDetails?: unknown; data?: string; loaderId?: string; errorText?: string };
   error?: unknown;
 };
 
@@ -118,23 +111,11 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     const target = await fetch(`${endpoint}/json/new?about:blank`, {
       method: "PUT",
       signal: AbortSignal.timeout(30_000),
-    })
-      .then((response) => response.json())
-      .catch((cause) => {
-        throw new Error("Open Canvas Browser Target: Request Failed", { cause });
-      });
-    const version = await fetch(`${endpoint}/json/version`, { signal: AbortSignal.timeout(30_000) })
-      .then((response) => response.json())
-      .catch((cause) => {
-        throw new Error("Read Canvas Browser Connection: Request Failed", { cause });
-      });
-    socket = new WebSocket(version.webSocketDebuggerUrl);
-    await once(socket, "open", { signal: AbortSignal.timeout(30_000) }).catch((cause) => {
-      throw new Error("Connect Canvas Browser Target: Socket Did Not Open", { cause });
-    });
+    }).then((response) => response.json());
+    socket = new WebSocket(target.webSocketDebuggerUrl);
+    await once(socket, "open", { signal: AbortSignal.timeout(30_000) });
     const connection = socket;
     let sequence = 0;
-    let pageSession: string | undefined;
     const pending = new Map<number, (reply: Reply) => void>();
     socket.addEventListener("message", (event) => {
       const reply = JSON.parse(event.data) as Reply;
@@ -155,14 +136,7 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
           accept(reply);
         });
       });
-      connection.send(
-        JSON.stringify({
-          id,
-          method,
-          params,
-          sessionId: method.startsWith("Browser.") || method.startsWith("Target.") ? undefined : pageSession,
-        }),
-      );
+      connection.send(JSON.stringify({ id, method, params }));
       const reply = await response;
       assert.ok(!reply.error && !reply.result?.exceptionDetails, JSON.stringify(reply));
       return reply.result;
@@ -170,9 +144,6 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     const evaluate = async (expression: string) =>
       (await command("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }))?.result?.value;
 
-    const attached = await command("Target.attachToTarget", { targetId: target.id, flatten: true });
-    pageSession = attached?.sessionId;
-    assert.ok(pageSession);
     // Attach Before Navigation And Await This Document's Loader.
     const events = on(connection, "message", { signal: AbortSignal.timeout(30_000) });
     await command("Page.enable", {});
@@ -413,9 +384,10 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     assert.equal(await evaluate(`document.querySelectorAll('script[src],link[rel="stylesheet"][href]').length`), 0);
     await command("Browser.close", {});
     connection.close();
-    if (browser.exitCode === null)
+    if (browser.exitCode === null && browser.signalCode === null) browser.kill();
+    if (browser.exitCode === null && browser.signalCode === null)
       await once(browser, "exit", { signal: AbortSignal.timeout(30_000) }).catch((cause) => {
-        throw new Error("Close Canvas Browser: Process Did Not Exit After Closing Its Transport", { cause });
+        throw new Error("Close Canvas Browser: Owned Process Did Not Exit", { cause });
       });
   } finally {
     socket?.close();
