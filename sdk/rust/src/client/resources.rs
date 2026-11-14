@@ -1170,7 +1170,7 @@ impl Clone for EvidenceRecordsListOptions {
     fn clone(&self) -> Self {
         Self {
             versions: self.versions.clone(),
-            between: self.between.clone(),
+            between: self.between,
             step: self.step.clone(),
             selection: self.selection.clone(),
             at: self.at.clone(),
@@ -1196,7 +1196,7 @@ impl Clone for EvidenceRecordsWatchOptions {
     fn clone(&self) -> Self {
         Self {
             versions: self.versions.clone(),
-            between: self.between.clone(),
+            between: self.between,
             step: self.step.clone(),
             selection: self.selection.clone(),
             at: self.at.clone(),
@@ -1228,8 +1228,8 @@ impl Clone for EvidenceSamplesListOptions {
             fields: self.fields.clone(),
             sources: self.sources.clone(),
             signals: self.signals.clone(),
-            between: self.between.clone(),
-            bucket: self.bucket.clone(),
+            between: self.between,
+            bucket: self.bucket,
             latest: self.latest,
             at: self.at.clone(),
             page: self.page.clone(),
@@ -1260,8 +1260,8 @@ impl Clone for EvidenceSamplesWatchOptions {
             fields: self.fields.clone(),
             sources: self.sources.clone(),
             signals: self.signals.clone(),
-            between: self.between.clone(),
-            bucket: self.bucket.clone(),
+            between: self.between,
+            bucket: self.bucket,
             latest: self.latest,
             at: self.at.clone(),
             page: self.page.clone(),
@@ -1323,7 +1323,7 @@ impl Clone for EvidenceStatisticsOptions {
     fn clone(&self) -> Self {
         Self {
             versions: self.versions.clone(),
-            between: self.between.clone(),
+            between: self.between,
             outputs: self.outputs.clone(),
             step: self.step.clone(),
             at: self.at.clone(),

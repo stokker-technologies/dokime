@@ -51,6 +51,7 @@ class Field(TypedDict):
     map: bool
     oneof: str
     wire_optional: bool
+    copy: bool
 
 
 class Method(TypedDict):
@@ -102,6 +103,16 @@ def table(descriptors: FileDescriptorSet) -> list[Method]:
         for enum in file.enum_type:
             csharp_types[f".{file.package}.{enum.name}"] = f"{namespace}.{enum.name}"
 
+    def is_copy(value: FieldDescriptorProto, pending: set[str]) -> bool:
+        if value.label == value.LABEL_REPEATED or value.type in {value.TYPE_STRING, value.TYPE_BYTES}:
+            return False
+        if value.type != value.TYPE_MESSAGE:
+            return True
+        if value.type_name in pending:
+            return False
+        definition = definitions.get(value.type_name)
+        return definition is not None and all(is_copy(child, pending | {value.type_name}) for child in definition.field)
+
     def field(value: FieldDescriptorProto) -> Field:
         definition = definitions.get(value.type_name)
         is_map = definition is not None and definition.options.map_entry
@@ -116,6 +127,7 @@ def table(descriptors: FileDescriptorSet) -> list[Method]:
             map=is_map,
             oneof="",
             wire_optional=value.proto3_optional,
+            copy=is_copy(value, set()),
         )
 
     for file in descriptors.file:
@@ -751,8 +763,7 @@ def rust(root: Path, methods: list[Method], *, target: Path | None = None) -> No
         lines += [f"impl Clone for {name} {{", "    fn clone(&self) -> Self {", "        Self {"]
         for field in method["fields"]:
             if field["optional"]:
-                copied = field["kind"] not in {9, 11, 12} and not field["repeated"] and not field["map"]
-                expression = f"self.{field['name']}" + ("" if copied else ".clone()")
+                expression = f"self.{field['name']}" + ("" if field["copy"] else ".clone()")
                 lines += [f"            {field['name']}: {expression},"]
         lines += [
             "            context: CallOptions { metadata: self.context.metadata.clone(), timeout: self.context.timeout },",
@@ -885,6 +896,7 @@ def rust(root: Path, methods: list[Method], *, target: Path | None = None) -> No
 
 def rust_host(root: Path, methods: list[Method]) -> None:
     methods = rust_call_fields(methods)
+
     def title(value: str) -> str:
         return "".join(word.title() for word in value.split("_"))
 
