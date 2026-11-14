@@ -22,6 +22,16 @@
 // Local Imports
 use super::Services;
 
+use dokime_protocol::host::plots::SettingsGetRequest;
+use dokime_protocol::host::plots::SettingsGetResponse;
+use dokime_protocol::host::plots::SettingsSetRequest;
+use dokime_protocol::host::plots::SettingsSetResponse;
+use dokime_protocol::host::plots::settings_server::Settings;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,26 +47,20 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::plots::settings_server::Settings for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::plots::SettingsGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::plots::SettingsGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.plots.Settings/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Settings for Services {
+    async fn get(&self, request: Request<SettingsGetRequest>) -> Result<Response<SettingsGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.plots.Settings/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::plots::settings::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn set(
-        &self, request: tonic::Request<dokime_protocol::host::plots::SettingsSetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::plots::SettingsSetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.plots.Settings/Set", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn set(&self, request: Request<SettingsSetRequest>) -> Result<Response<SettingsSetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.plots.Settings/Set", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::plots::settings::set::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

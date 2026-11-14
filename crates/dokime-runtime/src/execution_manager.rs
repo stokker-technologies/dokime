@@ -19,7 +19,7 @@
 use std::{
     collections::HashMap,
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, OnceLock, Weak,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -30,7 +30,7 @@ use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use crate::{Cycle, Error, HostSettings, Result, host::lock, plugin::Entry, prompts::PromptManager};
-use dokime_operations::host::Progress;
+use dokime_operations::host::{Context, Progress};
 use dokime_protocol::model;
 use dokime_storage::{ExecutionState, Store};
 
@@ -53,6 +53,7 @@ pub(crate) struct Runtime {
     pub prompts: Arc<PromptManager>,
     pub active: Mutex<HashMap<String, Active>>,
     pub changed: watch::Sender<u64>,
+    pub context: OnceLock<Weak<Context>>,
     admission: tokio::sync::Mutex<()>,
     shutting_down: AtomicBool,
     tasks: Mutex<Vec<JoinHandle<()>>>,
@@ -117,6 +118,7 @@ impl ExecutionManager {
                 plugins,
                 prompts,
                 changed,
+                context: OnceLock::new(),
                 active: Mutex::new(HashMap::new()),
                 admission: tokio::sync::Mutex::new(()),
                 shutting_down: AtomicBool::new(false),
@@ -124,6 +126,9 @@ impl ExecutionManager {
                 progress: Mutex::new(HashMap::new()),
             }),
         })
+    }
+    pub(crate) fn bind_context(&self, context: &Arc<Context>) -> Result<()> {
+        self.inner.context.set(Arc::downgrade(context)).map_err(|_| Error::Invalid("Bind Host Context: Assemble the Host Only Once".into()))
     }
     pub(crate) async fn start_cycle(&self, origins: Vec<dokime_protocol::model::Origin>) -> Result<Cycle> {
         let _admission = self.inner.admission.lock().await;

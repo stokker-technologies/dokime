@@ -321,6 +321,12 @@ async fn drive(
     .await?;
     let resources = Resources {
         plugin: Arc::new(entry.description.clone()),
+        context: host
+            .inner
+            .context
+            .get()
+            .and_then(std::sync::Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Start Execution: Assemble the Host Context Before Running".into()))?,
         store: host.inner.store.clone(),
         execution: execution.clone(),
         step: String::new(),

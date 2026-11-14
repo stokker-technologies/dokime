@@ -22,6 +22,17 @@
 // Local Imports
 use super::Services;
 
+use dokime_protocol::host::BackendAppearanceRequest;
+use dokime_protocol::host::BackendAppearanceResponse;
+use dokime_protocol::host::BackendEnvironmentRequest;
+use dokime_protocol::host::BackendEnvironmentResponse;
+use dokime_protocol::host::backend_server::Backend;
+use harmos_protocol::model::Callers;
+use harmos_runtime::Failure;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,16 +48,16 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::backend_server::Backend for Services {
-    async fn appearance(
-        &self, request: tonic::Request<dokime_protocol::host::BackendAppearanceRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::BackendAppearanceResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Backend/Appearance", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Backend for Services {
+    async fn appearance(&self, request: Request<BackendAppearanceRequest>) -> Result<Response<BackendAppearanceResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Backend/Appearance", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::backend::appearance::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
+    }
+    async fn environment(&self, _request: Request<BackendEnvironmentRequest>) -> Result<Response<BackendEnvironmentResponse>, Status> {
+        Err(dokime_operations::caller_status(Failure::wrong_caller("dokime.host.v1.Backend/Environment")))
     }
 }
 

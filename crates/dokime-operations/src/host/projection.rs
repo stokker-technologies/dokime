@@ -34,7 +34,6 @@ use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::evidence::CapturedRecord;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::host::evidence::TelemetrySample;
-use dokime_protocol::model;
 use dokime_protocol::model::EvidenceScope;
 use dokime_protocol::model::Prompt;
 use dokime_protocol::model::Value as ProductValue;

@@ -32,6 +32,7 @@ use prost_reflect::ReflectMessage;
 
 // Local Imports
 use dokime_protocol::host::BackendEnvironmentRequest;
+use dokime_protocol::host::DocumentsAppendPartsRequest;
 use dokime_protocol::host::EvidenceStatisticsRequest;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::SecretsGetRequest;
@@ -40,6 +41,10 @@ use dokime_protocol::host::evidence::{
     LogsAppendRequest, RecordsAppendRequest, RecordsListRequest, TraceabilityGetRequest, TraceabilitySetRequest,
 };
 use dokime_protocol::host::executions::{ProgressGetRequest, ProgressSetRequest};
+use dokime_protocol::host::files::{
+    UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsGetRequest, UploadsPublishRequest, UploadsResumeRequest,
+};
+use dokime_protocol::host::{FilesDeleteRequest, FilesGetRequest, FilesReadRequest};
 use harmos_runtime::Failure;
 use prost_types::FileDescriptorSet;
 use std::sync::OnceLock;
@@ -86,14 +91,14 @@ pub fn caller_status(failure: Failure) -> tonic::Status {
     tonic::Status::with_details(tonic::Code::PermissionDenied, failure.to_string(), wire.encode_to_vec().into())
 }
 
-/// Complete Product Host Declaration Inventory, Including Plugin-Only Methods.
+/// Complete Composed Host Declaration Inventory, Including Plugin-Only Methods.
 pub fn declarations() -> Result<&'static [h::OperationContract]> {
     static DECLARATIONS: OnceLock<std::result::Result<Vec<h::OperationContract>, String>> = OnceLock::new();
     let declarations = DECLARATIONS.get_or_init(|| {
         let types = FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET).map_err(|source| source.to_string())?;
         let mut declarations = Vec::new();
         for service in dokime_protocol::descriptor_pool().services() {
-            if !service.full_name().starts_with("dokime.host.v1.") {
+            if !service.full_name().starts_with("dokime.host.v1.") && !service.full_name().starts_with("harmos.host.v1.") {
                 continue;
             }
             for method in service.methods() {
@@ -120,7 +125,7 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
 }
 
 pub async fn dispatch(resources: &Resources, request: &harmos_protocol::plugin::ChildRequest) -> Result<Vec<u8>> {
-    authorize(&request.operation, h::Callers::Plugins).map_err(|source| Error::Permission(source.to_string()))?;
+    resources.context.authorize(&request.operation, h::Callers::Plugins).map_err(|source| Error::Permission(source.to_string()))?;
     let declaration = declarations()?
         .iter()
         .find(|operation| operation.id == request.operation)
@@ -161,12 +166,44 @@ pub async fn dispatch(resources: &Resources, request: &harmos_protocol::plugin::
             Ok(host::evidence::records::list::handle(&context, RecordsListRequest::decode(payload)?).await?.encode_to_vec())
         }
         host::evidence::statistics::ID => {
-            Ok(host::evidence::statistics::handle(resources, EvidenceStatisticsRequest::decode(payload)?).await?.encode_to_vec())
+            Ok(host::evidence::statistics::handle(&context, EvidenceStatisticsRequest::decode(payload)?).await?.encode_to_vec())
         }
         host::prompts::create::ID => {
             Ok(host::prompts::create::handle(resources, PromptsCreateRequest::decode(payload)?).await?.encode_to_vec())
         }
+        host::documents::append_parts::ID => {
+            Ok(host::documents::append_parts::handle(resources, DocumentsAppendPartsRequest::decode(payload)?).await?.encode_to_vec())
+        }
         host::secrets::get::ID => Ok(host::secrets::get::handle(&context, SecretsGetRequest::decode(payload)?).await?.encode_to_vec()),
+        host::files::get::ID => Ok(host::files::get::handle(&context, FilesGetRequest::decode(payload)?).await?.encode_to_vec()),
+        host::files::read::ID => Ok(host::files::read::handle(&context, FilesReadRequest::decode(payload)?).await?.encode_to_vec()),
+        host::files::delete::ID => Ok(host::files::delete::handle(&context, FilesDeleteRequest::decode(payload)?).await?.encode_to_vec()),
+        host::files::uploads::create::ID => {
+            Ok(host::files::uploads::create::handle(&context, UploadsCreateRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        host::files::uploads::get::ID => {
+            Ok(host::files::uploads::get::handle(&context, UploadsGetRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        host::files::uploads::resume::ID => {
+            Ok(host::files::uploads::resume::handle(&context, UploadsResumeRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        host::files::uploads::append::ID => {
+            Ok(host::files::uploads::append::handle(&context, UploadsAppendRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        host::files::uploads::publish::ID => {
+            Ok(host::files::uploads::publish::handle(&context, UploadsPublishRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        host::files::uploads::delete::ID => {
+            Ok(host::files::uploads::delete::handle(&context, UploadsDeleteRequest::decode(payload)?).await?.encode_to_vec())
+        }
+        "dokime.host.v1.Files/Capture"
+        | "dokime.host.v1.files.Captures/Start"
+        | "dokime.host.v1.files.Captures/Stop"
+        | "dokime.host.v1.Effects/Create"
+        | "dokime.host.v1.Effects/Get"
+        | "dokime.host.v1.Effects/Set" => {
+            Err(Error::Unavailable(format!("{}: Capture and Effects Engines Are Not Implemented", request.operation)))
+        }
         _ => Err(Error::Invalid("Connect the Requested Operation Provider".into())),
     }
 }

@@ -22,6 +22,25 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::CasesCreateRequest;
+use dokime_protocol::host::CasesCreateResponse;
+use dokime_protocol::host::CasesDeleteRequest;
+use dokime_protocol::host::CasesDeleteResponse;
+use dokime_protocol::host::CasesGetRequest;
+use dokime_protocol::host::CasesGetResponse;
+use dokime_protocol::host::CasesListRequest;
+use dokime_protocol::host::CasesListResponse;
+use dokime_protocol::host::CasesParametersRequest;
+use dokime_protocol::host::CasesParametersResponse;
+use dokime_protocol::host::CasesWatchRequest;
+use dokime_protocol::host::CasesWatchResponse;
+use dokime_protocol::host::cases_server::Cases;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,67 +56,49 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::cases_server::Cases for Services {
-    async fn create(
-        &self, request: tonic::Request<dokime_protocol::host::CasesCreateRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CasesCreateResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cases/Create", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Cases for Services {
+    async fn create(&self, request: Request<CasesCreateRequest>) -> Result<Response<CasesCreateResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cases/Create", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cases::create::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::CasesGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CasesGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cases/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn get(&self, request: Request<CasesGetRequest>) -> Result<Response<CasesGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cases/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cases::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::CasesListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CasesListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cases/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn list(&self, request: Request<CasesListRequest>) -> Result<Response<CasesListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cases/List", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cases::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::CasesWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::CasesWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cases/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<CasesWatchResponse>;
+    async fn watch(&self, request: Request<CasesWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cases/Watch", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cases::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn delete(
-        &self, request: tonic::Request<dokime_protocol::host::CasesDeleteRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CasesDeleteResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cases/Delete", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn delete(&self, request: Request<CasesDeleteRequest>) -> Result<Response<CasesDeleteResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cases/Delete", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cases::delete::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn parameters(
-        &self, request: tonic::Request<dokime_protocol::host::CasesParametersRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CasesParametersResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cases/Parameters", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn parameters(&self, request: Request<CasesParametersRequest>) -> Result<Response<CasesParametersResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cases/Parameters", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cases::parameters::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

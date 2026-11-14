@@ -1710,7 +1710,10 @@ from `harmos_runtime::builtins::storage`; use the native object, record, sample,
 query and file operations instead of `context.host.store()` or `resources.store`.
 The remaining direct Store callers are migration obligations, not an alternate
 interface. The operations manifest must declare the workspace `harmos-runtime`
-dependency; only the manifest owner may edit it.
+dependency; only the manifest owner may edit it. Runtime storage registration
+combines the library plugin catalog with `host::storage::administration::catalog()`.
+The library Plugins watch refreshes the suite projection and reconciles secret
+bindings; observer cancellation is awaited before the host closes.
 
 ```rust,ignore
 use crate::{Result, host::Context};

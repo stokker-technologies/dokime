@@ -32,6 +32,8 @@ use dokime_protocol::host::files::UploadsResumeResponse;
 use dokime_protocol::host::files::uploads_server::Uploads;
 use tonic::{Request, Response, Status};
 
+use harmos_protocol::model::Callers;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -49,27 +51,33 @@ use tonic::{Request, Response, Status};
 #[tonic::async_trait]
 impl Uploads for Services {
     async fn create(&self, request: Request<UploadsCreateRequest>) -> Result<Response<UploadsCreateResponse>, Status> {
-        let reply = operations::files_uploads_create::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.files.Uploads/Create", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::uploads::create::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
     }
     async fn get(&self, request: Request<UploadsGetRequest>) -> Result<Response<UploadsGetResponse>, Status> {
-        let reply = operations::files_uploads_get::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.files.Uploads/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::uploads::get::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
     }
     async fn resume(&self, request: Request<UploadsResumeRequest>) -> Result<Response<UploadsResumeResponse>, Status> {
-        let reply = operations::files_uploads_resume::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.files.Uploads/Resume", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::uploads::resume::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
     }
     async fn append(&self, request: Request<UploadsAppendRequest>) -> Result<Response<UploadsAppendResponse>, Status> {
-        let reply = operations::files_uploads_append::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.files.Uploads/Append", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::uploads::append::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
     }
     async fn publish(&self, request: Request<UploadsPublishRequest>) -> Result<Response<UploadsPublishResponse>, Status> {
-        let reply = operations::files_uploads_publish::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.files.Uploads/Publish", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::uploads::publish::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
     }
     async fn delete(&self, request: Request<UploadsDeleteRequest>) -> Result<Response<UploadsDeleteResponse>, Status> {
-        let reply = operations::files_uploads_delete::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.files.Uploads/Delete", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::uploads::delete::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
     }
 }

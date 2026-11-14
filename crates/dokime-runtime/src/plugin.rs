@@ -19,7 +19,7 @@
 use std::{collections::HashSet, num::NonZeroUsize, path::Path, process::Stdio, time::Duration};
 
 // Third Party Imports
-use harmos_protocol::{plugin::instance_client::InstanceClient, v1 as h};
+use harmos_protocol::{model as h, plugin::instance_client::InstanceClient};
 use prost::Message;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -108,7 +108,7 @@ impl PluginProcess {
         let endpoint = format!(
             "http://{}",
             line.strip_prefix("harmos listening ")
-                .ok_or_else(|| Error::Invalid("Serve harmos.model.v1 and Announce the Bound Endpoint".into()))?
+                .ok_or_else(|| Error::Invalid("Serve the Plugin Instance and Announce the Bound Endpoint".into()))?
         );
         let drain = tokio::spawn(async move { while lines.next_line().await.ok().flatten().is_some() {} });
         Ok(Self {
@@ -192,6 +192,10 @@ impl Entry {
         let types = catalog.types.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin with Its Message Descriptors".into()))?;
         let declarations = dokime_operations::declarations()?;
         for requirement in &catalog.requires {
+            if requirement.id.starts_with("dokime.host.v1.") || requirement.id.starts_with("harmos.host.v1.") {
+                dokime_operations::authorize(&requirement.id, h::Callers::Plugins)
+                    .map_err(|failure| Error::Plugin(Box::new(h::Failure::from(&failure))))?;
+            }
             let available =
                 declarations.iter().any(|operation| operation.id == requirement.id && operation.fingerprint == requirement.fingerprint);
             if !available {

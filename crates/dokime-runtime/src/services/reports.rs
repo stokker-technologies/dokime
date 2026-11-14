@@ -22,6 +22,18 @@
 // Local Imports
 use super::Services;
 
+use dokime_protocol::host::ReportsCreateRequest;
+use dokime_protocol::host::ReportsCreateResponse;
+use dokime_protocol::host::ReportsGetRequest;
+use dokime_protocol::host::ReportsGetResponse;
+use dokime_protocol::host::ReportsPublishRequest;
+use dokime_protocol::host::ReportsPublishResponse;
+use dokime_protocol::host::reports_server::Reports;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,36 +49,27 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::reports_server::Reports for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::ReportsGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ReportsGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Reports/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Reports for Services {
+    async fn get(&self, request: Request<ReportsGetRequest>) -> Result<Response<ReportsGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Reports/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::reports::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn create(
-        &self, request: tonic::Request<dokime_protocol::host::ReportsCreateRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ReportsCreateResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Reports/Create", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn create(&self, request: Request<ReportsCreateRequest>) -> Result<Response<ReportsCreateResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Reports/Create", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::reports::create::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn publish(
-        &self, request: tonic::Request<dokime_protocol::host::ReportsPublishRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ReportsPublishResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Reports/Publish", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn publish(&self, request: Request<ReportsPublishRequest>) -> Result<Response<ReportsPublishResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Reports/Publish", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::reports::publish::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

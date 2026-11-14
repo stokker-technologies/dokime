@@ -22,6 +22,20 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::host::evidence::RecordsAppendResponse;
+use dokime_protocol::host::evidence::RecordsListRequest;
+use dokime_protocol::host::evidence::RecordsListResponse;
+use dokime_protocol::host::evidence::RecordsWatchRequest;
+use dokime_protocol::host::evidence::RecordsWatchResponse;
+use dokime_protocol::host::evidence::records_server::Records;
+use harmos_protocol::model::Callers;
+use harmos_runtime::Failure;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,27 +51,25 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::evidence::records_server::Records for Services {
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::evidence::RecordsListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::evidence::RecordsListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.evidence.Records/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Records for Services {
+    async fn list(&self, request: Request<RecordsListRequest>) -> Result<Response<RecordsListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.evidence.Records/List", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::evidence::records::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::evidence::RecordsWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::evidence::RecordsWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.evidence.Records/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<RecordsWatchResponse>;
+    async fn watch(&self, request: Request<RecordsWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.evidence.Records/Watch", Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::evidence::records::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
+    }
+    async fn append(&self, _request: Request<RecordsAppendRequest>) -> Result<Response<RecordsAppendResponse>, Status> {
+        Err(dokime_operations::caller_status(Failure::wrong_caller("dokime.host.v1.evidence.Records/Append")))
     }
 }
 

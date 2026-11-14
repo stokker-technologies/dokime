@@ -161,7 +161,6 @@ impl Host {
             return Err(Error::Invalid(format!("Remove the Existing Plugin Entry {identifier} Before Adding It Again")));
         }
         tracing::info!(plugin = %identifier, "Admitted Plugin Entry");
-        self.store.save_plugin(&identifier, &entry.description.encode_to_vec())?;
         plugins.insert(identifier.clone(), Arc::new(entry));
         Ok(identifier)
     }
@@ -185,17 +184,10 @@ impl Host {
         Ok(dokime_protocol::model::Suites::decode(section.payload.as_slice())?)
     }
     pub fn description(&self, identifier: &str) -> Result<InstanceGetResponse> {
-        if let Some(entry) = lock(&self.plugins)?.get(identifier) {
-            return Ok(entry.description.clone());
-        }
-        Ok(harmos_protocol::plugin::InstanceGetResponse::decode(self.store.plugin(identifier)?.as_slice())?)
+        Ok(self.entry(identifier)?.description.clone())
     }
     pub fn entry_state(&self, identifier: &str) -> Result<EntryState> {
-        if let Some(entry) = lock(&self.plugins)?.get(identifier) {
-            return Ok(entry.state);
-        }
-        self.store.plugin(identifier)?;
-        Ok(crate::EntryState::Unavailable)
+        Ok(self.entry(identifier)?.state)
     }
     pub async fn remove_plugin(&self, identifier: &str) -> Result<()> {
         if self.executions.uses_plugin(identifier)? {
@@ -204,7 +196,6 @@ impl Host {
         let entry = self.entry(identifier)?;
         entry.close(&self.settings.placement).await?;
         lock(&self.plugins)?.remove(identifier);
-        self.store.remove_plugin(identifier)?;
         Ok(())
     }
     pub async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, Value>) -> Result<Origin> {
@@ -267,14 +258,7 @@ impl Host {
         Ok(OutcomeCounts::from_outcomes(&outcomes))
     }
     pub fn plugin_entries(&self) -> Result<Vec<(String, EntryState)>> {
-        self.store
-            .plugin_identifiers()?
-            .into_iter()
-            .map(|identifier| {
-                let state = self.entry_state(&identifier)?;
-                Ok((identifier, state))
-            })
-            .collect()
+        Ok(lock(&self.plugins)?.iter().map(|(name, entry)| (name.clone(), entry.state)).collect())
     }
     pub fn streams_closed(&self, identifier: &str) -> Result<bool> {
         Ok(self.store.streams_closed(identifier)?)

@@ -22,6 +22,16 @@
 // Local Imports
 use super::Services;
 
+use dokime_protocol::host::SuitesGetRequest;
+use dokime_protocol::host::SuitesGetResponse;
+use dokime_protocol::host::SuitesListRequest;
+use dokime_protocol::host::SuitesListResponse;
+use dokime_protocol::host::suites_server::Suites;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,26 +47,20 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::suites_server::Suites for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::SuitesGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::SuitesGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Suites/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Suites for Services {
+    async fn get(&self, request: Request<SuitesGetRequest>) -> Result<Response<SuitesGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Suites/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::suites::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::SuitesListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::SuitesListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Suites/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn list(&self, request: Request<SuitesListRequest>) -> Result<Response<SuitesListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Suites/List", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::suites::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

@@ -25,6 +25,10 @@ use dokime_protocol::host::executions::SchemasGetRequest;
 use dokime_protocol::host::executions::SchemasGetResponse;
 use dokime_protocol::host::executions::schemas_server::Schemas;
 
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -41,11 +45,11 @@ use dokime_protocol::host::executions::schemas_server::Schemas;
 
 #[tonic::async_trait]
 impl Schemas for Services {
-    async fn get(&self, request: tonic::Request<SchemasGetRequest>) -> Result<tonic::Response<SchemasGetResponse>, tonic::Status> {
+    async fn get(&self, request: Request<SchemasGetRequest>) -> Result<Response<SchemasGetResponse>, Status> {
         let reply = dokime_operations::host::executions::schemas::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

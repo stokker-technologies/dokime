@@ -21,7 +21,6 @@
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model;
 use dokime_protocol::model::Suite;
 use harmos_protocol::host::PluginState;
 use harmos_protocol::model::Declarations;

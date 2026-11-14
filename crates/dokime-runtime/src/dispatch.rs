@@ -56,7 +56,7 @@ impl Dispatch {
         let contract = self
             .entry
             .description
-            .catalog
+            .declarations
             .as_ref()
             .and_then(|catalog| catalog.operations.iter().find(|contract| contract.id == operation))
             .ok_or_else(|| Error::Invalid(format!("Reconnect a Plugin Serving {operation}")))?;
@@ -184,6 +184,19 @@ impl Dispatch {
                     })?;
                     match frame {
                         harmos_protocol::plugin::instance_invoke_response::Frame::Child(request) => {
+                            if let Err(failure) = self.resources.as_ref().map(|resources| resources.context.authorize(&request.operation, h::Callers::Plugins))
+                                .unwrap_or_else(|| dokime_operations::authorize(&request.operation, h::Callers::Plugins)) {
+                                let frame = harmos_protocol::plugin::InstanceInvokeRequest {
+                                    frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Child(
+                                        harmos_protocol::plugin::ChildResponse {
+                                            call: request.call,
+                                            result: Some(harmos_protocol::plugin::child_response::Result::Failure(h::Failure::from(&failure))),
+                                        },
+                                    )),
+                                };
+                                send.send(frame).await.map_err(|source| Error::Invalid(format!("Refuse Child Call: {source}")))?;
+                                continue;
+                            }
                             let mut resources = self.resources.clone().ok_or_else(|| {
                                 Error::Invalid("Keep Materialization Pure; Remove Its Host Calls".into())
                             })?;

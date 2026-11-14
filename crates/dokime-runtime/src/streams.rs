@@ -21,7 +21,7 @@ use std::sync::Arc;
 // Third Party Imports
 use async_trait::async_trait;
 use harmos_protocol::{
-    model::{Catalog, SamplesSelection, Tick},
+    model::{Declarations, SamplesSelection, Tick},
     plugin::{InstanceSamplesRequest, InstanceSamplesResponse, instance_client::InstanceClient, instance_samples_request::Frame},
 };
 use prost_types::Timestamp;
@@ -68,7 +68,7 @@ struct Publication {
 
 impl ExecutionTime {
     pub async fn open(
-        client: &InstanceClient<Channel>, catalog: &Catalog, identifiers: &[String], execution: &str, store: Store,
+        client: &InstanceClient<Channel>, catalog: &Declarations, identifiers: &[String], execution: &str, store: Store,
         clock: Arc<dyn SchedulerClock>, settings: &PlacementSettings,
     ) -> Result<Arc<Self>> {
         let mut streams = Vec::new();
@@ -220,7 +220,7 @@ mod tests {
     use dokime_protocol::model;
     use dokime_storage::{Execution, SampleWindow, Store};
     use harmos_protocol::{
-        model::{Catalog, Sample, StreamDeclaration},
+        model::{Declarations, Sample, StreamDeclaration},
         plugin::{
             InstanceGetRequest, InstanceGetResponse, InstanceInvokeRequest, InstanceInvokeResponse, InstanceSamplesRequest,
             InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse,
@@ -293,7 +293,7 @@ mod tests {
     async fn tick_batches_preserve_every_sample_and_late_source_time() {
         let root = tempfile::tempdir().unwrap();
         let store = Store::open(root.path()).unwrap();
-        let catalog = Catalog {
+        let catalog = Declarations {
             types: Some(FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET).unwrap()),
             streams: vec![StreamDeclaration {
                 id: "readings".into(),

@@ -22,6 +22,20 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::DocumentsAppendPartsRequest;
+use dokime_protocol::host::DocumentsAppendPartsResponse;
+use dokime_protocol::host::DocumentsGetRequest;
+use dokime_protocol::host::DocumentsGetResponse;
+use dokime_protocol::host::DocumentsWatchRequest;
+use dokime_protocol::host::DocumentsWatchResponse;
+use dokime_protocol::host::documents_server::Documents;
+use harmos_protocol::model::Callers;
+use harmos_runtime::Failure;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,27 +51,24 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::documents_server::Documents for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::DocumentsGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::DocumentsGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Documents/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Documents for Services {
+    async fn get(&self, request: Request<DocumentsGetRequest>) -> Result<Response<DocumentsGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Documents/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::documents::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::DocumentsWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::DocumentsWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Documents/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<DocumentsWatchResponse>;
+    async fn watch(&self, request: Request<DocumentsWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Documents/Watch", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::documents::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
+    }
+    async fn append_parts(&self, _request: Request<DocumentsAppendPartsRequest>) -> Result<Response<DocumentsAppendPartsResponse>, Status> {
+        Err(dokime_operations::caller_status(Failure::wrong_caller("dokime.host.v1.Documents/AppendParts")))
     }
 }
 

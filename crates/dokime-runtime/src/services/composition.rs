@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::path::Path;
 use std::{
     num::NonZeroUsize,
     result::Result as StdResult,
@@ -25,6 +26,10 @@ use std::{
 
 // Third Party Imports
 use harmos_protocol::host::access::ListenerValue;
+use harmos_runtime::clock::Clock as RuntimeClock;
+use harmos_runtime::operations::Lane;
+use harmos_runtime::plugin::grpc::PlacementSettings;
+use harmos_runtime::plugin::manager::{Manager, PluginManagerSettings};
 use harmos_runtime::{
     Runtime, Setup, Startup,
     clock::{Reading, Sleep},
@@ -37,7 +42,7 @@ use super::ClientSettings;
 use crate::{Result, SchedulerClock};
 use dokime_storage::{Backend, Store};
 use harmos_protocol::model::StorageTransferSettings;
-use harmos_storage::{
+use harmos_runtime::storage::{
     StorageBackends, StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings,
     StorageSettings,
 };
@@ -84,7 +89,11 @@ impl harmos_runtime::clock::Source for Clock {
         let now_ns = self.source.now_ns();
         Reading {
             instant: self.origin + Duration::from_nanos(now_ns.saturating_sub(self.origin_ns).max(0) as u64),
-            date: SystemTime::UNIX_EPOCH + Duration::from_nanos(now_ns.max(0) as u64),
+            date: if now_ns < 0 {
+                SystemTime::UNIX_EPOCH - Duration::from_nanos(now_ns.unsigned_abs())
+            } else {
+                SystemTime::UNIX_EPOCH + Duration::from_nanos(now_ns as u64)
+            },
         }
     }
     fn sleep_until(&self, deadline: Instant) -> Sleep {
@@ -97,7 +106,9 @@ impl harmos_runtime::clock::Source for Clock {
 
 /* === Public Functions === */
 
-pub(super) async fn launch(source: Arc<dyn SchedulerClock>, store: &Store, settings: &ClientSettings) -> Result<Runtime<Application>> {
+pub(super) async fn launch(
+    source: Arc<dyn SchedulerClock>, store: &Store, root: &Path, placement: &crate::PlacementSettings, settings: &ClientSettings,
+) -> Result<Arc<Runtime<Application>>> {
     let backend_settings = store.storage_settings()?;
     let capacity = NonZeroUsize::new(settings.max_cases)
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Admission Capacity".into()))?;
@@ -107,7 +118,7 @@ pub(super) async fn launch(source: Arc<dyn SchedulerClock>, store: &Store, setti
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Message Capacity".into()))?;
     let StorageBackends { primary, state } = Backend::open(store)?;
     let storage = StorageManager::with_catalog(
-        harmos_runtime::plugin::manager::catalog(),
+        harmos_runtime::plugin::manager::catalog().extend(dokime_operations::host::storage::administration::catalog()),
         StorageBackends { primary, state },
         StorageSettings {
             transfer: StorageTransferSettings::default(),
@@ -130,18 +141,44 @@ pub(super) async fn launch(source: Arc<dyn SchedulerClock>, store: &Store, setti
         },
     )
     .map_err(|source| crate::Error::ComposedStartup(Box::new(source)))?;
-    let clock = harmos_runtime::clock::Clock::with_clock(Clock {
+    let plugins = Manager::new(
+        storage.clone(),
+        PluginManagerSettings {
+            namespace: store.identity().to_owned(),
+            directory: root.canonicalize()?.join("plugins"),
+            target: super::bundles::native_target().into(),
+            placement: PlacementSettings {
+                connect_timeout: placement.connect_timeout,
+                reconnect_delay: placement.reconnect_delay,
+                stop_grace: placement.stop_grace,
+                stream_window: placement.stream_window,
+            },
+            bundle: Default::default(),
+            entries: capacity,
+            create_receipts: capacity,
+            registry_bytes: bytes,
+            command_capacity: capacity,
+            retained_cuts: capacity,
+            watch_capacity: capacity,
+            response_bytes: bytes,
+        },
+    )
+    .map_err(|source| crate::Error::ComposedStartup(Box::new(source)))?;
+    let clock = RuntimeClock::with_clock(Clock {
         origin_ns: source.now_ns(),
         source,
         origin: Instant::now(),
     });
-    Runtime::<Application>::launch_with((), (), |setup| {
-        setup.settings().clock(clock).storage(&storage);
-        setup.catalog(harmos_runtime::builtins::host_catalog(), harmos_runtime::operations::Lane::default());
-        setup.catalog(harmos_runtime::builtins::storage_catalog(), harmos_runtime::operations::Lane::default());
+    let runtime = Runtime::<Application>::launch_with((), (), |setup| {
+        setup.settings().clock(clock).storage(&storage).plugins(plugins.clone());
+        setup.catalog(harmos_runtime::builtins::host_catalog(), Lane::default());
+        setup.catalog(harmos_runtime::builtins::storage_catalog(), Lane::default());
     })
     .await
-    .map_err(|error| crate::Error::ComposedStartup(Box::new(error)))
+    .map_err(|error| crate::Error::ComposedStartup(Box::new(error)))?;
+    let runtime = Arc::new(runtime);
+    plugins.start(&runtime).await.map_err(|source| crate::Error::ComposedStartup(Box::new(source)))?;
+    Ok(runtime)
 }
 
 pub(super) fn transport(settings: &ClientSettings) -> TransportSettings {

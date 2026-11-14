@@ -28,6 +28,11 @@ use dokime_protocol::host::FilesWatchResponse;
 use dokime_protocol::host::files_server::Files;
 use tonic::{Request, Response, Status};
 
+use dokime_protocol::host::FilesCaptureRequest;
+use dokime_protocol::host::FilesCaptureResponse;
+use harmos_protocol::model::Callers;
+use harmos_runtime::Failure;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -45,21 +50,28 @@ use tonic::{Request, Response, Status};
 #[tonic::async_trait]
 impl Files for Services {
     async fn get(&self, request: Request<FilesGetRequest>) -> Result<Response<FilesGetResponse>, Status> {
-        let reply = operations::files_get::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.Files/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::get::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
     }
     async fn read(&self, request: Request<FilesReadRequest>) -> Result<Response<FilesReadResponse>, Status> {
-        let reply = operations::files_read::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.Files/Read", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::read::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
     }
     async fn delete(&self, request: Request<FilesDeleteRequest>) -> Result<Response<FilesDeleteResponse>, Status> {
-        let reply = operations::files_delete::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.Files/Delete", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::delete::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
     }
     type WatchStream = operations::Output<FilesWatchResponse>;
     async fn watch(&self, request: Request<FilesWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
-        let reply = operations::files_watch::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
+        dokime_operations::authorize("dokime.host.v1.Files/Watch", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = operations::files::watch::handle(&self.context, request.into_inner()).await.map_err(operations::status)?;
         Ok(Response::new(reply))
+    }
+    async fn capture(&self, _request: Request<FilesCaptureRequest>) -> Result<Response<FilesCaptureResponse>, Status> {
+        Err(dokime_operations::caller_status(Failure::wrong_caller("dokime.host.v1.Files/Capture")))
     }
 }
 

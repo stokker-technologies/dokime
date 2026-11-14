@@ -25,6 +25,8 @@ use zeroize::Zeroizing;
 
 // Local Imports
 
+use harmos_protocol::host::access::ListenerValue;
+
 /* === Constants === */
 
 const SERVICE: &str = "dokime.access";
@@ -50,7 +52,7 @@ struct Snapshot {
     listener_revision: u64,
 
     #[prost(message, optional, tag = "3")]
-    listener: Option<harmos_protocol::host::access::ListenerValue>,
+    listener: Option<ListenerValue>,
 
     #[prost(string, tag = "4")]
     certificate_pem: String,

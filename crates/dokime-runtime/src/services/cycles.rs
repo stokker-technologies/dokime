@@ -22,6 +22,25 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::CyclesCreateRequest;
+use dokime_protocol::host::CyclesCreateResponse;
+use dokime_protocol::host::CyclesGetRequest;
+use dokime_protocol::host::CyclesGetResponse;
+use dokime_protocol::host::CyclesListRequest;
+use dokime_protocol::host::CyclesListResponse;
+use dokime_protocol::host::CyclesSealRequest;
+use dokime_protocol::host::CyclesSealResponse;
+use dokime_protocol::host::CyclesSetRequest;
+use dokime_protocol::host::CyclesSetResponse;
+use dokime_protocol::host::CyclesWatchRequest;
+use dokime_protocol::host::CyclesWatchResponse;
+use dokime_protocol::host::cycles_server::Cycles;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,67 +56,49 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::cycles_server::Cycles for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::CyclesGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CyclesGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cycles/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Cycles for Services {
+    async fn get(&self, request: Request<CyclesGetRequest>) -> Result<Response<CyclesGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cycles/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cycles::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn set(
-        &self, request: tonic::Request<dokime_protocol::host::CyclesSetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CyclesSetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cycles/Set", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn set(&self, request: Request<CyclesSetRequest>) -> Result<Response<CyclesSetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cycles/Set", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cycles::set::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::CyclesListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CyclesListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cycles/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn list(&self, request: Request<CyclesListRequest>) -> Result<Response<CyclesListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cycles/List", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cycles::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::CyclesWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::CyclesWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cycles/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<CyclesWatchResponse>;
+    async fn watch(&self, request: Request<CyclesWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cycles/Watch", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cycles::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn create(
-        &self, request: tonic::Request<dokime_protocol::host::CyclesCreateRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CyclesCreateResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cycles/Create", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn create(&self, request: Request<CyclesCreateRequest>) -> Result<Response<CyclesCreateResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cycles/Create", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cycles::create::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn seal(
-        &self, request: tonic::Request<dokime_protocol::host::CyclesSealRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::CyclesSealResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Cycles/Seal", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn seal(&self, request: Request<CyclesSealRequest>) -> Result<Response<CyclesSealResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Cycles/Seal", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::cycles::seal::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

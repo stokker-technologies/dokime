@@ -22,6 +22,16 @@
 // Local Imports
 use super::Services;
 
+use dokime_protocol::host::EvidenceArchiveRequest;
+use dokime_protocol::host::EvidenceArchiveResponse;
+use dokime_protocol::host::EvidenceStatisticsRequest;
+use dokime_protocol::host::EvidenceStatisticsResponse;
+use dokime_protocol::host::evidence_server::Evidence;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,24 +47,20 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::evidence_server::Evidence for Services {
-    async fn statistics(
-        &self, request: tonic::Request<dokime_protocol::host::EvidenceStatisticsRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::EvidenceStatisticsResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Evidence/Statistics", harmos_protocol::model::Callers::Clients)
+impl Evidence for Services {
+    async fn statistics(&self, request: Request<EvidenceStatisticsRequest>) -> Result<Response<EvidenceStatisticsResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Evidence/Statistics", Callers::Clients).map_err(dokime_operations::caller_status)?;
+        let reply = dokime_operations::host::evidence::statistics::handle(&self.context, request.into_inner())
+            .await
             .map_err(dokime_operations::host::status)?;
-        let _ = request;
-        Err(tonic::Status::unimplemented("dokime.host.v1.Evidence/Statistics: Operation Is Unavailable in This Host"))
+        Ok(Response::new(reply))
     }
-    async fn archive(
-        &self, request: tonic::Request<dokime_protocol::host::EvidenceArchiveRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::EvidenceArchiveResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Evidence/Archive", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn archive(&self, request: Request<EvidenceArchiveRequest>) -> Result<Response<EvidenceArchiveResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Evidence/Archive", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::evidence::archive::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

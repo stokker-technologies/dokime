@@ -22,6 +22,27 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::SecretsDeleteRequest;
+use dokime_protocol::host::SecretsDeleteResponse;
+use dokime_protocol::host::SecretsExportRequest;
+use dokime_protocol::host::SecretsExportResponse;
+use dokime_protocol::host::SecretsGetRequest;
+use dokime_protocol::host::SecretsGetResponse;
+use dokime_protocol::host::SecretsImportRequest;
+use dokime_protocol::host::SecretsImportResponse;
+use dokime_protocol::host::SecretsListRequest;
+use dokime_protocol::host::SecretsListResponse;
+use dokime_protocol::host::SecretsSetRequest;
+use dokime_protocol::host::SecretsSetResponse;
+use dokime_protocol::host::SecretsWatchRequest;
+use dokime_protocol::host::SecretsWatchResponse;
+use dokime_protocol::host::secrets_server::Secrets;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,77 +58,56 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::secrets_server::Secrets for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::SecretsGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::SecretsGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Secrets/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Secrets for Services {
+    async fn get(&self, request: Request<SecretsGetRequest>) -> Result<Response<SecretsGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Secrets/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::secrets::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn set(
-        &self, request: tonic::Request<dokime_protocol::host::SecretsSetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::SecretsSetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Secrets/Set", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn set(&self, request: Request<SecretsSetRequest>) -> Result<Response<SecretsSetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Secrets/Set", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::secrets::set::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::SecretsListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::SecretsListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Secrets/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn list(&self, request: Request<SecretsListRequest>) -> Result<Response<SecretsListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Secrets/List", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::secrets::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::SecretsWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::SecretsWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Secrets/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<SecretsWatchResponse>;
+    async fn watch(&self, request: Request<SecretsWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Secrets/Watch", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::secrets::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn delete(
-        &self, request: tonic::Request<dokime_protocol::host::SecretsDeleteRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::SecretsDeleteResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Secrets/Delete", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn delete(&self, request: Request<SecretsDeleteRequest>) -> Result<Response<SecretsDeleteResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Secrets/Delete", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::secrets::delete::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn export(
-        &self, request: tonic::Request<dokime_protocol::host::SecretsExportRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::SecretsExportResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Secrets/Export", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn export(&self, request: Request<SecretsExportRequest>) -> Result<Response<SecretsExportResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Secrets/Export", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::secrets::export::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn import(
-        &self, request: tonic::Request<dokime_protocol::host::SecretsImportRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::SecretsImportResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Secrets/Import", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn import(&self, request: Request<SecretsImportRequest>) -> Result<Response<SecretsImportResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Secrets/Import", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::secrets::import::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

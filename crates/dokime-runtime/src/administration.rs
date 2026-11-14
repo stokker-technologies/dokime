@@ -41,6 +41,13 @@ impl Host {
         use prost::Message;
         let catalog =
             candidate.description.declarations.as_ref().ok_or_else(|| Error::Invalid("Admit Plugin: Supply Its Catalog".into()))?;
+        if let Some(context) = self.executions.inner.context.get().and_then(std::sync::Weak::upgrade) {
+            for requirement in &catalog.requires {
+                context
+                    .authorize(&requirement.id, harmos_protocol::model::Callers::Plugins)
+                    .map_err(|failure| Error::Plugin(Box::new(harmos_protocol::model::Failure::from(&failure))))?;
+            }
+        }
         let mut candidate_records = Vec::new();
         for section in &catalog.sections {
             if section.r#type == "dokime.model.v1.RecordContracts" {

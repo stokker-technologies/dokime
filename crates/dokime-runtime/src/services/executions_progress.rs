@@ -22,6 +22,20 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::executions::ProgressGetRequest;
+use dokime_protocol::host::executions::ProgressGetResponse;
+use dokime_protocol::host::executions::ProgressSetRequest;
+use dokime_protocol::host::executions::ProgressSetResponse;
+use dokime_protocol::host::executions::ProgressWatchRequest;
+use dokime_protocol::host::executions::ProgressWatchResponse;
+use dokime_protocol::host::executions::progress_server::Progress;
+use harmos_protocol::model::Callers;
+use harmos_runtime::Failure;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,27 +51,26 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::executions::progress_server::Progress for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::executions::ProgressGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::executions::ProgressGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.executions.Progress/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Progress for Services {
+    async fn get(&self, request: Request<ProgressGetRequest>) -> Result<Response<ProgressGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.executions.Progress/Get", Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::progress::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::executions::ProgressWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::executions::ProgressWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.executions.Progress/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<ProgressWatchResponse>;
+    async fn watch(&self, request: Request<ProgressWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.executions.Progress/Watch", Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::progress::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
+    }
+    async fn set(&self, _request: Request<ProgressSetRequest>) -> Result<Response<ProgressSetResponse>, Status> {
+        Err(dokime_operations::caller_status(Failure::wrong_caller("dokime.host.v1.executions.Progress/Set")))
     }
 }
 

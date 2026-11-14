@@ -23,6 +23,7 @@ use async_trait::async_trait;
 use harmos_protocol::plugin::InstanceGetResponse;
 
 // Local Imports
+use crate::host::Context;
 use crate::{Error, Result};
 use dokime_storage::{Evidence, Store};
 
@@ -37,7 +38,7 @@ use dokime_storage::{Evidence, Store};
 #[derive(Clone)]
 pub struct Resources {
     pub plugin: Arc<InstanceGetResponse>,
-    pub context: Arc<crate::host::Context>,
+    pub context: Arc<Context>,
     pub store: Store,
     pub execution: String,
     pub step: String,

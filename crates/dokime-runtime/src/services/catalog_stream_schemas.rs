@@ -22,6 +22,16 @@
 // Local Imports
 use super::Services;
 
+use dokime_protocol::host::StreamSchemasGetRequest;
+use dokime_protocol::host::StreamSchemasGetResponse;
+use dokime_protocol::host::StreamSchemasListRequest;
+use dokime_protocol::host::StreamSchemasListResponse;
+use dokime_protocol::host::stream_schemas_server::StreamSchemas;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,26 +47,20 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::stream_schemas_server::StreamSchemas for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::StreamSchemasGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::StreamSchemasGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.StreamSchemas/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl StreamSchemas for Services {
+    async fn get(&self, request: Request<StreamSchemasGetRequest>) -> Result<Response<StreamSchemasGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.StreamSchemas/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::stream_schemas::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::StreamSchemasListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::StreamSchemasListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.StreamSchemas/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn list(&self, request: Request<StreamSchemasListRequest>) -> Result<Response<StreamSchemasListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.StreamSchemas/List", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::stream_schemas::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

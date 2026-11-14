@@ -22,6 +22,35 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::ExecutionsCancelRequest;
+use dokime_protocol::host::ExecutionsCancelResponse;
+use dokime_protocol::host::ExecutionsCreateRequest;
+use dokime_protocol::host::ExecutionsCreateResponse;
+use dokime_protocol::host::ExecutionsDeleteRequest;
+use dokime_protocol::host::ExecutionsDeleteResponse;
+use dokime_protocol::host::ExecutionsGetRequest;
+use dokime_protocol::host::ExecutionsGetResponse;
+use dokime_protocol::host::ExecutionsListRequest;
+use dokime_protocol::host::ExecutionsListResponse;
+use dokime_protocol::host::ExecutionsParametersRequest;
+use dokime_protocol::host::ExecutionsParametersResponse;
+use dokime_protocol::host::ExecutionsSetRequest;
+use dokime_protocol::host::ExecutionsSetResponse;
+use dokime_protocol::host::ExecutionsStartRequest;
+use dokime_protocol::host::ExecutionsStartResponse;
+use dokime_protocol::host::ExecutionsStepsRequest;
+use dokime_protocol::host::ExecutionsStepsResponse;
+use dokime_protocol::host::ExecutionsStopRequest;
+use dokime_protocol::host::ExecutionsStopResponse;
+use dokime_protocol::host::ExecutionsWatchRequest;
+use dokime_protocol::host::ExecutionsWatchResponse;
+use dokime_protocol::host::executions_server::Executions;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,117 +66,84 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::executions_server::Executions for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Executions for Services {
+    async fn get(&self, request: Request<ExecutionsGetRequest>) -> Result<Response<ExecutionsGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn set(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsSetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsSetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Set", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn set(&self, request: Request<ExecutionsSetRequest>) -> Result<Response<ExecutionsSetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Set", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::set::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn list(&self, request: Request<ExecutionsListRequest>) -> Result<Response<ExecutionsListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/List", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::ExecutionsWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<ExecutionsWatchResponse>;
+    async fn watch(&self, request: Request<ExecutionsWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Watch", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn create(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsCreateRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsCreateResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Create", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn create(&self, request: Request<ExecutionsCreateRequest>) -> Result<Response<ExecutionsCreateResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Create", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::create::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn start(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsStartRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsStartResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Start", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn start(&self, request: Request<ExecutionsStartRequest>) -> Result<Response<ExecutionsStartResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Start", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::start::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn stop(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsStopRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsStopResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Stop", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn stop(&self, request: Request<ExecutionsStopRequest>) -> Result<Response<ExecutionsStopResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Stop", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::stop::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn cancel(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsCancelRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsCancelResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Cancel", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn cancel(&self, request: Request<ExecutionsCancelRequest>) -> Result<Response<ExecutionsCancelResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Cancel", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::cancel::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn delete(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsDeleteRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsDeleteResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Delete", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn delete(&self, request: Request<ExecutionsDeleteRequest>) -> Result<Response<ExecutionsDeleteResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Delete", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::delete::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn parameters(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsParametersRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsParametersResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Parameters", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn parameters(&self, request: Request<ExecutionsParametersRequest>) -> Result<Response<ExecutionsParametersResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Parameters", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::parameters::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn steps(
-        &self, request: tonic::Request<dokime_protocol::host::ExecutionsStepsRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::ExecutionsStepsResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Executions/Steps", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn steps(&self, request: Request<ExecutionsStepsRequest>) -> Result<Response<ExecutionsStepsResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Executions/Steps", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::executions::steps::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

@@ -22,6 +22,14 @@
 // Local Imports
 use super::Services;
 
+use dokime_protocol::host::prompts::AnswersCreateRequest;
+use dokime_protocol::host::prompts::AnswersCreateResponse;
+use dokime_protocol::host::prompts::answers_server::Answers;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,16 +45,14 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::prompts::answers_server::Answers for Services {
-    async fn create(
-        &self, request: tonic::Request<dokime_protocol::host::prompts::AnswersCreateRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::prompts::AnswersCreateResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.prompts.Answers/Create", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Answers for Services {
+    async fn create(&self, request: Request<AnswersCreateRequest>) -> Result<Response<AnswersCreateResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.prompts.Answers/Create", Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::prompts::answers::create::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

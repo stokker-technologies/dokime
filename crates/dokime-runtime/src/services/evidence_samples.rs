@@ -22,6 +22,17 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::evidence::SamplesListRequest;
+use dokime_protocol::host::evidence::SamplesListResponse;
+use dokime_protocol::host::evidence::SamplesWatchRequest;
+use dokime_protocol::host::evidence::SamplesWatchResponse;
+use dokime_protocol::host::evidence::samples_server::Samples;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,27 +48,22 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::evidence::samples_server::Samples for Services {
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::evidence::SamplesListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::evidence::SamplesListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.evidence.Samples/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Samples for Services {
+    async fn list(&self, request: Request<SamplesListRequest>) -> Result<Response<SamplesListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.evidence.Samples/List", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::evidence::samples::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::evidence::SamplesWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::evidence::SamplesWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.evidence.Samples/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<SamplesWatchResponse>;
+    async fn watch(&self, request: Request<SamplesWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.evidence.Samples/Watch", Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::evidence::samples::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

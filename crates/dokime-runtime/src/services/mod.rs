@@ -16,7 +16,6 @@ mod aggregates;
 mod analyses;
 mod backend;
 mod backend_overview;
-mod bundle_permissions;
 mod bundles;
 mod cases;
 mod catalog_prompt_definitions;
@@ -95,8 +94,6 @@ use dokime_protocol::host::files::uploads_server::UploadsServer;
 use dokime_protocol::host::files_server::FilesServer;
 use dokime_protocol::host::media::captures_server::CapturesServer;
 use dokime_protocol::host::plots::snapshots_server::SnapshotsServer;
-use dokime_protocol::host::plugins::settings_server::SettingsServer;
-use dokime_protocol::host::plugins_server::PluginsServer;
 use dokime_protocol::host::prompt_definitions_server::PromptDefinitionsServer;
 use dokime_protocol::host::prompts::answers_server::AnswersServer;
 use dokime_protocol::host::prompts_server::PromptsServer;
@@ -125,16 +122,18 @@ use tokio::task::JoinHandle;
 
 #[derive(Clone)]
 struct Services {
-    context: Context,
+    context: Arc<Context>,
 }
 pub struct Server {
     endpoint: SocketAddr,
     host: Host,
-    runtime: harmos_runtime::Runtime<composition::Application>,
+    runtime: Arc<harmos_runtime::Runtime<composition::Application>>,
     listener: Option<harmos_runtime::grpc::Attached>,
     close_timeout: Duration,
     status: Arc<harmos_runtime::services::status::Status>,
     status_task: Option<JoinHandle<Result<()>>>,
+    plugin_task: Option<JoinHandle<Result<()>>>,
+    plugin_observation: tokio_util::sync::CancellationToken,
     _status_registration: Arc<harmos_runtime::services::status::Registration>,
 }
 
@@ -152,6 +151,10 @@ impl Server {
         &self.status
     }
     pub async fn close(mut self) -> Result<()> {
+        self.plugin_observation.cancel();
+        if let Some(task) = self.plugin_task.take() {
+            task.await??;
+        }
         self.host.shutdown().await?;
         if let Some(task) = self.status_task.take() {
             task.await??;
@@ -166,9 +169,89 @@ impl Server {
 
 impl Drop for Server {
     fn drop(&mut self) {
+        self.plugin_observation.cancel();
+        if let Some(task) = self.plugin_task.take() {
+            task.abort();
+        }
         if let Some(task) = self.status_task.take() {
             task.abort();
         }
+    }
+}
+
+#[tonic::async_trait]
+impl dokime_protocol::host::effects_server::Effects for Services {
+    async fn create(
+        &self, _request: tonic::Request<dokime_protocol::host::EffectsCreateRequest>,
+    ) -> std::result::Result<tonic::Response<dokime_protocol::host::EffectsCreateResponse>, tonic::Status> {
+        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.Effects/Create")))
+    }
+    async fn get(
+        &self, _request: tonic::Request<dokime_protocol::host::EffectsGetRequest>,
+    ) -> std::result::Result<tonic::Response<dokime_protocol::host::EffectsGetResponse>, tonic::Status> {
+        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.Effects/Get")))
+    }
+    async fn set(
+        &self, _request: tonic::Request<dokime_protocol::host::EffectsSetRequest>,
+    ) -> std::result::Result<tonic::Response<dokime_protocol::host::EffectsSetResponse>, tonic::Status> {
+        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.Effects/Set")))
+    }
+}
+
+#[tonic::async_trait]
+impl dokime_protocol::host::evidence::logs_server::Logs for Services {
+    async fn append(
+        &self, _request: tonic::Request<dokime_protocol::host::evidence::LogsAppendRequest>,
+    ) -> std::result::Result<tonic::Response<dokime_protocol::host::evidence::LogsAppendResponse>, tonic::Status> {
+        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.evidence.Logs/Append")))
+    }
+}
+
+#[tonic::async_trait]
+impl dokime_protocol::host::files::captures_server::Captures for Services {
+    async fn start(
+        &self, _request: tonic::Request<dokime_protocol::host::files::CapturesStartRequest>,
+    ) -> std::result::Result<tonic::Response<dokime_protocol::host::files::CapturesStartResponse>, tonic::Status> {
+        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.files.Captures/Start")))
+    }
+    async fn stop(
+        &self, _request: tonic::Request<dokime_protocol::host::files::CapturesStopRequest>,
+    ) -> std::result::Result<tonic::Response<dokime_protocol::host::files::CapturesStopResponse>, tonic::Status> {
+        Err(dokime_operations::caller_status(harmos_runtime::Failure::wrong_caller("dokime.host.v1.files.Captures/Stop")))
+    }
+}
+
+#[tonic::async_trait]
+impl dokime_protocol::host::plugins::secrets_server::Secrets for Services {
+    async fn list(
+        &self, request: tonic::Request<dokime_protocol::host::plugins::SecretsListRequest>,
+    ) -> std::result::Result<tonic::Response<dokime_protocol::host::plugins::SecretsListResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.plugins.Secrets/List", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
+        let reply = dokime_operations::host::plugins::secrets::list::handle(&self.context, request.into_inner())
+            .await
+            .map_err(dokime_operations::host::status)?;
+        Ok(tonic::Response::new(reply))
+    }
+    async fn set(
+        &self, request: tonic::Request<dokime_protocol::host::plugins::SecretsSetRequest>,
+    ) -> std::result::Result<tonic::Response<dokime_protocol::host::plugins::SecretsSetResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.plugins.Secrets/Set", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
+        let reply = dokime_operations::host::plugins::secrets::set::handle(&self.context, request.into_inner())
+            .await
+            .map_err(dokime_operations::host::status)?;
+        Ok(tonic::Response::new(reply))
+    }
+    async fn delete(
+        &self, request: tonic::Request<dokime_protocol::host::plugins::SecretsDeleteRequest>,
+    ) -> std::result::Result<tonic::Response<dokime_protocol::host::plugins::SecretsDeleteResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.plugins.Secrets/Delete", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
+        let reply = dokime_operations::host::plugins::secrets::delete::handle(&self.context, request.into_inner())
+            .await
+            .map_err(dokime_operations::host::status)?;
+        Ok(tonic::Response::new(reply))
     }
 }
 
@@ -235,14 +318,16 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
         }),
         display_name: "Dokime Execution Host".into(),
     };
-    let runtime = composition::launch(clock, &host.store, &settings).await?;
+    let runtime = composition::launch(clock, &host.store, root, &host.settings.placement, &settings).await?;
     let status = runtime.services().configure_status(status::settings(&settings, backend_id.clone()))?;
     let administration = Arc::new(Mutex::new(()));
+    let catalogs = Arc::new(std::sync::RwLock::new(Vec::new()));
     let state = state::State {
-        administration: administration.clone(),
         status: status.clone(),
         root: root.to_owned(),
         host: host.clone(),
+        operations: runtime.operations.clone(),
+        catalogs: catalogs.clone(),
         render_settings: crate::RenderSettings {
             page_size: NonZeroUsize::new(settings.page_items).unwrap(),
             display_points: NonZeroUsize::new(settings.page_items).unwrap(),
@@ -251,21 +336,29 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
         temporary_report_limit: settings.max_cases,
     };
     let close_timeout = settings.mutation_timeout;
-    let context = Context {
+    let context = Arc::new(Context {
         administration,
         host: Arc::new(state),
         settings: settings.clone(),
-    };
-    context.host.restore_managed_plugins().await.map_err(|error| Error::Invalid(error.to_string()))?;
+        operations: runtime.operations.clone(),
+        caller: None,
+    });
+    host.executions.bind_context(&context)?;
+    context.host.refresh_plugin_states().await?;
+    dokime_operations::host::plugins::secrets::reconcile(&context).await?;
     dokime_operations::host::register_redactions(&context)?;
     let registration = Arc::new(
         status
-            .contribute(Arc::new(status::Facts(Arc::downgrade(&context.host))))
+            .contribute(Arc::new(status::Facts {
+                host: Arc::downgrade(&context.host),
+                plugins: catalogs,
+            }))
             .map_err(|source| status::failure("Contribute Host Status", source))?,
     );
     let mut changes = context.host.changes();
     let weak_host = Arc::downgrade(&context.host);
     let services = Services { context };
+    let plugin_context = Arc::downgrade(&services.context);
     register_services(runtime.grpc(), services.clone())?;
     runtime
         .grpc()
@@ -275,6 +368,9 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     transport.address = endpoint;
     let listener = runtime.grpc().attach(transport).await?;
     let endpoint = listener.local_addr();
+    let plugin_observation = tokio_util::sync::CancellationToken::new();
+    let plugin_task =
+        tokio::spawn(observe_plugins(runtime.operations.clone(), plugin_context, settings.clone(), plugin_observation.clone()));
     let changed_registration = registration.clone();
     let status_task = tokio::spawn(async move {
         while changes.changed().await.is_ok() {
@@ -293,14 +389,78 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
         close_timeout,
         status,
         status_task: Some(status_task),
+        plugin_task: Some(plugin_task),
+        plugin_observation,
         _status_registration: registration,
     })
 }
 
 /* === Private Functions === */
 
+async fn observe_plugins(
+    operations: harmos_runtime::operations::OperationManager, context: std::sync::Weak<Context>, settings: ClientSettings,
+    cancellation: tokio_util::sync::CancellationToken,
+) -> Result<()> {
+    use harmos_protocol::host::{PluginsWatchRequest, plugins_watch_response::Event};
+    use harmos_runtime::builtins::plugins::Watch;
+    use harmos_runtime::operations::StreamSettings;
+    loop {
+        let mut watch = operations.download_protobuf::<Watch>(
+            PluginsWatchRequest { at: None },
+            StreamSettings {
+                items: NonZeroUsize::new(settings.stream_buffer).unwrap(),
+                bytes: NonZeroUsize::new(settings.message_bytes).unwrap(),
+            },
+        )?;
+        loop {
+            let event = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => {
+                    watch.cancel_and_settle().await?;
+                    return Ok(());
+                }
+                event = watch.next() => event?,
+            };
+            let Some(event) = event else {
+                return Err(Error::Invalid("Observe Plugins: Reopen the Closed Plugin Watch".into()));
+            };
+            let Some(context) = context.upgrade() else {
+                watch.cancel_and_settle().await?;
+                return Ok(());
+            };
+            context.host.refresh_plugin_states().await?;
+            dokime_operations::host::plugins::secrets::reconcile(&context).await?;
+            context.host.signal_change();
+            if matches!(event.event, Some(Event::ResyncRequired(_))) {
+                watch.cancel_and_settle().await?;
+                break;
+            }
+        }
+    }
+}
+
 fn register_services(manager: &GrpcManager, services: Services) -> Result<()> {
     let message_bytes = services.context.settings.message_bytes;
+    manager.register_service(
+        dokime_protocol::host::plugins::secrets_server::SecretsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        dokime_protocol::host::files::captures_server::CapturesServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        dokime_protocol::host::evidence::logs_server::LogsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
+    manager.register_service(
+        dokime_protocol::host::effects_server::EffectsServer::new(services.clone())
+            .max_decoding_message_size(message_bytes)
+            .max_encoding_message_size(message_bytes),
+    )?;
     manager.register_service(
         FilesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
     )?;
@@ -318,9 +478,6 @@ fn register_services(manager: &GrpcManager, services: Services) -> Result<()> {
     )?;
     manager.register_service(
         AnalysesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        PluginsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
         CyclesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
@@ -403,9 +560,6 @@ fn register_services(manager: &GrpcManager, services: Services) -> Result<()> {
     )?;
     manager.register_service(
         SnapshotsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
-    )?;
-    manager.register_service(
-        SettingsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
         AnswersServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),

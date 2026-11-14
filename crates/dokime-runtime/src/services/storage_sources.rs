@@ -22,6 +22,16 @@
 // Local Imports
 use super::Services;
 
+use dokime_protocol::host::storage::SourcesGetRequest;
+use dokime_protocol::host::storage::SourcesGetResponse;
+use dokime_protocol::host::storage::SourcesSetRequest;
+use dokime_protocol::host::storage::SourcesSetResponse;
+use dokime_protocol::host::storage::sources_server::Sources;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,26 +47,20 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::storage::sources_server::Sources for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::storage::SourcesGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::storage::SourcesGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.storage.Sources/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Sources for Services {
+    async fn get(&self, request: Request<SourcesGetRequest>) -> Result<Response<SourcesGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.storage.Sources/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::storage::sources::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn set(
-        &self, request: tonic::Request<dokime_protocol::host::storage::SourcesSetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::storage::SourcesSetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.storage.Sources/Set", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn set(&self, request: Request<SourcesSetRequest>) -> Result<Response<SourcesSetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.storage.Sources/Set", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::storage::sources::set::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

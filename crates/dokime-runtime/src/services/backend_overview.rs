@@ -22,6 +22,17 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::backend::OverviewGetRequest;
+use dokime_protocol::host::backend::OverviewGetResponse;
+use dokime_protocol::host::backend::OverviewWatchRequest;
+use dokime_protocol::host::backend::OverviewWatchResponse;
+use dokime_protocol::host::backend::overview_server::Overview;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,27 +48,22 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::backend::overview_server::Overview for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::backend::OverviewGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::backend::OverviewGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.backend.Overview/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Overview for Services {
+    async fn get(&self, request: Request<OverviewGetRequest>) -> Result<Response<OverviewGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.backend.Overview/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::backend::overview::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::backend::OverviewWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::backend::OverviewWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.backend.Overview/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<OverviewWatchResponse>;
+    async fn watch(&self, request: Request<OverviewWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.backend.Overview/Watch", Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::backend::overview::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

@@ -22,6 +22,22 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::PromptsCreateRequest;
+use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::host::PromptsGetRequest;
+use dokime_protocol::host::PromptsGetResponse;
+use dokime_protocol::host::PromptsListRequest;
+use dokime_protocol::host::PromptsListResponse;
+use dokime_protocol::host::PromptsWatchRequest;
+use dokime_protocol::host::PromptsWatchResponse;
+use dokime_protocol::host::prompts_server::Prompts;
+use harmos_protocol::model::Callers;
+use harmos_runtime::Failure;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,37 +53,31 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::prompts_server::Prompts for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::PromptsGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::PromptsGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Prompts/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl Prompts for Services {
+    async fn get(&self, request: Request<PromptsGetRequest>) -> Result<Response<PromptsGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Prompts/Get", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::prompts::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::PromptsListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::PromptsListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Prompts/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn list(&self, request: Request<PromptsListRequest>) -> Result<Response<PromptsListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Prompts/List", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::prompts::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::PromptsWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::PromptsWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.Prompts/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<PromptsWatchResponse>;
+    async fn watch(&self, request: Request<PromptsWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.Prompts/Watch", Callers::Clients).map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::prompts::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
+    }
+    async fn create(&self, _request: Request<PromptsCreateRequest>) -> Result<Response<PromptsCreateResponse>, Status> {
+        Err(dokime_operations::caller_status(Failure::wrong_caller("dokime.host.v1.Prompts/Create")))
     }
 }
 

@@ -22,6 +22,19 @@
 // Local Imports
 use super::Services;
 
+use dokime_operations::host::Output;
+use dokime_protocol::host::content::ExecutionFilesGetRequest;
+use dokime_protocol::host::content::ExecutionFilesGetResponse;
+use dokime_protocol::host::content::ExecutionFilesListRequest;
+use dokime_protocol::host::content::ExecutionFilesListResponse;
+use dokime_protocol::host::content::ExecutionFilesWatchRequest;
+use dokime_protocol::host::content::ExecutionFilesWatchResponse;
+use dokime_protocol::host::content::execution_files_server::ExecutionFiles;
+use harmos_protocol::model::Callers;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -37,37 +50,31 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::host::content::execution_files_server::ExecutionFiles for Services {
-    async fn get(
-        &self, request: tonic::Request<dokime_protocol::host::content::ExecutionFilesGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::content::ExecutionFilesGetResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.content.ExecutionFiles/Get", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+impl ExecutionFiles for Services {
+    async fn get(&self, request: Request<ExecutionFilesGetRequest>) -> Result<Response<ExecutionFilesGetResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.content.ExecutionFiles/Get", Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::content::execution_files::get::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    async fn list(
-        &self, request: tonic::Request<dokime_protocol::host::content::ExecutionFilesListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::host::content::ExecutionFilesListResponse>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.content.ExecutionFiles/List", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    async fn list(&self, request: Request<ExecutionFilesListRequest>) -> Result<Response<ExecutionFilesListResponse>, Status> {
+        dokime_operations::authorize("dokime.host.v1.content.ExecutionFiles/List", Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::content::execution_files::list::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
-    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::content::ExecutionFilesWatchResponse>;
-    async fn watch(
-        &self, request: tonic::Request<dokime_protocol::host::content::ExecutionFilesWatchRequest>,
-    ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        dokime_operations::authorize("dokime.host.v1.content.ExecutionFiles/Watch", harmos_protocol::model::Callers::Clients)
-            .map_err(dokime_operations::host::status)?;
+    type WatchStream = Output<ExecutionFilesWatchResponse>;
+    async fn watch(&self, request: Request<ExecutionFilesWatchRequest>) -> Result<Response<Self::WatchStream>, Status> {
+        dokime_operations::authorize("dokime.host.v1.content.ExecutionFiles/Watch", Callers::Clients)
+            .map_err(dokime_operations::caller_status)?;
         let reply = dokime_operations::host::content::execution_files::watch::handle(&self.context, request.into_inner())
             .await
             .map_err(dokime_operations::host::status)?;
-        Ok(tonic::Response::new(reply))
+        Ok(Response::new(reply))
     }
 }
 

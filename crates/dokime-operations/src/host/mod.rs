@@ -25,6 +25,9 @@ pub mod files;
 pub mod paging;
 pub mod planning;
 pub mod plots;
+pub mod plugins {
+    pub mod secrets;
+}
 pub mod projection;
 pub mod prompt_definitions;
 pub mod prompts;
@@ -65,7 +68,6 @@ use dokime_protocol::host::ReportMetadata;
 use dokime_protocol::host::ReportSubject;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
-use dokime_protocol::model;
 use dokime_protocol::model::Document;
 use dokime_storage::ExecutionCut;
 use dokime_storage::Report;
@@ -75,6 +77,7 @@ use harmos_protocol::model::FileReference;
 use harmos_protocol::model::OperationContract;
 use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
+use harmos_runtime::Failure;
 use harmos_runtime::operations::{NativeOperation, OperationManager};
 use prost_reflect::ReflectMessage;
 use prost_types::FileDescriptorSet;
@@ -186,13 +189,35 @@ pub trait Host: Send + Sync {
 /* === Implementations === */
 
 impl Context {
+    pub fn authorize(&self, action: &str, caller: h::Callers) -> StandardResult<(), Failure> {
+        if let Some(method) = self.operations.grpc_methods().into_iter().find(|method| method.contract.operation().id.as_str() == action) {
+            let allowed = matches!(
+                (method.callers, caller),
+                (h::Callers::All, h::Callers::Clients | h::Callers::Plugins)
+                    | (h::Callers::Clients, h::Callers::Clients)
+                    | (h::Callers::Plugins, h::Callers::Plugins)
+            );
+            if !allowed {
+                return Err(Failure::wrong_caller(action));
+            }
+            return Ok(());
+        }
+        crate::authorize(action, caller)
+    }
+
     pub fn resolve_execution<'a>(&'a self, selected: Option<&'a str>, action: &str) -> Result<&'a str> {
         let trusted = self.caller.as_ref().map(|caller| caller.execution.as_str());
         crate::resources::resolve_execution(trusted, selected, action)
     }
 
     pub async fn storage<O: NativeOperation<Endpoints = ()>>(&self, request: O::Request) -> Result<O::Response> {
-        self.operations.call_native::<O>(request).await.map_err(|source| Error::Unavailable(format!("{}: {source}", O::ID)))
+        let operations = match &self.caller {
+            Some(caller) => {
+                self.operations.with_scope(caller.execution.clone()).map_err(|source| Error::Permission(format!("{}: {source}", O::ID)))?
+            }
+            None => self.operations.clone(),
+        };
+        operations.call_native::<O>(request).await.map_err(|source| Error::Unavailable(format!("{}: {source}", O::ID)))
     }
 }
 

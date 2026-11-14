@@ -18,7 +18,7 @@
 // Standard Library Imports
 use std::{
     num::NonZeroUsize,
-    sync::{Arc, Weak},
+    sync::{Arc, RwLock, Weak},
 };
 
 // Third Party Imports
@@ -27,7 +27,10 @@ use sha2::Digest;
 
 // Local Imports
 use dokime_operations::host::{ClientSettings, Host};
-use harmos_protocol::model;
+
+use harmos_protocol::host::ComponentState;
+use harmos_protocol::host::{HealthComponent, PluginEntry, PluginState};
+use harmos_runtime::Error;
 
 /* === Constants === */
 
@@ -37,7 +40,10 @@ use harmos_protocol::model;
 
 /* === Structs === */
 
-pub(super) struct Facts(pub Weak<dyn Host>);
+pub(super) struct Facts {
+    pub host: Weak<dyn Host>,
+    pub plugins: Arc<RwLock<Vec<PluginEntry>>>,
+}
 
 /* === Enums === */
 
@@ -46,25 +52,19 @@ pub(super) struct Facts(pub Weak<dyn Host>);
 /* === Implementations === */
 
 impl Contribution for Facts {
-    fn health(&self) -> Result<Vec<harmos_protocol::host::HealthComponent>, Box<dyn std::error::Error + Send + Sync>> {
-        let host = self.0.upgrade().ok_or_else(|| std::io::Error::other("Read Host Health: Host Is Closed"))?;
-        let state = if host.shutting_down() {
-            harmos_protocol::host::ComponentState::Unavailable
-        } else {
-            harmos_protocol::host::ComponentState::Healthy
-        };
-        let mut components = vec![harmos_protocol::host::HealthComponent {
+    fn health(&self) -> Result<Vec<HealthComponent>, Box<dyn std::error::Error + Send + Sync>> {
+        let host = self.host.upgrade().ok_or_else(|| std::io::Error::other("Read Host Health: Host Is Closed"))?;
+        let state = if host.shutting_down() { ComponentState::Unavailable } else { ComponentState::Healthy };
+        let mut components = vec![HealthComponent {
             name: "dokime.executions".into(),
             state: state as i32,
             reason: String::new(),
         }];
-        for plugin in host.plugins()? {
-            let state = match dokime_protocol::host::PluginState::try_from(plugin.state) {
-                Ok(dokime_protocol::host::PluginState::Ready) => harmos_protocol::host::ComponentState::Healthy,
-                _ => harmos_protocol::host::ComponentState::Degraded,
-            };
-            components.push(harmos_protocol::host::HealthComponent {
-                name: format!("dokime.plugins.{}", plugin.entry),
+        let plugins = self.plugins.read().map_err(|source| std::io::Error::other(format!("Read Plugin Health: {source}")))?;
+        for plugin in plugins.iter() {
+            let state = if plugin.state == PluginState::Ready as i32 { ComponentState::Healthy } else { ComponentState::Degraded };
+            components.push(HealthComponent {
+                name: format!("dokime.plugins.{}", plugin.name),
                 state: state as i32,
                 reason: String::new(),
             });
@@ -72,7 +72,7 @@ impl Contribution for Facts {
         Ok(components)
     }
     fn diagnostics(&self) -> Result<Vec<Entry>, Box<dyn std::error::Error + Send + Sync>> {
-        let host = self.0.upgrade().ok_or_else(|| std::io::Error::other("Collect Host Diagnostics: Host Is Closed"))?;
+        let host = self.host.upgrade().ok_or_else(|| std::io::Error::other("Collect Host Diagnostics: Host Is Closed"))?;
         let identity = host.identity();
         let paths = host.bootstrap_paths();
         let entries = vec![
@@ -113,7 +113,7 @@ pub(super) fn settings(settings: &ClientSettings, host_id: String) -> StatusSett
 }
 
 pub(super) fn failure(action: &str, source: impl std::error::Error + Send + Sync + 'static) -> crate::Error {
-    harmos_runtime::Error::OperationFailed {
+    Error::OperationFailed {
         operation: action.into(),
         source: Arc::new(source),
     }
