@@ -148,7 +148,6 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
         v1::Termination::Completed,
         v1::ExecutionOutcome {
             attribution: Some(v1::execution_outcome::Attribution::NotEvaluated(v1::UnevaluatedOutcome::default())),
-            ..Default::default()
         },
     )?;
     store.seal("execution")?;
@@ -331,7 +330,6 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
                     ..Default::default()
                 }),
                 message: "fixture.Marker".into(),
-                ..Default::default()
             })
             .collect(),
     };

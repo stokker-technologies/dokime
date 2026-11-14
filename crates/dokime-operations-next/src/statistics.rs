@@ -127,10 +127,10 @@ pub async fn handle(
         |batch| {
             use arrow_array::{Float64Array, StructArray, UInt64Array};
             let values = batch.column(1).as_any().downcast_ref::<StructArray>().unwrap();
-            if let Some(column) = values.column_by_name(field.name()).and_then(|a| a.as_any().downcast_ref::<Float64Array>()) {
-                if column.values().iter().any(|v| !v.is_finite()) {
-                    return Err(dokime_storage::Error::Data("publish finite values before computing statistics"));
-                }
+            if let Some(column) = values.column_by_name(field.name()).and_then(|a| a.as_any().downcast_ref::<Float64Array>())
+                && column.values().iter().any(|v| !v.is_finite())
+            {
+                return Err(dokime_storage::Error::Data("publish finite values before computing statistics"));
             }
             let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
             let values = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
