@@ -186,8 +186,8 @@ impl Store {
             digest.update(&evidence.payload);
         }
         let fingerprint = digest.finalize().to_vec();
-        self.flush_samples()?;
         let mut connection = self.lock()?;
+        self.flush_samples_locked(&mut connection)?;
         let transaction = connection.transaction()?;
         let replay: Option<(Vec<u8>, i64)> = transaction
             .query_row(

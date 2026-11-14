@@ -28,6 +28,7 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::fixture::{self, Row};
+use dokime_protocol::client::content::{ExecutionFileMetadata, ExecutionFileState};
 use dokime_protocol::v1;
 use dokime_storage::{BatchSelection, ExecutionState, NumericWindow, Result, SampleWindow, Store, storage_defaults};
 
@@ -128,6 +129,38 @@ fn accepted_tail_saved_cut_and_failed_catalog_commit() -> Result<()> {
         Ok(true)
     })?;
     assert_eq!(count, 1024);
+    store.sample_batch("execution", &fixture::samples(3))?;
+    store.register_execution_file(
+        "capture",
+        "execution",
+        ExecutionFileMetadata {
+            relative_path: "capture.bin".into(),
+            state: ExecutionFileState::Streaming as i32,
+            ..Default::default()
+        },
+    )?;
+    db.execute_batch(
+        "CREATE TRIGGER refuse_barrier BEFORE INSERT ON telemetry_batches BEGIN SELECT RAISE(ABORT,'injected barrier failure'); END;",
+    )?;
+    assert!(store.finish_execution_file("capture", false).is_err());
+    assert_eq!(store.cut("execution")?.frontier, 1034);
+    db.execute_batch("DROP TRIGGER refuse_barrier;")?;
+    store.finish_execution_file("capture", false)?;
+    assert_eq!(store.cut("execution")?.frontier, 1038);
+    db.execute_batch(
+        "CREATE TRIGGER refuse_closure BEFORE UPDATE OF closed ON streams BEGIN SELECT RAISE(ABORT,'injected closure failure'); END;",
+    )?;
+    assert!(store.close_streams("execution").is_err());
+    assert!(!store.streams_closed("execution")?);
+    db.execute_batch("DROP TRIGGER refuse_closure;")?;
+    store.close_streams("execution")?;
+    assert!(store.streams_closed("execution")?);
+    let saved = store.cut("execution")?.frontier;
+    assert!(store.sample_batch("execution", &fixture::samples(1)).is_err());
+    drop(finite);
+    drop(store);
+    let reopened = Store::open(root.path())?;
+    assert_eq!(reopened.cut("execution")?.frontier, saved);
     Ok(())
 }
 #[test]

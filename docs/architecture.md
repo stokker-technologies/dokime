@@ -469,7 +469,9 @@ files, execution metadata and reports retain their SQLite owners.
 and bounded projected decoder. Appends synchronize files before committing their
 catalog ranges; failed appends and catalog commits restore file/hash/block
 checkpoints and publish no saved acknowledgement. Finalization appends metadata
-only and is idempotent. Pending accepted rows form the live tail; saved cuts exclude
+only and commits stream closure in the same catalog transaction. Evidence barriers
+retain the writer connection through the flush and following mutation; shutdown
+closes sample admission under that lock. Pending accepted rows form the live tail; saved cuts exclude
 later positions. Flush policy is owned by `telemetry/config.rs`: 65,536 rows or five
 seconds, pressure at 64 MiB, evidence barriers and shutdown. Host settings compose
 this policy; CLI configuration exposes row, interval, pending and query bounds.

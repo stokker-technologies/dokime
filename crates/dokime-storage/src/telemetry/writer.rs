@@ -166,12 +166,13 @@ impl Store {
         Ok(())
     }
     pub async fn shutdown_samples(&self) -> Result<()> {
-        let mut result = self.flush_samples();
-        let workers = {
+        let (mut result, workers) = {
+            let mut connection = self.lock()?;
+            let result = self.flush_samples_locked(&mut connection);
             let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry shutdown lock failed"))?;
             telemetry.closed = true;
             telemetry.running = false;
-            std::mem::take(&mut telemetry.workers)
+            (result, std::mem::take(&mut telemetry.workers))
         };
         self.changed.send_modify(|revision| *revision += 1);
         for worker in workers {
@@ -186,6 +187,9 @@ impl Store {
     }
     pub fn flush_samples(&self) -> Result<()> {
         let mut connection = self.lock()?;
+        self.flush_samples_locked(&mut connection)
+    }
+    pub(crate) fn flush_samples_locked(&self, connection: &mut Connection) -> Result<()> {
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
         if telemetry.closed && !telemetry.pending.is_empty() {
             return Err(Error::Data("reopen storage after its failed shutdown flush"));
@@ -272,9 +276,8 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(())
     }
-    pub(crate) fn finalize_samples(&self, execution: &str) -> Result<()> {
-        self.flush_samples()?;
-        let mut connection = self.lock()?;
+    pub(crate) fn finalize_samples(&self, connection: &mut Connection, execution: &str) -> Result<()> {
+        self.flush_samples_locked(connection)?;
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
         let transaction = connection.transaction()?;
         let mut query = transaction.prepare("SELECT id,stream FROM telemetry_files WHERE execution=?1 AND finalized=0 ORDER BY id")?;
@@ -300,6 +303,7 @@ impl Store {
                     params![id, length as i64, digest.as_slice()],
                 )?;
             }
+            transaction.execute("UPDATE streams SET closed=1 WHERE execution=?1", [execution])?;
             Ok(())
         })();
         let result = result.and_then(|()| Ok(transaction.commit()?));

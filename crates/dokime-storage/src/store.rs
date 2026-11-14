@@ -352,8 +352,8 @@ impl Store {
         Ok(())
     }
     pub fn append(&self, execution: &str, mut evidence: Evidence) -> Result<u64> {
-        self.flush_samples()?;
         let mut connection = self.lock()?;
+        self.flush_samples_locked(&mut connection)?;
         let transaction = connection.transaction()?;
         insert_evidence(&transaction, execution, &mut evidence)?;
         transaction.commit()?;
@@ -363,12 +363,12 @@ impl Store {
     pub fn append_requested(
         &self, execution: &str, operation: &str, request_id: &str, fingerprint: &[u8], mut evidence: Evidence,
     ) -> Result<(u64, Receipt)> {
-        self.flush_samples()?;
         use harmos_protocol::v1::{History, Position, Receipt};
         if request_id.is_empty() {
             return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));
         }
         let mut connection = self.lock()?;
+        self.flush_samples_locked(&mut connection)?;
         let transaction = connection.transaction()?;
         let saved: Option<(Vec<u8>, i64)> = transaction
             .query_row(
@@ -420,9 +420,8 @@ impl Store {
         Ok(self.sample_batch(execution, &[sample])?[0])
     }
     pub fn close_streams(&self, execution: &str) -> Result<()> {
-        self.finalize_samples(execution)?;
-        self.lock()?.execute("UPDATE streams SET closed=1 WHERE execution=?1", [execution])?;
-        Ok(())
+        let mut connection = self.lock()?;
+        self.finalize_samples(&mut connection, execution)
     }
     pub fn streams_closed(&self, execution: &str) -> Result<bool> {
         let connection = self.lock()?;

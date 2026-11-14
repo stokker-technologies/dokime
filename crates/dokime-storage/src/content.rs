@@ -112,6 +112,7 @@ impl Store {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         let mut connection = self.lock()?;
+        self.flush_samples_locked(&mut connection)?;
         let transaction = connection.transaction()?;
         let replay: Option<(Vec<u8>, i64)> = transaction
             .query_row(
@@ -255,6 +256,7 @@ impl Store {
     }
     pub fn finish_artifact(&self, identifier: &str, expected_size: u64, expected_sha256: &str) -> Result<ArtifactMetadata> {
         let mut connection = self.lock()?;
+        self.flush_samples_locked(&mut connection)?;
         let transaction = connection.transaction()?;
         let (execution, length, metadata, phase): (String, u64, Vec<u8>, i32) = transaction.query_row(
             "SELECT execution,length,metadata,phase FROM content_objects WHERE id=?1 AND artifact=1",
@@ -301,6 +303,7 @@ impl Store {
     }
     pub fn finish_execution_file(&self, identifier: &str, abandoned: bool) -> Result<()> {
         let mut connection = self.lock()?;
+        self.flush_samples_locked(&mut connection)?;
         let transaction = connection.transaction()?;
         let (execution, phase): (String, i32) =
             transaction.query_row("SELECT execution,phase FROM content_objects WHERE id=?1 AND artifact=0", [identifier], |row| {
