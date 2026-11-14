@@ -41,7 +41,14 @@ const browserPath =
 
 type Reply = {
   id?: number;
-  result?: { result?: { value?: unknown }; exceptionDetails?: unknown; data?: string; loaderId?: string; errorText?: string };
+  result?: {
+    result?: { value?: unknown };
+    exceptionDetails?: unknown;
+    data?: string;
+    loaderId?: string;
+    errorText?: string;
+    sessionId?: string;
+  };
   error?: unknown;
 };
 
@@ -82,8 +89,6 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
         "--headless=new",
         "--no-sandbox",
         "--disable-gpu",
-        "--disable-background-mode",
-        "--disable-extensions",
         "--no-first-run",
         "--remote-debugging-port=0",
         `--user-data-dir=${join(scratch, "profile")}`,
@@ -118,12 +123,18 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
       .catch((cause) => {
         throw new Error("Open Canvas Browser Target: Request Failed", { cause });
       });
-    socket = new WebSocket(target.webSocketDebuggerUrl);
+    const version = await fetch(`${endpoint}/json/version`, { signal: AbortSignal.timeout(30_000) })
+      .then((response) => response.json())
+      .catch((cause) => {
+        throw new Error("Read Canvas Browser Connection: Request Failed", { cause });
+      });
+    socket = new WebSocket(version.webSocketDebuggerUrl);
     await once(socket, "open", { signal: AbortSignal.timeout(30_000) }).catch((cause) => {
       throw new Error("Connect Canvas Browser Target: Socket Did Not Open", { cause });
     });
     const connection = socket;
     let sequence = 0;
+    let pageSession: string | undefined;
     const pending = new Map<number, (reply: Reply) => void>();
     socket.addEventListener("message", (event) => {
       const reply = JSON.parse(event.data) as Reply;
@@ -144,7 +155,14 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
           accept(reply);
         });
       });
-      connection.send(JSON.stringify({ id, method, params }));
+      connection.send(
+        JSON.stringify({
+          id,
+          method,
+          params,
+          sessionId: method.startsWith("Browser.") || method.startsWith("Target.") ? undefined : pageSession,
+        }),
+      );
       const reply = await response;
       assert.ok(!reply.error && !reply.result?.exceptionDetails, JSON.stringify(reply));
       return reply.result;
@@ -152,6 +170,9 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     const evaluate = async (expression: string) =>
       (await command("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }))?.result?.value;
 
+    const attached = await command("Target.attachToTarget", { targetId: target.id, flatten: true });
+    pageSession = attached?.sessionId;
+    assert.ok(pageSession);
     // Attach Before Navigation And Await This Document's Loader.
     const events = on(connection, "message", { signal: AbortSignal.timeout(30_000) });
     await command("Page.enable", {});
