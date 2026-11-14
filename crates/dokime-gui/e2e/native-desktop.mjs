@@ -169,7 +169,10 @@ async function execute() {
     desktop.execute('return Boolean(document.querySelector("[data-testid=record-rows] li[data-window-row]"));'),
   );
   await until("Captured Plot Data in the Authored Document", () =>
-    desktop.execute('return Boolean(document.querySelector("[data-plot-viewport] .plot-card canvas"));'),
+    desktop.execute(`
+      const plot = document.querySelector('[data-plot-viewport]');
+      plot?.scrollIntoView({block: 'center'});
+      return Boolean(plot?.querySelector('.plot-card canvas'));`),
   );
   const values = await until("Exact Summary Tiles", () =>
     desktop.execute(`
