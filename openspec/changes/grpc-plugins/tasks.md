@@ -18,7 +18,7 @@ No specification lifecycle command or push is authorized for this work.
 - [x] Select bounded frequency input for long executions and preserve explicit author intent.
 - [x] Prove documents exceeding one watch and frequency plots over long history deterministically; preserve source instants and categorical coordinates at the native renderer handoff exposed by whole-document traversal.
 - [x] Update affected maintained guides and benchmark boundaries; review README impact. Existing README claims and links remain accurate.
-- [ ] Run the requested committed-head format, language/repository/compiler checks, focused native/frontend/storage stories and both benchmark consumers once; record observations in tooling guidance and verify disposable credential removal.
+- [x] On source head `ae0cfada8`, pass format, Rust/TypeScript/repository checks and the workspace test compiler check through mise; pass 182 frontend unit, 119 frontend integration, two native desktop and 18 storage stories on Windows. Complete 34 drawn desktop cases with eight complete traversals and nine storage document measurements; retain the inclusive stage profile and exact boundaries in tooling guidance. `cmdkey /list` leaves no entry from these runs; the 13 pre-existing access entries are preserved. Hosted Linux proof is not claimed. Commits remain local.
 
 ## Storage Benchmark Boundaries
 
