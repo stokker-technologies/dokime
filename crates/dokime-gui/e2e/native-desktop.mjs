@@ -272,11 +272,16 @@ async function settings() {
   }
   await desktop.goto("/settings/plugins");
   const installed = await call(desktop, "Plugins", "ListInstallations", { pageSize: 100 });
-  assert.ok(installed.installations.length > 0);
-  await until("Installed Plugin Rows", () =>
-    desktop.execute('return arguments[0].every(id => document.querySelector(`[data-row-id="${CSS.escape(id)}"]`));', [
-      installed.installations.map((entry) => entry.installId),
-    ]),
+  const admitted = await call(desktop, "Plugins", "ListAdmittedPlugins", { pageSize: 100 });
+  const rowIds = installed.installations.map((entry) => entry.installId);
+  for (const entry of admitted.plugins) {
+    const plugin = entry.plugin;
+    if (plugin.remote) rowIds.push(JSON.stringify(["remote", null, null, null, plugin.entry]));
+    else if (plugin.managed && !rowIds.includes(plugin.entry)) rowIds.push(`bundle:${plugin.managed.bundle}`);
+  }
+  assert.ok(rowIds.length > 0);
+  await until("Admitted and Installed Plugin Rows", () =>
+    desktop.execute('return arguments[0].every(id => document.querySelector(`[data-row-id="${CSS.escape(id)}"]`));', [rowIds]),
   );
   await desktop.goto("/settings/diagnostics");
   assert.ok(/recovery|preserv|unavailable|not.*support/i.test(await desktop.text()));

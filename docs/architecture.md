@@ -551,7 +551,10 @@ floating percentile accumulator. Category reducers likewise accumulate typed
 values; plot columns retain exact totals separately from drawing coordinates. `dokime.v1.Value.exact` uses the library's
 `harmos.storage.v1.ExactNumber` for fractions and totals outside the 64-bit range;
 ordinary integral results retain signed or unsigned integer values. The desktop
-formats these values without converting them to JavaScript numbers. Integer
+formats these values without converting them to JavaScript numbers. Document
+structure carries pending bindings; result bindings, summary groups, tiles and
+card completion follow the evidence cut. Literal table rows also settle at card
+completion, with their declared counts still enforced. Integer
 variance uses bounded exact sums of squares, so small spreads above f64 integer
 precision survive. Standard deviation, RMS and chart coordinates remain floating
 point; these drawing coordinates never replace the exact statistic or its label.

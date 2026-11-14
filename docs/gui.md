@@ -74,7 +74,9 @@ returned cut and continuation token, then validates the complete frame sequence:
 structure with source cards, summary definitions, bindings and layout; the fixed
 evidence cut; card results; and completion counters. It rejects misplaced cuts,
 changed identities, incomplete cards and trailing frames. A page boundary never
-relaxes those checks.
+relaxes those checks. Structure bindings remain pending until their evaluated
+results follow the evidence cut. Summary bindings introduce their groups before
+tiles arrive; table row counts are checked when the card completes.
 The desktop asks for at most 32 complete frames per document page, in addition to
 the host's unchanged byte bound. Plot definitions do not trigger hidden plot reads
 while the document is assembled.

@@ -666,7 +666,7 @@ frontend document fixtures/stories; benchmark instrumentation and `docs/tooling.
 
 - [x] Repair categorical projection and require every benchmark card to draw data.
 - [x] Restore captured raw samples for plugin analyses.
-- [x] Preserve exact integer statistics through storage, wire and summary tiles.
+- [ ] Preserve exact integer statistics through storage, wire and summary tiles, including pending structure bindings and complete evaluated results.
 - [x] Stabilize bounded viewport groups and separate traversal, query and driver measurements.
 - [ ] Run the desktop benchmark once on the committed candidate and refresh its accurately labelled observations.
 - [x] Cover producing execution, independent clients and reconnect during loading.
