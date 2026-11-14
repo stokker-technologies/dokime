@@ -15,7 +15,6 @@
 import keyword
 import re
 import subprocess
-import sys
 from pathlib import Path
 from typing import TypedDict
 
@@ -480,21 +479,6 @@ def python(target: Path, methods: list[Method], descriptors: FileDescriptorSet, 
             newline="\n",
         )
 
-    config = Path(__file__).resolve().parents[5] / "sdk/python/ruff.toml"
-    paths = [target] + (
-        [target.parent / "client_types.py", target.parent.parent / "client.py", target.parent.parent / "__init__.py"]
-        if composed and target.parent.name == "_generated"
-        else []
-    )
-    subprocess.run(
-        [sys.executable, "-m", "ruff", "check", "--config", str(config), "--select", "I,F401", "--fix", *map(str, paths)],
-        check=True,
-        creationflags=spawn_flags(),
-    )
-    subprocess.run(
-        [sys.executable, "-m", "ruff", "format", "--config", str(config), *map(str, paths)], check=True, creationflags=spawn_flags()
-    )
-
 
 def python_host(target: Path, methods: list[Method], descriptors: FileDescriptorSet) -> None:
     modules = {}
@@ -616,13 +600,6 @@ def python_host(target: Path, methods: list[Method], descriptors: FileDescriptor
                 lines += ["        finally:", "            await call.aclose()"]
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-    config = Path(__file__).resolve().parents[5] / "sdk/python/ruff.toml"
-    subprocess.run(
-        [sys.executable, "-m", "ruff", "check", "--config", str(config), "--select", "I,F401", "--fix", str(target)],
-        check=True,
-        creationflags=spawn_flags(),
-    )
-    subprocess.run([sys.executable, "-m", "ruff", "format", "--config", str(config), str(target)], check=True, creationflags=spawn_flags())
 
 
 def rust_exports(root: Path, descriptors: FileDescriptorSet) -> None:

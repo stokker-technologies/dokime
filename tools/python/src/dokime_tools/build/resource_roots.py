@@ -154,6 +154,8 @@ def generate(check: bool = False) -> None:
             "_generated/shared.py",
             "_generated/client_types.py",
             "_generated/plugin_types.py",
+            "_generated/host.py",
+            "generated/resources.py",
         )
     ]
     subprocess.run(

@@ -615,6 +615,14 @@ execution. Product histories/scopes select executions under that root. Every dat
 operation stays in-process through the library catalog, never a storage gRPC API.
 The runtime does not open the descriptor path in the composition file.
 
+At this pin the native PayloadEncoding enum still contains only PostcardV1.
+The backend consumer must encode native object/record/sample values and their
+schemas truthfully; protobuf bytes must never be relabeled as Postcard. Preserve
+the frozen protobuf definitions and map product values losslessly at the native
+port. Arrow scans supply projected batches to the library query engine directly;
+this is no permission for a duplicate durable row representation or new wire codec.
+
+
 ### Backend Module Ownership
 
 | Product Modules | Required Ownership |
