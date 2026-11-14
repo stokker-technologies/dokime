@@ -24,6 +24,8 @@ use std::{
 // Third Party Imports
 
 // Local Imports
+use crate::Result;
+use crate::settings::Settings;
 
 /* === Constants === */
 
@@ -55,7 +57,7 @@ pub(crate) enum Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command, settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, settings: Settings) -> Result<()> {
     let Command::Storage(args) = command;
     let root = args.storage.or(settings.storage.clone());
     let scratch = tempfile::Builder::new().prefix("dokime-doctor-").tempdir()?;

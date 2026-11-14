@@ -34,6 +34,8 @@ use prost_types::{
 use tempfile::TempDir;
 
 // Local Imports
+use dokime_protocol::v1::Aggregate;
+use dokime_protocol::v1::DataExpression;
 use dokime_protocol::{builders::Plot, v1};
 use dokime_runtime_next::{ControlledClock, Host, HostSettings, PlacementSettings};
 use dokime_storage::{BatchSelection, Execution, NumericWindow, Sample, Store, storage_defaults};
@@ -361,7 +363,7 @@ fn window(count: u64) -> NumericWindow<'static> {
         bins: NonZeroUsize::new(1500).unwrap(),
     }
 }
-fn aggregate(stream: &str, kind: v1::Aggregate) -> v1::DataExpression {
+fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
     v1::DataExpression {
         kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
             kind: kind as i32,

@@ -23,11 +23,25 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_protocol::plugin::InstanceGetResponse;
+use harmos_protocol::v1::Receipt;
 use prost::Message;
+use tokio::sync::watch::Receiver;
 
 // Local Imports
+use crate::EntryState;
+use crate::ExecutionCapabilities;
 use crate::{Cycle, Error, PlacementSettings, PluginProcess, Result, SchedulerClock, plugin::Entry};
+use dokime_protocol::client::ExecutionControls;
+use dokime_protocol::client::ExecutionMode;
+use dokime_protocol::client::executions::CommandsCreateRequest;
+use dokime_protocol::client::executions::ExecutionCommandReceipt;
+use dokime_protocol::context::PromptsCreateRequest;
+use dokime_protocol::context::PromptsCreateResponse;
 use dokime_protocol::v1;
+use dokime_protocol::v1::Origin;
+use dokime_protocol::v1::Suites;
+use dokime_protocol::v1::Value;
 use dokime_storage::{ExecutionSnapshot, Store};
 
 use dokime_storage::OutcomeCounts;
@@ -157,7 +171,7 @@ impl Host {
             .cloned()
             .ok_or_else(|| Error::Invalid(format!("Connect the Plugin {identifier} Before Starting Its Test Cases")))
     }
-    pub fn catalog(&self, identifier: &str) -> Result<v1::Suites> {
+    pub fn catalog(&self, identifier: &str) -> Result<Suites> {
         if let Some(entry) = lock(&self.plugins)?.get(identifier) {
             return Ok(entry.suites.clone());
         }
@@ -170,13 +184,13 @@ impl Host {
             .ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Reconnect the Plugin with Its Suites".into()))?;
         Ok(v1::Suites::decode(section.payload.as_slice())?)
     }
-    pub fn description(&self, identifier: &str) -> Result<harmos_protocol::plugin::InstanceGetResponse> {
+    pub fn description(&self, identifier: &str) -> Result<InstanceGetResponse> {
         if let Some(entry) = lock(&self.plugins)?.get(identifier) {
             return Ok(entry.description.clone());
         }
         Ok(harmos_protocol::plugin::InstanceGetResponse::decode(self.store.plugin(identifier)?.as_slice())?)
     }
-    pub fn entry_state(&self, identifier: &str) -> Result<crate::EntryState> {
+    pub fn entry_state(&self, identifier: &str) -> Result<EntryState> {
         if let Some(entry) = lock(&self.plugins)?.get(identifier) {
             return Ok(entry.state);
         }
@@ -193,17 +207,17 @@ impl Host {
         self.store.remove_plugin(identifier)?;
         Ok(())
     }
-    pub async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, v1::Value>) -> Result<v1::Origin> {
+    pub async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, Value>) -> Result<Origin> {
         let entry = self.entry(plugin)?;
         crate::plugin::materialize(entry, template, parameters, &self.settings).await
     }
-    pub async fn start_cycle(&self, origins: Vec<v1::Origin>) -> Result<Cycle> {
+    pub async fn start_cycle(&self, origins: Vec<Origin>) -> Result<Cycle> {
         self.executions.start_cycle(origins).await
     }
-    pub fn capabilities(&self, execution: &str) -> Result<crate::ExecutionCapabilities> {
+    pub fn capabilities(&self, execution: &str) -> Result<ExecutionCapabilities> {
         self.executions.capabilities(execution)
     }
-    pub fn execution_controls(&self, execution: &str) -> Result<dokime_protocol::client::ExecutionControls> {
+    pub fn execution_controls(&self, execution: &str) -> Result<ExecutionControls> {
         self.executions.execution_controls(execution)
     }
     pub fn pause_execution(&self, execution: &str, paused: bool) -> Result<()> {
@@ -212,15 +226,13 @@ impl Host {
     pub fn stop_execution(&self, execution: &str) -> Result<()> {
         self.executions.stop_execution(execution)
     }
-    pub async fn start_execution_mode(&self, execution: &str, mode: dokime_protocol::client::ExecutionMode) -> Result<Cycle> {
+    pub async fn start_execution_mode(&self, execution: &str, mode: ExecutionMode) -> Result<Cycle> {
         self.executions.start_execution_mode(execution, mode).await
     }
     pub async fn start_execution(&self, execution: &str) -> Result<Cycle> {
         self.start_execution_mode(execution, dokime_protocol::client::ExecutionMode::Automatic).await
     }
-    pub fn submit_execution_command(
-        &self, request: dokime_protocol::client::executions::CommandsCreateRequest,
-    ) -> Result<dokime_protocol::client::executions::ExecutionCommandReceipt> {
+    pub fn submit_execution_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
         self.executions.submit_execution_command(request)
     }
     pub async fn rerun(&self, execution: &str) -> Result<Cycle> {
@@ -254,7 +266,7 @@ impl Host {
         let outcomes = self.store.cycle_outcomes(cycle)?;
         Ok(OutcomeCounts::from_outcomes(&outcomes))
     }
-    pub fn plugin_entries(&self) -> Result<Vec<(String, crate::EntryState)>> {
+    pub fn plugin_entries(&self) -> Result<Vec<(String, EntryState)>> {
         self.store
             .plugin_identifiers()?
             .into_iter()
@@ -267,19 +279,19 @@ impl Host {
     pub fn streams_closed(&self, identifier: &str) -> Result<bool> {
         Ok(self.store.streams_closed(identifier)?)
     }
-    pub async fn next_prompt(&self, execution: &str) -> Result<dokime_protocol::context::PromptsCreateRequest> {
+    pub async fn next_prompt(&self, execution: &str) -> Result<PromptsCreateRequest> {
         self.prompts.next(execution, &self.executions).await
     }
-    pub fn pending_prompts(&self) -> Result<Vec<(String, dokime_protocol::context::PromptsCreateRequest)>> {
+    pub fn pending_prompts(&self) -> Result<Vec<(String, PromptsCreateRequest)>> {
         self.prompts.pending_prompts()
     }
-    pub fn answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
+    pub fn answer(&self, execution: &str, answer: PromptsCreateResponse) -> Result<()> {
         self.prompts.answer(execution, answer)
     }
     pub fn cancel(&self, execution: &str) -> Result<()> {
         self.executions.cancel(execution)
     }
-    pub fn changes(&self) -> tokio::sync::watch::Receiver<u64> {
+    pub fn changes(&self) -> Receiver<u64> {
         self.changed.subscribe()
     }
     pub fn is_shutting_down(&self) -> bool {
@@ -288,9 +300,7 @@ impl Host {
     pub fn signal_change(&self) {
         self.changed.send_modify(|revision| *revision += 1);
     }
-    pub fn record_answer(
-        &self, execution: &str, request_id: &str, fingerprint: &[u8], answer: dokime_protocol::context::PromptsCreateResponse,
-    ) -> Result<harmos_protocol::v1::Receipt> {
+    pub fn record_answer(&self, execution: &str, request_id: &str, fingerprint: &[u8], answer: PromptsCreateResponse) -> Result<Receipt> {
         self.prompts.record_answer(execution, request_id, fingerprint, answer)
     }
     pub async fn shutdown(&self) -> Result<()> {

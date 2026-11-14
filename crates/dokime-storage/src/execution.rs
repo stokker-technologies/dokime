@@ -22,6 +22,7 @@ use prost::Message;
 
 // Local Imports
 use crate::Result;
+use dokime_protocol::context::evidence::LogsAppendRequest;
 use dokime_protocol::v1::{ExecutionOutcome, ExecutionProgressValue, Origin, Termination};
 
 /* === Constants === */
@@ -149,7 +150,7 @@ impl ExecutionSnapshot {
     pub fn records(&self, kind: &str) -> Vec<&Evidence> {
         self.evidence.iter().filter(|entry| entry.kind == format!("record:{kind}")).collect()
     }
-    pub fn logs(&self) -> Result<Vec<dokime_protocol::context::evidence::LogsAppendRequest>> {
+    pub fn logs(&self) -> Result<Vec<LogsAppendRequest>> {
         self.evidence
             .iter()
             .filter(|entry| entry.kind == "log")

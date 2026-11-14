@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
@@ -145,7 +146,7 @@ impl Store {
 
 /* === Private Functions === */
 
-pub(crate) fn compare_groups(left: &str, right: &str) -> std::cmp::Ordering {
+pub(crate) fn compare_groups(left: &str, right: &str) -> Ordering {
     let number = |value: &str| value.parse::<f64>().ok().filter(|value| value.is_finite());
     match (number(left), number(right)) {
         (Some(a), Some(b)) => a.total_cmp(&b).then_with(|| left.cmp(right)),

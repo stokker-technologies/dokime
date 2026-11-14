@@ -16,9 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use prost::Message;
+use rusqlite::Connection;
+use rusqlite::Result as SqlResult;
+use rusqlite::Row;
 use rusqlite::{OptionalExtension, params};
 use sha2::{Digest, Sha256};
 
@@ -381,7 +385,7 @@ impl Store {
         let mut statement = connection.prepare("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) AND path>?2 AND rowid IN(SELECT MAX(rowid) FROM content_objects WHERE execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) GROUP BY path) ORDER BY path LIMIT ?3")?;
         Ok(statement.query_map(params![execution, after, limit as i64], entry)?.collect::<std::result::Result<_, _>>()?)
     }
-    pub fn write_cycle_archive(&self, cycle: &str, page: std::num::NonZeroUsize, output: &mut impl Write) -> Result<()> {
+    pub fn write_cycle_archive(&self, cycle: &str, page: NonZeroUsize, output: &mut impl Write) -> Result<()> {
         use std::io::{Read, Seek};
         use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
@@ -570,7 +574,7 @@ fn write_field(output: &mut impl Write, tag: u32, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn require_open(connection: &rusqlite::Connection, execution: &str) -> Result<()> {
+fn require_open(connection: &Connection, execution: &str) -> Result<()> {
     let state: i32 = connection.query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
     if state != 0 {
         return Err(Error::Invalid("Write Content: Select an Open Execution".into()));
@@ -578,7 +582,7 @@ fn require_open(connection: &rusqlite::Connection, execution: &str) -> Result<()
     Ok(())
 }
 
-fn content_digest(connection: &rusqlite::Connection, identifier: &str) -> Result<String> {
+fn content_digest(connection: &Connection, identifier: &str) -> Result<String> {
     let mut hash = Sha256::new();
     let mut statement = connection.prepare("SELECT payload FROM content_chunks WHERE object=?1 ORDER BY offset")?;
     for row in statement.query_map([identifier], |row| row.get::<_, Vec<u8>>(0))? {
@@ -587,7 +591,7 @@ fn content_digest(connection: &rusqlite::Connection, identifier: &str) -> Result
     Ok(hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
-fn append_reference(connection: &rusqlite::Connection, execution: &str, kind: &str, payload: Vec<u8>) -> Result<()> {
+fn append_reference(connection: &Connection, execution: &str, kind: &str, payload: Vec<u8>) -> Result<()> {
     let evidence = crate::Evidence {
         position: next_position(connection, execution)?,
         kind: kind.into(),
@@ -601,7 +605,7 @@ fn append_reference(connection: &rusqlite::Connection, execution: &str, kind: &s
     Ok(())
 }
 
-fn entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ContentEntry> {
+fn entry(row: &Row<'_>) -> SqlResult<ContentEntry> {
     let phase = match row.get::<_, i32>(6)? {
         1 => ExecutionFileState::Streaming,
         2 => ExecutionFileState::Finalized,

@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error as StdError;
 use std::{io::Write, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 // Third Party Imports
@@ -46,7 +47,7 @@ use dokime_runtime_next::{
 /* === Private Functions === */
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn StdError>> {
     let mut arguments = std::env::args().skip(1);
     let mut endpoint = None;
     let mut root = None;

@@ -16,10 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos_protocol::v1::{History, Position, Receipt};
 use prost::Message;
+use rusqlite::Connection;
 use rusqlite::{OptionalExtension, params};
 use sha2::{Digest, Sha256};
 
@@ -133,7 +135,7 @@ impl Store {
         Ok(())
     }
 
-    pub fn resource_events(&self, execution: &str, after: u64, through: u64, limit: std::num::NonZeroUsize) -> Result<Vec<Evidence>> {
+    pub fn resource_events(&self, execution: &str, after: u64, through: u64, limit: NonZeroUsize) -> Result<Vec<Evidence>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT e.payload FROM resource_values v JOIN evidence e ON e.execution=v.execution AND e.position=v.position WHERE v.execution=?1 AND v.position>?2 AND v.position<=?3 ORDER BY v.position LIMIT ?4")?;
         let bytes = statement
@@ -148,7 +150,7 @@ impl Store {
         bytes.map(|bytes| Evidence::decode(bytes.as_slice()).map_err(Into::into)).transpose()
     }
 
-    pub fn execution_identifier_page(&self, cycle: Option<&str>, after: &str, maximum: std::num::NonZeroUsize) -> Result<Vec<String>> {
+    pub fn execution_identifier_page(&self, cycle: Option<&str>, after: &str, maximum: NonZeroUsize) -> Result<Vec<String>> {
         let connection = self.lock()?;
         let sql = if cycle.is_some() {
             "SELECT id FROM executions WHERE cycle=?1 AND id>?2 ORDER BY id LIMIT ?3"
@@ -253,9 +255,7 @@ impl Store {
 
 /* === Private Functions === */
 
-fn resolve_value(
-    connection: &rusqlite::Connection, identity: &str, execution: &str, resource: &str, at: Option<&Position>,
-) -> Result<ResourceValue> {
+fn resolve_value(connection: &Connection, identity: &str, execution: &str, resource: &str, at: Option<&Position>) -> Result<ResourceValue> {
     let state: i32 = connection
         .query_row("SELECT state FROM executions WHERE id=?1", [execution], |row| row.get(0))
         .optional()?

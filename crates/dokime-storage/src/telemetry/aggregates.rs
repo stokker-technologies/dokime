@@ -25,6 +25,7 @@ use std::{
 // Third Party Imports
 use arrow_array::{RecordBatch, StructArray};
 use arrow_schema::DataType;
+use arrow_schema::Fields;
 use harmos_storage::query::scalar::ExactNumber;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
@@ -32,6 +33,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
+use super::config::PreviewSettings;
 use crate::{
     Error, NumericWindow, Result, Sample, Store,
     scalar::{self, ScalarValue},
@@ -386,7 +388,7 @@ impl Store {
 /* === Private Functions === */
 
 pub(super) fn append(
-    connection: &Connection, id: &str, offset: u64, batch: &RecordBatch, samples: &[Sample], settings: super::config::PreviewSettings,
+    connection: &Connection, id: &str, offset: u64, batch: &RecordBatch, samples: &[Sample], settings: PreviewSettings,
 ) -> Result<()> {
     let first = samples.first().ok_or(Error::Data("flush a nonempty sample batch"))?.position;
     let last = samples.last().unwrap().position;
@@ -422,7 +424,7 @@ pub(super) fn append(
     }
     Ok(())
 }
-fn scalar_fields(fields: &arrow_schema::Fields, prefix: &str, output: &mut Vec<String>) {
+fn scalar_fields(fields: &Fields, prefix: &str, output: &mut Vec<String>) {
     for field in fields {
         let name = if prefix.is_empty() { field.name().clone() } else { format!("{prefix}.{}", field.name()) };
         match field.data_type() {

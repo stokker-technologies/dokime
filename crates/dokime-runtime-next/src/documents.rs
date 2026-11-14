@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::fs::File;
 use std::{
     io::{BufWriter, Write},
     num::NonZeroUsize,
@@ -24,13 +25,24 @@ use std::{
 
 // Third Party Imports
 use harmos_protocol::v1 as h;
+use harmos_protocol::v1::Catalog;
+use harmos_protocol::v1::ReadCut;
 use prost::Message;
 
 use tempfile::NamedTempFile;
 
 // Local Imports
 use crate::{Error, Host, Result};
+use dokime_operations_next::Result as OperationsResult;
+use dokime_operations_next::client::HostIdentity;
+use dokime_protocol::client::ReportMetadata;
+use dokime_protocol::client::ReportSubject;
 use dokime_protocol::v1;
+use dokime_protocol::v1::Document;
+use dokime_protocol::v1::DocumentScope;
+use dokime_protocol::v1::Plot;
+use dokime_protocol::v1::PlotFilter;
+use dokime_protocol::v1::Section;
 use dokime_storage::{Execution, ExecutionCut, Report, Store};
 
 /* === Constants === */
@@ -79,7 +91,7 @@ impl RenderedDocument {
     pub fn path(&self) -> &Path {
         self.output.path()
     }
-    pub fn into_file(self) -> std::fs::File {
+    pub fn into_file(self) -> File {
         self.output.into_file()
     }
     pub fn html(&self) -> Result<Vec<u8>> {
@@ -88,9 +100,8 @@ impl RenderedDocument {
 }
 impl Host {
     pub(crate) fn render_report(
-        &self, subject: &dokime_protocol::client::ReportSubject, document_id: &str, at: Option<&harmos_protocol::v1::ReadCut>,
-        identity: &dokime_operations_next::client::HostIdentity, render_settings: crate::RenderSettings,
-    ) -> dokime_operations_next::Result<(std::fs::File, dokime_protocol::client::ReportMetadata)> {
+        &self, subject: &ReportSubject, document_id: &str, at: Option<&ReadCut>, identity: &HostIdentity, render_settings: RenderSettings,
+    ) -> OperationsResult<(File, ReportMetadata)> {
         use std::io::{Seek, Write};
         let (store, _read_cancellation) = self.store.read_session()?;
         let (execution, cycle) = match subject.kind.as_ref() {
@@ -185,12 +196,10 @@ impl Host {
         Ok((file, metadata))
     }
 
-    pub fn current_document(&self, scope: &v1::DocumentScope, identifier: &str) -> Result<(v1::Document, ExecutionCut)> {
+    pub fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)> {
         self.current_document_in(&self.store, scope, identifier)
     }
-    pub(crate) fn current_document_in(
-        &self, store: &Store, scope: &v1::DocumentScope, identifier: &str,
-    ) -> Result<(v1::Document, ExecutionCut)> {
+    pub(crate) fn current_document_in(&self, store: &Store, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)> {
         if scope.execution_id.is_empty() {
             if !identifier.is_empty() && identifier != "default" {
                 return Err(Error::Invalid("Capture Cycle Document: Select the Default Document".into()));
@@ -304,7 +313,7 @@ impl Host {
             _read_cancellation: None,
         })
     }
-    pub fn render_document(&self, snapshot: &FixedSnapshot, document: v1::Document, settings: RenderSettings) -> Result<RenderedDocument> {
+    pub fn render_document(&self, snapshot: &FixedSnapshot, document: Document, settings: RenderSettings) -> Result<RenderedDocument> {
         let (store, cancellation) = snapshot.store.read_session()?;
         let snapshot = FixedSnapshot {
             store,
@@ -375,7 +384,7 @@ impl Host {
 /* === Private Functions === */
 
 fn render_section(
-    output: &mut impl Write, snapshot: &FixedSnapshot, section: &v1::Section, catalog: &h::Catalog, settings: RenderSettings,
+    output: &mut impl Write, snapshot: &FixedSnapshot, section: &Section, catalog: &Catalog, settings: RenderSettings,
 ) -> Result<()> {
     if section.repeat.is_some() {
         return Err(Error::Invalid("Render Document: Expand Repeated Sections Before Rendering".into()));
@@ -440,8 +449,7 @@ fn render_section(
 }
 
 fn render_plot(
-    output: &mut impl Write, snapshot: &FixedSnapshot, plot: &v1::Plot, filters: &[v1::PlotFilter], _catalog: &h::Catalog,
-    settings: RenderSettings,
+    output: &mut impl Write, snapshot: &FixedSnapshot, plot: &Plot, filters: &[PlotFilter], _catalog: &Catalog, settings: RenderSettings,
 ) -> Result<()> {
     let scope = v1::EvidenceScope {
         execution_id: Some(snapshot.cut.execution.identifier.clone()),
@@ -592,7 +600,7 @@ fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32,
     write!(output, "</ol>")?;
     Ok(())
 }
-fn apply_preferences(store: &Store, execution: &str, document: &str, sections: &mut [v1::Section]) -> Result<()> {
+fn apply_preferences(store: &Store, execution: &str, document: &str, sections: &mut [Section]) -> Result<()> {
     for section in sections {
         for card in &mut section.cards {
             if let Some(v1::card::Body::Plot(plot)) = &mut card.body {

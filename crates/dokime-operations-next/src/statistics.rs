@@ -20,11 +20,14 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos_protocol::v1 as h;
+use harmos_protocol::v1::OperationContract;
 use prost::Message;
 use prost_reflect::{DescriptorPool, Kind};
 
 // Local Imports
 use crate::{Error, Resources, Result};
+use dokime_protocol::context::EvidenceStatisticsRequest;
+use dokime_protocol::context::EvidenceStatisticsResponse;
 use dokime_storage::StatisticsRead;
 
 use dokime_storage::BatchSelection;
@@ -48,15 +51,13 @@ pub const ID: &str = "dokime.plugin.host.v1.Evidence/Statistics";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<h::OperationContract> {
+pub fn declaration() -> Result<OperationContract> {
     crate::declaration::<dokime_protocol::context::EvidenceStatisticsRequest, dokime_protocol::context::EvidenceStatisticsResponse>(
         ID,
         prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
     )
 }
-pub async fn handle(
-    resources: &Resources, request: dokime_protocol::context::EvidenceStatisticsRequest,
-) -> Result<dokime_protocol::context::EvidenceStatisticsResponse> {
+pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
     resources.check_action_scope(&request.execution, ID)?;
     let mut snapshot = resources.store.cut(&resources.execution)?;
     let resolved_at = resources.store.resource_value(&resources.execution, "progress", request.at.as_ref())?.resolved_at;

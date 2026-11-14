@@ -20,6 +20,7 @@ pub(crate) use projection::Projection;
 /* === Imports === */
 
 // Standard Library Imports
+use std::io::Result as IoResult;
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
@@ -34,6 +35,7 @@ use arrow_ipc::{
     convert::IpcSchemaEncoder,
     writer::{DictionaryTracker, IpcDataGenerator, IpcWriteContext, IpcWriteOptions, write_message},
 };
+use arrow_schema::Schema;
 use arrow_schema::SchemaRef;
 use sha2::{
     Digest, Sha256,
@@ -279,7 +281,7 @@ impl BatchIndex {
 }
 
 impl Write for HashedFile {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, bytes: &[u8]) -> IoResult<usize> {
         let write_span = tracing::debug_span!("ingest.ipc.write").entered();
         let written = self.file.write(bytes)?;
         drop(write_span);
@@ -292,7 +294,7 @@ impl Write for HashedFile {
         Ok(written)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> IoResult<()> {
         self.file.flush()
     }
 }
@@ -399,7 +401,7 @@ fn hash_state(bytes: &[u8]) -> Result<Sha256> {
     Sha256::deserialize(&state).map_err(|_| Error::Corrupt("IPC hash checkpoint is invalid"))
 }
 
-fn footer(file: &mut HashedFile, schema: &arrow_schema::Schema, blocks: &[Block]) -> Result<()> {
+fn footer(file: &mut HashedFile, schema: &Schema, blocks: &[Block]) -> Result<()> {
     file.write_all(&[255, 255, 255, 255, 0, 0, 0, 0])?;
     let mut builder = flatbuffers::FlatBufferBuilder::new();
     let batches = builder.create_vector(blocks);

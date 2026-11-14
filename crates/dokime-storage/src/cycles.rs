@@ -19,10 +19,12 @@
 
 // Third Party Imports
 use prost::Message;
+use prost_types::Timestamp;
 use rusqlite::{OptionalExtension, params};
 
 // Local Imports
 use crate::{Error, Execution, Result, Store};
+use dokime_protocol::client::executions::ExecutionCommandReceipt;
 use dokime_protocol::v1::CycleSummary;
 
 /* === Constants === */
@@ -53,7 +55,7 @@ impl Store {
             last.map(|bytes| crate::Evidence::decode(bytes.as_slice()).map(|entry| entry.receipt_ns)).transpose()?,
         ))
     }
-    pub fn interrupt_commands(&self, at: prost_types::Timestamp) -> Result<()> {
+    pub fn interrupt_commands(&self, at: Timestamp) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let mut statement = transaction.prepare("SELECT payload FROM commands")?;
@@ -156,14 +158,14 @@ impl Store {
         }
         Ok(())
     }
-    pub fn command(&self, request: &str, id: &str) -> Result<Option<dokime_protocol::client::executions::ExecutionCommandReceipt>> {
+    pub fn command(&self, request: &str, id: &str) -> Result<Option<ExecutionCommandReceipt>> {
         let payload: Option<Vec<u8>> = self
             .lock()?
             .query_row("SELECT payload FROM commands WHERE request=?1 AND id=?2", params![request, id], |row| row.get(0))
             .optional()?;
         Ok(payload.map(|payload| dokime_protocol::client::executions::ExecutionCommandReceipt::decode(payload.as_slice())).transpose()?)
     }
-    pub fn save_command(&self, receipt: &dokime_protocol::client::executions::ExecutionCommandReceipt) -> Result<()> {
+    pub fn save_command(&self, receipt: &ExecutionCommandReceipt) -> Result<()> {
         self.lock()?.execute(
             "INSERT INTO commands VALUES (?1,?2,?3) ON CONFLICT(request,id) DO UPDATE SET payload=excluded.payload",
             params![receipt.execution_id, receipt.command_id, receipt.encode_to_vec()],

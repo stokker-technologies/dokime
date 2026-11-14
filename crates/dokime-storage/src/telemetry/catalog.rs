@@ -19,6 +19,8 @@
 use std::path::{Path, PathBuf};
 
 // Third Party Imports
+use rusqlite::Result as SqlResult;
+use rusqlite::Row;
 use rusqlite::{Connection, params};
 use sha2::{Digest, Sha256};
 
@@ -79,7 +81,7 @@ pub(crate) fn checkpoint(connection: &Connection, id: &str) -> Result<Checkpoint
         })
     })?)
 }
-pub(crate) fn index(row: &rusqlite::Row<'_>) -> rusqlite::Result<BatchIndex> {
+pub(crate) fn index(row: &Row<'_>) -> SqlResult<BatchIndex> {
     let digest: Vec<u8> = row.get(4)?;
     Ok(BatchIndex {
         offset: row.get::<_, i64>(0)? as u64,

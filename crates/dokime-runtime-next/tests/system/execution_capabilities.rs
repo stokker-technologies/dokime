@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error as StdError;
 
 // Third Party Imports
 
@@ -46,7 +47,7 @@ use prost::Message;
 /* === Tests === */
 
 #[tokio::test]
-async fn execution_capabilities() -> Result<(), Box<dyn std::error::Error>> {
+async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Inspect and Cancel an Active Plugin Run
         let root = super::support::tempdir()?;

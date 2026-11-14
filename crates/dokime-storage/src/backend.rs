@@ -25,6 +25,8 @@ use std::{
 // Third Party Imports
 use arrow_array::{BooleanArray, StructArray, UInt64Array};
 use arrow_select::filter::filter_record_batch;
+use harmos_storage::Error as BackendError;
+use harmos_storage::Result as BackendResult;
 use harmos_storage::query::{
     FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection,
     columnar::{ArrowPage, ArrowScan, ArrowSeek, Cancellation, ColumnKind, StorageCapabilities},
@@ -40,6 +42,7 @@ use harmos_storage::{
 };
 
 // Local Imports
+use crate::Result;
 use crate::{BatchSelection, Error, Store, scalar};
 
 /* === Constants === */
@@ -89,7 +92,7 @@ impl Drop for Lease {
 /* === Implementations === */
 
 impl Backend {
-    pub fn for_execution(store: Store, execution: &str) -> crate::Result<Self> {
+    pub fn for_execution(store: Store, execution: &str) -> Result<Self> {
         store.metadata(execution)?;
         let history = StoreHistory {
             store: Identifier::new(store.identity.to_string()).map_err(|e| Error::Invalid(e.to_string()))?,
@@ -102,13 +105,13 @@ impl Backend {
             snapshots: Mutex::new(BTreeMap::new()),
         })
     }
-    fn cursor(&self) -> harmos_storage::Result<StorageCursor> {
+    fn cursor(&self) -> BackendResult<StorageCursor> {
         Ok(StorageCursor {
             history: self.history.clone(),
             sequence: self.store.metadata(&self.execution).map_err(failure)?.frontier,
         })
     }
-    fn snapshot(&self, snapshot: &BackendSnapshot) -> harmos_storage::Result<Retained> {
+    fn snapshot(&self, snapshot: &BackendSnapshot) -> BackendResult<Retained> {
         self.history.check(&snapshot.at.history).map_err(|e| failure(Error::Invalid(e.to_string())))?;
         let snapshots = self.snapshots.lock().map_err(|_| failure(Error::Data("restart after the backend snapshot lock failed")))?;
         let retained =
@@ -454,10 +457,10 @@ impl StorageBackend for Backend {
 
 /* === Private Functions === */
 
-fn failure(error: Error) -> harmos_storage::Error {
+fn failure(error: Error) -> BackendError {
     harmos_storage::Error::backend("Process Product Arrow Storage", BackendFailure::Permanent, error)
 }
-fn unsupported_error<T>(action: &'static str) -> harmos_storage::Result<T> {
+fn unsupported_error<T>(action: &'static str) -> BackendResult<T> {
     Err(harmos_storage::Error::backend(action, BackendFailure::Unsupported, std::io::Error::new(std::io::ErrorKind::Unsupported, action)))
 }
 fn unsupported<'a, T: Send + 'a>(action: &'static str) -> StorageFuture<'a, T> {

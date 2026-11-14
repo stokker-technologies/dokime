@@ -31,12 +31,19 @@ use std::{future::Future, path::Path, sync::Arc, time::Duration};
 // Third Party Imports
 use prost::Message;
 use prost_reflect::ReflectMessage;
+use tokio::sync::mpsc::Receiver;
+use tokio_stream::Stream;
+use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Status, transport::Endpoint};
 
 // Local Imports
+use super::ConnectionTarget;
 use dokime_protocol::client;
+use dokime_protocol::client::InstallPluginFrame;
+use dokime_protocol::client::PluginInstallation;
 use dokime_runtime_next::{HostSettings, services};
+use dokime_sdk::client::v1::StatusGetResponse;
 use dokime_sdk::{Client, client::ClientSettings};
 
 /* === Constants === */
@@ -134,7 +141,7 @@ impl Session {
         while watches.join_next().await.is_some() {}
     }
 
-    pub(crate) async fn connect_target(target: &super::ConnectionTarget, settings: &ConnectionSettings) -> Result<Self, Error> {
+    pub(crate) async fn connect_target(target: &ConnectionTarget, settings: &ConnectionSettings) -> Result<Self, Error> {
         match target {
             super::ConnectionTarget::Local { endpoint } => {
                 validate_local(endpoint)?;
@@ -161,8 +168,8 @@ impl Session {
     }
 
     pub async fn install_plugin(
-        &self, items: impl tokio_stream::Stream<Item = dokime_protocol::client::InstallPluginFrame> + Send + 'static,
-    ) -> Result<dokime_protocol::client::PluginInstallation, Error> {
+        &self, items: impl Stream<Item = InstallPluginFrame> + Send + 'static,
+    ) -> Result<PluginInstallation, Error> {
         use tokio_stream::StreamExt;
         let opening = client::PluginsInstallInput {
             value: Some(client::plugins_install_input::Value::Request(client::PluginsInstallRequest {})),
@@ -176,11 +183,11 @@ impl Session {
         Ok(self.execute(client.install(request)).await?.into_inner())
     }
 
-    pub(crate) async fn input_raw(&self, path: &str, receiver: tokio::sync::mpsc::Receiver<Vec<u8>>) -> Result<Vec<u8>, Error> {
+    pub(crate) async fn input_raw(&self, path: &str, receiver: Receiver<Vec<u8>>) -> Result<Vec<u8>, Error> {
         operations::input(self, path, receiver).await
     }
 
-    async fn input<Q, R>(&self, path: &'static str, mut receiver: tokio::sync::mpsc::Receiver<Vec<u8>>) -> Result<Vec<u8>, Error>
+    async fn input<Q, R>(&self, path: &'static str, mut receiver: Receiver<Vec<u8>>) -> Result<Vec<u8>, Error>
     where
         Q: Message + Default + Send + Sync + 'static,
         R: Message + Default + Send + Sync + 'static,
@@ -241,7 +248,7 @@ impl Session {
         &self.endpoint
     }
 
-    pub fn identity(&self) -> &dokime_sdk::client::v1::StatusGetResponse {
+    pub fn identity(&self) -> &StatusGetResponse {
         &self.identity
     }
 
@@ -283,9 +290,7 @@ impl Session {
         Box::pin(operations::call(self, path, payload)).await
     }
 
-    pub async fn watch_raw(
-        &self, path: &str, payload: &[u8],
-    ) -> Result<tokio_stream::wrappers::ReceiverStream<Result<Vec<u8>, Error>>, Error> {
+    pub async fn watch_raw(&self, path: &str, payload: &[u8]) -> Result<ReceiverStream<Result<Vec<u8>, Error>>, Error> {
         Box::pin(operations::watch(self, path, payload)).await
     }
 
@@ -303,9 +308,7 @@ impl Session {
         Ok(response.into_inner().encode_to_vec())
     }
 
-    async fn watch<Q, O>(
-        &self, path: &'static str, payload: &[u8],
-    ) -> Result<tokio_stream::wrappers::ReceiverStream<Result<Vec<u8>, Error>>, Error>
+    async fn watch<Q, O>(&self, path: &'static str, payload: &[u8]) -> Result<ReceiverStream<Result<Vec<u8>, Error>>, Error>
     where
         Q: Message + Default + Send + 'static,
         O: ReflectMessage + Default + Send + 'static,

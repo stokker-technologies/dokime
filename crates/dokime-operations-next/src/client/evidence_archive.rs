@@ -18,10 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::v1::OperationContract;
 
 // Local Imports
+use super::ClientSettings;
 use crate::{Error, Result, client::Context};
+use dokime_protocol::client::EvidenceArchiveRequest;
+use dokime_protocol::client::EvidenceArchiveResponse;
 
 /* === Constants === */
 
@@ -41,15 +44,13 @@ pub const ID: &str = "dokime.client.v1.Evidence/Archive";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     super::declaration::<dokime_protocol::client::EvidenceArchiveRequest, dokime_protocol::client::EvidenceArchiveResponse>(
         ID,
         settings.read_timeout,
     )
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::client::EvidenceArchiveRequest,
-) -> Result<dokime_protocol::client::EvidenceArchiveResponse> {
+pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Result<EvidenceArchiveResponse> {
     super::complete(ID, context.settings.read_timeout, async {
         let key =
             format!("archive/{}", super::views::hex(&request.subject.as_ref().map(prost::Message::encode_to_vec).unwrap_or_default()));

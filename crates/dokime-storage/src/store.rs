@@ -24,10 +24,12 @@ use std::{
 
 // Third Party Imports
 use prost::Message;
+use rusqlite::Transaction;
 use rusqlite::{Connection, OptionalExtension, params, types::ValueRef};
 use sha2::{Digest, Sha256};
 
 // Local Imports
+use crate::StorageSettings;
 use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample};
 use dokime_protocol::context::evidence::RecordsAppendRequest;
 use dokime_protocol::v1::{self, ExecutionOutcome, RecordContracts, Termination};
@@ -95,7 +97,7 @@ impl Store {
     pub fn open(root: &Path) -> Result<Self> {
         Self::open_with(root, crate::storage_defaults())
     }
-    pub fn open_with(root: &Path, settings: crate::StorageSettings) -> Result<Self> {
+    pub fn open_with(root: &Path, settings: StorageSettings) -> Result<Self> {
         let telemetry = crate::telemetry::Telemetry::new(settings)?;
         std::fs::create_dir_all(root)?;
         let database = root.join("execution.sqlite3");
@@ -519,7 +521,7 @@ impl Store {
 
 /* === Private Functions === */
 
-fn insert_evidence(transaction: &rusqlite::Transaction<'_>, execution: &str, evidence: &mut Evidence) -> Result<()> {
+fn insert_evidence(transaction: &Transaction<'_>, execution: &str, evidence: &mut Evidence) -> Result<()> {
     require_open(transaction, execution)?;
     evidence.position = next_position(transaction, execution)?;
     transaction.execute(
