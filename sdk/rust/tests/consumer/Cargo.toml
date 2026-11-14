@@ -31,6 +31,10 @@ name = "dokime-rust-thermal"
 path = "../../examples/thermal.rs"
 
 [[bin]]
+name = "dokime-rust-execution"
+path = "../../examples/execution.rs"
+
+[[bin]]
 name = "dokime-rust-resources"
 path = "../fixtures/resources.rs"
 

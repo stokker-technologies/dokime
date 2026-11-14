@@ -311,7 +311,7 @@ jobs:
     uses: ./.github/workflows/validate-test.yml
     needs:
     - build_tests
-    - build_host_fixtures
+    - build_python
     strategy:
       fail-fast: false
       matrix:
@@ -326,12 +326,39 @@ jobs:
       platform: ${{ matrix.platform }}
       runner: ${{ matrix.runner }}
       work: Rust / System / Execution Host
-      command: test -- --artifact tests --package dokime-runtime-next --target system
+      command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence)
+        or test(cpp_plugin_matches_rust_thermal_evidence))"
+      bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
+      archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-any.tar.zst"]'
+      minutes: 120
+      suite: execution-host
+  test_host_sdks:
+    name: Test / Execution Host / SDK Equivalence
+    uses: ./.github/workflows/validate-test.yml
+    needs:
+    - build_tests
+    - build_host_fixtures
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - platform: unix
+          runner: ubuntu-latest
+        - platform: windows
+          runner: windows-latest
+    with:
+      channel: nightly
+      profile: release
+      platform: ${{ matrix.platform }}
+      runner: ${{ matrix.runner }}
+      work: Rust / System / Execution Host / SDK Equivalence
+      command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)
+        or test(cpp_plugin_matches_rust_thermal_evidence)"
       bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
       archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-rust-{profile}-{platform}.tar.zst", "target/ci/build-host-python-{profile}-{platform}.tar.zst",
         "target/ci/build-host-csharp-{profile}-{platform}.tar.zst", "target/ci/build-host-cpp-{profile}-{platform}.tar.zst"]'
       minutes: 120
-      suite: execution-host
+      suite: execution-host-sdks
   coverage:
     name: Test / ${{ matrix.work }} (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -495,6 +522,7 @@ jobs:
     - check_generated
     - test
     - test_host
+    - test_host_sdks
     - coverage
     - package
     - release_dry

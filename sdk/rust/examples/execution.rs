@@ -21,7 +21,14 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::{builders::Plot, prelude::*, v1};
+use dokime::clock::{TimeGetRequest, TimeSleepRequest};
+use dokime::encoding::Message as EncodingMessage;
+use dokime::protocol::plugin::host::v1::{
+    BackendEnvironmentRequest, EvidenceStatisticsRequest, PromptsCreateRequest,
+    evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest},
+};
+use dokime::v1::{Document, FieldReference, Section, Severity, value::Kind};
+use dokime::{Classification, builders::Plot, prelude::*};
 
 /* === Constants === */
 
@@ -71,8 +78,8 @@ struct Bench {
 fn main() -> Result<()> {
     let reading = Stream::<Reading>::new("execution.reading", "Reading");
     let observer = Observer::new(&reading, read).every_ms(1000);
-    let document = v1::Document::new("Execution Report")
-        .section(v1::Section::new("Measurements").plot(Plot::time_series(v1::FieldReference::new("execution.reading").field("value"))));
+    let document = Document::new("Execution Report")
+        .section(Section::new("Measurements").plot(Plot::time_series(FieldReference::new("execution.reading").field("value"))));
     let revision = std::env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
     let revised = revision != "1";
     let template = Template::new("execution.capture", "Execution Capture")
@@ -88,13 +95,13 @@ fn main() -> Result<()> {
         .step(Step::new("Tail", baseline).identifier("tail"))
         .criterion(Criterion::new("Own Measurements", own_measurements).identifier("own_measurements"))
         .materialize(move |mut case, parameters| {
-            if parameters.get("fail_attempts").is_some_and(|value| value.kind == Some(v1::value::Kind::UnsignedInteger(u32::MAX as u64))) {
+            if parameters.get("fail_attempts").is_some_and(|value| value.kind == Some(Kind::UnsignedInteger(u32::MAX as u64))) {
                 return Err(Error::Invalid("Materialize: Correct the Failure Count".into()));
             }
             if revised {
                 case.steps.pop();
             }
-            if parameters.get("evaluate").is_some_and(|value| value.kind == Some(v1::value::Kind::Boolean(false))) {
+            if parameters.get("evaluate").is_some_and(|value| value.kind == Some(Kind::Boolean(false))) {
                 case.criteria.clear();
             }
             Ok(case)
@@ -107,21 +114,21 @@ fn main() -> Result<()> {
         .suite(Suite::new("execution", "Execution").template(template))
         .record(Record::<Attempt>::new("execution.attempt", "Attempt"))
         .prompt(Prompt::new("execution.continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
-        .requires_host::<dokime::protocol::plugin::host::v1::PromptsCreateRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::evidence::RecordsAppendRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::evidence::RecordsListRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::EvidenceStatisticsRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::evidence::LogsAppendRequest>()
-        .requires_host::<dokime::protocol::plugin::host::v1::BackendEnvironmentRequest>()
-        .requires::<dokime::clock::TimeGetRequest>()
-        .requires::<dokime::clock::TimeSleepRequest>();
+        .requires_host::<PromptsCreateRequest>()
+        .requires_host::<RecordsAppendRequest>()
+        .requires_host::<RecordsListRequest>()
+        .requires_host::<EvidenceStatisticsRequest>()
+        .requires_host::<LogsAppendRequest>()
+        .requires_host::<BackendEnvironmentRequest>()
+        .requires::<TimeGetRequest>()
+        .requires::<TimeSleepRequest>();
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }
 
 async fn initialize(ctx: &Context) -> Result<()> {
     // Resolve Host Facts Through the Active Invocation.
-    let environment = ctx.host(dokime::protocol::plugin::host::v1::BackendEnvironmentRequest { at: None }).await?;
+    let environment = ctx.host(BackendEnvironmentRequest { at: None }).await?;
     if environment.backend_pid == 0 || environment.in_step {
         return Err(Error::Invalid("Initialize: Read the Host Environment Outside a Step".into()));
     }
@@ -132,7 +139,7 @@ async fn initialize(ctx: &Context) -> Result<()> {
         value: parameters.value,
         fail_attempts: parameters.fail_attempts,
     });
-    ctx.log(v1::Severity::Info, parameters.value.to_string()).await
+    ctx.log(Severity::Info, parameters.value.to_string()).await
 }
 
 async fn baseline(ctx: &Context) -> Result<()> {
@@ -141,7 +148,7 @@ async fn baseline(ctx: &Context) -> Result<()> {
 
 async fn measure(ctx: &Context) -> Result<()> {
     if ctx.attempt() == 1 {
-        ctx.prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest {
+        ctx.prompt(PromptsCreateRequest {
             prompt: "continue".into(),
             prompt_type: "execution.continue".into(),
             ..Default::default()
@@ -150,7 +157,7 @@ async fn measure(ctx: &Context) -> Result<()> {
     }
     let bench = ctx.get::<Bench>()?;
     let refused = ctx
-        .host(dokime::protocol::plugin::host::v1::evidence::LogsAppendRequest {
+        .host(LogsAppendRequest {
             execution: "missing-execution".into(),
             message: "out-of-scope".into(),
             ..Default::default()
@@ -168,7 +175,7 @@ async fn measure(ctx: &Context) -> Result<()> {
     .await?;
     ctx.sleep(Duration::from_secs(1)).await?;
     if ctx.attempt() <= bench.fail_attempts {
-        return Err(Error::failure(dokime::Classification::Transient, "measurement_failed", "Measurement Failed", "Retry the Measurement"));
+        return Err(Error::failure(Classification::Transient, "measurement_failed", "Measurement Failed", "Retry the Measurement"));
     }
     Ok(())
 }
@@ -179,14 +186,31 @@ async fn read(ctx: &Context) -> Result<Reading> {
 
 async fn own_measurements(ctx: &Context) -> Result<bool> {
     let stats = ctx.statistics("execution.reading", "", "measure").await?;
-    let repeated = ctx.statistics("execution.reading", "value", "measure").await?;
+    let repeated = ctx
+        .host(EvidenceStatisticsRequest {
+            execution: ctx.execution_id().into(),
+            stream: "execution.reading".into(),
+            field: "value".into(),
+            step: "measure".into(),
+            at: stats.resolved_at.clone(),
+        })
+        .await?;
+    let mut latest = ctx.statistics("execution.reading", "value", "measure").await?;
+    let advanced = latest
+        .resolved_at
+        .as_ref()
+        .zip(stats.resolved_at.as_ref())
+        .is_some_and(|(latest, first)| latest.history == first.history && latest.sequence > first.sequence);
+    latest.resolved_at = stats.resolved_at.clone();
     let records = ctx.records("execution.attempt", "measure", 1).await?;
     let attempt = records
         .last
-        .map(|record| <Attempt as dokime::encoding::Message>::decode(record.payload.as_slice()))
+        .map(|record| <Attempt as EncodingMessage>::decode(record.payload.as_slice()))
         .transpose()
         .map_err(|error| Error::Invalid(error.to_string()))?;
     Ok(stats == repeated
+        && stats == latest
+        && advanced
         && stats.count > 0
         && stats.min == ctx.get::<Bench>()?.value
         && stats.max == stats.min
@@ -194,7 +218,7 @@ async fn own_measurements(ctx: &Context) -> Result<bool> {
 }
 
 async fn cleanup(ctx: &Context) -> Result<()> {
-    ctx.log(v1::Severity::Info, ctx.get::<Bench>()?.value.to_string()).await
+    ctx.log(Severity::Info, ctx.get::<Bench>()?.value.to_string()).await
 }
 
 /* === Tests === */

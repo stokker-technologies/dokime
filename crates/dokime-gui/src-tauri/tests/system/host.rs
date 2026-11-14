@@ -28,7 +28,7 @@ use tokio_stream::StreamExt;
 use dokime_gui::connection::host::{Connection, ConnectionSettings};
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_protocol::{client, v1};
-use dokime_runtime_next::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services};
+use dokime_runtime_next::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
 use dokime_sdk::client::{ClientSettings, FrozenSchemaCache, StorageTransferSettings};
 
 /* === Constants === */
@@ -53,6 +53,7 @@ fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
             clock: Arc::new(ControlledClock::new(0)),
+            storage: storage_defaults(),
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),
                 reconnect_delay: Duration::from_millis(25),

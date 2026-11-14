@@ -19,19 +19,16 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
-use harmos_protocol::v1::OperationContract;
+use arrow_array::{Float64Array, StructArray, UInt64Array};
+use harmos_protocol::v1::{Catalog, OperationContract};
 use prost::Message;
 use prost_reflect::{DescriptorPool, Kind};
+use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::{Error, Resources, Result};
-use dokime_protocol::context::EvidenceStatisticsRequest;
-use dokime_protocol::context::EvidenceStatisticsResponse;
-use dokime_storage::StatisticsRead;
-
-use dokime_storage::BatchSelection;
-use dokime_storage::NumericWindow;
+use dokime_protocol::context::{EvidenceStatisticsRequest, EvidenceStatisticsResponse};
+use dokime_storage::{BatchSelection, Error as StorageError, NumericWindow, StatisticsRead};
 
 /* === Constants === */
 
@@ -52,9 +49,9 @@ pub const ID: &str = "dokime.plugin.host.v1.Evidence/Statistics";
 /* === Public Functions === */
 
 pub fn declaration() -> Result<OperationContract> {
-    crate::declaration::<dokime_protocol::context::EvidenceStatisticsRequest, dokime_protocol::context::EvidenceStatisticsResponse>(
+    crate::declaration::<EvidenceStatisticsRequest, EvidenceStatisticsResponse>(
         ID,
-        prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
+        FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
     )
 }
 pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
@@ -62,7 +59,7 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
     let mut snapshot = resources.store.cut(&resources.execution)?;
     let resolved_at = resources.store.resource_value(&resources.execution, "progress", request.at.as_ref())?.resolved_at;
     snapshot.frontier = resolved_at.sequence;
-    let catalog = h::Catalog::decode(snapshot.execution.catalog.as_slice())?;
+    let catalog = Catalog::decode(snapshot.execution.catalog.as_slice())?;
     let stream = catalog
         .streams
         .iter()
@@ -109,8 +106,9 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
     key.field = field.name().into();
     if let Some(mut read) = resources.store.cached_statistics(&resources.execution, &key, start, frontier)? {
         read.request = Some(request);
-        let mut response = read.response.clone().unwrap_or_default();
+        let response = read.response.get_or_insert_default();
         response.resolved_at = Some(resolved_at);
+        let response = response.clone();
         resources.evidence("read:statistics", read.encode_to_vec(), None)?;
         return Ok(response);
     }
@@ -126,12 +124,11 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
         },
         &[field.name().into()],
         |batch| {
-            use arrow_array::{Float64Array, StructArray, UInt64Array};
             let values = batch.column(1).as_any().downcast_ref::<StructArray>().unwrap();
             if let Some(column) = values.column_by_name(field.name()).and_then(|a| a.as_any().downcast_ref::<Float64Array>())
                 && column.values().iter().any(|v| !v.is_finite())
             {
-                return Err(dokime_storage::Error::Data("publish finite values before computing statistics"));
+                return Err(StorageError::Data("Compute Statistics: Publish Finite Values"));
             }
             let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
             let values = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
