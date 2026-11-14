@@ -165,7 +165,9 @@ async function execute() {
   const samples = await call(desktop, "dokime.client.v1.evidence.Samples", "List", { scope: { executionId } });
   assert.ok(records.records.some((record) => record.payload));
   assert.ok(samples.samples.some((sample) => sample.raw?.payload));
-  assert.ok(await desktop.execute('return Boolean(document.querySelector("[data-execution-section=Records]"));'));
+  await until("Captured Record Rows in the Authored Document", () =>
+    desktop.execute('return Boolean(document.querySelector("[data-testid=record-rows] li[data-window-row]"));'),
+  );
   const values = await until("Exact Summary Tiles", () =>
     desktop.execute(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
@@ -173,7 +175,7 @@ async function execute() {
   );
   const base = 1152921504606847975n;
   for (const name of ["mean", "median", "min", "max", "first", "last", "p05", "p95", "p99"]) assert.equal(values[name], String(base));
-  const count = BigInt(values.count.replaceAll(",", ""));
+  const count = BigInt(values.count.replace(/[^0-9]/g, ""));
   assert.ok(count > 0n);
   assert.equal(values.sum, String(base * count));
 }
@@ -269,7 +271,13 @@ async function settings() {
     assert.equal(await desktop.execute('return Boolean(document.querySelector("[data-error-boundary]"));'), false);
   }
   await desktop.goto("/settings/plugins");
-  assert.ok((await desktop.text()).includes("Thermal"));
+  const installed = await call(desktop, "Plugins", "ListInstallations", { pageSize: 100 });
+  assert.ok(installed.installations.length > 0);
+  await until("Installed Plugin Rows", () =>
+    desktop.execute('return arguments[0].every(id => document.querySelector(`[data-row-id="${CSS.escape(id)}"]`));', [
+      installed.installations.map((entry) => entry.installId),
+    ]),
+  );
   await desktop.goto("/settings/diagnostics");
   assert.ok(/recovery|preserv|unavailable|not.*support/i.test(await desktop.text()));
 }

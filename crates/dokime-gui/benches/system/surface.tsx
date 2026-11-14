@@ -294,6 +294,7 @@ function Surface({ session }: { session: ConnectedSession }) {
   };
   globalThis.desktopTraverse = async (count, deadlineMs) => {
     const started = performance.now();
+    const stageOffsets = Object.fromEntries(Object.entries(observation.stages).map(([stage, values]) => [stage, values.length]));
     const cards = [];
     for (let index = 0; index < count; index++) {
       const plotId = `desktop.plot.${index}`;
@@ -310,7 +311,14 @@ function Surface({ session }: { session: ConnectedSession }) {
       }
       cards.push({ plotId, waitMs: performance.now() - cardStarted });
     }
-    return { verifiedPlots: count, traversalMs: performance.now() - started, traversalCards: cards };
+    return {
+      verifiedPlots: count,
+      traversalMs: performance.now() - started,
+      traversalCards: cards,
+      traversalStages: Object.fromEntries(
+        Object.entries(observation.stages).map(([stage, values]) => [stage, values.slice(stageOffsets[stage] ?? 0)]),
+      ),
+    };
   };
   return (
     <Connection.Provider value={session}>
