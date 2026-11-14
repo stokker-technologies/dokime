@@ -19,7 +19,7 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import mkdtemp
 
 # Third Party Imports
 # Local Imports
@@ -58,12 +58,12 @@ def main() -> None:
     environment.pop("PYTHONPATH", None)
     environment.pop("UV_PROJECT_ENVIRONMENT", None)
     environment.pop("VIRTUAL_ENV", None)
-    with TemporaryDirectory(prefix="dokime-wheel-") as scratch:
-        install = Path(scratch)
+    install = Path(mkdtemp(prefix="dokime-wheel-"))
+    try:
         python = install / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-        starter = install / "starter"
-        shutil.copytree(root / "sdk/python/examples/starter", starter)
-        shutil.copytree(root / "sdk/tests/fixtures/python/starter", starter / "tests")
+        example = install / "test"
+        shutil.copytree(root / "sdk/python/examples/test", example)
+        shutil.copytree(root / "sdk/tests/fixtures/python/starter", example / "tests")
         commands = [
             ["uv", "venv", "--python", sys.executable, str(install / ".venv")],
             ["uv", "pip", "install", "--python", str(python), str(wheels[0]), *(stub_requirements if options.stubs else [])],
@@ -87,11 +87,13 @@ def main() -> None:
             commands.append([str(python), "-I", str(root / "sdk/python/tools/stubs.py")])
         for command in commands:
             result = subprocess.run(
-                command, cwd=starter, env=environment, creationflags=spawn_flags(), capture_output=True, text=True, check=False
+                command, cwd=example, env=environment, creationflags=spawn_flags(), capture_output=True, text=True, check=False
             )
             print(result.stdout, end="", flush=True)
             print(result.stderr, end="", file=sys.stderr, flush=True)
             result.check_returncode()
+    finally:
+        shutil.rmtree(install)
 
 
 # === Private Functions === #

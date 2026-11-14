@@ -227,8 +227,12 @@ def stage(
         exported = temporary_root / "proto"
         policy.execute(directory, [str(executable), "proto", "export", "--out", str(exported)])
         sources = sorted(exported.rglob("*.proto"))
-        if not sources or not all((exported / package).is_dir() for package in ("dokime/v1", "harmos/v1")):
-            raise policy.ToolError("protocol export is missing Dokime or Harmos definitions")
+        package_roots = [f"{owner}/{audience}/v1" for owner in ("dokime", "harmos") for audience in ("model", "host", "plugin")]
+        missing = [package for package in package_roots if not (exported / package).is_dir()]
+        if not sources:
+            raise policy.ToolError("Export Release Protocol: No Protocol Definitions Were Produced")
+        if missing:
+            raise policy.ToolError(f"Export Release Protocol: Missing Definitions: {', '.join(missing)}")
         with zipfile.ZipFile(protocol, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             for source in sources:
                 archive.write(source, source.relative_to(exported).as_posix())

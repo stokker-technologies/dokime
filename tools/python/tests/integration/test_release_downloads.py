@@ -193,10 +193,14 @@ class StageTests(unittest.TestCase):
                     shell_inventory.write_text('{"components": []}')
                     return shell_inventory
 
-                def export(_, command):
+                protocol_sources = {
+                    f"{owner}/{audience}/v1/service.proto" for owner in ("dokime", "harmos") for audience in ("model", "host", "plugin")
+                }
+
+                def export(_: Path, command: list[str]) -> None:
                     self.assertTrue(Path(command[0]).is_file())
                     exported = Path(command[-1])
-                    for name in ("dokime/v1/execution.proto", "harmos/v1/plugin.proto"):
+                    for name in protocol_sources:
                         path = exported / name
                         path.parent.mkdir(parents=True)
                         path.write_text('syntax = "proto3";')
@@ -263,14 +267,14 @@ class StageTests(unittest.TestCase):
                     self.assertIn("artifacts/" + installer.name + ".cdx.json", archive.namelist())
                     self.assertIn("crates/any/dokime-shell.cdx.json", archive.namelist())
                 with zipfile.ZipFile(staged / run.SHARED / "dokime-proto-0.1.3.zip") as archive:
-                    self.assertEqual(set(archive.namelist()), {"dokime/v1/execution.proto", "harmos/v1/plugin.proto"})
+                    self.assertEqual(set(archive.namelist()), protocol_sources)
                 inventory = {item["name"]: item for item in layout.uploads(root, staged=True)}
                 run._checksums(staged / run.SHARED / run.SUMS, inventory)
 
 
 class PythonPackagingTests(unittest.TestCase):
-    def fixture(self, root):
-        proto = root / "proto/dokime/v1/service.proto"
+    def fixture(self, root: Path) -> Path:
+        proto = root / "proto/dokime/host/v1/service.proto"
         proto.parent.mkdir(parents=True)
         proto.write_bytes(b'syntax = "proto3";')
         output = root / "target/build/dev/any/python"
@@ -280,12 +284,13 @@ class PythonPackagingTests(unittest.TestCase):
             archive.writestr("dokime_sdk-0.1.3.dist-info/METADATA", "Name: dokime-sdk\nVersion: 0.1.3\n")
             archive.writestr("dokime_sdk-0.1.3.dist-info/WHEEL", "Root-Is-Purelib: true\nTag: py3-none-any\n")
             archive.writestr(
-                "dokime/v1/sources.json", json.dumps({"dokime/v1/service.proto": hashlib.sha256(proto.read_bytes()).hexdigest()})
+                "dokime/_wire/sources.json", json.dumps({"dokime/host/v1/service.proto": hashlib.sha256(proto.read_bytes()).hexdigest()})
             )
-            for name in ("surface.pb", "service_pb2.py", "service_pb2.pyi", "service_pb2_grpc.py"):
-                archive.writestr("dokime/v1/" + name, b"generated")
+            archive.writestr("dokime/_wire/surface.pb", b"generated")
+            for name in ("service_pb2.py", "service_pb2.pyi", "service_pb2_grpc.py"):
+                archive.writestr("dokime/_wire/host/v1/" + name, b"generated")
         with tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz") as archive:
-            member = tarfile.TarInfo("dokime_sdk-0.1.3/proto/dokime/v1/service.proto")
+            member = tarfile.TarInfo("dokime_sdk-0.1.3/proto/dokime/host/v1/service.proto")
             member.size = len(proto.read_bytes())
             archive.addfile(member, io.BytesIO(proto.read_bytes()))
         return output
@@ -317,9 +322,9 @@ class PythonPackagingTests(unittest.TestCase):
                 if invalid == "native":
                     contents["dokime/native.pyd"] = b"native"
                 elif invalid == "missing":
-                    del contents["dokime/v1/service_pb2_grpc.py"]
+                    del contents["dokime/_wire/host/v1/service_pb2_grpc.py"]
                 elif invalid == "stale":
-                    (root / "proto/dokime/v1/service.proto").write_bytes(b"changed")
+                    (root / "proto/dokime/host/v1/service.proto").write_bytes(b"changed")
                 elif invalid == "identity":
                     contents["dokime_sdk-0.1.3.dist-info/METADATA"] = b"Name: other\nVersion: 0.1.3\n"
                 elif invalid == "tag":

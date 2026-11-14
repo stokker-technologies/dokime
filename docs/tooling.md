@@ -25,6 +25,8 @@ Focused tests use nextest and compile only the selected package/target. `--exact
 selects a test, `--story` selects a module, and `--filterset` takes a nextest expression.
 `--artifact tests` consumes the matching prepared archive without compilation.
 An empty selection fails. Clippy runs through lint/check, never build/test.
+Focused Cargo commands and hosted producers both use `--locked`; the task adds
+it when a native `--cargo` command omits it. Lock refreshes remain explicit.
 After source closure, `mise run build -- --cargo check --workspace --tests --locked`
 runs the explicit workspace compiler proof through the same task owner.
 
@@ -175,6 +177,15 @@ installers. Stable publication signs the validated Windows Product, refreshes it
 distribution inventory and packages it before generating updater signatures;
 Nightly stays unsigned. Shipping sidecar feeds await their re-authoring tasks.
 The pure Python wheel/source pair uses the shared `any/python/` target.
+
+Local `mise run package -- --language rust --profile dev` consumes native Product
+outputs, including `product/target.txt` and the desktop distribution. Package
+the Python pair with `mise run package -- --language python --profile dev`.
+Then `mise run release:rehearse -- --profile dev` verifies the native packages
+and registry publication dry runs. `--stage-only` selects local staging and
+download verification without the registry dry runs; hosted rehearsal remains
+complete and uses the release profile. Protocol archives require both owners'
+model, host and plugin definitions.
 
 `tools/project.toml` owns package/release/test policy; `mise.toml` owns commands
 and tool pins. `.stkr/project.toml` contains only Hub source policy. Configuration
