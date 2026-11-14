@@ -35,7 +35,9 @@ import { applyReportAppearance } from "@/report/report-appearance";
 const LIGHT = "data:image/svg+xml;base64,PHN2Zy8+";
 const DARK = "data:image/png;base64,iVBORw==";
 const hostAppearance = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/host/client", () => ({ backendAppearance: hostAppearance }));
+const fileMetadata = vi.hoisted(() => vi.fn());
+const fileRead = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/host/client", () => ({ backendAppearance: hostAppearance, filesGet: fileMetadata, filesRead: fileRead }));
 
 /* === Types === */
 
@@ -200,4 +202,33 @@ test("Host Appearance Preserves Declarations Without Inventing Asset Delivery", 
   assert.equal(empty.unavailableReason, undefined);
   empty.dispose();
   await assert.rejects(loadAppearance({ ...session, isCurrent: () => false }), (error: { kind: string }) => error.kind === "session");
+});
+
+test("Host Appearance Reads Verified Product Files and Releases Object URLs", async () => {
+  const session = { generation: "asset", isCurrent: () => true };
+  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const file = { length: BigInt(bytes.length), sha256: digest, metadata: { id: "published-logo" } };
+  const at = { positions: [{ history: { store: "assets", epoch: "files" }, sequence: 1n }] };
+  hostAppearance.mockResolvedValue({
+    appearance: {
+      logos: [
+        {
+          variant: LogoVariant.TRANSPARENT_ON_LIGHT,
+          asset: { reference: { pluginId: "fixture", assetId: "logo" }, file, contentType: "image/svg+xml" },
+        },
+      ],
+    },
+  });
+  fileMetadata.mockResolvedValue({ file, chunkBytes: BigInt(bytes.length), messageBytes: 1024n, resolvedAt: at });
+  fileRead.mockResolvedValue({ data: bytes, totalLength: BigInt(bytes.length), sha256: digest, resolvedAt: at });
+  const revoke = vi.spyOn(URL, "revokeObjectURL");
+  const resource = await loadAppearance(session);
+  assert.equal(resource.logos[0].asset_id, "logo");
+  assert.ok(resource.logos[0].url.startsWith("blob:"));
+  assert.equal(resource.unavailableReason, undefined);
+  resource.dispose();
+  resource.dispose();
+  assert.deepEqual(revoke.mock.calls, [[resource.logos[0].url]]);
+  revoke.mockRestore();
 });

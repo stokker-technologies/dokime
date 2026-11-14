@@ -46,8 +46,8 @@ export async function loadAppearance(session: SessionIdentity): Promise<Appearan
       const variant = logoVariant(logo);
       if (variants.has(variant)) invalid();
       variants.add(variant);
-      const asset = required(logo.asset, "Read Appearance Asset");
-      if (asset.file) {
+      const asset = logo.asset;
+      if (asset?.file) {
         const bytes = await readFileReference(session, asset.file);
         current(session);
         const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: asset.contentType }));
