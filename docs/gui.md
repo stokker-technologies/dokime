@@ -740,3 +740,7 @@ Native import events refresh the frontend session generation so the opaque bridg
 follows the new backend. The Rust client tries candidates in order after TLS and
 expected-backend verification. There is no credential-store association or saved
 winning endpoint.
+
+Frozen descriptor inventories verify their digest in transport order, then resolve
+imports before constructing the desktop registry. Inventory order does not require
+dependencies to precede their consumers. Missing and cyclic imports refuse decoding.
