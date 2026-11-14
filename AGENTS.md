@@ -4,6 +4,7 @@
 
 - Resume from `openspec/changes/grpc-plugins/design.md` and the owning change's task list. All open changes integrate together on `feat/grpc-plugins`; this feature worktree hands back local commits. Do not push without authorization.
 - Discover tasks with `mise tasks`; run focused work through `mise run`. Hosted CI and Nightly provide full validation.
+- Build Python host fixtures with `mise run build:host-fixtures -- --language python`.
 
 ## Development Storage Policy
 

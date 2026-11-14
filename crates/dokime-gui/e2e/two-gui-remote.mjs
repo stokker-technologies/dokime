@@ -248,7 +248,7 @@ try {
     const html = await readFile(report.path);
     await mkdir(join(evidence, name), { recursive: true });
     await writeFile(join(evidence, name, "execution.html"), html);
-    assert.ok(html.toString("utf8").includes("Thermal"));
+    assert.ok(html.toString("utf8").includes(executionId));
     hashes.push(createHash("sha256").update(html).digest("hex"));
     await openNativeReport(report.path);
     const archive = await deliver(gui, { kind: "execution_evidence", executionId }, "execution.evidence", "artifact");

@@ -5,15 +5,15 @@
 This checkout has one writer on `fix/face-split-stories`; commits remain local.
 Inventory: runtime plot services and operations plus their focused host stories;
 Python host client story; desktop WebView report stories and any demonstrated
-connection defect and `sdk/rust/examples/thermal.rs` (the shared fixture report document); host fixture producers, C++ dependency configuration and Rust
-story launcher; README, AGENTS and operation-grammar completion checkboxes.
+connection defect, `documents_get.rs` section-identity frames and their fixed-document host story, and `sdk/rust/examples/thermal.rs` (the shared fixture report document); host fixture producers, C++ dependency configuration and Rust
+story launcher, its `release/sbom.py` wrapper and the CLI/desktop fixture launchers; README, AGENTS and operation-grammar completion checkboxes.
 Preserve the library-owned discovery refusal in `operator_calls_operation`.
 
 - [x] Repair the plot query stack shape and cover the failing query deterministically.
 - [x] Read the final Python suite identity and prove the host stories.
-- [ ] Assert saved report identity in both WebView lanes; repair any independent connection failure.
+- [x] Assert saved report identity in both WebView lanes; repair any independent connection failure.
 - [ ] Repair Windows fixture paths/compiler resolution and Rust launcher diagnostics/cause.
-- [ ] Correct starter guidance and merged face split completion inventory.
+- [x] Correct starter guidance and merged face split completion inventory.
 - [ ] Run the requested focused proof once on the committed candidate and report exact remaining refusals.
 
 ## Focused Test Feedback

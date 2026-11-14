@@ -65,8 +65,8 @@ Resources close explicitly. See the [Python SDK](sdk/python/README.md).
 
 #### Examples
 
-The [Python starter](sdk/python/examples/starter/) serves a suite with an observer,
-operator question, record and criterion:
+The [Python starter](sdk/python/examples/starter/) serves a suite with an
+operator question, confirmation record and criterion:
 
 ```sh
 mise -C sdk/python run sdk:build

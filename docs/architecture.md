@@ -436,7 +436,9 @@ v1; the added upload/request tables make older layouts explicitly incompatible,
 without migration or automatic reset. Library in-process storage composition is
 still task 0.H. Frozen record and stream schemas retain fully qualified protobuf
 message bindings alongside descriptor pages. Document headers name the selected
-document even when the caller uses the default selector.
+document even when the caller uses the default selector. Each layout section has
+a matching section-identity frame before structure completion; its identity and
+the structure counters describe the same frozen document.
 
 Product discovery remains blocked by the pinned library's lack of an external
 service method-registration API; see the exact boundary in

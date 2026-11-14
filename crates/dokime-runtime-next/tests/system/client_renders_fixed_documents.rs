@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
 
 // Third Party Imports
 
@@ -45,7 +46,7 @@ use dokime_storage::{Execution, Sample, Store};
 /* === Tests === */
 
 #[tokio::test]
-async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Error>> {
+async fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Prepare a Frozen Catalog with an Authored Document
         let root = super::support::tempdir()?;
@@ -348,6 +349,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         let mut bindings = std::collections::BTreeSet::new();
         let mut finished = std::collections::BTreeSet::new();
         let mut sections = std::collections::BTreeSet::new();
+        let mut section_identities = std::collections::BTreeSet::new();
         let mut repeats = std::collections::BTreeSet::new();
         let mut layout_count = 0;
         let mut table_rows = 0;
@@ -378,6 +380,12 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                         binding = plot.request.clone();
                     }
                 }
+                dokime_protocol::client::document_frame_frame::Kind::SectionIdentity(section) => {
+                    assert!(!structures);
+                    assert!(!section.node_id.is_empty());
+                    assert_eq!(section.metadata.as_ref().unwrap().identifier, section.node_id);
+                    assert!(section_identities.insert(section.node_id.clone()));
+                }
                 dokime_protocol::client::document_frame_frame::Kind::LayoutNode(node) => {
                     assert!(!structures);
                     layout_count += 1;
@@ -399,6 +407,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
                     assert_eq!(counts.binding_count, bindings.len() as u64);
                     assert_eq!(counts.layout_node_count, layout_count);
                     assert_eq!(counts.section_count, sections.len() as u64);
+                    assert_eq!(section_identities, sections);
                     assert_eq!(counts.repeat_count, repeats.len() as u64);
                 }
                 dokime_protocol::client::document_frame_frame::Kind::EvidenceCut(_) => {
@@ -587,7 +596,7 @@ async fn client_renders_fixed_documents() -> Result<(), Box<dyn std::error::Erro
         drop(store);
         let reopened = Store::open(root.path())?;
         assert_eq!(reopened.reports("documents-a")?.len(), 1);
-        Ok::<_, Box<dyn std::error::Error>>(())
+        Ok::<_, Box<dyn Error>>(())
     })
     .await?
 }
