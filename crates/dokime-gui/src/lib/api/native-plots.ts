@@ -610,6 +610,13 @@ function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number][
 
 /* === Response mapping === */
 
+function statisticValue(value?: NativePlotFrame["series"][number]["x"][number]): StatisticValue | undefined {
+  if (!value || value.kind.case === "null") return undefined;
+  if (value.kind.case === "number") return value.kind.value;
+  if (["integer", "unsignedInteger", "exact"].includes(value.kind.case ?? "")) return nativeValueToJson(value) as StatisticValue;
+  throw new Error("Read Statistic: Restore Its Numeric or Exact Value");
+}
+
 function categoryValue(value: NativePlotFrame["series"][number]["x"][number]): string | number | boolean | null {
   const kind = value.kind;
   switch (kind.case) {
@@ -644,7 +651,7 @@ function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlo
         points: (column?.x ?? []).map((x, row) => ({
           x: plotType === "bar" || plotType === "pie" ? categoryValue(x) : (nativeValueToJson(x) ?? null),
           y: column?.y[row]?.value ?? null,
-          ...(column?.totals[row] ? { exact_y: nativeValueToJson(column.totals[row]) as StatisticValue } : {}),
+          ...(column?.totals[row] ? { exact_y: statisticValue(column.totals[row]) } : {}),
           z: column?.z[row]?.value ?? null,
           instant: column?.instants[row] ?? null,
         })),
@@ -666,10 +673,10 @@ function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlo
     summaries: payload.summaries.map((summary) => ({
       series_id: summary.seriesId,
       count: safeNumber(summary.count, "plot summary count"),
-      min: (nativeValueToJson(summary.min) as StatisticValue) ?? null,
-      max: (nativeValueToJson(summary.max) as StatisticValue) ?? null,
-      mean: (nativeValueToJson(summary.mean) as StatisticValue) ?? null,
-      median: (nativeValueToJson(summary.median) as StatisticValue) ?? null,
+      min: statisticValue(summary.min) ?? null,
+      max: statisticValue(summary.max) ?? null,
+      mean: statisticValue(summary.mean) ?? null,
+      median: statisticValue(summary.median) ?? null,
       std: summary.std ?? null,
       rms: summary.rms ?? null,
       window: summary.window ? { from: summary.window.from, to: summary.window.to } : null,
@@ -696,12 +703,12 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           ...(series.statistics
             ? {
                 statistics: {
-                  mean: nativeValueToJson(series.statistics.mean) as StatisticValue,
-                  median: nativeValueToJson(series.statistics.median) as StatisticValue,
+                  mean: statisticValue(series.statistics.mean),
+                  median: statisticValue(series.statistics.median),
                   std: series.statistics.std,
                   rms: series.statistics.rms,
-                  min: nativeValueToJson(series.statistics.min) as StatisticValue,
-                  max: nativeValueToJson(series.statistics.max) as StatisticValue,
+                  min: statisticValue(series.statistics.min),
+                  max: statisticValue(series.statistics.max),
                 },
               }
             : {}),
@@ -720,11 +727,11 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           key: series.key,
           label: series.label,
           count: safeNumber(series.count, "box summary count"),
-          min: nativeValueToJson(series.min) as StatisticValue,
-          q1: nativeValueToJson(series.q1) as StatisticValue,
-          median: nativeValueToJson(series.median) as StatisticValue,
-          q3: nativeValueToJson(series.q3) as StatisticValue,
-          max: nativeValueToJson(series.max) as StatisticValue,
+          min: required(statisticValue(series.min), "Read Box Summary: Restore min"),
+          q1: required(statisticValue(series.q1), "Read Box Summary: Restore q1"),
+          median: required(statisticValue(series.median), "Read Box Summary: Restore median"),
+          q3: required(statisticValue(series.q3), "Read Box Summary: Restore q3"),
+          max: required(statisticValue(series.max), "Read Box Summary: Restore max"),
           lower_whisker: series.lowerWhisker,
           upper_whisker: series.upperWhisker,
           outliers: [...series.outliers],
