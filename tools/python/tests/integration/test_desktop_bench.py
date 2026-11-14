@@ -58,7 +58,9 @@ class DesktopBench(unittest.TestCase):
             def compile(root, extra, selection, **options):
                 self.assertTrue((web / "index.html").is_file())
                 config = json.loads(options["environment"]["TAURI_CONFIG"])
-                self.assertEqual(Path(config["build"]["frontendDist"]), web)
+                frontend = Path(config["build"]["frontendDist"])
+                self.assertFalse(frontend.is_absolute())
+                self.assertEqual((directory / "crates/dokime-gui/src-tauri" / frontend).resolve(), web)
                 self.assertEqual(config["bundle"], {"active": False})
                 self.assertIn("system-desktop", selection)
                 (output / "fixtures").mkdir()

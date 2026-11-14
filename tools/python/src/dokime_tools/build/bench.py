@@ -147,7 +147,7 @@ def main() -> None:
             stderr=sys.stderr,
         )
         config = json.loads(environment.get("TAURI_CONFIG", "{}"))
-        config.setdefault("build", {})["frontendDist"] = str(web)
+        config.setdefault("build", {})["frontendDist"] = Path(os.path.relpath(web, directory / "crates/dokime-gui/src-tauri")).as_posix()
         environment["TAURI_CONFIG"] = json.dumps(config)
     messages = build(directory, ["--features", "dokime-gui/custom-protocol", *extra], selection, environment=environment)
     generated.stage("bench")
