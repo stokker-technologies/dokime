@@ -343,20 +343,64 @@ pub struct AggregatesGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for AggregatesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct AnalysesListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for AnalysesListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct CyclesGetOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
 }
+impl Clone for CyclesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct CyclesSetOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for CyclesSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct CyclesListOptions {
@@ -364,56 +408,179 @@ pub struct CyclesListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for CyclesListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct CyclesWatchOptions {
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for CyclesWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct CyclesCreateOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for CyclesCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct CyclesSealOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for CyclesSealOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct BackendOverviewGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for BackendOverviewGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct BackendOverviewWatchOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for BackendOverviewWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct BackendAppearanceOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for BackendAppearanceOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct RecordSchemasGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for RecordSchemasGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct RecordSchemasListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for RecordSchemasListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ExecutionsGetOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
 }
+impl Clone for ExecutionsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ExecutionsSetOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for ExecutionsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ExecutionsListOptions {
@@ -421,81 +588,259 @@ pub struct ExecutionsListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for ExecutionsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ExecutionsWatchOptions {
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for ExecutionsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ExecutionsCreateOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for ExecutionsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ExecutionsStartOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for ExecutionsStartOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ExecutionsStopOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for ExecutionsStopOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ExecutionsCancelOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for ExecutionsCancelOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ExecutionsDeleteOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for ExecutionsDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ExecutionsParametersOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
 }
+impl Clone for ExecutionsParametersOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ExecutionsStepsOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
+}
+impl Clone for ExecutionsStepsOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct CasesCreateOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for CasesCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct CasesGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for CasesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct CasesListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for CasesListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct CasesWatchOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for CasesWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct CasesDeleteOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for CasesDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct CasesParametersOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for CasesParametersOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ContentArtifactsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for ContentArtifactsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ContentArtifactsCreateOptions {
@@ -503,11 +848,35 @@ pub struct ContentArtifactsCreateOptions {
     pub metadata: Option<Metadata>,
     pub context: CallOptions,
 }
+impl Clone for ContentArtifactsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            metadata: self.metadata.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ContentArtifactsListOptions {
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
+}
+impl Clone for ContentArtifactsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ContentArtifactsWatchOptions {
@@ -515,10 +884,33 @@ pub struct ContentArtifactsWatchOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for ContentArtifactsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ContentExecutionFilesGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for ContentExecutionFilesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ContentExecutionFilesListOptions {
@@ -526,11 +918,35 @@ pub struct ContentExecutionFilesListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for ContentExecutionFilesListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ContentExecutionFilesWatchOptions {
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
+}
+impl Clone for ContentExecutionFilesWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PlotsSnapshotsListOptions {
@@ -538,11 +954,35 @@ pub struct PlotsSnapshotsListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for PlotsSnapshotsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PlotsSnapshotsWatchOptions {
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
+}
+impl Clone for PlotsSnapshotsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct DocumentsGetOptions {
@@ -554,6 +994,22 @@ pub struct DocumentsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for DocumentsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            structure_only: self.structure_only,
+            card_ids: self.card_ids.clone(),
+            page_token: self.page_token.clone(),
+            max_bytes: self.max_bytes,
+            max_frames: self.max_frames,
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct DocumentsWatchOptions {
     pub structure_only: Option<bool>,
@@ -564,15 +1020,53 @@ pub struct DocumentsWatchOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for DocumentsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            structure_only: self.structure_only,
+            card_ids: self.card_ids.clone(),
+            page_token: self.page_token.clone(),
+            max_bytes: self.max_bytes,
+            max_frames: self.max_frames,
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceNotesGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceNotesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceNotesSetOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for EvidenceNotesSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct EvidenceNotesListOptions {
@@ -580,16 +1074,51 @@ pub struct EvidenceNotesListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceNotesListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceNotesWatchOptions {
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceNotesWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceNotesCreateOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for EvidenceNotesCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct EvidenceHealthEventsListOptions {
@@ -597,11 +1126,35 @@ pub struct EvidenceHealthEventsListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceHealthEventsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceHealthEventsWatchOptions {
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
+}
+impl Clone for EvidenceHealthEventsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct EvidenceRecordsListOptions {
@@ -613,6 +1166,22 @@ pub struct EvidenceRecordsListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceRecordsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            versions: self.versions.clone(),
+            between: self.between.clone(),
+            step: self.step.clone(),
+            selection: self.selection.clone(),
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceRecordsWatchOptions {
     pub versions: Option<Vec<u32>>,
@@ -622,6 +1191,22 @@ pub struct EvidenceRecordsWatchOptions {
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
+}
+impl Clone for EvidenceRecordsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            versions: self.versions.clone(),
+            between: self.between.clone(),
+            step: self.step.clone(),
+            selection: self.selection.clone(),
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct EvidenceSamplesListOptions {
@@ -636,6 +1221,25 @@ pub struct EvidenceSamplesListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceSamplesListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            versions: self.versions.clone(),
+            fields: self.fields.clone(),
+            sources: self.sources.clone(),
+            signals: self.signals.clone(),
+            between: self.between.clone(),
+            bucket: self.bucket.clone(),
+            latest: self.latest,
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceSamplesWatchOptions {
     pub versions: Option<Vec<u32>>,
@@ -649,6 +1253,25 @@ pub struct EvidenceSamplesWatchOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceSamplesWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            versions: self.versions.clone(),
+            fields: self.fields.clone(),
+            sources: self.sources.clone(),
+            signals: self.signals.clone(),
+            between: self.between.clone(),
+            bucket: self.bucket.clone(),
+            latest: self.latest,
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceTraceabilityGetOptions {
     pub page: Option<PageRequest>,
@@ -656,11 +1279,36 @@ pub struct EvidenceTraceabilityGetOptions {
     pub entry: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceTraceabilityGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            page: self.page.clone(),
+            at: self.at.clone(),
+            entry: self.entry.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceTraceabilityWatchOptions {
     pub page: Option<PageRequest>,
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for EvidenceTraceabilityWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            page: self.page.clone(),
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct EvidenceStatisticsOptions {
@@ -671,15 +1319,52 @@ pub struct EvidenceStatisticsOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceStatisticsOptions {
+    fn clone(&self) -> Self {
+        Self {
+            versions: self.versions.clone(),
+            between: self.between.clone(),
+            outputs: self.outputs.clone(),
+            step: self.step.clone(),
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct EvidenceArchiveOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for EvidenceArchiveOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ExecutionsCommandsGetOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
+}
+impl Clone for ExecutionsCommandsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ExecutionsCommandsCreateOptions {
@@ -687,15 +1372,49 @@ pub struct ExecutionsCommandsCreateOptions {
     pub step_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for ExecutionsCommandsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            step_id: self.step_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ExecutionsProgressGetOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
 }
+impl Clone for ExecutionsProgressGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ExecutionsProgressWatchOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
+}
+impl Clone for ExecutionsProgressWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ExecutionsSchemasGetOptions {
@@ -703,45 +1422,145 @@ pub struct ExecutionsSchemasGetOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for ExecutionsSchemasGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct FilesUploadsCreateOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for FilesUploadsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct FilesUploadsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for FilesUploadsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct FilesUploadsResumeOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for FilesUploadsResumeOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct FilesUploadsAppendOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for FilesUploadsAppendOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct FilesUploadsPublishOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for FilesUploadsPublishOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct FilesUploadsDeleteOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for FilesUploadsDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct FilesGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for FilesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct FilesReadOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for FilesReadOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct FilesWatchOptions {
@@ -750,10 +1569,34 @@ pub struct FilesWatchOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for FilesWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            file: self.file.clone(),
+            upload: self.upload.clone(),
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct FilesDeleteOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for FilesDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct MediaCapturesCreateOptions {
@@ -764,30 +1607,100 @@ pub struct MediaCapturesCreateOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for MediaCapturesCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            input: self.input,
+            camera: self.camera,
+            display: self.display,
+            maximum_seconds: self.maximum_seconds,
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct MediaCapturesGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for MediaCapturesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct MediaCapturesWatchOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for MediaCapturesWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct MediaCapturesStopOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for MediaCapturesStopOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PlotsSettingsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for PlotsSettingsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PlotsSettingsSetOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for PlotsSettingsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PluginsSecretsListOptions {
@@ -795,30 +1708,97 @@ pub struct PluginsSecretsListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for PluginsSecretsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PluginsSecretsSetOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for PluginsSecretsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PluginsSecretsDeleteOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for PluginsSecretsDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PromptDefinitionsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for PromptDefinitionsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PromptDefinitionsListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for PromptDefinitionsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PromptsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for PromptsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PromptsListOptions {
@@ -828,6 +1808,20 @@ pub struct PromptsListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for PromptsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            cycle_id: self.cycle_id.clone(),
+            execution_id: self.execution_id.clone(),
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PromptsWatchOptions {
     pub cycle_id: Option<String>,
@@ -836,15 +1830,51 @@ pub struct PromptsWatchOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for PromptsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            cycle_id: self.cycle_id.clone(),
+            execution_id: self.execution_id.clone(),
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PromptsAnswersCreateOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for PromptsAnswersCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ReportsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for ReportsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct ReportsCreateOptions {
@@ -852,159 +1882,523 @@ pub struct ReportsCreateOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for ReportsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct ReportsPublishOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for ReportsPublishOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct SecretsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for SecretsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct SecretsSetOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for SecretsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct SecretsListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for SecretsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct SecretsWatchOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for SecretsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct SecretsDeleteOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for SecretsDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct SecretsExportOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for SecretsExportOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct SecretsImportOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for SecretsImportOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct SettingsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for SettingsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct SettingsSetOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for SettingsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct SettingsSchemaOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for SettingsSchemaOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct StorageSourcesGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for StorageSourcesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct StorageSourcesSetOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for StorageSourcesSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct StreamSchemasGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for StreamSchemasGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct StreamSchemasListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for StreamSchemasListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct SuitesGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for SuitesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct SuitesListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for SuitesListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct AccessCertificatesCreateOptions {
     pub context: CallOptions,
+}
+impl Clone for AccessCertificatesCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct AccessListenerGetOptions {
     pub context: CallOptions,
 }
+impl Clone for AccessListenerGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct AccessListenerSetOptions {
     pub context: CallOptions,
 }
+impl Clone for AccessListenerSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct AccessPairingsCreateOptions {
     pub context: CallOptions,
+}
+impl Clone for AccessPairingsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct AccessPairingsListOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
 }
+impl Clone for AccessPairingsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct AccessPairingsDeleteOptions {
     pub context: CallOptions,
+}
+impl Clone for AccessPairingsDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct InvocationsCreateOptions {
     pub context: CallOptions,
 }
+impl Clone for InvocationsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct InvocationsGetOptions {
     pub context: CallOptions,
+}
+impl Clone for InvocationsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct InvocationsCancelOptions {
     pub context: CallOptions,
 }
+impl Clone for InvocationsCancelOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct InvocationsWatchOptions {
     pub context: CallOptions,
+}
+impl Clone for InvocationsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct OperationsListOptions {
     pub context: CallOptions,
 }
+impl Clone for OperationsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct OperationsGetOptions {
     pub context: CallOptions,
+}
+impl Clone for OperationsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PluginsSettingsListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for PluginsSettingsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PluginsSettingsSetOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
+}
+impl Clone for PluginsSettingsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PluginsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for PluginsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PluginsListOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
+}
+impl Clone for PluginsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PluginsWatchOptions {
@@ -1012,36 +2406,121 @@ pub struct PluginsWatchOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
 }
+impl Clone for PluginsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PluginsCreateOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for PluginsCreateOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PluginsSetOptions {
     pub context: CallOptions,
+}
+impl Clone for PluginsSetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PluginsDeleteOptions {
     pub context: CallOptions,
 }
+impl Clone for PluginsDeleteOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct PluginsRestartOptions {
     pub context: CallOptions,
+}
+impl Clone for PluginsRestartOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct PluginsReplaceOptions {
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for PluginsReplaceOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct SchemasListOptions {
     pub schema: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for SchemasListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            schema: self.schema.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct StatusDiagnosticsGetOptions {
     pub context: CallOptions,
+}
+impl Clone for StatusDiagnosticsGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct StatusLogsListOptions {
@@ -1049,10 +2528,33 @@ pub struct StatusLogsListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for StatusLogsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct StatusLogsWatchOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
+}
+impl Clone for StatusLogsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct StatusTraceEventsListOptions {
@@ -1060,32 +2562,107 @@ pub struct StatusTraceEventsListOptions {
     pub page: Option<PageRequest>,
     pub context: CallOptions,
 }
+impl Clone for StatusTraceEventsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            page: self.page.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct StatusTraceEventsWatchOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
 }
+impl Clone for StatusTraceEventsWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct StatusGetOptions {
     pub context: CallOptions,
+}
+impl Clone for StatusGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Default)]
 pub struct StatusWatchOptions {
     pub at: Option<Position>,
     pub context: CallOptions,
 }
+impl Clone for StatusWatchOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct StreamsListOptions {
     pub schema: Option<String>,
     pub context: CallOptions,
 }
+impl Clone for StreamsListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            schema: self.schema.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct TimeGetOptions {
     pub context: CallOptions,
 }
+impl Clone for TimeGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
 #[derive(Default)]
 pub struct TimeSleepOptions {
     pub context: CallOptions,
+}
+impl Clone for TimeSleepOptions {
+    fn clone(&self) -> Self {
+        Self {
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
 }
 #[derive(Clone)]
 pub struct Root {

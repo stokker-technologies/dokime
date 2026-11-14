@@ -748,6 +748,18 @@ def rust(root: Path, methods: list[Method], *, target: Path | None = None) -> No
         lines += ["#[derive(Default)]", f"pub struct {name} {{"]
         lines += [f"    pub {field['name']}: Option<{field_type(field)}>," for field in method["fields"] if field["optional"]]
         lines += ["    pub context: CallOptions,", "}"]
+        lines += [f"impl Clone for {name} {{", "    fn clone(&self) -> Self {", "        Self {"]
+        for field in method["fields"]:
+            if field["optional"]:
+                copied = field["kind"] not in {9, 11, 12} and not field["repeated"] and not field["map"]
+                expression = f"self.{field['name']}" + ("" if copied else ".clone()")
+                lines += [f"            {field['name']}: {expression},"]
+        lines += [
+            "            context: CallOptions { metadata: self.context.metadata.clone(), timeout: self.context.timeout },",
+            "        }",
+            "    }",
+            "}",
+        ]
     for node in sorted(nodes):
         children = sorted(child for child in nodes if len(child) == len(node) + 1 and child[:-1] == node)
         operations = [method for method in methods if tuple(method["path"][:-1]) == node]

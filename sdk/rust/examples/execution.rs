@@ -196,12 +196,9 @@ async fn own_measurements(ctx: &Context) -> Result<bool> {
         .evidence
         .statistics_with(
             "execution.reading".into(),
-            Vec::new(),
-            Default::default(),
-            Vec::new(),
             "value".into(),
-            "measure".into(),
             HostEvidenceStatisticsOptions {
+                step: Some("measure".into()),
                 at: stats.resolved_at.clone(),
                 ..Default::default()
             },

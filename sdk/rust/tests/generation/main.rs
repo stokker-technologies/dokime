@@ -22,7 +22,7 @@
 // Local Imports
 use dokime::client::Client;
 use dokime::plugin::Context;
-use dokime::{FileReference, FileSource, Output, Window};
+use dokime::{FileReference, FileSource};
 
 /* === Constants === */
 
@@ -46,7 +46,7 @@ pub async fn generated_surface(client: &Client, context: &Context) -> Result<(),
     let host = context.host();
     let _ = host.files.capture(FileSource::default(), String::new()).await?;
     let _ = host.content.artifacts.create(FileReference::default(), "capture.bin".into(), "application/octet-stream".into()).await?;
-    let _ = host.evidence.statistics(String::new(), vec![], Window::default(), Vec::<Output>::new(), String::new(), String::new()).await?;
+    let _ = host.evidence.statistics(String::new(), String::new()).await?;
     Ok(())
 }
 
