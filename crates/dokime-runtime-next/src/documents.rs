@@ -305,6 +305,13 @@ impl Host {
         })
     }
     pub fn render_document(&self, snapshot: &FixedSnapshot, document: v1::Document, settings: RenderSettings) -> Result<RenderedDocument> {
+        let (store, cancellation) = snapshot.store.read_session()?;
+        let snapshot = FixedSnapshot {
+            store,
+            cut: snapshot.cut.clone(),
+            counts: snapshot.counts.clone(),
+            _read_cancellation: Some(cancellation),
+        };
         let mut file = NamedTempFile::with_prefix("dokime-render-")?;
         let mut output = BufWriter::new(&mut file);
         let title = document.metadata.as_ref().map_or("", |metadata| metadata.label.as_str());
@@ -338,7 +345,7 @@ impl Host {
             )
             .map_err(|error| Error::Invalid(error.to_string()))?;
             for section in &expansion.document.sections {
-                render_section(&mut output, snapshot, section, &catalog, settings)?;
+                render_section(&mut output, &snapshot, section, &catalog, settings)?;
             }
             match expansion.next {
                 Some(next) => offset = next,
@@ -445,9 +452,8 @@ fn render_plot(
         dokime_operations_next::client::document_plot::request(plot, scope).map_err(|error| Error::Invalid(error.to_string()))?;
     request.filters.extend_from_slice(filters);
     request.max_points = Some(plot.display_points.unwrap_or(settings.display_points.get() as u32) as u64);
-    let (store, _cancel_on_drop) = snapshot.store.read_session()?;
     let envelope = dokime_operations_next::client::plots_snapshots_list::snapshot_at(
-        &store,
+        &snapshot.store,
         &snapshot.cut,
         &request,
         settings.display_points.get().max(4),
@@ -455,7 +461,7 @@ fn render_plot(
         "v1",
     )
     .map_err(|error| Error::Invalid(error.to_string()))?;
-    let presentation = dokime_operations_next::client::document_plot::presentation(&store, &snapshot.cut, plot)?;
+    let presentation = dokime_operations_next::client::document_plot::presentation(&snapshot.store, &snapshot.cut, plot)?;
     crate::plot_html::render(output, plot, &envelope, &presentation)
 }
 fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32, settings: RenderSettings) -> Result<()> {

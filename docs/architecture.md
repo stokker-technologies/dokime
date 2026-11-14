@@ -481,7 +481,9 @@ they do not depend on a record having scalar fields.
 
 Plot/document readers consume projected batches. The pinned library supplies
 scalar evaluation, bounded accumulators, sorting and downsampling where its current
-query vocabulary fits. `ordered_merge.rs` contains one as-of merge over two ordered
+query vocabulary fits. Each document render isolates one reader for all its cards
+and buffers HTML output instead of opening a reader or issuing file writes per point.
+`ordered_merge.rs` contains one as-of merge over two ordered
 Arrow batch iterators, with no product/storage types in its signature. Expression
 binding uses it for stream-to-stream and record-to-stream alignment, record-based
 ranges and grouping, values at records, and paired record intervals. Intervals pair
