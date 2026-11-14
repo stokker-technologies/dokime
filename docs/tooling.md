@@ -45,15 +45,15 @@ mise run build -- --artifact tests
 Host fixture production builds the Rust reference, pinned library conformance host,
 content fixture, product host and pure Python wheel;
 C# and C++ producers use their SDK tasks. `build:host-fixtures --language
-rust|python|csharp|cpp` selects one producer. C++ uses `target/cpp/` with short
+rust|python|csharp|cpp` selects one producer. C++ uses `target/cp/` with short
 generated and object paths on Windows. Its CMake 4.2 pin supports Visual Studio 18
-and selects the installed Visual Studio generator. Cached dependency builds resolve code
+and uses Ninja with the native MSVC environment. Cached dependency builds resolve code
 generators through the same Protobuf/gRPC package targets as uncached builds.
 Fixtures are exported under
 `target/build/<profile>/<target>/fixtures/host/`. CLI fixtures include a generated
 Rust starter built through its own mise task. Stories never compile plugins.
 
-`HARMOS_SOURCE`, `DOKIME_HARMOS_CACHE` and `DOKIME_CPP_BUILD_DIR` may select
+`HARMOS_SOURCE` and `DOKIME_HARMOS_CACHE` may select
 workstation source/dependency caches; do not put them in project configuration.
 Python consumes the built pure wheel and the pinned library SDK. Python system
 and coverage tasks select the conformance executable from the host fixtures.

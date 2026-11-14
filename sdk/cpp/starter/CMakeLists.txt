@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.24)
 project(DokimePlugin VERSION 0.1.0 LANGUAGES CXX)
+if(DOKIME_SDK_URL)
+  include(FetchContent)
+  FetchContent_Declare(dokime_sdk URL "${DOKIME_SDK_URL}"
+    URL_HASH "SHA256=${DOKIME_SDK_SHA256}")
+  FetchContent_MakeAvailable(dokime_sdk)
+  list(PREPEND CMAKE_PREFIX_PATH "${dokime_sdk_SOURCE_DIR}")
+endif()
 find_package(Dokime CONFIG REQUIRED)
 add_executable(dokime-plugin main.cpp)
 target_link_libraries(dokime-plugin PRIVATE Dokime::Cpp)

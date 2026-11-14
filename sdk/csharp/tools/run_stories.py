@@ -38,7 +38,7 @@ suffix = ".exe" if os.name == "nt" else ""
 environment = os.environ.copy()
 environment["HARMOS_CONFORMANCE_HOST"] = str(root / f"../../target/cs/reference/target/debug/harmos-conformance{suffix}")
 environment["DOKIME_CONFORMANCE_PLUGIN"] = str(root / f"../../target/cs/bin/Conformance/release/dokime-conformance-plugin{suffix}")
-environment["DOKIME_STARTER"] = str(root / f"../../target/cs/bin/Starter/release/dokime-starter{suffix}")
+environment.setdefault("DOKIME_STARTER", str(root / f"../../target/cs/bin/Starter/release/dokime-starter{suffix}"))
 subprocess.run(
     [
         sys.argv[1],

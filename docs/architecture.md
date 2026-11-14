@@ -553,3 +553,10 @@ solution with central dependency versions and consumes Harmos through a local
 NuGet feed. Python ships typed resource modules and generated protobuf packages.
 These build changes retain the current protocol and client call shapes; the
 next library pin must regenerate their descriptor-derived surfaces.
+
+The CLI embeds the authoritative SDK starters and includes the Python starter's
+host-driven tests from `sdk/tests/fixtures/python/starter`. The per-language
+`examples/plugin` and `examples/test` trees required by decision 0.J are not
+present yet; that example consolidation remains with the protocol regeneration.
+The C++ starter consumes the installed SDK archive with its supplied SHA-256,
+then resolves the matching native dependencies through vcpkg.

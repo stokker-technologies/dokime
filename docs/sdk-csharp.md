@@ -25,6 +25,10 @@ mise -C sdk/csharp run build:starter
 mise -C sdk/csharp run test:starter
 ```
 
+`build:starter -- --project /path/to/Starter.csproj` builds a generated consumer
+against the candidate feed. Set `DOKIME_STARTER` to its executable when running
+`test:starter`; the default is the repository starter's built executable.
+
 `Dokime.slnx` is the entry point for the library under `src/Dokime` and its
 `tests`. `Directory.Packages.props` centrally pins dependencies. Locks for the rebuilt
 local feed are generated under `target/cs/locks`, alongside the SDK package cache;

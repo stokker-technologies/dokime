@@ -3,6 +3,7 @@
   "configurePresets": [
     {
       "name": "release",
+      "generator": "Ninja",
       "displayName": "Release Plugin",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {

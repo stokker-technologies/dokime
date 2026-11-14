@@ -58,9 +58,10 @@ run = [
 
 [tasks."build:starter"]
 description = "Build the NuGet Consumer"
+usage = 'flag "--project <project>" default="starter/Starter.csproj"'
 run = [
-  '"{{tools.dotnet.path}}/dotnet" restore starter/Starter.csproj --configfile NuGet.Config --force-evaluate',
-  '"{{tools.dotnet.path}}/dotnet" build starter/Starter.csproj --configuration Release --no-restore',
+  '"{{tools.dotnet.path}}/dotnet" restore "{{usage.project}}" --configfile NuGet.Config --packages ../../target/cs/packages --force-evaluate',
+  '"{{tools.dotnet.path}}/dotnet" build "{{usage.project}}" --configuration Release --no-restore',
 ]
 
 [tasks."build:system"]

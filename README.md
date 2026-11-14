@@ -69,8 +69,9 @@ The [Python starter](sdk/python/examples/starter/) serves a suite with an
 operator question, confirmation record and criterion:
 
 ```sh
-mise -C sdk/python run sdk:build
-mise -C sdk/python run sdk:test
+mise -C sdk/python run build
+mise -C sdk/python run install
+mise -C sdk/python run test
 ```
 
 ### Rust
@@ -107,7 +108,7 @@ composes ordinary values for plugins, documents and clients.
 #### Examples
 
 ```sh
-mise -C sdk/cpp run configure -- --fetch-dependencies
+mise -C sdk/cpp run prepare
 mise -C sdk/cpp run build
 mise -C sdk/cpp run test
 ```

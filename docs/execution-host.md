@@ -256,9 +256,9 @@ Build prerequisites and run the client stories through the focused task:
 
 ```powershell
 mise run build:host-fixtures
-mise -C sdk/python run sdk:prepare
-mise -C sdk/python run sdk:build
-mise -C sdk/python run sdk:install
+mise -C sdk/python run prepare
+mise -C sdk/python run build
+mise -C sdk/python run install
 mise run test -- --package dokime-runtime-next --target system --exact client_runs_thermal_suite_over_grpc::client_runs_thermal_suite_over_grpc
 mise run test -- --package dokime-runtime-next --target system --exact python_client_runs_thermal_suite_over_grpc::python_client_runs_thermal_suite_over_grpc
 ```
@@ -395,6 +395,9 @@ seal/rerun. Build the generated starter fixture and run every story:
 
 ```sh
 mise run build:cli-fixtures
+mise run build:cli-fixtures -- --language python
+mise run build:cli-fixtures -- --language csharp
+mise run build:cli-fixtures -- --language cpp
 mise run test -- --package dokime-cli-next --target system
 ```
 
@@ -418,10 +421,12 @@ mise run build:cli-fixtures
 mise run test -- --package dokime-cli-next --target system
 ```
 
-The fixture producer uses `dokime-next new`, builds that exact generated Rust
-project through its mise task against the local SDK candidate, and exports its
-sources/executable with Tests. Stories compare generated source bytes and never
-compile plugins. Tests Build includes this producer.
+The fixture producer uses `dokime-next new` and defaults to Rust for Tests Build.
+`--language python|csharp|cpp` selects another generated candidate. Build host
+fixtures and each SDK's package first. Python runs the generated project's test
+task against the prepared host; C# runs `test:starter` against the generated
+executable; C++ runs both managed and remote SDK journeys against its installed
+package consumer. Stories compare generated source bytes and never compile plugins.
 Installed binary renaming and desktop integration remain on the combined restoration checklist. Installer packaging is not selected in this candidate.
 
 ## Canonical Selection Requests
@@ -443,7 +448,8 @@ downloads a verified HTML preview and refuses to overwrite an existing output.
 ## Compare Every SDK
 
 The single thermal procedure is authored in each SDK: Rust `examples/thermal.rs`,
-Python `examples/thermal/suite.py`, C# `tests/SystemPlugin` and C++ `tests/system`.
+Python `examples/thermal/suite.py`, C# `sdk/tests/fixtures/csharp/SystemPlugin` and
+C++ `sdk/tests/fixtures/cpp/thermal` (the fixture paths are repository-relative).
 The host compares the complete frozen origin/test case, ordered evidence and
 samples (including source time, sequence, position and exact payload), outcome
 and cycle counts. Only run-specific execution identity, plugin digest/start time
@@ -997,12 +1003,12 @@ Document is in documents, Plot is in plots and DataExpression is in expressions.
 
 ### Python SDK
 
-- Regenerated root metadata: `sdk/python/src/dokime/resources.json`; protobuf imports become `dokime.client.v1.*_pb2`, `dokime.plugin.host.v1.*_pb2`, shared named `dokime.v1.*_pb2` and unchanged `dokime.plugin.v1.*_pb2`. Generate protobuf messages through the SDK task before adapting helpers.
+- Regenerated root metadata: `sdk/python/src/dokime/generated/resources.py`; protobuf imports become `dokime.client.v1.*_pb2`, `dokime.plugin.host.v1.*_pb2`, shared named `dokime.v1.*_pb2` and unchanged `dokime.plugin.v1.*_pb2`. Generate protobuf messages through the SDK task before adapting helpers.
 - Move all resource imports and frozen descriptors by file owner; remove catalog parent imports; use `context` for the handler object. Migrate lifecycle/context helpers, typed wrappers, examples and tests against the wire table.
 
 ### C# SDK
 
-- Regenerated outputs: `sdk/csharp/Dokime/Resources.cs` and `ClientResources.cs`. Proto namespaces are `Dokime.Protocol.Client.V1`, its `<Name>Resources` children, `Dokime.Protocol.Plugin.Host.V1`, its `<Name>Resources` children, shared `Dokime.Protocol.V1` and unchanged `Dokime.Protocol.Plugin.V1`.
+- Regenerated outputs: `sdk/csharp/src/Dokime/Generated/Resources.g.cs` and `ClientResources.g.cs`. Proto namespaces are `Dokime.Protocol.Client.V1`, its `<Name>Resources` children, `Dokime.Protocol.Plugin.Host.V1`, its `<Name>Resources` children, shared `Dokime.Protocol.V1` and unchanged `Dokime.Protocol.Plugin.V1`.
 - Mechanical recipe: `Dokime.Protocol.V1.<resource wrapper> -> Dokime.Protocol.Client.V1.<resource wrapper>`; `Dokime.Protocol.V1.<Name>Resources -> Dokime.Protocol.Client.V1.<Name>Resources`; `CatalogResources.<Message> -> Client.V1.<Message>`; `Dokime.Protocol.Context.V1.<Name> -> Dokime.Protocol.Plugin.Host.V1.<Name>Resources`. Apply the payload exception table, rename the three declaration families, rebuild generated/frozen descriptors and keep the Context object.
 
 ### C++ SDK

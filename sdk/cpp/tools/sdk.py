@@ -187,7 +187,7 @@ def main() -> None:
             [
                 "cmake",
                 "-S",
-                str(sdk / "starter"),
+                str(options.source or sdk / "starter"),
                 "-B",
                 str(consumer),
                 "-G",
