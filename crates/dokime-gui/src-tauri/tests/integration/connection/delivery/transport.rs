@@ -100,6 +100,7 @@ impl tonic::codegen::Service<HttpRequest> for Storage {
         let service = self.0.clone();
         Box::pin(async move {
             Ok(match request.uri().path() {
+                "/dokime.client.v1.Files/Get" => Grpc::new(tonic_prost::ProstCodec::default()).unary(FileInformation, request).await,
                 "/dokime.client.v1.Files/Read" => Grpc::new(tonic_prost::ProstCodec::default()).unary(Download(service), request).await,
                 _ => Status::unimplemented("Read File Bytes: Fixture Route Is Unavailable").into_http(),
             })
