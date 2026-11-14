@@ -131,16 +131,23 @@ function presented(now: number) {
   });
   const failures = cards.filter(
     (card) =>
-      card.dataset.benchError === "true" || (card.dataset.benchReady === "true" && card.querySelector('[role="alert"], .plot-empty')),
+      card.dataset.benchError === "true" ||
+      (card.querySelector('[data-bench-has-payload="true"]') && card.querySelector('[role="alert"], .plot-empty')),
   );
   observation.visibleFailures = failures.length;
   for (const card of failures) {
     const message = `${card.dataset.benchPlot}: ${card.querySelector('[role="alert"], .plot-empty')?.textContent ?? "Plot Data Failed"}`;
     if (!observation.errors.includes(message)) observation.errors.push(message);
   }
-  observation.visibleReady = cards.filter((card) => card.dataset.benchReady === "true" && card.dataset.benchError !== "true").length;
+  observation.visibleReady = cards.filter(
+    (card) => card.querySelector('[data-bench-has-payload="true"] .plot-card') && card.dataset.benchError !== "true",
+  ).length;
   for (const card of cards) {
-    if (card.dataset.benchReady !== "true" || card.dataset.benchError === "true" || card.querySelector('[role="alert"], .plot-empty'))
+    if (
+      !card.querySelector('[data-bench-has-payload="true"] .plot-card') ||
+      card.dataset.benchError === "true" ||
+      card.querySelector('[role="alert"], .plot-empty')
+    )
       continue;
     const canvases = [...card.querySelectorAll("canvas")];
     if (canvases.length > 0 && !canvases.some((canvas) => (canvasDraws.get(canvas) ?? 0) >= observation.started)) continue;
@@ -276,9 +283,10 @@ function Surface({ session }: { session: ConnectedSession }) {
     card.scrollIntoView({ block: "center" });
     const canvases = [...card.querySelectorAll("canvas")];
     const placeholder = card.querySelector('[role="alert"], .plot-empty');
-    const error = card.dataset.benchError === "true" || (card.dataset.benchReady === "true" && Boolean(placeholder));
+    const rendered = card.querySelector('[data-bench-has-payload="true"]');
+    const error = card.dataset.benchError === "true" || (Boolean(rendered) && Boolean(placeholder));
     return {
-      ready: card.dataset.benchReady === "true" && !placeholder,
+      ready: Boolean(rendered?.querySelector(".plot-card")) && !placeholder,
       error,
       message: error ? `${plotId}: ${placeholder?.textContent ?? "Plot Data Failed"}` : undefined,
       drawn: canvases.length === 0 || canvases.some((canvas) => canvasDraws.has(canvas)),

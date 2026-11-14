@@ -76,6 +76,8 @@ await build({
           );
         }
         if (path.endsWith("/components/document/PlotGroupGrid.tsx")) {
+          if (!source.includes('data-live-mounted="true"')) throw new Error("Observe Plot Drawing: Restore Its Mounted Card Owner");
+          source = source.replace('data-live-mounted="true"', 'data-live-mounted="true" data-bench-has-payload={Boolean(state.payload)}');
           for (const owner of ["<VisiblePlotCard", "viewportMode={viewportMode}\n    />"]) {
             if (!source.includes(owner)) throw new Error(`Missing benchmark card instrumentation owner: ${owner}`);
           }
