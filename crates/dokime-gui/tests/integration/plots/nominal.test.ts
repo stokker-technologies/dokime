@@ -546,7 +546,7 @@ test("Viewport Prefetch Follows Visible Data Without Restarting Drawn Groups", a
   const ids = Array.from({ length: 65 }, (_, index) => `plot-${index}`);
   const view = await mountPlotView(ids, [ids[0]]);
   assert.equal(view.streams.length, 1);
-  const initial = snapshotEnvelopes(view.plots);
+  const initial = snapshotEnvelopes(view.plots).map((frame) => ({ ...frame, kind: "snapshot" as const }));
   await act(async () => view.streams[0].push(...initial.slice(0, 32)));
   await view.advance();
   assert.deepEqual(
