@@ -109,8 +109,25 @@ def build(profile: str, language: str = "rust") -> None:
                 with sdk.open("rb") as archive_file:
                     digest = hashlib.file_digest(archive_file, "sha256").hexdigest()
                 arguments += ["--sdk-url", sdk.as_uri(), "--sdk-sha256", digest]
-            subprocess.run(arguments, cwd=root, env=environment, check=True, creationflags=spawn_flags())
-            subprocess.run(["mise", "trust", str(project / "mise.toml")], cwd=root, check=True, creationflags=spawn_flags())
+            subprocess.run(
+                arguments,
+                cwd=root,
+                env=environment,
+                check=True,
+                creationflags=spawn_flags(),
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+            subprocess.run(
+                ["mise", "trust", str(project / "mise.toml")],
+                cwd=root,
+                check=True,
+                creationflags=spawn_flags(),
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
             if language == "python":
                 wheel = next((paths.output(root, "build", profile, "any") / "python").glob("*.whl"))
                 config = Path(scratch) / "uv.toml"
@@ -120,10 +137,24 @@ def build(profile: str, language: str = "rust") -> None:
                     paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host-next{extension}"
                 )
                 subprocess.run(
-                    ["mise", "-C", str(project), "run", "build"], cwd=root, env=environment, check=True, creationflags=spawn_flags()
+                    ["mise", "-C", str(project), "run", "build"],
+                    cwd=root,
+                    env=environment,
+                    check=True,
+                    creationflags=spawn_flags(),
+                    stdin=sys.stdin,
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
                 )
                 subprocess.run(
-                    ["mise", "-C", str(project), "run", "test"], cwd=root, env=environment, check=True, creationflags=spawn_flags()
+                    ["mise", "-C", str(project), "run", "test"],
+                    cwd=root,
+                    env=environment,
+                    check=True,
+                    creationflags=spawn_flags(),
+                    stdin=sys.stdin,
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
                 )
             elif language == "csharp":
                 subprocess.run(
@@ -132,10 +163,20 @@ def build(profile: str, language: str = "rust") -> None:
                     env=environment,
                     check=True,
                     creationflags=spawn_flags(),
+                    stdin=sys.stdin,
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
                 )
                 environment["DOKIME_STARTER"] = str(project / f"bin/Release/net10.0/dokime-starter{extension}")
                 subprocess.run(
-                    ["mise", "-C", "sdk/csharp", "run", "test:starter"], cwd=root, env=environment, check=True, creationflags=spawn_flags()
+                    ["mise", "-C", "sdk/csharp", "run", "test:starter"],
+                    cwd=root,
+                    env=environment,
+                    check=True,
+                    creationflags=spawn_flags(),
+                    stdin=sys.stdin,
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
                 )
                 shutil.copytree(project / "bin/Release/net10.0", output / "csharp", dirs_exist_ok=True)
             else:
@@ -145,6 +186,9 @@ def build(profile: str, language: str = "rust") -> None:
                     env=environment,
                     check=True,
                     creationflags=spawn_flags(),
+                    stdin=sys.stdin,
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
                 )
                 child = dict(environment)
                 if os.name == "nt":
@@ -162,6 +206,9 @@ def build(profile: str, language: str = "rust") -> None:
                         env=child,
                         check=True,
                         creationflags=spawn_flags(),
+                        stdin=sys.stdin,
+                        stdout=sys.stdout,
+                        stderr=sys.stderr,
                     )
                 (output / "cpp").mkdir(exist_ok=True)
                 for artifact in (root / "target/cp/consumer").iterdir():
