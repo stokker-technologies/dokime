@@ -266,7 +266,9 @@ flush policy is unchanged; time awaiting saved visibility is distinct from query
 work. Zoom, resize and navigation time their named action through visible drawing.
 After navigation, and the additional history cases' cold opens, the driver visits
 every plot outside the timer and verifies actual drawing, including all mixed
-kinds. This traversal cannot silently omit an off-screen refusal. Frequency input
+kinds. Separate `traversalMs` and `traversalBackendStages` observations retain that
+whole-document work without adding it to initial visible drawing. This traversal
+cannot silently omit an off-screen refusal. Frequency input
 declares 512 samples. Pie authors select an explicit mean over duplicate categories;
 all source rows and plot kinds remain present. Grid previews select bounded recent
 complete frames instead of attempting to allocate a frame per history timestamp.

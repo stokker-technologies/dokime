@@ -388,6 +388,8 @@ try {
       }
       // Traverse Every Plot Outside the Timing Boundary, Including All Mixed Kinds.
       if (condition === "navigation" || (historyRows !== 2073600 && condition === "cold")) {
+        await command("drain");
+        const traversalStarted = performance.now();
         for (let index = 0; index < count; index++) {
           const deadline = performance.now() + DRAW_WAIT_MS;
           while (true) {
@@ -402,6 +404,8 @@ try {
           }
         }
         results.at(-1).verifiedPlots = count;
+        results.at(-1).traversalMs = performance.now() - traversalStarted;
+        results.at(-1).traversalBackendStages = (await command("drain")).stages;
       }
     }
     await writeFile(join(output, "observations.json"), JSON.stringify({ fixture, native, results, resources }, null, 2));
