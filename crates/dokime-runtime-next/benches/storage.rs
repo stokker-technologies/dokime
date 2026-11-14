@@ -63,6 +63,15 @@ struct Row {
     #[prost(string, tag = "2")]
     timestamp: String,
 }
+#[derive(Clone, PartialEq, Message)]
+struct IngestRow {
+    #[prost(uint32, tag = "1")]
+    phase: u32,
+    #[prost(uint64, tag = "2")]
+    ordinal: u64,
+    #[prost(double, tag = "3")]
+    value: f64,
+}
 struct Fixture {
     store: Store,
     root: TempDir,
@@ -94,6 +103,29 @@ impl Fixture {
         }
         fixture.store.flush_samples().unwrap();
         fixture
+    }
+    fn ingestion() -> Self {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::open(root.path()).unwrap();
+        let mut execution = definition();
+        let mut catalog = harmos_protocol::v1::Catalog::decode(execution.catalog.as_slice()).unwrap();
+        catalog.types.as_mut().unwrap().file[0].message_type[0].field =
+            [("phase", Type::Uint32), ("ordinal", Type::Uint64), ("value", Type::Double)]
+                .into_iter()
+                .enumerate()
+                .map(|(index, (name, kind))| FieldDescriptorProto {
+                    name: Some(name.into()),
+                    number: Some(index as i32 + 1),
+                    label: Some(Label::Optional as i32),
+                    r#type: Some(kind as i32),
+                    ..Default::default()
+                })
+                .collect();
+        catalog.streams[0].id = "samples".into();
+        execution.catalog = catalog.encode_to_vec();
+        store.create(&execution).unwrap();
+        store.open_stream("execution", "samples").unwrap();
+        Self { store, root }
     }
     fn seal(&self) {
         self.store.close_streams("execution").unwrap();
@@ -353,8 +385,8 @@ fn main() {
                 let fixture = Fixture::populated(CLOSE_ROWS);
                 let started = Instant::now();
                 fixture.store.close_streams("execution").unwrap();
-                elapsed += started.elapsed();
                 executor.block_on(fixture.store.shutdown_samples()).unwrap();
+                elapsed += started.elapsed();
             }
             elapsed
         })
@@ -374,16 +406,51 @@ fn main() {
             b.iter_custom(|iterations| {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iterations {
-                    let fixture = Fixture::new();
+                    let fixture = Fixture::ingestion();
                     let started = Instant::now();
                     for first in (0..INGEST_ROWS).step_by(INGEST_BATCH) {
-                        fixture.store.sample_batch("execution", &samples(first, (INGEST_ROWS - first).min(INGEST_BATCH))).unwrap();
+                        let samples = (first..INGEST_ROWS.min(first + INGEST_BATCH))
+                            .map(|sequence| Sample {
+                                sequence: sequence as u64,
+                                source_ns: sequence as i64 * 1000,
+                                receipt_ns: sequence as i64 * 1000,
+                                stream: "samples".into(),
+                                row: IngestRow {
+                                    phase: 0,
+                                    ordinal: sequence as u64,
+                                    value: sequence as f64 * 0.000001,
+                                }
+                                .encode_to_vec(),
+                                ..Default::default()
+                            })
+                            .collect::<Vec<_>>();
+                        fixture.store.sample_batch("execution", &samples).unwrap();
                     }
                     if durable {
                         fixture.store.flush_samples().unwrap();
                     }
                     elapsed += started.elapsed();
                     executor.block_on(fixture.store.shutdown_samples()).unwrap();
+                    let mut rows = 0;
+                    fixture
+                        .store
+                        .read_batches(
+                            dokime_storage::BatchSelection {
+                                execution: "execution",
+                                stream: "samples",
+                                after: 0,
+                                through: INGEST_ROWS as u64,
+                                start_ns: i64::MIN,
+                                end_ns: i64::MAX,
+                            },
+                            &["phase".into(), "ordinal".into(), "value".into()],
+                            |batch| {
+                                rows += batch.num_rows();
+                                Ok(true)
+                            },
+                        )
+                        .unwrap();
+                    assert_eq!(rows, INGEST_ROWS);
                 }
                 elapsed
             })
