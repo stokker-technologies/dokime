@@ -61,6 +61,7 @@ pub struct Backend {
 #[derive(Clone)]
 struct Retained {
     store: Store,
+    at: StorageCursor,
     _cancellation: Arc<crate::ReadCancellation>,
     _lease: Arc<Lease>,
 }
@@ -110,7 +111,12 @@ impl Backend {
     fn snapshot(&self, snapshot: &BackendSnapshot) -> harmos_storage::Result<Retained> {
         self.history.check(&snapshot.at.history).map_err(|e| failure(Error::Invalid(e.to_string())))?;
         let snapshots = self.snapshots.lock().map_err(|_| failure(Error::Data("restart after the backend snapshot lock failed")))?;
-        snapshots.get(&snapshot.token).cloned().ok_or_else(|| failure(Error::Data("create a retained backend snapshot before reading")))
+        let retained =
+            snapshots.get(&snapshot.token).ok_or_else(|| failure(Error::Data("create a retained backend snapshot before reading")))?;
+        if retained.at != snapshot.at {
+            return unsupported_error("Read Arrow: Keep the Retained Snapshot's Original Cursor");
+        }
+        Ok(retained.clone())
     }
 }
 impl StorageBackend for Backend {
@@ -149,6 +155,7 @@ impl StorageBackend for Backend {
                 .or_default() += 1;
             let retained = Retained {
                 store,
+                at: at.clone(),
                 _cancellation: Arc::new(cancel),
                 _lease: Arc::new(Lease {
                     pins: self.store.snapshot_pins.clone(),
@@ -167,10 +174,12 @@ impl StorageBackend for Backend {
     fn delete_snapshot<'a>(&'a self, snapshot: &'a BackendSnapshot) -> StorageFuture<'a, ()> {
         Box::pin(async move {
             self.history.check(&snapshot.at.history).map_err(|e| failure(Error::Invalid(e.to_string())))?;
-            self.snapshots
-                .lock()
-                .map_err(|_| failure(Error::Data("restart after the backend snapshot lock failed")))?
-                .remove(&snapshot.token);
+            let mut snapshots =
+                self.snapshots.lock().map_err(|_| failure(Error::Data("restart after the backend snapshot lock failed")))?;
+            if snapshots.get(&snapshot.token).is_some_and(|retained| retained.at != snapshot.at) {
+                return unsupported_error("Release Arrow Snapshot: Keep Its Original Cursor");
+            }
+            snapshots.remove(&snapshot.token);
             Ok(())
         })
     }
@@ -190,6 +199,9 @@ impl StorageBackend for Backend {
             let store = &retained.store;
             if read.source.kind != ColumnKind::Stream {
                 return unsupported_error("Read Arrow: Select a Frozen Product Stream; Object and Record Adoption Belongs to 0.H.5");
+            }
+            if read.source.schema.version.get() != 1 {
+                return unsupported_error("Read Arrow: Select the Frozen Stream Schema at Version 1");
             }
             // Native Arrow Has No Payload-Encoding Claim. The Pinned Row Interface Only Names PostcardV1.
             let stream = read.source.schema.id.to_string();

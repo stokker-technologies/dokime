@@ -303,6 +303,14 @@ async fn pinned_native_arrow_pages_keep_their_saved_cut() -> Result<()> {
         },
     };
     let cancel = Cancellation::default();
+    let version = scan.source.schema.version;
+    scan.source.schema.version = (version.get() + 1).try_into().unwrap();
+    assert!(backend.list_column_rows(&snapshot, &scan, &cancel).await.is_err());
+    scan.source.schema.version = version;
+    let mut changed = snapshot.clone();
+    changed.at.sequence += 1;
+    assert!(backend.list_column_rows(&changed, &scan, &cancel).await.is_err());
+    assert!(backend.delete_snapshot(&changed).await.is_err());
     let mut values = Vec::new();
     loop {
         let page = backend.list_column_rows(&snapshot, &scan, &cancel).await?;
