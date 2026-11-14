@@ -22,6 +22,7 @@ use std::path::PathBuf;
 use prost::Message;
 
 // Local Imports
+use dokime::Metadata;
 use dokime::client::CyclesCreateOptions;
 use dokime_protocol::host::CasesCreateResponse;
 
@@ -68,7 +69,8 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         context: settings.context()?,
         request_id: Some(settings.request_id(args.request_id)?),
     };
-    let value = client.cycles.create_with(origins, Default::default(), true, args.label, options).await?;
+    let metadata = Metadata { label: args.label, ..Default::default() };
+    let value = client.cycles.create_with(origins, metadata, true, "", options).await?;
     crate::output::print(&value, args.json)
 }
 

@@ -116,7 +116,7 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
         )
         cases = await client.cases.create(SelectionPlan(selections=[selection]), True)
         cycle = await client.cycles.create(
-            [case.origin for case in cases.cases], Metadata(), True, ""
+            [case.origin for case in cases.cases], Metadata(label="Thermal Cycle"), True, ""
         )
         admitted = await client.executions.list(
             cycle.cycle.cycle_id,

@@ -31,6 +31,7 @@ pub use settings::{SYSTEM_HANG_GUARD, settings};
 // Local Imports
 use dokime::Client;
 use dokime::ClientSettings;
+use dokime::Metadata;
 use dokime::Value;
 use dokime::client::PlannedCase;
 use dokime_protocol::host::PromptsCreateRequest;
@@ -140,7 +141,11 @@ pub async fn admit(client: &Client, cases: Vec<PlannedCase>) -> Result<Vec<Strin
     use dokime::client::ExecutionsListOptions;
     use harmos_protocol::model::ReadCut;
     let origins = cases.into_iter().map(|case| case.origin.ok_or("Admit Story Cases: Missing Frozen Origin")).collect::<Result<_, _>>()?;
-    let admitted = client.cycles.create(origins, Default::default(), true, String::new()).await?;
+    let metadata = Metadata {
+        label: "Story Cycle".into(),
+        ..Default::default()
+    };
+    let admitted = client.cycles.create(origins, metadata, true, String::new()).await?;
     let parent = admitted.cycle.ok_or("Admit Story Cases: Missing Cycle")?.cycle_id;
     let at = admitted.receipt.and_then(|receipt| receipt.durable_at).map(|position| ReadCut {
         positions: vec![position],
