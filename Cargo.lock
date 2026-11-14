@@ -1425,6 +1425,7 @@ dependencies = [
  "dokime-packaging",
  "dokime-protocol",
  "dokime-runtime",
+ "harmos-runtime",
  "prost",
  "prost-reflect",
  "reqwest",
@@ -1537,6 +1538,7 @@ dependencies = [
 name = "dokime-packaging"
 version = "0.1.5"
 dependencies = [
+ "harmos-runtime",
  "serde_json",
  "sha2 0.11.1",
  "tar",

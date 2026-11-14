@@ -82,7 +82,7 @@ async fn operator_pairs_with_host() -> Result<(), Box<dyn std::error::Error>> {
 
         // Register an Owned Development Plugin Through the Pairing Connection
         use tokio::io::{AsyncBufReadExt, BufReader};
-        let executable = super::fixtures().join(format!("dokime-example-plugin{}", std::env::consts::EXE_SUFFIX));
+        let executable = super::fixtures().join(format!("dokime-example-test{}", std::env::consts::EXE_SUFFIX));
         let mut plugin = super::command()
             .args(["--remote", path.to_str().unwrap(), "plugin", "dev", "--executable"])
             .arg(executable)

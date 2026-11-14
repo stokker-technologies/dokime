@@ -18,6 +18,9 @@
 // Standard Library Imports
 
 // Third Party Imports
+use dokime::Failure as ReportedFailure;
+use harmos_runtime::Failure;
+use tonic::Status;
 
 // Local Imports
 
@@ -45,8 +48,8 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
-    #[error(transparent)]
-    Status(#[from] tonic::Status),
+    #[error("{}", status_message(.0))]
+    Status(#[from] Status),
 
     #[error(transparent)]
     Transport(#[from] tonic::transport::Error),
@@ -114,5 +117,12 @@ impl From<String> for Error {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn status_message(status: &Status) -> String {
+    match Failure::decode(status.details()) {
+        Ok(failure) => format!("{status}: {}", ReportedFailure::from(&failure).message),
+        Err(_) => status.to_string(),
+    }
+}
 
 /* === Tests === */

@@ -41,7 +41,7 @@ use tokio::time::Instant;
 use super::ClientSettings;
 use crate::{Result, SchedulerClock};
 use dokime_storage::{Backend, Store};
-use harmos_protocol::model::StorageTransferSettings;
+use harmos_protocol::model::{StorageTransferSettings, TransferFraming};
 use harmos_runtime::storage::{
     StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
 };
@@ -122,6 +122,12 @@ pub(super) async fn launch(
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Page Capacity".into()))?;
     let bytes = NonZeroUsize::new(settings.message_bytes)
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Message Capacity".into()))?;
+    let chunk_bytes = settings
+        .message_bytes
+        .min(placement.message_bytes.get())
+        .checked_sub(TransferFraming::Bytes as usize)
+        .and_then(NonZeroUsize::new)
+        .ok_or_else(|| crate::Error::Invalid("Start Storage Transfers: Allow Transfer Framing Within the Message Capacity".into()))?;
     let catalog = harmos_runtime::plugin::manager::catalog().extend(dokime_operations::host::storage::administration::catalog());
     let (backends, lease) = Backend::open(store, catalog.clone())?;
     let storage = StorageManager::with_catalog(
@@ -130,7 +136,7 @@ pub(super) async fn launch(
         StorageSettings {
             transfer: StorageTransferSettings {
                 chunk_bytes: Some(
-                    u64::try_from(settings.message_bytes.saturating_sub(1024))
+                    u64::try_from(chunk_bytes.get())
                         .map_err(|source| crate::Error::Invalid(format!("Start Storage Transfers: {source}")))?,
                 ),
             },

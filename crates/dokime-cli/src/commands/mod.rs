@@ -114,7 +114,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings
     match command {
         Command::New(args) => new::run(args, settings).await,
         Command::Server(args) => Box::pin(server::run(args, endpoint, settings)).await,
-        Command::Plugin(command) => plugin::run(command, endpoint, settings).await,
+        Command::Plugin(command) => Box::pin(plugin::run(command, endpoint, settings)).await,
         Command::Proto(command) => proto::run(command),
         Command::Catalog(command) => catalog::run(command, endpoint, settings).await,
         Command::Plan(command) => plan::run(command, endpoint, settings).await,

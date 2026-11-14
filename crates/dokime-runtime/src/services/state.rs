@@ -46,17 +46,22 @@ use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::Document;
 use dokime_protocol::model::Origin;
+use dokime_protocol::model::PluginRun;
 use dokime_protocol::model::Suite;
 use dokime_protocol::model::Suites;
 use dokime_protocol::model::Value;
+use dokime_protocol::model::origin::Kind;
 use dokime_protocol::plugin::AnalysesComputeRequest;
 use dokime_protocol::plugin::AnalysesComputeResponse;
+use dokime_protocol::plugin::{TestCasesMaterializeRequest, TestCasesMaterializeResponse};
 use harmos_protocol::host::PluginEntry;
 use harmos_protocol::model::FileReference;
 use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
+use harmos_protocol::model::Visibility;
 use harmos_runtime::operations::OperationManager;
 use harmos_runtime::services::status::Status;
+use prost::Message;
 
 /* === Constants === */
 
@@ -155,7 +160,13 @@ impl ClientHost for State {
         self.host.reports.publish_prepared(prepared).map_err(convert)
     }
     async fn analyze(&self, plugin: &str, operation: &str, request: AnalysesComputeRequest) -> Result<AnalysesComputeResponse> {
-        self.host.analyze(plugin, operation, request).await.map_err(convert)
+        let action = format!("{plugin}.{operation}");
+        let payload = self
+            .operations
+            .call_encoded(&action, request.encode_to_vec())
+            .await
+            .map_err(|source| Error::Native { action: "Compute Analysis", source })?;
+        AnalysesComputeResponse::decode(payload.as_slice()).map_err(Into::into)
     }
     async fn plugins(&self) -> Result<Vec<PluginEntry>> {
         use harmos_protocol::host::PluginsListRequest;
@@ -174,7 +185,6 @@ impl ClientHost for State {
     }
     fn suites(&self) -> Result<Vec<(String, Suite)>> {
         use harmos_protocol::host::PluginState;
-        use prost::Message;
         let plugins = self.catalogs.read().map_err(|source| Error::Unavailable(format!("Read Suites: {source}")))?;
         let mut suites = Vec::new();
         for plugin in plugins.iter().filter(|entry| entry.state == PluginState::Ready as i32) {
@@ -196,7 +206,67 @@ impl ClientHost for State {
         Ok(suites)
     }
     async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, Value>) -> Result<Origin> {
-        self.host.materialize(plugin, template, parameters).await.map_err(convert)
+        use harmos_protocol::host::PluginState;
+        let entries = self.plugins().await?;
+        let entry = entries
+            .iter()
+            .find(|entry| entry.name == plugin && entry.state == PluginState::Ready as i32)
+            .ok_or_else(|| Error::Precondition(format!("Materialize {plugin}/{template}: Wait for the Plugin to Become Ready")))?;
+        let description = entry
+            .description
+            .as_ref()
+            .ok_or_else(|| Error::Precondition(format!("Materialize {plugin}/{template}: Discover the Plugin")))?;
+        let catalog = description
+            .declarations
+            .as_ref()
+            .ok_or_else(|| Error::Precondition(format!("Materialize {plugin}/{template}: Discover Its Declarations")))?;
+        let section = catalog
+            .sections
+            .iter()
+            .find(|section| section.r#type == "dokime.model.v1.Suites")
+            .ok_or_else(|| Error::Precondition(format!("Materialize {plugin}/{template}: Declare Its Suite")))?;
+        let suites = Suites::decode(section.payload.as_slice())?;
+        let definition = suites
+            .suites
+            .iter()
+            .flat_map(|suite| &suite.templates)
+            .find(|candidate| candidate.metadata.as_ref().is_some_and(|metadata| metadata.identifier == template))
+            .ok_or_else(|| Error::NotFound(format!("Materialize {plugin}/{template}: Select a Declared Template")))?;
+        let action = format!("{plugin}.{}", definition.materialize);
+        let payload = self
+            .operations
+            .call_encoded(
+                &action,
+                TestCasesMaterializeRequest {
+                    template: template.into(),
+                    parameters: parameters.clone(),
+                }
+                .encode_to_vec(),
+            )
+            .await
+            .map_err(|source| Error::Native { action: "Materialize Test Case", source })?;
+        let response = TestCasesMaterializeResponse::decode(payload.as_slice())?;
+        let test_case =
+            response.test_case.ok_or_else(|| Error::Precondition(format!("Materialize {plugin}/{template}: Return the Frozen Case")))?;
+        if test_case.parameters != parameters {
+            return Err(Error::Invalid(format!("Materialize {plugin}/{template}: Preserve the Resolved Parameters")));
+        }
+        for operation in
+            test_case.steps.iter().map(|step| &step.operation).chain(test_case.criteria.iter().map(|criterion| &criterion.operation))
+        {
+            if !catalog.operations.iter().any(|contract| &contract.id == operation && contract.visibility == Visibility::Protected as i32) {
+                return Err(Error::Invalid(format!("Materialize {plugin}/{template}: Declare {operation} as Protected")));
+            }
+        }
+        let run = PluginRun {
+            test_case: Some(test_case),
+            plugin: entry.name.clone(),
+            template: template.into(),
+            digest: catalog.digest.clone(),
+            started_at: description.started_at,
+        };
+        run.validate().map_err(Error::Invalid)?;
+        Ok(Origin { kind: Some(Kind::PluginRun(run)) })
     }
     async fn start(&self, origins: Vec<Origin>) -> Result<StartedCycle> {
         let cycle = self.host.start_cycle(origins).await.map_err(convert)?;

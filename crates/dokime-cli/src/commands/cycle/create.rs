@@ -41,6 +41,9 @@ pub(crate) struct Args {
     #[arg(long)]
     cases: PathBuf,
 
+    #[arg(long, default_value = "Cycle")]
+    label: String,
+
     #[arg(long)]
     json: bool,
 }
@@ -65,7 +68,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         context: settings.context()?,
         request_id: Some(settings.request_id(args.request_id)?),
     };
-    let value = client.cycles.create_with(origins, Default::default(), true, "", options).await?;
+    let value = client.cycles.create_with(origins, Default::default(), true, args.label, options).await?;
     crate::output::print(&value, args.json)
 }
 

@@ -20,6 +20,7 @@ use super::support;
 use dokime::Client;
 use dokime::client::PluginsSettingsSetOptions;
 use dokime::client::SettingsSetOptions;
+use dokime::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 use dokime::plugin::Plugin;
 use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
 use harmos_protocol::host::{PluginPlacement, PluginRemote, PluginValue};
@@ -95,6 +96,7 @@ async fn client_edits_settings() -> Result<(), Box<dyn Error>> {
         let provider = SettingsPlugin(InstanceGetResponse {
             id: "settings_fixture".into(),
             version: "0.1.0".into(),
+            sdk: "dokime-rust".into(),
             message_bytes: support::settings().placement.message_bytes.get() as u64,
             declarations: Some(catalog),
             revision: 1,
@@ -121,7 +123,28 @@ async fn client_edits_settings() -> Result<(), Box<dyn Error>> {
         let placement = PluginPlacement {
             kind: Some(PlacementKind::Remote(PluginRemote { url })),
         };
-        client.plugins.create("settings_fixture", placement, PluginValue { enabled: true }).await?;
+        let created = client.plugins.create("settings_fixture", placement, PluginValue { enabled: true }).await?;
+        let mut entry = created.entry.ok_or("Create Settings Fixture: Missing Entry")?;
+        let mut watching = client
+            .plugins
+            .watch_with(PluginsWatchOptions {
+                name: Some(entry.name.clone()),
+                ..Default::default()
+            })
+            .await?;
+        while entry.state != PluginState::Ready as i32 {
+            if entry.failure.is_some() || entry.state == PluginState::Stopped as i32 {
+                return Err(format!("Activate Settings Fixture: {:?}", entry.failure).into());
+            }
+            watching.next().await?.ok_or("Activate Settings Fixture: Watch Closed")?;
+            entry = client
+                .plugins
+                .get_with(entry.name, PluginsGetOptions::default())
+                .await?
+                .entry
+                .ok_or("Activate Settings Fixture: Entry Removed")?;
+        }
+        drop(watching);
 
         // Save a Revision-Checked Product Preference and Replay Its Receipt
         let schema = client.settings.schema().await?.schema.unwrap();

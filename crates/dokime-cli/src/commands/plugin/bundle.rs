@@ -22,6 +22,7 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_runtime::bundle::Manifest;
 use prost::Message;
 use sha2::Digest;
 
@@ -87,6 +88,7 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::
     let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let mut output = tempfile::NamedTempFile::new_in(parent)?;
     let mut archive = tar::Builder::new(output.as_file_mut());
+    let manifest: Manifest = serde_json::from_value(manifest)?;
     let bytes = serde_json::to_vec(&manifest)?;
     for (path, bytes, mode) in [
         ("manifest.json", bytes.as_slice(), 0o644),
@@ -95,6 +97,7 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::
         ("dokime.json", compatibility.as_slice(), 0o644),
     ] {
         let mut header = tar::Header::new_ustar();
+        header.set_entry_type(tar::EntryType::Regular);
         header.set_size(bytes.len() as u64);
         header.set_mode(mode);
         header.set_mtime(0);

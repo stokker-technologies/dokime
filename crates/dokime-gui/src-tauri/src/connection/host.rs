@@ -45,7 +45,7 @@ use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
 use super::ConnectionTarget;
 use dokime_sdk::FileReference;
 use dokime_sdk::client::{CallOptions, PluginEntry, PluginsCreateOptions};
-use dokime_sdk::client::{PluginManaged, PluginPlacement, PluginValue};
+use dokime_sdk::client::{PluginManaged, PluginPlacement, PluginState, PluginValue, PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_runtime::{HostSettings, services};
 use dokime_sdk::client::StatusGetResponse;
@@ -180,7 +180,34 @@ impl Session {
             context: self.call_options()?,
         };
         let reply = self.execute(self.client.plugins.create_with(name, placement, PluginValue { enabled: true }, options)).await?;
-        reply.entry.ok_or_else(|| Status::data_loss("Install Plugin: Host Omitted Its Entry").into())
+        let mut entry = reply.entry.ok_or_else(|| Status::data_loss("Install Plugin: Host Omitted Its Entry"))?;
+        let options = PluginsWatchOptions {
+            name: Some(entry.name.clone()),
+            context: self.call_options()?,
+            ..Default::default()
+        };
+        let mut watch = self.execute(self.client.plugins.watch_with(options)).await?;
+        while entry.state != PluginState::Ready as i32 {
+            if matches!(PluginState::try_from(entry.state), Ok(PluginState::Unavailable | PluginState::Stopped)) {
+                return Err(Status::failed_precondition(format!(
+                    "Install Plugin {}: {}",
+                    entry.name,
+                    entry.failure.map_or_else(|| "Activation Stopped".into(), |failure| failure.message)
+                ))
+                .into());
+            }
+            self.execute(watch.next()).await?.ok_or_else(|| Status::unavailable("Install Plugin: Plugin Watch Closed Before Readiness"))?;
+            let options = PluginsGetOptions {
+                context: self.call_options()?,
+                ..Default::default()
+            };
+            entry = self
+                .execute(self.client.plugins.get_with(entry.name, options))
+                .await?
+                .entry
+                .ok_or_else(|| Status::not_found("Install Plugin: Plugin Entry Was Removed"))?;
+        }
+        Ok(entry)
     }
 
     pub fn call_options(&self) -> Result<CallOptions, Error> {

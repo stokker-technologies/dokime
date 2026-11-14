@@ -154,7 +154,7 @@ pub async fn install(
     }
     let session = lease.client();
     let client = session.client();
-    let name = format!("plugin-{:032x}", rand::random::<u128>());
+    let name = format!("plugin_{:032x}", rand::random::<u128>());
     let metadata = FileMetadata {
         id: name.clone(),
         media_type: "application/vnd.dokime.plugin".into(),
@@ -168,6 +168,7 @@ pub async fn install(
     };
     let created = session.execute(client.files.uploads.create_with(metadata, options)).await.map_err(text)?;
     let mut upload: Upload = created.upload.ok_or("Install Plugin: Host Omitted Its Upload")?;
+    let mut published = false;
     let result = async {
         let chunk_bytes = usize::try_from(created.chunk_bytes).map_err(text)?;
         if chunk_bytes == 0 || created.chunk_bytes >= created.message_bytes {
@@ -194,6 +195,7 @@ pub async fn install(
         };
         let reply =
             session.execute(client.files.uploads.publish_with(upload.clone(), size_bytes, digest.clone(), options)).await.map_err(text)?;
+        published = true;
         let file = reply.upload.ok_or("Install Plugin: Host Omitted Its Published File")?;
         if file.length != size_bytes || file.sha256 != digest {
             return Err("Install Plugin: Published File Length or SHA-256 Changed".into());
@@ -202,7 +204,7 @@ pub async fn install(
         session.install_plugin(&name, file).await.map_err(text)
     }
     .await;
-    if result.is_err() {
+    if result.is_err() && !published {
         let options = FilesUploadsDeleteOptions {
             request_id: Some(format!("{name}/abandon")),
             context: session.call_options().map_err(text)?,

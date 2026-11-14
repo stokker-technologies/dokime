@@ -23,7 +23,9 @@ use std::{io::Write, path::PathBuf};
 // Local Imports
 use dokime::client::plugin_placement::Kind;
 use dokime::client::{PluginPlacement, PluginRemote, PluginValue};
+use dokime::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 use dokime::client::{PluginsCreateOptions, PluginsDeleteOptions};
+use tonic::Status;
 
 /* === Constants === */
 
@@ -50,7 +52,7 @@ pub(crate) struct Args {
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
     let mut process = dokime_runtime::PluginProcess::start(&args.executable, true, &settings.placement()).await?;
     let mut registered = None;
-    let result: crate::Result<()> = async {
+    let result: crate::Result<()> = Box::pin(async {
         if endpoint.is_some() || settings.pairing.is_some() {
             let description = process.describe().await?;
             let client = settings.sdk(endpoint).await?;
@@ -71,6 +73,39 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
                 .await?;
             let entry = created.entry.ok_or("Develop Plugin: Missing Registered Entry")?;
             registered = Some((client, entry));
+            let (client, entry) = registered.as_mut().ok_or("Develop Plugin: Retain the Registered Entry")?;
+            let mut watch = client
+                .plugins
+                .watch_with(PluginsWatchOptions {
+                    name: Some(entry.name.clone()),
+                    context: settings.context()?,
+                    ..Default::default()
+                })
+                .await?;
+            while entry.state != PluginState::Ready as i32 {
+                if matches!(PluginState::try_from(entry.state), Ok(PluginState::Unavailable | PluginState::Stopped)) {
+                    return Err(Status::failed_precondition(format!(
+                        "Develop Plugin {}: {}",
+                        entry.name,
+                        entry.failure.as_ref().map_or("Activation Stopped", |failure| failure.message.as_str())
+                    ))
+                    .into());
+                }
+                watch.next().await?.ok_or("Develop Plugin: Plugin Watch Closed Before Readiness")?;
+                *entry = client
+                    .plugins
+                    .get_with(
+                        entry.name.clone(),
+                        PluginsGetOptions {
+                            context: settings.context()?,
+                            ..Default::default()
+                        },
+                    )
+                    .await?
+                    .entry
+                    .ok_or("Develop Plugin: Plugin Entry Was Removed")?;
+            }
+            drop(watch);
         }
         println!("{}", process.endpoint());
         std::io::stdout().flush()?;
@@ -84,7 +119,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
             }
         }
         Ok(())
-    }
+    })
     .await;
     let removed = match registered {
         Some((client, entry)) => {

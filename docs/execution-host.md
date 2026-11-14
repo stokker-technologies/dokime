@@ -1729,6 +1729,20 @@ calls before releasing it.
 Uploads.Create assigns an omitted file ID from its mutation identity. Plugin
 mutation identities include the trusted execution scope, so equal request IDs in
 different executions remain independent; retrying one request retains its file ID.
+Artifact creation accepts open execution evidence, including imported evidence,
+and refuses closed executions before writing metadata.
+
+Bundle creation and inspection use the library's canonical manifest and USTAR
+rules. Install, add and development commands observe Plugins.Watch and read the
+current entry until it is Ready; the desktop installer uses the same admission
+condition. Case materialization and analysis invoke the admitted library operation
+under the managed entry name. They do not reconnect a second plugin instance.
+
+Scoped execution integration remains incomplete: the library attaches publication
+scope before an execution exists and installs the global ClockAccess for each
+operation. The execution driver still requires an invocation-scoped clock and
+publication lease that preserve awaited ingestion and close settlement. Its direct
+execution path has not been replaced by a second managed launch or endpoint field.
 
 For this wave, compound product objects retain their transactional Store paths.
 The operations manifest declares the workspace `harmos-runtime`

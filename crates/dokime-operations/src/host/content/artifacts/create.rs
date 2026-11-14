@@ -79,7 +79,9 @@ pub async fn handle(context: &Context, mut request: ArtifactsCreateRequest) -> R
         let key = artifact_key(&identifier);
         let snapshot = administration::read(context, &key, &[], None).await?;
         let stored = if snapshot.payload.is_empty() {
-            context.host.store().require_run_open(execution)?;
+            if context.host.store().cut(execution)?.state != dokime_storage::ExecutionState::Open {
+                return Err(Error::Precondition(format!("{ID}: Select an Open Execution")));
+            }
             let file = get::handle(context, FilesGetRequest { file: Some(file.clone()), at: None })
                 .await?
                 .file

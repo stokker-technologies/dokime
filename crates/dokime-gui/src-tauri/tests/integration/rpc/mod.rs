@@ -118,6 +118,7 @@ mod native {
 /* === Imports === */
 
 // Third Party Imports
+use harmos_runtime::bundle::Manifest;
 use prost::Message;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -176,10 +177,12 @@ fn bundle(resource_bytes: usize, target: &str) -> Vec<u8> {
     let filename = format!("bin/thermal{}", std::env::consts::EXE_SUFFIX);
     let manifest = serde_json::to_vec(&json!({"schema":1, "identity":{"name":"desktop-fixture", "version":"1.0.0", "description":"Desktop Fixture"},
         "files":[
-            {"path":filename, "size":executable.len(), "sha256":hex(&Sha256::digest(&executable)), "executable":{"facility":"sidecar", "target":target}},
+            {"path":filename, "size":executable.len(), "sha256":hex(&Sha256::digest(&executable)), "executable":{"facility":"sidecar", "target":target, "registrations":[]}},
             {"path":"dokime.json", "size":compatibility.len(), "sha256":hex(&Sha256::digest(compatibility))},
             {"path":"resources/payload.bin", "size":resource.len(), "sha256":hex(&Sha256::digest(&resource))}
         ]})).unwrap();
+    let manifest: Manifest = serde_json::from_slice(&manifest).unwrap();
+    let manifest = serde_json::to_vec(&manifest).unwrap();
     let mut archive = tar::Builder::new(Vec::new());
     for (path, bytes) in [
         ("manifest.json", manifest.as_slice()),
@@ -188,8 +191,12 @@ fn bundle(resource_bytes: usize, target: &str) -> Vec<u8> {
         ("resources/payload.bin", resource.as_slice()),
     ] {
         let mut header = tar::Header::new_ustar();
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_uid(0);
+        header.set_gid(0);
+        header.set_mtime(0);
         header.set_size(bytes.len() as u64);
-        header.set_mode(0o700);
+        header.set_mode(if path == filename { 0o755 } else { 0o644 });
         header.set_cksum();
         archive.append_data(&mut header, path, bytes).unwrap();
     }
@@ -266,7 +273,10 @@ fn owner_cancellation_health() {
         let generation = fixture.generation();
         let (stream, channel) = harness.open(generation, "/dokime.host.v1.backend.Overview/Watch", &[], false).unwrap();
         harness.app.state::<Bridge>().cancel_owner("main");
-        assert_eq!(harness.control("rpc_stream_ack", generation, stream, &[], json!({})).unwrap_err()["kind"], "unknown_stream");
+        assert_eq!(
+            harness.control("rpc_stream_ack", generation, stream, &[], json!({"dokime-rpc-credit":"1"})).unwrap_err()["kind"],
+            "unknown_stream"
+        );
         assert_eq!(harness.settle(channel).last().unwrap()[8], FRAME_ERROR);
         let client = fixture.client().await;
         let response =

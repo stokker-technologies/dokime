@@ -79,7 +79,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
         Command::Secrets(args) => secrets::run(args, endpoint, settings).await,
         Command::List(args) => list::run(args, endpoint, settings).await,
         Command::Bundle(args) => bundle::run(args, endpoint, settings).await,
-        Command::Dev(args) => dev::run(args, endpoint, settings).await,
+        Command::Dev(args) => Box::pin(dev::run(args, endpoint, settings)).await,
         Command::Inspect(args) => inspect::run(args, endpoint, settings).await,
         Command::Add(args) => add::run(args, endpoint, settings).await,
         Command::Install(args) => install::run(args, endpoint, settings).await,
