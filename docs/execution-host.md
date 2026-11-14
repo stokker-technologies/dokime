@@ -1692,6 +1692,43 @@ consumer. C++ compiles both the consumer and generated host implementation as an
 object target. The desktop consumer compiles its generated client with the existing
 transport seam, without importing product views.
 
+### Handler Interfaces
+
+The common assembly owner owns `host::Context`, `Resources`, `host::Host` and
+registration. Canonical host handlers keep `handle(&Context, Request)`; operations
+restricted to plugin invocations can take `&Resources`. Both direct client calls
+and child dispatch call the same canonical handler. `Context.caller` is `None` for
+clients and contains the trusted `Resources` for plugins; never construct identity
+from a request. Use `context.resolve_execution(selector, ID)` before storage reads.
+`Resources.context` retains the client-independent assembly context and child
+dispatch clones it with the trusted caller attached.
+
+`Context.operations` is the composed library `OperationManager`.
+`Context.storage::<O>(request)` invokes its native operation, retaining the library
+callee policy and action/cause on failure. Import native declarations and requests
+from `harmos_runtime::builtins::storage`; use the native object, record, sample,
+query and file operations instead of `context.host.store()` or `resources.store`.
+The remaining direct Store callers are migration obligations, not an alternate
+interface. The operations manifest must declare the workspace `harmos-runtime`
+dependency; only the manifest owner may edit it.
+
+```rust,ignore
+use crate::{Result, host::Context};
+use harmos_runtime::builtins::storage::{CreateSnapshot, CreateSnapshotRequest, CreateSnapshotResponse};
+
+pub async fn handle(context: &Context, request: CreateSnapshotRequest) -> Result<CreateSnapshotResponse> {
+    context.storage::<CreateSnapshot>(request).await
+}
+```
+
+`host::Host::plugins()` is async and returns the library `PluginEntry` values.
+The product Host trait has no installation, enablement, replacement or plugin
+settings methods; the library owns them. Declarations come from the frozen
+service descriptors, including plugin-only methods, rather than a second manual
+method list. Wrong audiences use `harmos_runtime::Failure::wrong_caller`;
+`caller_status` retains that structured failure in direct gRPC status details.
+The source handoff does not assert that the remaining handlers or runtime compile.
+
 ### State After Definition Repair
 
 The source closures below are the consumer reports in this branch's history,

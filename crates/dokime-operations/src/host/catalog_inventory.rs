@@ -52,7 +52,7 @@ pub(crate) struct Inventory {
 impl Inventory {
     pub async fn read(context: &Context) -> Result<Self> {
         context.host.refresh_plugin_states().await?;
-        let plugins = context.host.plugins()?;
+        let plugins = context.host.plugins().await?;
         let mut catalogs = Vec::new();
         for plugin in plugins.iter().filter(|plugin| plugin.state == PluginState::Ready as i32) {
             catalogs.push(

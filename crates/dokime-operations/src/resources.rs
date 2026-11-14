@@ -37,6 +37,7 @@ use dokime_storage::{Evidence, Store};
 #[derive(Clone)]
 pub struct Resources {
     pub plugin: Arc<InstanceGetResponse>,
+    pub context: Arc<crate::host::Context>,
     pub store: Store,
     pub execution: String,
     pub step: String,

@@ -59,8 +59,6 @@ use dokime_protocol::host::BootstrapPaths;
 use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ExecutionControls;
 use dokime_protocol::host::ExecutionMode;
-use dokime_protocol::host::Plugin;
-use dokime_protocol::host::PluginInstallation;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
 use dokime_protocol::host::ReportMetadata;
@@ -72,17 +70,18 @@ use dokime_protocol::model::Document;
 use dokime_storage::ExecutionCut;
 use dokime_storage::Report;
 use dokime_storage::Store;
+use harmos_protocol::host::PluginEntry;
 use harmos_protocol::model::FileReference;
 use harmos_protocol::model::OperationContract;
 use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
+use harmos_runtime::operations::{NativeOperation, OperationManager};
 use prost_reflect::ReflectMessage;
 use prost_types::FileDescriptorSet;
 use prost_types::Timestamp;
 use std::fs::File;
 use std::result::Result as StandardResult;
 use tokio::sync::Mutex;
-use tokio::sync::oneshot::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 
@@ -90,122 +89,6 @@ use tonic::Status;
 
 const DEFAULT_PAGE_ITEMS: usize = 50;
 const MAX_PAGE_ITEMS: usize = 500;
-
-pub const METHODS: &[&str] = &[
-    "/dokime.host.v1.Files/Get",
-    "/dokime.host.v1.Files/Read",
-    "/dokime.host.v1.Files/Delete",
-    "/dokime.host.v1.files.Uploads/Create",
-    "/dokime.host.v1.files.Uploads/Get",
-    "/dokime.host.v1.files.Uploads/Resume",
-    "/dokime.host.v1.files.Uploads/Append",
-    "/dokime.host.v1.files.Uploads/Publish",
-    "/dokime.host.v1.files.Uploads/Delete",
-    "/dokime.host.v1.Files/Watch",
-    "/dokime.host.v1.Aggregates/Get",
-    "/dokime.host.v1.Backend/Appearance",
-    "/dokime.host.v1.Cases/Create",
-    "/dokime.host.v1.Cases/Delete",
-    "/dokime.host.v1.Cases/Get",
-    "/dokime.host.v1.Cases/List",
-    "/dokime.host.v1.Cases/Parameters",
-    "/dokime.host.v1.Cases/Watch",
-    "/dokime.host.v1.Analyses/List",
-    "/dokime.host.v1.Cycles/Create",
-    "/dokime.host.v1.Cycles/Get",
-    "/dokime.host.v1.Cycles/List",
-    "/dokime.host.v1.Cycles/Seal",
-    "/dokime.host.v1.Cycles/Set",
-    "/dokime.host.v1.Cycles/Watch",
-    "/dokime.host.v1.Documents/Get",
-    "/dokime.host.v1.Documents/Watch",
-    "/dokime.host.v1.Evidence/Archive",
-    "/dokime.host.v1.Evidence/Statistics",
-    "/dokime.host.v1.Executions/Cancel",
-    "/dokime.host.v1.Executions/Create",
-    "/dokime.host.v1.Executions/Delete",
-    "/dokime.host.v1.Executions/Get",
-    "/dokime.host.v1.executions.Schemas/Get",
-    "/dokime.host.v1.Executions/List",
-    "/dokime.host.v1.Executions/Parameters",
-    "/dokime.host.v1.Executions/Set",
-    "/dokime.host.v1.Executions/Start",
-    "/dokime.host.v1.Executions/Steps",
-    "/dokime.host.v1.Executions/Stop",
-    "/dokime.host.v1.Executions/Watch",
-    "/dokime.host.v1.Plugins/Add",
-    "/dokime.host.v1.Plugins/GetInstallation",
-    "/dokime.host.v1.Plugins/Install",
-    "/dokime.host.v1.Plugins/List",
-    "/dokime.host.v1.Plugins/ListAdmittedPlugins",
-    "/dokime.host.v1.Plugins/ListInstallations",
-    "/dokime.host.v1.Plugins/Reload",
-    "/dokime.host.v1.Plugins/Remove",
-    "/dokime.host.v1.Plugins/SetEnabled",
-    "/dokime.host.v1.Prompts/Get",
-    "/dokime.host.v1.Prompts/List",
-    "/dokime.host.v1.Prompts/Watch",
-    "/dokime.host.v1.Reports/Create",
-    "/dokime.host.v1.Reports/Get",
-    "/dokime.host.v1.Reports/Publish",
-    "/dokime.host.v1.Secrets/Delete",
-    "/dokime.host.v1.Secrets/Export",
-    "/dokime.host.v1.Secrets/Get",
-    "/dokime.host.v1.Secrets/Import",
-    "/dokime.host.v1.Secrets/List",
-    "/dokime.host.v1.Secrets/Set",
-    "/dokime.host.v1.Secrets/Watch",
-    "/dokime.host.v1.Settings/Get",
-    "/dokime.host.v1.Settings/Schema",
-    "/dokime.host.v1.Settings/Set",
-    "/dokime.host.v1.backend.Overview/Get",
-    "/dokime.host.v1.backend.Overview/Watch",
-    "/dokime.host.v1.PromptDefinitions/Get",
-    "/dokime.host.v1.PromptDefinitions/List",
-    "/dokime.host.v1.RecordSchemas/Get",
-    "/dokime.host.v1.RecordSchemas/List",
-    "/dokime.host.v1.StreamSchemas/Get",
-    "/dokime.host.v1.StreamSchemas/List",
-    "/dokime.host.v1.Suites/Get",
-    "/dokime.host.v1.Suites/List",
-    "/dokime.host.v1.content.Artifacts/Create",
-    "/dokime.host.v1.content.Artifacts/Get",
-    "/dokime.host.v1.content.Artifacts/List",
-    "/dokime.host.v1.content.Artifacts/Watch",
-    "/dokime.host.v1.content.ExecutionFiles/Get",
-    "/dokime.host.v1.content.ExecutionFiles/List",
-    "/dokime.host.v1.content.ExecutionFiles/Watch",
-    "/dokime.host.v1.evidence.HealthEvents/List",
-    "/dokime.host.v1.evidence.HealthEvents/Watch",
-    "/dokime.host.v1.evidence.Notes/Create",
-    "/dokime.host.v1.evidence.Notes/Get",
-    "/dokime.host.v1.evidence.Notes/List",
-    "/dokime.host.v1.evidence.Notes/Set",
-    "/dokime.host.v1.evidence.Notes/Watch",
-    "/dokime.host.v1.evidence.Records/List",
-    "/dokime.host.v1.evidence.Records/Watch",
-    "/dokime.host.v1.evidence.Samples/List",
-    "/dokime.host.v1.evidence.Samples/Watch",
-    "/dokime.host.v1.evidence.Traceability/Get",
-    "/dokime.host.v1.evidence.Traceability/Watch",
-    "/dokime.host.v1.executions.Commands/Create",
-    "/dokime.host.v1.executions.Commands/Get",
-    "/dokime.host.v1.executions.Progress/Get",
-    "/dokime.host.v1.executions.Progress/Watch",
-    "/dokime.host.v1.media.Captures/Create",
-    "/dokime.host.v1.media.Captures/Get",
-    "/dokime.host.v1.media.Captures/Stop",
-    "/dokime.host.v1.media.Captures/Watch",
-    "/dokime.host.v1.plots.Settings/Get",
-    "/dokime.host.v1.plots.Settings/Set",
-    "/dokime.host.v1.plots.Snapshots/List",
-    "/dokime.host.v1.plots.Snapshots/Watch",
-    "/dokime.host.v1.plugins.Settings/Get",
-    "/dokime.host.v1.plugins.Settings/Set",
-    "/dokime.host.v1.prompts.Answers/Create",
-    "/dokime.host.v1.storage.Sources/Get",
-    "/dokime.host.v1.storage.Sources/Set",
-];
 
 /* === Macros === */
 
@@ -230,6 +113,8 @@ pub struct Context {
     pub administration: Arc<Mutex<()>>,
     pub host: Arc<dyn Host>,
     pub settings: ClientSettings,
+    pub operations: OperationManager,
+    pub caller: Option<crate::Resources>,
 }
 #[derive(Clone, Debug)]
 pub struct Progress {
@@ -285,15 +170,8 @@ pub trait Host: Send + Sync {
     async fn analyze(
         &self, plugin: &str, operation: &str, request: dokime_protocol::plugin::AnalysesComputeRequest,
     ) -> Result<dokime_protocol::plugin::AnalysesComputeResponse>;
-    async fn add_remote(&self, url: &str) -> Result<Plugin>;
-    fn plugins(&self) -> Result<Vec<Plugin>>;
+    async fn plugins(&self) -> Result<Vec<PluginEntry>>;
     async fn refresh_plugin_states(&self) -> Result<()>;
-    async fn restore_managed_plugins(&self) -> Result<()>;
-    fn installations(&self) -> Result<Vec<PluginInstallation>>;
-    async fn install_plugin_bundle(&self, bytes: Vec<u8>, cancelled: Receiver<()>) -> Result<PluginInstallation>;
-    async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<PluginInstallation>;
-    async fn remove_plugin_entry(&self, identifier: &str) -> Result<()>;
-    async fn reload_plugin_entry(&self, identifier: &str) -> Result<()>;
     fn suites(&self) -> Result<Vec<(String, dokime_protocol::model::Suite)>>;
     async fn materialize(
         &self, plugin: &str, template: &str, parameters: HashMap<String, dokime_protocol::model::Value>,
@@ -306,6 +184,17 @@ pub trait Host: Send + Sync {
 }
 
 /* === Implementations === */
+
+impl Context {
+    pub fn resolve_execution<'a>(&'a self, selected: Option<&'a str>, action: &str) -> Result<&'a str> {
+        let trusted = self.caller.as_ref().map(|caller| caller.execution.as_str());
+        crate::resources::resolve_execution(trusted, selected, action)
+    }
+
+    pub async fn storage<O: NativeOperation<Endpoints = ()>>(&self, request: O::Request) -> Result<O::Response> {
+        self.operations.call_native::<O>(request).await.map_err(|source| Error::Unavailable(format!("{}: {source}", O::ID)))
+    }
+}
 
 /* === Public Functions === */
 

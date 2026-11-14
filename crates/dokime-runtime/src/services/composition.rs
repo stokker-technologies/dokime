@@ -38,7 +38,8 @@ use crate::{Result, SchedulerClock};
 use dokime_storage::{Backend, Store};
 use harmos_protocol::model::StorageTransferSettings;
 use harmos_storage::{
-    StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
+    StorageBackends, StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings,
+    StorageSettings,
 };
 
 /* === Constants === */
@@ -104,10 +105,10 @@ pub(super) async fn launch(source: Arc<dyn SchedulerClock>, store: &Store, setti
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Page Capacity".into()))?;
     let bytes = NonZeroUsize::new(settings.message_bytes)
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Message Capacity".into()))?;
-    let backends = Backend::open(store)?;
+    let StorageBackends { primary, state } = Backend::open(store)?;
     let storage = StorageManager::with_catalog(
         harmos_runtime::plugin::manager::catalog(),
-        backends,
+        StorageBackends { primary, state },
         StorageSettings {
             transfer: StorageTransferSettings::default(),
             policy: StoragePolicy::default(),
