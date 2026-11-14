@@ -217,8 +217,8 @@ Generated modules are rebuilt by their generators, never edited by hand.
 | `Plots.Snapshots`, `Plots.Settings` | Bounded snapshots and Watch updates; plot edits use the matching Get revision. |
 | `Plugins`, `plugins.Settings`, `plugins.Secrets` | Library entries own managed/remote/guest placement, enablement, revision, activation and current failure. Library settings use List/Set; the product separately owns declared secret bindings with List/Set/Delete. |
 | `Settings`, `Secrets`, `Storage.Sources` | Whole writable values with matching Get revisions. Secret import/export retain explicit generation checks and reviewed choices. |
-| `content.Artifacts`, `content.ExecutionFiles`, `Evidence.Archive`, `Reports` | Product-owned metadata and immutable references; bytes use product `Files.Read`. Uploads use library file production before artifact attachment. |
-| Library `Status`, `Access`, `Storage`, `Invocations` | Direct library contracts on the same native connection. Missing host capabilities retain disabled controls and their visible reason. |
+| `content.Artifacts`, `content.ExecutionFiles`, `Evidence.Archive`, `Reports` | Product-owned metadata and immutable references; bytes use product `Files.Read`. Uploads use product Files.Uploads before artifact attachment. |
+| Library `Status`, `Access`, `Operations`, `Invocations`, `Time` | Direct library contracts on the same native connection. Missing host capabilities retain disabled controls and their visible reason. |
 
 Report creation renders a preview without publication. Publish names the prepared
 file and its digest revision. Native delivery checks bounded contiguous ranges,
