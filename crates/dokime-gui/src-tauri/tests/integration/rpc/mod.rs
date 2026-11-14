@@ -123,9 +123,14 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 
 // Local Imports
+
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::Fixture;
 use dokime_gui::rpc::{Bridge, FRAME_ERROR};
+use dokime_sdk::client::PluginEntry;
+use dokime_sdk::client::PluginsListOptions;
+use dokime_sdk::client::StatusGetOptions;
+use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
 use harmos_protocol::host as library;
 
 /* === Constants === */
@@ -150,7 +155,7 @@ fn invoke(window: &bridge::Window, command: &str, bytes: Vec<u8>) -> Result<taur
     bridge::invoke(window, command, bytes, &serde_json::Value::Null)
 }
 
-async fn install(fixture: &Fixture, bytes: Vec<u8>) -> Result<dokime_sdk::client::PluginEntry, String> {
+async fn install(fixture: &Fixture, bytes: Vec<u8>) -> Result<PluginEntry, String> {
     let lease = fixture.session.lease(&fixture.generation().to_string()).unwrap();
     let progress = tauri::ipc::Channel::new(|_| Ok(()));
     dokime_gui::testing::install_plugin_bundle(&lease, bytes, progress, None).await
@@ -264,10 +269,8 @@ fn owner_cancellation_health() {
         assert_eq!(harness.control("rpc_stream_ack", generation, stream, &[], json!({})).unwrap_err()["kind"], "unknown_stream");
         assert_eq!(harness.settle(channel).last().unwrap()[8], FRAME_ERROR);
         let client = fixture.client().await;
-        let response = client
-            .execute(client.client().status.get_with(dokime_sdk::client::StatusGetOptions { context: client.call_options().unwrap() }))
-            .await
-            .unwrap();
+        let response =
+            client.execute(client.client().status.get_with(StatusGetOptions { context: client.call_options().unwrap() })).await.unwrap();
         assert!(response.status.unwrap().available);
         fixture.close().await;
     })
@@ -300,7 +303,7 @@ fn installs_large_bundle() {
         let digest = Sha256::digest(&bytes).to_vec();
         let installed = install(&fixture, bytes).await.unwrap();
         let placement = installed.placement.unwrap().kind.unwrap();
-        let dokime_sdk::client::plugin_placement::Kind::Managed(managed) = placement else {
+        let PluginPlacementKind::Managed(managed) = placement else {
             panic!("Expected Managed Placement");
         };
         assert_eq!(managed.sha256, digest);
@@ -318,7 +321,7 @@ fn refuses_foreign_bundle() {
         assert!(install(&fixture, bundle(1024, target)).await.is_err());
         let client = fixture.client().await;
         let page = client
-            .execute(client.client().plugins.list_with(dokime_sdk::client::PluginsListOptions { context: client.call_options().unwrap() }))
+            .execute(client.client().plugins.list_with(PluginsListOptions { context: client.call_options().unwrap() }))
             .await
             .unwrap();
         assert!(page.entries.is_empty());

@@ -27,8 +27,7 @@ use super::backend::Backend;
 use super::storage::StorageRoot;
 use super::{BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
 use crate::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
-use dokime_protocol::host::SettingsGetRequest;
-use dokime_sdk::client::SettingsGetResponse;
+use dokime_sdk::client::SettingsGetOptions;
 
 /* === Constants === */
 
@@ -366,13 +365,15 @@ impl DesktopSession {
                     message: error.to_string(),
                     diagnostics: None,
                 })?;
-                let snapshot: SettingsGetResponse = session
-                    .unary("/dokime.host.v1.Settings/Get", dokime_protocol::host::SettingsGetRequest::default())
-                    .await
-                    .map_err(|error| Error::Startup {
-                        message: error.to_string(),
-                        diagnostics: None,
-                    })?;
+                let context = session.call_options().map_err(|error| Error::Startup {
+                    message: error.to_string(),
+                    diagnostics: None,
+                })?;
+                let options = SettingsGetOptions { context };
+                let snapshot = session.execute(session.client().settings.get_with(options)).await.map_err(|error| Error::Startup {
+                    message: error.to_string(),
+                    diagnostics: None,
+                })?;
                 snapshot.value.and_then(|settings| settings.client).ok_or_else(|| Error::Startup {
                     message: "Read Local Preferences: Host Omitted Client Settings".into(),
                     diagnostics: None,

@@ -19,6 +19,8 @@ use tokio_stream::StreamExt;
 
 // Local Imports
 
+use dokime_sdk::client::StatusGetOptions;
+
 use crate::support::server::Fixture;
 use dokime_sdk::client::BackendOverviewWatchResponse;
 use harmos_protocol::host as library;
@@ -49,10 +51,8 @@ fn sdk_and_binary_calls_share_host_identity() {
         // Read the Same Library Status Through Typed and Binary Adapter Calls
         let fixture = Fixture::new().await;
         let client = fixture.client().await;
-        let typed = client
-            .execute(client.client().status.get_with(dokime_sdk::client::StatusGetOptions { context: client.call_options().unwrap() }))
-            .await
-            .unwrap();
+        let typed =
+            client.execute(client.client().status.get_with(StatusGetOptions { context: client.call_options().unwrap() })).await.unwrap();
         let bytes = client.call_raw("/harmos.host.v1.Status/Get", &[]).await.unwrap();
         let binary = library::StatusGetResponse::decode(bytes.as_slice()).unwrap();
         assert_eq!(typed.status.unwrap().identity, binary.status.unwrap().identity);

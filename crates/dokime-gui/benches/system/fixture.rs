@@ -31,7 +31,13 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 
 // Local Imports
+
 use dokime_sdk::PlotRequest;
+use dokime_sdk::client::PluginPlacement;
+use dokime_sdk::client::PluginRemote;
+use dokime_sdk::client::PluginValue;
+use dokime_sdk::client::PluginsCreateOptions;
+use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
 
 use super::sample_carrier::Producer;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Session};
@@ -157,22 +163,15 @@ impl Fixture {
         };
         let mode = root.join("bench-mode");
         let plugin = Producer::start(&placement, &[("DOKIME_BENCH_MODE".into(), mode.to_str().unwrap().into())]).await.unwrap();
-        let options = dokime_sdk::client::PluginsCreateOptions {
+        let options = PluginsCreateOptions {
             context: session.call_options().unwrap(),
             ..Default::default()
         };
-        let placement = dokime_sdk::client::PluginPlacement {
-            kind: Some(dokime_sdk::client::plugin_placement::Kind::Remote(dokime_sdk::client::PluginRemote {
-                url: plugin.endpoint().into(),
-            })),
+        let placement = PluginPlacement {
+            kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
         };
         let admitted = session
-            .execute(session.client().plugins.create_with(
-                "bench.pipeline",
-                placement,
-                dokime_sdk::client::PluginValue { enabled: true },
-                options,
-            ))
+            .execute(session.client().plugins.create_with("bench.pipeline", placement, PluginValue { enabled: true }, options))
             .await
             .unwrap();
         assert!(!admitted.entry.unwrap().name.is_empty());

@@ -19,24 +19,16 @@ use std::path::{Path, PathBuf};
 // Third Party Imports
 
 // Local Imports
+use dokime_sdk::client::{
+    ContentArtifactsGetOptions, ContentExecutionFilesGetOptions, EvidenceArchiveOptions, FilesGetOptions, FilesReadOptions,
+    ReportsCreateOptions, ReportsGetOptions,
+};
 
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
-use dokime_protocol::host::EvidenceArchiveRequest;
-use dokime_protocol::host::ReportsCreateRequest;
-use dokime_protocol::host::ReportsGetRequest;
-use dokime_protocol::host::content::ArtifactsGetRequest;
-use dokime_protocol::host::content::ExecutionFilesGetRequest;
-use dokime_protocol::host::{FilesGetRequest, FilesGetResponse, FilesReadRequest};
-use dokime_sdk::client::ContentArtifactsGetResponse;
-use dokime_sdk::client::ContentExecutionFilesGetResponse;
-use dokime_sdk::client::EvidenceArchiveResponse;
 use dokime_sdk::client::EvidenceSubject;
-use dokime_sdk::client::FilesReadResponse;
 use dokime_sdk::client::ReportOrigin;
 use dokime_sdk::client::ReportSubject;
-use dokime_sdk::client::ReportsCreateResponse;
-use dokime_sdk::client::ReportsGetResponse;
 use dokime_sdk::client::evidence_subject::Kind as EvidenceSubjectKind;
 use dokime_sdk::client::report_subject::Kind as ReportSubjectKind;
 use sha2::{Digest, Sha256};
@@ -134,87 +126,67 @@ pub(crate) async fn fetch_verified(
     lease: &SessionLease, source: &ArtifactSource, destination: &Path, frame_bytes: usize,
 ) -> Result<VerifiedContent, DeliveryError> {
     let session = lease.client();
+    let client = session.client();
     let (reference, report_origin) = match source {
         ArtifactSource::Artifact { artifact_id } => {
-            let reply: ContentArtifactsGetResponse = session
-                .unary(
-                    "/dokime.host.v1.content.Artifacts/Get",
-                    ArtifactsGetRequest {
-                        name: artifact_id.clone(),
-                        ..Default::default()
-                    },
-                )
-                .await?;
+            let options = ContentArtifactsGetOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let reply = session.execute(client.content.artifacts.get_with(artifact_id.clone(), options)).await?;
             (reply.file, None)
         }
         ArtifactSource::ExecutionFile { execution_id, relative_path } => {
-            let reply: ContentExecutionFilesGetResponse = session
-                .unary(
-                    "/dokime.host.v1.content.ExecutionFiles/Get",
-                    ExecutionFilesGetRequest {
-                        parent: execution_id.clone(),
-                        name: relative_path.clone(),
-                        ..Default::default()
-                    },
-                )
-                .await?;
+            let options = ContentExecutionFilesGetOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let reply =
+                session.execute(client.content.execution_files.get_with(execution_id.clone(), relative_path.clone(), options)).await?;
             (reply.file, None)
         }
         ArtifactSource::ExecutionEvidence { execution_id } => {
-            let reply: EvidenceArchiveResponse = session
-                .unary(
-                    "/dokime.host.v1.Evidence/Archive",
-                    EvidenceArchiveRequest {
-                        subject: Some(EvidenceSubject {
-                            kind: Some(EvidenceSubjectKind::Execution(execution_id.clone())),
-                        }),
-                        ..Default::default()
-                    },
-                )
-                .await?;
+            let subject = EvidenceSubject {
+                kind: Some(EvidenceSubjectKind::Execution(execution_id.clone())),
+            };
+            let options = EvidenceArchiveOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let reply = session.execute(client.evidence.archive_with(subject, options)).await?;
             (reply.file, None)
         }
         ArtifactSource::CycleEvidence { cycle_id } => {
-            let reply: EvidenceArchiveResponse = session
-                .unary(
-                    "/dokime.host.v1.Evidence/Archive",
-                    EvidenceArchiveRequest {
-                        subject: Some(EvidenceSubject {
-                            kind: Some(EvidenceSubjectKind::Cycle(cycle_id.clone())),
-                        }),
-                        ..Default::default()
-                    },
-                )
-                .await?;
+            let subject = EvidenceSubject {
+                kind: Some(EvidenceSubjectKind::Cycle(cycle_id.clone())),
+            };
+            let options = EvidenceArchiveOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let reply = session.execute(client.evidence.archive_with(subject, options)).await?;
             (reply.file, None)
         }
         ArtifactSource::CycleReport { cycle_id } => {
-            let reply: ReportsCreateResponse = session
-                .unary(
-                    "/dokime.host.v1.Reports/Create",
-                    ReportsCreateRequest {
-                        subject: Some(ReportSubject {
-                            kind: Some(ReportSubjectKind::Cycle(cycle_id.clone())),
-                        }),
-                        request_id: format!("desktop-report-{:032x}", rand::random::<u128>()),
-                        ..Default::default()
-                    },
-                )
-                .await?;
+            let subject = ReportSubject {
+                kind: Some(ReportSubjectKind::Cycle(cycle_id.clone())),
+            };
+            let options = ReportsCreateOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let reply = session.execute(client.reports.create_with(subject, "", options)).await?;
             (reply.file, reply.report.and_then(|report| ReportOrigin::try_from(report.origin).ok()))
         }
         ArtifactSource::ExecutionReport { execution_id } => {
-            let reply: ReportsGetResponse = session
-                .unary(
-                    "/dokime.host.v1.Reports/Get",
-                    ReportsGetRequest {
-                        subject: Some(ReportSubject {
-                            kind: Some(ReportSubjectKind::Execution(execution_id.clone())),
-                        }),
-                        ..Default::default()
-                    },
-                )
-                .await?;
+            let subject = ReportSubject {
+                kind: Some(ReportSubjectKind::Execution(execution_id.clone())),
+            };
+            let options = ReportsGetOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let reply = session.execute(client.reports.get_with(subject, "", options)).await?;
             (reply.file, reply.report.and_then(|report| ReportOrigin::try_from(report.origin).ok()))
         }
     };
@@ -222,8 +194,11 @@ pub(crate) async fn fetch_verified(
     if reference.sha256.len() != 32 {
         return Err(invalid("Read Content: Host Omitted Its SHA-256"));
     }
-    let selected: FilesGetResponse =
-        session.unary("/dokime.host.v1.Files/Get", FilesGetRequest { file: Some(reference.clone()), at: None }).await?;
+    let options = FilesGetOptions {
+        context: session.call_options()?,
+        ..Default::default()
+    };
+    let selected = session.execute(client.files.get_with(reference.clone(), options)).await?;
     let selected_file = selected.file.as_ref().ok_or_else(|| invalid("Read Content: Host Omitted Its Selected File"))?;
     if selected_file.length != reference.length || selected_file.sha256 != reference.sha256 {
         return Err(invalid("Read Content: Selected File Identity Changed"));
@@ -244,17 +219,11 @@ pub(crate) async fn fetch_verified(
     let mut offset = 0;
     let mut at = selected.resolved_at;
     while offset < reference.length {
-        let reply: FilesReadResponse = session
-            .unary(
-                "/dokime.host.v1.Files/Read",
-                FilesReadRequest {
-                    file: Some(reference.clone()),
-                    offset,
-                    max_bytes: frame_bytes as u64,
-                    at: at.clone(),
-                },
-            )
-            .await?;
+        let options = FilesReadOptions {
+            at: at.clone(),
+            context: session.call_options()?,
+        };
+        let reply = session.execute(client.files.read_with(reference.clone(), offset, frame_bytes as u64, options)).await?;
         if reply.total_length != reference.length
             || reply.sha256 != reference.sha256
             || reply.data.is_empty()

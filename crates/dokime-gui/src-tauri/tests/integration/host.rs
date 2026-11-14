@@ -31,6 +31,8 @@ use futures_util::FutureExt;
 
 // Local Imports
 
+use dokime_sdk::client::StatusGetOptions;
+
 use dokime_protocol::host::CyclesCreateRequest;
 use dokime_protocol::host::CyclesGetRequest;
 use dokime_protocol::host::SuitesListRequest;
@@ -129,7 +131,7 @@ fn embedded_readiness_attachment_and_restart() -> Result<(), Box<dyn StdError>> 
         assert_eq!(second.identity().status, session.identity().status);
         attached.close().await?;
         assert!(second.cancellation().is_cancelled());
-        let options = dokime_sdk::client::StatusGetOptions { context: session.call_options()? };
+        let options = StatusGetOptions { context: session.call_options()? };
         session.execute(session.client().status.get_with(options)).await?;
 
         // Closing Invalidates Every Lease Before Joining the Host
@@ -334,7 +336,7 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdE
             };
             remote.attach_remote(replacement).await?;
             remote.close().await?;
-            let options = dokime_sdk::client::StatusGetOptions { context: local.call_options()? };
+            let options = StatusGetOptions { context: local.call_options()? };
             local.execute(local.client().status.get_with(options)).await?;
             Ok::<_, Box<dyn StdError>>(())
         })

@@ -171,9 +171,8 @@ pub async fn desktop_pairing_create(
     let status = state.status();
     let lease = state.lease(&status.generation)?;
     let client = lease.client();
-    let listener = client
-        .execute(client.client().access.listener.get_with(dokime_sdk::client::AccessListenerGetOptions { context: client.call_options()? }))
-        .await?;
+    let listener =
+        client.execute(client.client().access.listener.get_with(AccessListenerGetOptions { context: client.call_options()? })).await?;
     let settings = listener.value.ok_or_else(|| local("Listener settings unavailable".into()))?;
     let enable = listener.bound_endpoint.is_empty();
     let confirm_app = app.clone();

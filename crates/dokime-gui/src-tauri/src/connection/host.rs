@@ -36,10 +36,14 @@ use tonic::{Request, Status, transport::Endpoint};
 
 // Local Imports
 
+use dokime_sdk::client::BackendOverviewGetOptions;
+use dokime_sdk::client::OperationsListOptions;
+use dokime_sdk::client::StatusGetOptions;
+use dokime_sdk::client::StorageTransferSettings;
+use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+
 use super::ConnectionTarget;
-use dokime_protocol::host::backend::OverviewGetRequest;
 use dokime_sdk::FileReference;
-use dokime_sdk::client::BackendOverviewGetResponse;
 use dokime_sdk::client::{CallOptions, PluginEntry, PluginsCreateOptions};
 use dokime_sdk::client::{PluginManaged, PluginPlacement, PluginValue};
 
@@ -171,7 +175,7 @@ impl Session {
     pub async fn install_plugin(&self, name: &str, file: FileReference) -> Result<PluginEntry, Error> {
         let sha256 = file.sha256.clone();
         let placement = PluginPlacement {
-            kind: Some(dokime_sdk::client::plugin_placement::Kind::Managed(PluginManaged { content: Some(file), sha256 })),
+            kind: Some(PluginPlacementKind::Managed(PluginManaged { content: Some(file), sha256 })),
         };
         let options = PluginsCreateOptions {
             request_id: Some(format!("desktop-install-{name}")),
@@ -388,7 +392,7 @@ impl Session {
             watch_timeout: settings.services.watch_timeout,
             mutation_timeout: settings.services.mutation_timeout,
         };
-        let options = dokime_sdk::client::StatusGetOptions { context: session.call_options()? };
+        let options = StatusGetOptions { context: session.call_options()? };
         let reply = session.client.status.get_with(options).await?;
         let identity = reply.status.as_ref().and_then(|status| status.identity.as_ref()).ok_or(Error::IncompleteIdentity)?;
         let history = reply.resolved_at.as_ref().and_then(|position| position.history.as_ref()).ok_or(Error::IncompleteIdentity)?;
@@ -401,11 +405,11 @@ impl Session {
             return Err(Error::IdentityChanged);
         }
         session.identity = reply;
-        let overview: BackendOverviewGetResponse =
-            session.unary("/dokime.host.v1.backend.Overview/Get", OverviewGetRequest::default()).await?;
+        let options = BackendOverviewGetOptions { context: session.call_options()? };
+        let overview = session.client.backend.overview.get_with(options).await?;
         session.product_epoch = overview.overview.filter(|value| !value.session_id.is_empty()).ok_or(Error::IncompleteIdentity)?.session_id;
         let mut methods = std::collections::BTreeSet::new();
-        let options = dokime_sdk::client::OperationsListOptions { context: session.call_options()? };
+        let options = OperationsListOptions { context: session.call_options()? };
         let catalog = session.client.operations.list_with(options).await?;
         let mut retained_bytes = 0usize;
         for operation in catalog.into_iter().filter(|operation| operation.grpc_available) {
@@ -532,7 +536,7 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
             stream_buffer: stream_buffer.get(),
         },
         client: ClientSettings {
-            transfer: dokime_sdk::client::StorageTransferSettings { chunk_bytes: Some(64 * 1024) },
+            transfer: StorageTransferSettings { chunk_bytes: Some(64 * 1024) },
             retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).expect("desktop retained bytes"),
             message_bytes,
             input_items: stream_buffer,

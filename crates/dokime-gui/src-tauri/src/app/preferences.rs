@@ -15,11 +15,9 @@
 
 /* === Imports === */
 
-use dokime_protocol::host::SettingsGetRequest;
 use dokime_protocol::host::SettingsSetRequest;
 use dokime_sdk::client::RemoteListenerSettings;
-use dokime_sdk::client::SettingsGetResponse;
-use dokime_sdk::client::SettingsSetResponse;
+use dokime_sdk::client::{SettingsGetOptions, SettingsGetResponse, SettingsSetOptions};
 
 use crate::connection::{ConnectionSession, host::Session};
 use crate::native_session::DesktopSessionControl;
@@ -63,8 +61,10 @@ pub async fn desktop_settings_read(
     owner: State<'_, DesktopSessionControl>, connection: State<'_, ConnectionSession>, scope: SettingsScope,
 ) -> Result<tauri::ipc::Response, SettingsCommandError> {
     let client = client(&owner, &connection, scope).await?;
-    let snapshot: SettingsGetResponse =
-        client.unary("/dokime.host.v1.Settings/Get", SettingsGetRequest::default()).await.map_err(command_error)?;
+    let options = SettingsGetOptions {
+        context: client.call_options().map_err(command_error)?,
+    };
+    let snapshot = client.execute(client.client().settings.get_with(options)).await.map_err(command_error)?;
     let snapshot = with_listener(&client, snapshot).await?;
     Ok(tauri::ipc::Response::new(snapshot.encode_to_vec()))
 }
@@ -81,8 +81,10 @@ pub async fn desktop_settings_update(
     }
     let update =
         SettingsSetRequest::decode(update.as_slice()).map_err(|error| SettingsCommandError::Validation { message: error.to_string() })?;
-    let current: SettingsGetResponse =
-        client.unary("/dokime.host.v1.Settings/Get", SettingsGetRequest::default()).await.map_err(command_error)?;
+    let options = SettingsGetOptions {
+        context: client.call_options().map_err(command_error)?,
+    };
+    let current = client.execute(client.client().settings.get_with(options)).await.map_err(command_error)?;
     let previous = current.value.as_ref().ok_or_else(|| SettingsCommandError::Validation {
         message: "Read Preferences: Host Omitted Settings".into(),
     })?;
@@ -108,7 +110,14 @@ pub async fn desktop_settings_update(
             message: "Save Preferences: Change Only Fields Owned by the Selected Scope".into(),
         });
     }
-    let saved: SettingsSetResponse = client.unary("/dokime.host.v1.Settings/Set", update).await.map_err(command_error)?;
+    let value = update.value.ok_or_else(|| SettingsCommandError::Validation {
+        message: "Save Preferences: Request Omitted Its Value".into(),
+    })?;
+    let options = SettingsSetOptions {
+        request_id: Some(update.request_id),
+        context: client.call_options().map_err(command_error)?,
+    };
+    let saved = client.execute(client.client().settings.set_with(value, update.expected_revision, options)).await.map_err(command_error)?;
     let saved = with_listener(
         &client,
         SettingsGetResponse {

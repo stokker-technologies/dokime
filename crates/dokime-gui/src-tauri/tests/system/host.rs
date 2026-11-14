@@ -21,8 +21,14 @@ use std::{error::Error as StdError, num::NonZeroUsize, path::PathBuf, sync::Arc,
 // Third Party Imports
 
 // Local Imports
+
 use dokime_sdk::PlotRequest;
 use dokime_sdk::client::DocumentScope;
+use dokime_sdk::client::PluginPlacement;
+use dokime_sdk::client::PluginRemote;
+use dokime_sdk::client::PluginValue;
+use dokime_sdk::client::PluginsCreateOptions;
+use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
 
 use dokime_protocol::host::CasesCreateRequest;
 use dokime_protocol::host::CyclesCreateRequest;
@@ -380,22 +386,15 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             let overview: BackendOverviewGetResponse =
                 session.unary("/dokime.host.v1.backend.Overview/Get", OverviewGetRequest::default()).await?;
             let process_epoch = overview.overview.ok_or("Read Backend: Missing Overview")?.session_id;
-            let options = dokime_sdk::client::PluginsCreateOptions {
+            let options = PluginsCreateOptions {
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let placement = dokime_sdk::client::PluginPlacement {
-                kind: Some(dokime_sdk::client::plugin_placement::Kind::Remote(dokime_sdk::client::PluginRemote {
-                    url: plugin.endpoint().into(),
-                })),
+            let placement = PluginPlacement {
+                kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let admitted = session
-                .execute(session.client().plugins.create_with(
-                    "desktop.plot",
-                    placement,
-                    dokime_sdk::client::PluginValue { enabled: true },
-                    options,
-                ))
+                .execute(session.client().plugins.create_with("desktop.plot", placement, PluginValue { enabled: true }, options))
                 .await?;
             assert!(!admitted.entry.unwrap().name.is_empty());
             let suites: SuitesListResponse = session.unary("/dokime.host.v1.Suites/List", SuitesListRequest::default()).await?;

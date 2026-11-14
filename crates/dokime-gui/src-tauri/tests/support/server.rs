@@ -18,6 +18,12 @@ use std::path::Path;
 
 // Local Imports
 
+use dokime_sdk::client::PluginPlacement;
+use dokime_sdk::client::PluginRemote;
+use dokime_sdk::client::PluginValue;
+use dokime_sdk::client::PluginsCreateOptions;
+use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::{BackendSelection, DesktopSession, backend::Backend};
 use dokime_sdk::Import;
@@ -95,22 +101,15 @@ impl Fixture {
         };
         let plugin = dokime_runtime::PluginProcess::start(&executable, true, &placement).await.unwrap();
         let session = self.client().await;
-        let options = dokime_sdk::client::PluginsCreateOptions {
+        let options = PluginsCreateOptions {
             context: session.call_options().unwrap(),
             ..Default::default()
         };
-        let placement = dokime_sdk::client::PluginPlacement {
-            kind: Some(dokime_sdk::client::plugin_placement::Kind::Remote(dokime_sdk::client::PluginRemote {
-                url: plugin.endpoint().into(),
-            })),
+        let placement = PluginPlacement {
+            kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
         };
         let admitted = session
-            .execute(session.client().plugins.create_with(
-                "desktop.thermal",
-                placement,
-                dokime_sdk::client::PluginValue { enabled: true },
-                options,
-            ))
+            .execute(session.client().plugins.create_with("desktop.thermal", placement, PluginValue { enabled: true }, options))
             .await
             .unwrap();
         assert!(!admitted.entry.unwrap().name.is_empty());

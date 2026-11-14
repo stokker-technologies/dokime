@@ -22,10 +22,12 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
 // Local Imports
+
 use crate::{
     connection::ConnectionSession,
     native_session::{BackendOwnership, DesktopSessionControl},
 };
+use dokime_sdk::client::AccessListenerGetOptions;
 
 /* === Constants === */
 
@@ -65,7 +67,7 @@ pub async fn desktop_firewall(
     }
     let session = lease.client();
     let client = session.client();
-    let options = dokime_sdk::client::AccessListenerGetOptions {
+    let options = AccessListenerGetOptions {
         context: session.call_options().map_err(|error| error.to_string())?,
     };
     let listener = session.execute(client.access.listener.get_with(options)).await.map_err(|error| error.to_string())?;
