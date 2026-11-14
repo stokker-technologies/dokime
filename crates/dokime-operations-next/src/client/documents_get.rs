@@ -22,7 +22,10 @@ use harmos_protocol::v1 as h;
 use prost::Message;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{
+    Error, Result,
+    client::{ClientSettings, Context},
+};
 use dokime_protocol::client::DocumentBinding;
 use dokime_protocol::client::DocumentBindingResult;
 use dokime_protocol::client::DocumentCard;
@@ -41,6 +44,7 @@ use dokime_protocol::client::DocumentOwnerReference;
 use dokime_protocol::client::DocumentPlacement;
 use dokime_protocol::client::DocumentPlotDefinition;
 use dokime_protocol::client::DocumentSection;
+use dokime_protocol::client::DocumentSectionIdentity;
 use dokime_protocol::client::DocumentSpan;
 use dokime_protocol::client::DocumentSummary;
 use dokime_protocol::client::DocumentSummaryGroup;
@@ -57,6 +61,7 @@ use dokime_protocol::client::document_card_body::Kind as DocumentCardBodyKind;
 use dokime_protocol::client::document_frame_frame::Kind as DocumentFrameFrameKind;
 use dokime_protocol::client::document_layout_node_node::Kind as DocumentLayoutNodeNodeKind;
 use dokime_protocol::v1;
+use dokime_protocol::v1::{Card, PlotFilter, Section};
 use dokime_storage::ExecutionState;
 use std::collections::BTreeSet;
 
@@ -78,7 +83,7 @@ pub const ID: &str = "dokime.client.v1.Documents/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<h::OperationContract> {
     super::declaration::<DocumentsGetRequest, DocumentsGetResponse>(ID, settings.read_timeout)
 }
 pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<DocumentsGetResponse> {
@@ -147,13 +152,20 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
             while let Some((parent, section)) = sections.pop() {
                 let section_ordinal = ordinal;
                 let node_id = section.metadata.as_ref().map_or(format!("section-{ordinal}"), |metadata| metadata.identifier.clone());
+                let mut metadata = section.metadata.clone().unwrap_or_default();
+                metadata.identifier = node_id.clone();
+                frames.push(frame(DocumentFrameFrameKind::SectionIdentity(DocumentSectionIdentity {
+                    node_id: node_id.clone(),
+                    metadata: Some(metadata.clone()),
+                    unavailable: None,
+                })));
                 layout.push(frame(DocumentFrameFrameKind::LayoutNode(DocumentLayoutNode {
                     ordinal,
                     parent_ordinal: parent,
                     node: Some(DocumentLayoutNodeNode {
                         kind: Some(DocumentLayoutNodeNodeKind::Section(DocumentSection {
                             node_id,
-                            metadata: section.metadata.clone(),
+                            metadata: Some(metadata),
                             repeat: None,
                         })),
                     }),
@@ -436,7 +448,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
 
 /* === Private Functions === */
 
-fn merge_sections(target: &mut Vec<v1::Section>, sections: Vec<v1::Section>) -> Result<()> {
+fn merge_sections(target: &mut Vec<Section>, sections: Vec<Section>) -> Result<()> {
     for section in sections {
         let id = section
             .metadata
@@ -464,7 +476,7 @@ fn frame(kind: DocumentFrameFrameKind) -> DocumentFrame {
         frame: Some(DocumentFrameFrame { kind: Some(kind) }),
     }
 }
-fn filters(card: &v1::Card) -> Vec<v1::PlotFilter> {
+fn filters(card: &Card) -> Vec<PlotFilter> {
     card.filters
         .iter()
         .map(|filter| v1::PlotFilter {

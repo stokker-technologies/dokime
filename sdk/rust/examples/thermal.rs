@@ -78,7 +78,18 @@ fn main() -> Result<()> {
         .criterion(Criterion::new("Temperature Within Limit", within_limit).identifier("within_limit"))
         .cleanup(cleanup)
         .stream(temperature)
-        .observer(observer);
+        .observer(observer)
+        .document(v1::Document::new("Thermal Report").id("thermal.report").section(
+            v1::Section::new("Evidence").id("thermal.evidence").card(v1::Card {
+                metadata: Some(v1::Metadata {
+                    identifier: "thermal.records".into(),
+                    label: "Records".into(),
+                    ..Default::default()
+                }),
+                body: Some(v1::card::Body::Evidence(v1::EvidenceCard::Records as i32)),
+                ..Default::default()
+            }),
+        ));
     let plugin = Plugin::new("thermal", "1.0.0")
         .suite(Suite::new("thermal", "Thermal").template(template))
         .record(door)

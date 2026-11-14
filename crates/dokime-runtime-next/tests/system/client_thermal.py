@@ -21,7 +21,6 @@ import dokime
 from dokime.v1 import message
 
 # Third Party Imports
-from google.protobuf import descriptor_pool, message_factory
 
 # Type Checking Imports
 
@@ -43,7 +42,7 @@ async def journey(phase, url, plugin_url, expected):
     try:
         if phase == "read":
             # Read the Same Verified Execution, Records and Samples After Restart
-            saved = message("ExecutionDetail")
+            saved = message("dokime.client.v1.ExecutionDetail")
             saved.ParseFromString(expected.read_bytes())
             identifier = saved.summary.execution_id
             detail = await client.executions.get(identifier)
@@ -51,7 +50,8 @@ async def journey(phase, url, plugin_url, expected):
             records = await client.records.list(identifier)
             assert len(records.records) == 1 and records.records[0].payload
             samples = await client.samples.list(identifier)
-            assert [sample.timestamp.seconds for sample in samples.samples] == [0, 1, 2]
+            assert all(sample.WhichOneof("kind") == "raw" for sample in samples.samples)
+            assert [sample.raw.timestamp.seconds for sample in samples.samples] == [0, 1, 2]
             assert records.SerializeToString(deterministic=True) == expected.with_suffix(".records").read_bytes()
             assert samples.SerializeToString(deterministic=True) == expected.with_suffix(".samples").read_bytes()
             return
@@ -60,7 +60,7 @@ async def journey(phase, url, plugin_url, expected):
         entry = await client.plugins.add(plugin_url)
         assert (await client.plugins.list()).plugins == [entry]
         suites = await client.suites.list()
-        suite_id = suites[0].suite_id
+        suite_id = suites[0].metadata.identifier
         suite = await client.suites.get(suite_id)
         assert suite.templates[0].metadata.identifier == "thermal.cycle"
 
@@ -75,9 +75,9 @@ async def journey(phase, url, plugin_url, expected):
             phases.append(progress.phase)
             if progress.phase == "prompt":
                 pending = await client.prompts.pending(identifier)
-                prompt_id = pending[0].prompt_id
+                prompt_id = pending[0].prompt.prompt_id
                 prompt = await client.prompts.get(prompt_id)
-                assert prompt.prompt_id == prompt_id
+                assert prompt.prompt.prompt_id == prompt_id
                 await client.prompts.respond(prompt_id, "yes", accepted=True)
         assert "prompt" in phases and "finished" in phases
 
@@ -88,26 +88,17 @@ async def journey(phase, url, plugin_url, expected):
             detail.outcome.evaluated.status
             == detail.outcome.evaluated.DESCRIPTOR.fields_by_name["status"].enum_type.values_by_name["RESULT_STATUS_PASSED"].number
         )
-        assert await client.executions.list() == [detail.summary]
+        assert [execution.summary for execution in await client.executions.list()] == [detail.summary]
         records = await client.records.list(identifier)
         assert len(records.records) == 1 and records.records[0].payload
-        pool = descriptor_pool.DescriptorPool()
-        pending = list(detail.schemas.catalog.types.file)
-        loaded = set()
-        while pending:
-            ready = [definition for definition in pending if all(name in loaded for name in definition.dependency)]
-            if not ready:
-                raise RuntimeError("Decode Frozen Evidence: Descriptor Dependencies Are Incomplete")
-            for definition in ready:
-                pool.Add(definition)
-                loaded.add(definition.name)
-                pending.remove(definition)
-        door_type = message_factory.GetMessageClass(pool.FindMessageTypeByName("thermal.v1.Door"))
-        assert door_type.FromString(records.records[0].payload).closed
+        schemas = dokime.FrozenSchemaCache()
+        door = await schemas.decode(client, detail, records.records[0].record_type, records.records[0].payload)
+        assert door.closed
         samples = await client.samples.list(identifier)
-        assert [sample.timestamp.seconds for sample in samples.samples] == [0, 1, 2]
-        assert all(sample.payload for sample in samples.samples)
-        assert all(sample.values.values["celsius"].number == 84.0 for sample in samples.samples)
+        assert all(sample.WhichOneof("kind") == "raw" for sample in samples.samples)
+        assert [sample.raw.timestamp.seconds for sample in samples.samples] == [0, 1, 2]
+        assert all(sample.raw.payload for sample in samples.samples)
+        assert all(sample.raw.values.values["celsius"].number == 84.0 for sample in samples.samples)
 
         # Verify the Ordered Report Stream and Its Digest Completion
         data = await client.reports.download(identifier)

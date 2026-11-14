@@ -15,6 +15,7 @@ import json
 import shlex
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -100,6 +101,7 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
             "fail",
             *values,
         ]
+        print(f"Run Rust Stories: {shlex.join(command)}", flush=True)
         result = subprocess.run(
             command,
             cwd=directory,
@@ -113,6 +115,14 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
         junit = scratch / "store" / nextest.PROFILE / "junit.xml"
         if junit.is_file():
             report.write(destination, junit.read_text(encoding="utf-8"))
+        if result.returncode:
+            detail = f"Story Diagnostics: {destination}" if destination.is_file() else "The Runner Produced No JUnit Report"
+            print(f"Run Rust Stories: Exit {result.returncode}; {detail}", file=sys.stderr, flush=True)
+            if destination.is_file():
+                for case in ET.parse(destination).iter("testcase"):
+                    for failure in (*case.findall("failure"), *case.findall("error")):
+                        print(f"{case.get('classname')}::{case.get('name')}: {failure.get('message', '')}", file=sys.stderr)
+                        print(failure.text or "", file=sys.stderr, flush=True)
         return result.returncode
 
 

@@ -71,9 +71,11 @@ class HostFixtureTests(unittest.TestCase):
                 patch.object(host_fixtures.subprocess, "run") as run,
                 patch.object(host_fixtures.shutil, "copy2"),
                 patch.object(host_fixtures.shutil, "which", side_effect=lambda name: name if name == "dotnet" else None),
+                patch.object(host_fixtures.wheel, "build") as wheel,
                 patch.object(host_fixtures.archive, "stamp") as inventory,
             ):
                 host_fixtures.build("dev")
+                wheel.assert_called_once_with(root, "dev")
                 self.assertEqual({call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, {"sdk/rust", "sdk/csharp"})
                 self.assertEqual(inventory.call_args.args[2], ["existing", (output / "fixture").relative_to(root).as_posix()])
                 self.assertEqual(inventory.call_args.args[3], {"owner": "tests"})

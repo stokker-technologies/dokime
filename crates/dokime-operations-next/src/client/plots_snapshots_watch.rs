@@ -21,7 +21,14 @@
 use harmos_protocol::v1 as h;
 
 // Local Imports
-use crate::{Result, client::Context};
+use crate::{
+    Result,
+    client::{ClientSettings, Context, Output},
+};
+use dokime_protocol::client::plots::{
+    PlotStreamKind, PlotStreamUpdate, SnapshotsListRequest, SnapshotsWatchRequest, SnapshotsWatchResponse,
+};
+use tokio_stream::wrappers::ReceiverStream;
 
 /* === Constants === */
 
@@ -41,24 +48,23 @@ pub const ID: &str = "dokime.client.v1.plots.Snapshots/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
+pub fn declaration(settings: &ClientSettings) -> Result<h::OperationContract> {
     super::declaration::<dokime_protocol::client::plots::SnapshotsWatchRequest, dokime_protocol::client::plots::SnapshotsWatchResponse>(
         ID,
         settings.watch_timeout,
     )
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::client::plots::SnapshotsWatchRequest,
-) -> Result<super::Output<dokime_protocol::client::plots::SnapshotsWatchResponse>> {
+pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result<Output<SnapshotsWatchResponse>> {
     super::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = dokime_protocol::client::plots::SnapshotsListRequest {
+        let mut selection = SnapshotsListRequest {
             requests: request.requests,
             at: request.at,
             page: request.page,
         };
-        let first = super::plots_snapshots_list::handle(context, selection.clone()).await?;
+        // Keep the Query State off the Watch's Inline Future and Poll Stack.
+        let first = Box::pin(super::plots_snapshots_list::handle(context, selection.clone())).await?;
         let context = context.clone();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
         tokio::spawn(async move {
@@ -68,12 +74,12 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = dokime_protocol::client::plots::SnapshotsWatchResponse {
+                    let response = SnapshotsWatchResponse {
                         updates: page
                             .envelopes
                             .into_iter()
-                            .map(|envelope| dokime_protocol::client::plots::PlotStreamUpdate {
-                                kind: dokime_protocol::client::plots::PlotStreamKind::Snapshot as i32,
+                            .map(|envelope| PlotStreamUpdate {
+                                kind: PlotStreamKind::Snapshot as i32,
                                 envelope: Some(envelope),
                             })
                             .collect(),
@@ -106,11 +112,11 @@ pub async fn handle(
                         selection.at = None;
                         selection.page.get_or_insert_default().page_token.clear();
                     }
-                    page = match super::plots_snapshots_list::handle(&context, selection.clone()).await {
+                    page = match Box::pin(super::plots_snapshots_list::handle(&context, selection.clone())).await {
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(dokime_protocol::client::plots::SnapshotsWatchResponse {
+                                .send(Ok(SnapshotsWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),
@@ -128,7 +134,7 @@ pub async fn handle(
                 let _ = sender.try_send(Err(tonic::Status::deadline_exceeded(format!("{ID}: Reopen After Its Deadline"))));
             }
         });
-        Ok(tokio_stream::wrappers::ReceiverStream::new(output))
+        Ok(ReceiverStream::new(output))
     })
     .await
 }

@@ -25,10 +25,12 @@ use super::*;
 use dokime_protocol::{client, v1};
 use dokime_runtime_next::{ControlledClock, PlacementSettings};
 use dokime_sdk::client::v1::{self as library, access};
+use futures_util::FutureExt;
 use sha2::Digest;
 use sha2::Sha256;
 use std::error::Error as StdError;
 use std::ffi::OsString;
+use std::panic::{AssertUnwindSafe, resume_unwind};
 use std::path::PathBuf;
 use tokio_stream::StreamExt;
 use tonic::Code;
@@ -246,63 +248,74 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdE
         let root = crate::test_support::tempdir()?;
         let mut owner = Connection::new(settings())?;
         let local = owner.start(root.path()).await?;
-        let request = local.request(access::ListenerGetRequest {})?;
-        let current = local.execute(local.client().access.listener.get(request)).await?.into_inner();
-        let mut value = current.value.ok_or("Get Listener: Missing Settings")?;
-        value.enabled = true;
-        value.endpoint = "127.0.0.1:0".into();
-        value.certificate_names = vec!["localhost".into(), "127.0.0.1".into()];
-        let request = local.request(access::ListenerSetRequest {
-            value: Some(value),
-            expected_revision: current.revision,
-        })?;
-        local.execute(local.client().access.listener.set(request)).await?;
+        let result = AssertUnwindSafe(async {
+            let request = local.request(access::ListenerGetRequest {})?;
+            let current = local.execute(local.client().access.listener.get(request)).await?.into_inner();
+            let mut value = current.value.ok_or("Get Listener: Missing Settings")?;
+            value.enabled = true;
+            value.endpoint = "127.0.0.1:0".into();
+            value.certificate_names = vec!["localhost".into(), "127.0.0.1".into()];
+            let request = local.request(access::ListenerSetRequest {
+                value: Some(value),
+                expected_revision: current.revision,
+            })?;
+            local.execute(local.client().access.listener.set(request)).await?;
 
-        // Export and Reopen the Pairing File Without Exposing Its Credential in Debug
-        let request = local.request(access::PairingsCreateRequest { label: "Desktop Story".into() })?;
-        let created = local.execute(local.client().access.pairings.create(request)).await?.into_inner();
-        let identity = local.identity().status.as_ref().unwrap().identity.as_ref().unwrap().host_id.clone();
-        let pairing = Pairing {
-            version: 1,
-            backend_identifier: identity.clone(),
-            label: "Desktop Story".into(),
-            endpoints: vec![local.endpoint().replacen("http://", "https://", 1), created.endpoint],
-            certificate_pem: created.pinned_certificate_pem,
-            access_key: created.credential,
+            // Export and Reopen the Pairing File Without Exposing Its Credential in Debug
+            let request = local.request(access::PairingsCreateRequest { label: "Desktop Story".into() })?;
+            let created = local.execute(local.client().access.pairings.create(request)).await?.into_inner();
+            let identity = local.identity().status.as_ref().unwrap().identity.as_ref().unwrap().host_id.clone();
+            let pairing = Pairing {
+                version: 1,
+                backend_identifier: identity.clone(),
+                label: "Desktop Story".into(),
+                endpoints: vec![local.endpoint().replacen("http://", "https://", 1), created.endpoint],
+                certificate_pem: created.pinned_certificate_pem,
+                access_key: created.credential,
+            };
+            assert!(!format!("{pairing:?}").contains(&pairing.access_key));
+            let path = root.path().join("desktop.pair");
+            std::fs::write(&path, serde_json::to_vec(&pairing)?)?;
+            let mut remote = Connection::new(settings())?;
+            let connected = remote.attach_remote(Pairing::read(&path)?).await?;
+            assert_eq!(connected.identity().status.as_ref().unwrap().identity.as_ref().unwrap().host_id, identity);
+
+            // A Correct Certificate Cannot Override the Expected Host Identity
+            let mut changed_identity = Pairing::read(&path)?;
+            changed_identity.backend_identifier = "another-host".into();
+            assert!(matches!(remote.attach_remote(changed_identity).await, Err(Error::IdentityChanged)));
+            assert!(connected.cancellation().is_cancelled());
+
+            // Rotation Refuses the Old Pin; Fresh Pairing Reconnects Without Restarting the Host
+            let request = local.request(access::CertificatesCreateRequest {})?;
+            local.execute(local.client().access.certificates.create(request)).await?;
+            assert!(remote.attach_remote(Pairing::read(&path)?).await.is_err());
+            let request = local.request(access::PairingsCreateRequest { label: "Rotated Desktop Story".into() })?;
+            let rotated = local.execute(local.client().access.pairings.create(request)).await?.into_inner();
+            assert_ne!(rotated.pinned_certificate_pem, pairing.certificate_pem);
+            let replacement = Pairing {
+                version: 1,
+                backend_identifier: identity,
+                label: "Rotated Desktop Story".into(),
+                endpoints: vec![rotated.endpoint],
+                certificate_pem: rotated.pinned_certificate_pem,
+                access_key: rotated.credential,
+            };
+            remote.attach_remote(replacement).await?;
+            remote.close().await?;
+            let request = local.request(library::StatusGetRequest {})?;
+            local.execute(local.client().status.get(request)).await?;
+            Ok::<_, Box<dyn StdError>>(())
+        })
+        .catch_unwind()
+        .await;
+        let closed = owner.close().await;
+        let result = match result {
+            Ok(result) => result,
+            Err(panic) => resume_unwind(panic),
         };
-        assert!(!format!("{pairing:?}").contains(&pairing.access_key));
-        let path = root.path().join("desktop.pair");
-        std::fs::write(&path, serde_json::to_vec(&pairing)?)?;
-        let mut remote = Connection::new(settings())?;
-        let connected = remote.attach_remote(Pairing::read(&path)?).await?;
-        assert_eq!(connected.identity().status.as_ref().unwrap().identity.as_ref().unwrap().host_id, identity);
-
-        // A Correct Certificate Cannot Override the Expected Host Identity
-        let mut changed_identity = Pairing::read(&path)?;
-        changed_identity.backend_identifier = "another-host".into();
-        assert!(matches!(remote.attach_remote(changed_identity).await, Err(Error::IdentityChanged)));
-        assert!(connected.cancellation().is_cancelled());
-
-        // Rotation Refuses the Old Pin; Fresh Pairing Reconnects Without Restarting the Host
-        let request = local.request(access::CertificatesCreateRequest {})?;
-        local.execute(local.client().access.certificates.create(request)).await?;
-        assert!(remote.attach_remote(Pairing::read(&path)?).await.is_err());
-        let request = local.request(access::PairingsCreateRequest { label: "Rotated Desktop Story".into() })?;
-        let rotated = local.execute(local.client().access.pairings.create(request)).await?.into_inner();
-        assert_ne!(rotated.pinned_certificate_pem, pairing.certificate_pem);
-        let replacement = Pairing {
-            version: 1,
-            backend_identifier: identity,
-            label: "Rotated Desktop Story".into(),
-            endpoints: vec![rotated.endpoint],
-            certificate_pem: rotated.pinned_certificate_pem,
-            access_key: rotated.credential,
-        };
-        remote.attach_remote(replacement).await?;
-        remote.close().await?;
-        let request = local.request(library::StatusGetRequest {})?;
-        local.execute(local.client().status.get(request)).await?;
-        owner.close().await?;
+        result?;
+        closed?;
         Ok(())
     })
 }

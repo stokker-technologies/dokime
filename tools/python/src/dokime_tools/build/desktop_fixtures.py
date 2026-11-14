@@ -17,6 +17,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 
 # Third Party Imports
 # Local Imports
@@ -45,7 +46,15 @@ def build(profile: str) -> None:
     output.mkdir(parents=True, exist_ok=True)
 
     # Build the Current CLI Through Its Focused Project Task
-    subprocess.run(["mise", "run", "build", "--", "--package", "dokime-cli-next"], cwd=root, check=True, creationflags=spawn_flags())
+    subprocess.run(
+        ["mise", "run", "build", "--", "--package", "dokime-cli-next"],
+        cwd=root,
+        check=True,
+        creationflags=spawn_flags(),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     cli = root / "target/debug" / f"dokime-next{extension}"
     shutil.copy2(cli, output / cli.name)
 
@@ -58,6 +67,9 @@ def build(profile: str) -> None:
         cwd=root,
         check=True,
         creationflags=spawn_flags(),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
 
     # Extend the Tests Fixture Inventory Without Replacing Product Bytes

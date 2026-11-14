@@ -25,11 +25,14 @@ pub use settings::{SYSTEM_HANG_GUARD, settings};
 /* === Imports === */
 
 // Standard Library Imports
-use std::path::PathBuf;
+use std::{collections::HashMap, error::Error, path::PathBuf};
 
 // Third Party Imports
 
 // Local Imports
+use dokime::client::ClientSettings;
+use dokime_protocol::{context::PromptsCreateRequest, v1::Value};
+use dokime_runtime_next::{Host, Result as HostResult};
 
 /* === Constants === */
 
@@ -69,7 +72,7 @@ pub struct PythonPlugin {
 /* === Implementations === */
 
 impl PythonPlugin {
-    pub async fn start() -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn start() -> Result<Self, Box<dyn Error>> {
         use std::process::Stdio;
         use tokio::io::{AsyncBufReadExt, BufReader};
         let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/python/examples/thermal/main.py");
@@ -84,7 +87,7 @@ impl PythonPlugin {
         let url = lines.next_line().await?.ok_or("Start Python Thermal Plugin: No Readiness Event")?;
         Ok(Self { child, url })
     }
-    pub async fn close(mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn close(mut self) -> Result<(), Box<dyn Error>> {
         drop(self.child.stdin.take());
         assert!(self.child.wait().await?.success());
         Ok(())
@@ -93,7 +96,7 @@ impl PythonPlugin {
 
 /* === Public Functions === */
 
-pub fn thermal_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub fn thermal_fixture() -> Result<PathBuf, Box<dyn Error>> {
     let path = std::env::var_os("DOKIME_THERMAL_PLUGIN")
         .map(PathBuf::from)
         .unwrap_or_else(|| fixture_root().join(format!("dokime-rust-thermal{}", std::env::consts::EXE_SUFFIX)));
@@ -102,14 +105,14 @@ pub fn thermal_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
     }
     Ok(path)
 }
-pub fn execution_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub fn execution_fixture() -> Result<PathBuf, Box<dyn Error>> {
     let path = fixture_root().join(format!("dokime-rust-execution{}", std::env::consts::EXE_SUFFIX));
     if !path.is_file() {
         return Err("Build the Execution Example with the SDK Task Before Running the Host Stories".into());
     }
     Ok(path)
 }
-pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> std::collections::HashMap<String, dokime_protocol::v1::Value> {
+pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> HashMap<String, Value> {
     use dokime_protocol::v1::{Value, value::Kind};
     std::collections::HashMap::from([
         ("value".into(), Value { kind: Some(Kind::Number(value)) }),
@@ -122,9 +125,7 @@ pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> std::collec
         ("evaluate".into(), Value { kind: Some(Kind::Boolean(evaluate)) }),
     ])
 }
-pub fn answer(
-    host: &dokime_runtime_next::Host, execution: &str, prompt: dokime_protocol::context::PromptsCreateRequest,
-) -> dokime_runtime_next::Result<()> {
+pub fn answer(host: &Host, execution: &str, prompt: PromptsCreateRequest) -> HostResult<()> {
     host.answer(
         execution,
         dokime_protocol::context::PromptsCreateResponse {
@@ -136,21 +137,21 @@ pub fn answer(
     )
 }
 
-pub fn host_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub fn host_fixture() -> Result<PathBuf, Box<dyn Error>> {
     let executable = std::env::var_os("NEXTEST_BIN_EXE_dokime-host-next")
         .or_else(|| std::env::var_os("CARGO_BIN_EXE_dokime-host-next"))
         .ok_or("Build the New Host Binary Before Running Its Client Stories")?;
     Ok(PathBuf::from(executable))
 }
 
-pub fn language_fixture(language: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub fn language_fixture(language: &str) -> Result<PathBuf, Box<dyn Error>> {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let variable = format!("DOKIME_{}_THERMAL_PLUGIN", language.to_uppercase());
     let default = match language {
         "csharp" if cfg!(windows) => "sdk/csharp/tests/SystemPlugin/bin/Release/net10.0/dokime-system-story.exe",
         "csharp" => "sdk/csharp/tests/SystemPlugin/bin/Release/net10.0/dokime-system-story",
-        "cpp" if cfg!(windows) => "target/sdk/cpp/tests/Debug/dokime-system-suite.exe",
-        "cpp" => "target/sdk/cpp/tests/dokime-system-suite",
+        "cpp" if cfg!(windows) => "target/cpp/tests/Debug/dokime-system-suite.exe",
+        "cpp" => "target/cpp/tests/dokime-system-suite",
         _ => return Err("Select a Compiled SDK Fixture".into()),
     };
     let path = std::env::var_os(variable).map(PathBuf::from).unwrap_or_else(|| {
@@ -174,7 +175,7 @@ pub fn python() -> PathBuf {
     })
 }
 
-pub fn client_settings() -> dokime::client::ClientSettings {
+pub fn client_settings() -> ClientSettings {
     let bounds = settings();
     dokime::client::ClientSettings {
         transfer: harmos_protocol::storage::StorageTransferSettings { chunk_bytes: Some(1024) },
@@ -185,7 +186,7 @@ pub fn client_settings() -> dokime::client::ClientSettings {
     }
 }
 
-pub fn content_fixture() -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub fn content_fixture() -> Result<PathBuf, Box<dyn Error>> {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let folder = match std::env::var("TEST_PROFILE") {
         Ok(profile) => repository

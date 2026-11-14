@@ -16,12 +16,14 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
 
 // Third Party Imports
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::{encoding::Message, v1};
+use dokime_protocol::client::plots::{SnapshotsWatchRequest, snapshots_client::SnapshotsClient};
 use dokime_storage::{Execution, Sample, Store};
 
 /* === Constants === */
@@ -45,7 +47,7 @@ use dokime_storage::{Execution, Sample, Store};
 /* === Tests === */
 
 #[tokio::test]
-async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
+async fn client_queries_plot_kinds() -> Result<(), Box<dyn Error>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Retain Numeric Coordinates, Categories and a Known Sampled Signal
         let root = super::support::tempdir()?;
@@ -279,7 +281,86 @@ async fn client_queries_plot_kinds() -> Result<(), Box<dyn std::error::Error>> {
         );
         client.close();
         process.close().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn Error>>(())
+    })
+    .await?
+}
+
+#[tokio::test]
+async fn sealed_plot_watch_returns_its_query_and_completes() -> Result<(), Box<dyn Error>> {
+    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+        // Store One Frozen Numeric Row.
+        let root = super::support::tempdir()?;
+        let credential_root = super::support::tempdir()?;
+        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+        let store = Store::open(root.path())?;
+        let catalog = harmos_protocol::v1::Catalog {
+            types: Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
+            streams: vec![harmos_protocol::v1::StreamDeclaration {
+                id: "sensor".into(),
+                row: "dokime.client.v1.plots.PlotDomain".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        store.create(&Execution {
+            identifier: "watch-execution".into(),
+            cycle: "watch-cycle".into(),
+            catalog: catalog.encode_to_vec(),
+            origin: Some(v1::Origin {
+                kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+            }),
+            ..Default::default()
+        })?;
+        store.open_stream("watch-execution", "sensor")?;
+        store.sample_batch(
+            "watch-execution",
+            &[Sample {
+                stream: "sensor".into(),
+                sequence: 1,
+                source_ns: 0,
+                row: dokime_protocol::client::plots::PlotDomain { min: 12.0, max: 34.0 }.encode_to_vec(),
+                ..Default::default()
+            }],
+        )?;
+        store.close_streams("watch-execution")?;
+        store.close("watch-execution", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+        store.seal("watch-execution")?;
+
+        // Open the Runtime Watch Through the Same Query Path as the Desktop.
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+        let mut client = SnapshotsClient::connect(process.url.clone()).await?;
+        let mut watch = client
+            .watch(SnapshotsWatchRequest {
+                requests: vec![v1::PlotRequest {
+                    plot_id: Some("sensor-plot".into()),
+                    stream: "sensor".into(),
+                    y_keys: vec!["min".into()],
+                    plot_type: v1::PlotKind::TimeSeries as i32,
+                    scope: Some(v1::EvidenceScope {
+                        execution_id: Some("watch-execution".into()),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            })
+            .await?
+            .into_inner();
+        let opening = watch.message().await?.ok_or("Watch Plot: Missing Opening Query")?;
+        assert!(opening.opening);
+        assert!(opening.resync_required.is_none());
+        assert_eq!(opening.updates.len(), 1);
+        let envelope = opening.updates[0].envelope.as_ref().unwrap();
+        assert_eq!(envelope.plot_id, "sensor-plot");
+        assert_eq!(envelope.diagnostics.as_ref().unwrap().examined_rows, 1);
+        let summary = &envelope.payload.as_ref().unwrap().summaries[0];
+        assert_eq!((summary.count, summary.min, summary.max), (1, Some(12.0), Some(12.0)));
+        assert!(watch.message().await?.is_none());
+
+        // Close the Host Before Its Disposable Root Removes Credentials.
+        process.close().await?;
+        Ok::<(), Box<dyn Error>>(())
     })
     .await?
 }

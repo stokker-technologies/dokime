@@ -208,7 +208,7 @@ async function reportsAndHistory() {
   assert.equal(saved.value.origin, "sealed");
   const html = await readFile(saved.value.path, "utf8");
   await writeFile(join(evidence, "thermal-execution.html"), html);
-  assert.ok(html.includes("Thermal"), "The Saved Report Contains Frozen Execution Content");
+  assert.ok(html.includes(executionId), "The Saved Report Identifies the Frozen Execution");
   await openNativeReport(saved.value.path);
   await desktop.goto("/history");
   await until("History Lists Sealed Execution", async () => (await desktop.text()).includes("Thermal"));

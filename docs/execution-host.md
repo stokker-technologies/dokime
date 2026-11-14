@@ -1045,6 +1045,16 @@ operation admission rejects a native gRPC binding for an already reserved servic
 capability is registration of externally served methods with their contracts,
 request/response descriptors, policies and actual gRPC availability. Product
 operation discovery remains unavailable; it is not synthesized in the product.
+The needed library call is proposed, not available at this pin:
+
+```rust
+grpc.register_service_with_operations(server, contracts_with_policy, descriptor_set, bindings)?;
+```
+
+For `Cycles.Create`, the contract is `dokime.client.v1.Cycles/Create` with its
+product-owned policy and canonical request/response descriptors; its binding is
+the unary route `/dokime.client.v1.Cycles/Create`. Registration must admit the
+contract and binding together with the served service, before listener attachment.
 The invocation child carrier also has one reply per child and cannot carry a
 Files.Watch stream; plugin-host Watch requires library child-stream support.
 Client Files.Watch is served and follows store change notifications.
