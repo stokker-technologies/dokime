@@ -9,6 +9,7 @@ from google.protobuf import message as _message
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from harmos.v1 import storage_types_pb2 as _storage_types_pb2
 import builtins as _builtins
 import sys
 import typing as _typing
@@ -66,6 +67,7 @@ class Value(_message.Message):
     DATA_FIELD_NUMBER: _builtins.int
     LIST_FIELD_NUMBER: _builtins.int
     DATETIME_FIELD_NUMBER: _builtins.int
+    EXACT_FIELD_NUMBER: _builtins.int
     boolean: _builtins.bool
     integer: _builtins.int
     unsigned_integer: _builtins.int
@@ -78,6 +80,8 @@ class Value(_message.Message):
     def list(self) -> Global___ValueList: ...
     @_builtins.property
     def datetime(self) -> _timestamp_pb2.Timestamp: ...
+    @_builtins.property
+    def exact(self) -> _storage_types_pb2.ExactNumber: ...
     def __init__(
         self,
         *,
@@ -90,12 +94,13 @@ class Value(_message.Message):
         data: _builtins.bytes = ...,
         list: Global___ValueList | None = ...,
         datetime: _timestamp_pb2.Timestamp | None = ...,
+        exact: _storage_types_pb2.ExactNumber | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["boolean", b"boolean", "data", b"data", "datetime", b"datetime", "integer", b"integer", "kind", b"kind", "list", b"list", "null", b"null", "number", b"number", "text", b"text", "unsigned_integer", b"unsigned_integer"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["boolean", b"boolean", "data", b"data", "datetime", b"datetime", "exact", b"exact", "integer", b"integer", "kind", b"kind", "list", b"list", "null", b"null", "number", b"number", "text", b"text", "unsigned_integer", b"unsigned_integer"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["boolean", b"boolean", "data", b"data", "datetime", b"datetime", "integer", b"integer", "kind", b"kind", "list", b"list", "null", b"null", "number", b"number", "text", b"text", "unsigned_integer", b"unsigned_integer"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["boolean", b"boolean", "data", b"data", "datetime", b"datetime", "exact", b"exact", "integer", b"integer", "kind", b"kind", "list", b"list", "null", b"null", "number", b"number", "text", b"text", "unsigned_integer", b"unsigned_integer"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
-    _WhichOneofReturnType_kind: _TypeAlias = _typing.Literal["null", "boolean", "integer", "unsigned_integer", "number", "text", "data", "list", "datetime"]  # noqa: Y015
+    _WhichOneofReturnType_kind: _TypeAlias = _typing.Literal["null", "boolean", "integer", "unsigned_integer", "number", "text", "data", "list", "datetime", "exact"]  # noqa: Y015
     _WhichOneofArgType_kind: _TypeAlias = _typing.Literal["kind", b"kind"]  # noqa: Y015
     def WhichOneof(self, oneof_group: _WhichOneofArgType_kind) -> _WhichOneofReturnType_kind | None: ...
 

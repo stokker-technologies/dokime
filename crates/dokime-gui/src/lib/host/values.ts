@@ -18,7 +18,7 @@ import type { Metadata } from "@host/dokime/v1/metadata_pb.js";
 
 /* === Local Imports === */
 
-import { assertIntegerRange, NativeIntegerValue, NativeNumberValue, timestampIso } from "@/lib/api/native-values";
+import { assertIntegerRange, NativeExactValue, NativeIntegerValue, NativeNumberValue, timestampIso } from "@/lib/api/native-values";
 import { isDatetimeValue } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { JsonObject, RecordScope, ValueFormat, ElapsedUnit } from "@/lib/types";
@@ -59,6 +59,9 @@ function writeValue(value: unknown, depth: number, containers: Set<object>): Wir
   if (typeof value === "object" && value !== null && "__dokime_native_number__" in value && value.__dokime_native_number__ === true) {
     const number = NativeNumberValue.prototype.valueOf.call(value);
     return { kind: { case: "number", value: number } };
+  }
+  if (value instanceof NativeExactValue) {
+    return { kind: { case: "exact", value: { negative: value.negative, numerator: value.numerator, denominator: value.denominator } } };
   }
   if (typeof value === "bigint") {
     const unsigned = value >= 1n << 63n;
@@ -108,6 +111,8 @@ function readValue(value: Wire<Value> | undefined, depth: number): unknown {
       return new NativeIntegerValue(kind.value, true);
     case "number":
       return new NativeNumberValue(kind.value);
+    case "exact":
+      return new NativeExactValue(kind.value.negative, kind.value.numerator, kind.value.denominator);
     case "data":
       return kind.value;
     case "list":

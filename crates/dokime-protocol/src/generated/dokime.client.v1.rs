@@ -4547,30 +4547,32 @@ pub mod documents_server {
     }
 }
 #[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Statistics {
     #[prost(uint64, tag = "1")]
     pub count: u64,
-    #[prost(double, tag = "2")]
-    pub min: f64,
-    #[prost(double, tag = "3")]
-    pub max: f64,
-    #[prost(double, tag = "4")]
-    pub mean: f64,
+    #[prost(message, optional, tag = "2")]
+    pub min: ::core::option::Option<super::super::v1::Value>,
+    #[prost(message, optional, tag = "3")]
+    pub max: ::core::option::Option<super::super::v1::Value>,
+    #[prost(message, optional, tag = "4")]
+    pub mean: ::core::option::Option<super::super::v1::Value>,
     #[prost(double, tag = "5")]
     pub stddev: f64,
-    #[prost(double, tag = "6")]
-    pub median: f64,
-    #[prost(double, tag = "7")]
-    pub p05: f64,
-    #[prost(double, tag = "8")]
-    pub p95: f64,
-    #[prost(double, tag = "9")]
-    pub p99: f64,
-    #[prost(double, tag = "10")]
-    pub first: f64,
-    #[prost(double, tag = "11")]
-    pub last: f64,
+    #[prost(message, optional, tag = "6")]
+    pub median: ::core::option::Option<super::super::v1::Value>,
+    #[prost(message, optional, tag = "7")]
+    pub p05: ::core::option::Option<super::super::v1::Value>,
+    #[prost(message, optional, tag = "8")]
+    pub p95: ::core::option::Option<super::super::v1::Value>,
+    #[prost(message, optional, tag = "9")]
+    pub p99: ::core::option::Option<super::super::v1::Value>,
+    #[prost(message, optional, tag = "10")]
+    pub first: ::core::option::Option<super::super::v1::Value>,
+    #[prost(message, optional, tag = "11")]
+    pub last: ::core::option::Option<super::super::v1::Value>,
+    #[prost(message, optional, tag = "13")]
+    pub sum: ::core::option::Option<super::super::v1::Value>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]

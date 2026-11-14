@@ -289,6 +289,7 @@ class Plot(_message.Message):
     STYLE_FIELD_NUMBER: _builtins.int
     X_SCALE_FIELD_NUMBER: _builtins.int
     Y_SCALE_FIELD_NUMBER: _builtins.int
+    INPUT_SAMPLES_FIELD_NUMBER: _builtins.int
     kind: Global___PlotKind.ValueType
     unit: _builtins.str
     histogram_bins: _builtins.int
@@ -303,6 +304,10 @@ class Plot(_message.Message):
     style: Global___PlotStyle.ValueType
     x_scale: Global___AxisScale.ValueType
     y_scale: Global___AxisScale.ValueType
+    input_samples: _builtins.int
+    """Frequency input: latest N finite samples in source-time order, within filters.
+    Absent uses the host's bounded transform input. Larger requests are refused.
+    """
     @_builtins.property
     def metadata(self) -> _metadata_pb2.Metadata: ...
     @_builtins.property
@@ -350,10 +355,11 @@ class Plot(_message.Message):
         style: Global___PlotStyle.ValueType = ...,
         x_scale: Global___AxisScale.ValueType = ...,
         y_scale: Global___AxisScale.ValueType = ...,
+        input_samples: _builtins.int | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["_arrangement", b"_arrangement", "_display_points", b"_display_points", "_histogram_bins", b"_histogram_bins", "_hole", b"_hole", "_interval", b"_interval", "_reduction", b"_reduction", "_sample_rate_hz", b"_sample_rate_hz", "arrangement", b"arrangement", "display_points", b"display_points", "grid", b"grid", "histogram_bins", b"histogram_bins", "hole", b"hole", "interval", b"interval", "metadata", b"metadata", "reduction", b"reduction", "sample_rate_hz", b"sample_rate_hz", "series_by", b"series_by", "x", b"x", "z", b"z"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_arrangement", b"_arrangement", "_display_points", b"_display_points", "_histogram_bins", b"_histogram_bins", "_hole", b"_hole", "_input_samples", b"_input_samples", "_interval", b"_interval", "_reduction", b"_reduction", "_sample_rate_hz", b"_sample_rate_hz", "arrangement", b"arrangement", "display_points", b"display_points", "grid", b"grid", "histogram_bins", b"histogram_bins", "hole", b"hole", "input_samples", b"input_samples", "interval", b"interval", "metadata", b"metadata", "reduction", b"reduction", "sample_rate_hz", b"sample_rate_hz", "series_by", b"series_by", "x", b"x", "z", b"z"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["_arrangement", b"_arrangement", "_display_points", b"_display_points", "_histogram_bins", b"_histogram_bins", "_hole", b"_hole", "_interval", b"_interval", "_reduction", b"_reduction", "_sample_rate_hz", b"_sample_rate_hz", "arrangement", b"arrangement", "display_points", b"display_points", "filters", b"filters", "grid", b"grid", "histogram_bins", b"histogram_bins", "hole", b"hole", "interval", b"interval", "kind", b"kind", "marker_records", b"marker_records", "metadata", b"metadata", "pareto", b"pareto", "reduction", b"reduction", "reference_bands", b"reference_bands", "reference_lines", b"reference_lines", "render", b"render", "sample_rate_hz", b"sample_rate_hz", "series_by", b"series_by", "style", b"style", "unit", b"unit", "x", b"x", "x_scale", b"x_scale", "y", b"y", "y_scale", b"y_scale", "z", b"z"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_arrangement", b"_arrangement", "_display_points", b"_display_points", "_histogram_bins", b"_histogram_bins", "_hole", b"_hole", "_input_samples", b"_input_samples", "_interval", b"_interval", "_reduction", b"_reduction", "_sample_rate_hz", b"_sample_rate_hz", "arrangement", b"arrangement", "display_points", b"display_points", "filters", b"filters", "grid", b"grid", "histogram_bins", b"histogram_bins", "hole", b"hole", "input_samples", b"input_samples", "interval", b"interval", "kind", b"kind", "marker_records", b"marker_records", "metadata", b"metadata", "pareto", b"pareto", "reduction", b"reduction", "reference_bands", b"reference_bands", "reference_lines", b"reference_lines", "render", b"render", "sample_rate_hz", b"sample_rate_hz", "series_by", b"series_by", "style", b"style", "unit", b"unit", "x", b"x", "x_scale", b"x_scale", "y", b"y", "y_scale", b"y_scale", "z", b"z"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     _WhichOneofReturnType__arrangement: _TypeAlias = _typing.Literal["arrangement"]  # noqa: Y015
     _WhichOneofArgType__arrangement: _TypeAlias = _typing.Literal["_arrangement", b"_arrangement"]  # noqa: Y015
@@ -363,6 +369,8 @@ class Plot(_message.Message):
     _WhichOneofArgType__histogram_bins: _TypeAlias = _typing.Literal["_histogram_bins", b"_histogram_bins"]  # noqa: Y015
     _WhichOneofReturnType__hole: _TypeAlias = _typing.Literal["hole"]  # noqa: Y015
     _WhichOneofArgType__hole: _TypeAlias = _typing.Literal["_hole", b"_hole"]  # noqa: Y015
+    _WhichOneofReturnType__input_samples: _TypeAlias = _typing.Literal["input_samples"]  # noqa: Y015
+    _WhichOneofArgType__input_samples: _TypeAlias = _typing.Literal["_input_samples", b"_input_samples"]  # noqa: Y015
     _WhichOneofReturnType__interval: _TypeAlias = _typing.Literal["interval"]  # noqa: Y015
     _WhichOneofArgType__interval: _TypeAlias = _typing.Literal["_interval", b"_interval"]  # noqa: Y015
     _WhichOneofReturnType__reduction: _TypeAlias = _typing.Literal["reduction"]  # noqa: Y015
@@ -377,6 +385,8 @@ class Plot(_message.Message):
     def WhichOneof(self, oneof_group: _WhichOneofArgType__histogram_bins) -> _WhichOneofReturnType__histogram_bins | None: ...
     @_typing.overload
     def WhichOneof(self, oneof_group: _WhichOneofArgType__hole) -> _WhichOneofReturnType__hole | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__input_samples) -> _WhichOneofReturnType__input_samples | None: ...
     @_typing.overload
     def WhichOneof(self, oneof_group: _WhichOneofArgType__interval) -> _WhichOneofReturnType__interval | None: ...
     @_typing.overload
@@ -604,6 +614,7 @@ class PlotFftOptions(_message.Message):
     INCLUDE_DC_FIELD_NUMBER: _builtins.int
     MIN_FREQUENCY_HZ_FIELD_NUMBER: _builtins.int
     MAX_FREQUENCY_HZ_FIELD_NUMBER: _builtins.int
+    INPUT_SAMPLES_FIELD_NUMBER: _builtins.int
     sample_rate_hz: _builtins.float
     window: Global___FftWindow.ValueType
     detrend: Global___FftDetrend.ValueType
@@ -611,6 +622,10 @@ class PlotFftOptions(_message.Message):
     include_dc: _builtins.bool
     min_frequency_hz: _builtins.float
     max_frequency_hz: _builtins.float
+    input_samples: _builtins.int
+    """Latest N finite source samples; independent of output resolution and taper.
+    Absent uses the host's bounded transform input. Must fit that input bound.
+    """
     def __init__(
         self,
         *,
@@ -621,17 +636,22 @@ class PlotFftOptions(_message.Message):
         include_dc: _builtins.bool = ...,
         min_frequency_hz: _builtins.float | None = ...,
         max_frequency_hz: _builtins.float | None = ...,
+        input_samples: _builtins.int | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["_max_frequency_hz", b"_max_frequency_hz", "_min_frequency_hz", b"_min_frequency_hz", "_sample_rate_hz", b"_sample_rate_hz", "max_frequency_hz", b"max_frequency_hz", "min_frequency_hz", b"min_frequency_hz", "sample_rate_hz", b"sample_rate_hz"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_input_samples", b"_input_samples", "_max_frequency_hz", b"_max_frequency_hz", "_min_frequency_hz", b"_min_frequency_hz", "_sample_rate_hz", b"_sample_rate_hz", "input_samples", b"input_samples", "max_frequency_hz", b"max_frequency_hz", "min_frequency_hz", b"min_frequency_hz", "sample_rate_hz", b"sample_rate_hz"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["_max_frequency_hz", b"_max_frequency_hz", "_min_frequency_hz", b"_min_frequency_hz", "_sample_rate_hz", b"_sample_rate_hz", "detrend", b"detrend", "include_dc", b"include_dc", "level_unit", b"level_unit", "max_frequency_hz", b"max_frequency_hz", "min_frequency_hz", b"min_frequency_hz", "sample_rate_hz", b"sample_rate_hz", "window", b"window"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_input_samples", b"_input_samples", "_max_frequency_hz", b"_max_frequency_hz", "_min_frequency_hz", b"_min_frequency_hz", "_sample_rate_hz", b"_sample_rate_hz", "detrend", b"detrend", "include_dc", b"include_dc", "input_samples", b"input_samples", "level_unit", b"level_unit", "max_frequency_hz", b"max_frequency_hz", "min_frequency_hz", b"min_frequency_hz", "sample_rate_hz", b"sample_rate_hz", "window", b"window"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType__input_samples: _TypeAlias = _typing.Literal["input_samples"]  # noqa: Y015
+    _WhichOneofArgType__input_samples: _TypeAlias = _typing.Literal["_input_samples", b"_input_samples"]  # noqa: Y015
     _WhichOneofReturnType__max_frequency_hz: _TypeAlias = _typing.Literal["max_frequency_hz"]  # noqa: Y015
     _WhichOneofArgType__max_frequency_hz: _TypeAlias = _typing.Literal["_max_frequency_hz", b"_max_frequency_hz"]  # noqa: Y015
     _WhichOneofReturnType__min_frequency_hz: _TypeAlias = _typing.Literal["min_frequency_hz"]  # noqa: Y015
     _WhichOneofArgType__min_frequency_hz: _TypeAlias = _typing.Literal["_min_frequency_hz", b"_min_frequency_hz"]  # noqa: Y015
     _WhichOneofReturnType__sample_rate_hz: _TypeAlias = _typing.Literal["sample_rate_hz"]  # noqa: Y015
     _WhichOneofArgType__sample_rate_hz: _TypeAlias = _typing.Literal["_sample_rate_hz", b"_sample_rate_hz"]  # noqa: Y015
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__input_samples) -> _WhichOneofReturnType__input_samples | None: ...
     @_typing.overload
     def WhichOneof(self, oneof_group: _WhichOneofArgType__max_frequency_hz) -> _WhichOneofReturnType__max_frequency_hz | None: ...
     @_typing.overload

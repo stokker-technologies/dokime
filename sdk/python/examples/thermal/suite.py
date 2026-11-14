@@ -52,7 +52,7 @@ class Thermal:
     async def within_limit(self, ctx: Any) -> Any:
         stats = await ctx.statistics("thermal.temperature", "celsius", step="hold")
         door = await ctx.records("thermal.door", step="hold").last()
-        return stats.count > 0 and stats.max <= self.limit and door is not None and door.closed
+        return stats.count > 0 and stats.max.number <= self.limit and door is not None and door.closed
 
     async def cleanup(self, ctx: Any) -> Any:
         await ctx.log("Cleaned Up")

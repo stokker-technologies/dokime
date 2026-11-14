@@ -306,7 +306,7 @@ function summaryValue(value: unknown, format: SummaryTile["format"], unit?: stri
   value = numericValue(value) ?? value;
   const rendered = documentValue(value);
   const number = typeof value === "number" && Number.isFinite(value) ? value : null;
-  const integer = isRecord(value) && value.__dokime_native_integer__ === true;
+  const integer = isRecord(value) && (value.__dokime_native_integer__ === true || value.__dokime_native_exact__ === true);
   if (number === null && !integer) return rendered;
   if (format === "percent") {
     return `${number !== null ? number.toFixed(Math.abs(number) >= 10 ? 0 : 1) : rendered}%`;

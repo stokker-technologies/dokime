@@ -2,6 +2,7 @@ syntax = "proto3";
 package dokime.v1;
 option csharp_namespace = "Dokime.Protocol.V1";
 import "google/protobuf/timestamp.proto";
+import "harmos/v1/storage_types.proto";
 
 // A resolved parameter, setting or evidence scalar. No JSON encoding or object bag.
 // An unset kind is invalid; null is explicit. Integers retain their full precision.
@@ -16,6 +17,7 @@ message Value {
     bytes data = 7;
     .dokime.v1.ValueList list = 8;
     .google.protobuf.Timestamp datetime = 9;
+    .harmos.storage.v1.ExactNumber exact = 10;
   }
 }
 

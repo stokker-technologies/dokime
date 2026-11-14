@@ -28,11 +28,11 @@ public sealed class AuthorRunsAMeasurement
         .Step(new Dokime.Step("read", "Read", async context =>
         {
           context.Resource<Instrument>().Reads++;
-          await context.RecordAsync(record, new global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse { Count = 1, Mean = context.Parameters["target"].Number },
+          await context.RecordAsync(record, new global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse { Count = 1, Mean = context.Parameters["target"] },
               sourceAt: new Timestamp { Seconds = 120 }, requestId: "measurement-read");
         }, Retries: 2))
         .Observer(new Observer<global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse>(stream, new Duration { Seconds = 1 }, context =>
-            Task.FromResult(new global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse { Count = context.Sequence, Mean = context.Resource<Instrument>().Reads })))
+            Task.FromResult(new global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse { Count = context.Sequence, Mean = new Value { Number = context.Resource<Instrument>().Reads } })))
         .Criterion(new Dokime.Criterion("captured", "Captured", async context =>
             (await context.RecordsAsync(record.Identifier, page: new PageRequest { PageSize = 8, MaxBytes = 4096, PageToken = "continuation" },
                 at: new Position { History = new History { Store = "evidence", Epoch = "epoch" }, Sequence = 1 })).Count == 1))
@@ -72,7 +72,7 @@ public sealed class AuthorRunsAMeasurement
     Assert.Equal("execution-a", stored!.Execution);
     Assert.Equal(new Timestamp { Seconds = 120 }, stored.SourceAt);
     Assert.Equal("measurement-read", stored.RequestId);
-    Assert.Equal(42, global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse.Parser.ParseFrom(stored.Payload).Mean);
+    Assert.Equal(42, global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse.Parser.ParseFrom(stored.Payload).Mean.Number);
 
     // Advance the Observer with One Explicit Host Tick.
     using var publication = server.Wire.Publish();
@@ -83,7 +83,7 @@ public sealed class AuthorRunsAMeasurement
     var sample = Assert.Single(publication.ResponseStream.Current.Samples);
     Assert.Equal(at, sample.At);
     Assert.Equal(1ul, global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse.Parser.ParseFrom(sample.Row).Count);
-    Assert.Equal(1, global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse.Parser.ParseFrom(sample.Row).Mean);
+    Assert.Equal(1, global::Dokime.Protocol.Plugin.Host.V1.EvidenceStatisticsResponse.Parser.ParseFrom(sample.Row).Mean.Number);
     await publication.RequestStream.CompleteAsync();
 
     // Evaluate Captured Evidence and Release the Instrument After Cleanup.

@@ -116,15 +116,19 @@ impl Store {
                 Aggregate::Max => Some(moments.max.clone()),
                 Aggregate::First => Some(moments.first.clone()),
                 Aggregate::Last => Some(moments.last.clone()),
-                Aggregate::Sum => {
-                    Some(moments.total.map(ScalarValue::Exact).unwrap_or(ScalarValue::Float(moments.mean()? * moments.count as f64)))
-                }
-                Aggregate::Mean => Some(exact_mean()?.unwrap_or(ScalarValue::Float(moments.mean()?))),
+                Aggregate::Sum => Some(match moments.total {
+                    Some(total) => ScalarValue::Exact(total),
+                    None => ScalarValue::Float(moments.mean()? * moments.count as f64),
+                }),
+                Aggregate::Mean => Some(match exact_mean()? {
+                    Some(value) => value,
+                    None => ScalarValue::Float(moments.mean()?),
+                }),
                 Aggregate::Stddev => Some(ScalarValue::Float(moments.stddev()?)),
                 Aggregate::Rms => Some(ScalarValue::Float(moments.rms()?)),
-                Aggregate::Median => Some(reader.ranks(window, moments.count, &[50])?[&50].clone()),
+                Aggregate::Median => Some(reader.ranks(window, &[50])?[&50].clone()),
                 Aggregate::Percentile if percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 => {
-                    Some(reader.ranks(window, moments.count, &[percentile as u8])?[&(percentile as u8)].clone())
+                    Some(reader.ranks(window, &[percentile as u8])?[&(percentile as u8)].clone())
                 }
                 _ => None,
             };
@@ -141,6 +145,14 @@ impl Store {
                 Ok(())
             })?;
             return Ok(edge.unwrap_or(ScalarValue::Missing));
+        }
+        if kind == Aggregate::Percentile && percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 {
+            let rank = percentile as u8;
+            let values = crate::telemetry::aggregates::rank_values(
+                |push| self.expression_values(cut, expression, None, filters, |_, _, value, _| push(value)),
+                &[rank],
+            )?;
+            return Ok(values.get(&rank).cloned().unwrap_or(ScalarValue::Missing));
         }
         let mut accumulator = expressions::accumulator(kind, percentile)?;
         self.expression_values(cut, expression, None, filters, |position, _, value, _| {

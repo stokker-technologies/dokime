@@ -25,6 +25,9 @@ use dokime_protocol::v1;
 use prost::Message;
 use sha2::{Digest, Sha256};
 
+use dokime_protocol::client::plots::{PlotCartesianMode, PlotEnvelope};
+use dokime_protocol::v1::{PlotRequest, Value};
+
 /* === Constants === */
 
 /* === Macros === */
@@ -41,7 +44,7 @@ use sha2::{Digest, Sha256};
 
 /* === Public Functions === */
 
-pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result<dokime_protocol::client::plots::PlotEnvelope> {
+pub(super) async fn query(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
     if !matches!(v1::PlotKind::try_from(request.plot_type), Ok(v1::PlotKind::Unspecified | v1::PlotKind::TimeSeries))
         || request.x_key.as_ref().is_some_and(|key| key != "timestamp")
         || request.max_points == Some(0)
@@ -164,7 +167,14 @@ pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result
             .into_iter()
             .map(|value| value.value.ok_or_else(|| Error::Invalid("Query Analysis: Select Samples Without Missing Values".into())))
             .collect::<Result<Vec<_>>>()?;
-        let mut axis = column.x.iter().map(number).collect::<Result<Vec<_>>>()?;
+        let mut axis = if frame.mode == Some(PlotCartesianMode::Aligned as i32) {
+            frame.time.clone()
+        } else {
+            column.x.iter().map(number).collect::<Result<Vec<_>>>()?
+        };
+        if axis.len() != values.len() {
+            return Err(Error::Invalid("Query Analysis: Restore a Source-Time Coordinate for Every Raw Sample".into()));
+        }
         let origin = axis.first().copied().ok_or_else(|| Error::Invalid("Query Analysis: Capture Nonempty Raw Samples".into()))?;
         for value in &mut axis {
             *value -= origin;
@@ -270,7 +280,7 @@ pub(super) async fn query(context: &Context, request: v1::PlotRequest) -> Result
 
 /* === Private Functions === */
 
-fn number(value: &v1::Value) -> Result<f64> {
+fn number(value: &Value) -> Result<f64> {
     match value.kind {
         Some(v1::value::Kind::Number(value)) => Ok(value),
         _ => Err(Error::Invalid("Query Analysis: Select a Numeric Source-Time Axis".into())),

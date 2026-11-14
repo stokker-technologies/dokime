@@ -166,6 +166,16 @@ async function execute() {
   assert.ok(records.records.some((record) => record.payload));
   assert.ok(samples.samples.some((sample) => sample.raw?.payload));
   assert.ok(await desktop.execute('return Boolean(document.querySelector("[data-execution-section=Records]"));'));
+  const values = await until("Exact Summary Tiles", () =>
+    desktop.execute(`
+    const tiles = [...document.querySelectorAll('[data-document-metric]')];
+    return tiles.length >= 11 ? Object.fromEntries(tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong')?.textContent])) : null;`),
+  );
+  const base = 1152921504606847975n;
+  for (const name of ["mean", "median", "min", "max", "first", "last", "p05", "p95", "p99"]) assert.equal(values[name], String(base));
+  const count = BigInt(values.count.replaceAll(",", ""));
+  assert.ok(count > 0n);
+  assert.equal(values.sum, String(base * count));
 }
 
 async function reportsAndHistory() {

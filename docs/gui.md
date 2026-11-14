@@ -80,18 +80,28 @@ the host's unchanged byte bound. Plot definitions do not trigger hidden plot rea
 while the document is assembled.
 
 Plot cards publish visibility through their existing intersection observer.
-`src/plots/live-data.ts` requests visible cards in groups of at most 32; this is a
+`src/plots/live-data.ts` partitions consecutive cards by plot kind into stable
+groups of at most 32, and opens visible groups and the next group concurrently.
+Off-screen analyses cannot delay a group of ordinary traces. This is a
 per-request memory/admission bound, never a document-size limit. Each group owns
 its watch, retries and cancellation. Changing one group's viewport or dimensions
 retains other subscriptions and rendered frames. Manual All uses the same bounded
 batch selection through paged snapshots. Off-screen cards resume when visible,
-and a replaced connection generation cancels every owned group. Failed groups
+and a replaced connection generation cancels every owned group, discards its
+queued frames and starts a separate data selection. Failed groups
 retain their actionable failure without discarding other groups' data.
 Native plot projection uses the requested plot kind: time-series, frequency and
 XY renderers retain one Cartesian frame; trajectory and categorical renderers
 receive one bounded point projection with source instants and exact category
 values, without a duplicate Cartesian copy. Whole-document benchmark traversal
 checks those real host-to-renderer handoffs as well as initial visible drawing.
+Numeric categories are unwrapped deliberately; integer category keys retain their
+exact decimal spelling. An error or empty card fails traversal with its identifier
+and displayed message. The benchmark times traversal inside the WebView and
+records the driver round trip separately from drawing.
+Evidence statistics, plot legends and summary tiles retain integer and exact
+rational values. Large values are formatted from their decimal representation;
+only chart coordinate calculation uses floating point.
 
 `Executions.Get` carries frozen record/stream declarations and a schema digest.
 `src/lib/host/schemas.ts` fetches complete descriptor-file pages through

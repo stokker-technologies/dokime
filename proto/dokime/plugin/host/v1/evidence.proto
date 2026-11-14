@@ -2,6 +2,7 @@ syntax = "proto3";
 package dokime.plugin.host.v1;
 option csharp_namespace = "Dokime.Protocol.Plugin.Host.V1";
 import "harmos/v1/types.proto";
+import "dokime/v1/scalar.proto";
 
 // Public child-call declarations carried by Instance.Invoke; no client service.
 message EvidenceStatisticsRequest {
@@ -16,15 +17,16 @@ message EvidenceStatisticsRequest {
 
 message EvidenceStatisticsResponse {
   uint64 count = 1;
-  double min = 2;
-  double max = 3;
-  double mean = 4;
+  .dokime.v1.Value min = 2;
+  .dokime.v1.Value max = 3;
+  .dokime.v1.Value mean = 4;
   double stddev = 5;
-  double median = 6;
-  double p05 = 7;
-  double p95 = 8;
-  double p99 = 9;
-  double first = 10;
-  double last = 11;
+  .dokime.v1.Value median = 6;
+  .dokime.v1.Value p05 = 7;
+  .dokime.v1.Value p95 = 8;
+  .dokime.v1.Value p99 = 9;
+  .dokime.v1.Value first = 10;
+  .dokime.v1.Value last = 11;
+  .dokime.v1.Value sum = 13;
   .harmos.v1.Position resolved_at = 12;
 }

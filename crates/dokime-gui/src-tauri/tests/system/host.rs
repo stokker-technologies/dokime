@@ -247,7 +247,13 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
                 assert_eq!(received.len(), group.len());
                 for (envelope, request) in received.iter().zip(group) {
                     assert_eq!(Some(&envelope.plot_id), request.plot_id.as_ref());
-                    assert!(envelope.payload.is_some());
+                    let frame = envelope
+                        .payload
+                        .as_ref()
+                        .and_then(|payload| payload.frame.as_ref())
+                        .ok_or("Draw Native Plot: Restore Its Data Frame")?;
+                    assert!(frame.point_count > 0);
+                    assert!(frame.series.iter().all(|column| !column.y.is_empty()));
                 }
             }
             let mut frequency = requests.pop().unwrap();
@@ -427,6 +433,75 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             let opening = client::plots::SnapshotsWatchResponse::decode(opening.as_slice())?;
             assert!(opening.opening);
             assert_eq!(opening.updates.len(), 1);
+            // Open One Hundred Authored Cards From Two Independent Native Clients.
+            let mut second_owner = Connection::new(settings())?;
+            let second = second_owner.attach_local(session.endpoint()).await?;
+            let mut document_request = client::DocumentsGetRequest {
+                scope: Some(v1::DocumentScope {
+                    cycle_id: cycle.cycle_id.clone(),
+                    execution_id: execution.clone(),
+                }),
+                document_id: "thermal.report".into(),
+                max_frames: 32,
+                ..Default::default()
+            };
+            let mut producing = Vec::new();
+            loop {
+                let (first, other): (client::DocumentsGetResponse, client::DocumentsGetResponse) = tokio::try_join!(
+                    session.unary("/dokime.client.v1.Documents/Get", document_request.clone()),
+                    second.unary("/dokime.client.v1.Documents/Get", document_request.clone()),
+                )?;
+                assert_eq!(first.frames, other.frames);
+                for frame in first.frames {
+                    if let Some(FrameKind::Binding(binding)) = frame.frame.and_then(|frame| frame.kind)
+                        && let Some(BindingKind::Plot(plot)) = binding.result.and_then(|result| result.kind)
+                    {
+                        let mut request = plot.request.ok_or("Read Producing Document: Restore Its Plot Selection")?;
+                        request.at = None;
+                        producing.push(request);
+                    }
+                }
+                if first.next_page_token.is_empty() {
+                    break;
+                }
+                document_request.page_token = first.next_page_token;
+                document_request.at = first.resolved_at;
+            }
+            assert_eq!(producing.len(), 100);
+            let mut readers = tokio::task::JoinSet::new();
+            for viewer in [&session, &second] {
+                for group in producing.chunks(32) {
+                    let viewer = viewer.clone();
+                    let group = group.to_vec();
+                    readers.spawn(async move {
+                        let expected = group.iter().map(|plot| plot.plot_id.clone().unwrap()).collect::<std::collections::BTreeSet<_>>();
+                        let mut data = std::collections::BTreeSet::new();
+                        let mut watch = viewer
+                            .watch_raw(
+                                "/dokime.client.v1.plots.Snapshots/Watch",
+                                &SnapshotsWatchRequest { requests: group, ..Default::default() }.encode_to_vec(),
+                            )
+                            .await?;
+                        while let Some(frame) = watch.next().await {
+                            let frame = SnapshotsWatchResponse::decode(frame?.as_slice())?;
+                            assert!(frame.resync_required.is_none());
+                            for update in frame.updates {
+                                let envelope = update.envelope.unwrap();
+                                assert!(envelope.warnings.is_empty());
+                                assert!(expected.contains(&envelope.plot_id));
+                                if envelope.payload.and_then(|payload| payload.frame).is_some_and(|frame| frame.point_count > 0) {
+                                    data.insert(envelope.plot_id);
+                                }
+                            }
+                            if data == expected {
+                                break;
+                            }
+                        }
+                        assert_eq!(data, expected);
+                        Ok::<_, Box<dyn StdError + Send + Sync>>(data.len())
+                    });
+                }
+            }
             let _: client::prompts::AnswersCreateResponse = session
                 .unary(
                     "/dokime.client.v1.prompts.Answers/Create",
@@ -445,6 +520,12 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                 terminal = client::executions::ProgressWatchResponse::decode(frame?.as_slice())?.finished;
             }
             assert!(terminal);
+            let mut cards_with_data = 0;
+            while let Some(result) = readers.join_next().await {
+                cards_with_data += result?.map_err(|error| error.to_string())?;
+            }
+            assert_eq!(cards_with_data, 200);
+            second_owner.close().await?;
             drop(plots);
 
             // Decode Sealed Evidence With the Digest-Cached Descriptor Set.
@@ -505,6 +586,7 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
 
             // Consume Every Ordered Document Page at the Returned Cut.
             let mut request = client::DocumentsGetRequest {
+                max_frames: 32,
                 scope: Some(v1::DocumentScope {
                     cycle_id: cycle.cycle_id.clone(),
                     execution_id: execution.clone(),

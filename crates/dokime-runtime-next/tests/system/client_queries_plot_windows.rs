@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error as StdError;
 
 // Third Party Imports
 
@@ -45,7 +46,7 @@ use dokime_storage::{Execution, Sample, Store};
 /* === Tests === */
 
 #[tokio::test]
-async fn client_queries_plot_windows() -> Result<(), Box<dyn std::error::Error>> {
+async fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Retain More Than Two Million Samples as Ordinary Durable Evidence
         let root = super::support::tempdir()?;
@@ -133,8 +134,8 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn std::error::Error>>
             examined_rows += diagnostics.examined_rows;
             let payload = envelope.payload.as_ref().unwrap();
             assert_eq!(payload.summaries[0].count, 1000);
-            assert_eq!(payload.summaries[0].min, Some(0.0));
-            assert_eq!(payload.summaries[0].max, Some(100.0));
+            assert_eq!(payload.summaries[0].min.as_ref().and_then(|value| value.kind.as_ref()), Some(&v1::value::Kind::Number(0.0)));
+            assert_eq!(payload.summaries[0].max.as_ref().and_then(|value| value.kind.as_ref()), Some(&v1::value::Kind::Number(100.0)));
         }
         assert_eq!(examined_rows, 40_000);
         assert!(examined_rows < retained as u64);
@@ -171,7 +172,7 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn std::error::Error>>
         }
         assert_eq!(delivered, (0..40).map(|index| format!("visible-{index}")).collect::<Vec<_>>());
         process.close().await?;
-        Ok::<(), Box<dyn std::error::Error>>(())
+        Ok::<(), Box<dyn StdError>>(())
     })
     .await?
 }

@@ -425,14 +425,19 @@ class PlotBoxSummary(_message.Message):
     LABEL_FIELD_NUMBER: _builtins.int
     key: _builtins.str
     count: _builtins.int
-    min: _builtins.float
-    q1: _builtins.float
-    median: _builtins.float
-    q3: _builtins.float
-    max: _builtins.float
     lower_whisker: _builtins.float
     upper_whisker: _builtins.float
     label: _builtins.str
+    @_builtins.property
+    def min(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def q1(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def median(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def q3(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def max(self) -> _scalar_pb2.Value: ...
     @_builtins.property
     def outliers(self) -> _containers.RepeatedScalarFieldContainer[_builtins.float]: ...
     def __init__(
@@ -440,17 +445,17 @@ class PlotBoxSummary(_message.Message):
         *,
         key: _builtins.str = ...,
         count: _builtins.int = ...,
-        min: _builtins.float = ...,
-        q1: _builtins.float = ...,
-        median: _builtins.float = ...,
-        q3: _builtins.float = ...,
-        max: _builtins.float = ...,
+        min: _scalar_pb2.Value | None = ...,
+        q1: _scalar_pb2.Value | None = ...,
+        median: _scalar_pb2.Value | None = ...,
+        q3: _scalar_pb2.Value | None = ...,
+        max: _scalar_pb2.Value | None = ...,
         lower_whisker: _builtins.float = ...,
         upper_whisker: _builtins.float = ...,
         outliers: _abc.Iterable[_builtins.float] | None = ...,
         label: _builtins.str = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["max", b"max", "median", b"median", "min", b"min", "q1", b"q1", "q3", b"q3"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["count", b"count", "key", b"key", "label", b"label", "lower_whisker", b"lower_whisker", "max", b"max", "median", b"median", "min", b"min", "outliers", b"outliers", "q1", b"q1", "q3", b"q3", "upper_whisker", b"upper_whisker"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
@@ -489,6 +494,7 @@ class PlotColumn(_message.Message):
     X_FIELD_NUMBER: _builtins.int
     Y_FIELD_NUMBER: _builtins.int
     Z_FIELD_NUMBER: _builtins.int
+    TOTALS_FIELD_NUMBER: _builtins.int
     @_builtins.property
     def instants(self) -> _containers.RepeatedScalarFieldContainer[_builtins.str]: ...
     @_builtins.property
@@ -497,6 +503,10 @@ class PlotColumn(_message.Message):
     def y(self) -> _containers.RepeatedCompositeFieldContainer[Global___NullableNumber]: ...
     @_builtins.property
     def z(self) -> _containers.RepeatedCompositeFieldContainer[Global___NullableNumber]: ...
+    @_builtins.property
+    def totals(self) -> _containers.RepeatedCompositeFieldContainer[_scalar_pb2.Value]:
+        """Exact category totals; y remains the separate drawing coordinate."""
+
     def __init__(
         self,
         *,
@@ -504,10 +514,11 @@ class PlotColumn(_message.Message):
         x: _abc.Iterable[_scalar_pb2.Value] | None = ...,
         y: _abc.Iterable[Global___NullableNumber] | None = ...,
         z: _abc.Iterable[Global___NullableNumber] | None = ...,
+        totals: _abc.Iterable[_scalar_pb2.Value] | None = ...,
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["instants", b"instants", "x", b"x", "y", b"y", "z", b"z"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["instants", b"instants", "totals", b"totals", "x", b"x", "y", b"y", "z", b"z"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 
@@ -703,23 +714,27 @@ class PlotHistogramStatistics(_message.Message):
     RMS_FIELD_NUMBER: _builtins.int
     MIN_FIELD_NUMBER: _builtins.int
     MAX_FIELD_NUMBER: _builtins.int
-    mean: _builtins.float
-    median: _builtins.float
     std: _builtins.float
     rms: _builtins.float
-    min: _builtins.float
-    max: _builtins.float
+    @_builtins.property
+    def mean(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def median(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def min(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def max(self) -> _scalar_pb2.Value: ...
     def __init__(
         self,
         *,
-        mean: _builtins.float = ...,
-        median: _builtins.float = ...,
+        mean: _scalar_pb2.Value | None = ...,
+        median: _scalar_pb2.Value | None = ...,
         std: _builtins.float = ...,
         rms: _builtins.float = ...,
-        min: _builtins.float = ...,
-        max: _builtins.float = ...,
+        min: _scalar_pb2.Value | None = ...,
+        max: _scalar_pb2.Value | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["max", b"max", "mean", b"mean", "median", b"median", "min", b"min"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["max", b"max", "mean", b"mean", "median", b"median", "min", b"min", "rms", b"rms", "std", b"std"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
@@ -954,12 +969,16 @@ class PlotSeriesSummary(_message.Message):
     WINDOW_FIELD_NUMBER: _builtins.int
     series_id: _builtins.str
     count: _builtins.int
-    min: _builtins.float
-    max: _builtins.float
-    mean: _builtins.float
-    median: _builtins.float
     std: _builtins.float
     rms: _builtins.float
+    @_builtins.property
+    def min(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def max(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def mean(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def median(self) -> _scalar_pb2.Value: ...
     @_builtins.property
     def window(self) -> _plots_pb2.PlotWindow: ...
     def __init__(
@@ -967,38 +986,22 @@ class PlotSeriesSummary(_message.Message):
         *,
         series_id: _builtins.str = ...,
         count: _builtins.int = ...,
-        min: _builtins.float | None = ...,
-        max: _builtins.float | None = ...,
-        mean: _builtins.float | None = ...,
-        median: _builtins.float | None = ...,
+        min: _scalar_pb2.Value | None = ...,
+        max: _scalar_pb2.Value | None = ...,
+        mean: _scalar_pb2.Value | None = ...,
+        median: _scalar_pb2.Value | None = ...,
         std: _builtins.float | None = ...,
         rms: _builtins.float | None = ...,
         window: _plots_pb2.PlotWindow | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["_max", b"_max", "_mean", b"_mean", "_median", b"_median", "_min", b"_min", "_rms", b"_rms", "_std", b"_std", "max", b"max", "mean", b"mean", "median", b"median", "min", b"min", "rms", b"rms", "std", b"std", "window", b"window"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_rms", b"_rms", "_std", b"_std", "max", b"max", "mean", b"mean", "median", b"median", "min", b"min", "rms", b"rms", "std", b"std", "window", b"window"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["_max", b"_max", "_mean", b"_mean", "_median", b"_median", "_min", b"_min", "_rms", b"_rms", "_std", b"_std", "count", b"count", "max", b"max", "mean", b"mean", "median", b"median", "min", b"min", "rms", b"rms", "series_id", b"series_id", "std", b"std", "window", b"window"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_rms", b"_rms", "_std", b"_std", "count", b"count", "max", b"max", "mean", b"mean", "median", b"median", "min", b"min", "rms", b"rms", "series_id", b"series_id", "std", b"std", "window", b"window"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
-    _WhichOneofReturnType__max: _TypeAlias = _typing.Literal["max"]  # noqa: Y015
-    _WhichOneofArgType__max: _TypeAlias = _typing.Literal["_max", b"_max"]  # noqa: Y015
-    _WhichOneofReturnType__mean: _TypeAlias = _typing.Literal["mean"]  # noqa: Y015
-    _WhichOneofArgType__mean: _TypeAlias = _typing.Literal["_mean", b"_mean"]  # noqa: Y015
-    _WhichOneofReturnType__median: _TypeAlias = _typing.Literal["median"]  # noqa: Y015
-    _WhichOneofArgType__median: _TypeAlias = _typing.Literal["_median", b"_median"]  # noqa: Y015
-    _WhichOneofReturnType__min: _TypeAlias = _typing.Literal["min"]  # noqa: Y015
-    _WhichOneofArgType__min: _TypeAlias = _typing.Literal["_min", b"_min"]  # noqa: Y015
     _WhichOneofReturnType__rms: _TypeAlias = _typing.Literal["rms"]  # noqa: Y015
     _WhichOneofArgType__rms: _TypeAlias = _typing.Literal["_rms", b"_rms"]  # noqa: Y015
     _WhichOneofReturnType__std: _TypeAlias = _typing.Literal["std"]  # noqa: Y015
     _WhichOneofArgType__std: _TypeAlias = _typing.Literal["_std", b"_std"]  # noqa: Y015
-    @_typing.overload
-    def WhichOneof(self, oneof_group: _WhichOneofArgType__max) -> _WhichOneofReturnType__max | None: ...
-    @_typing.overload
-    def WhichOneof(self, oneof_group: _WhichOneofArgType__mean) -> _WhichOneofReturnType__mean | None: ...
-    @_typing.overload
-    def WhichOneof(self, oneof_group: _WhichOneofArgType__median) -> _WhichOneofReturnType__median | None: ...
-    @_typing.overload
-    def WhichOneof(self, oneof_group: _WhichOneofArgType__min) -> _WhichOneofReturnType__min | None: ...
     @_typing.overload
     def WhichOneof(self, oneof_group: _WhichOneofArgType__rms) -> _WhichOneofReturnType__rms | None: ...
     @_typing.overload

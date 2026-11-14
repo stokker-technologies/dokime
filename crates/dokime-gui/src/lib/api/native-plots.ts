@@ -53,6 +53,7 @@ import {
   nativeValueToJson,
   recordScopeFromNative,
 } from "@/lib/host/values";
+import type { StatisticValue } from "@/lib/statistics";
 import { NativeApiLimitError, NATIVE_MAX_PAGES, safeNumber } from "./native-values";
 
 /* === Canonical Types === */
@@ -609,6 +610,21 @@ function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number][
 
 /* === Response mapping === */
 
+function categoryValue(value: NativePlotFrame["series"][number]["x"][number]): string | number | boolean | null {
+  const kind = value.kind;
+  switch (kind.case) {
+    case "integer":
+    case "unsignedInteger":
+      return kind.value.toString();
+    case "number":
+    case "text":
+    case "boolean":
+      return kind.value;
+    default:
+      return null;
+  }
+}
+
 function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlotType | null): PlotPayload {
   const points = plotType === "trajectory" || plotType === "bar" || plotType === "pie";
   return {
@@ -626,8 +642,9 @@ function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlo
       return {
         ...metadata,
         points: (column?.x ?? []).map((x, row) => ({
-          x: nativeValueToJson(x) ?? null,
+          x: plotType === "bar" || plotType === "pie" ? categoryValue(x) : (nativeValueToJson(x) ?? null),
           y: column?.y[row]?.value ?? null,
+          ...(column?.totals[row] ? { exact_y: nativeValueToJson(column.totals[row]) as StatisticValue } : {}),
           z: column?.z[row]?.value ?? null,
           instant: column?.instants[row] ?? null,
         })),
@@ -649,10 +666,10 @@ function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlo
     summaries: payload.summaries.map((summary) => ({
       series_id: summary.seriesId,
       count: safeNumber(summary.count, "plot summary count"),
-      min: summary.min ?? null,
-      max: summary.max ?? null,
-      mean: summary.mean ?? null,
-      median: summary.median ?? null,
+      min: (nativeValueToJson(summary.min) as StatisticValue) ?? null,
+      max: (nativeValueToJson(summary.max) as StatisticValue) ?? null,
+      mean: (nativeValueToJson(summary.mean) as StatisticValue) ?? null,
+      median: (nativeValueToJson(summary.median) as StatisticValue) ?? null,
       std: summary.std ?? null,
       rms: summary.rms ?? null,
       window: summary.window ? { from: summary.window.from, to: summary.window.to } : null,
@@ -679,12 +696,12 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           ...(series.statistics
             ? {
                 statistics: {
-                  mean: series.statistics.mean,
-                  median: series.statistics.median,
+                  mean: nativeValueToJson(series.statistics.mean) as StatisticValue,
+                  median: nativeValueToJson(series.statistics.median) as StatisticValue,
                   std: series.statistics.std,
                   rms: series.statistics.rms,
-                  min: series.statistics.min,
-                  max: series.statistics.max,
+                  min: nativeValueToJson(series.statistics.min) as StatisticValue,
+                  max: nativeValueToJson(series.statistics.max) as StatisticValue,
                 },
               }
             : {}),
@@ -703,11 +720,11 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           key: series.key,
           label: series.label,
           count: safeNumber(series.count, "box summary count"),
-          min: series.min,
-          q1: series.q1,
-          median: series.median,
-          q3: series.q3,
-          max: series.max,
+          min: nativeValueToJson(series.min) as StatisticValue,
+          q1: nativeValueToJson(series.q1) as StatisticValue,
+          median: nativeValueToJson(series.median) as StatisticValue,
+          q3: nativeValueToJson(series.q3) as StatisticValue,
+          max: nativeValueToJson(series.max) as StatisticValue,
           lower_whisker: series.lowerWhisker,
           upper_whisker: series.upperWhisker,
           outliers: [...series.outliers],

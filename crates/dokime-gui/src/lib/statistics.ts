@@ -9,11 +9,14 @@
 
 /* === Local Imports === */
 
+import { NativeIntegerValue, NativeExactValue } from "@/lib/api/native-values";
 import { formatUnitLabel } from "@/lib/format";
 
 /* === Types === */
 
 /** One labelled distribution's backend statistics; `null` until they arrive. */
+export type StatisticValue = number | NativeIntegerValue | NativeExactValue;
+
 export type StatsSummaryRow = {
   label: string;
   unit?: string;
@@ -25,10 +28,10 @@ export type StatsSummaryRow = {
 export type SeriesSummary = {
   series_id: string;
   count: number;
-  min?: number | null;
-  max?: number | null;
-  mean?: number | null;
-  median?: number | null;
+  min?: StatisticValue | null;
+  max?: StatisticValue | null;
+  mean?: StatisticValue | null;
+  median?: StatisticValue | null;
   std?: number | null;
   rms?: number | null;
   /** The x range the statistics cover, in the plot's cartesian x space. */
@@ -62,12 +65,12 @@ export type SeriesLegendColumn = {
 export type SummaryRequestEvent = "requested" | "delivered" | "failed" | "ended";
 
 export type StatsSummary = {
-  mean?: number;
-  median?: number;
+  mean?: StatisticValue;
+  median?: StatisticValue;
   std?: number;
   rms?: number;
-  min?: number;
-  max?: number;
+  min?: StatisticValue;
+  max?: StatisticValue;
 };
 
 /* === Constants === */
@@ -84,6 +87,23 @@ export const SERIES_STATISTICS = [
 ] as const;
 
 /* === Public Functions === */
+
+/** Scale Exact Statistics Without Converting Their Integer Magnitudes. */
+export function scaleStatisticValue(value: StatisticValue, scale: number): StatisticValue {
+  if (scale === 1) return value;
+  if (typeof value === "number") return value * scale;
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(String(scale));
+  if (!match) throw new Error("Scale Statistic: Supply a Finite Decimal Scale");
+  const digits = BigInt(`${match[2]}${match[3] ?? ""}`);
+  const power = Number(match[4] ?? 0) - (match[3]?.length ?? 0);
+  const factor = power >= 0 ? digits * 10n ** BigInt(power) : digits;
+  const divisor = power >= 0 ? 1n : 10n ** BigInt(-power);
+  const integer = "numerator" in value ? null : BigInt(value.decimal);
+  const negative = "numerator" in value ? value.negative : integer! < 0n;
+  const numerator = "numerator" in value ? BigInt(value.numerator) : integer! < 0n ? -integer! : integer!;
+  const denominator = "denominator" in value ? BigInt(value.denominator) : 1n;
+  return new NativeExactValue(negative !== Boolean(match[1]), String(numerator * factor), String(denominator * divisor));
+}
 
 /**
  * The legend table's columns, the same on a live plot and in a report: the
@@ -186,14 +206,15 @@ export function nearestDrawnPoint(
 }
 
 /** One statistic as the legend table prints it; the unit is in the header. */
-export function formatSummaryValue(value: number | null | undefined): string {
+export function formatSummaryValue(value: StatisticValue | null | undefined): string {
+  if (value instanceof NativeIntegerValue || value instanceof NativeExactValue) return value.decimal;
   if (value === undefined || value === null || !Number.isFinite(value)) {
     return "-";
   }
   return value.toFixed(Math.abs(value) >= 100 ? 0 : 2);
 }
 
-export function formatStatValue(value: number | undefined, unit?: string): string {
+export function formatStatValue(value: StatisticValue | undefined, unit?: string): string {
   const text = formatSummaryValue(value);
   return unit && text !== "-" ? `${text} ${unit}` : text;
 }

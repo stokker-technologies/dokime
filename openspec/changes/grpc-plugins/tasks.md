@@ -655,3 +655,19 @@ existing host services, proto and generated Rust protocol remain with their owne
 - [ ] Expose typed product build facts, including the connected host's artifact target, source revision and channel, through its status/identity owner. Settings > Plugins needs the host target to select a release bundle; local CPU facts cannot identify a remote host. Disable only Check for Updates with a visible reason until this is served; native file installation remains available.
 
 - [ ] Advertise product RPC bindings through `CatalogEntries.List(CatalogEntriesListRequest { kind: OPERATIONS, page }) -> CatalogEntriesListResponse.operations`: product contracts currently omit `DiscoveredOperation.contract.grpc`, so the library cannot report `grpc_available` for the served product routes. Preserve each operation's canonical request/response descriptors, policy and resource binding. Settings > Diagnostics > Storage Source Priority needs discovery for `Settings.ReorderStorageSources` and `Settings.SetStorageSourceEnabled`; those two controls remain disabled with a visible reason. Access/Status services advertise their bindings and stay enabled. Do not invent capability bindings in the desktop.
+
+## Plot Document Correctness
+
+Sole writer on `fix/plot-document-correctness`; local commits only. Inventory:
+plot projection and grouped loading in the desktop; plot analysis input in operations;
+typed statistics in storage, protocol, operations and generated consumers; native and
+frontend document fixtures/stories; benchmark instrumentation and `docs/tooling.md`,
+`docs/gui.md`, `docs/architecture.md`. README claims remain applicable.
+
+- [x] Repair categorical projection and require every benchmark card to draw data.
+- [x] Restore captured raw samples for plugin analyses.
+- [x] Preserve exact integer statistics through storage, wire and summary tiles.
+- [x] Stabilize bounded viewport groups and separate traversal, query and driver measurements.
+- [ ] Run the desktop benchmark once on the committed candidate and refresh its accurately labelled observations.
+- [x] Cover producing execution, independent clients and reconnect during loading.
+- [ ] Commit the combined repair and run the requested committed-head proof.

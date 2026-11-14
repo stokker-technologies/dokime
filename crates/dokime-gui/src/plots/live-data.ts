@@ -98,7 +98,8 @@ export function useLivePlotPayloads({
   );
   const scopeKey = useMemo(() => recordScopeKey(scopeFields), [scopeFields]);
   const requestScope = useMemo(() => cloneRecordScope(scopeFields), [scopeFields]);
-  const scopeWindowKey = useMemo(() => [scopeKey, windowS ?? "all"].join("|"), [scopeKey, windowS]);
+  const generation = nativeSession?.identity.generation;
+  const scopeWindowKey = useMemo(() => [generation, scopeKey, windowS ?? "all"].join("|"), [generation, scopeKey, windowS]);
   const dataKey = useMemo(() => [plotRequestKey, scopeWindowKey].join("|"), [plotRequestKey, scopeWindowKey]);
 
   // All Captures Query Settings On Entry Or Explicit Refresh.
@@ -109,7 +110,21 @@ export function useLivePlotPayloads({
   const selectionKey = automatic ? dataKey : `${scopeWindowKey}|${refreshKey}`;
   const requestSelection = useMemo(() => ({ key: selectionKey, plots: currentPlots.current }), [selectionKey]);
   const requestPlots = requestSelection.plots;
-  const shownPlots = requestPlots.filter((plot) => typeof IntersectionObserver === "undefined" || visible[plot.plot_id] === true);
+  // Bound Each Stable Run By Kind So Off-Screen Analyses Cannot Delay The First Charts.
+  const requestGroups = useMemo(() => {
+    const groups: DocumentViewPlot[][] = [];
+    for (const plot of requestPlots) {
+      const last = groups.at(-1);
+      if (!last || last.length === NATIVE_PLOT_MAX_REQUESTS || last[0].plot_type !== plot.plot_type) groups.push([plot]);
+      else last.push(plot);
+    }
+    return groups;
+  }, [requestPlots]);
+  const visibleGroups = requestGroups.map(
+    (group) => typeof IntersectionObserver === "undefined" || group.some((plot) => visible[plot.plot_id] === true),
+  );
+  const shownGroups = requestGroups.filter((_, index) => visibleGroups[index] || visibleGroups[index - 1]);
+  const shownPlots = shownGroups.flat();
   const shownKey = shownPlots.map((plot) => plot.plot_id).join(";");
   const summaryKey = useMemo(
     () => JSON.stringify(Object.fromEntries(requestPlots.map((plot) => [plot.plot_id, summaryWindows[plot.plot_id]]))),
@@ -126,8 +141,22 @@ export function useLivePlotPayloads({
     : `${scopeWindowKey}|${summaryKey}|${widthKey}|${shownKey}`;
   const requestVisible = !automatic || pageVisible;
   const onRefreshChange = refresh?.onChange;
-  const inputsRef = useRef({ plots: shownPlots, requestedSummaryWindows, requestedWidths, dataKey: requestDataKey, scopeWindowKey });
-  inputsRef.current = { plots: shownPlots, requestedSummaryWindows, requestedWidths, dataKey: requestDataKey, scopeWindowKey };
+  const inputsRef = useRef({
+    plots: shownPlots,
+    groups: shownGroups,
+    requestedSummaryWindows,
+    requestedWidths,
+    dataKey: requestDataKey,
+    scopeWindowKey,
+  });
+  inputsRef.current = {
+    plots: shownPlots,
+    groups: shownGroups,
+    requestedSummaryWindows,
+    requestedWidths,
+    dataKey: requestDataKey,
+    scopeWindowKey,
+  };
   const requestInputs = useMemo(() => ({ ...inputsRef.current, key: `${requestKey}|${refreshKey}` }), [requestKey, refreshKey]);
 
   const dataKeyRef = useRef<string | null>(null);
@@ -155,7 +184,14 @@ export function useLivePlotPayloads({
       modelRef.current = update(modelRef.current);
       setState(modelRef.current);
     };
-    const { plots: selectedPlots, requestedSummaryWindows, requestedWidths, dataKey, scopeWindowKey } = requestInputs;
+    const {
+      plots: selectedPlots,
+      groups: selectedGroups,
+      requestedSummaryWindows,
+      requestedWidths,
+      dataKey,
+      scopeWindowKey,
+    } = requestInputs;
     const dataChanged = dataKeyRef.current !== dataKey;
     if (dataChanged) refreshFailuresRef.current.clear();
     dataKeyRef.current = dataKey;
@@ -200,17 +236,19 @@ export function useLivePlotPayloads({
     }
 
     const desired = new Map<string, { plots: DocumentViewPlot[]; requests: PlotPayloadRequestInput[] }>();
-    for (let index = 0; index < selectedPlots.length; index += NATIVE_PLOT_MAX_REQUESTS) {
-      const plots = selectedPlots.slice(index, index + NATIVE_PLOT_MAX_REQUESTS);
-      const requests = plots.map((plot) =>
-        plotRequestForDocumentPlot(plot, {
+    for (const plots of selectedGroups) {
+      const requests = plots.map((plot) => {
+        const width = requestedWidths[plot.plot_id]?.[0];
+        const maximum = displayPointBudget(plot.display_points) || DEFAULT_PLOT_MAX_POINTS;
+        return plotRequestForDocumentPlot(plot, {
           scope: requestScope,
           windowS,
           summaryWindow: requestedSummaryWindows[plot.plot_id] ?? null,
-          panelWidth: requestedWidths[plot.plot_id]?.[0] ?? undefined,
-          panelHeight: requestedWidths[plot.plot_id]?.[1] ?? undefined,
-        }),
-      );
+          // Widths Above The Point Ceiling Do Not Change The Served Selection.
+          panelWidth: !automatic || (width && width * 4 < maximum) ? (width ?? undefined) : undefined,
+          panelHeight: plot.plot_type === "contour" ? (requestedWidths[plot.plot_id]?.[1] ?? undefined) : undefined,
+        });
+      });
       desired.set(JSON.stringify([nativeSession.identity.generation, requests, refreshKey]), { plots, requests });
     }
     for (const [key, dispose] of groupsRef.current) {
@@ -273,7 +311,7 @@ export function useLivePlotPayloads({
       const flush = () => {
         flushFrameRef.current = null;
         flushTimerRef.current = null;
-        if (!active || Object.keys(queued).length === 0) return;
+        if (!active || !nativeSession.identity.isCurrent() || Object.keys(queued).length === 0) return;
         const updates = queued;
         queued = {};
         // Only Complete Revisions Reach The Visible Model, In One Shared Commit.

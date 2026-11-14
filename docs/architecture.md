@@ -544,11 +544,17 @@ the previous record at the current record's time before alignment to later sampl
 Exact integer rank selection spills projected order keys to an ephemeral query
 file once and replays those keys in bounded radix passes, avoiding repeated batch
 decompression and whole-population sorting in memory. Integer ordering and
-interpolation precede conversion at numeric-only protocol boundaries. Integer
+interpolation retain their integer or rational type through evidence statistics,
+plot summaries and document values. Record/expression percentiles use the same
+spill-backed rank selector as stream percentiles, rather than the library's
+floating percentile accumulator. Category reducers likewise accumulate typed
+values; plot columns retain exact totals separately from drawing coordinates. `dokime.v1.Value.exact` uses the library's
+`harmos.storage.v1.ExactNumber` for fractions and totals outside the 64-bit range;
+ordinary integral results retain signed or unsigned integer values. The desktop
+formats these values without converting them to JavaScript numbers. Integer
 variance uses bounded exact sums of squares, so small spreads above f64 integer
-precision survive. A rational or integer outside the frozen `Value` format is
-refused instead of rounded; numeric-only statistics replies retain their existing
-f64 presentation boundary.
+precision survive. Standard deviation, RMS and chart coordinates remain floating
+point; these drawing coordinates never replace the exact statistic or its label.
 
 `Backend::for_execution` implements the pinned `StorageBackend` lifecycle, retained
 snapshots and native Arrow scans for an execution history. Native schema identities

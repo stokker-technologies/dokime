@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error as StdError;
 
 // Third Party Imports
 
@@ -106,7 +107,7 @@ impl harmos_protocol::plugin::instance_server::Instance for AnalysisProvider {
 /* === Tests === */
 
 #[tokio::test]
-async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error>> {
+async fn client_queries_advanced_plots() -> Result<(), Box<dyn StdError>> {
     tokio::time::timeout(super::support::SYSTEM_HANG_GUARD,async {
         // Retain Correlated Streams and Numeric Group Labels
         let root=super::support::tempdir()?;
@@ -213,7 +214,7 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         let reply=dokime_protocol::client::plots::snapshots_client::SnapshotsClient::connect(process.url.clone()).await?.list(dokime_protocol::client::plots::SnapshotsListRequest {requests:vec![request], ..Default::default()}).await?.into_inner();
         let payload=reply.envelopes[0].payload.as_ref().unwrap();
         assert_eq!(payload.summaries[0].count,8);
-        assert_eq!(payload.summaries[0].mean,Some(4.5));
+        assert_eq!(payload.summaries[0].mean.as_ref().and_then(|value| value.kind.as_ref()),Some(&v1::value::Kind::Number(4.5)));
         assert_eq!(payload.markers.len(),1);
         assert_eq!(payload.markers[0].x.as_ref().unwrap().kind,Some(v1::value::Kind::Number(25.0)));
 
@@ -245,6 +246,6 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn std::error::Error
         assert!(matches!(reply.envelopes[0].payload.as_ref().unwrap().analysis.as_ref().unwrap().result.as_ref().unwrap().kind.as_ref(),Some(dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(grid)) if grid.frames[0].highlights.len()==1));
         process.close().await?;
         let _=stop.send(());provider_task.await??;
-        Ok::<_,Box<dyn std::error::Error>>(())
+        Ok::<_,Box<dyn StdError>>(())
     }).await?
 }

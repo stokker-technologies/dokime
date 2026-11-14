@@ -3,6 +3,7 @@
 isort:skip_file
 """
 
+from dokime.v1 import scalar_pb2 as _scalar_pb2
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from harmos.v1 import types_pb2 as _types_pb2
@@ -68,39 +69,52 @@ class EvidenceStatisticsResponse(_message.Message):
     P99_FIELD_NUMBER: _builtins.int
     FIRST_FIELD_NUMBER: _builtins.int
     LAST_FIELD_NUMBER: _builtins.int
+    SUM_FIELD_NUMBER: _builtins.int
     RESOLVED_AT_FIELD_NUMBER: _builtins.int
     count: _builtins.int
-    min: _builtins.float
-    max: _builtins.float
-    mean: _builtins.float
     stddev: _builtins.float
-    median: _builtins.float
-    p05: _builtins.float
-    p95: _builtins.float
-    p99: _builtins.float
-    first: _builtins.float
-    last: _builtins.float
+    @_builtins.property
+    def min(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def max(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def mean(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def median(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def p05(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def p95(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def p99(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def first(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def last(self) -> _scalar_pb2.Value: ...
+    @_builtins.property
+    def sum(self) -> _scalar_pb2.Value: ...
     @_builtins.property
     def resolved_at(self) -> _types_pb2.Position: ...
     def __init__(
         self,
         *,
         count: _builtins.int = ...,
-        min: _builtins.float = ...,
-        max: _builtins.float = ...,
-        mean: _builtins.float = ...,
+        min: _scalar_pb2.Value | None = ...,
+        max: _scalar_pb2.Value | None = ...,
+        mean: _scalar_pb2.Value | None = ...,
         stddev: _builtins.float = ...,
-        median: _builtins.float = ...,
-        p05: _builtins.float = ...,
-        p95: _builtins.float = ...,
-        p99: _builtins.float = ...,
-        first: _builtins.float = ...,
-        last: _builtins.float = ...,
+        median: _scalar_pb2.Value | None = ...,
+        p05: _scalar_pb2.Value | None = ...,
+        p95: _scalar_pb2.Value | None = ...,
+        p99: _scalar_pb2.Value | None = ...,
+        first: _scalar_pb2.Value | None = ...,
+        last: _scalar_pb2.Value | None = ...,
+        sum: _scalar_pb2.Value | None = ...,
         resolved_at: _types_pb2.Position | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["resolved_at", b"resolved_at"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["first", b"first", "last", b"last", "max", b"max", "mean", b"mean", "median", b"median", "min", b"min", "p05", b"p05", "p95", b"p95", "p99", b"p99", "resolved_at", b"resolved_at", "sum", b"sum"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["count", b"count", "first", b"first", "last", b"last", "max", b"max", "mean", b"mean", "median", b"median", "min", b"min", "p05", b"p05", "p95", b"p95", "p99", b"p99", "resolved_at", b"resolved_at", "stddev", b"stddev"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["count", b"count", "first", b"first", "last", b"last", "max", b"max", "mean", b"mean", "median", b"median", "min", b"min", "p05", b"p05", "p95", b"p95", "p99", b"p99", "resolved_at", b"resolved_at", "stddev", b"stddev", "sum", b"sum"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 

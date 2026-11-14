@@ -1502,11 +1502,16 @@ class DocumentsGetRequest(_message.Message):
     CARD_IDS_FIELD_NUMBER: _builtins.int
     PAGE_TOKEN_FIELD_NUMBER: _builtins.int
     MAX_BYTES_FIELD_NUMBER: _builtins.int
+    MAX_FRAMES_FIELD_NUMBER: _builtins.int
     AT_FIELD_NUMBER: _builtins.int
     document_id: _builtins.str
     structure_only: _builtins.bool
     page_token: _builtins.str
     max_bytes: _builtins.int
+    max_frames: _builtins.int
+    """Upper bound on complete frames per page, in addition to max_bytes.
+    Zero uses the host's page item bound; continuations retain the same cut.
+    """
     @_builtins.property
     def scope(self) -> _documents_pb2.DocumentScope: ...
     @_builtins.property
@@ -1522,11 +1527,12 @@ class DocumentsGetRequest(_message.Message):
         card_ids: _abc.Iterable[_builtins.str] | None = ...,
         page_token: _builtins.str = ...,
         max_bytes: _builtins.int = ...,
+        max_frames: _builtins.int = ...,
         at: _types_pb2.ReadCut | None = ...,
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _typing.Literal["at", b"at", "scope", b"scope"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["at", b"at", "card_ids", b"card_ids", "document_id", b"document_id", "max_bytes", b"max_bytes", "page_token", b"page_token", "scope", b"scope", "structure_only", b"structure_only"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["at", b"at", "card_ids", b"card_ids", "document_id", b"document_id", "max_bytes", b"max_bytes", "max_frames", b"max_frames", "page_token", b"page_token", "scope", b"scope", "structure_only", b"structure_only"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 
@@ -1569,11 +1575,14 @@ class DocumentsWatchRequest(_message.Message):
     CARD_IDS_FIELD_NUMBER: _builtins.int
     PAGE_TOKEN_FIELD_NUMBER: _builtins.int
     MAX_BYTES_FIELD_NUMBER: _builtins.int
+    MAX_FRAMES_FIELD_NUMBER: _builtins.int
     AT_FIELD_NUMBER: _builtins.int
     document_id: _builtins.str
     structure_only: _builtins.bool
     page_token: _builtins.str
     max_bytes: _builtins.int
+    max_frames: _builtins.int
+    """Upper bound on complete frames per delivery, in addition to max_bytes."""
     @_builtins.property
     def scope(self) -> _documents_pb2.DocumentScope: ...
     @_builtins.property
@@ -1589,11 +1598,12 @@ class DocumentsWatchRequest(_message.Message):
         card_ids: _abc.Iterable[_builtins.str] | None = ...,
         page_token: _builtins.str = ...,
         max_bytes: _builtins.int = ...,
+        max_frames: _builtins.int = ...,
         at: _types_pb2.ReadCut | None = ...,
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _typing.Literal["at", b"at", "scope", b"scope"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["at", b"at", "card_ids", b"card_ids", "document_id", b"document_id", "max_bytes", b"max_bytes", "page_token", b"page_token", "scope", b"scope", "structure_only", b"structure_only"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["at", b"at", "card_ids", b"card_ids", "document_id", b"document_id", "max_bytes", b"max_bytes", "max_frames", b"max_frames", "page_token", b"page_token", "scope", b"scope", "structure_only", b"structure_only"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 

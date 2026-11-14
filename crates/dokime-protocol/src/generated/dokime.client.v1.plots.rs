@@ -591,16 +591,16 @@ pub struct PlotBoxSummary {
     pub key: ::prost::alloc::string::String,
     #[prost(uint64, tag = "2")]
     pub count: u64,
-    #[prost(double, tag = "3")]
-    pub min: f64,
-    #[prost(double, tag = "4")]
-    pub q1: f64,
-    #[prost(double, tag = "5")]
-    pub median: f64,
-    #[prost(double, tag = "6")]
-    pub q3: f64,
-    #[prost(double, tag = "7")]
-    pub max: f64,
+    #[prost(message, optional, tag = "3")]
+    pub min: ::core::option::Option<super::super::super::v1::Value>,
+    #[prost(message, optional, tag = "4")]
+    pub q1: ::core::option::Option<super::super::super::v1::Value>,
+    #[prost(message, optional, tag = "5")]
+    pub median: ::core::option::Option<super::super::super::v1::Value>,
+    #[prost(message, optional, tag = "6")]
+    pub q3: ::core::option::Option<super::super::super::v1::Value>,
+    #[prost(message, optional, tag = "7")]
+    pub max: ::core::option::Option<super::super::super::v1::Value>,
     #[prost(double, tag = "8")]
     pub lower_whisker: f64,
     #[prost(double, tag = "9")]
@@ -629,6 +629,9 @@ pub struct PlotColumn {
     pub y: ::prost::alloc::vec::Vec<NullableNumber>,
     #[prost(message, repeated, tag = "4")]
     pub z: ::prost::alloc::vec::Vec<NullableNumber>,
+    /// Exact category totals; y remains the separate drawing coordinate.
+    #[prost(message, repeated, tag = "6")]
+    pub totals: ::prost::alloc::vec::Vec<super::super::super::v1::Value>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
@@ -703,20 +706,20 @@ pub struct PlotHistogramSeries {
     pub statistics: ::core::option::Option<PlotHistogramStatistics>,
 }
 #[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PlotHistogramStatistics {
-    #[prost(double, tag = "1")]
-    pub mean: f64,
-    #[prost(double, tag = "2")]
-    pub median: f64,
+    #[prost(message, optional, tag = "1")]
+    pub mean: ::core::option::Option<super::super::super::v1::Value>,
+    #[prost(message, optional, tag = "2")]
+    pub median: ::core::option::Option<super::super::super::v1::Value>,
     #[prost(double, tag = "3")]
     pub std: f64,
     #[prost(double, tag = "4")]
     pub rms: f64,
-    #[prost(double, tag = "5")]
-    pub min: f64,
-    #[prost(double, tag = "6")]
-    pub max: f64,
+    #[prost(message, optional, tag = "5")]
+    pub min: ::core::option::Option<super::super::super::v1::Value>,
+    #[prost(message, optional, tag = "6")]
+    pub max: ::core::option::Option<super::super::super::v1::Value>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -817,14 +820,14 @@ pub struct PlotSeriesSummary {
     pub series_id: ::prost::alloc::string::String,
     #[prost(uint64, tag = "2")]
     pub count: u64,
-    #[prost(double, optional, tag = "3")]
-    pub min: ::core::option::Option<f64>,
-    #[prost(double, optional, tag = "4")]
-    pub max: ::core::option::Option<f64>,
-    #[prost(double, optional, tag = "5")]
-    pub mean: ::core::option::Option<f64>,
-    #[prost(double, optional, tag = "6")]
-    pub median: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "3")]
+    pub min: ::core::option::Option<super::super::super::v1::Value>,
+    #[prost(message, optional, tag = "4")]
+    pub max: ::core::option::Option<super::super::super::v1::Value>,
+    #[prost(message, optional, tag = "5")]
+    pub mean: ::core::option::Option<super::super::super::v1::Value>,
+    #[prost(message, optional, tag = "6")]
+    pub median: ::core::option::Option<super::super::super::v1::Value>,
     #[prost(double, optional, tag = "7")]
     pub std: ::core::option::Option<f64>,
     #[prost(double, optional, tag = "8")]
