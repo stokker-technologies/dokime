@@ -116,10 +116,6 @@ run = "{{vars.tools}} dokime_tools.ci.tasks bench"
 description = "Package Built Artifacts"
 run = "{{vars.tools}} dokime_tools.ci.tasks package"
 
-[tasks.bench]
-description = "Measure Built Benchmarks"
-run = "{{vars.tools}} dokime_tools.ci.tasks bench"
-
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-prepare"
