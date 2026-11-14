@@ -187,6 +187,8 @@ def main() -> None:
             [
                 "cmake",
                 "--fresh",
+                "--preset",
+                "release",
                 "-S",
                 str(options.source or sdk / "starter"),
                 "-B",
@@ -199,6 +201,7 @@ def main() -> None:
                 "-DVCPKG_MANIFEST_INSTALL=OFF",
                 "-DCMAKE_BUILD_TYPE=Debug",
             ],
+            cwd=options.source or sdk / "starter",
             env=child,
             check=True,
         )

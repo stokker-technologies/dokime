@@ -130,9 +130,8 @@ def build(profile: str, language: str = "rust") -> None:
             )
             if language == "python":
                 wheel = next((paths.output(root, "build", profile, "any") / "python").glob("*.whl"))
-                config = Path(scratch) / "uv.toml"
-                config.write_text(f"[sources]\ndokime-sdk = {{ path = {json.dumps(wheel.as_posix())} }}\n", encoding="utf-8")
-                environment = dict(environment, UV_CONFIG_FILE=str(config))
+                with (project / "pyproject.toml").open("a", encoding="utf-8") as manifest:
+                    manifest.write(f"\n[tool.uv.sources]\ndokime-sdk = {{ path = {json.dumps(wheel.as_posix())} }}\n")
                 environment["DOKIME_TEST_HOST"] = str(
                     paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host-next{extension}"
                 )
