@@ -29,13 +29,19 @@ use crate::{Error, NumericBin, NumericWindow, Store, scalar};
 
 /* === Constants === */
 
-pub(crate) const SCHEMA: &str = "CREATE TABLE telemetry_previews(file TEXT NOT NULL REFERENCES telemetry_files(id),field TEXT NOT NULL,through INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(file,field));";
+pub(crate) const SCHEMA: &str = "CREATE TABLE telemetry_previews(file TEXT NOT NULL REFERENCES telemetry_files(id),field TEXT NOT NULL,through INTEGER NOT NULL,start_ns INTEGER NOT NULL,end_ns INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(file,field));";
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+
+struct SavedPreview {
+    start_ns: i64,
+    end_ns: i64,
+    payload: Option<Vec<u8>>,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Point {
@@ -153,16 +159,16 @@ impl Envelope {
 }
 
 impl Store {
-    pub(crate) fn preview_bins(&self, window: NumericWindow<'_>) -> Result<Option<Vec<NumericBin>>, Error> {
+    fn saved_preview(&self, window: NumericWindow<'_>, with_payload: bool) -> Result<Option<SavedPreview>, Error> {
         if self.has_projection(window)? {
             return Ok(None);
         }
         let connection = self.lock()?;
-        let selected:Option<(u64,Vec<u8>)>=connection.query_row("SELECT p.through,p.payload FROM telemetry_previews p JOIN telemetry_files f ON f.id=p.file WHERE f.execution=?1 AND f.stream=?2 AND p.field=?3",params![window.execution,window.stream,window.field],|row|Ok((row.get::<_,i64>(0)? as u64,row.get(1)?))).optional()?;
-        let Some((through, bytes)) = selected else {
+        let selected:Option<(u64,SavedPreview)>=connection.query_row("SELECT p.through,p.start_ns,p.end_ns,CASE WHEN ?4 THEN p.payload END FROM telemetry_previews p JOIN telemetry_files f ON f.id=p.file WHERE f.execution=?1 AND f.stream=?2 AND p.field=?3",params![window.execution,window.stream,window.field,with_payload],|row|Ok((row.get::<_,i64>(0)? as u64,SavedPreview {start_ns:row.get(1)?,end_ns:row.get(2)?,payload:row.get(3)?}))).optional()?;
+        let Some((through, preview)) = selected else {
             return Ok(None);
         };
-        if window.after != 0 || window.through < through {
+        if window.after != 0 || window.through < through || window.start_ns > preview.start_ns || window.end_ns < preview.end_ns {
             return Ok(None);
         }
         let accepted = crate::store::next_position(&connection, window.execution)?.saturating_sub(1);
@@ -170,10 +176,16 @@ impl Store {
         if window.through > saved && accepted > saved {
             return Ok(None);
         }
-        let mut envelope: Envelope = serde_json::from_slice(&bytes)?;
-        if envelope.buckets.values().any(|b| b.first.time < i128::from(window.start_ns) || b.last.time > i128::from(window.end_ns)) {
+        Ok(Some(preview))
+    }
+    pub(crate) fn preview_bounds(&self, window: NumericWindow<'_>) -> Result<Option<(i64, i64)>, Error> {
+        Ok(self.saved_preview(window, false)?.map(|preview| (preview.start_ns, preview.end_ns)))
+    }
+    pub(crate) fn preview_bins(&self, window: NumericWindow<'_>) -> Result<Option<Vec<NumericBin>>, Error> {
+        let Some(preview) = self.saved_preview(window, true)? else {
             return Ok(None);
-        }
+        };
+        let mut envelope: Envelope = serde_json::from_slice(&preview.payload.ok_or(Error::Corrupt("preview payload is absent"))?)?;
         envelope.fit(window.bins.get())?;
         Ok(Some(
             envelope
@@ -237,7 +249,9 @@ pub(super) fn append(
             )?;
         }
     }
-    connection.execute("INSERT INTO telemetry_previews VALUES(?1,?2,?3,?4) ON CONFLICT(file,field) DO UPDATE SET through=excluded.through,payload=excluded.payload",params![id,field,through as i64,serde_json::to_vec(&envelope)?])?;
+    let start = envelope.buckets.first_key_value().ok_or(Error::Data("preview needs a numeric row"))?.1.first.time as i64;
+    let end = envelope.buckets.last_key_value().unwrap().1.last.time as i64;
+    connection.execute("INSERT INTO telemetry_previews VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(file,field) DO UPDATE SET through=excluded.through,start_ns=excluded.start_ns,end_ns=excluded.end_ns,payload=excluded.payload",params![id,field,through as i64,start,end,serde_json::to_vec(&envelope)?])?;
     Ok(())
 }
 

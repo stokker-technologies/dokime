@@ -97,8 +97,8 @@ impl Store {
             end_ns: i64::MAX,
             bins: NonZeroUsize::MIN,
         };
-        if let Some(bins) = self.preview_bins(window)? {
-            return Ok(bins.first().zip(bins.last()).map(|(first, last)| (first.start_ns, last.end_ns)));
+        if let Some(bounds) = self.preview_bounds(window)? {
+            return Ok(Some(bounds));
         }
         let mut bounds = None::<(i64, i64)>;
         self.numeric_values(

@@ -462,7 +462,7 @@ The root uses `execution.sqlite3` (plus WAL/SHM), `backend-id`, `local.lock` and
 execution, stream and frozen descriptor identity. Samples have no SQLite payload
 or scalar-projection tables. Their only durable representation is typed compressed
 Arrow IPC. SQLite stores file and batch digests/checkpoints, ranges, stream state,
-incremental numeric moments and adaptive previews. Existing records, resources,
+incremental numeric moments, adaptive previews and per-field preview time bounds. Existing records, resources,
 files, execution metadata and reports retain their SQLite owners.
 
 `ipc.rs` and `ipc/projection.rs` restore the old append/checkpoint/footer machinery
@@ -481,8 +481,8 @@ they do not depend on a record having scalar fields.
 
 Plot/document readers consume projected batches. The pinned library supplies
 scalar evaluation, bounded accumulators, sorting and downsampling where its current
-query vocabulary fits. Each document render isolates one reader for all its cards
-and buffers HTML output instead of opening a reader or issuing file writes per point.
+query vocabulary fits. Each document render owns one isolated reader for all its
+cards and buffers its HTML output.
 `ordered_merge.rs` contains one as-of merge over two ordered
 Arrow batch iterators, with no product/storage types in its signature. Expression
 binding uses it for stream-to-stream and record-to-stream alignment, record-based
