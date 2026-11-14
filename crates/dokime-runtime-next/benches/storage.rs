@@ -25,6 +25,7 @@ use std::{
 
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
+use harmos_protocol::v1::Catalog;
 use prost::Message;
 use prost_types::{
     DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
@@ -35,7 +36,7 @@ use tempfile::TempDir;
 // Local Imports
 use dokime_protocol::{builders::Plot, v1};
 use dokime_runtime_next::{ControlledClock, Host, HostSettings, PlacementSettings, RenderSettings};
-use dokime_storage::{Execution, NumericWindow, Sample, Store, storage_defaults};
+use dokime_storage::{BatchSelection, Execution, NumericWindow, Sample, Store, storage_defaults};
 
 /* === Constants === */
 
@@ -108,7 +109,7 @@ impl Fixture {
         let root = tempfile::tempdir().unwrap();
         let store = Store::open(root.path()).unwrap();
         let mut execution = definition();
-        let mut catalog = harmos_protocol::v1::Catalog::decode(execution.catalog.as_slice()).unwrap();
+        let mut catalog = Catalog::decode(execution.catalog.as_slice()).unwrap();
         catalog.types.as_mut().unwrap().file[0].message_type[0].field =
             [("phase", Type::Uint32), ("ordinal", Type::Uint64), ("value", Type::Double)]
                 .into_iter()
@@ -137,7 +138,7 @@ impl DocumentFixture {
     fn new(rows: usize, plots: usize, median: bool) -> Self {
         let fixture = Fixture::new();
         let mut execution = definition();
-        let mut catalog = harmos_protocol::v1::Catalog::decode(execution.catalog.as_slice()).unwrap();
+        let mut catalog = Catalog::decode(execution.catalog.as_slice()).unwrap();
         let base = catalog.streams.remove(0);
         catalog.streams = (0..plots)
             .map(|i| {
@@ -271,7 +272,7 @@ fn definition() -> Execution {
         origin: Some(v1::Origin {
             kind: Some(v1::origin::Kind::Import(v1::Import::default())),
         }),
-        catalog: harmos_protocol::v1::Catalog {
+        catalog: Catalog {
             types: Some(types),
             streams: vec![harmos_protocol::v1::StreamDeclaration {
                 id: "readings".into(),
@@ -435,7 +436,7 @@ fn main() {
                     fixture
                         .store
                         .read_batches(
-                            dokime_storage::BatchSelection {
+                            BatchSelection {
                                 execution: "execution",
                                 stream: "samples",
                                 after: 0,
