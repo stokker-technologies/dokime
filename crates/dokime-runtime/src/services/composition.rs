@@ -17,7 +17,6 @@
 
 // Standard Library Imports
 use std::{
-    convert::Infallible,
     num::NonZeroUsize,
     result::Result as StdResult,
     sync::Arc,
@@ -25,7 +24,7 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::v1::access::ListenerValue;
+use harmos_protocol::host::access::ListenerValue;
 use harmos_runtime::{
     Runtime, Setup, Startup,
     clock::{Reading, Sleep},
@@ -36,6 +35,11 @@ use tokio::time::Instant;
 // Local Imports
 use super::ClientSettings;
 use crate::{Result, SchedulerClock};
+use dokime_storage::{Backend, Store};
+use harmos_protocol::model::StorageTransferSettings;
+use harmos_storage::{
+    StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
+};
 
 /* === Constants === */
 
@@ -62,9 +66,10 @@ struct Clock {
 
 impl harmos_runtime::Lifecycle for Application {
     type Config = ();
-    type Error = Infallible;
+    type Error = harmos_runtime::AssemblyError;
     type Context = Startup<Self>;
-    async fn prepare(_: (), _: &mut Setup<Self>) -> StdResult<Self, Self::Error> {
+    async fn prepare(_: (), setup: &mut Setup<Self>) -> StdResult<Self, Self::Error> {
+        setup.composition(include_str!("../../../../protocol/composition.toml"))?;
         Ok(Self)
     }
 }
@@ -91,16 +96,48 @@ impl harmos_runtime::clock::Source for Clock {
 
 /* === Public Functions === */
 
-pub(super) async fn launch(source: Arc<dyn SchedulerClock>) -> Result<Runtime<Application>> {
+pub(super) async fn launch(source: Arc<dyn SchedulerClock>, store: &Store, settings: &ClientSettings) -> Result<Runtime<Application>> {
+    let backend_settings = store.storage_settings()?;
+    let capacity = NonZeroUsize::new(settings.max_cases)
+        .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Admission Capacity".into()))?;
+    let rows = NonZeroUsize::new(settings.page_items)
+        .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Page Capacity".into()))?;
+    let bytes = NonZeroUsize::new(settings.message_bytes)
+        .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Message Capacity".into()))?;
+    let backends = Backend::open(store)?;
+    let storage = StorageManager::with_catalog(
+        harmos_runtime::plugin::manager::catalog(),
+        backends,
+        StorageSettings {
+            transfer: StorageTransferSettings::default(),
+            policy: StoragePolicy::default(),
+            request: StorageRequestSettings {
+                max_file_productions: capacity,
+                max_mutation_receipts: capacity,
+                max_pending_queries: capacity,
+                max_active_queries: capacity,
+                max_pending_write_batches: capacity,
+                max_active_file_operations: capacity,
+                max_pending_write_bytes: backend_settings.pending_bytes,
+            },
+            response: StorageResponseSettings { batch_rows: rows, batch_bytes: bytes },
+            filesystem: StorageFilesystemSettings {
+                poll_interval: backend_settings.flush_interval,
+                max_entries: capacity,
+                event_capacity: capacity,
+            },
+        },
+    )
+    .map_err(|source| crate::Error::ComposedStartup(Box::new(source)))?;
     let clock = harmos_runtime::clock::Clock::with_clock(Clock {
         origin_ns: source.now_ns(),
         source,
         origin: Instant::now(),
     });
     Runtime::<Application>::launch_with((), (), |setup| {
-        setup.settings().clock(clock);
-        setup.resource::<Option<Arc<harmos_storage::StorageManager>>>(None);
+        setup.settings().clock(clock).storage(&storage);
         setup.catalog(harmos_runtime::builtins::host_catalog(), harmos_runtime::operations::Lane::default());
+        setup.catalog(harmos_runtime::builtins::storage_catalog(), harmos_runtime::operations::Lane::default());
     })
     .await
     .map_err(|error| crate::Error::ComposedStartup(Box::new(error)))

@@ -21,7 +21,7 @@ use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_runtime::{ControlledClock, Host, RenderSettings};
 use dokime_storage::ExecutionState;
 
@@ -60,8 +60,8 @@ async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<d
                 "thermal.cycle",
                 HashMap::from([(
                     "limit".into(),
-                    v1::Value {
-                        kind: Some(v1::value::Kind::Number(85.0)),
+                    dokime_protocol::model::Value {
+                        kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
                     },
                 )]),
             )
@@ -80,7 +80,7 @@ async fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<d
         for execution in &executions {
             let snapshot = host.execution(execution)?;
             assert_eq!(snapshot.state, ExecutionState::Sealed);
-            assert_eq!(snapshot.execution.termination, v1::Termination::Cancelled as i32);
+            assert_eq!(snapshot.execution.termination, dokime_protocol::model::Termination::Cancelled as i32);
             assert!(host.streams_closed(execution)?);
             assert!(
                 snapshot.evidence.iter().any(|row| row.kind == "log"
@@ -117,8 +117,8 @@ async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn std
                 "thermal.cycle",
                 HashMap::from([(
                     "limit".into(),
-                    v1::Value {
-                        kind: Some(v1::value::Kind::Number(85.0)),
+                    dokime_protocol::model::Value {
+                        kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
                     },
                 )]),
             )
@@ -133,7 +133,7 @@ async fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn std
         host.stop_execution(&execution)?;
         assert_eq!(host.execution(&execution)?.state, ExecutionState::Open);
         assert_eq!(host.pending_prompts()?.len(), 1);
-        let answer = dokime_protocol::context::PromptsCreateResponse {
+        let answer = dokime_protocol::host::PromptsCreateResponse {
             prompt: question.prompt,
             accepted: true,
             action: "continue".into(),
@@ -174,8 +174,8 @@ async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn 
                 "thermal.cycle",
                 HashMap::from([(
                     "limit".into(),
-                    v1::Value {
-                        kind: Some(v1::value::Kind::Number(85.0)),
+                    dokime_protocol::model::Value {
+                        kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
                     },
                 )]),
             )
@@ -186,7 +186,7 @@ async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn 
         super::support::answer(&host, &execution, question)?;
         cycle.wait().await?;
         let before = host.execution(&execution)?;
-        let document = v1::Document::new("Execution Evidence");
+        let document = dokime_protocol::model::Document::new("Execution Evidence");
         let snapshot = host.snapshot(&execution)?;
         let output = host.render_document(
             &snapshot,
@@ -211,7 +211,7 @@ async fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn 
         assert_eq!(host.reports(&execution)?, vec![report.clone()]);
         let rendered = host.render_document(
             &snapshot,
-            v1::Document::new("Preview"),
+            dokime_protocol::model::Document::new("Preview"),
             RenderSettings {
                 page_size: NonZeroUsize::new(2).unwrap(),
                 display_points: NonZeroUsize::new(2).unwrap(),

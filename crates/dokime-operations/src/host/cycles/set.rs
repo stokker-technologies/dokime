@@ -18,15 +18,15 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
+use crate::{Error, Result, host::Context};
+use dokime_protocol::model;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Cycles/Set";
+pub const ID: &str = "dokime.host.v1.Cycles/Set";
 
 /* === Macros === */
 
@@ -42,20 +42,20 @@ pub const ID: &str = "dokime.client.v1.Cycles/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::CyclesSetRequest, dokime_protocol::client::CyclesSetResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::CyclesSetRequest, dokime_protocol::host::CyclesSetResponse>(
         ID,
         settings.mutation_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::CyclesSetRequest,
-) -> Result<dokime_protocol::client::CyclesSetResponse> {
-    super::complete(ID, context.settings.mutation_timeout, async {
+    context: &Context, request: dokime_protocol::host::CyclesSetRequest,
+) -> Result<dokime_protocol::host::CyclesSetResponse> {
+    crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
-        let previous = super::cycles_get::handle(
+        let previous = crate::host::cycles::get::handle(
             context,
-            dokime_protocol::client::CyclesGetRequest {
+            dokime_protocol::host::CyclesGetRequest {
                 name: request.name.clone(),
                 ..Default::default()
             },
@@ -75,22 +75,23 @@ pub async fn handle(
         cycle.metadata.get_or_insert_default().label = value.label.clone();
         cycle.archived = value.archived;
         cycle.continue_automatically = value.continue_automatically;
-        for row in super::execution_state::snapshots(context, &request.name)? {
+        for row in crate::host::execution_state::snapshots(context, &request.name)? {
             let controls = context.host.controls(&row.execution.identifier)?;
             if controls.can_cancel && controls.paused != value.paused {
                 context.host.control_execution(
                     &row.execution.identifier,
-                    if value.paused { super::RunAction::Pause } else { super::RunAction::Resume },
+                    if value.paused { crate::host::RunAction::Pause } else { crate::host::RunAction::Resume },
                 )?;
             }
         }
-        cycle.status = if value.paused { v1::CycleStatus::Paused } else { v1::CycleStatus::Ready } as i32;
+        cycle.status =
+            if value.paused { dokime_protocol::host::CycleStatus::Paused } else { dokime_protocol::host::CycleStatus::Ready } as i32;
         context.host.store().save_cycle(&cycle)?;
         context.host.signal_change();
-        Ok(dokime_protocol::client::CyclesSetResponse {
-            revision: super::paging::bytes(&value),
+        Ok(dokime_protocol::host::CyclesSetResponse {
+            revision: crate::host::paging::bytes(&value),
             value: Some(value),
-            receipt: Some(super::views::receipt(context, &request.request_id)?),
+            receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
         })
     })
     .await

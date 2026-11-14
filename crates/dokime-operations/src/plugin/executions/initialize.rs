@@ -24,7 +24,8 @@ use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::Result;
-use dokime_protocol::plugin::{ExecutionsInitializeRequest, ExecutionsInitializeResponse};
+use dokime_protocol::plugin::ExecutionsInitializeRequest;
+use dokime_protocol::plugin::ExecutionsInitializeResponse;
 
 /* === Constants === */
 

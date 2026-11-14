@@ -18,20 +18,20 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::client::AppearanceSnapshot;
-use dokime_protocol::client::BackendAppearanceRequest;
-use dokime_protocol::client::BackendAppearanceResponse;
-use dokime_protocol::client::PluginState;
-use dokime_protocol::client::ThemeModePolicy;
+use crate::{Error, Result, host::Context};
+use dokime_protocol::host::AppearanceSnapshot;
+use dokime_protocol::host::BackendAppearanceRequest;
+use dokime_protocol::host::BackendAppearanceResponse;
+use dokime_protocol::host::ThemeModePolicy;
+use harmos_protocol::host::PluginState;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Backend/Appearance";
+pub const ID: &str = "dokime.host.v1.Backend/Appearance";
 
 /* === Macros === */
 
@@ -47,21 +47,21 @@ pub const ID: &str = "dokime.client.v1.Backend/Appearance";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<BackendAppearanceRequest, BackendAppearanceResponse>(ID, settings.read_timeout)
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<BackendAppearanceRequest, BackendAppearanceResponse>(ID, settings.read_timeout)
 }
 pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Result<BackendAppearanceResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        let (appearance, cut) = super::views::read(context, ID, request.at.as_ref(), async {
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        let (appearance, cut) = crate::host::views::read(context, ID, request.at.as_ref(), async {
             context.host.refresh_plugin_states().await?;
 
             let mut appearance = None;
             for plugin in context.host.plugins()?.into_iter().filter(|plugin| plugin.state == PluginState::Ready as i32) {
-                let Some(catalog) = plugin.description.and_then(|description| description.catalog) else {
+                let Some(catalog) = plugin.description.and_then(|description| description.declarations) else {
                     continue;
                 };
                 for section in catalog.sections {
-                    if section.r#type != "dokime.client.v1.AppearanceSnapshot" {
+                    if section.r#type != "dokime.host.v1.AppearanceSnapshot" {
                         continue;
                     }
                     if appearance.is_some() {
@@ -85,7 +85,7 @@ pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Res
                         }
                         match context.host.store().file_reference(&reference.asset_id) {
                             Ok(file) => {
-                                if super::views::hex(&file.sha256) != reference.sha256 || file.length != asset.size_bytes {
+                                if crate::host::views::hex(&file.sha256) != reference.sha256 || file.length != asset.size_bytes {
                                     return Err(Error::Invalid("Read Appearance: Publish the Declared Asset Length and SHA-256".into()));
                                 }
                                 asset.file = Some(file);

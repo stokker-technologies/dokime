@@ -48,8 +48,8 @@ pub(crate) struct PromptManager {
     runtime: tokio::sync::watch::Sender<u64>,
 }
 struct Pending {
-    question: dokime_protocol::context::PromptsCreateRequest,
-    answer: Option<oneshot::Sender<dokime_protocol::context::PromptsCreateResponse>>,
+    question: dokime_protocol::host::PromptsCreateRequest,
+    answer: Option<oneshot::Sender<dokime_protocol::host::PromptsCreateResponse>>,
 }
 
 /* === Enums === */
@@ -71,7 +71,7 @@ impl PromptManager {
     }
     pub(crate) async fn next(
         &self, execution: &str, executions: &crate::execution_manager::ExecutionManager,
-    ) -> Result<dokime_protocol::context::PromptsCreateRequest> {
+    ) -> Result<dokime_protocol::host::PromptsCreateRequest> {
         loop {
             let changed = self.changed.notified();
             if let Some(pending) = lock(&self.pending)?.get(execution) {
@@ -97,14 +97,14 @@ impl PromptManager {
         self.runtime.send_modify(|revision| *revision += 1);
         Ok(())
     }
-    pub fn pending_prompts(&self) -> Result<Vec<(String, dokime_protocol::context::PromptsCreateRequest)>> {
+    pub fn pending_prompts(&self) -> Result<Vec<(String, dokime_protocol::host::PromptsCreateRequest)>> {
         Ok(lock(&self.pending)?
             .iter()
             .filter(|(_, pending)| pending.answer.as_ref().is_some_and(|answer| !answer.is_closed()))
             .map(|(execution, pending)| (execution.clone(), pending.question.clone()))
             .collect())
     }
-    pub fn answer(&self, execution: &str, answer: dokime_protocol::context::PromptsCreateResponse) -> Result<()> {
+    pub fn answer(&self, execution: &str, answer: dokime_protocol::host::PromptsCreateResponse) -> Result<()> {
         let mut pending = lock(&self.pending)?;
         let prompt = pending.get_mut(execution).ok_or_else(|| Error::Invalid("Answer Prompt: Wait for an Execution Question".into()))?;
         if answer.prompt != prompt.question.prompt {
@@ -119,10 +119,10 @@ impl PromptManager {
         Ok(())
     }
     pub fn record_answer(
-        &self, execution: &str, request_id: &str, fingerprint: &[u8], answer: dokime_protocol::context::PromptsCreateResponse,
-    ) -> Result<harmos_protocol::v1::Receipt> {
+        &self, execution: &str, request_id: &str, fingerprint: &[u8], answer: dokime_protocol::host::PromptsCreateResponse,
+    ) -> Result<harmos_protocol::model::Receipt> {
         if let Some((_, receipt)) =
-            self.store.requested_evidence(execution, "dokime.client.v1.prompts.Answers/Create", request_id, fingerprint)?
+            self.store.requested_evidence(execution, "dokime.host.v1.prompts.Answers/Create", request_id, fingerprint)?
         {
             return Ok(receipt);
         }
@@ -133,7 +133,7 @@ impl PromptManager {
         }
         let (_, receipt) = self.store.append_requested(
             execution,
-            "dokime.client.v1.prompts.Answers/Create",
+            "dokime.host.v1.prompts.Answers/Create",
             request_id,
             fingerprint,
             dokime_storage::Evidence {
@@ -150,8 +150,8 @@ impl PromptManager {
 #[async_trait]
 impl Prompts for PromptManager {
     async fn ask(
-        &self, execution: &str, question: dokime_protocol::context::PromptsCreateRequest,
-    ) -> dokime_operations::Result<dokime_protocol::context::PromptsCreateResponse> {
+        &self, execution: &str, question: dokime_protocol::host::PromptsCreateRequest,
+    ) -> dokime_operations::Result<dokime_protocol::host::PromptsCreateResponse> {
         let (send, receive) = oneshot::channel();
         {
             let mut pending = self

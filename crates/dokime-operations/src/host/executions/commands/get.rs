@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{Error, Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.executions.Commands/Get";
+pub const ID: &str = "dokime.host.v1.executions.Commands/Get";
 
 /* === Macros === */
 
@@ -41,23 +41,23 @@ pub const ID: &str = "dokime.client.v1.executions.Commands/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::executions::CommandsGetRequest, dokime_protocol::client::executions::CommandsGetResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::executions::CommandsGetRequest, dokime_protocol::host::executions::CommandsGetResponse>(
         ID,
         settings.read_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::executions::CommandsGetRequest,
-) -> Result<dokime_protocol::client::executions::CommandsGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
+    context: &Context, request: dokime_protocol::host::executions::CommandsGetRequest,
+) -> Result<dokime_protocol::host::executions::CommandsGetResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
         let command = context
             .host
             .store()
             .command(&request.parent, &request.name)?
             .ok_or_else(|| Error::NotFound("Get Execution Command: Use Its Accepted Execution and Command IDs".into()))?;
         let resolved_at = context.host.store().resource_value(&request.parent, "progress", request.at.as_ref())?.resolved_at;
-        Ok(dokime_protocol::client::executions::CommandsGetResponse {
+        Ok(dokime_protocol::host::executions::CommandsGetResponse {
             command: Some(command),
             resolved_at: Some(resolved_at),
         })

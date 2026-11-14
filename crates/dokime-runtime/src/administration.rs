@@ -39,12 +39,13 @@ use crate::{Error, Host, Result, host::lock};
 impl Host {
     pub(crate) fn validate_plugin_admission(&self, candidate: &crate::plugin::Entry) -> Result<()> {
         use prost::Message;
-        let catalog = candidate.description.catalog.as_ref().ok_or_else(|| Error::Invalid("Admit Plugin: Supply Its Catalog".into()))?;
+        let catalog =
+            candidate.description.declarations.as_ref().ok_or_else(|| Error::Invalid("Admit Plugin: Supply Its Catalog".into()))?;
         let mut candidate_records = Vec::new();
         for section in &catalog.sections {
-            if section.r#type == "dokime.v1.RecordContracts" {
+            if section.r#type == "dokime.model.v1.RecordContracts" {
                 candidate_records.extend(
-                    dokime_protocol::v1::RecordContracts::decode(section.payload.as_slice())?
+                    dokime_protocol::model::RecordContracts::decode(section.payload.as_slice())?
                         .records
                         .into_iter()
                         .filter_map(|record| record.metadata.map(|metadata| metadata.identifier)),
@@ -55,7 +56,7 @@ impl Host {
             if existing.description.id == candidate.description.id {
                 continue;
             }
-            let other = existing.description.catalog.as_ref().unwrap();
+            let other = existing.description.declarations.as_ref().unwrap();
             let operation_conflict =
                 catalog.operations.iter().any(|operation| other.operations.iter().any(|other| other.id == operation.id));
             let stream_conflict = catalog.streams.iter().any(|stream| other.streams.iter().any(|other| other.id == stream.id));
@@ -67,8 +68,8 @@ impl Host {
             });
             let mut record_conflict = false;
             for section in &other.sections {
-                if section.r#type == "dokime.v1.RecordContracts" {
-                    record_conflict |= dokime_protocol::v1::RecordContracts::decode(section.payload.as_slice())?
+                if section.r#type == "dokime.model.v1.RecordContracts" {
+                    record_conflict |= dokime_protocol::model::RecordContracts::decode(section.payload.as_slice())?
                         .records
                         .iter()
                         .any(|record| record.metadata.as_ref().is_some_and(|metadata| candidate_records.contains(&metadata.identifier)));

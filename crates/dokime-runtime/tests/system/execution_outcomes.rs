@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_runtime::{Host, PluginProcess};
 use dokime_storage::OutcomeCounts;
 
@@ -71,18 +71,18 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
                 evaluated: 1,
                 not_evaluated: 1,
                 declared: 0,
-                verdict: Some(v1::ResultStatus::Passed)
+                verdict: Some(dokime_protocol::host::ResultStatus::Passed)
             }
         );
         assert!(matches!(
             result.executions[1].execution.outcome.as_ref().unwrap().attribution,
-            Some(v1::execution_outcome::Attribution::NotEvaluated(_))
+            Some(dokime_protocol::host::execution_outcome::Attribution::NotEvaluated(_))
         ));
 
         // Count Declared Outcomes Without Letting Them Set the Cycle Verdict
-        let declared = v1::ExecutionOutcome {
-            attribution: Some(v1::execution_outcome::Attribution::Declared(v1::DeclaredOutcome {
-                status: v1::ResultStatus::Failed as i32,
+        let declared = dokime_protocol::host::ExecutionOutcome {
+            attribution: Some(dokime_protocol::host::execution_outcome::Attribution::Declared(dokime_protocol::host::DeclaredOutcome {
+                status: dokime_protocol::host::ResultStatus::Failed as i32,
                 importer: "sample.importer".into(),
                 ..Default::default()
             })),
@@ -91,15 +91,15 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         store.create(&dokime_storage::Execution {
             identifier: "declared".into(),
             cycle: cycle_identifier.clone(),
-            origin: Some(v1::Origin {
-                kind: Some(v1::origin::Kind::Import(v1::Import {
+            origin: Some(dokime_protocol::model::Origin {
+                kind: Some(dokime_protocol::model::origin::Kind::Import(dokime_protocol::model::Import {
                     importer: "sample.importer".into(),
                     ..Default::default()
                 })),
             }),
             ..Default::default()
         })?;
-        store.close("declared", v1::Termination::Completed, declared.clone())?;
+        store.close("declared", dokime_protocol::model::Termination::Completed, declared.clone())?;
         store.seal("declared")?;
         let mut outcomes = result.executions.iter().map(|snapshot| snapshot.execution.outcome.as_ref().unwrap()).collect::<Vec<_>>();
         outcomes.push(&declared);
@@ -109,7 +109,7 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
                 evaluated: 1,
                 not_evaluated: 1,
                 declared: 1,
-                verdict: Some(v1::ResultStatus::Passed)
+                verdict: Some(dokime_protocol::host::ResultStatus::Passed)
             }
         );
         assert_eq!(
@@ -118,7 +118,7 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
                 evaluated: 1,
                 not_evaluated: 1,
                 declared: 1,
-                verdict: Some(v1::ResultStatus::Passed)
+                verdict: Some(dokime_protocol::host::ResultStatus::Passed)
             }
         );
         drop(store);
@@ -141,10 +141,12 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         let prompt = host.next_prompt(&cycle.executions[0]).await?;
         super::support::answer(&host, &cycle.executions[0], prompt)?;
         let result = cycle.wait().await?;
-        let Some(v1::origin::Kind::PluginRun(current)) = result.executions[0].execution.origin.as_ref().unwrap().kind.as_ref() else {
+        let Some(dokime_protocol::model::origin::Kind::PluginRun(current)) =
+            result.executions[0].execution.origin.as_ref().unwrap().kind.as_ref()
+        else {
             panic!("PluginRun")
         };
-        let Some(v1::origin::Kind::PluginRun(previous)) = stale.kind.as_ref() else { panic!("PluginRun") };
+        let Some(dokime_protocol::model::origin::Kind::PluginRun(previous)) = stale.kind.as_ref() else { panic!("PluginRun") };
         assert_ne!(current.digest, previous.digest);
         assert_eq!(current.digest, host.description(&entry)?.catalog.unwrap().digest);
         assert_eq!(current.test_case.as_ref().unwrap().steps.len(), 2);
@@ -154,7 +156,7 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         // Refuse a Failed Rematerialization Without Creating Execution Evidence
         let before = host.executions()?;
         let mut invalid = stale;
-        let Some(v1::origin::Kind::PluginRun(run)) = invalid.kind.as_mut() else { unreachable!() };
+        let Some(dokime_protocol::model::origin::Kind::PluginRun(run)) = invalid.kind.as_mut() else { unreachable!() };
         run.test_case.as_mut().unwrap().parameters = super::support::parameters(8.0, u32::MAX, true);
         assert!(host.start_cycle(vec![invalid]).await.is_err());
         assert_eq!(host.executions()?, before);
@@ -164,10 +166,10 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
 
-        let page = dokime_protocol::client::executions_client::ExecutionsClient::connect(process.url.clone())
+        let page = dokime_protocol::host::executions_client::ExecutionsClient::connect(process.url.clone())
             .await?
-            .list(dokime_protocol::client::ExecutionsListRequest {
-                selection: Some(dokime_protocol::client::ExecutionSelection {
+            .list(dokime_protocol::host::ExecutionsListRequest {
+                selection: Some(dokime_protocol::host::ExecutionSelection {
                     cycle_ids: vec![cycle_identifier.clone()],
                     ..Default::default()
                 }),
@@ -177,16 +179,16 @@ async fn execution_outcomes() -> Result<(), Box<dyn std::error::Error>> {
             .into_inner();
         let counts = page.outcome_counts.unwrap();
         assert_eq!((counts.evaluated_count, counts.not_evaluated_count, counts.declared_count), (1, 1, 1));
-        assert_eq!(counts.result_status, Some(v1::ResultStatus::Passed as i32));
+        assert_eq!(counts.result_status, Some(dokime_protocol::host::ResultStatus::Passed as i32));
         assert!(page.executions.iter().any(|row| matches!(
             row.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
-            Some(v1::execution_outcome::Attribution::Declared(_))
+            Some(dokime_protocol::host::execution_outcome::Attribution::Declared(_))
         )));
 
         for row in &page.executions {
-            let detail = dokime_protocol::client::executions_client::ExecutionsClient::connect(process.url.clone())
+            let detail = dokime_protocol::host::executions_client::ExecutionsClient::connect(process.url.clone())
                 .await?
-                .get(dokime_protocol::client::ExecutionsGetRequest {
+                .get(dokime_protocol::host::ExecutionsGetRequest {
                     name: row.summary.as_ref().unwrap().execution_id.clone(),
                     ..Default::default()
                 })

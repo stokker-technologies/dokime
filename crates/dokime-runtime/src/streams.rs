@@ -21,8 +21,8 @@ use std::sync::Arc;
 // Third Party Imports
 use async_trait::async_trait;
 use harmos_protocol::{
+    model::{Catalog, SamplesSelection, Tick},
     plugin::{InstanceSamplesRequest, InstanceSamplesResponse, instance_client::InstanceClient, instance_samples_request::Frame},
-    v1::{Catalog, SamplesSelection, Tick},
 };
 use prost_types::Timestamp;
 use tokio::sync::{
@@ -216,9 +216,11 @@ mod tests {
     use super::ExecutionTime;
     use crate::{ControlledClock, PlacementSettings};
     use dokime_operations::Clock;
-    use dokime_protocol::{client::plots::PlotDomain, v1};
+    use dokime_protocol::host::plots::PlotDomain;
+    use dokime_protocol::model;
     use dokime_storage::{Execution, SampleWindow, Store};
     use harmos_protocol::{
+        model::{Catalog, Sample, StreamDeclaration},
         plugin::{
             InstanceGetRequest, InstanceGetResponse, InstanceInvokeRequest, InstanceInvokeResponse, InstanceSamplesRequest,
             InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse,
@@ -226,7 +228,6 @@ mod tests {
             instance_samples_request::Frame,
             instance_server::{Instance, InstanceServer},
         },
-        v1::{Catalog, Sample, StreamDeclaration},
     };
     use prost::Message;
     use prost_types::{Duration as ProtoDuration, FileDescriptorSet, Timestamp};
@@ -296,7 +297,7 @@ mod tests {
             types: Some(FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET).unwrap()),
             streams: vec![StreamDeclaration {
                 id: "readings".into(),
-                row: "dokime.client.v1.plots.PlotDomain".into(),
+                row: "dokime.host.v1.plots.PlotDomain".into(),
                 interval: Some(ProtoDuration { seconds: 0, nanos: 1_000_000 }),
                 ..Default::default()
             }],
@@ -306,8 +307,8 @@ mod tests {
             .create(&Execution {
                 identifier: "execution".into(),
                 cycle: "cycle".into(),
-                origin: Some(v1::Origin {
-                    kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+                origin: Some(dokime_protocol::model::Origin {
+                    kind: Some(dokime_protocol::model::origin::Kind::Import(dokime_protocol::model::Import::default())),
                 }),
                 catalog: catalog.encode_to_vec(),
                 ..Default::default()

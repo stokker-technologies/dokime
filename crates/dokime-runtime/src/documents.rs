@@ -24,9 +24,9 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
-use harmos_protocol::v1::Catalog;
-use harmos_protocol::v1::ReadCut;
+use harmos_protocol::model as h;
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::ReadCut;
 use prost::Message;
 
 use tempfile::NamedTempFile;
@@ -34,15 +34,15 @@ use tempfile::NamedTempFile;
 // Local Imports
 use crate::{Error, Host, Result};
 use dokime_operations::Result as OperationsResult;
-use dokime_operations::client::HostIdentity;
-use dokime_protocol::client::ReportMetadata;
-use dokime_protocol::client::ReportSubject;
-use dokime_protocol::v1;
-use dokime_protocol::v1::Document;
-use dokime_protocol::v1::DocumentScope;
-use dokime_protocol::v1::Plot;
-use dokime_protocol::v1::PlotFilter;
-use dokime_protocol::v1::Section;
+use dokime_operations::host::HostIdentity;
+use dokime_protocol::host::DocumentScope;
+use dokime_protocol::host::ReportMetadata;
+use dokime_protocol::host::ReportSubject;
+use dokime_protocol::model;
+use dokime_protocol::model::Document;
+use dokime_protocol::model::Plot;
+use dokime_protocol::model::PlotFilter;
+use dokime_protocol::model::Section;
 use dokime_storage::{Execution, ExecutionCut, Report, Store};
 
 /* === Constants === */
@@ -70,7 +70,7 @@ pub struct RenderedDocument {
     output: NamedTempFile,
     pub(crate) execution: String,
     pub(crate) execution_seal: Vec<u8>,
-    pub(crate) document: v1::Document,
+    pub(crate) document: dokime_protocol::model::Document,
 }
 
 /* === Enums === */
@@ -105,8 +105,8 @@ impl Host {
         use std::io::{Seek, Write};
         let (store, _read_cancellation) = self.store.read_session()?;
         let (execution, cycle) = match subject.kind.as_ref() {
-            Some(dokime_protocol::client::report_subject::Kind::Execution(id)) => (Some(id.as_str()), store.metadata(id)?.execution.cycle),
-            Some(dokime_protocol::client::report_subject::Kind::Cycle(id)) => (None, id.clone()),
+            Some(dokime_protocol::host::report_subject::Kind::Execution(id)) => (Some(id.as_str()), store.metadata(id)?.execution.cycle),
+            Some(dokime_protocol::host::report_subject::Kind::Cycle(id)) => (None, id.clone()),
             None => return Err(dokime_operations::Error::Invalid("Render Report: Select an Execution or Cycle".into())),
         };
         let mut snapshots = Vec::new();
@@ -125,7 +125,7 @@ impl Host {
                 if cut.execution.cycle != cycle {
                     continue;
                 }
-                let scope = v1::DocumentScope {
+                let scope = dokime_protocol::host::DocumentScope {
                     cycle_id: cycle.clone(),
                     execution_id: id,
                 };
@@ -133,7 +133,7 @@ impl Host {
                     .current_document_in(&store, &scope, document_id)
                     .map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
                 if let Some(at) = at {
-                    let history = harmos_protocol::v1::History {
+                    let history = harmos_protocol::model::History {
                         store: identity.backend_id.clone(),
                         epoch: scope.execution_id.clone(),
                     };
@@ -186,11 +186,11 @@ impl Host {
             output.rewind().map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
             output
         };
-        let metadata = dokime_protocol::client::ReportMetadata {
+        let metadata = dokime_protocol::host::ReportMetadata {
             test_cycle_id: cycle,
             test_execution_id: execution.map(str::to_owned),
             identifier: if execution.is_some() { "execution".into() } else { "cycle".into() },
-            origin: dokime_protocol::client::ReportOrigin::Current as i32,
+            origin: dokime_protocol::host::ReportOrigin::Current as i32,
             ..Default::default()
         };
         Ok((file, metadata))
@@ -212,32 +212,32 @@ impl Host {
             let mut cut = store.cut(&execution)?;
             cut.frontier = store.cycle_evidence_frontier(&scope.cycle_id)?;
             let sections = [
-                ("events", "Records", v1::EvidenceCard::Records),
-                ("artifacts", "Artifacts", v1::EvidenceCard::Artifacts),
-                ("media", "Media", v1::EvidenceCard::Media),
+                ("events", "Records", dokime_protocol::model::EvidenceCard::Records),
+                ("artifacts", "Artifacts", dokime_protocol::model::EvidenceCard::Artifacts),
+                ("media", "Media", dokime_protocol::model::EvidenceCard::Media),
             ]
             .into_iter()
-            .map(|(id, label, kind)| v1::Section {
-                metadata: Some(v1::Metadata {
+            .map(|(id, label, kind)| dokime_protocol::model::Section {
+                metadata: Some(dokime_protocol::model::Metadata {
                     identifier: format!("cycle.{id}"),
                     label: label.into(),
                     ..Default::default()
                 }),
-                cards: vec![v1::Card {
-                    metadata: Some(v1::Metadata {
+                cards: vec![dokime_protocol::model::Card {
+                    metadata: Some(dokime_protocol::model::Metadata {
                         identifier: format!("cycle.{id}.list"),
                         label: label.into(),
                         ..Default::default()
                     }),
-                    body: Some(v1::card::Body::Evidence(kind as i32)),
+                    body: Some(dokime_protocol::model::card::Body::Evidence(kind as i32)),
                     ..Default::default()
                 }],
                 ..Default::default()
             })
             .collect();
             return Ok((
-                v1::Document {
-                    metadata: Some(v1::Metadata {
+                dokime_protocol::model::Document {
+                    metadata: Some(dokime_protocol::model::Metadata {
                         identifier: "default".into(),
                         label: "Cycle Report".into(),
                         ..Default::default()
@@ -251,17 +251,17 @@ impl Host {
         if cut.execution.cycle != scope.cycle_id {
             return Err(Error::Invalid("Capture Document: Select the Execution in Its Own Cycle".into()));
         }
-        let catalog = h::Catalog::decode(cut.execution.catalog.as_slice())?;
+        let catalog = h::Declarations::decode(cut.execution.catalog.as_slice())?;
         let mut documents = Vec::new();
         for section in &catalog.sections {
-            if section.r#type != "dokime.v1.Suites" {
+            if section.r#type != "dokime.model.v1.Suites" {
                 continue;
             }
-            let suites = v1::Suites::decode(section.payload.as_slice())?;
+            let suites = dokime_protocol::model::Suites::decode(section.payload.as_slice())?;
             for suite in suites.suites {
                 for template in suite.templates {
                     let matched = match cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
-                        Some(v1::origin::Kind::PluginRun(run)) => {
+                        Some(dokime_protocol::model::origin::Kind::PluginRun(run)) => {
                             template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == run.template)
                         }
                         _ => true,
@@ -275,8 +275,8 @@ impl Host {
             }
         }
         if documents.is_empty() && identifier.is_empty() {
-            documents.push(v1::Document {
-                metadata: Some(v1::Metadata {
+            documents.push(dokime_protocol::model::Document {
+                metadata: Some(dokime_protocol::model::Metadata {
                     identifier: "execution".into(),
                     label: "Execution Report".into(),
                     ..Default::default()
@@ -285,7 +285,7 @@ impl Host {
             });
         }
         if documents.len() != 1 {
-            return Err(Error::Invalid("Capture Document: Select One Document ID from the Frozen Execution Catalog".into()));
+            return Err(Error::Invalid("Capture Document: Select One Document ID from the Frozen Execution Declarations".into()));
         }
         let mut document = documents.remove(0);
         let id = document.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
@@ -342,10 +342,10 @@ impl Host {
             "<dl><dt>Evaluated</dt><dd>{}</dd><dt>Not Evaluated</dt><dd>{}</dd><dt>Declared</dt><dd>{}</dd></dl>",
             counts.evaluated, counts.not_evaluated, counts.declared
         )?;
-        let catalog = h::Catalog::decode(snapshot.cut.execution.catalog.as_slice())?;
+        let catalog = h::Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
         let mut offset = 0;
         loop {
-            let expansion = dokime_operations::client::document_expansion::expand(
+            let expansion = dokime_operations::host::documents::expansion::expand(
                 &snapshot.store,
                 &snapshot.cut,
                 &document,
@@ -384,7 +384,7 @@ impl Host {
 /* === Private Functions === */
 
 fn render_section(
-    output: &mut impl Write, snapshot: &FixedSnapshot, section: &Section, catalog: &Catalog, settings: RenderSettings,
+    output: &mut impl Write, snapshot: &FixedSnapshot, section: &Section, catalog: &Declarations, settings: RenderSettings,
 ) -> Result<()> {
     if section.repeat.is_some() {
         return Err(Error::Invalid("Render Document: Expand Repeated Sections Before Rendering".into()));
@@ -395,16 +395,16 @@ fn render_section(
         let filters = card
             .filters
             .iter()
-            .map(|filter| v1::PlotFilter {
+            .map(|filter| dokime_protocol::model::PlotFilter {
                 expression: filter.expression.clone(),
                 operator: filter.operator,
                 value: filter.value.clone(),
             })
             .collect::<Vec<_>>();
         match card.body.as_ref() {
-            Some(v1::card::Body::Markdown(text)) => write!(output, "<pre>{}</pre>", escape(text))?,
-            Some(v1::card::Body::Plot(plot)) => render_plot(output, snapshot, plot, &filters, catalog, settings)?,
-            Some(v1::card::Body::Table(table)) => {
+            Some(dokime_protocol::model::card::Body::Markdown(text)) => write!(output, "<pre>{}</pre>", escape(text))?,
+            Some(dokime_protocol::model::card::Body::Plot(plot)) => render_plot(output, snapshot, plot, &filters, catalog, settings)?,
+            Some(dokime_protocol::model::card::Body::Table(table)) => {
                 write!(output, "<table>")?;
                 for row in &table.rows {
                     write!(output, "<tr>")?;
@@ -417,7 +417,7 @@ fn render_section(
                 }
                 write!(output, "</table>")?;
             }
-            Some(v1::card::Body::Summary(summary)) => {
+            Some(dokime_protocol::model::card::Body::Summary(summary)) => {
                 write!(output, "<dl>")?;
                 for tile in &summary.tiles {
                     let value =
@@ -432,7 +432,7 @@ fn render_section(
                 }
                 write!(output, "</dl>")?;
             }
-            Some(v1::card::Body::Evidence(kind)) => {
+            Some(dokime_protocol::model::card::Body::Evidence(kind)) => {
                 if !filters.is_empty() {
                     return Err(Error::Invalid("Render Evidence Card: Clear Its Filters Until Evidence-Card Filtering Is Served".into()));
                 }
@@ -449,17 +449,18 @@ fn render_section(
 }
 
 fn render_plot(
-    output: &mut impl Write, snapshot: &FixedSnapshot, plot: &Plot, filters: &[PlotFilter], _catalog: &Catalog, settings: RenderSettings,
+    output: &mut impl Write, snapshot: &FixedSnapshot, plot: &Plot, filters: &[PlotFilter], _catalog: &Declarations,
+    settings: RenderSettings,
 ) -> Result<()> {
-    let scope = v1::EvidenceScope {
+    let scope = dokime_protocol::model::EvidenceScope {
         execution_id: Some(snapshot.cut.execution.identifier.clone()),
         cycle_id: Some(snapshot.cut.execution.cycle.clone()),
         ..Default::default()
     };
-    let mut request = dokime_operations::client::document_plot::request(plot, scope).map_err(|error| Error::Invalid(error.to_string()))?;
+    let mut request = dokime_operations::host::documents::plot::request(plot, scope).map_err(|error| Error::Invalid(error.to_string()))?;
     request.filters.extend_from_slice(filters);
     request.max_points = Some(plot.display_points.unwrap_or(settings.display_points.get() as u32) as u64);
-    let envelope = dokime_operations::client::plots_snapshots_list::snapshot_at(
+    let envelope = dokime_operations::host::plots::snapshots::list::snapshot_at(
         &snapshot.store,
         &snapshot.cut,
         &request,
@@ -468,13 +469,14 @@ fn render_plot(
         "v1",
     )
     .map_err(|error| Error::Invalid(error.to_string()))?;
-    let presentation = dokime_operations::client::document_plot::presentation(&snapshot.store, &snapshot.cut, plot)?;
+    let presentation = dokime_operations::host::documents::plot::presentation(&snapshot.store, &snapshot.cut, plot)?;
     crate::plot_html::render(output, plot, &envelope, &presentation)
 }
 fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32, settings: RenderSettings) -> Result<()> {
-    let kind = v1::EvidenceCard::try_from(kind).map_err(|_| Error::Invalid("Render Evidence: Select a Declared Card Kind".into()))?;
+    let kind = dokime_protocol::model::EvidenceCard::try_from(kind)
+        .map_err(|_| Error::Invalid("Render Evidence: Select a Declared Card Kind".into()))?;
     write!(output, "<ol>")?;
-    if kind == v1::EvidenceCard::Notes {
+    if kind == dokime_protocol::model::EvidenceCard::Notes {
         let mut after = String::new();
         loop {
             let page = snapshot.store.notes_page(
@@ -492,7 +494,7 @@ fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32,
                 write!(output, "<li data-note=\"{}\">{}</li>", escape(&note.note_id), escape(&note.message))?;
             }
         }
-    } else if matches!(kind, v1::EvidenceCard::Artifacts | v1::EvidenceCard::Media) {
+    } else if matches!(kind, dokime_protocol::model::EvidenceCard::Artifacts | dokime_protocol::model::EvidenceCard::Media) {
         let mut after = String::new();
         loop {
             let page = snapshot.store.artifacts_page(&after, settings.page_size.get())?;
@@ -508,7 +510,7 @@ fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32,
                     .content_type
                     .as_ref()
                     .is_some_and(|mime| mime.starts_with("image/") || mime.starts_with("audio/") || mime.starts_with("video/"));
-                if kind == v1::EvidenceCard::Media && !media {
+                if kind == dokime_protocol::model::EvidenceCard::Media && !media {
                     continue;
                 }
                 write!(
@@ -520,8 +522,8 @@ fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32,
                 )?;
             }
         }
-    } else if kind == v1::EvidenceCard::StreamContext {
-        let catalog = h::Catalog::decode(snapshot.cut.execution.catalog.as_slice())?;
+    } else if kind == dokime_protocol::model::EvidenceCard::StreamContext {
+        let catalog = h::Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
         for stream in catalog.streams {
             write!(output, "<li>{}</li>", escape(&stream.id))?;
         }
@@ -536,23 +538,23 @@ fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32,
             for evidence in page {
                 after = evidence.position;
                 let selected = match kind {
-                    v1::EvidenceCard::Steps => evidence.kind.starts_with("step:"),
-                    v1::EvidenceCard::Criteria => evidence.kind.starts_with("criterion:"),
-                    v1::EvidenceCard::Traceability => evidence.kind.starts_with("traceability"),
-                    v1::EvidenceCard::Records => evidence.kind.starts_with("record:"),
-                    v1::EvidenceCard::Health => evidence.kind.starts_with("health:"),
+                    dokime_protocol::model::EvidenceCard::Steps => evidence.kind.starts_with("step:"),
+                    dokime_protocol::model::EvidenceCard::Criteria => evidence.kind.starts_with("criterion:"),
+                    dokime_protocol::model::EvidenceCard::Traceability => evidence.kind.starts_with("traceability"),
+                    dokime_protocol::model::EvidenceCard::Records => evidence.kind.starts_with("record:"),
+                    dokime_protocol::model::EvidenceCard::Health => evidence.kind.starts_with("health:"),
                     _ => return Err(Error::Invalid("Render Evidence: Select a Declared Card Kind".into())),
                 };
                 if !selected {
                     continue;
                 }
-                if kind == v1::EvidenceCard::Records {
-                    let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
-                    let catalog = h::Catalog::decode(snapshot.cut.execution.catalog.as_slice())?;
+                if kind == dokime_protocol::model::EvidenceCard::Records {
+                    let record = dokime_protocol::host::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
+                    let catalog = h::Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
                     let mut message = None;
                     for section in &catalog.sections {
-                        if section.r#type == "dokime.v1.RecordContracts" {
-                            let records = v1::RecordContracts::decode(section.payload.as_slice())?;
+                        if section.r#type == "dokime.model.v1.RecordContracts" {
+                            let records = dokime_protocol::model::RecordContracts::decode(section.payload.as_slice())?;
                             message = records
                                 .records
                                 .into_iter()
@@ -602,7 +604,7 @@ fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32,
 fn apply_preferences(store: &Store, execution: &str, document: &str, sections: &mut [Section]) -> Result<()> {
     for section in sections {
         for card in &mut section.cards {
-            if let Some(v1::card::Body::Plot(plot)) = &mut card.body {
+            if let Some(dokime_protocol::model::card::Body::Plot(plot)) = &mut card.body {
                 let id = plot.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
                 if let Some((points, _)) = store.plot_preferences(execution, document, id)? {
                     plot.display_points = points;

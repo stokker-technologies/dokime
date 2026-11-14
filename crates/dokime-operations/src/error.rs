@@ -64,6 +64,9 @@ pub enum Error {
     Invalid(String),
 
     #[error("{0}")]
+    Permission(String),
+
+    #[error("{0}")]
     Bound(String),
 }
 

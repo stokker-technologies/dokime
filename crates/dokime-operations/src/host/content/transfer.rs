@@ -17,7 +17,7 @@
 use crate::{Error, Result};
 use sha2::{Digest, Sha256};
 use std::fs::File;
-pub(super) fn temporary(file: File) -> Result<(File, u64, String)> {
+pub(crate) fn temporary(file: File) -> Result<(File, u64, String)> {
     let length = file.metadata().map_err(|error| Error::Invalid(format!("Inspect Temporary Export: {error}")))?.len();
     let mut hash = Sha256::new();
     let mut offset = 0;
@@ -34,7 +34,7 @@ pub(super) fn temporary(file: File) -> Result<(File, u64, String)> {
 
 /* === Private Functions === */
 
-pub(super) fn read_temporary(file: &File, offset: u64, bytes: &mut [u8]) -> Result<()> {
+pub(crate) fn read_temporary(file: &File, offset: u64, bytes: &mut [u8]) -> Result<()> {
     let mut read = 0;
     while read < bytes.len() {
         #[cfg(windows)]

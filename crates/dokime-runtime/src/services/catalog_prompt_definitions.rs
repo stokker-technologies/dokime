@@ -37,21 +37,25 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::client::prompt_definitions_server::PromptDefinitions for Services {
+impl dokime_protocol::host::prompt_definitions_server::PromptDefinitions for Services {
     async fn get(
-        &self, request: tonic::Request<dokime_protocol::client::PromptDefinitionsGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::PromptDefinitionsGetResponse>, tonic::Status> {
-        let reply = dokime_operations::client::catalog_prompt_definitions_get::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::PromptDefinitionsGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::PromptDefinitionsGetResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.PromptDefinitions/Get", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::prompt_definitions::get::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn list(
-        &self, request: tonic::Request<dokime_protocol::client::PromptDefinitionsListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::PromptDefinitionsListResponse>, tonic::Status> {
-        let reply = dokime_operations::client::catalog_prompt_definitions_list::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::PromptDefinitionsListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::PromptDefinitionsListResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.PromptDefinitions/List", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::prompt_definitions::list::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
 }

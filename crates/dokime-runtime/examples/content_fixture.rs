@@ -21,11 +21,13 @@
 
 // Local Imports
 use dokime::{prelude::*, v1};
-use dokime_protocol::context::{
-    content::ArtifactsCreateRequest,
-    files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest, UploadsResumeRequest},
-};
-use harmos_protocol::storage::FileMetadata;
+use dokime_protocol::host::content::ArtifactsCreateRequest;
+use dokime_protocol::host::files::UploadsAppendRequest;
+use dokime_protocol::host::files::UploadsCreateRequest;
+use dokime_protocol::host::files::UploadsDeleteRequest;
+use dokime_protocol::host::files::UploadsPublishRequest;
+use dokime_protocol::host::files::UploadsResumeRequest;
+use harmos_protocol::model::FileMetadata;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::net::TcpStream;
@@ -87,7 +89,7 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
     let initial = ctx.host(ProgressGetRequest { name: ctx.execution_id().into() }).await?;
     let first = ProgressSetRequest {
         name: ctx.execution_id().into(),
-        value: Some(v1::ExecutionProgressValue {
+        value: Some(dokime_protocol::model::ExecutionProgressValue {
             completed: 1,
             total: 2,
             label: "First Value".into(),
@@ -116,13 +118,13 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
     ctx.prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest {
         prompt: "continue".into(),
         prompt_type: "content.continue".into(),
-        definition: Some(v1::Prompt {
-            metadata: Some(v1::Metadata {
+        definition: Some(dokime_protocol::model::Prompt {
+            metadata: Some(dokime_protocol::model::Metadata {
                 identifier: "content.continue".into(),
                 label: "Continue".into(),
                 ..Default::default()
             }),
-            actions: vec![v1::PromptAction {
+            actions: vec![dokime_protocol::model::PromptAction {
                 identifier: "continue".into(),
                 label: "Continue".into(),
                 ..Default::default()
@@ -137,7 +139,7 @@ async fn revisioned_progress(ctx: &Context) -> Result<()> {
     let current = ctx.host(ProgressGetRequest { name: ctx.execution_id().into() }).await?;
     ctx.host(ProgressSetRequest {
         name: ctx.execution_id().into(),
-        value: Some(v1::ExecutionProgressValue {
+        value: Some(dokime_protocol::model::ExecutionProgressValue {
             completed: 2,
             total: 2,
             label: String::new(),
@@ -163,28 +165,28 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
     let first = TraceabilitySetRequest {
         name: ctx.execution_id().into(),
         entry: "serial".into(),
-        value: Some(v1::TraceabilityEntry {
-            metadata: Some(v1::Metadata {
+        value: Some(dokime_protocol::model::TraceabilityEntry {
+            metadata: Some(dokime_protocol::model::Metadata {
                 identifier: "serial".into(),
                 label: "Serial Number".into(),
                 attributes: HashMap::from([
                     (
                         "verified".into(),
-                        v1::Value {
-                            kind: Some(v1::value::Kind::Boolean(true)),
+                        dokime_protocol::model::Value {
+                            kind: Some(model::value::Kind::Boolean(true)),
                         },
                     ),
                     (
                         "channel".into(),
-                        v1::Value {
-                            kind: Some(v1::value::Kind::UnsignedInteger(2)),
+                        dokime_protocol::model::Value {
+                            kind: Some(model::value::Kind::UnsignedInteger(2)),
                         },
                     ),
                 ]),
                 ..Default::default()
             }),
-            value: Some(v1::Value {
-                kind: Some(v1::value::Kind::Text("first".into())),
+            value: Some(dokime_protocol::model::Value {
+                kind: Some(model::value::Kind::Text("first".into())),
             }),
             source: "reader".into(),
             unit: "unit".into(),
@@ -214,13 +216,13 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
     let other = ctx.host(TraceabilityGetRequest { entry: "batch".into(), ..get.clone() }).await?;
     ctx.host(TraceabilitySetRequest {
         entry: "batch".into(),
-        value: Some(v1::TraceabilityEntry {
-            metadata: Some(v1::Metadata {
+        value: Some(dokime_protocol::model::TraceabilityEntry {
+            metadata: Some(dokime_protocol::model::Metadata {
                 identifier: "batch".into(),
                 ..Default::default()
             }),
-            value: Some(v1::Value {
-                kind: Some(v1::value::Kind::Text("batch-one".into())),
+            value: Some(dokime_protocol::model::Value {
+                kind: Some(model::value::Kind::Text("batch-one".into())),
             }),
             ..Default::default()
         }),
@@ -237,13 +239,13 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
     ctx.prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest {
         prompt: "continue".into(),
         prompt_type: "content.continue".into(),
-        definition: Some(v1::Prompt {
-            metadata: Some(v1::Metadata {
+        definition: Some(dokime_protocol::model::Prompt {
+            metadata: Some(dokime_protocol::model::Metadata {
                 identifier: "content.continue".into(),
                 label: "Continue".into(),
                 ..Default::default()
             }),
-            actions: vec![v1::PromptAction {
+            actions: vec![dokime_protocol::model::PromptAction {
                 identifier: "continue".into(),
                 label: "Continue".into(),
                 ..Default::default()
@@ -256,13 +258,13 @@ async fn revisioned_traceability(ctx: &Context) -> Result<()> {
 
     // Replace the Whole Serial Entry and Preserve Both Earlier Receipts
     ctx.host(TraceabilitySetRequest {
-        value: Some(v1::TraceabilityEntry {
-            metadata: Some(v1::Metadata {
+        value: Some(dokime_protocol::model::TraceabilityEntry {
+            metadata: Some(dokime_protocol::model::Metadata {
                 identifier: "serial".into(),
                 ..Default::default()
             }),
-            value: Some(v1::Value {
-                kind: Some(v1::value::Kind::Text("second".into())),
+            value: Some(dokime_protocol::model::Value {
+                kind: Some(model::value::Kind::Text("second".into())),
             }),
             ..Default::default()
         }),
@@ -353,7 +355,7 @@ async fn capture(ctx: &Context) -> Result<()> {
     ctx.host(ArtifactsCreateRequest {
         execution: ctx.execution_id().into(),
         file: published.file,
-        metadata: Some(v1::Metadata {
+        metadata: Some(dokime_protocol::model::Metadata {
             identifier: "producer.txt".into(),
             label: "producer.txt".into(),
             ..Default::default()

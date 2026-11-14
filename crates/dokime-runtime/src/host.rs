@@ -23,8 +23,8 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_protocol::model::Receipt;
 use harmos_protocol::plugin::InstanceGetResponse;
-use harmos_protocol::v1::Receipt;
 use prost::Message;
 use tokio::sync::watch::Receiver;
 
@@ -32,16 +32,16 @@ use tokio::sync::watch::Receiver;
 use crate::EntryState;
 use crate::ExecutionCapabilities;
 use crate::{Cycle, Error, PlacementSettings, PluginProcess, Result, SchedulerClock, plugin::Entry};
-use dokime_protocol::client::ExecutionControls;
-use dokime_protocol::client::ExecutionMode;
-use dokime_protocol::client::executions::CommandsCreateRequest;
-use dokime_protocol::client::executions::ExecutionCommandReceipt;
-use dokime_protocol::context::PromptsCreateRequest;
-use dokime_protocol::context::PromptsCreateResponse;
-use dokime_protocol::v1;
-use dokime_protocol::v1::Origin;
-use dokime_protocol::v1::Suites;
-use dokime_protocol::v1::Value;
+use dokime_protocol::host::ExecutionControls;
+use dokime_protocol::host::ExecutionMode;
+use dokime_protocol::host::PromptsCreateRequest;
+use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::host::executions::CommandsCreateRequest;
+use dokime_protocol::host::executions::ExecutionCommandReceipt;
+use dokime_protocol::model;
+use dokime_protocol::model::Origin;
+use dokime_protocol::model::Suites;
+use dokime_protocol::model::Value;
 use dokime_storage::{ExecutionSnapshot, Store};
 
 use dokime_storage::OutcomeCounts;
@@ -176,13 +176,13 @@ impl Host {
             return Ok(entry.suites.clone());
         }
         let description = self.description(identifier)?;
-        let catalog = description.catalog.ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Reconnect the Plugin".into()))?;
+        let catalog = description.declarations.ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Reconnect the Plugin".into()))?;
         let section = catalog
             .sections
             .iter()
-            .find(|section| section.r#type == "dokime.v1.Suites")
+            .find(|section| section.r#type == "dokime.model.v1.Suites")
             .ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Reconnect the Plugin with Its Suites".into()))?;
-        Ok(v1::Suites::decode(section.payload.as_slice())?)
+        Ok(dokime_protocol::model::Suites::decode(section.payload.as_slice())?)
     }
     pub fn description(&self, identifier: &str) -> Result<InstanceGetResponse> {
         if let Some(entry) = lock(&self.plugins)?.get(identifier) {
@@ -230,7 +230,7 @@ impl Host {
         self.executions.start_execution_mode(execution, mode).await
     }
     pub async fn start_execution(&self, execution: &str) -> Result<Cycle> {
-        self.start_execution_mode(execution, dokime_protocol::client::ExecutionMode::Automatic).await
+        self.start_execution_mode(execution, dokime_protocol::host::ExecutionMode::Automatic).await
     }
     pub fn submit_execution_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
         self.executions.submit_execution_command(request)

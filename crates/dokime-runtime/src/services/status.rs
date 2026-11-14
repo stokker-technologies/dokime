@@ -26,8 +26,8 @@ use harmos_runtime::services::status::{Contribution, Entry, StatusSettings};
 use sha2::Digest;
 
 // Local Imports
-use dokime_operations::client::{ClientSettings, Host};
-use harmos_protocol::v1;
+use dokime_operations::host::{ClientSettings, Host};
+use harmos_protocol::model;
 
 /* === Constants === */
 
@@ -46,20 +46,24 @@ pub(super) struct Facts(pub Weak<dyn Host>);
 /* === Implementations === */
 
 impl Contribution for Facts {
-    fn health(&self) -> Result<Vec<v1::HealthComponent>, Box<dyn std::error::Error + Send + Sync>> {
+    fn health(&self) -> Result<Vec<harmos_protocol::host::HealthComponent>, Box<dyn std::error::Error + Send + Sync>> {
         let host = self.0.upgrade().ok_or_else(|| std::io::Error::other("Read Host Health: Host Is Closed"))?;
-        let state = if host.shutting_down() { v1::ComponentState::Unavailable } else { v1::ComponentState::Healthy };
-        let mut components = vec![v1::HealthComponent {
+        let state = if host.shutting_down() {
+            harmos_protocol::host::ComponentState::Unavailable
+        } else {
+            harmos_protocol::host::ComponentState::Healthy
+        };
+        let mut components = vec![harmos_protocol::host::HealthComponent {
             name: "dokime.executions".into(),
             state: state as i32,
             reason: String::new(),
         }];
         for plugin in host.plugins()? {
-            let state = match dokime_protocol::client::PluginState::try_from(plugin.state) {
-                Ok(dokime_protocol::client::PluginState::Ready) => v1::ComponentState::Healthy,
-                _ => v1::ComponentState::Degraded,
+            let state = match dokime_protocol::host::PluginState::try_from(plugin.state) {
+                Ok(dokime_protocol::host::PluginState::Ready) => harmos_protocol::host::ComponentState::Healthy,
+                _ => harmos_protocol::host::ComponentState::Degraded,
             };
-            components.push(v1::HealthComponent {
+            components.push(harmos_protocol::host::HealthComponent {
                 name: format!("dokime.plugins.{}", plugin.entry),
                 state: state as i32,
                 reason: String::new(),
@@ -75,7 +79,7 @@ impl Contribution for Facts {
             Entry {
                 path: "dokime/protocol.json".into(),
                 text: serde_json::to_string(&serde_json::json!({
-                    "package": "dokime.v1", "descriptor_sha256": sha2::Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET).to_vec(),
+                    "package": "dokime.model.v1", "descriptor_sha256": sha2::Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET).to_vec(),
                     "target": identity.target, "epoch": identity.epoch,
                 }))?,
             },

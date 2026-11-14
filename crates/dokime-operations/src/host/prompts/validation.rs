@@ -22,7 +22,7 @@ use std::{cmp::Ordering, collections::HashMap};
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_storage::ExecutionSnapshot;
 
 /* === Constants === */
@@ -41,8 +41,9 @@ use dokime_storage::ExecutionSnapshot;
 
 /* === Public Functions === */
 
-pub(super) fn validate(
-    definition: &v1::Prompt, action: &str, accepted: bool, values: &HashMap<String, v1::Value>, snapshot: &ExecutionSnapshot,
+pub(crate) fn validate(
+    definition: &dokime_protocol::model::Prompt, action: &str, accepted: bool, values: &HashMap<String, dokime_protocol::model::Value>,
+    snapshot: &ExecutionSnapshot,
 ) -> Result<()> {
     let action = definition
         .actions
@@ -75,7 +76,7 @@ pub(super) fn validate(
             continue;
         };
         let items = if field.multiple {
-            let Some(v1::value::Kind::List(list)) = &value.kind else {
+            let Some(dokime_protocol::model::value::Kind::List(list)) = &value.kind else {
                 return Err(Error::Invalid(format!("Answer Prompt: Supply a List for {name}")));
             };
             list.values.as_slice()
@@ -96,7 +97,7 @@ pub(super) fn validate(
             let Some(validation) = &field.validation else {
                 continue;
             };
-            if let Some(v1::value::Kind::Text(text)) = &value.kind {
+            if let Some(dokime_protocol::model::value::Kind::Text(text)) = &value.kind {
                 let length = text.chars().count() as u64;
                 let pattern_matches = validation
                     .pattern
@@ -128,7 +129,7 @@ pub(super) fn validate(
     for rule in &definition.rules {
         let predicate =
             rule.predicate.as_ref().ok_or_else(|| Error::Invalid("Answer Prompt: Repair the Missing Answer Predicate".into()))?;
-        if evaluate(predicate, values)?.kind != Some(v1::value::Kind::Boolean(true)) {
+        if evaluate(predicate, values)?.kind != Some(dokime_protocol::model::value::Kind::Boolean(true)) {
             return Err(Error::Invalid(format!("Answer Prompt: {}", rule.message)));
         }
     }
@@ -137,23 +138,23 @@ pub(super) fn validate(
 
 /* === Private Functions === */
 
-pub(super) fn type_matches(kind: i32, value: &v1::Value) -> bool {
-    use v1::value::Kind;
+pub(crate) fn type_matches(kind: i32, value: &dokime_protocol::model::Value) -> bool {
+    use dokime_protocol::model::value::Kind;
     matches!(
-        (v1::ValueType::try_from(kind), &value.kind),
-        (Ok(v1::ValueType::Boolean), Some(Kind::Boolean(_)))
-            | (Ok(v1::ValueType::Integer), Some(Kind::Integer(_)))
-            | (Ok(v1::ValueType::UnsignedInteger), Some(Kind::UnsignedInteger(_)))
-            | (Ok(v1::ValueType::Number), Some(Kind::Number(_)))
-            | (Ok(v1::ValueType::Text), Some(Kind::Text(_)))
-            | (Ok(v1::ValueType::Bytes), Some(Kind::Data(_)))
-            | (Ok(v1::ValueType::List), Some(Kind::List(_)))
-            | (Ok(v1::ValueType::Datetime), Some(Kind::Datetime(_)))
+        (dokime_protocol::model::ValueType::try_from(kind), &value.kind),
+        (Ok(dokime_protocol::model::ValueType::Boolean), Some(Kind::Boolean(_)))
+            | (Ok(dokime_protocol::model::ValueType::Integer), Some(Kind::Integer(_)))
+            | (Ok(dokime_protocol::model::ValueType::UnsignedInteger), Some(Kind::UnsignedInteger(_)))
+            | (Ok(dokime_protocol::model::ValueType::Number), Some(Kind::Number(_)))
+            | (Ok(dokime_protocol::model::ValueType::Text), Some(Kind::Text(_)))
+            | (Ok(dokime_protocol::model::ValueType::Bytes), Some(Kind::Data(_)))
+            | (Ok(dokime_protocol::model::ValueType::List), Some(Kind::List(_)))
+            | (Ok(dokime_protocol::model::ValueType::Datetime), Some(Kind::Datetime(_)))
     ) && !matches!(value.kind, Some(Kind::Number(number)) if !number.is_finite())
 }
 
-fn compare(left: &v1::Value, right: &v1::Value) -> Option<Ordering> {
-    use v1::value::Kind;
+fn compare(left: &dokime_protocol::model::Value, right: &dokime_protocol::model::Value) -> Option<Ordering> {
+    use dokime_protocol::model::value::Kind;
     match (&left.kind, &right.kind) {
         (Some(Kind::Number(left)), Some(Kind::Number(right))) => left.partial_cmp(right),
         (Some(Kind::Integer(left)), Some(Kind::Integer(right))) => Some(left.cmp(right)),
@@ -171,9 +172,11 @@ fn compare(left: &v1::Value, right: &v1::Value) -> Option<Ordering> {
     }
 }
 
-fn evaluate(predicate: &v1::AnswerPredicate, values: &HashMap<String, v1::Value>) -> Result<v1::Value> {
-    use v1::answer_predicate::Kind;
-    use v1::value::Kind as Value;
+fn evaluate(
+    predicate: &dokime_protocol::model::AnswerPredicate, values: &HashMap<String, dokime_protocol::model::Value>,
+) -> Result<dokime_protocol::model::Value> {
+    use dokime_protocol::model::answer_predicate::Kind;
+    use dokime_protocol::model::value::Kind as Value;
     let kind = match predicate.kind.as_ref() {
         Some(Kind::Literal(value)) => return Ok(value.clone()),
         Some(Kind::Field(field)) => {
@@ -186,20 +189,30 @@ fn evaluate(predicate: &v1::AnswerPredicate, values: &HashMap<String, v1::Value>
             let right =
                 evaluate(binary.right.as_ref().ok_or_else(|| Error::Invalid("Repair the Answer Rule's Right Operand".into()))?, values)?;
             let ordering = compare(&left, &right);
-            let result = match v1::AnswerOperator::try_from(binary.operator).unwrap_or_default() {
-                v1::AnswerOperator::And => left.kind == Some(Value::Boolean(true)) && right.kind == Some(Value::Boolean(true)),
-                v1::AnswerOperator::Or => left.kind == Some(Value::Boolean(true)) || right.kind == Some(Value::Boolean(true)),
-                v1::AnswerOperator::Eq => left == right,
-                v1::AnswerOperator::Ne => left != right,
-                v1::AnswerOperator::Gt => ordering == Some(Ordering::Greater),
-                v1::AnswerOperator::Ge => matches!(ordering, Some(Ordering::Greater | Ordering::Equal)),
-                v1::AnswerOperator::Lt => ordering == Some(Ordering::Less),
-                v1::AnswerOperator::Le => matches!(ordering, Some(Ordering::Less | Ordering::Equal)),
+            let result = match dokime_protocol::model::AnswerOperator::try_from(binary.operator).unwrap_or_default() {
+                dokime_protocol::model::AnswerOperator::And => {
+                    left.kind == Some(Value::Boolean(true)) && right.kind == Some(Value::Boolean(true))
+                }
+                dokime_protocol::model::AnswerOperator::Or => {
+                    left.kind == Some(Value::Boolean(true)) || right.kind == Some(Value::Boolean(true))
+                }
+                dokime_protocol::model::AnswerOperator::Eq => left == right,
+                dokime_protocol::model::AnswerOperator::Ne => left != right,
+                dokime_protocol::model::AnswerOperator::Gt => ordering == Some(Ordering::Greater),
+                dokime_protocol::model::AnswerOperator::Ge => matches!(ordering, Some(Ordering::Greater | Ordering::Equal)),
+                dokime_protocol::model::AnswerOperator::Lt => ordering == Some(Ordering::Less),
+                dokime_protocol::model::AnswerOperator::Le => matches!(ordering, Some(Ordering::Less | Ordering::Equal)),
                 operator => match (&left.kind, &right.kind, operator) {
-                    (Some(Value::Text(left)), Some(Value::Text(right)), v1::AnswerOperator::Contains) => left.contains(right),
-                    (Some(Value::Text(left)), Some(Value::Text(right)), v1::AnswerOperator::StartsWith) => left.starts_with(right),
-                    (Some(Value::Text(left)), Some(Value::Text(right)), v1::AnswerOperator::EndsWith) => left.ends_with(right),
-                    (Some(Value::List(left)), _, v1::AnswerOperator::Contains) => left.values.contains(&right),
+                    (Some(Value::Text(left)), Some(Value::Text(right)), dokime_protocol::model::AnswerOperator::Contains) => {
+                        left.contains(right)
+                    }
+                    (Some(Value::Text(left)), Some(Value::Text(right)), dokime_protocol::model::AnswerOperator::StartsWith) => {
+                        left.starts_with(right)
+                    }
+                    (Some(Value::Text(left)), Some(Value::Text(right)), dokime_protocol::model::AnswerOperator::EndsWith) => {
+                        left.ends_with(right)
+                    }
+                    (Some(Value::List(left)), _, dokime_protocol::model::AnswerOperator::Contains) => left.values.contains(&right),
                     _ => return Err(Error::Invalid("Answer Prompt: Repair the Rule Operator or Operand Types".into())),
                 },
             };
@@ -207,11 +220,11 @@ fn evaluate(predicate: &v1::AnswerPredicate, values: &HashMap<String, v1::Value>
         }
         None => return Err(Error::Invalid("Answer Prompt: Repair the Empty Answer Rule".into())),
     };
-    Ok(v1::Value { kind: Some(kind) })
+    Ok(dokime_protocol::model::Value { kind: Some(kind) })
 }
 
-fn condition_met(condition: &v1::EvidenceCondition, snapshot: &ExecutionSnapshot) -> Result<bool> {
-    use v1::evidence_condition::Kind;
+fn condition_met(condition: &dokime_protocol::model::EvidenceCondition, snapshot: &ExecutionSnapshot) -> Result<bool> {
+    use dokime_protocol::model::evidence_condition::Kind;
     Ok(match condition.kind.as_ref() {
         Some(Kind::All(group)) => {
             for condition in &group.conditions {
@@ -232,13 +245,13 @@ fn condition_met(condition: &v1::EvidenceCondition, snapshot: &ExecutionSnapshot
         Some(Kind::Record(record)) => {
             use prost::Message;
             use prost_reflect::ReflectMessage;
-            let catalog = harmos_protocol::v1::Catalog::decode(snapshot.execution.catalog.as_slice())?;
+            let catalog = harmos_protocol::model::Declarations::decode(snapshot.execution.catalog.as_slice())?;
             let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(catalog.types.unwrap_or_default())
                 .map_err(|error| Error::Invalid(error.to_string()))?;
             let mut message_type = record.kind.clone();
             for section in &catalog.sections {
-                if section.r#type == "dokime.v1.RecordContracts" {
-                    for contract in v1::RecordContracts::decode(section.payload.as_slice())?.records {
+                if section.r#type == "dokime.model.v1.RecordContracts" {
+                    for contract in dokime_protocol::model::RecordContracts::decode(section.payload.as_slice())?.records {
                         if contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == record.kind) {
                             message_type = contract.message;
                         }
@@ -248,7 +261,7 @@ fn condition_met(condition: &v1::EvidenceCondition, snapshot: &ExecutionSnapshot
             let descriptor = pool
                 .get_message_by_name(&message_type)
                 .ok_or_else(|| Error::Invalid("Answer Prompt: Declare the Condition's Record Type".into()))?;
-            let records = super::projection::records(snapshot, std::slice::from_ref(&record.kind), None)?;
+            let records = crate::host::projection::records(snapshot, std::slice::from_ref(&record.kind), None)?;
             let mut matched = false;
             for captured in records {
                 let message = prost_reflect::DynamicMessage::decode(descriptor.clone(), captured.payload.as_slice())?;
@@ -256,7 +269,7 @@ fn condition_met(condition: &v1::EvidenceCondition, snapshot: &ExecutionSnapshot
                     message
                         .descriptor()
                         .get_field_by_name(field)
-                        .is_some_and(|field| super::projection::value(message.get_field(&field).as_ref()) == *expected)
+                        .is_some_and(|field| crate::host::projection::value(message.get_field(&field).as_ref()) == *expected)
                 }) {
                     matched = true;
                     break;
@@ -265,25 +278,29 @@ fn condition_met(condition: &v1::EvidenceCondition, snapshot: &ExecutionSnapshot
             matched
         }
         Some(Kind::Stream(stream)) => {
-            let samples = super::projection::samples(snapshot, std::slice::from_ref(&stream.stream), None)?;
+            let samples = crate::host::projection::samples(snapshot, std::slice::from_ref(&stream.stream), None)?;
             let value = samples.last().and_then(|sample| sample.values.as_ref()).and_then(|values| values.values.get(&stream.field));
-            let operator = v1::StreamMatchOperator::try_from(stream.operator).unwrap_or_default();
-            if operator == v1::StreamMatchOperator::Exists {
+            let operator = dokime_protocol::model::StreamMatchOperator::try_from(stream.operator).unwrap_or_default();
+            if operator == dokime_protocol::model::StreamMatchOperator::Exists {
                 return Ok(value.is_some());
             }
             let (Some(value), Some(target)) = (value, stream.target.as_ref()) else {
                 return Ok(false);
             };
             match operator {
-                v1::StreamMatchOperator::Eq => value == target,
-                v1::StreamMatchOperator::Gt => compare(value, target) == Some(Ordering::Greater),
-                v1::StreamMatchOperator::Ge => matches!(compare(value, target), Some(Ordering::Greater | Ordering::Equal)),
-                v1::StreamMatchOperator::Lt => compare(value, target) == Some(Ordering::Less),
-                v1::StreamMatchOperator::Le => matches!(compare(value, target), Some(Ordering::Less | Ordering::Equal)),
-                v1::StreamMatchOperator::Within => match (&value.kind, &target.kind, stream.tolerance) {
-                    (Some(v1::value::Kind::Number(value)), Some(v1::value::Kind::Number(target)), Some(tolerance)) => {
-                        (value - target).abs() <= tolerance
-                    }
+                dokime_protocol::model::StreamMatchOperator::Eq => value == target,
+                dokime_protocol::model::StreamMatchOperator::Gt => compare(value, target) == Some(Ordering::Greater),
+                dokime_protocol::model::StreamMatchOperator::Ge => {
+                    matches!(compare(value, target), Some(Ordering::Greater | Ordering::Equal))
+                }
+                dokime_protocol::model::StreamMatchOperator::Lt => compare(value, target) == Some(Ordering::Less),
+                dokime_protocol::model::StreamMatchOperator::Le => matches!(compare(value, target), Some(Ordering::Less | Ordering::Equal)),
+                dokime_protocol::model::StreamMatchOperator::Within => match (&value.kind, &target.kind, stream.tolerance) {
+                    (
+                        Some(dokime_protocol::model::value::Kind::Number(value)),
+                        Some(dokime_protocol::model::value::Kind::Number(target)),
+                        Some(tolerance),
+                    ) => (value - target).abs() <= tolerance,
                     _ => false,
                 },
                 _ => return Err(Error::Invalid("Answer Prompt: Repair the Stream Condition Operator".into())),

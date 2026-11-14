@@ -22,7 +22,8 @@
 // Local Imports
 use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
 use dokime::v1;
-use dokime_protocol::client::evidence::{TraceabilityGetRequest, TraceabilityWatchRequest};
+use dokime_protocol::host::evidence::TraceabilityGetRequest;
+use dokime_protocol::host::evidence::TraceabilityWatchRequest;
 
 /* === Constants === */
 
@@ -59,8 +60,8 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
         let client = dokime::Client::from_channel(channel.clone(), support::client_settings())?;
         host.plugins.add(plugin.endpoint()).await?;
         let cases = host.templates.materialize("content", "content.traceability", std::collections::HashMap::new()).await?;
-        let cycle = dokime_protocol::client::cycles_client::CyclesClient::new(channel.clone())
-            .create(dokime_protocol::client::CyclesCreateRequest {
+        let cycle = dokime_protocol::host::cycles_client::CyclesClient::new(channel.clone())
+            .create(dokime_protocol::host::CyclesCreateRequest {
                 origins: cases.into_iter().map(|case| case.origin.unwrap()).collect(),
                 request_id: uuid::Uuid::now_v7().to_string(),
                 continue_automatically: true,
@@ -68,10 +69,10 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
             })
             .await?
             .into_inner();
-        let admitted = dokime_protocol::client::executions_client::ExecutionsClient::new(channel.clone())
-            .list(dokime_protocol::client::ExecutionsListRequest {
+        let admitted = dokime_protocol::host::executions_client::ExecutionsClient::new(channel.clone())
+            .list(dokime_protocol::host::ExecutionsListRequest {
                 parent: cycle.cycle.unwrap().cycle_id,
-                at: Some(harmos_protocol::v1::ReadCut {
+                at: Some(harmos_protocol::model::ReadCut {
                     positions: vec![cycle.receipt.unwrap().durable_at.unwrap()],
                     revisions: Vec::new(),
                 }),
@@ -83,14 +84,14 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
         let mut progress = client
             .executions
             .progress
-            .watch(tonic::Request::new(dokime_protocol::client::executions::ProgressWatchRequest { name: name.clone(), at: None }))
+            .watch(tonic::Request::new(dokime_protocol::host::executions::ProgressWatchRequest { name: name.clone(), at: None }))
             .await?;
         loop {
             if progress.next().await?.ok_or("Watch Traceability: Missing Prompt")?.phase == "prompt" {
                 break;
             }
         }
-        let scope = v1::EvidenceScope {
+        let scope = dokime_protocol::model::EvidenceScope {
             execution_id: Some(name.clone()),
             template_id: Some("content.traceability".into()),
             suite_id: Some("content".into()),
@@ -100,7 +101,7 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
         // Page a Stable Opening and Reject Continuations for a Different Selection
         let request = TraceabilityGetRequest {
             scope: Some(scope.clone()),
-            page: Some(harmos_protocol::v1::PageRequest { page_size: 1, ..Default::default() }),
+            page: Some(harmos_protocol::model::PageRequest { page_size: 1, ..Default::default() }),
             at: None,
         };
         let first = client.evidence.traceability.get(tonic::Request::new(request.clone())).await?.into_inner();
@@ -110,7 +111,7 @@ async fn client_observes_revisioned_traceability() -> Result<(), Box<dyn std::er
         assert!(first.snapshots[0].scope.as_ref().unwrap().origin.is_some());
         let continuation = TraceabilityGetRequest {
             at: first.resolved_at.clone(),
-            page: Some(harmos_protocol::v1::PageRequest {
+            page: Some(harmos_protocol::model::PageRequest {
                 page_size: 1,
                 page_token: first.next_page_token.clone(),
                 ..Default::default()

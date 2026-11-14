@@ -77,7 +77,7 @@ pub enum Error {
     Cancelled,
 
     #[error("Plugin Operation Failed: {0:?}")]
-    Plugin(Box<harmos_protocol::v1::Failure>),
+    Plugin(Box<harmos_protocol::model::Failure>),
 
     #[error("Host Worker Failed; Restart the Host and Inspect Interrupted Evidence: {0}")]
     Join(#[from] tokio::task::JoinError),

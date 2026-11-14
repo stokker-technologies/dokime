@@ -23,35 +23,35 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::v1;
-use dokime_protocol::client::EvidenceArchiveRequest;
-use dokime_protocol::client::EvidenceSubject;
-use dokime_protocol::client::FilesDeleteRequest;
-use dokime_protocol::client::FilesGetRequest;
-use dokime_protocol::client::FilesReadRequest;
-use dokime_protocol::client::content::ArtifactsCreateRequest;
-use dokime_protocol::client::content::ArtifactsGetRequest;
-use dokime_protocol::client::content::ArtifactsListRequest;
-use dokime_protocol::client::content::ExecutionFileKind;
-use dokime_protocol::client::content::ExecutionFileMetadata;
-use dokime_protocol::client::content::ExecutionFileState;
-use dokime_protocol::client::content::ExecutionFilesGetRequest;
-use dokime_protocol::client::content::ExecutionFilesListRequest;
-use dokime_protocol::client::content::artifacts_client::ArtifactsClient;
-use dokime_protocol::client::content::execution_files_client::ExecutionFilesClient;
-use dokime_protocol::client::evidence_client::EvidenceClient;
-use dokime_protocol::client::evidence_subject::Kind as EvidenceSubjectKind;
-use dokime_protocol::client::files::UploadsAppendRequest;
-use dokime_protocol::client::files::UploadsCreateRequest;
-use dokime_protocol::client::files::UploadsGetRequest;
-use dokime_protocol::client::files::UploadsPublishRequest;
-use dokime_protocol::client::files::UploadsResumeRequest;
-use dokime_protocol::client::files::uploads_client::UploadsClient;
-use dokime_protocol::client::files_client::FilesClient;
+use dokime_protocol::host::EvidenceArchiveRequest;
+use dokime_protocol::host::EvidenceSubject;
+use dokime_protocol::host::FilesDeleteRequest;
+use dokime_protocol::host::FilesGetRequest;
+use dokime_protocol::host::FilesReadRequest;
+use dokime_protocol::host::content::ArtifactsCreateRequest;
+use dokime_protocol::host::content::ArtifactsGetRequest;
+use dokime_protocol::host::content::ArtifactsListRequest;
+use dokime_protocol::host::content::ExecutionFileKind;
+use dokime_protocol::host::content::ExecutionFileMetadata;
+use dokime_protocol::host::content::ExecutionFileState;
+use dokime_protocol::host::content::ExecutionFilesGetRequest;
+use dokime_protocol::host::content::ExecutionFilesListRequest;
+use dokime_protocol::host::content::artifacts_client::ArtifactsClient;
+use dokime_protocol::host::content::execution_files_client::ExecutionFilesClient;
+use dokime_protocol::host::evidence_client::EvidenceClient;
+use dokime_protocol::host::evidence_subject::Kind as EvidenceSubjectKind;
+use dokime_protocol::host::files::UploadsAppendRequest;
+use dokime_protocol::host::files::UploadsCreateRequest;
+use dokime_protocol::host::files::UploadsGetRequest;
+use dokime_protocol::host::files::UploadsPublishRequest;
+use dokime_protocol::host::files::UploadsResumeRequest;
+use dokime_protocol::host::files::uploads_client::UploadsClient;
+use dokime_protocol::host::files_client::FilesClient;
 use dokime_storage::CONTENT_CHUNK_BYTES;
 use dokime_storage::{Execution, Store};
-use harmos_protocol::storage::FileMetadata;
-use harmos_protocol::storage::StagedFile;
-use harmos_protocol::v1::PageRequest;
+use harmos_protocol::model::FileMetadata;
+use harmos_protocol::model::PageRequest;
+use harmos_protocol::model::StagedFile;
 use std::error::Error;
 use tonic::transport::Endpoint;
 
@@ -87,8 +87,8 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             store.create(&Execution {
                 identifier: id.into(),
                 cycle: "content-cycle".into(),
-                origin: Some(v1::Origin {
-                    kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+                origin: Some(dokime_protocol::model::Origin {
+                    kind: Some(model::origin::Kind::Import(dokime_protocol::model::Import::default())),
                 }),
                 ..Default::default()
             })?;
@@ -109,9 +109,9 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
 
         let bytes = vec![42; 140003];
         let digest = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-        store.begin_artifact(v1::ArtifactMetadata {
+        store.begin_artifact(dokime_protocol::model::ArtifactMetadata {
             artifact_id: "uploaded".into(),
-            scope: Some(v1::ArtifactScope {
+            scope: Some(dokime_protocol::model::ArtifactScope {
                 execution_id: Some("content-a".into()),
                 cycle_id: Some("content-cycle".into()),
                 ..Default::default()
@@ -149,7 +149,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
         assert_eq!(reference.sha256, Sha256::digest(&bytes).as_slice());
         let request = ArtifactsCreateRequest {
             file: Some(reference.clone()),
-            scope: Some(v1::ArtifactScope {
+            scope: Some(dokime_protocol::model::ArtifactScope {
                 execution_id: Some("content-a".into()),
                 cycle_id: Some("content-cycle".into()),
                 ..Default::default()
@@ -321,7 +321,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             .await?;
         let growing = file_client
             .get(FilesGetRequest {
-                file: Some(harmos_protocol::storage::FileReference {
+                file: Some(harmos_protocol::model::FileReference {
                     metadata: Some(FileMetadata {
                         id: session.id.clone(),
                         ..Default::default()
@@ -333,7 +333,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             .await?
             .into_inner();
         let mut watch =
-            file_client.watch(dokime_protocol::client::FilesWatchRequest { file: growing.file, offset: 0, at: None }).await?.into_inner();
+            file_client.watch(dokime_protocol::host::FilesWatchRequest { file: growing.file, offset: 0, at: None }).await?.into_inner();
         let first = watch.message().await?.unwrap().data.unwrap();
         assert_eq!(first.bytes, b"first");
         uploads
@@ -382,7 +382,7 @@ async fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
         let receipt = file_client.delete(deleted.clone()).await?.into_inner();
         assert_eq!(file_client.delete(deleted).await?.into_inner(), receipt);
         store.close_streams("content-a")?;
-        store.close("content-a", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+        store.close("content-a", dokime_protocol::model::Termination::Completed, dokime_protocol::host::ExecutionOutcome::default())?;
         store.seal("content-a")?;
         let mut evidence = EvidenceClient::connect(process.url.clone()).await?;
         let archived = evidence

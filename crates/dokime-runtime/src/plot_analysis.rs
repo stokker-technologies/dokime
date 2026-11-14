@@ -21,7 +21,7 @@
 
 // Local Imports
 use crate::{Host, Result, dispatch::Dispatch};
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use tokio_util::sync::CancellationToken;
 
 /* === Constants === */
@@ -39,7 +39,9 @@ use tokio_util::sync::CancellationToken;
 /* === Implementations === */
 
 impl Host {
-    pub async fn analyze(&self, plugin: &str, operation: &str, request: v1::AnalysisRequest) -> Result<v1::AnalysisResponse> {
+    pub async fn analyze(
+        &self, plugin: &str, operation: &str, request: dokime_protocol::plugin::AnalysesComputeRequest,
+    ) -> Result<dokime_protocol::plugin::AnalysesComputeResponse> {
         let dispatch = Dispatch {
             entry: self.entry(plugin)?,
             resources: None,

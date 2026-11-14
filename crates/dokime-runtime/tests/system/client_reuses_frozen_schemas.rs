@@ -19,7 +19,7 @@
 use std::{error::Error, sync::Arc};
 
 // Third Party Imports
-use harmos_protocol::v1::PageRequest;
+use harmos_protocol::model::PageRequest;
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, Value};
 use tonic::transport::Endpoint;
@@ -27,11 +27,10 @@ use tonic::transport::Endpoint;
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::client::{FrozenSchemaCache, HostClient};
-use dokime_protocol::client::{
-    RemovePlugin,
-    executions::{SchemasGetRequest, schemas_client::SchemasClient},
-    plugins_client::PluginsClient,
-};
+use dokime_protocol::host::RemovePlugin;
+use dokime_protocol::host::executions::SchemasGetRequest;
+use dokime_protocol::host::executions::schemas_client::SchemasClient;
+use dokime_protocol::host::plugins_client::PluginsClient;
 use dokime_runtime::PluginProcess;
 use tonic::Code;
 

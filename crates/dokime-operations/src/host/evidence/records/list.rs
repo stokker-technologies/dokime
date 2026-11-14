@@ -18,9 +18,10 @@
 // Standard Library Imports
 
 // Third Party Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::client::evidence::{RecordsListRequest, RecordsListResponse};
-use harmos_protocol::v1 as h;
+use crate::{Error, Result, host::Context};
+use dokime_protocol::host::evidence::RecordsListRequest;
+use dokime_protocol::host::evidence::RecordsListResponse;
+use harmos_protocol::model as h;
 use prost::Message;
 use sha2::{Digest, Sha256};
 use std::num::NonZeroUsize;
@@ -29,7 +30,7 @@ use std::num::NonZeroUsize;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.evidence.Records/List";
+pub const ID: &str = "dokime.host.v1.evidence.Records/List";
 
 /* === Macros === */
 
@@ -45,27 +46,27 @@ pub const ID: &str = "dokime.client.v1.evidence.Records/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<RecordsListRequest, RecordsListResponse>(ID, settings.read_timeout)
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<RecordsListRequest, RecordsListResponse>(ID, settings.read_timeout)
 }
 
 pub async fn handle(context: &Context, request: RecordsListRequest) -> Result<RecordsListResponse> {
-    super::complete(ID, context.settings.read_timeout, async { read_page(context, request, None) }).await
+    crate::host::complete(ID, context.settings.read_timeout, async { read_page(context, request, None) }).await
 }
 
-pub(super) fn read_page(context: &Context, mut request: RecordsListRequest, after: Option<&h::ReadCut>) -> Result<RecordsListResponse> {
+pub(crate) fn read_page(context: &Context, mut request: RecordsListRequest, after: Option<&h::ReadCut>) -> Result<RecordsListResponse> {
     let selection = request.selection.clone().unwrap_or_default();
-    super::evidence_selection::validate(&selection)?;
+    crate::host::evidence::selection::validate(&selection)?;
     let mut scope = selection.scope.clone().unwrap_or_default();
     if let Some(selected) = request.scope.as_ref().and_then(|scope| scope.kind.as_ref()) {
         match selected {
-            dokime_protocol::client::evidence::record_scope::Kind::Execution(id) => {
+            dokime_protocol::host::evidence::record_scope::Kind::Execution(id) => {
                 if scope.execution_id.as_ref().is_some_and(|value| value != id) {
                     return Err(Error::Invalid("List Records: Keep Both Scope Selections Consistent".into()));
                 }
                 scope.execution_id = Some(id.clone());
             }
-            dokime_protocol::client::evidence::record_scope::Kind::Cycle(cycle) => {
+            dokime_protocol::host::evidence::record_scope::Kind::Cycle(cycle) => {
                 if scope.cycle_id.as_ref().is_some_and(|value| value != &cycle.cycle_id) {
                     return Err(Error::Invalid("List Records: Keep Both Cycle Selections Consistent".into()));
                 }
@@ -80,7 +81,7 @@ pub(super) fn read_page(context: &Context, mut request: RecordsListRequest, afte
         context.host.store().metadata(id)?;
     }
     let page = request.page.take().unwrap_or_default();
-    let limit = super::projection::limit(page.page_size, context.settings.page_items);
+    let limit = crate::host::projection::limit(page.page_size, context.settings.page_items);
     let maximum = if page.max_bytes == 0 {
         context.settings.message_bytes
     } else {
@@ -144,11 +145,11 @@ pub(super) fn read_page(context: &Context, mut request: RecordsListRequest, afte
             break;
         }
         let frozen = reader.metadata(&execution)?;
-        if !super::evidence_selection::scope_matches(Some(&scope), &frozen, &evidence) {
+        if !crate::host::evidence::selection::scope_matches(Some(&scope), &frozen, &evidence) {
             scanned = sequence;
             continue;
         }
-        let Some(record) = super::evidence_selection::project(&frozen, &evidence)? else {
+        let Some(record) = crate::host::evidence::selection::project(&frozen, &evidence)? else {
             scanned = sequence;
             continue;
         };
@@ -157,10 +158,10 @@ pub(super) fn read_page(context: &Context, mut request: RecordsListRequest, afte
         } else {
             (request.record_type.is_empty() || request.record_type == record.record_type)
                 && (selection.record_types.is_empty()
-                    || selection.record_types.iter().any(|pattern| super::evidence_selection::matches(pattern, &record.record_type)))
+                    || selection.record_types.iter().any(|pattern| crate::host::evidence::selection::matches(pattern, &record.record_type)))
         };
         let source_matches = selection.sources.is_empty()
-            || selection.sources.iter().any(|pattern| super::evidence_selection::matches(pattern, &record.source));
+            || selection.sources.iter().any(|pattern| crate::host::evidence::selection::matches(pattern, &record.source));
         let severity_matches = selection.severities.is_empty() || selection.severities.contains(&record.severity);
         let version_matches = request.versions.is_empty() || request.versions.contains(&record.schema_version);
         let time = record.timestamp.as_ref().map(|time| (time.seconds, time.nanos));
@@ -187,7 +188,7 @@ pub(super) fn read_page(context: &Context, mut request: RecordsListRequest, afte
         scanned = sequence;
     }
     response.next_page_token = if more { format!("{binding}:{scanned}") } else { String::new() };
-    super::bounded_reply(context, response)
+    crate::host::bounded_reply(context, response)
 }
 
 /* === Private Functions === */

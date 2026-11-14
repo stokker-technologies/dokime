@@ -18,7 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
@@ -26,7 +26,7 @@ use crate::{Resources, Result};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.plugin.host.v1.evidence.Records/Append";
+pub const ID: &str = "dokime.host.v1.evidence.Records/Append";
 
 /* === Macros === */
 
@@ -43,14 +43,14 @@ pub const ID: &str = "dokime.plugin.host.v1.evidence.Records/Append";
 /* === Public Functions === */
 
 pub fn declaration() -> Result<h::OperationContract> {
-    crate::declaration::<dokime_protocol::context::evidence::RecordsAppendRequest, dokime_protocol::context::evidence::RecordsAppendResponse>(
+    crate::declaration::<dokime_protocol::host::evidence::RecordsAppendRequest, dokime_protocol::host::evidence::RecordsAppendResponse>(
         ID,
         prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
     )
 }
 pub async fn handle(
-    resources: &Resources, request: dokime_protocol::context::evidence::RecordsAppendRequest,
-) -> Result<dokime_protocol::context::evidence::RecordsAppendResponse> {
+    resources: &Resources, request: dokime_protocol::host::evidence::RecordsAppendRequest,
+) -> Result<dokime_protocol::host::evidence::RecordsAppendResponse> {
     resources.check_action_scope(&request.execution, ID)?;
     let source = request.source_at.as_ref().map(crate::resources::timestamp_ns).transpose()?;
     let (position, receipt) = resources.evidence_requested(
@@ -63,7 +63,7 @@ pub async fn handle(
     )?;
     let snapshot = resources.store.read(&resources.execution)?;
     let ordinal = snapshot.records(&request.kind).into_iter().filter(|entry| entry.position <= position).count() as u64;
-    Ok(dokime_protocol::context::evidence::RecordsAppendResponse { ordinal, receipt: Some(receipt) })
+    Ok(dokime_protocol::host::evidence::RecordsAppendResponse { ordinal, receipt: Some(receipt) })
 }
 
 /* === Private Functions === */

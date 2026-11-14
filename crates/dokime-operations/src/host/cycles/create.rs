@@ -18,15 +18,15 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
+use crate::{Error, Result, host::Context};
+use dokime_protocol::model;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Cycles/Create";
+pub const ID: &str = "dokime.host.v1.Cycles/Create";
 
 /* === Macros === */
 
@@ -42,30 +42,32 @@ pub const ID: &str = "dokime.client.v1.Cycles/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::CyclesCreateRequest, dokime_protocol::client::CyclesCreateResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::CyclesCreateRequest, dokime_protocol::host::CyclesCreateResponse>(
         ID,
         settings.mutation_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::CyclesCreateRequest,
-) -> Result<dokime_protocol::client::CyclesCreateResponse> {
-    super::complete(ID, context.settings.mutation_timeout, async {
+    context: &Context, request: dokime_protocol::host::CyclesCreateRequest,
+) -> Result<dokime_protocol::host::CyclesCreateResponse> {
+    crate::host::complete(ID, context.settings.mutation_timeout, async {
         let mut request = request;
         let mut skipped = Vec::new();
         if !request.source_cycle.is_empty() {
-            let source = super::execution_state::cycle(context, &request.source_cycle)?;
+            let source = crate::host::execution_state::cycle(context, &request.source_cycle)?;
             if source.running_count > 0 || source.queued_count > 0 {
                 return Err(Error::Precondition("Create Cycle: Finish the Source Before Rerunning".into()));
             }
             if !request.origins.is_empty() {
                 return Err(Error::Invalid("Create Cycle: Select Origins or a Source Cycle".into()));
             }
-            for snapshot in super::execution_state::snapshots(context, &request.source_cycle)? {
+            for snapshot in crate::host::execution_state::snapshots(context, &request.source_cycle)? {
                 match snapshot.execution.origin {
-                    Some(origin) if matches!(origin.kind, Some(v1::origin::Kind::PluginRun(_))) => request.origins.push(origin),
-                    _ => skipped.push(dokime_protocol::client::RerunCaseNotice {
+                    Some(origin) if matches!(origin.kind, Some(dokime_protocol::model::origin::Kind::PluginRun(_))) => {
+                        request.origins.push(origin)
+                    }
+                    _ => skipped.push(dokime_protocol::host::RerunCaseNotice {
                         case_id: snapshot.execution.identifier,
                         reason: "Imported Evidence Has No Runnable TestCase".into(),
                         ..Default::default()
@@ -83,8 +85,8 @@ pub async fn handle(
         if request.metadata.as_ref().is_some_and(|metadata| metadata.label.trim().is_empty()) {
             return Err(Error::Invalid("Create Cycle: Supply a Nonempty Cycle Label".into()));
         }
-        let now = Some(super::projection::timestamp(context.host.now_ns()));
-        let mut cycle = v1::CycleSummary {
+        let now = Some(crate::host::projection::timestamp(context.host.now_ns()));
+        let mut cycle = dokime_protocol::host::CycleSummary {
             cycle_id: uuid::Uuid::now_v7().to_string(),
             metadata: request.metadata,
             continue_automatically: request.continue_automatically,
@@ -104,8 +106,8 @@ pub async fn handle(
                     .into_iter()
                     .enumerate()
                     .map(|(index, origin)| {
-                        super::execution_state::case(&origin)?;
-                        Ok(dokime_protocol::client::PlannedCase {
+                        crate::host::execution_state::case(&origin)?;
+                        Ok(dokime_protocol::host::PlannedCase {
                             origin: Some(origin),
                             ordinal: index as u64,
                             ..Default::default()
@@ -117,20 +119,20 @@ pub async fn handle(
                     None,
                     &[],
                     &cycle.cycle_id,
-                    dokime_protocol::client::CasesCreateResponse { cases, ..Default::default() },
+                    dokime_protocol::host::CasesCreateResponse { cases, ..Default::default() },
                     context.settings.message_bytes,
                 )?;
                 let bindings = registered
                     .cases
                     .into_iter()
-                    .map(|case| dokime_protocol::client::ExecutionBinding {
+                    .map(|case| dokime_protocol::host::ExecutionBinding {
                         execution_id: uuid::Uuid::now_v7().to_string(),
                         case_id: case.case_id,
                     })
                     .collect();
-                let reply = super::executions_create::handle(
+                let reply = crate::host::executions::create::handle(
                     context,
-                    dokime_protocol::client::ExecutionsCreateRequest {
+                    dokime_protocol::host::ExecutionsCreateRequest {
                         parent: cycle.cycle_id.clone(),
                         executions: bindings,
                         request_id: request.request_id.clone(),
@@ -147,18 +149,18 @@ pub async fn handle(
         context.host.store().save_cycle(&cycle)?;
         context.host.signal_change();
         let _ = execution_ids;
-        let admitted = super::executions_list::handle(
+        let admitted = crate::host::executions::list::handle(
             context,
-            dokime_protocol::client::ExecutionsListRequest {
+            dokime_protocol::host::ExecutionsListRequest {
                 parent: cycle.cycle_id.clone(),
                 ..Default::default()
             },
         )
         .await?;
-        let mut receipt = super::views::receipt(context, &request.request_id)?;
+        let mut receipt = crate::host::views::receipt(context, &request.request_id)?;
         receipt.durable_at = admitted.resolved_at.as_ref().and_then(|cut| cut.positions.first()).cloned();
         receipt.accepted_at = receipt.durable_at.clone();
-        Ok(dokime_protocol::client::CyclesCreateResponse {
+        Ok(dokime_protocol::host::CyclesCreateResponse {
             cycle: Some(cycle),
             skipped,
             receipt: Some(receipt),

@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Result, client::Context};
+use crate::{Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.content.ExecutionFiles/List";
+pub const ID: &str = "dokime.host.v1.content.ExecutionFiles/List";
 
 /* === Macros === */
 
@@ -41,18 +41,18 @@ pub const ID: &str = "dokime.client.v1.content.ExecutionFiles/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<
-        dokime_protocol::client::content::ExecutionFilesListRequest,
-        dokime_protocol::client::content::ExecutionFilesListResponse,
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<
+        dokime_protocol::host::content::ExecutionFilesListRequest,
+        dokime_protocol::host::content::ExecutionFilesListResponse,
     >(ID, settings.read_timeout)
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::content::ExecutionFilesListRequest,
-) -> Result<dokime_protocol::client::content::ExecutionFilesListResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
-        let (saved, cut) = super::views::read(context, &format!("files/{}", request.parent), request.at.as_ref(), async {
+    context: &Context, request: dokime_protocol::host::content::ExecutionFilesListRequest,
+) -> Result<dokime_protocol::host::content::ExecutionFilesListResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
+        let (saved, cut) = crate::host::views::read(context, &format!("files/{}", request.parent), request.at.as_ref(), async {
             let store = context.host.store();
             store.metadata(&request.parent)?;
             let mut after = String::new();
@@ -67,14 +67,19 @@ pub async fn handle(
                     files.push(entry.file_metadata()?);
                 }
             }
-            Ok(dokime_protocol::client::content::ExecutionFilesListResponse { files, ..Default::default() })
+            Ok(dokime_protocol::host::content::ExecutionFilesListResponse { files, ..Default::default() })
         })
         .await?;
-        let (files, next_page_token) =
-            super::views::page(saved.files, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
-        super::bounded_reply(
+        let (files, next_page_token) = crate::host::views::page(
+            saved.files,
+            &cut,
+            request.page.as_ref(),
+            context.settings.page_items,
+            context.settings.message_bytes,
+        )?;
+        crate::host::bounded_reply(
             context,
-            dokime_protocol::client::content::ExecutionFilesListResponse {
+            dokime_protocol::host::content::ExecutionFilesListResponse {
                 files,
                 resolved_at: Some(cut),
                 next_page_token,

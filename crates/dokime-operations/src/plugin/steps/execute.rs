@@ -24,7 +24,8 @@ use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::Result;
-use dokime_protocol::plugin::{StepsExecuteRequest, StepsExecuteResponse};
+use dokime_protocol::plugin::StepsExecuteRequest;
+use dokime_protocol::plugin::StepsExecuteResponse;
 
 /* === Constants === */
 

@@ -51,42 +51,42 @@ async fn client_inspects_health() -> Result<(), Box<dyn std::error::Error>> {
         let process =
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
 
-        let empty = dokime_protocol::client::evidence::health_events_client::HealthEventsClient::connect(process.url.clone())
+        let empty = dokime_protocol::host::evidence::health_events_client::HealthEventsClient::connect(process.url.clone())
             .await?
-            .list(dokime_protocol::client::evidence::HealthEventsListRequest::default())
+            .list(dokime_protocol::host::evidence::HealthEventsListRequest::default())
             .await?
             .into_inner();
         assert!(empty.events.is_empty());
         assert!(empty.resolved_at.is_some());
 
         // Retain an Unavailable Entry and Show an Actionable Health Item
-        let mut plugins = dokime_protocol::client::plugins_client::PluginsClient::connect(process.url.clone()).await?;
-        let unavailable = plugins.add(dokime_protocol::client::AddRemotePlugin { url: "http://127.0.0.1:0".into() }).await?.into_inner();
-        assert_eq!(unavailable.state, dokime_protocol::client::PluginState::Unavailable as i32);
-        let page = dokime_protocol::client::evidence::health_events_client::HealthEventsClient::connect(process.url.clone())
+        let mut plugins = dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone()).await?;
+        let unavailable = plugins.add(dokime_protocol::host::AddRemotePlugin { url: "http://127.0.0.1:0".into() }).await?.into_inner();
+        assert_eq!(unavailable.state, dokime_protocol::host::PluginState::Unavailable as i32);
+        let page = dokime_protocol::host::evidence::health_events_client::HealthEventsClient::connect(process.url.clone())
             .await?
-            .list(dokime_protocol::client::evidence::HealthEventsListRequest::default())
+            .list(dokime_protocol::host::evidence::HealthEventsListRequest::default())
             .await?
             .into_inner();
         assert_eq!(page.events[0].health_item_id, unavailable.entry);
         assert!(!page.events[0].message.is_empty());
-        let retained = dokime_protocol::client::evidence::health_events_client::HealthEventsClient::connect(process.url.clone())
+        let retained = dokime_protocol::host::evidence::health_events_client::HealthEventsClient::connect(process.url.clone())
             .await?
-            .list(dokime_protocol::client::evidence::HealthEventsListRequest {
+            .list(dokime_protocol::host::evidence::HealthEventsListRequest {
                 at: empty.resolved_at,
                 ..Default::default()
             })
             .await?
             .into_inner();
         assert!(retained.events.is_empty());
-        dokime_protocol::client::plugins_client::PluginsClient::connect(process.url.clone())
+        dokime_protocol::host::plugins_client::PluginsClient::connect(process.url.clone())
             .await?
-            .remove(dokime_protocol::client::RemovePlugin { entry: unavailable.entry })
+            .remove(dokime_protocol::host::RemovePlugin { entry: unavailable.entry })
             .await?;
         assert!(
-            dokime_protocol::client::evidence::health_events_client::HealthEventsClient::connect(process.url.clone())
+            dokime_protocol::host::evidence::health_events_client::HealthEventsClient::connect(process.url.clone())
                 .await?
-                .list(dokime_protocol::client::evidence::HealthEventsListRequest::default())
+                .list(dokime_protocol::host::evidence::HealthEventsListRequest::default())
                 .await?
                 .into_inner()
                 .events

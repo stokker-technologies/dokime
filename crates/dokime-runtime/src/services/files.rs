@@ -16,12 +16,16 @@
 /* === Imports === */
 
 use super::Services;
-use dokime_operations::client as operations;
-use dokime_protocol::client::files_server::Files;
-use dokime_protocol::client::{
-    FilesDeleteRequest, FilesDeleteResponse, FilesGetRequest, FilesGetResponse, FilesReadRequest, FilesReadResponse, FilesWatchRequest,
-    FilesWatchResponse,
-};
+use dokime_operations::host as operations;
+use dokime_protocol::host::FilesDeleteRequest;
+use dokime_protocol::host::FilesDeleteResponse;
+use dokime_protocol::host::FilesGetRequest;
+use dokime_protocol::host::FilesGetResponse;
+use dokime_protocol::host::FilesReadRequest;
+use dokime_protocol::host::FilesReadResponse;
+use dokime_protocol::host::FilesWatchRequest;
+use dokime_protocol::host::FilesWatchResponse;
+use dokime_protocol::host::files_server::Files;
 use tonic::{Request, Response, Status};
 
 /* === Constants === */

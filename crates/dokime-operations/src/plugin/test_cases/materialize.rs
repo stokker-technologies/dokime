@@ -24,7 +24,8 @@ use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::Result;
-use dokime_protocol::plugin::{TestCasesMaterializeRequest, TestCasesMaterializeResponse};
+use dokime_protocol::plugin::TestCasesMaterializeRequest;
+use dokime_protocol::plugin::TestCasesMaterializeResponse;
 
 /* === Constants === */
 

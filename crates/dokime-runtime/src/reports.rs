@@ -45,7 +45,7 @@ pub(crate) struct ReportManager {
 #[derive(Default)]
 struct Publication {
     closed: bool,
-    temporary: BTreeMap<String, (File, harmos_protocol::storage::FileReference)>,
+    temporary: BTreeMap<String, (File, harmos_protocol::model::FileReference)>,
 }
 
 /* === Enums === */
@@ -80,7 +80,7 @@ impl ReportManager {
             prepared.html,
         )?)
     }
-    pub(crate) fn retain(&self, file: File, reference: harmos_protocol::storage::FileReference, limit: usize) -> Result<()> {
+    pub(crate) fn retain(&self, file: File, reference: harmos_protocol::model::FileReference, limit: usize) -> Result<()> {
         let identifier =
             reference.metadata.as_ref().ok_or_else(|| Error::Invalid("Retain Report: Supply Its Temporary Identity".into()))?.id.clone();
         let mut state = lock(&self.state)?;
@@ -99,7 +99,7 @@ impl ReportManager {
         state.temporary.insert(identifier, (file, reference));
         Ok(())
     }
-    pub(crate) fn temporary(&self, identifier: &str) -> Result<Option<(File, harmos_protocol::storage::FileReference)>> {
+    pub(crate) fn temporary(&self, identifier: &str) -> Result<Option<(File, harmos_protocol::model::FileReference)>> {
         let state = lock(&self.state)?;
         if state.closed {
             return Err(Error::Invalid("Read Temporary Report: Reconnect to a Running Host".into()));

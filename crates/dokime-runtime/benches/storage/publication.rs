@@ -27,7 +27,7 @@ use std::{
 
 // Third Party Imports
 use criterion::{Criterion, SamplingMode};
-use harmos_protocol::model::Sample;
+use harmos_protocol::plugin::Sample;
 use prost::Message;
 use prost_types::Timestamp;
 use tempfile::TempDir;
@@ -35,17 +35,13 @@ use tokio::runtime::Runtime;
 
 // Local Imports
 use super::sample_carrier::Producer;
-use dokime::{
-    clock::TimeSleepRequest,
-    prelude::*,
-    protocol::plugin::host::v1::{PromptsCreateRequest, evidence::RecordsAppendRequest},
-};
-use dokime_protocol::model::Plot;
+use dokime::plugin::HostOperation;
+use dokime::prelude::*;
+use dokime_protocol::host::PromptsCreateRequest as PromptRequest;
 use dokime_protocol::host::evidence_client::EvidenceClient;
 use dokime_protocol::host::files_client::FilesClient;
-use dokime_protocol::host;
-use dokime_protocol::host::PromptsCreateRequest as PromptRequest;
-use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceSubject, FilesReadRequest, PromptsCreateResponse, evidence_subject};
+use dokime_protocol::model::Plot;
 use dokime_runtime::{ControlledClock, Cycle, Host, HostSettings, PlacementSettings, RenderSettings, services};
 use dokime_storage::storage_defaults;
 
@@ -182,9 +178,9 @@ pub fn serve() -> Result<()> {
         .stream(Stream::<Pulse>::new("spectrum", "Spectrum"))
         .record(Record::<Produced>::new("produced", "Produced"))
         .prompt(Prompt::new("continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
-        .requires_host::<PromptsCreateRequest>()
-        .requires_host::<RecordsAppendRequest>()
-        .requires::<TimeSleepRequest>()
+        .requires_host(HostOperation::PromptsCreate)
+        .requires_host(HostOperation::EvidenceRecordsAppend)
+        .requires_host(HostOperation::TimeSleep)
         .remote()
         .serve()
 }
@@ -311,9 +307,9 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                 let started = Instant::now();
                 let mut archive = tempfile::tempfile().unwrap();
                 let response = evidence
-                    .archive(client::EvidenceArchiveRequest {
-                        subject: Some(client::EvidenceSubject {
-                            kind: Some(client::evidence_subject::Kind::Execution(execution.clone())),
+                    .archive(EvidenceArchiveRequest {
+                        subject: Some(EvidenceSubject {
+                            kind: Some(evidence_subject::Kind::Execution(execution.clone())),
                         }),
                         at: None,
                     })
@@ -324,7 +320,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                 let mut offset = 0;
                 while offset < reference.length {
                     let response = files
-                        .read(client::FilesReadRequest {
+                        .read(FilesReadRequest {
                             file: Some(reference.clone()),
                             offset,
                             max_bytes: 2 * 1024 * 1024,

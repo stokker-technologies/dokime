@@ -15,14 +15,15 @@
 
 /* === Imports === */
 
-use super::{ClientSettings, Context};
 use crate::Result;
-use dokime_protocol::client::{FilesDeleteRequest, FilesDeleteResponse};
-use harmos_protocol::v1::OperationContract;
+use crate::host::{ClientSettings, Context};
+use dokime_protocol::host::FilesDeleteRequest;
+use dokime_protocol::host::FilesDeleteResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Files/Delete";
+pub const ID: &str = "dokime.host.v1.Files/Delete";
 
 /* === Macros === */
 
@@ -39,10 +40,10 @@ pub const ID: &str = "dokime.client.v1.Files/Delete";
 /* === Public Functions === */
 
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    super::declaration::<FilesDeleteRequest, FilesDeleteResponse>(ID, settings.mutation_timeout)
+    crate::host::declaration::<FilesDeleteRequest, FilesDeleteResponse>(ID, settings.mutation_timeout)
 }
 pub async fn handle(context: &Context, request: FilesDeleteRequest) -> Result<FilesDeleteResponse> {
-    super::complete(ID, context.settings.mutation_timeout, async { Ok(context.host.store().delete_file(request)?) }).await
+    crate::host::complete(ID, context.settings.mutation_timeout, async { Ok(context.host.store().delete_file(request)?) }).await
 }
 
 /* === Private Functions === */

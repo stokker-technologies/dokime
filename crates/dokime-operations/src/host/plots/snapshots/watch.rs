@@ -19,23 +19,25 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos_protocol::v1::{Failure, OperationContract};
+use harmos_protocol::model::{Failure, OperationContract};
 
 // Local Imports
 use crate::{
     Result,
-    client::{ClientSettings, Context, Output},
+    host::{ClientSettings, Context, Output},
 };
-use dokime_protocol::client::plots::{
-    PlotStreamKind, PlotStreamUpdate, SnapshotsListRequest, SnapshotsWatchRequest, SnapshotsWatchResponse,
-};
+use dokime_protocol::host::plots::PlotStreamKind;
+use dokime_protocol::host::plots::PlotStreamUpdate;
+use dokime_protocol::host::plots::SnapshotsListRequest;
+use dokime_protocol::host::plots::SnapshotsWatchRequest;
+use dokime_protocol::host::plots::SnapshotsWatchResponse;
 use tokio_stream::wrappers::ReceiverStream;
 
 use dokime_storage::ExecutionState;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.plots.Snapshots/Watch";
+pub const ID: &str = "dokime.host.v1.plots.Snapshots/Watch";
 
 /* === Macros === */
 
@@ -52,13 +54,13 @@ pub const ID: &str = "dokime.client.v1.plots.Snapshots/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    super::declaration::<dokime_protocol::client::plots::SnapshotsWatchRequest, dokime_protocol::client::plots::SnapshotsWatchResponse>(
+    crate::host::declaration::<dokime_protocol::host::plots::SnapshotsWatchRequest, dokime_protocol::host::plots::SnapshotsWatchResponse>(
         ID,
         settings.watch_timeout,
     )
 }
 pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result<Output<SnapshotsWatchResponse>> {
-    super::complete(ID, context.settings.watch_timeout, async {
+    crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
         let mut selection = SnapshotsListRequest {
@@ -67,7 +69,7 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
             page: request.page,
         };
         // Keep the Query State off the Watch's Inline Future and Poll Stack.
-        let first = Box::pin(super::plots_snapshots_list::handle(context, selection.clone())).await?;
+        let first = Box::pin(crate::host::plots::snapshots::list::handle(context, selection.clone())).await?;
         let context = context.clone();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
         tokio::spawn(async move {
@@ -146,7 +148,7 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
                             selection.at = None;
                             selection.page.get_or_insert_default().page_token.clear();
                         }
-                        page = match Box::pin(super::plots_snapshots_list::handle(&context, selection.clone())).await {
+                        page = match Box::pin(crate::host::plots::snapshots::list::handle(&context, selection.clone())).await {
                             Ok(page) => page,
                             Err(error) => {
                                 let _ = sender

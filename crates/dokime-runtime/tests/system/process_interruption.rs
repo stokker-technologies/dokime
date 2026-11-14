@@ -22,7 +22,7 @@ use std::{io::Write, process::Stdio};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_runtime::{EntryState, Host, PluginProcess};
 use dokime_storage::{ExecutionState, Store};
 
@@ -97,7 +97,7 @@ async fn process_interruption() -> Result<(), Box<dyn std::error::Error>> {
         let host = Host::open(root.path(), settings.clone())?;
         let recovered = host.execution(&execution)?;
         assert_eq!(recovered.state, ExecutionState::Sealed);
-        assert_eq!(recovered.execution.termination, v1::Termination::Interrupted as i32);
+        assert_eq!(recovered.execution.termination, dokime_protocol::model::Termination::Interrupted as i32);
         assert_eq!(recovered.evidence, before.evidence);
         assert_eq!(recovered.samples, before.samples);
         assert!(host.streams_closed(&execution)?);

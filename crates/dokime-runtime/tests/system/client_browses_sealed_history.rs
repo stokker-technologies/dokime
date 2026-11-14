@@ -22,34 +22,34 @@
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::{client::HostClient, v1};
-use dokime_protocol::client::CyclesCreateRequest;
-use dokime_protocol::client::CyclesGetRequest;
-use dokime_protocol::client::CyclesListRequest;
-use dokime_protocol::client::CyclesSetRequest;
-use dokime_protocol::client::ExecutionFilter;
-use dokime_protocol::client::ExecutionsDeleteRequest;
-use dokime_protocol::client::ExecutionsGetRequest;
-use dokime_protocol::client::ExecutionsListRequest;
-use dokime_protocol::client::ExecutionsStepsRequest;
-use dokime_protocol::client::PromptsListRequest;
-use dokime_protocol::client::content::ExecutionFileKind;
-use dokime_protocol::client::content::ExecutionFileMetadata;
-use dokime_protocol::client::content::ExecutionFileState;
-use dokime_protocol::client::content::ExecutionFilesGetRequest;
-use dokime_protocol::client::content::execution_files_client::ExecutionFilesClient;
-use dokime_protocol::client::cycles_client::CyclesClient;
-use dokime_protocol::client::evidence::CapturedRecordSelection;
-use dokime_protocol::client::evidence::RecordsListRequest;
-use dokime_protocol::client::evidence::SamplesListRequest;
-use dokime_protocol::client::evidence::records_client::RecordsClient;
-use dokime_protocol::client::evidence::samples_client::SamplesClient;
-use dokime_protocol::client::executions::ProgressWatchRequest;
-use dokime_protocol::client::executions::progress_client::ProgressClient;
-use dokime_protocol::client::executions_client::ExecutionsClient;
-use dokime_protocol::client::prompts_client::PromptsClient;
+use dokime_protocol::host::CyclesCreateRequest;
+use dokime_protocol::host::CyclesGetRequest;
+use dokime_protocol::host::CyclesListRequest;
+use dokime_protocol::host::CyclesSetRequest;
+use dokime_protocol::host::ExecutionFilter;
+use dokime_protocol::host::ExecutionsDeleteRequest;
+use dokime_protocol::host::ExecutionsGetRequest;
+use dokime_protocol::host::ExecutionsListRequest;
+use dokime_protocol::host::ExecutionsStepsRequest;
+use dokime_protocol::host::PromptsListRequest;
+use dokime_protocol::host::content::ExecutionFileKind;
+use dokime_protocol::host::content::ExecutionFileMetadata;
+use dokime_protocol::host::content::ExecutionFileState;
+use dokime_protocol::host::content::ExecutionFilesGetRequest;
+use dokime_protocol::host::content::execution_files_client::ExecutionFilesClient;
+use dokime_protocol::host::cycles_client::CyclesClient;
+use dokime_protocol::host::evidence::CapturedRecordSelection;
+use dokime_protocol::host::evidence::RecordsListRequest;
+use dokime_protocol::host::evidence::SamplesListRequest;
+use dokime_protocol::host::evidence::records_client::RecordsClient;
+use dokime_protocol::host::evidence::samples_client::SamplesClient;
+use dokime_protocol::host::executions::ProgressWatchRequest;
+use dokime_protocol::host::executions::progress_client::ProgressClient;
+use dokime_protocol::host::executions_client::ExecutionsClient;
+use dokime_protocol::host::prompts_client::PromptsClient;
 use dokime_runtime::PluginProcess;
 use dokime_storage::{Execution, Store};
-use harmos_protocol::v1::PageRequest;
+use harmos_protocol::model::PageRequest;
 use std::collections::HashMap;
 use std::error::Error;
 use tonic::transport::Endpoint;
@@ -85,9 +85,9 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
         store.create(&Execution {
             identifier: "imported-capture".into(),
             cycle: "imported-cycle".into(),
-            origin: Some(v1::Origin {
-                kind: Some(v1::origin::Kind::Import(v1::Import {
-                    metadata: Some(v1::Metadata {
+            origin: Some(dokime_protocol::model::Origin {
+                kind: Some(model::origin::Kind::Import(dokime_protocol::model::Import {
+                    metadata: Some(dokime_protocol::model::Metadata {
                         identifier: "capture".into(),
                         label: "Captured File".into(),
                         ..Default::default()
@@ -113,10 +113,10 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
         store.close_streams("imported-capture")?;
         store.close(
             "imported-capture",
-            v1::Termination::Completed,
-            v1::ExecutionOutcome {
-                attribution: Some(v1::execution_outcome::Attribution::Declared(v1::DeclaredOutcome {
-                    status: v1::ResultStatus::Passed as i32,
+            dokime_protocol::model::Termination::Completed,
+            dokime_protocol::host::ExecutionOutcome {
+                attribution: Some(model::execution_outcome::Attribution::Declared(dokime_protocol::host::DeclaredOutcome {
+                    status: dokime_protocol::host::ResultStatus::Passed as i32,
                     importer: "operator".into(),
                     ..Default::default()
                 })),
@@ -242,7 +242,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
         let page = records
             .list(RecordsListRequest {
                 selection: Some(CapturedRecordSelection {
-                    scope: Some(v1::EvidenceScope {
+                    scope: Some(dokime_protocol::model::EvidenceScope {
                         execution_id: Some(identifier.clone()),
                         ..Default::default()
                     }),
@@ -256,7 +256,7 @@ async fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
         assert_eq!(page.records.len(), 1);
         let mut telemetry = SamplesClient::new(channel);
         let mut request = SamplesListRequest {
-            scope: Some(v1::EvidenceScope {
+            scope: Some(dokime_protocol::model::EvidenceScope {
                 execution_id: Some(identifier.clone()),
                 ..Default::default()
             }),

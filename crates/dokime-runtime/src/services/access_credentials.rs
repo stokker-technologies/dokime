@@ -50,7 +50,7 @@ struct Snapshot {
     listener_revision: u64,
 
     #[prost(message, optional, tag = "3")]
-    listener: Option<harmos_protocol::v1::access::ListenerValue>,
+    listener: Option<harmos_protocol::host::access::ListenerValue>,
 
     #[prost(string, tag = "4")]
     certificate_pem: String,

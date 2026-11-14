@@ -18,56 +18,58 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
 use crate::{
     Error, Result,
-    client::{ClientSettings, Context},
+    host::{ClientSettings, Context},
 };
-use dokime_protocol::client::DocumentBinding;
-use dokime_protocol::client::DocumentBindingResult;
-use dokime_protocol::client::DocumentCard;
-use dokime_protocol::client::DocumentCardBody;
-use dokime_protocol::client::DocumentCardFailure;
-use dokime_protocol::client::DocumentCardKind;
-use dokime_protocol::client::DocumentCompletion;
-use dokime_protocol::client::DocumentEvidenceCut;
-use dokime_protocol::client::DocumentFrame;
-use dokime_protocol::client::DocumentFrameFrame;
-use dokime_protocol::client::DocumentFrontiers;
-use dokime_protocol::client::DocumentHeader;
-use dokime_protocol::client::DocumentLayoutNode;
-use dokime_protocol::client::DocumentLayoutNodeNode;
-use dokime_protocol::client::DocumentOwnerReference;
-use dokime_protocol::client::DocumentPlacement;
-use dokime_protocol::client::DocumentPlotDefinition;
-use dokime_protocol::client::DocumentSection;
-use dokime_protocol::client::DocumentSectionIdentity;
-use dokime_protocol::client::DocumentSpan;
-use dokime_protocol::client::DocumentSummary;
-use dokime_protocol::client::DocumentSummaryGroup;
-use dokime_protocol::client::DocumentSummaryGroupDefinition;
-use dokime_protocol::client::DocumentSummaryTile;
-use dokime_protocol::client::DocumentSummaryTileDefinition;
-use dokime_protocol::client::DocumentTable;
-use dokime_protocol::client::DocumentTableRow;
-use dokime_protocol::client::DocumentTelemetryCut;
-use dokime_protocol::client::DocumentsGetRequest;
-use dokime_protocol::client::DocumentsGetResponse;
-use dokime_protocol::client::document_binding_result::Kind as DocumentBindingResultKind;
-use dokime_protocol::client::document_card_body::Kind as DocumentCardBodyKind;
-use dokime_protocol::client::document_frame_frame::Kind as DocumentFrameFrameKind;
-use dokime_protocol::client::document_layout_node_node::Kind as DocumentLayoutNodeNodeKind;
-use dokime_protocol::v1;
-use dokime_protocol::v1::{Card, PlotFilter, Section};
+use dokime_protocol::host::DocumentBinding;
+use dokime_protocol::host::DocumentBindingResult;
+use dokime_protocol::host::DocumentCard;
+use dokime_protocol::host::DocumentCardBody;
+use dokime_protocol::host::DocumentCardFailure;
+use dokime_protocol::host::DocumentCardKind;
+use dokime_protocol::host::DocumentCompletion;
+use dokime_protocol::host::DocumentEvidenceCut;
+use dokime_protocol::host::DocumentFrame;
+use dokime_protocol::host::DocumentFrameFrame;
+use dokime_protocol::host::DocumentFrontiers;
+use dokime_protocol::host::DocumentHeader;
+use dokime_protocol::host::DocumentLayoutNode;
+use dokime_protocol::host::DocumentLayoutNodeNode;
+use dokime_protocol::host::DocumentOwnerReference;
+use dokime_protocol::host::DocumentPlacement;
+use dokime_protocol::host::DocumentPlotDefinition;
+use dokime_protocol::host::DocumentSection;
+use dokime_protocol::host::DocumentSectionIdentity;
+use dokime_protocol::host::DocumentSpan;
+use dokime_protocol::host::DocumentSummary;
+use dokime_protocol::host::DocumentSummaryGroup;
+use dokime_protocol::host::DocumentSummaryGroupDefinition;
+use dokime_protocol::host::DocumentSummaryTile;
+use dokime_protocol::host::DocumentSummaryTileDefinition;
+use dokime_protocol::host::DocumentTable;
+use dokime_protocol::host::DocumentTableRow;
+use dokime_protocol::host::DocumentTelemetryCut;
+use dokime_protocol::host::DocumentsGetRequest;
+use dokime_protocol::host::DocumentsGetResponse;
+use dokime_protocol::host::document_binding_result::Kind as DocumentBindingResultKind;
+use dokime_protocol::host::document_card_body::Kind as DocumentCardBodyKind;
+use dokime_protocol::host::document_frame_frame::Kind as DocumentFrameFrameKind;
+use dokime_protocol::host::document_layout_node_node::Kind as DocumentLayoutNodeNodeKind;
+use dokime_protocol::model;
+use dokime_protocol::model::Card;
+use dokime_protocol::model::PlotFilter;
+use dokime_protocol::model::Section;
 use dokime_storage::ExecutionState;
 use std::collections::BTreeSet;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Documents/Get";
+pub const ID: &str = "dokime.host.v1.Documents/Get";
 
 /* === Macros === */
 
@@ -84,11 +86,11 @@ pub const ID: &str = "dokime.client.v1.Documents/Get";
 /* === Public Functions === */
 
 pub fn declaration(settings: &ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<DocumentsGetRequest, DocumentsGetResponse>(ID, settings.read_timeout)
+    crate::host::declaration::<DocumentsGetRequest, DocumentsGetResponse>(ID, settings.read_timeout)
 }
 #[tracing::instrument(name = "document.operation", skip_all)]
 pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<DocumentsGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
+    crate::host::complete(ID, context.settings.read_timeout, async {
         if !request.page_token.is_empty() && request.at.is_none() {
             return Err(Error::Invalid("Get Document: Continue with the Returned Cut".into()));
         }
@@ -98,13 +100,13 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
         selection.page_token.clear();
         selection.max_bytes = 0;
         selection.max_frames = 0;
-        let key = format!("document/{}", super::views::hex(&super::paging::bytes(&selection)));
-        let (saved, cut) = super::views::read(context, &key, request.at.as_ref(), async {
+        let key = format!("document/{}", crate::host::views::hex(&crate::host::paging::bytes(&selection)));
+        let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
             let (document, fixed) = context.host.current_document(scope, &request.document_id)?;
             let (reader, _cancellation) = context.host.store().read_session()?;
-            let mut expanded = super::document_expansion::expand(&reader, &fixed, &document, 0, context.settings.page_items)?;
+            let mut expanded = crate::host::documents::expansion::expand(&reader, &fixed, &document, 0, context.settings.page_items)?;
             while let Some(next) = expanded.next {
-                let page = super::document_expansion::expand(&reader, &fixed, &document, next, context.settings.page_items)?;
+                let page = crate::host::documents::expansion::expand(&reader, &fixed, &document, next, context.settings.page_items)?;
                 merge_sections(&mut expanded.document.sections, page.document.sections)?;
                 for kind in page.frames {
                     if !expanded.frames.contains(&kind) {
@@ -114,7 +116,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                 expanded.next = page.next;
             }
             let document = expanded.document;
-            let evidence_scope = v1::EvidenceScope {
+            let evidence_scope = dokime_protocol::model::EvidenceScope {
                 cycle_id: Some(fixed.execution.cycle.clone()),
                 execution_id: (!scope.execution_id.is_empty()).then(|| fixed.execution.identifier.clone()),
                 ..Default::default()
@@ -186,17 +188,19 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                     let mut metadata = card.metadata.clone().unwrap_or_default();
                     metadata.identifier = id.clone();
                     let body = match card.body.as_ref() {
-                        Some(v1::card::Body::Markdown(value)) => DocumentCardBodyKind::Markdown(value.clone()),
-                        Some(v1::card::Body::Table(table)) => {
+                        Some(dokime_protocol::model::card::Body::Markdown(value)) => DocumentCardBodyKind::Markdown(value.clone()),
+                        Some(dokime_protocol::model::card::Body::Table(table)) => {
                             DocumentCardBodyKind::Table(DocumentTable { row_count: table.rows.len() as u64 })
                         }
-                        Some(v1::card::Body::Summary(_)) => DocumentCardBodyKind::Summary(DocumentSummary { group_count: 1 }),
-                        Some(v1::card::Body::Plot(plot)) => DocumentCardBodyKind::Owner(DocumentOwnerReference {
+                        Some(dokime_protocol::model::card::Body::Summary(_)) => {
+                            DocumentCardBodyKind::Summary(DocumentSummary { group_count: 1 })
+                        }
+                        Some(dokime_protocol::model::card::Body::Plot(plot)) => DocumentCardBodyKind::Owner(DocumentOwnerReference {
                             kind: DocumentCardKind::Plot as i32,
                             plot_id: plot.metadata.as_ref().map(|metadata| metadata.identifier.clone()),
                             ..Default::default()
                         }),
-                        Some(v1::card::Body::Evidence(kind)) => DocumentCardBodyKind::Owner(DocumentOwnerReference {
+                        Some(dokime_protocol::model::card::Body::Evidence(kind)) => DocumentCardBodyKind::Owner(DocumentOwnerReference {
                             kind: evidence_kind(*kind)? as i32,
                             ..Default::default()
                         }),
@@ -234,7 +238,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
             }
             // Define All Summary Sources Before Binding or Layout.
             for (id, metadata, card) in &cards {
-                if let Some(v1::card::Body::Summary(summary)) = &card.body {
+                if let Some(dokime_protocol::model::card::Body::Summary(summary)) = &card.body {
                     frames.push(frame(DocumentFrameFrameKind::GroupDefinition(DocumentSummaryGroupDefinition {
                         card_id: id.clone(),
                         ordinal: 0,
@@ -294,7 +298,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                     }
                     let mut binding = DocumentBindingResultKind::Literal(true);
                     match &card.body {
-                        Some(v1::card::Body::Table(table)) => {
+                        Some(dokime_protocol::model::card::Body::Table(table)) => {
                             for (ordinal, row) in table.rows.iter().enumerate() {
                                 frames.push(frame(DocumentFrameFrameKind::TableRow(DocumentTableRow {
                                     card_id: id.clone(),
@@ -303,7 +307,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                                 })));
                             }
                         }
-                        Some(v1::card::Body::Summary(summary)) => {
+                        Some(dokime_protocol::model::card::Body::Summary(summary)) => {
                             frames.push(frame(DocumentFrameFrameKind::Binding(DocumentBinding {
                                 source_id: id.clone(),
                                 metadata: Some(metadata.clone()),
@@ -339,11 +343,11 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                                 })));
                             }
                         }
-                        Some(v1::card::Body::Plot(plot)) => {
+                        Some(dokime_protocol::model::card::Body::Plot(plot)) => {
                             let prepared = (|| -> Result<DocumentPlotDefinition> {
                                 let mut plot = plot.clone();
                                 plot.filters.extend(card.filters.clone());
-                                let mut selected = super::document_plot::request(&plot, evidence_scope.clone())?;
+                                let mut selected = crate::host::documents::plot::request(&plot, evidence_scope.clone())?;
                                 if let Some((points, technique)) = context.host.store().plot_preferences(
                                     &fixed.execution.identifier,
                                     &request.document_id,
@@ -366,7 +370,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                                 });
                                 Ok(DocumentPlotDefinition {
                                     request: Some(selected),
-                                    presentation: Some(super::document_plot::presentation(&reader, &fixed, &plot)?),
+                                    presentation: Some(crate::host::documents::plot::presentation(&reader, &fixed, &plot)?),
                                     metadata: plot.metadata.clone(),
                                     z_expression: plot.z.clone(),
                                 })
@@ -380,7 +384,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                                 }),
                             };
                         }
-                        Some(v1::card::Body::Evidence(_)) if !card.filters.is_empty() => {
+                        Some(dokime_protocol::model::card::Body::Evidence(_)) if !card.filters.is_empty() => {
                             binding = DocumentBindingResultKind::Failure(DocumentCardFailure {
                                 code: "evidence_filters_unserved".into(),
                                 message: "Get Document Evidence Card: Clear Unsupported Filters".into(),
@@ -389,7 +393,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                         }
                         _ => (),
                     }
-                    if !matches!(card.body, Some(v1::card::Body::Summary(_))) {
+                    if !matches!(card.body, Some(dokime_protocol::model::card::Body::Summary(_))) {
                         frames.push(frame(DocumentFrameFrameKind::Binding(DocumentBinding {
                             source_id: id.clone(),
                             metadata: Some(metadata),
@@ -404,7 +408,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
             Ok(DocumentsGetResponse { frames, ..Default::default() })
         })
         .await?;
-        let start = super::views::offset(&request.page_token, &cut)?;
+        let start = crate::host::views::offset(&request.page_token, &cut)?;
         if start > saved.frames.len() {
             return Err(Error::Invalid("Get Document: Continue Within the Returned Frame Sequence".into()));
         }
@@ -420,13 +424,13 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
         };
         for (offset, frame) in saved.frames.into_iter().enumerate().skip(start) {
             reply.frames.push(frame);
-            reply.next_page_token = if offset + 1 < total { super::views::token(offset + 1, &cut) } else { String::new() };
+            reply.next_page_token = if offset + 1 < total { crate::host::views::token(offset + 1, &cut) } else { String::new() };
             if reply.encoded_len() > maximum {
                 reply.frames.pop();
                 if reply.frames.is_empty() {
                     return Err(Error::Bound("Get Document: Split This Frame to Fit the Reply Byte Bound".into()));
                 }
-                reply.next_page_token = super::views::token(offset, &cut);
+                reply.next_page_token = crate::host::views::token(offset, &cut);
                 break;
             }
             let frames = if request.max_frames == 0 {
@@ -476,7 +480,7 @@ fn frame(kind: DocumentFrameFrameKind) -> DocumentFrame {
 fn filters(card: &Card) -> Vec<PlotFilter> {
     card.filters
         .iter()
-        .map(|filter| v1::PlotFilter {
+        .map(|filter| dokime_protocol::model::PlotFilter {
             expression: filter.expression.clone(),
             operator: filter.operator,
             value: filter.value.clone(),
@@ -484,16 +488,16 @@ fn filters(card: &Card) -> Vec<PlotFilter> {
         .collect()
 }
 fn evidence_kind(kind: i32) -> Result<DocumentCardKind> {
-    Ok(match v1::EvidenceCard::try_from(kind) {
-        Ok(v1::EvidenceCard::Steps) => DocumentCardKind::Steps,
-        Ok(v1::EvidenceCard::Criteria) => DocumentCardKind::Criteria,
-        Ok(v1::EvidenceCard::Traceability) => DocumentCardKind::Traceability,
-        Ok(v1::EvidenceCard::Notes) => DocumentCardKind::Notes,
-        Ok(v1::EvidenceCard::Records) => DocumentCardKind::Records,
-        Ok(v1::EvidenceCard::Artifacts) => DocumentCardKind::Artifacts,
-        Ok(v1::EvidenceCard::Media) => DocumentCardKind::Media,
-        Ok(v1::EvidenceCard::Health) => DocumentCardKind::Health,
-        Ok(v1::EvidenceCard::StreamContext) => DocumentCardKind::TelemetryContext,
+    Ok(match dokime_protocol::model::EvidenceCard::try_from(kind) {
+        Ok(dokime_protocol::model::EvidenceCard::Steps) => DocumentCardKind::Steps,
+        Ok(dokime_protocol::model::EvidenceCard::Criteria) => DocumentCardKind::Criteria,
+        Ok(dokime_protocol::model::EvidenceCard::Traceability) => DocumentCardKind::Traceability,
+        Ok(dokime_protocol::model::EvidenceCard::Notes) => DocumentCardKind::Notes,
+        Ok(dokime_protocol::model::EvidenceCard::Records) => DocumentCardKind::Records,
+        Ok(dokime_protocol::model::EvidenceCard::Artifacts) => DocumentCardKind::Artifacts,
+        Ok(dokime_protocol::model::EvidenceCard::Media) => DocumentCardKind::Media,
+        Ok(dokime_protocol::model::EvidenceCard::Health) => DocumentCardKind::Health,
+        Ok(dokime_protocol::model::EvidenceCard::StreamContext) => DocumentCardKind::TelemetryContext,
         _ => return Err(Error::Invalid("Capture Document: Select a Declared Evidence Card".into())),
     })
 }

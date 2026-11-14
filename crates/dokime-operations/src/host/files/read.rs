@@ -15,14 +15,16 @@
 
 /* === Imports === */
 
-use super::{ClientSettings, Context};
+use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
-use dokime_protocol::client::{FilesGetRequest, FilesReadRequest, FilesReadResponse};
-use harmos_protocol::v1::OperationContract;
+use dokime_protocol::host::FilesGetRequest;
+use dokime_protocol::host::FilesReadRequest;
+use dokime_protocol::host::FilesReadResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Files/Read";
+pub const ID: &str = "dokime.host.v1.Files/Read";
 
 /* === Macros === */
 
@@ -39,23 +41,23 @@ pub const ID: &str = "dokime.client.v1.Files/Read";
 /* === Public Functions === */
 
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    super::declaration::<FilesReadRequest, FilesReadResponse>(ID, settings.read_timeout)
+    crate::host::declaration::<FilesReadRequest, FilesReadResponse>(ID, settings.read_timeout)
 }
 pub async fn handle(context: &Context, request: FilesReadRequest) -> Result<FilesReadResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        let maximum = super::files_transfer::chunk_bytes(context);
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        let maximum = crate::host::files::transfer::chunk_bytes(context);
         let maximum = if request.max_bytes == 0 {
             maximum
         } else {
             usize::try_from(request.max_bytes).map_err(|_| Error::Bound("Read File: Respect Its Chunk Bound".into()))?
         };
-        if maximum > super::files_transfer::chunk_bytes(context) {
+        if maximum > crate::host::files::transfer::chunk_bytes(context) {
             return Err(Error::Bound("Read File: Respect the Returned Chunk Bound".into()));
         }
-        let selected = super::files_get::handle(context, FilesGetRequest { file: request.file, at: request.at }).await?;
+        let selected = crate::host::files::get::handle(context, FilesGetRequest { file: request.file, at: request.at }).await?;
         let file = selected.file.ok_or_else(|| Error::Invalid("Read File: Select Its Reference".into()))?;
-        let data = super::files_transfer::read(context, &file, request.offset, maximum)?;
-        super::bounded_reply(
+        let data = crate::host::files::transfer::read(context, &file, request.offset, maximum)?;
+        crate::host::bounded_reply(
             context,
             FilesReadResponse {
                 data,

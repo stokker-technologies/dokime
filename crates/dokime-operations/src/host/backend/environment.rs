@@ -21,11 +21,12 @@
 
 // Local Imports
 use crate::{Resources, Result};
-use dokime_protocol::context::{BackendEnvironmentRequest, BackendEnvironmentResponse};
+use dokime_protocol::host::BackendEnvironmentRequest;
+use dokime_protocol::host::BackendEnvironmentResponse;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.plugin.host.v1.Backend/Environment";
+pub const ID: &str = "dokime.host.v1.Backend/Environment";
 
 /* === Macros === */
 
@@ -41,7 +42,7 @@ pub const ID: &str = "dokime.plugin.host.v1.Backend/Environment";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<harmos_protocol::v1::OperationContract> {
+pub fn declaration() -> Result<harmos_protocol::model::OperationContract> {
     use prost::Message;
     crate::declaration::<BackendEnvironmentRequest, BackendEnvironmentResponse>(
         ID,

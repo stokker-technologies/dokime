@@ -37,13 +37,15 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::client::analyses_server::Analyses for Services {
+impl dokime_protocol::host::analyses_server::Analyses for Services {
     async fn list(
-        &self, request: tonic::Request<dokime_protocol::client::AnalysesListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::AnalysesListResponse>, tonic::Status> {
-        let reply = dokime_operations::client::analyses_list::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::AnalysesListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::AnalysesListResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.Analyses/List", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::analyses::list::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
 }

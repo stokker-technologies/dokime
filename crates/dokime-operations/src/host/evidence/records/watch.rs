@@ -20,16 +20,18 @@
 // Third Party Imports
 use crate::{
     Result,
-    client::{Context, Output},
+    host::{Context, Output},
 };
-use dokime_protocol::client::evidence::{RecordsListRequest, RecordsWatchRequest, RecordsWatchResponse};
-use harmos_protocol::v1 as h;
+use dokime_protocol::host::evidence::RecordsListRequest;
+use dokime_protocol::host::evidence::RecordsWatchRequest;
+use dokime_protocol::host::evidence::RecordsWatchResponse;
+use harmos_protocol::model as h;
 
 // Local Imports
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.evidence.Records/Watch";
+pub const ID: &str = "dokime.host.v1.evidence.Records/Watch";
 
 /* === Macros === */
 
@@ -45,8 +47,8 @@ pub const ID: &str = "dokime.client.v1.evidence.Records/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<RecordsWatchRequest, RecordsWatchResponse>(ID, settings.watch_timeout)
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<RecordsWatchRequest, RecordsWatchResponse>(ID, settings.watch_timeout)
 }
 
 pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<Output<RecordsWatchResponse>> {
@@ -61,7 +63,7 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
         at: request.at,
         page: request.page,
     };
-    let first = super::evidence_records_list::read_page(context, selection.clone(), None)?;
+    let first = crate::host::evidence::records::list::read_page(context, selection.clone(), None)?;
     let context = context.clone();
     let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
     tokio::spawn(async move {
@@ -92,7 +94,7 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
                         .and_then(|selection| selection.scope.as_ref())
                         .and_then(|scope| scope.execution_id.as_deref())
                         .or_else(|| match selection.scope.as_ref().and_then(|scope| scope.kind.as_ref()) {
-                            Some(dokime_protocol::client::evidence::record_scope::Kind::Execution(id)) => Some(id.as_str()),
+                            Some(dokime_protocol::host::evidence::record_scope::Kind::Execution(id)) => Some(id.as_str()),
                             _ => None,
                         });
                     if execution.is_some_and(|id| {
@@ -112,7 +114,7 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
                         return Ok(());
                     }
                 }
-                match super::evidence_records_list::read_page(&context, selection.clone(), after.as_ref()) {
+                match crate::host::evidence::records::list::read_page(&context, selection.clone(), after.as_ref()) {
                     Ok(next) => page = next,
                     Err(error) => {
                         let _ = sender
@@ -132,7 +134,7 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
         };
         match tokio::time::timeout(context.settings.watch_timeout, work).await {
             Ok(Err(error)) => {
-                let _ = sender.send(Err(super::status(error))).await;
+                let _ = sender.send(Err(crate::host::status(error))).await;
             }
             Err(_) => {
                 let _ = sender.try_send(Err(tonic::Status::deadline_exceeded("Watch Records: Reopen After Its Deadline")));

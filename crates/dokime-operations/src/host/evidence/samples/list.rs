@@ -18,17 +18,17 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
+use crate::{Error, Result, host::Context};
+use dokime_protocol::model;
 use sha2::Digest;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.evidence.Samples/List";
+pub const ID: &str = "dokime.host.v1.evidence.Samples/List";
 
 /* === Macros === */
 
@@ -44,17 +44,17 @@ pub const ID: &str = "dokime.client.v1.evidence.Samples/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::evidence::SamplesListRequest, dokime_protocol::client::evidence::SamplesListResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::evidence::SamplesListRequest, dokime_protocol::host::evidence::SamplesListResponse>(
         ID,
         settings.read_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::evidence::SamplesListRequest,
-) -> Result<dokime_protocol::client::evidence::SamplesListResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        let identifier = super::projection::execution_scope(request.scope.as_ref())?;
+    context: &Context, request: dokime_protocol::host::evidence::SamplesListRequest,
+) -> Result<dokime_protocol::host::evidence::SamplesListResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        let identifier = crate::host::projection::execution_scope(request.scope.as_ref())?;
         let store = context.host.store();
         let cut = store.metadata(identifier)?;
         let page = request.page.clone().unwrap_or_default();
@@ -80,8 +80,8 @@ pub async fn handle(
         selected.at = None;
         let binding = format!(
             "{}{}",
-            super::views::hex(&super::paging::bytes(&selected)),
-            super::views::hex(&sha2::Sha256::digest(resolved_at.encode_to_vec()))
+            crate::host::views::hex(&crate::host::paging::bytes(&selected)),
+            crate::host::views::hex(&sha2::Sha256::digest(resolved_at.encode_to_vec()))
         );
         let mut after = std::collections::BTreeMap::<String, u64>::new();
         if !page.page_token.is_empty() {
@@ -113,14 +113,15 @@ pub async fn handle(
         let streams = names
             .iter()
             .filter(|stream| {
-                request.streams.is_empty() || request.streams.iter().any(|pattern| super::evidence_selection::matches(pattern, stream))
+                request.streams.is_empty()
+                    || request.streams.iter().any(|pattern| crate::host::evidence::selection::matches(pattern, stream))
             })
             .cloned()
             .collect::<Vec<_>>();
         if after.iter().any(|(key, value)| !names.contains(key) || *value > cut.frontier) {
             return Err(Error::Invalid("List Samples: Continue Within the Selected Stream Histories".into()));
         }
-        let limit = super::projection::limit(page.page_size, context.settings.page_items);
+        let limit = crate::host::projection::limit(page.page_size, context.settings.page_items);
         let (step_after, through) = store.step_range(
             identifier,
             request.scope.as_ref().and_then(|scope| scope.step_id.as_deref()).unwrap_or_default(),
@@ -131,11 +132,11 @@ pub async fn handle(
             after.entry(stream.clone()).and_modify(|value| *value = (*value).max(step_after)).or_insert(step_after);
         }
         let source = match cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
-            Some(v1::origin::Kind::PluginRun(run)) => run.plugin.clone(),
+            Some(dokime_protocol::model::origin::Kind::PluginRun(run)) => run.plugin.clone(),
             _ => "import".into(),
         };
         let source_matches =
-            request.sources.is_empty() || request.sources.iter().any(|pattern| super::evidence_selection::matches(pattern, &source));
+            request.sources.is_empty() || request.sources.iter().any(|pattern| crate::host::evidence::selection::matches(pattern, &source));
         let version_matches = request.versions.is_empty() || request.versions.contains(&1);
         let scope_matches =
             request.scope.as_ref().is_none_or(|scope| scope.cycle_id.as_ref().is_none_or(|cycle| cycle == &cut.execution.cycle));
@@ -193,7 +194,7 @@ pub async fn handle(
             samples: selected,
             evidence: Vec::new(),
         };
-        let mut samples = super::projection::samples(&snapshot, &[], None)?;
+        let mut samples = crate::host::projection::samples(&snapshot, &[], None)?;
         for sample in &mut samples {
             sample.source = source.clone();
             if let Some(scope) = &mut sample.scope {
@@ -202,7 +203,9 @@ pub async fn handle(
             if !request.signals.is_empty()
                 && let Some(values) = &mut sample.values
             {
-                values.values.retain(|key, _| request.signals.iter().any(|pattern| super::evidence_selection::matches(pattern, key)));
+                values
+                    .values
+                    .retain(|key, _| request.signals.iter().any(|pattern| crate::host::evidence::selection::matches(pattern, key)));
             }
         }
         let next_page_token = if bounded {
@@ -213,11 +216,11 @@ pub async fn handle(
                 serde_json::to_string(&after).map_err(|error| Error::Invalid(format!("List Samples: Encode Continuation: {error}")))?
             )
         };
-        Ok(dokime_protocol::client::evidence::SamplesListResponse {
+        Ok(dokime_protocol::host::evidence::SamplesListResponse {
             samples: samples
                 .into_iter()
-                .map(|sample| dokime_protocol::client::evidence::SampleRow {
-                    kind: Some(dokime_protocol::client::evidence::sample_row::Kind::Raw(sample)),
+                .map(|sample| dokime_protocol::host::evidence::SampleRow {
+                    kind: Some(dokime_protocol::host::evidence::sample_row::Kind::Raw(sample)),
                 })
                 .collect(),
             schema: None,

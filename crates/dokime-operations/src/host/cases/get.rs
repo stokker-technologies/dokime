@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Result, client::Context};
+use crate::{Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Cases/Get";
+pub const ID: &str = "dokime.host.v1.Cases/Get";
 
 /* === Macros === */
 
@@ -41,25 +41,23 @@ pub const ID: &str = "dokime.client.v1.Cases/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::CasesGetRequest, dokime_protocol::client::CasesGetResponse>(ID, settings.read_timeout)
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::CasesGetRequest, dokime_protocol::host::CasesGetResponse>(ID, settings.read_timeout)
 }
-pub async fn handle(
-    context: &Context, request: dokime_protocol::client::CasesGetRequest,
-) -> Result<dokime_protocol::client::CasesGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
+pub async fn handle(context: &Context, request: dokime_protocol::host::CasesGetRequest) -> Result<dokime_protocol::host::CasesGetResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
-            super::views::read(context, &format!("{ID}/{}/{}", request.parent, request.name.clone()), request.at.as_ref(), async {
-                let case = super::execution_state::planned(context, &request.parent, &request.name)?;
+            crate::host::views::read(context, &format!("{ID}/{}/{}", request.parent, request.name.clone()), request.at.as_ref(), async {
+                let case = crate::host::execution_state::planned(context, &request.parent, &request.name)?;
                 let summary =
-                    super::execution_state::cases(context, &request.parent)?.into_iter().find(|case| case.case_id == request.name);
-                let parameter_count = super::execution_state::case(case.origin.as_ref().unwrap())?.parameters.len() as u64;
-                Ok(dokime_protocol::client::CasesGetResponse {
-                    value: Some(dokime_protocol::client::CaseDetail {
+                    crate::host::execution_state::cases(context, &request.parent)?.into_iter().find(|case| case.case_id == request.name);
+                let parameter_count = crate::host::execution_state::case(case.origin.as_ref().unwrap())?.parameters.len() as u64;
+                Ok(dokime_protocol::host::CasesGetResponse {
+                    value: Some(dokime_protocol::host::CaseDetail {
                         summary,
                         parameter_count,
                         generation_index: case.ordinal,
-                        observed_cursor: Some(super::execution_state::observed(context)),
+                        observed_cursor: Some(crate::host::execution_state::observed(context)),
                         ..Default::default()
                     }),
                     ..Default::default()

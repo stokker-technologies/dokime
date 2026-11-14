@@ -21,7 +21,7 @@ use std::collections::HashMap;
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_runtime::{Host, RunState};
 use dokime_storage::ExecutionState;
 
@@ -52,8 +52,8 @@ async fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn std::err
         let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
         let parameters = HashMap::from([(
             "limit".into(),
-            v1::Value {
-                kind: Some(v1::value::Kind::Number(85.0)),
+            dokime_protocol::model::Value {
+                kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
             },
         )]);
         let origin = host.materialize(&entry, "thermal.cycle", parameters).await?;
@@ -70,7 +70,7 @@ async fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn std::err
             vec![RunState::Queued, RunState::Initializing, RunState::Stepping, RunState::CleaningUp, RunState::Cancelled]
         );
         assert_eq!(snapshot.state, ExecutionState::Sealed);
-        assert_eq!(snapshot.execution.termination, v1::Termination::Cancelled as i32);
+        assert_eq!(snapshot.execution.termination, dokime_protocol::model::Termination::Cancelled as i32);
         assert_eq!(result.counts.evaluated, 0);
         assert_eq!(result.counts.not_evaluated, 1);
         assert_eq!(result.counts.verdict, None);

@@ -23,12 +23,14 @@ use std::{collections::HashMap, error::Error};
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::client::HostClient;
-use dokime_protocol::client::{
-    backend::{OverviewGetRequest, OverviewWatchRequest, overview_client::OverviewClient},
-    evidence::{TraceabilityGetRequest, traceability_client::TraceabilityClient},
-    executions::{ProgressWatchRequest, progress_client::ProgressClient},
-};
-use dokime_protocol::v1::EvidenceScope;
+use dokime_protocol::host::backend::OverviewGetRequest;
+use dokime_protocol::host::backend::OverviewWatchRequest;
+use dokime_protocol::host::backend::overview_client::OverviewClient;
+use dokime_protocol::host::evidence::TraceabilityGetRequest;
+use dokime_protocol::host::evidence::traceability_client::TraceabilityClient;
+use dokime_protocol::host::executions::ProgressWatchRequest;
+use dokime_protocol::host::executions::progress_client::ProgressClient;
+use dokime_protocol::model::EvidenceScope;
 use dokime_runtime::PluginProcess;
 use tonic::transport::Endpoint;
 

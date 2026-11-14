@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Result, client::Context};
+use crate::{Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.content.ExecutionFiles/Watch";
+pub const ID: &str = "dokime.host.v1.content.ExecutionFiles/Watch";
 
 /* === Macros === */
 
@@ -41,24 +41,24 @@ pub const ID: &str = "dokime.client.v1.content.ExecutionFiles/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<
-        dokime_protocol::client::content::ExecutionFilesWatchRequest,
-        dokime_protocol::client::content::ExecutionFilesWatchResponse,
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<
+        dokime_protocol::host::content::ExecutionFilesWatchRequest,
+        dokime_protocol::host::content::ExecutionFilesWatchResponse,
     >(ID, settings.watch_timeout)
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::content::ExecutionFilesWatchRequest,
-) -> Result<super::Output<dokime_protocol::client::content::ExecutionFilesWatchResponse>> {
-    super::complete(ID, context.settings.watch_timeout, async {
+    context: &Context, request: dokime_protocol::host::content::ExecutionFilesWatchRequest,
+) -> Result<crate::host::Output<dokime_protocol::host::content::ExecutionFilesWatchResponse>> {
+    crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = dokime_protocol::client::content::ExecutionFilesListRequest {
+        let mut selection = dokime_protocol::host::content::ExecutionFilesListRequest {
             parent: request.parent,
             at: request.at,
             page: request.page,
         };
-        let first = super::content_execution_files_list::handle(context, selection.clone()).await?;
+        let first = crate::host::content::execution_files::list::handle(context, selection.clone()).await?;
         let context = context.clone();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
         tokio::spawn(async move {
@@ -68,7 +68,7 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = dokime_protocol::client::content::ExecutionFilesWatchResponse {
+                    let response = dokime_protocol::host::content::ExecutionFilesWatchResponse {
                         files: page.files,
                         resolved_at: cut.clone(),
                         opening,
@@ -93,11 +93,11 @@ pub async fn handle(
                         selection.at = None;
                         selection.page.get_or_insert_default().page_token.clear();
                     }
-                    page = match super::content_execution_files_list::handle(&context, selection.clone()).await {
+                    page = match crate::host::content::execution_files::list::handle(&context, selection.clone()).await {
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(dokime_protocol::client::content::ExecutionFilesWatchResponse {
+                                .send(Ok(dokime_protocol::host::content::ExecutionFilesWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

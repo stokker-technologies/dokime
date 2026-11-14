@@ -21,7 +21,7 @@
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::client::Context;
+use crate::host::Context;
 
 /* === Constants === */
 
@@ -39,7 +39,7 @@ use crate::client::Context;
 
 /* === Public Functions === */
 
-pub(super) fn bytes<M: prost::Message + prost_reflect::ReflectMessage>(message: &M) -> Vec<u8> {
+pub(crate) fn bytes<M: prost::Message + prost_reflect::ReflectMessage>(message: &M) -> Vec<u8> {
     let value = prost_reflect::DynamicMessage::decode(message.descriptor(), message.encode_to_vec().as_slice())
         .expect("Encoded Protocol Message Matches Its Descriptor");
     let mut digest = Sha256::new();
@@ -47,16 +47,16 @@ pub(super) fn bytes<M: prost::Message + prost_reflect::ReflectMessage>(message: 
     digest.finalize().to_vec()
 }
 
-pub(super) fn cursor(context: &Context, selection: String, rows: impl IntoIterator<Item = Vec<u8>>) -> harmos_protocol::v1::ReadCut {
+pub(crate) fn cursor(context: &Context, selection: String, rows: impl IntoIterator<Item = Vec<u8>>) -> harmos_protocol::model::ReadCut {
     let mut digest = Sha256::new();
     for row in rows {
         digest.update((row.len() as u64).to_le_bytes());
         digest.update(row);
     }
     let bytes = digest.finalize();
-    harmos_protocol::v1::ReadCut {
+    harmos_protocol::model::ReadCut {
         positions: Vec::new(),
-        revisions: vec![harmos_protocol::v1::ResourceRevision {
+        revisions: vec![harmos_protocol::model::ResourceRevision {
             name: format!("{}/{selection}", context.host.identity().backend_id),
             revision: bytes.to_vec(),
         }],

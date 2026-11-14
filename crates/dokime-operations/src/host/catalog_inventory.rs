@@ -20,11 +20,11 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::client::PluginState;
-use dokime_protocol::v1;
-use dokime_protocol::v1::Suite;
-use harmos_protocol::v1::Catalog;
+use crate::{Error, Result, host::Context};
+use dokime_protocol::model;
+use dokime_protocol::model::Suite;
+use harmos_protocol::host::PluginState;
+use harmos_protocol::model::Declarations;
 use prost::Message;
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind};
 use std::collections::BTreeMap;
@@ -37,10 +37,10 @@ use std::collections::BTreeMap;
 
 /* === Structs === */
 
-pub(super) struct Inventory {
-    pub suites: Vec<(String, v1::Suite)>,
-    pub records: Vec<v1::RecordSchema>,
-    pub streams: Vec<v1::TelemetrySchema>,
+pub(crate) struct Inventory {
+    pub suites: Vec<(String, dokime_protocol::model::Suite)>,
+    pub records: Vec<dokime_protocol::host::RecordSchema>,
+    pub streams: Vec<dokime_protocol::host::TelemetrySchema>,
 }
 
 /* === Enums === */
@@ -59,8 +59,8 @@ impl Inventory {
                 plugin
                     .description
                     .as_ref()
-                    .and_then(|description| description.catalog.clone())
-                    .ok_or_else(|| Error::Invalid("Browse Catalog: Reconnect the Plugin with Its Catalog".into()))?,
+                    .and_then(|description| description.declarations.clone())
+                    .ok_or_else(|| Error::Invalid("Browse Declarations: Reconnect the Plugin with Its Declarations".into()))?,
             );
         }
         Self::from_catalogs(catalogs, context.host.suites()?)
@@ -68,28 +68,29 @@ impl Inventory {
 
     pub fn captured(context: &Context, parent: &str) -> Result<Self> {
         let snapshot = context.host.store().metadata(parent)?;
-        let catalog = Catalog::decode(snapshot.execution.catalog.as_slice())?;
+        let catalog = Declarations::decode(snapshot.execution.catalog.as_slice())?;
         Self::from_catalogs(vec![catalog], Vec::new())
     }
 
-    fn from_catalogs(catalogs: Vec<Catalog>, suites: Vec<(String, Suite)>) -> Result<Self> {
+    fn from_catalogs(catalogs: Vec<Declarations>, suites: Vec<(String, Suite)>) -> Result<Self> {
         let mut records = BTreeMap::new();
         let mut streams = BTreeMap::new();
         for catalog in catalogs {
-            let types = catalog.types.clone().ok_or_else(|| Error::Invalid("Browse Catalog: Reconnect with Message Descriptors".into()))?;
+            let types =
+                catalog.types.clone().ok_or_else(|| Error::Invalid("Browse Declarations: Reconnect with Message Descriptors".into()))?;
             let pool = DescriptorPool::from_file_descriptor_set(types).map_err(|error| Error::Invalid(error.to_string()))?;
             for section in &catalog.sections {
-                if section.r#type != "dokime.v1.RecordContracts" {
+                if section.r#type != "dokime.model.v1.RecordContracts" {
                     continue;
                 }
-                for record in v1::RecordContracts::decode(section.payload.as_slice())?.records {
+                for record in dokime_protocol::model::RecordContracts::decode(section.payload.as_slice())?.records {
                     let id = record.metadata.as_ref().map(|metadata| metadata.identifier.clone()).unwrap_or_default();
                     let descriptor = pool
                         .get_message_by_name(&record.message)
                         .ok_or_else(|| Error::Invalid(format!("Browse Record {id}: Rebuild Its Message Descriptors")))?;
                     let fields = descriptor
                         .fields()
-                        .map(|field| v1::RecordField {
+                        .map(|field| dokime_protocol::host::RecordField {
                             metadata: Some(metadata(&field)),
                             value_type: value_type(&field) as i32,
                             required: !field.supports_presence(),
@@ -97,7 +98,7 @@ impl Inventory {
                             ..Default::default()
                         })
                         .collect();
-                    let schema = v1::RecordSchema {
+                    let schema = dokime_protocol::host::RecordSchema {
                         record_type: id.clone(),
                         message_name: record.message,
                         schema_version: 1,
@@ -116,7 +117,7 @@ impl Inventory {
                     .ok_or_else(|| Error::Invalid(format!("Browse Stream {}: Rebuild Its Row Descriptors", stream.id)))?;
                 let columns = descriptor
                     .fields()
-                    .map(|field| v1::TelemetryColumn {
+                    .map(|field| dokime_protocol::host::TelemetryColumn {
                         metadata: Some(metadata(&field)),
                         value_type: value_type(&field) as i32,
                         required: !field.supports_presence(),
@@ -124,12 +125,12 @@ impl Inventory {
                         ..Default::default()
                     })
                     .collect();
-                let schema = v1::TelemetrySchema {
+                let schema = dokime_protocol::host::TelemetrySchema {
                     stream: stream.id.clone(),
                     message_name: stream.row.clone(),
                     schema_version: 1,
                     columns,
-                    metadata: Some(v1::Metadata {
+                    metadata: Some(dokime_protocol::model::Metadata {
                         identifier: stream.id.clone(),
                         label: stream.id.clone(),
                         ..Default::default()
@@ -153,26 +154,28 @@ impl Inventory {
 
 /* === Private Functions === */
 
-fn metadata(field: &FieldDescriptor) -> v1::Metadata {
-    v1::Metadata {
+fn metadata(field: &FieldDescriptor) -> dokime_protocol::model::Metadata {
+    dokime_protocol::model::Metadata {
         identifier: field.name().into(),
         label: field.name().into(),
         ..Default::default()
     }
 }
-fn value_type(field: &FieldDescriptor) -> v1::ValueType {
+fn value_type(field: &FieldDescriptor) -> dokime_protocol::model::ValueType {
     if field.is_list() || field.is_map() {
-        return v1::ValueType::List;
+        return dokime_protocol::model::ValueType::List;
     }
     match field.kind() {
-        Kind::Bool => v1::ValueType::Boolean,
-        Kind::Int32 | Kind::Int64 | Kind::Sint32 | Kind::Sint64 | Kind::Sfixed32 | Kind::Sfixed64 | Kind::Enum(_) => v1::ValueType::Integer,
-        Kind::Uint32 | Kind::Uint64 | Kind::Fixed32 | Kind::Fixed64 => v1::ValueType::UnsignedInteger,
-        Kind::Double | Kind::Float => v1::ValueType::Number,
-        Kind::String => v1::ValueType::Text,
-        Kind::Bytes => v1::ValueType::Bytes,
-        Kind::Message(message) if message.full_name() == "google.protobuf.Timestamp" => v1::ValueType::Datetime,
-        Kind::Message(_) => v1::ValueType::Bytes,
+        Kind::Bool => dokime_protocol::model::ValueType::Boolean,
+        Kind::Int32 | Kind::Int64 | Kind::Sint32 | Kind::Sint64 | Kind::Sfixed32 | Kind::Sfixed64 | Kind::Enum(_) => {
+            dokime_protocol::model::ValueType::Integer
+        }
+        Kind::Uint32 | Kind::Uint64 | Kind::Fixed32 | Kind::Fixed64 => dokime_protocol::model::ValueType::UnsignedInteger,
+        Kind::Double | Kind::Float => dokime_protocol::model::ValueType::Number,
+        Kind::String => dokime_protocol::model::ValueType::Text,
+        Kind::Bytes => dokime_protocol::model::ValueType::Bytes,
+        Kind::Message(message) if message.full_name() == "google.protobuf.Timestamp" => dokime_protocol::model::ValueType::Datetime,
+        Kind::Message(_) => dokime_protocol::model::ValueType::Bytes,
     }
 }
 

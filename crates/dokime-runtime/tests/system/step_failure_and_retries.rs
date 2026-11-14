@@ -22,9 +22,10 @@ use std::error::Error;
 use prost::Message;
 
 // Local Imports
-use dokime_protocol::context::evidence::RecordsAppendRequest;
-use dokime_protocol::v1::origin::Kind;
-use dokime_protocol::v1::{ResultStatus, Termination};
+use dokime_protocol::host::ResultStatus;
+use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::model::Termination;
+use dokime_protocol::model::origin::Kind;
 use dokime_runtime::Host;
 use dokime_storage::StatisticsRead;
 

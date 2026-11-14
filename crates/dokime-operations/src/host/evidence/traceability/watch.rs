@@ -22,13 +22,15 @@
 // Local Imports
 use crate::{
     Result,
-    client::{Context, Output},
+    host::{Context, Output},
 };
-use dokime_protocol::client::evidence::{TraceabilityGetRequest, TraceabilityWatchRequest, TraceabilityWatchResponse};
+use dokime_protocol::host::evidence::TraceabilityGetRequest;
+use dokime_protocol::host::evidence::TraceabilityWatchRequest;
+use dokime_protocol::host::evidence::TraceabilityWatchResponse;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.evidence.Traceability/Watch";
+pub const ID: &str = "dokime.host.v1.evidence.Traceability/Watch";
 
 /* === Macros === */
 
@@ -44,12 +46,12 @@ pub const ID: &str = "dokime.client.v1.evidence.Traceability/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
-    super::declaration::<TraceabilityWatchRequest, TraceabilityWatchResponse>(ID, settings.watch_timeout)
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<harmos_protocol::model::OperationContract> {
+    crate::host::declaration::<TraceabilityWatchRequest, TraceabilityWatchResponse>(ID, settings.watch_timeout)
 }
 
 pub async fn handle(context: &Context, request: TraceabilityWatchRequest) -> Result<Output<TraceabilityWatchResponse>> {
-    super::complete(ID, context.settings.watch_timeout, async {
+    crate::host::complete(ID, context.settings.watch_timeout, async {
         if request.page.as_ref().is_some_and(|page| !page.page_token.is_empty()) {
             return Err(crate::Error::Invalid("Watch Traceability: Open a Watch with a Read Cut and No Page Token".into()));
         }
@@ -68,7 +70,7 @@ pub async fn handle(context: &Context, request: TraceabilityWatchRequest) -> Res
                     changes.borrow_and_update();
                     let mut page = request.page.clone().unwrap_or_default();
                     loop {
-                        let result = super::evidence_traceability_get::read_page(
+                        let result = crate::host::evidence::traceability::get::read_page(
                             &context,
                             TraceabilityGetRequest {
                                 scope: request.scope.clone(),
@@ -80,7 +82,7 @@ pub async fn handle(context: &Context, request: TraceabilityWatchRequest) -> Res
                         let response = match result {
                             Ok(response) => response,
                             Err(error) => {
-                                let _ = sender.send(Err(super::status(error))).await;
+                                let _ = sender.send(Err(crate::host::status(error))).await;
                                 return;
                             }
                         };

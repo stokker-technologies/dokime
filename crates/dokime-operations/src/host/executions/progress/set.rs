@@ -18,16 +18,17 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
 use crate::{Resources, Result};
-use dokime_protocol::{context::executions::ProgressSetRequest, context::executions::ProgressSetResponse};
+use dokime_protocol::host::executions::ProgressSetRequest;
+use dokime_protocol::host::executions::ProgressSetResponse;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.plugin.host.v1.executions.Progress/Set";
+pub const ID: &str = "dokime.host.v1.executions.Progress/Set";
 
 /* === Macros === */
 

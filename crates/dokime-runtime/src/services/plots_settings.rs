@@ -37,21 +37,25 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::client::plots::settings_server::Settings for Services {
+impl dokime_protocol::host::plots::settings_server::Settings for Services {
     async fn get(
-        &self, request: tonic::Request<dokime_protocol::client::plots::SettingsGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::plots::SettingsGetResponse>, tonic::Status> {
-        let reply = dokime_operations::client::plots_settings_get::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::plots::SettingsGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::plots::SettingsGetResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.plots.Settings/Get", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::plots::settings::get::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn set(
-        &self, request: tonic::Request<dokime_protocol::client::plots::SettingsSetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::plots::SettingsSetResponse>, tonic::Status> {
-        let reply = dokime_operations::client::plots_settings_set::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::plots::SettingsSetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::plots::SettingsSetResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.plots.Settings/Set", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::plots::settings::set::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
 }

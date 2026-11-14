@@ -21,7 +21,7 @@
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_storage::{Evidence, ExecutionCut};
 use prost::Message;
 
@@ -41,11 +41,14 @@ use prost::Message;
 
 /* === Public Functions === */
 
-pub(super) fn validate(selection: &dokime_protocol::client::evidence::CapturedRecordSelection) -> Result<()> {
+pub(crate) fn validate(selection: &dokime_protocol::host::evidence::CapturedRecordSelection) -> Result<()> {
     if selection.severities.iter().any(|severity| {
         !matches!(
-            v1::Severity::try_from(*severity),
-            Ok(v1::Severity::Debug | v1::Severity::Info | v1::Severity::Warning | v1::Severity::Error)
+            dokime_protocol::model::Severity::try_from(*severity),
+            Ok(dokime_protocol::model::Severity::Debug
+                | dokime_protocol::model::Severity::Info
+                | dokime_protocol::model::Severity::Warning
+                | dokime_protocol::model::Severity::Error)
         )
     }) {
         return Err(Error::Invalid("List Records: Select Debug, Info, Warning or Error Severity".into()));
@@ -61,13 +64,13 @@ pub(super) fn validate(selection: &dokime_protocol::client::evidence::CapturedRe
         .and_then(|scope| scope.origin.as_ref())
         .and_then(|origin| origin.kind.as_ref())
         .and_then(|kind| kind.kind.as_ref())
-        .is_some_and(|kind| matches!(kind, v1::evidence_origin_kind::Kind::StepAttemptId(_)))
+        .is_some_and(|kind| matches!(kind, dokime_protocol::model::evidence_origin_kind::Kind::StepAttemptId(_)))
     {
         return Err(Error::Invalid("Read Evidence: Select Execution and Step Scopes Instead of a Retired Opaque Attempt Identity".into()));
     }
     Ok(())
 }
-pub(super) fn matches(pattern: &str, value: &str) -> bool {
+pub(crate) fn matches(pattern: &str, value: &str) -> bool {
     if pattern == "*" {
         return true;
     }
@@ -76,7 +79,7 @@ pub(super) fn matches(pattern: &str, value: &str) -> bool {
     }
     value == pattern
 }
-pub(super) fn scope_matches(selected: Option<&v1::EvidenceScope>, cut: &ExecutionCut, evidence: &Evidence) -> bool {
+pub(crate) fn scope_matches(selected: Option<&dokime_protocol::model::EvidenceScope>, cut: &ExecutionCut, evidence: &Evidence) -> bool {
     let Some(scope) = selected else {
         return true;
     };
@@ -87,7 +90,7 @@ pub(super) fn scope_matches(selected: Option<&v1::EvidenceScope>, cut: &Executio
         return false;
     }
     let run = cut.execution.origin.as_ref().and_then(|origin| match origin.kind.as_ref() {
-        Some(v1::origin::Kind::PluginRun(run)) => Some(run),
+        Some(dokime_protocol::model::origin::Kind::PluginRun(run)) => Some(run),
         _ => None,
     });
     if scope.criterion_id.as_ref().is_some_and(|id| {
@@ -103,14 +106,14 @@ pub(super) fn scope_matches(selected: Option<&v1::EvidenceScope>, cut: &Executio
         return false;
     }
     if let Some(suite) = &scope.suite_id {
-        let Ok(catalog) = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice()) else {
+        let Ok(catalog) = harmos_protocol::model::Declarations::decode(cut.execution.catalog.as_slice()) else {
             return false;
         };
         let found = catalog
             .sections
             .iter()
-            .filter(|section| section.r#type == "dokime.v1.Suites")
-            .filter_map(|section| v1::Suites::decode(section.payload.as_slice()).ok())
+            .filter(|section| section.r#type == "dokime.model.v1.Suites")
+            .filter_map(|section| dokime_protocol::model::Suites::decode(section.payload.as_slice()).ok())
             .flat_map(|suites| suites.suites)
             .any(|item| {
                 item.metadata.as_ref().is_some_and(|metadata| &metadata.identifier == suite)
@@ -126,40 +129,42 @@ pub(super) fn scope_matches(selected: Option<&v1::EvidenceScope>, cut: &Executio
     }
     if let Some(origin) = scope.origin.as_ref().and_then(|origin| origin.kind.as_ref()).and_then(|kind| kind.kind.as_ref()) {
         match origin {
-            v1::evidence_origin_kind::Kind::Initialization(_) if !evidence.operation.ends_with(".initialize") => return false,
-            v1::evidence_origin_kind::Kind::Cleanup(_) if !evidence.operation.ends_with(".cleanup") => return false,
-            v1::evidence_origin_kind::Kind::StepAttemptId(_) => return false,
+            dokime_protocol::model::evidence_origin_kind::Kind::Initialization(_) if !evidence.operation.ends_with(".initialize") => {
+                return false;
+            }
+            dokime_protocol::model::evidence_origin_kind::Kind::Cleanup(_) if !evidence.operation.ends_with(".cleanup") => return false,
+            dokime_protocol::model::evidence_origin_kind::Kind::StepAttemptId(_) => return false,
             _ => (),
         }
     }
     true
 }
-pub(super) fn project(cut: &ExecutionCut, evidence: &Evidence) -> Result<Option<dokime_protocol::client::evidence::CapturedRecord>> {
+pub(crate) fn project(cut: &ExecutionCut, evidence: &Evidence) -> Result<Option<dokime_protocol::host::evidence::CapturedRecord>> {
     let (kind, payload, timestamp, severity, message) = if let Some(kind) = evidence.kind.strip_prefix("record:") {
-        let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
-        (kind.into(), record.payload, record.source_at, v1::Severity::Info as i32, None)
+        let record = dokime_protocol::host::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
+        (kind.into(), record.payload, record.source_at, dokime_protocol::model::Severity::Info as i32, None)
     } else if evidence.kind == "log" {
-        let log = dokime_protocol::context::evidence::LogsAppendRequest::decode(evidence.payload.as_slice())?;
+        let log = dokime_protocol::host::evidence::LogsAppendRequest::decode(evidence.payload.as_slice())?;
         ("dokime.log".into(), evidence.payload.clone(), log.at, log.severity, Some(log.message))
     } else {
         return Ok(None);
     };
     let source = match cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
-        Some(v1::origin::Kind::PluginRun(run)) => run.plugin.clone(),
+        Some(dokime_protocol::model::origin::Kind::PluginRun(run)) => run.plugin.clone(),
         _ => "import".into(),
     };
-    Ok(Some(dokime_protocol::client::evidence::CapturedRecord {
+    Ok(Some(dokime_protocol::host::evidence::CapturedRecord {
         record_id: format!("{}:{}", cut.execution.identifier, evidence.position),
         sequence: evidence.position,
-        timestamp: timestamp.or_else(|| Some(super::projection::timestamp(evidence.source_ns))),
-        received_at: Some(super::projection::timestamp(evidence.receipt_ns)),
+        timestamp: timestamp.or_else(|| Some(crate::host::projection::timestamp(evidence.source_ns))),
+        received_at: Some(crate::host::projection::timestamp(evidence.receipt_ns)),
         record_type: kind,
         schema_version: 1,
         payload,
         source,
         severity,
         message,
-        scope: Some(v1::EvidenceScope {
+        scope: Some(dokime_protocol::model::EvidenceScope {
             execution_id: Some(cut.execution.identifier.clone()),
             cycle_id: Some(cut.execution.cycle.clone()),
             step_id: (!evidence.step.is_empty()).then(|| evidence.step.clone()),

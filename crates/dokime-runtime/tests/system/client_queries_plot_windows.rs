@@ -53,11 +53,11 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
         let credential_root = super::support::tempdir()?;
         let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
         let store = Store::open(root.path())?;
-        let catalog = harmos_protocol::v1::Catalog {
+        let catalog = harmos_protocol::model::Declarations {
             types: Some(prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?),
-            streams: vec![harmos_protocol::v1::StreamDeclaration {
+            streams: vec![harmos_protocol::model::StreamDeclaration {
                 id: "sensor".into(),
-                row: "dokime.client.v1.plots.PlotDomain".into(),
+                row: "dokime.host.v1.plots.PlotDomain".into(),
                 ..Default::default()
             }],
             ..Default::default()
@@ -66,8 +66,8 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
             identifier: "plot-execution".into(),
             cycle: "plot-cycle".into(),
             catalog: catalog.encode_to_vec(),
-            origin: Some(v1::Origin {
-                kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+            origin: Some(dokime_protocol::model::Origin {
+                kind: Some(model::origin::Kind::Import(dokime_protocol::model::Import::default())),
             }),
             ..Default::default()
         })?;
@@ -79,7 +79,7 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
                     stream: "sensor".into(),
                     source_ns: index * 1_000_000_000,
                     sequence: index as u64 + 1,
-                    row: dokime_protocol::client::plots::PlotDomain {
+                    row: dokime_protocol::host::plots::PlotDomain {
                         min: (index % 101) as f64,
                         max: index as f64,
                     }
@@ -90,20 +90,24 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
             store.sample_batch("plot-execution", &samples)?;
         }
         store.close_streams("plot-execution")?;
-        store.close("plot-execution", v1::Termination::Completed, v1::ExecutionOutcome::default())?;
+        store.close(
+            "plot-execution",
+            dokime_protocol::model::Termination::Completed,
+            dokime_protocol::host::ExecutionOutcome::default(),
+        )?;
         store.seal("plot-execution")?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
 
-        let scope = Some(v1::EvidenceScope {
+        let scope = Some(dokime_protocol::model::EvidenceScope {
             execution_id: Some("plot-execution".into()),
             ..Default::default()
         });
-        let request = v1::PlotRequest {
-            plot_type: v1::PlotKind::TimeSeries as i32,
+        let request = dokime_protocol::host::plots::PlotRequest {
+            plot_type: dokime_protocol::model::PlotKind::TimeSeries as i32,
             stream: "sensor".into(),
             y_keys: vec!["min".into()],
             scope,
-            viewport: Some(v1::PlotWindow { from: 1_000_000.0, to: 1_000_999.0 }),
+            viewport: Some(dokime_protocol::host::plots::PlotWindow { from: 1_000_000.0, to: 1_000_999.0 }),
             panel_width: Some(32),
             max_points: Some(128),
             ..Default::default()
@@ -111,14 +115,14 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
 
         // Read Forty Plots Without a Count Cap or a Whole-Stream Read
         let requests = (0..40)
-            .map(|index| v1::PlotRequest {
+            .map(|index| dokime_protocol::host::plots::PlotRequest {
                 plot_id: Some(format!("visible-{index}")),
                 ..request.clone()
             })
             .collect::<Vec<_>>();
-        let reply = dokime_protocol::client::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+        let reply = dokime_protocol::host::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
             .await?
-            .list(dokime_protocol::client::plots::SnapshotsListRequest {
+            .list(dokime_protocol::host::plots::SnapshotsListRequest {
                 requests: requests.clone(),
                 ..Default::default()
             })
@@ -134,18 +138,18 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
             examined_rows += diagnostics.examined_rows;
             let payload = envelope.payload.as_ref().unwrap();
             assert_eq!(payload.summaries[0].count, 1000);
-            assert_eq!(payload.summaries[0].min.as_ref().and_then(|value| value.kind.as_ref()), Some(&v1::value::Kind::Number(0.0)));
-            assert_eq!(payload.summaries[0].max.as_ref().and_then(|value| value.kind.as_ref()), Some(&v1::value::Kind::Number(100.0)));
+            assert_eq!(payload.summaries[0].min.as_ref().and_then(|value| value.kind.as_ref()), Some(&model::value::Kind::Number(0.0)));
+            assert_eq!(payload.summaries[0].max.as_ref().and_then(|value| value.kind.as_ref()), Some(&model::value::Kind::Number(100.0)));
         }
         assert_eq!(examined_rows, 40_000);
         assert!(examined_rows < retained as u64);
 
         // Zoom In and Observe the Actual Finer Resolution
-        let zoom = dokime_protocol::client::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+        let zoom = dokime_protocol::host::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
             .await?
-            .list(dokime_protocol::client::plots::SnapshotsListRequest {
-                requests: vec![v1::PlotRequest {
-                    viewport: Some(v1::PlotWindow { from: 1_000_000.0, to: 1_000_009.0 }),
+            .list(dokime_protocol::host::plots::SnapshotsListRequest {
+                requests: vec![dokime_protocol::host::plots::PlotRequest {
+                    viewport: Some(dokime_protocol::host::plots::PlotWindow { from: 1_000_000.0, to: 1_000_009.0 }),
                     ..request.clone()
                 }],
                 ..Default::default()
@@ -159,9 +163,9 @@ async fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
         );
 
         // Deliver the Visible Plot First and Complete the Sealed Watch
-        let mut watch = dokime_protocol::client::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
+        let mut watch = dokime_protocol::host::plots::snapshots_client::SnapshotsClient::connect(process.url.clone())
             .await?
-            .watch(dokime_protocol::client::plots::SnapshotsWatchRequest { requests, ..Default::default() })
+            .watch(dokime_protocol::host::plots::SnapshotsWatchRequest { requests, ..Default::default() })
             .await?
             .into_inner();
         let mut delivered = Vec::new();

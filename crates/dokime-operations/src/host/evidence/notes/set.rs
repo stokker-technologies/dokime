@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{Error, Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.evidence.Notes/Set";
+pub const ID: &str = "dokime.host.v1.evidence.Notes/Set";
 
 /* === Macros === */
 
@@ -41,16 +41,16 @@ pub const ID: &str = "dokime.client.v1.evidence.Notes/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::evidence::NotesSetRequest, dokime_protocol::client::evidence::NotesSetResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::evidence::NotesSetRequest, dokime_protocol::host::evidence::NotesSetResponse>(
         ID,
         settings.mutation_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::evidence::NotesSetRequest,
-) -> Result<dokime_protocol::client::evidence::NotesSetResponse> {
-    super::complete(ID, context.settings.mutation_timeout, async {
+    context: &Context, request: dokime_protocol::host::evidence::NotesSetRequest,
+) -> Result<dokime_protocol::host::evidence::NotesSetResponse> {
+    crate::host::complete(ID, context.settings.mutation_timeout, async {
         let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Set Note: Supply Its Whole Writable Value".into()))?;
         if value.message.trim().is_empty() {
             return Err(Error::Invalid("Set Note: Supply a Nonempty Message".into()));

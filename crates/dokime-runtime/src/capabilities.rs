@@ -21,7 +21,7 @@
 
 // Local Imports
 use crate::{Result, execution_manager::ExecutionManager, host::lock};
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_storage::ExecutionState;
 
 /* === Constants === */
@@ -50,8 +50,10 @@ pub struct ExecutionCapabilities {
 impl ExecutionManager {
     pub fn capabilities(&self, execution: &str) -> Result<ExecutionCapabilities> {
         let cut = self.inner.store.cut(execution)?;
-        let plugin_run =
-            matches!(cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(v1::origin::Kind::PluginRun(_)));
+        let plugin_run = matches!(
+            cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()),
+            Some(dokime_protocol::model::origin::Kind::PluginRun(_))
+        );
         let active = self.is_active(execution)?;
         let running = lock(&self.inner.active)?.get(execution).map(|active| active.control.is_running()).transpose()?.unwrap_or(false);
         Ok(ExecutionCapabilities {

@@ -30,8 +30,8 @@ use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use crate::{Cycle, Error, HostSettings, Result, host::lock, plugin::Entry, prompts::PromptManager};
-use dokime_operations::client::Progress;
-use dokime_protocol::v1;
+use dokime_operations::host::Progress;
+use dokime_protocol::model;
 use dokime_storage::{ExecutionState, Store};
 
 /* === Constants === */
@@ -79,18 +79,23 @@ impl ExecutionManager {
         // Recover Only Executions Driven by a Plugin Run
         for identifier in store.identifiers()? {
             let snapshot = store.cut(&identifier)?;
-            let is_run =
-                snapshot.execution.origin.as_ref().is_some_and(|origin| matches!(origin.kind, Some(v1::origin::Kind::PluginRun(_))));
+            let is_run = snapshot
+                .execution
+                .origin
+                .as_ref()
+                .is_some_and(|origin| matches!(origin.kind, Some(dokime_protocol::model::origin::Kind::PluginRun(_))));
             if snapshot.state == ExecutionState::Open && is_run {
                 store.close_streams(&identifier)?;
                 store.close(
                     &identifier,
-                    v1::Termination::Interrupted,
-                    v1::ExecutionOutcome {
-                        attribution: Some(v1::execution_outcome::Attribution::NotEvaluated(v1::UnevaluatedOutcome {
-                            termination: v1::Termination::Interrupted as i32,
-                            reason: "Host Restarted During Execution".into(),
-                        })),
+                    dokime_protocol::model::Termination::Interrupted,
+                    dokime_protocol::host::ExecutionOutcome {
+                        attribution: Some(dokime_protocol::host::execution_outcome::Attribution::NotEvaluated(
+                            dokime_protocol::host::UnevaluatedOutcome {
+                                termination: dokime_protocol::model::Termination::Interrupted as i32,
+                                reason: "Host Restarted During Execution".into(),
+                            },
+                        )),
                     },
                 )?;
                 store.seal(&identifier)?;
@@ -120,13 +125,13 @@ impl ExecutionManager {
             }),
         })
     }
-    pub(crate) async fn start_cycle(&self, origins: Vec<v1::Origin>) -> Result<Cycle> {
+    pub(crate) async fn start_cycle(&self, origins: Vec<dokime_protocol::model::Origin>) -> Result<Cycle> {
         let _admission = self.inner.admission.lock().await;
         self.admit("Start Cycle")?;
         self.reap_finished().await?;
         crate::execution::start(self.clone(), origins).await
     }
-    pub(crate) async fn start_execution_mode(&self, execution: &str, mode: dokime_protocol::client::ExecutionMode) -> Result<Cycle> {
+    pub(crate) async fn start_execution_mode(&self, execution: &str, mode: dokime_protocol::host::ExecutionMode) -> Result<Cycle> {
         let _admission = self.inner.admission.lock().await;
         self.admit("Start Execution")?;
         self.reap_finished().await?;
@@ -144,7 +149,9 @@ impl ExecutionManager {
             .cloned()
             .ok_or_else(|| Error::Invalid(format!("Start Execution: Connect Plugin {identifier}")))
     }
-    pub(crate) async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, v1::Value>) -> Result<v1::Origin> {
+    pub(crate) async fn materialize(
+        &self, plugin: &str, template: &str, parameters: HashMap<String, dokime_protocol::model::Value>,
+    ) -> Result<dokime_protocol::model::Origin> {
         crate::plugin::materialize(self.entry(plugin)?, template, parameters, &self.inner.settings).await
     }
     pub(crate) fn now_ns(&self) -> i64 {
@@ -196,7 +203,7 @@ impl ExecutionManager {
     pub(crate) fn register_cycle(&self, identifier: &str) -> Result<()> {
         if self.inner.store.client_cycle(identifier)?.is_none() {
             let now = self.now_ns();
-            self.inner.store.save_cycle(&v1::CycleSummary {
+            self.inner.store.save_cycle(&dokime_protocol::host::CycleSummary {
                 cycle_id: identifier.into(),
                 continue_automatically: true,
                 created_at: Some(prost_types::Timestamp {

@@ -52,7 +52,7 @@ async fn client_reads_runtime() -> Result<(), Box<dyn std::error::Error>> {
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = dokime::Client::from_channel(channel, super::support::client_settings())?;
-        let status = client.status.get(tonic::Request::new(harmos_protocol::v1::StatusGetRequest {})).await?.into_inner();
+        let status = client.status.get(tonic::Request::new(harmos_protocol::host::StatusGetRequest {})).await?.into_inner();
         let identity = status.status.as_ref().unwrap().identity.as_ref().unwrap();
         assert!(status.status.as_ref().unwrap().available);
         assert!(
@@ -62,12 +62,12 @@ async fn client_reads_runtime() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap()
                 .components
                 .iter()
-                .all(|component| component.state == harmos_protocol::v1::ComponentState::Healthy as i32)
+                .all(|component| component.state == harmos_protocol::host::ComponentState::Healthy as i32)
         );
 
         // Watch the Same Status Snapshot Through the Library Root
         let mut watch =
-            client.status.watch(tonic::Request::new(harmos_protocol::v1::StatusWatchRequest { at: status.resolved_at.clone() })).await?;
+            client.status.watch(tonic::Request::new(harmos_protocol::host::StatusWatchRequest { at: status.resolved_at.clone() })).await?;
         let opening = watch.next().await?.ok_or("Watch Status: Missing Opening Snapshot")?;
         assert_eq!(opening.status, status.status);
         drop(watch);
@@ -78,7 +78,7 @@ async fn client_reads_runtime() -> Result<(), Box<dyn std::error::Error>> {
             super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = dokime::Client::from_channel(channel, super::support::client_settings())?;
-        let reopened = client.status.get(tonic::Request::new(harmos_protocol::v1::StatusGetRequest {})).await?.into_inner();
+        let reopened = client.status.get(tonic::Request::new(harmos_protocol::host::StatusGetRequest {})).await?.into_inner();
         assert_eq!(reopened.status.unwrap().identity.unwrap().host_id, identity.host_id);
         assert_ne!(reopened.resolved_at.unwrap().history.unwrap().epoch, status.resolved_at.unwrap().history.unwrap().epoch);
         process.close().await?;

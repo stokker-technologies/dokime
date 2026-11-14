@@ -22,10 +22,12 @@ use tonic::{Request, Response, Status};
 
 // Local Imports
 use super::Services;
-use dokime_operations::client::{Output, plots_snapshots_list, plots_snapshots_watch, status};
-use dokime_protocol::client::plots::{
-    SnapshotsListRequest, SnapshotsListResponse, SnapshotsWatchRequest, SnapshotsWatchResponse, snapshots_server::Snapshots,
-};
+use dokime_operations::host::{Output, plots_snapshots_list, plots_snapshots_watch, status};
+use dokime_protocol::host::plots::SnapshotsListRequest;
+use dokime_protocol::host::plots::SnapshotsListResponse;
+use dokime_protocol::host::plots::SnapshotsWatchRequest;
+use dokime_protocol::host::plots::SnapshotsWatchResponse;
+use dokime_protocol::host::plots::snapshots_server::Snapshots;
 
 /* === Constants === */
 

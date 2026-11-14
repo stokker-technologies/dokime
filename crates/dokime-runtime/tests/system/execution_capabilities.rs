@@ -21,7 +21,7 @@ use std::error::Error as StdError;
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_runtime::Host;
 use dokime_storage::{Execution, ExecutionArchive, ExecutionState, Store};
 use prost::Message;
@@ -98,8 +98,8 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
         super::support::answer(&host, "unstarted", prompt)?;
         cycle.wait().await?;
         assert!(!host.capabilities("unstarted")?.start);
-        let import = v1::Origin {
-            kind: Some(v1::origin::Kind::Import(v1::Import {
+        let import = dokime_protocol::model::Origin {
+            kind: Some(dokime_protocol::model::origin::Kind::Import(dokime_protocol::model::Import {
                 importer: "sample.importer".into(),
                 processing: "Captured Measurements".into(),
                 ..Default::default()
@@ -115,24 +115,28 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
         }
         store.close(
             "imported",
-            v1::Termination::Completed,
-            v1::ExecutionOutcome {
-                attribution: Some(v1::execution_outcome::Attribution::Declared(v1::DeclaredOutcome {
-                    status: v1::ResultStatus::Passed as i32,
-                    importer: "sample.importer".into(),
-                    ..Default::default()
-                })),
+            dokime_protocol::model::Termination::Completed,
+            dokime_protocol::host::ExecutionOutcome {
+                attribution: Some(dokime_protocol::host::execution_outcome::Attribution::Declared(
+                    dokime_protocol::host::DeclaredOutcome {
+                        status: dokime_protocol::host::ResultStatus::Passed as i32,
+                        importer: "sample.importer".into(),
+                        ..Default::default()
+                    },
+                )),
             },
         )?;
         store.seal("imported")?;
         store.close(
             "closed-import",
-            v1::Termination::Completed,
-            v1::ExecutionOutcome {
-                attribution: Some(v1::execution_outcome::Attribution::NotEvaluated(v1::UnevaluatedOutcome {
-                    termination: v1::Termination::Completed as i32,
-                    ..Default::default()
-                })),
+            dokime_protocol::model::Termination::Completed,
+            dokime_protocol::host::ExecutionOutcome {
+                attribution: Some(dokime_protocol::host::execution_outcome::Attribution::NotEvaluated(
+                    dokime_protocol::host::UnevaluatedOutcome {
+                        termination: dokime_protocol::model::Termination::Completed as i32,
+                        ..Default::default()
+                    },
+                )),
             },
         )?;
         let closed = store.read("closed-import")?;
@@ -151,7 +155,7 @@ async fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
         let mut metadata = Vec::new();
         std::io::Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
         let export = ExecutionArchive::decode(metadata.as_slice())?;
-        assert!(matches!(export.execution.unwrap().origin.unwrap().kind, Some(v1::origin::Kind::Import(_))));
+        assert!(matches!(export.execution.unwrap().origin.unwrap().kind, Some(dokime_protocol::model::origin::Kind::Import(_))));
         let draft = store.read("draft")?;
         assert_eq!(draft.state, ExecutionState::Open);
         assert!(!host.capabilities("draft")?.start);

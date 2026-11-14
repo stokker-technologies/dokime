@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Result, client::Context};
+use crate::{Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.PromptDefinitions/List";
+pub const ID: &str = "dokime.host.v1.PromptDefinitions/List";
 
 /* === Macros === */
 
@@ -41,23 +41,24 @@ pub const ID: &str = "dokime.client.v1.PromptDefinitions/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::PromptDefinitionsListRequest, dokime_protocol::client::PromptDefinitionsListResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::PromptDefinitionsListRequest, dokime_protocol::host::PromptDefinitionsListResponse>(
         ID,
         settings.read_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::PromptDefinitionsListRequest,
-) -> Result<dokime_protocol::client::PromptDefinitionsListResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        let (mut reply, cut) = super::views::read(context, &format!("catalog/prompts/{}", request.parent), request.at.as_ref(), async {
-            Ok(dokime_protocol::client::PromptDefinitionsListResponse {
-                values: super::prompt_catalog::definitions(context)?,
-                ..Default::default()
+    context: &Context, request: dokime_protocol::host::PromptDefinitionsListRequest,
+) -> Result<dokime_protocol::host::PromptDefinitionsListResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        let (mut reply, cut) =
+            crate::host::views::read(context, &format!("catalog/prompts/{}", request.parent), request.at.as_ref(), async {
+                Ok(dokime_protocol::host::PromptDefinitionsListResponse {
+                    values: crate::host::prompts::catalog::definitions(context)?,
+                    ..Default::default()
+                })
             })
-        })
-        .await?;
+            .await?;
         reply.resolved_at = Some(cut);
         Ok(reply)
     })

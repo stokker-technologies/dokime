@@ -15,10 +15,10 @@
 
 /* === Imports === */
 
-use super::Context;
+use crate::host::Context;
 use crate::{Error, Result};
 use dokime_storage::CONTENT_CHUNK_BYTES;
-use harmos_protocol::storage::FileReference;
+use harmos_protocol::model::FileReference;
 
 /* === Constants === */
 
@@ -36,16 +36,16 @@ use harmos_protocol::storage::FileReference;
 
 /* === Public Functions === */
 
-pub(super) fn chunk_bytes(context: &Context) -> usize {
+pub(crate) fn chunk_bytes(context: &Context) -> usize {
     (4 * 1024 * 1024).min(context.settings.message_bytes.saturating_sub(1024))
 }
-pub(super) fn identifier(file: Option<&FileReference>) -> Result<&str> {
+pub(crate) fn identifier(file: Option<&FileReference>) -> Result<&str> {
     file.and_then(|file| file.metadata.as_ref())
         .map(|metadata| metadata.id.as_str())
         .filter(|id| !id.is_empty())
         .ok_or_else(|| Error::Invalid("Access File: Supply Its Identity".into()))
 }
-pub(super) fn reference(context: &Context, selected: &FileReference) -> Result<FileReference> {
+pub(crate) fn reference(context: &Context, selected: &FileReference) -> Result<FileReference> {
     let id = identifier(Some(selected))?;
     if selected
         .position
@@ -60,7 +60,7 @@ pub(super) fn reference(context: &Context, selected: &FileReference) -> Result<F
     }
     Ok(context.host.store().file_reference(id)?)
 }
-pub(super) fn read(context: &Context, reference: &FileReference, offset: u64, maximum: usize) -> Result<Vec<u8>> {
+pub(crate) fn read(context: &Context, reference: &FileReference, offset: u64, maximum: usize) -> Result<Vec<u8>> {
     let id = identifier(Some(reference))?;
     if offset > reference.length {
         return Err(Error::Invalid("Read File: Keep the Offset Within Its Selected Length".into()));
@@ -68,7 +68,7 @@ pub(super) fn read(context: &Context, reference: &FileReference, offset: u64, ma
     let length = maximum.min((reference.length - offset) as usize);
     if let Some((file, _)) = context.host.temporary_report(id)? {
         let mut bytes = vec![0; length];
-        super::content_transfer::read_temporary(&file, offset, &mut bytes)?;
+        crate::host::content::transfer::read_temporary(&file, offset, &mut bytes)?;
         return Ok(bytes);
     }
     let mut bytes = Vec::with_capacity(length);

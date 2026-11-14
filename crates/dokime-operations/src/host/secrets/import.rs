@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{Error, Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Secrets/Import";
+pub const ID: &str = "dokime.host.v1.Secrets/Import";
 
 /* === Macros === */
 
@@ -41,35 +41,35 @@ pub const ID: &str = "dokime.client.v1.Secrets/Import";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::SecretsImportRequest, dokime_protocol::client::SecretsImportResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::SecretsImportRequest, dokime_protocol::host::SecretsImportResponse>(
         ID,
         settings.mutation_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::SecretsImportRequest,
-) -> Result<dokime_protocol::client::SecretsImportResponse> {
-    super::complete(ID, context.settings.mutation_timeout, async {
+    context: &Context, request: dokime_protocol::host::SecretsImportRequest,
+) -> Result<dokime_protocol::host::SecretsImportResponse> {
+    crate::host::complete(ID, context.settings.mutation_timeout, async {
         if request.validate_only {
-            let super::secrets_store::Reply::Preview(preview) =
-                super::secrets_store::perform(context, super::secrets_store::Action::Preview(request.data)).await?
+            let crate::host::secrets::store::Reply::Preview(preview) =
+                crate::host::secrets::store::perform(context, crate::host::secrets::store::Action::Preview(request.data)).await?
             else {
                 return Err(Error::Invalid("Preview Secrets: Restart the Secret Store".into()));
             };
-            return Ok(dokime_protocol::client::SecretsImportResponse {
+            return Ok(dokime_protocol::host::SecretsImportResponse {
                 preview: Some(preview),
                 ..Default::default()
             });
         }
-        let receipt = super::views::receipt(context, &request.request_id)?;
-        let super::secrets_store::Reply::Snapshot(snapshot) =
-            super::secrets_store::perform(context, super::secrets_store::Action::Import(request)).await?
+        let receipt = crate::host::views::receipt(context, &request.request_id)?;
+        let crate::host::secrets::store::Reply::Snapshot(snapshot) =
+            crate::host::secrets::store::perform(context, crate::host::secrets::store::Action::Import(request)).await?
         else {
             return Err(Error::Invalid("Import Secrets: Restart the Secret Store".into()));
         };
         context.host.signal_change();
-        Ok(dokime_protocol::client::SecretsImportResponse {
+        Ok(dokime_protocol::host::SecretsImportResponse {
             snapshot: Some(snapshot),
             receipt: Some(receipt),
             ..Default::default()

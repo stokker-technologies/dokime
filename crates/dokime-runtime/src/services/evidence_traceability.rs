@@ -37,22 +37,26 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::client::evidence::traceability_server::Traceability for Services {
+impl dokime_protocol::host::evidence::traceability_server::Traceability for Services {
     async fn get(
-        &self, request: tonic::Request<dokime_protocol::client::evidence::TraceabilityGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::evidence::TraceabilityGetResponse>, tonic::Status> {
-        let reply = dokime_operations::client::evidence_traceability_get::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::evidence::TraceabilityGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::evidence::TraceabilityGetResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.evidence.Traceability/Get", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::evidence::traceability::get::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
-    type WatchStream = dokime_operations::client::Output<dokime_protocol::client::evidence::TraceabilityWatchResponse>;
+    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::evidence::TraceabilityWatchResponse>;
     async fn watch(
-        &self, request: tonic::Request<dokime_protocol::client::evidence::TraceabilityWatchRequest>,
+        &self, request: tonic::Request<dokime_protocol::host::evidence::TraceabilityWatchRequest>,
     ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        let reply = dokime_operations::client::evidence_traceability_watch::handle(&self.context, request.into_inner())
+        dokime_operations::authorize("dokime.host.v1.evidence.Traceability/Watch", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::evidence::traceability::watch::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
 }

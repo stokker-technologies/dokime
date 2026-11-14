@@ -24,7 +24,8 @@ use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::Result;
-use dokime_protocol::plugin::{ExecutionsCleanupRequest, ExecutionsCleanupResponse};
+use dokime_protocol::plugin::ExecutionsCleanupRequest;
+use dokime_protocol::plugin::ExecutionsCleanupResponse;
 
 /* === Constants === */
 

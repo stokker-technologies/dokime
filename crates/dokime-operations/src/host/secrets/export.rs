@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{Error, Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Secrets/Export";
+pub const ID: &str = "dokime.host.v1.Secrets/Export";
 
 /* === Macros === */
 
@@ -41,24 +41,24 @@ pub const ID: &str = "dokime.client.v1.Secrets/Export";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::SecretsExportRequest, dokime_protocol::client::SecretsExportResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::SecretsExportRequest, dokime_protocol::host::SecretsExportResponse>(
         ID,
         settings.read_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::SecretsExportRequest,
-) -> Result<dokime_protocol::client::SecretsExportResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        let catalog = super::secrets_list::handle(context, dokime_protocol::client::SecretsListRequest::default()).await?;
-        let cut = super::secrets_list::cut(context, "", catalog.generation, request.at.as_ref())?;
-        let super::secrets_store::Reply::Archive(archive) =
-            super::secrets_store::perform(context, super::secrets_store::Action::Export(request)).await?
+    context: &Context, request: dokime_protocol::host::SecretsExportRequest,
+) -> Result<dokime_protocol::host::SecretsExportResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        let catalog = crate::host::secrets::list::handle(context, dokime_protocol::host::SecretsListRequest::default()).await?;
+        let cut = crate::host::secrets::list::cut(context, "", catalog.generation, request.at.as_ref())?;
+        let crate::host::secrets::store::Reply::Archive(archive) =
+            crate::host::secrets::store::perform(context, crate::host::secrets::store::Action::Export(request)).await?
         else {
             return Err(Error::Invalid("Export Secrets: Restart the Secret Store".into()));
         };
-        Ok(dokime_protocol::client::SecretsExportResponse {
+        Ok(dokime_protocol::host::SecretsExportResponse {
             archive: Some(archive),
             resolved_at: Some(cut),
         })

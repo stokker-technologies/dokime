@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_runtime::Host;
 use prost::Message;
 
@@ -70,9 +70,9 @@ async fn execution_isolation() -> Result<(), Box<dyn std::error::Error>> {
         let mut snapshots = cycle.wait().await?.executions;
         snapshots.extend(other.wait().await?.executions);
         for (snapshot, value) in snapshots.iter().zip([11.0, 22.0, 33.0]) {
-            assert_eq!(snapshot.execution.termination, v1::Termination::Completed as i32);
+            assert_eq!(snapshot.execution.termination, dokime_protocol::model::Termination::Completed as i32);
             assert!(matches!(snapshot.execution.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
-            Some(v1::execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == v1::ResultStatus::Passed as i32));
+            Some(dokime_protocol::host::execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == dokime_protocol::host::ResultStatus::Passed as i32));
             assert_eq!(snapshot.logs()?.iter().map(|log| log.message.parse::<f64>()).collect::<Result<Vec<_>, _>>()?, vec![value, value]);
             assert!(!snapshot.samples.is_empty());
             for sample in &snapshot.samples {
@@ -80,7 +80,7 @@ async fn execution_isolation() -> Result<(), Box<dyn std::error::Error>> {
             }
             let records = snapshot.records("execution.attempt");
             assert_eq!(records.len(), 1);
-            let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(records[0].payload.as_slice())?;
+            let record = dokime_protocol::host::evidence::RecordsAppendRequest::decode(records[0].payload.as_slice())?;
             let attempt = super::support::Attempt::decode(record.payload.as_slice())?;
             assert_eq!(attempt.value, value);
             assert!(attempt.scope_refused);

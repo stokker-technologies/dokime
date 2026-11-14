@@ -27,11 +27,11 @@ use harmos_protocol::plugin::InstanceSamplesRequest;
 use harmos_protocol::plugin::InstanceSamplesResponse;
 use harmos_protocol::plugin::InstanceStopRequest;
 use harmos_protocol::plugin::InstanceStopResponse;
+use harmos_protocol::plugin::Sample;
 use harmos_protocol::plugin::instance_client::InstanceClient;
 use harmos_protocol::plugin::instance_samples_request::Frame;
 use harmos_protocol::plugin::instance_server::Instance;
 use harmos_protocol::plugin::instance_server::InstanceServer;
-use harmos_protocol::model::Sample;
 use prost_types::Timestamp;
 use tokio::{net::TcpListener, sync::mpsc};
 use tokio_stream::{

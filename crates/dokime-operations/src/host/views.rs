@@ -18,12 +18,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1::{PageRequest, ReadCut, Receipt, ResourceRevision, Section};
+use harmos_protocol::model::{PageRequest, ReadCut, Receipt, ResourceRevision, Section};
 use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{Error, Result, host::Context};
 
 use std::future::Future;
 
@@ -43,7 +43,7 @@ use std::future::Future;
 
 /* === Public Functions === */
 
-pub(super) async fn read<T: Message + Default>(
+pub(crate) async fn read<T: Message + Default>(
     context: &Context, resource: &str, at: Option<&ReadCut>, current: impl Future<Output = Result<T>>,
 ) -> Result<(T, ReadCut)> {
     let store = context.host.store();
@@ -89,11 +89,11 @@ pub(super) async fn read<T: Message + Default>(
     ))
 }
 
-pub(super) fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-pub(super) fn receipt(context: &Context, request_id: &str) -> Result<Receipt> {
+pub(crate) fn receipt(context: &Context, request_id: &str) -> Result<Receipt> {
     if request_id.is_empty() {
         return Err(Error::Invalid("Mutate Resource: Supply a Nonempty Request ID".into()));
     }
@@ -106,14 +106,14 @@ pub(super) fn receipt(context: &Context, request_id: &str) -> Result<Receipt> {
     })
 }
 
-pub(super) fn continuation(page: Option<&PageRequest>, at: Option<&ReadCut>) -> Result<()> {
+pub(crate) fn continuation(page: Option<&PageRequest>, at: Option<&ReadCut>) -> Result<()> {
     if page.is_some_and(|page| !page.page_token.is_empty()) && at.is_none() {
         return Err(Error::Invalid("List Resource: Continue with the Returned Cut".into()));
     }
     Ok(())
 }
 
-pub(super) fn offset(token: &str, cut: &ReadCut) -> Result<usize> {
+pub(crate) fn offset(token: &str, cut: &ReadCut) -> Result<usize> {
     if token.is_empty() {
         return Ok(0);
     }
@@ -124,18 +124,18 @@ pub(super) fn offset(token: &str, cut: &ReadCut) -> Result<usize> {
     offset.parse().map_err(|_| Error::Invalid("Read Resource: Use the Returned Page Token".into()))
 }
 
-pub(super) fn token(offset: usize, cut: &ReadCut) -> String {
+pub(crate) fn token(offset: usize, cut: &ReadCut) -> String {
     format!("{}:{offset}", hex(&Sha256::digest(cut.encode_to_vec())))
 }
 
-pub(super) fn page<T: Message>(
+pub(crate) fn page<T: Message>(
     rows: Vec<T>, cut: &ReadCut, page: Option<&PageRequest>, maximum: usize, maximum_bytes: usize,
 ) -> Result<(Vec<T>, String)> {
     let start = offset(page.map_or("", |page| page.page_token.as_str()), cut)?;
     if start > rows.len() {
         return Err(Error::Invalid("List Resource: Continue Within the Returned View".into()));
     }
-    let limit = super::projection::limit(page.map_or(0, |page| page.page_size), maximum);
+    let limit = crate::host::projection::limit(page.map_or(0, |page| page.page_size), maximum);
     let bytes = page.filter(|page| page.max_bytes != 0).map_or(maximum_bytes, |page| (page.max_bytes as usize).min(maximum_bytes));
     // Reserve the Cut, Continuation and Collection Summary Envelope Before Rows.
     let mut retained = cut.encoded_len() + 512;

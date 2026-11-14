@@ -37,21 +37,25 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::client::stream_schemas_server::StreamSchemas for Services {
+impl dokime_protocol::host::stream_schemas_server::StreamSchemas for Services {
     async fn get(
-        &self, request: tonic::Request<dokime_protocol::client::StreamSchemasGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::StreamSchemasGetResponse>, tonic::Status> {
-        let reply = dokime_operations::client::catalog_stream_schemas_get::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::StreamSchemasGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::StreamSchemasGetResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.StreamSchemas/Get", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::stream_schemas::get::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn list(
-        &self, request: tonic::Request<dokime_protocol::client::StreamSchemasListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::StreamSchemasListResponse>, tonic::Status> {
-        let reply = dokime_operations::client::catalog_stream_schemas_list::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::StreamSchemasListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::StreamSchemasListResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.StreamSchemas/List", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::stream_schemas::list::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
 }

@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Result, client::Context};
+use crate::{Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Executions/Stop";
+pub const ID: &str = "dokime.host.v1.Executions/Stop";
 
 /* === Macros === */
 
@@ -41,20 +41,20 @@ pub const ID: &str = "dokime.client.v1.Executions/Stop";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::ExecutionsStopRequest, dokime_protocol::client::ExecutionsStopResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::ExecutionsStopRequest, dokime_protocol::host::ExecutionsStopResponse>(
         ID,
         settings.mutation_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::ExecutionsStopRequest,
-) -> Result<dokime_protocol::client::ExecutionsStopResponse> {
-    super::complete(ID, context.settings.mutation_timeout, async {
-        context.host.control_execution(&request.name, super::RunAction::Stop)?;
-        Ok(dokime_protocol::client::ExecutionsStopResponse {
-            execution: Some(super::execution_state::detail(context, &request.name)?),
-            receipt: Some(super::views::receipt(context, &request.request_id)?),
+    context: &Context, request: dokime_protocol::host::ExecutionsStopRequest,
+) -> Result<dokime_protocol::host::ExecutionsStopResponse> {
+    crate::host::complete(ID, context.settings.mutation_timeout, async {
+        context.host.control_execution(&request.name, crate::host::RunAction::Stop)?;
+        Ok(dokime_protocol::host::ExecutionsStopResponse {
+            execution: Some(crate::host::execution_state::detail(context, &request.name)?),
+            receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
         })
     })
     .await

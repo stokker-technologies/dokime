@@ -19,7 +19,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost_reflect::ReflectMessage;
 use tokio::{sync::mpsc, task::JoinSet};
 use tokio_stream::wrappers::ReceiverStream;
@@ -130,7 +130,7 @@ impl Dispatch {
     async fn attempt(&self, operation: &str, payload: Vec<u8>, attempt: u32) -> Result<Vec<u8>> {
         let (send, receive) = mpsc::channel(self.settings.stream_window.get());
         send.send(harmos_protocol::plugin::InstanceInvokeRequest {
-            frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Request(h::Request {
+            frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Request(harmos_protocol::plugin::Request {
                 operation: operation.into(),
                 payload,
                 invocation: uuid::Uuid::now_v7().to_string(),
@@ -148,7 +148,7 @@ impl Dispatch {
                 biased;
                 _ = self.cancellation.cancelled() => {
                     let frame = harmos_protocol::plugin::InstanceInvokeRequest {
-                        frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Cancel(h::Cancel {
+                        frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Cancel(harmos_protocol::plugin::Cancel {
                             reason: "Operator Cancelled the Execution".into(),
                         })),
                     };
@@ -164,8 +164,8 @@ impl Dispatch {
                     };
                     pending.remove(&call);
                     let result = match result {
-                        Ok(payload) => h::child_response::Result::Payload(payload),
-                        Err(error) => h::child_response::Result::Failure(h::Failure {
+                        Ok(payload) => harmos_protocol::plugin::child_response::Result::Payload(payload),
+                        Err(error) => harmos_protocol::plugin::child_response::Result::Failure(h::Failure {
                             classification: h::Classification::Permanent as i32,
                             code: "host_operation_failed".into(),
                             message: error.to_string(),
@@ -174,7 +174,7 @@ impl Dispatch {
                         }),
                     };
                     let frame = harmos_protocol::plugin::InstanceInvokeRequest {
-                        frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Child(h::ChildResponse { call, result: Some(result) })),
+                        frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Child(harmos_protocol::plugin::ChildResponse { call, result: Some(result) })),
                     };
                     send.send(frame).await.map_err(|_| Error::Invalid("Reconnect the Plugin Before Returning Host Evidence".into()))?;
                 }
@@ -205,8 +205,8 @@ impl Dispatch {
                             return Err(Error::Invalid(format!("Watch {}: No Streaming Child Was Opened", demand.call)));
                         }
                         harmos_protocol::plugin::instance_invoke_response::Frame::Response(response) => return match response.result {
-                            Some(h::response::Result::Payload(payload)) => Ok(payload),
-                            Some(h::response::Result::Failure(failure)) => Err(Error::Plugin(Box::new(failure))),
+                            Some(harmos_protocol::plugin::response::Result::Payload(payload)) => Ok(payload),
+                            Some(harmos_protocol::plugin::response::Result::Failure(failure)) => Err(Error::Plugin(Box::new(failure))),
                             None => Err(Error::Invalid("Return a Result from the Plugin Operation".into())),
                         },
                     }

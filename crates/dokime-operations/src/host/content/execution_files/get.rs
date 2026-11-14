@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Result, client::Context};
+use crate::{Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.content.ExecutionFiles/Get";
+pub const ID: &str = "dokime.host.v1.content.ExecutionFiles/Get";
 
 /* === Macros === */
 
@@ -41,22 +41,22 @@ pub const ID: &str = "dokime.client.v1.content.ExecutionFiles/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<
-        dokime_protocol::client::content::ExecutionFilesGetRequest,
-        dokime_protocol::client::content::ExecutionFilesGetResponse,
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<
+        dokime_protocol::host::content::ExecutionFilesGetRequest,
+        dokime_protocol::host::content::ExecutionFilesGetResponse,
     >(ID, settings.read_timeout)
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::content::ExecutionFilesGetRequest,
-) -> Result<dokime_protocol::client::content::ExecutionFilesGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
+    context: &Context, request: dokime_protocol::host::content::ExecutionFilesGetRequest,
+) -> Result<dokime_protocol::host::content::ExecutionFilesGetResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
-            super::views::read(context, &format!("file/{}/{}", request.parent, request.name), request.at.as_ref(), async {
+            crate::host::views::read(context, &format!("file/{}/{}", request.parent, request.name), request.at.as_ref(), async {
                 let entry = context.host.store().execution_file(&request.parent, &request.name)?;
-                Ok(dokime_protocol::client::content::ExecutionFilesGetResponse {
+                Ok(dokime_protocol::host::content::ExecutionFilesGetResponse {
                     metadata: Some(entry.file_metadata()?),
-                    file: Some(super::content_artifacts_get::reference(context, &entry)?),
+                    file: Some(crate::host::content::artifacts::get::reference(context, &entry)?),
                     ..Default::default()
                 })
             })

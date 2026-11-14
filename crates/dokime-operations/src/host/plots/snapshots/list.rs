@@ -24,30 +24,47 @@ use prost::Message;
 // Local Imports
 use crate::{
     Error, Result,
-    client::{ClientSettings, Context},
+    host::{ClientSettings, Context},
 };
-use dokime_protocol::client::plots::{PlotEnvelope, SnapshotsListRequest, SnapshotsListResponse};
-use dokime_protocol::v1::{self, PlotRequest};
+use dokime_protocol::host::plots::PlotEnvelope;
+use dokime_protocol::host::plots::PlotRequest;
+use dokime_protocol::host::plots::SnapshotsListRequest;
+use dokime_protocol::host::plots::SnapshotsListResponse;
+use dokime_protocol::model;
 use dokime_storage::{ExecutionCut, NumericWindow, Store};
-use harmos_protocol::v1::Catalog;
+use harmos_protocol::model::Declarations;
 use prost_reflect::DescriptorPool;
 use sha2::{Digest, Sha256};
 use std::num::NonZeroUsize;
 use tokio::task;
 
-use dokime_protocol::client::plots::{
-    PlotAnalysis, PlotAnalysisResult, PlotBoxSummaryAnalysis, PlotCartesianMode, PlotFrame, PlotHistogramAnalysis, PlotMarker, PlotPayload,
-    PlotPayloadDiagnostics, PlotSeries, PlotSeriesSummary,
-};
-use dokime_protocol::v1::{
-    Aggregate, AxisScale, DataExpression, Downsample, PlotIntervalOptions, PlotKind, PlotWindow, Reduction, Value, XyInterval,
-};
-use harmos_protocol::v1::{History, OperationContract};
+use dokime_protocol::host::plots::PlotAnalysis;
+use dokime_protocol::host::plots::PlotAnalysisResult;
+use dokime_protocol::host::plots::PlotBoxSummaryAnalysis;
+use dokime_protocol::host::plots::PlotCartesianMode;
+use dokime_protocol::host::plots::PlotFrame;
+use dokime_protocol::host::plots::PlotHistogramAnalysis;
+use dokime_protocol::host::plots::PlotMarker;
+use dokime_protocol::host::plots::PlotPayload;
+use dokime_protocol::host::plots::PlotPayloadDiagnostics;
+use dokime_protocol::host::plots::PlotSeries;
+use dokime_protocol::host::plots::PlotSeriesSummary;
+use dokime_protocol::host::plots::PlotWindow;
+use dokime_protocol::model::Aggregate;
+use dokime_protocol::model::AxisScale;
+use dokime_protocol::model::DataExpression;
+use dokime_protocol::model::Downsample;
+use dokime_protocol::model::PlotIntervalOptions;
+use dokime_protocol::model::PlotKind;
+use dokime_protocol::model::Reduction;
+use dokime_protocol::model::Value;
+use dokime_protocol::model::XyInterval;
+use harmos_protocol::model::{History, OperationContract};
 use prost_reflect::Kind;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.plots.Snapshots/List";
+pub const ID: &str = "dokime.host.v1.plots.Snapshots/List";
 
 /* === Macros === */
 
@@ -61,7 +78,7 @@ struct PlotRead<'a> {
     maximum: usize,
     now_ns: i64,
     epoch: &'a str,
-    catalog: &'a Catalog,
+    catalog: &'a Declarations,
     pool: &'a DescriptorPool,
 }
 
@@ -74,20 +91,20 @@ struct PlotRead<'a> {
 /* === Public Functions === */
 
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    super::declaration::<SnapshotsListRequest, SnapshotsListResponse>(ID, settings.read_timeout)
+    crate::host::declaration::<SnapshotsListRequest, SnapshotsListResponse>(ID, settings.read_timeout)
 }
 #[tracing::instrument(name = "plot.operation", skip_all)]
 pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<SnapshotsListResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        super::views::continuation(request.page.as_ref(), request.at.as_ref())?;
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let key = format!(
             "plots/{}",
-            super::views::hex(&super::paging::bytes(&SnapshotsListRequest {
+            crate::host::views::hex(&crate::host::paging::bytes(&SnapshotsListRequest {
                 requests: request.requests.clone(),
                 ..Default::default()
             }))
         );
-        let (saved, cut) = super::views::read(context, &key, request.at.as_ref(), async {
+        let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
             let reply = SnapshotsListResponse {
                 envelopes: query_batch(context, request.requests).await?,
                 ..Default::default()
@@ -95,9 +112,14 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
             Ok(reply)
         })
         .await?;
-        let (envelopes, next_page_token) =
-            super::views::page(saved.envelopes, &cut, request.page.as_ref(), context.settings.page_items, context.settings.message_bytes)?;
-        super::bounded_reply(
+        let (envelopes, next_page_token) = crate::host::views::page(
+            saved.envelopes,
+            &cut,
+            request.page.as_ref(),
+            context.settings.page_items,
+            context.settings.message_bytes,
+        )?;
+        crate::host::bounded_reply(
             context,
             SnapshotsListResponse {
                 envelopes,
@@ -110,13 +132,13 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
 }
 
 /* === Private Functions === */
-pub(super) async fn query_one(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
+pub(crate) async fn query_one(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
     if request.analysis.is_some() {
-        return super::plot_analysis::query(context, request).await;
+        return crate::host::plots::analysis::query(context, request).await;
     }
     query_base(context, request).await
 }
-pub(super) async fn query_base(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
+pub(crate) async fn query_base(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
     Ok(query_batch(context, vec![request]).await?.remove(0))
 }
 async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Vec<PlotEnvelope>> {
@@ -134,10 +156,10 @@ async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Ve
         let mut selections = BTreeMap::<Vec<u8>, PlotEnvelope>::new();
         let mut output = Vec::new();
         for request in requests {
-            let execution = super::projection::execution_scope(request.scope.as_ref())?;
+            let execution = crate::host::projection::execution_scope(request.scope.as_ref())?;
             if !executions.contains_key(execution) {
                 let cut = store.metadata(execution)?;
-                let catalog = Catalog::decode(cut.execution.catalog.as_slice())?;
+                let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
                 let pool = {
                     let _span = tracing::info_span!("plot.schema").entered();
                     DescriptorPool::from_file_descriptor_set(
@@ -212,7 +234,7 @@ async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Ve
 pub fn snapshot_at(
     store: &Store, cut: &ExecutionCut, request: &PlotRequest, maximum: usize, now_ns: i64, epoch: &str,
 ) -> Result<PlotEnvelope> {
-    let catalog = Catalog::decode(cut.execution.catalog.as_slice())?;
+    let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
     let pool = DescriptorPool::from_file_descriptor_set(
         catalog.types.clone().ok_or_else(|| Error::Invalid("Query Plot: Restore the Frozen Stream Descriptors".into()))?,
     )
@@ -257,9 +279,12 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     let mut aggregate = None;
     for expression in &request.y_expressions {
         match expression.kind.as_ref() {
-            Some(v1::data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => fields.push(reference.field.clone()),
-            Some(v1::data_expression::Kind::Aggregate(expression)) => {
-                let Some(v1::data_expression::Kind::Stream(reference)) = expression.input.as_ref().and_then(|input| input.kind.as_ref())
+            Some(dokime_protocol::model::data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => {
+                fields.push(reference.field.clone())
+            }
+            Some(dokime_protocol::model::data_expression::Kind::Aggregate(expression)) => {
+                let Some(dokime_protocol::model::data_expression::Kind::Stream(reference)) =
+                    expression.input.as_ref().and_then(|input| input.kind.as_ref())
                 else {
                     return Err(Error::Invalid("Query Plot: Aggregate a Numeric Stream Column".into()));
                 };
@@ -322,7 +347,10 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     let kind = PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
     if aggregate.is_some()
         && (!matches!(kind, PlotKind::Bar | PlotKind::Pie)
-            || request.y_expressions.iter().any(|expression| !matches!(expression.kind, Some(v1::data_expression::Kind::Aggregate(_)))))
+            || request
+                .y_expressions
+                .iter()
+                .any(|expression| !matches!(expression.kind, Some(dokime_protocol::model::data_expression::Kind::Aggregate(_)))))
     {
         return Err(Error::Invalid(
             "Query Plot Aggregate: Select Only Aggregate Expressions in a Bar or Pie Plot Until Other Aggregate Variants Are Served".into(),
@@ -330,7 +358,9 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     }
     let field_reference = |expression: Option<&DataExpression>, fallback: Option<&str>| -> Result<Option<String>> {
         match expression.and_then(|expression| expression.kind.as_ref()) {
-            Some(v1::data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => Ok(Some(reference.field.clone())),
+            Some(dokime_protocol::model::data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => {
+                Ok(Some(reference.field.clone()))
+            }
             None => Ok(fallback.map(str::to_owned)),
             _ => Err(Error::Invalid("Query Plot: Select Coordinate Columns from the Requested Stream".into())),
         }
@@ -386,7 +416,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         series_by: group.clone(),
         max_points: display as u64,
         window_s: request.window_s,
-        generated_at: super::projection::timestamp(now_ns).to_string(),
+        generated_at: crate::host::projection::timestamp(now_ns).to_string(),
         bucket_width_s: Some(resolution as f64 / 1e9),
         bucket_window: Some(PlotWindow {
             from: start_ns as f64 / 1e9,
@@ -503,7 +533,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 let (analysis, count) = store.sigma_window(settings, options)?;
                 payload.analysis = Some(PlotAnalysis {
                     result: Some(PlotAnalysisResult {
-                        kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(analysis)),
+                        kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::SigmaInterval(analysis)),
                     }),
                 });
                 count
@@ -521,7 +551,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 )?;
                 payload.analysis = Some(PlotAnalysis {
                     result: Some(PlotAnalysisResult {
-                        kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::Contour(grid)),
+                        kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::Contour(grid)),
                     }),
                 });
                 count
@@ -569,7 +599,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             )?;
             payload.analysis = Some(PlotAnalysis {
                 result: Some(PlotAnalysisResult {
-                    kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(frames)),
+                    kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::GridChart(frames)),
                 }),
             });
             count
@@ -646,7 +676,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if kind == PlotKind::Histogram {
         payload.analysis = Some(PlotAnalysis {
             result: Some(PlotAnalysisResult {
-                kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(PlotHistogramAnalysis {
+                kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::Histogram(PlotHistogramAnalysis {
                     series: histograms,
                 })),
             }),
@@ -654,7 +684,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     } else if kind == PlotKind::BoxPlot {
         payload.analysis = Some(PlotAnalysis {
             result: Some(PlotAnalysisResult {
-                kind: Some(dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(PlotBoxSummaryAnalysis {
+                kind: Some(dokime_protocol::host::plots::plot_analysis_result::Kind::BoxPlot(PlotBoxSummaryAnalysis {
                     series: boxes,
                     total: examined,
                 })),
@@ -669,7 +699,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 .x
                 .iter()
                 .map(|value| match value.kind {
-                    Some(v1::value::Kind::Number(value)) => Ok(value),
+                    Some(dokime_protocol::model::value::Kind::Number(value)) => Ok(value),
                     _ => Err(Error::Invalid("Read Time Series: Restore Its Numeric Source-Time Axis".into())),
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -696,7 +726,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 let Some(kind) = evidence.kind.strip_prefix("record:") else {
                     continue;
                 };
-                if !request.marker_record_types.iter().any(|pattern| super::evidence_selection::matches(pattern, kind))
+                if !request.marker_record_types.iter().any(|pattern| crate::host::evidence::selection::matches(pattern, kind))
                     || evidence.source_ns < start_ns
                     || evidence.source_ns > end_ns
                 {
@@ -705,7 +735,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 let bucket = ((evidence.source_ns as i128 - start_ns as i128).max(0) as u128 / resolution.max(1) as u128) as u64;
                 let marker = PlotMarker {
                     x: Some(Value {
-                        kind: Some(v1::value::Kind::Number(evidence.source_ns as f64 / 1e9)),
+                        kind: Some(dokime_protocol::model::value::Kind::Number(evidence.source_ns as f64 / 1e9)),
                     }),
                     label: kind.into(),
                     record_type: kind.into(),
@@ -730,17 +760,17 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         match analysis {
-            dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(histogram) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::Histogram(histogram) => {
                 histogram.series.iter().map(|series| series.bins.len() as u64).sum()
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
                 boxes.series.iter().map(|series| 1 + series.outliers.len() as u64).sum()
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::Contour(grid) => grid.values.len() as u64,
-            dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(grid) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::Contour(grid) => grid.values.len() as u64,
+            dokime_protocol::host::plots::plot_analysis_result::Kind::GridChart(grid) => {
                 grid.frames.iter().map(|frame| frame.values.len() as u64).sum()
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(sigma) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::SigmaInterval(sigma) => {
                 sigma.series.iter().map(|series| series.bins.len() as u64).sum()
             }
             _ => 0,
@@ -770,18 +800,18 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if let Some(analysis) = payload.analysis.as_mut().and_then(|analysis| analysis.result.as_mut()).and_then(|result| result.kind.as_mut())
     {
         match analysis {
-            dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(histogram) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::Histogram(histogram) => {
                 for series in &mut histogram.series {
                     series.key = label(&series.key);
                 }
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
                 for series in &mut boxes.series {
                     series.key = label(&series.key);
                     series.label = label(&series.label);
                 }
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
                 for series in &mut interval.series {
                     series.key = label(&series.key);
                 }

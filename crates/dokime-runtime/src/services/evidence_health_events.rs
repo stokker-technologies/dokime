@@ -37,22 +37,26 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::client::evidence::health_events_server::HealthEvents for Services {
+impl dokime_protocol::host::evidence::health_events_server::HealthEvents for Services {
     async fn list(
-        &self, request: tonic::Request<dokime_protocol::client::evidence::HealthEventsListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::evidence::HealthEventsListResponse>, tonic::Status> {
-        let reply = dokime_operations::client::evidence_health_events_list::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::evidence::HealthEventsListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::evidence::HealthEventsListResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.evidence.HealthEvents/List", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::evidence::health_events::list::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
-    type WatchStream = dokime_operations::client::Output<dokime_protocol::client::evidence::HealthEventsWatchResponse>;
+    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::evidence::HealthEventsWatchResponse>;
     async fn watch(
-        &self, request: tonic::Request<dokime_protocol::client::evidence::HealthEventsWatchRequest>,
+        &self, request: tonic::Request<dokime_protocol::host::evidence::HealthEventsWatchRequest>,
     ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        let reply = dokime_operations::client::evidence_health_events_watch::handle(&self.context, request.into_inner())
+        dokime_operations::authorize("dokime.host.v1.evidence.HealthEvents/Watch", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::evidence::health_events::watch::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
 }

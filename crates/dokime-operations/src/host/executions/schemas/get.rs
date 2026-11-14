@@ -18,18 +18,19 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 use prost_types::FileDescriptorSet;
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::client::executions::{SchemasGetRequest, SchemasGetResponse};
+use crate::{Error, Result, host::Context};
+use dokime_protocol::host::executions::SchemasGetRequest;
+use dokime_protocol::host::executions::SchemasGetResponse;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.executions.Schemas/Get";
+pub const ID: &str = "dokime.host.v1.executions.Schemas/Get";
 
 /* === Macros === */
 
@@ -45,25 +46,25 @@ pub const ID: &str = "dokime.client.v1.executions.Schemas/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<SchemasGetRequest, SchemasGetResponse>(ID, settings.read_timeout)
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<SchemasGetRequest, SchemasGetResponse>(ID, settings.read_timeout)
 }
 
 pub async fn handle(context: &Context, request: SchemasGetRequest) -> Result<SchemasGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
+    crate::host::complete(ID, context.settings.read_timeout, async {
         let page = request.page.clone().unwrap_or_default();
         if !page.page_token.is_empty() && request.at.is_none() {
             return Err(Error::Invalid("Get Schemas: Continue with the Returned Cut".into()));
         }
         let saved = context.host.store().execution_schemas(&request.name, request.at.as_ref())?;
         let types = FileDescriptorSet::decode(saved.payload.as_slice())?;
-        let snapshot = super::execution_state::read(context, &request.name)?;
-        let schemas = super::projection::schemas(&snapshot)?;
+        let snapshot = crate::host::execution_state::read(context, &request.name)?;
+        let schemas = crate::host::projection::schemas(&snapshot)?;
         let mut binding = Sha256::new();
         binding.update(request.name.as_bytes());
         binding.update(saved.resolved_at.encode_to_vec());
         binding.update(&saved.revision);
-        let binding = super::views::hex(&binding.finalize());
+        let binding = crate::host::views::hex(&binding.finalize());
         let start = if page.page_token.is_empty() {
             0
         } else {
@@ -77,7 +78,7 @@ pub async fn handle(context: &Context, request: SchemasGetRequest) -> Result<Sch
         if start > types.file.len() {
             return Err(Error::Invalid("Get Schemas: Continue Within the Frozen Descriptor Set".into()));
         }
-        let limit = super::page_size(page.page_size, context.settings.page_items)?;
+        let limit = crate::host::page_size(page.page_size, context.settings.page_items)?;
         let maximum = if page.max_bytes == 0 {
             context.settings.message_bytes
         } else {
@@ -109,7 +110,7 @@ pub async fn handle(context: &Context, request: SchemasGetRequest) -> Result<Sch
         if reply.encoded_len() > maximum {
             return Err(Error::Bound("Get Schemas: Increase the Page Byte Bound to Fit the Reply Envelope".into()));
         }
-        super::bounded_reply(context, reply)
+        crate::host::bounded_reply(context, reply)
     })
     .await
 }

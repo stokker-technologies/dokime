@@ -16,12 +16,20 @@
 /* === Imports === */
 
 use super::Services;
-use dokime_operations::client as operations;
-use dokime_protocol::client::files::uploads_server::Uploads;
-use dokime_protocol::client::files::{
-    UploadsAppendRequest, UploadsAppendResponse, UploadsCreateRequest, UploadsCreateResponse, UploadsDeleteRequest, UploadsDeleteResponse,
-    UploadsGetRequest, UploadsGetResponse, UploadsPublishRequest, UploadsPublishResponse, UploadsResumeRequest, UploadsResumeResponse,
-};
+use dokime_operations::host as operations;
+use dokime_protocol::host::files::UploadsAppendRequest;
+use dokime_protocol::host::files::UploadsAppendResponse;
+use dokime_protocol::host::files::UploadsCreateRequest;
+use dokime_protocol::host::files::UploadsCreateResponse;
+use dokime_protocol::host::files::UploadsDeleteRequest;
+use dokime_protocol::host::files::UploadsDeleteResponse;
+use dokime_protocol::host::files::UploadsGetRequest;
+use dokime_protocol::host::files::UploadsGetResponse;
+use dokime_protocol::host::files::UploadsPublishRequest;
+use dokime_protocol::host::files::UploadsPublishResponse;
+use dokime_protocol::host::files::UploadsResumeRequest;
+use dokime_protocol::host::files::UploadsResumeResponse;
+use dokime_protocol::host::files::uploads_server::Uploads;
 use tonic::{Request, Response, Status};
 
 /* === Constants === */

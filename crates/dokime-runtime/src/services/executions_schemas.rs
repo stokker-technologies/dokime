@@ -21,7 +21,9 @@
 
 // Local Imports
 use super::Services;
-use dokime_protocol::client::executions::{SchemasGetRequest, SchemasGetResponse, schemas_server::Schemas};
+use dokime_protocol::host::executions::SchemasGetRequest;
+use dokime_protocol::host::executions::SchemasGetResponse;
+use dokime_protocol::host::executions::schemas_server::Schemas;
 
 /* === Constants === */
 
@@ -40,9 +42,9 @@ use dokime_protocol::client::executions::{SchemasGetRequest, SchemasGetResponse,
 #[tonic::async_trait]
 impl Schemas for Services {
     async fn get(&self, request: tonic::Request<SchemasGetRequest>) -> Result<tonic::Response<SchemasGetResponse>, tonic::Status> {
-        let reply = dokime_operations::client::executions_schemas_get::handle(&self.context, request.into_inner())
+        let reply = dokime_operations::host::executions::schemas::get::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
 }

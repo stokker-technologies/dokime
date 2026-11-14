@@ -36,6 +36,21 @@ system credential slots. Secret export/import retains the bounded Base64 JSON
 format with explicit conflict choices; it is not encryption. Linux requires an
 available credential store for secret writes and TLS private-key persistence.
 
+## Operation Calls
+
+The execution-host contract separates model values, operations run by the host,
+and operations implemented by plugins. Each host operation declares client,
+plugin or shared callers independently of its visibility and grants.
+A shared operation has one request and response. Plugins inherit their trusted
+execution identity; a supplied selector cannot authorize another execution.
+
+The final library composition owns Plugins, plugin settings, Time and Invocations.
+Dokime adds `plugins.Secrets` for revision-checked declared-name bindings.
+`Secrets.Get` returns protected bytes; administrative metadata belongs only to
+clients. Typed statistics retain exact numeric values and sums independently of
+floating plotting coordinates. The [consumer work lists](execution-host.md#consumer-work-lists)
+track adoption of these contracts by the runtime and SDKs.
+
 ## Evidence and Reports
 
 Records are acknowledged scoped host operations. Samples retain their declared

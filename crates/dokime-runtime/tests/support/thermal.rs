@@ -22,8 +22,10 @@ use std::collections::BTreeSet;
 use prost::Message;
 
 // Local Imports
-use dokime_protocol::context::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
-use dokime_protocol::v1;
+use dokime_protocol::host::evidence::LogsAppendRequest;
+use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::host::evidence::RecordsListRequest;
+use dokime_protocol::model;
 use dokime_storage::{ExecutionSnapshot, StatisticsRead};
 
 /* === Constants === */
@@ -45,7 +47,7 @@ use dokime_storage::{ExecutionSnapshot, StatisticsRead};
 /// Compare Shared Evidence Values and Ordering Without Per-Run Identities or Authored Prose.
 pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
     // Resolve the Retained Schemas Without a Live Plugin
-    let catalog = harmos_protocol::v1::Catalog::decode(actual.execution.catalog.as_slice()).unwrap();
+    let catalog = harmos_protocol::model::Declarations::decode(actual.execution.catalog.as_slice()).unwrap();
     let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(catalog.types.unwrap()).unwrap();
     let temperature = pool.get_message_by_name("thermal.v1.Temperature").expect("Retain the Temperature Stream Schema");
     for sample in &actual.samples {
@@ -56,7 +58,7 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
     let mut origin = actual.execution.origin.clone().unwrap();
     let mut reference = expected.execution.origin.clone().unwrap();
     for value in [&mut origin, &mut reference] {
-        let Some(v1::origin::Kind::PluginRun(run)) = value.kind.as_mut() else { panic!("Expected PluginRun") };
+        let Some(dokime_protocol::model::origin::Kind::PluginRun(run)) = value.kind.as_mut() else { panic!("Expected PluginRun") };
         run.digest.clear();
         run.started_at = None;
         let case = run.test_case.as_mut().unwrap();
@@ -121,7 +123,7 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
                     entry.payload = value.encode_to_vec();
                 }
                 if entry.kind == "progress" {
-                    let mut value = v1::ExecutionProgressValue::decode(entry.payload.as_slice()).unwrap();
+                    let mut value = dokime_protocol::model::ExecutionProgressValue::decode(entry.payload.as_slice()).unwrap();
                     value.label.clear();
                     entry.payload = value.encode_to_vec();
                 }
@@ -148,11 +150,11 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
 
 /// Decode a Record Using Only Its Retained Schema and Exact Stored Payload.
 pub fn frozen_record_schema_decodes_door(actual: &ExecutionSnapshot) {
-    let catalog = harmos_protocol::v1::Catalog::decode(actual.execution.catalog.as_slice()).unwrap();
+    let catalog = harmos_protocol::model::Declarations::decode(actual.execution.catalog.as_slice()).unwrap();
     let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(catalog.types.unwrap()).unwrap();
     let door = pool.get_message_by_name("thermal.v1.Door").expect("Retain the Door Record Schema");
     for record in actual.records("thermal.door") {
-        let record = dokime_protocol::context::evidence::RecordsAppendRequest::decode(record.payload.as_slice()).unwrap();
+        let record = dokime_protocol::host::evidence::RecordsAppendRequest::decode(record.payload.as_slice()).unwrap();
         let decoded = prost_reflect::DynamicMessage::decode(door.clone(), record.payload.as_slice()).unwrap();
         assert_eq!(decoded.get_field_by_name("closed").unwrap().as_ref(), &prost_reflect::Value::Bool(true));
     }

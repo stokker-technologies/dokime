@@ -56,7 +56,7 @@ mod storage_sources;
 /* === Re-Exports === */
 
 pub use clock::WallClock;
-pub use dokime_operations::client::ClientSettings;
+pub use dokime_operations::host::ClientSettings;
 
 /* === Imports === */
 
@@ -68,43 +68,44 @@ use harmos_runtime::{grpc::GrpcManager, services::status::Status};
 
 // Local Imports
 use crate::{Error, Host, HostSettings, Result};
-use dokime_operations::client::Context;
-use dokime_operations::client::HostIdentity;
-use dokime_protocol::client::aggregates_server::AggregatesServer;
-use dokime_protocol::client::analyses_server::AnalysesServer;
-use dokime_protocol::client::backend::overview_server::OverviewServer;
-use dokime_protocol::client::backend_server::BackendServer;
-use dokime_protocol::client::cases_server::CasesServer;
-use dokime_protocol::client::content::artifacts_server::ArtifactsServer;
-use dokime_protocol::client::content::execution_files_server::ExecutionFilesServer;
-use dokime_protocol::client::cycles_server::CyclesServer;
-use dokime_protocol::client::documents_server::DocumentsServer;
-use dokime_protocol::client::evidence::health_events_server::HealthEventsServer;
-use dokime_protocol::client::evidence::notes_server::NotesServer;
-use dokime_protocol::client::evidence::records_server::RecordsServer;
-use dokime_protocol::client::evidence::samples_server::SamplesServer;
-use dokime_protocol::client::evidence::traceability_server::TraceabilityServer;
-use dokime_protocol::client::evidence_server::EvidenceServer;
-use dokime_protocol::client::executions::commands_server::CommandsServer;
-use dokime_protocol::client::executions::progress_server::ProgressServer;
-use dokime_protocol::client::executions::schemas_server::SchemasServer;
-use dokime_protocol::client::executions_server::ExecutionsServer;
-use dokime_protocol::client::files::uploads_server::UploadsServer;
-use dokime_protocol::client::files_server::FilesServer;
-use dokime_protocol::client::media::captures_server::CapturesServer;
-use dokime_protocol::client::plots::snapshots_server::SnapshotsServer;
-use dokime_protocol::client::plugins::settings_server::SettingsServer;
-use dokime_protocol::client::plugins_server::PluginsServer;
-use dokime_protocol::client::prompt_definitions_server::PromptDefinitionsServer;
-use dokime_protocol::client::prompts::answers_server::AnswersServer;
-use dokime_protocol::client::prompts_server::PromptsServer;
-use dokime_protocol::client::record_schemas_server::RecordSchemasServer;
-use dokime_protocol::client::reports_server::ReportsServer;
-use dokime_protocol::client::secrets_server::SecretsServer;
-use dokime_protocol::client::storage::sources_server::SourcesServer;
-use dokime_protocol::client::stream_schemas_server::StreamSchemasServer;
-use dokime_protocol::client::suites_server::SuitesServer;
-use dokime_protocol::client::{RemoteListenerSettings, SettingsGetResponse};
+use dokime_operations::host::Context;
+use dokime_operations::host::HostIdentity;
+use dokime_protocol::host::RemoteListenerSettings;
+use dokime_protocol::host::SettingsGetResponse;
+use dokime_protocol::host::aggregates_server::AggregatesServer;
+use dokime_protocol::host::analyses_server::AnalysesServer;
+use dokime_protocol::host::backend::overview_server::OverviewServer;
+use dokime_protocol::host::backend_server::BackendServer;
+use dokime_protocol::host::cases_server::CasesServer;
+use dokime_protocol::host::content::artifacts_server::ArtifactsServer;
+use dokime_protocol::host::content::execution_files_server::ExecutionFilesServer;
+use dokime_protocol::host::cycles_server::CyclesServer;
+use dokime_protocol::host::documents_server::DocumentsServer;
+use dokime_protocol::host::evidence::health_events_server::HealthEventsServer;
+use dokime_protocol::host::evidence::notes_server::NotesServer;
+use dokime_protocol::host::evidence::records_server::RecordsServer;
+use dokime_protocol::host::evidence::samples_server::SamplesServer;
+use dokime_protocol::host::evidence::traceability_server::TraceabilityServer;
+use dokime_protocol::host::evidence_server::EvidenceServer;
+use dokime_protocol::host::executions::commands_server::CommandsServer;
+use dokime_protocol::host::executions::progress_server::ProgressServer;
+use dokime_protocol::host::executions::schemas_server::SchemasServer;
+use dokime_protocol::host::executions_server::ExecutionsServer;
+use dokime_protocol::host::files::uploads_server::UploadsServer;
+use dokime_protocol::host::files_server::FilesServer;
+use dokime_protocol::host::media::captures_server::CapturesServer;
+use dokime_protocol::host::plots::snapshots_server::SnapshotsServer;
+use dokime_protocol::host::plugins::settings_server::SettingsServer;
+use dokime_protocol::host::plugins_server::PluginsServer;
+use dokime_protocol::host::prompt_definitions_server::PromptDefinitionsServer;
+use dokime_protocol::host::prompts::answers_server::AnswersServer;
+use dokime_protocol::host::prompts_server::PromptsServer;
+use dokime_protocol::host::record_schemas_server::RecordSchemasServer;
+use dokime_protocol::host::reports_server::ReportsServer;
+use dokime_protocol::host::secrets_server::SecretsServer;
+use dokime_protocol::host::storage::sources_server::SourcesServer;
+use dokime_protocol::host::stream_schemas_server::StreamSchemasServer;
+use dokime_protocol::host::suites_server::SuitesServer;
 use dokime_storage::Store;
 use prost_types::Timestamp;
 use std::fs::OpenOptions;
@@ -175,7 +176,7 @@ impl Drop for Server {
 
 /// Compose Declared Defaults Without Opening Storage, Credentials or Transports.
 pub fn initial_preferences() -> SettingsGetResponse {
-    let mut snapshot = dokime_operations::client::settings_get::initial_preferences();
+    let mut snapshot = dokime_operations::host::settings::get::initial_preferences();
     let listener = composition::initial_listener();
     snapshot.value.as_mut().expect("declared application settings").listener = Some(RemoteListenerSettings {
         enabled: listener.enabled,
@@ -201,7 +202,7 @@ pub fn remove_credentials(root: &Path) -> Result<()> {
     }
     let host_id = std::fs::read_to_string(root.join("backend-id"))?;
     let storage = Store::open(root)?;
-    dokime_operations::client::remove_root_secrets(&storage)?;
+    dokime_operations::host::remove_root_secrets(&storage)?;
     access_credentials::Store::new(storage, host_id).remove()?;
     Ok(())
 }
@@ -234,7 +235,7 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
         }),
         display_name: "Dokime Execution Host".into(),
     };
-    let runtime = composition::launch(clock).await?;
+    let runtime = composition::launch(clock, &host.store, &settings).await?;
     let status = runtime.services().configure_status(status::settings(&settings, backend_id.clone()))?;
     let administration = Arc::new(Mutex::new(()));
     let state = state::State {
@@ -256,7 +257,7 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
         settings: settings.clone(),
     };
     context.host.restore_managed_plugins().await.map_err(|error| Error::Invalid(error.to_string()))?;
-    dokime_operations::client::register_redactions(&context)?;
+    dokime_operations::host::register_redactions(&context)?;
     let registration = Arc::new(
         status
             .contribute(Arc::new(status::Facts(Arc::downgrade(&context.host))))
@@ -346,7 +347,7 @@ fn register_services(manager: &GrpcManager, services: Services) -> Result<()> {
         SecretsServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        dokime_protocol::client::settings_server::SettingsServer::new(services.clone())
+        dokime_protocol::host::settings_server::SettingsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;
@@ -396,7 +397,7 @@ fn register_services(manager: &GrpcManager, services: Services) -> Result<()> {
         CapturesServer::new(services.clone()).max_decoding_message_size(message_bytes).max_encoding_message_size(message_bytes),
     )?;
     manager.register_service(
-        dokime_protocol::client::plots::settings_server::SettingsServer::new(services.clone())
+        dokime_protocol::host::plots::settings_server::SettingsServer::new(services.clone())
             .max_decoding_message_size(message_bytes)
             .max_encoding_message_size(message_bytes),
     )?;

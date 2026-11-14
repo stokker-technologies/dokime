@@ -19,18 +19,19 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::client::evidence::{TraceabilityGetRequest, TraceabilityGetResponse};
-use dokime_protocol::v1;
+use crate::{Error, Result, host::Context};
+use dokime_protocol::host::evidence::TraceabilityGetRequest;
+use dokime_protocol::host::evidence::TraceabilityGetResponse;
+use dokime_protocol::model;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.evidence.Traceability/Get";
+pub const ID: &str = "dokime.host.v1.evidence.Traceability/Get";
 
 /* === Macros === */
 
@@ -46,21 +47,21 @@ pub const ID: &str = "dokime.client.v1.evidence.Traceability/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<TraceabilityGetRequest, TraceabilityGetResponse>(ID, settings.read_timeout)
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<TraceabilityGetRequest, TraceabilityGetResponse>(ID, settings.read_timeout)
 }
 
 pub async fn handle(context: &Context, request: TraceabilityGetRequest) -> Result<TraceabilityGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async { read_page(context, request, None) }).await
+    crate::host::complete(ID, context.settings.read_timeout, async { read_page(context, request, None) }).await
 }
 
-pub(super) fn read_page(context: &Context, request: TraceabilityGetRequest, after: Option<&h::ReadCut>) -> Result<TraceabilityGetResponse> {
+pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, after: Option<&h::ReadCut>) -> Result<TraceabilityGetResponse> {
     let scope = request.scope.unwrap_or_default();
     if scope.session_id.as_ref().is_some_and(|session| session != &context.host.identity().epoch) {
         return Err(Error::Precondition("Get Traceability: Resynchronize with the Current Runtime Epoch".into()));
     }
     let page = request.page.unwrap_or_default();
-    let limit = super::projection::limit(page.page_size, context.settings.page_items);
+    let limit = crate::host::projection::limit(page.page_size, context.settings.page_items);
     let maximum = if page.max_bytes == 0 {
         context.settings.message_bytes
     } else {
@@ -209,7 +210,7 @@ pub(super) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
                 continue;
             }
             snapshot.evidence = reader.attempt_start(id, &event)?.into_iter().collect();
-            let mut actual = super::projection::entry_scope(&snapshot, &event)?;
+            let mut actual = crate::host::projection::entry_scope(&snapshot, &event)?;
             if !case.is_empty() {
                 actual.case_id = Some(case.clone());
             }
@@ -217,11 +218,11 @@ pub(super) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
                 continuation = Some((index, event.position));
                 continue;
             }
-            let row = dokime_protocol::client::evidence::TraceabilitySnapshot {
+            let row = dokime_protocol::host::evidence::TraceabilitySnapshot {
                 traceability_id: format!("{id}/{:020}", event.position),
                 scope: Some(actual),
-                created_at: Some(super::projection::timestamp(event.receipt_ns)),
-                entries: vec![v1::TraceabilityEntry::decode(event.payload.as_slice())?],
+                created_at: Some(crate::host::projection::timestamp(event.receipt_ns)),
+                entries: vec![dokime_protocol::model::TraceabilityEntry::decode(event.payload.as_slice())?],
                 revision: event.position.to_be_bytes().to_vec(),
                 resolved_at: Some(h::Position {
                     history: position.history.clone(),
@@ -263,7 +264,7 @@ pub(super) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
 
 /* === Private Functions === */
 
-fn matches_scope(wanted: &v1::EvidenceScope, actual: &v1::EvidenceScope) -> bool {
+fn matches_scope(wanted: &dokime_protocol::model::EvidenceScope, actual: &dokime_protocol::model::EvidenceScope) -> bool {
     wanted.step_id.as_ref().is_none_or(|value| actual.step_id.as_ref() == Some(value))
         && wanted.case_id.as_ref().is_none_or(|value| actual.case_id.as_ref() == Some(value))
         && wanted.criterion_id.as_ref().is_none_or(|value| actual.criterion_id.as_ref() == Some(value))

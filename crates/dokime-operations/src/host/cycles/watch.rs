@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Result, client::Context};
+use crate::{Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Cycles/Watch";
+pub const ID: &str = "dokime.host.v1.Cycles/Watch";
 
 /* === Macros === */
 
@@ -41,26 +41,26 @@ pub const ID: &str = "dokime.client.v1.Cycles/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::CyclesWatchRequest, dokime_protocol::client::CyclesWatchResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::CyclesWatchRequest, dokime_protocol::host::CyclesWatchResponse>(
         ID,
         settings.watch_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::CyclesWatchRequest,
-) -> Result<super::Output<dokime_protocol::client::CyclesWatchResponse>> {
-    super::complete(ID, context.settings.watch_timeout, async {
+    context: &Context, request: dokime_protocol::host::CyclesWatchRequest,
+) -> Result<crate::host::Output<dokime_protocol::host::CyclesWatchResponse>> {
+    crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
-        let mut selection = dokime_protocol::client::CyclesListRequest {
+        let mut selection = dokime_protocol::host::CyclesListRequest {
             selection: request.selection,
             filter: request.filter,
             order: request.order,
             at: request.at,
             page: request.page,
         };
-        let first = super::cycles_list::handle(context, selection.clone()).await?;
+        let first = crate::host::cycles::list::handle(context, selection.clone()).await?;
         let context = context.clone();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
         tokio::spawn(async move {
@@ -70,7 +70,7 @@ pub async fn handle(
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = page.next_page_token;
-                    let response = dokime_protocol::client::CyclesWatchResponse {
+                    let response = dokime_protocol::host::CyclesWatchResponse {
                         cycles: page.cycles,
                         resolved_at: cut.clone(),
                         opening,
@@ -95,11 +95,11 @@ pub async fn handle(
                         selection.at = None;
                         selection.page.get_or_insert_default().page_token.clear();
                     }
-                    page = match super::cycles_list::handle(&context, selection.clone()).await {
+                    page = match crate::host::cycles::list::handle(&context, selection.clone()).await {
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender
-                                .send(Ok(dokime_protocol::client::CyclesWatchResponse {
+                                .send(Ok(dokime_protocol::host::CyclesWatchResponse {
                                     resync_required: Some(h::Failure {
                                         code: "resync_required".into(),
                                         message: format!("{ID}: {error}"),

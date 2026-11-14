@@ -57,32 +57,32 @@ async fn client_plans_parameter_selections() -> Result<(), Box<dyn std::error::E
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = HostClient::new(channel.clone(), super::support::client_settings())?;
         client.plugins.add(plugin.endpoint()).await?;
-        let mut cases = dokime_protocol::client::cases_client::CasesClient::new(channel.clone());
-        let selection = dokime_protocol::client::RegisteredSelection {
+        let mut cases = dokime_protocol::host::cases_client::CasesClient::new(channel.clone());
+        let selection = dokime_protocol::host::RegisteredSelection {
             suite_id: "thermal".into(),
             template_id: "thermal.cycle".into(),
-            parameters: vec![dokime_protocol::client::RegisteredSelectionParametersEntry {
+            parameters: vec![dokime_protocol::host::RegisteredSelectionParametersEntry {
                 key: "limit".into(),
-                value: Some(dokime_protocol::client::SelectionValues {
+                value: Some(dokime_protocol::host::SelectionValues {
                     values: vec![
-                        v1::Value {
-                            kind: Some(v1::value::Kind::Number(80.0)),
+                        dokime_protocol::model::Value {
+                            kind: Some(model::value::Kind::Number(80.0)),
                         },
-                        v1::Value {
-                            kind: Some(v1::value::Kind::Number(85.0)),
+                        dokime_protocol::model::Value {
+                            kind: Some(model::value::Kind::Number(85.0)),
                         },
                     ],
                 }),
             }],
             ..Default::default()
         };
-        let plan = dokime_protocol::client::SelectionPlan {
+        let plan = dokime_protocol::host::SelectionPlan {
             selections: vec![selection.clone(), selection.clone()],
             max_cases: 4,
             ..Default::default()
         };
         let preview = cases
-            .create(dokime_protocol::client::CasesCreateRequest {
+            .create(dokime_protocol::host::CasesCreateRequest {
                 plan: Some(plan.clone()),
                 validate_only: true,
                 request_id: String::new(),
@@ -92,7 +92,7 @@ async fn client_plans_parameter_selections() -> Result<(), Box<dyn std::error::E
         assert_eq!(preview.cases.len(), 4);
         assert_eq!(preview.cases.iter().map(|case| case.selection_index).collect::<Vec<_>>(), vec![0, 0, 1, 1]);
         assert!(client.executions.list().await?.executions.is_empty());
-        let request = dokime_protocol::client::CasesCreateRequest {
+        let request = dokime_protocol::host::CasesCreateRequest {
             plan: Some(plan.clone()),
             validate_only: false,
             request_id: "selection".into(),
@@ -104,8 +104,8 @@ async fn client_plans_parameter_selections() -> Result<(), Box<dyn std::error::E
         conflict.plan.as_mut().unwrap().selections.pop();
         assert!(cases.create(conflict).await.is_err());
         let selected = cases
-            .create(dokime_protocol::client::CasesCreateRequest {
-                plan: Some(dokime_protocol::client::SelectionPlan {
+            .create(dokime_protocol::host::CasesCreateRequest {
+                plan: Some(dokime_protocol::host::SelectionPlan {
                     case_ids: vec![
                         registered.cases[2].case_id.clone(),
                         registered.cases[0].case_id.clone(),
@@ -124,8 +124,8 @@ async fn client_plans_parameter_selections() -> Result<(), Box<dyn std::error::E
         );
         assert!(
             cases
-                .create(dokime_protocol::client::CasesCreateRequest {
-                    plan: Some(dokime_protocol::client::SelectionPlan { max_cases: 1, ..plan.clone() }),
+                .create(dokime_protocol::host::CasesCreateRequest {
+                    plan: Some(dokime_protocol::host::SelectionPlan { max_cases: 1, ..plan.clone() }),
                     validate_only: true,
                     ..Default::default()
                 })
@@ -136,8 +136,8 @@ async fn client_plans_parameter_selections() -> Result<(), Box<dyn std::error::E
         invalid.parameters[0].key = "unknown".into();
         assert!(
             cases
-                .create(dokime_protocol::client::CasesCreateRequest {
-                    plan: Some(dokime_protocol::client::SelectionPlan {
+                .create(dokime_protocol::host::CasesCreateRequest {
+                    plan: Some(dokime_protocol::host::SelectionPlan {
                         selections: vec![invalid],
                         ..Default::default()
                     }),
@@ -148,8 +148,8 @@ async fn client_plans_parameter_selections() -> Result<(), Box<dyn std::error::E
                 .is_err()
         );
         let materialized = cases
-            .create(dokime_protocol::client::CasesCreateRequest {
-                plan: Some(dokime_protocol::client::SelectionPlan {
+            .create(dokime_protocol::host::CasesCreateRequest {
+                plan: Some(dokime_protocol::host::SelectionPlan {
                     selections: vec![selection],
                     ..Default::default()
                 }),
@@ -163,7 +163,7 @@ async fn client_plans_parameter_selections() -> Result<(), Box<dyn std::error::E
 
         // The Original Registration Resolves Without a Connected Plugin After Restart.
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut cases = dokime_protocol::client::cases_client::CasesClient::connect(process.url.clone()).await?;
+        let mut cases = dokime_protocol::host::cases_client::CasesClient::connect(process.url.clone()).await?;
         assert_eq!(cases.create(request).await?.into_inner(), registered);
         process.close().await?;
         plugin.close().await?;

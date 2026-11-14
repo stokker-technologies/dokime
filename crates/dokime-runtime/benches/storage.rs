@@ -29,7 +29,7 @@ use std::{
 
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, SamplingMode, Throughput};
-use harmos_protocol::v1::Catalog;
+use harmos_protocol::model::Declarations;
 use prost::Message;
 use prost_types::{
     DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
@@ -38,9 +38,10 @@ use prost_types::{
 use tempfile::TempDir;
 
 // Local Imports
-use dokime_protocol::v1::Aggregate;
-use dokime_protocol::v1::DataExpression;
-use dokime_protocol::{builders::Plot, v1};
+use dokime_protocol::builders::Plot;
+use dokime_protocol::model;
+use dokime_protocol::model::Aggregate;
+use dokime_protocol::model::DataExpression;
 use dokime_storage::{BatchSelection, Execution, NumericWindow, Sample, Store};
 
 /* === Constants === */
@@ -83,7 +84,7 @@ struct Fixture {
     root: TempDir,
 }
 struct DocumentFixture {
-    document: v1::Document,
+    document: dokime_protocol::model::Document,
     _fixture: Fixture,
     rows: usize,
     plots: usize,
@@ -115,7 +116,7 @@ impl Fixture {
         let root = tempfile::tempdir().unwrap();
         let store = Store::open(root.path()).unwrap();
         let mut execution = definition();
-        let mut catalog = Catalog::decode(execution.catalog.as_slice()).unwrap();
+        let mut catalog = Declarations::decode(execution.catalog.as_slice()).unwrap();
         catalog.types.as_mut().unwrap().file[0].message_type[0].field =
             [("phase", Type::Uint32), ("ordinal", Type::Uint64), ("value", Type::Double)]
                 .into_iter()
@@ -136,7 +137,9 @@ impl Fixture {
     }
     fn seal(&self) {
         self.store.close_streams("execution").unwrap();
-        self.store.close("execution", v1::Termination::Completed, v1::ExecutionOutcome::default()).unwrap();
+        self.store
+            .close("execution", dokime_protocol::model::Termination::Completed, dokime_protocol::host::ExecutionOutcome::default())
+            .unwrap();
         self.store.seal("execution").unwrap();
     }
 }
@@ -144,7 +147,7 @@ impl DocumentFixture {
     fn new(rows: usize, plots: usize, median: bool) -> Self {
         let fixture = Fixture::new();
         let mut execution = definition();
-        let mut catalog = Catalog::decode(execution.catalog.as_slice()).unwrap();
+        let mut catalog = Declarations::decode(execution.catalog.as_slice()).unwrap();
         let base = catalog.streams.remove(0);
         catalog.streams = (0..plots)
             .map(|i| {
@@ -178,17 +181,25 @@ impl DocumentFixture {
         }
         fixture.store.flush_samples().unwrap();
         let mut cards = (0..plots)
-            .map(|i| v1::Card {
-                body: Some(v1::card::Body::Plot(Plot::time_series(v1::FieldReference::new(format!("signal.{i}")).field("value")).message)),
+            .map(|i| dokime_protocol::model::Card {
+                body: Some(dokime_protocol::model::card::Body::Plot(
+                    Plot::time_series(dokime_protocol::model::FieldReference::new(format!("signal.{i}")).field("value")).message,
+                )),
                 ..Default::default()
             })
             .collect::<Vec<_>>();
-        let kinds = [v1::Aggregate::Count, v1::Aggregate::Min, v1::Aggregate::Max, v1::Aggregate::Mean, v1::Aggregate::Rms]
-            .into_iter()
-            .chain(median.then_some(v1::Aggregate::Median));
+        let kinds = [
+            dokime_protocol::model::Aggregate::Count,
+            dokime_protocol::model::Aggregate::Min,
+            dokime_protocol::model::Aggregate::Max,
+            dokime_protocol::model::Aggregate::Mean,
+            dokime_protocol::model::Aggregate::Rms,
+        ]
+        .into_iter()
+        .chain(median.then_some(dokime_protocol::model::Aggregate::Median));
         let tiles = kinds
-            .map(|kind| v1::SummaryTile {
-                metadata: Some(v1::Metadata {
+            .map(|kind| dokime_protocol::model::SummaryTile {
+                metadata: Some(dokime_protocol::model::Metadata {
                     identifier: format!("{kind:?}"),
                     label: format!("{kind:?}"),
                     ..Default::default()
@@ -199,13 +210,13 @@ impl DocumentFixture {
             .collect();
         cards.insert(
             0,
-            v1::Card {
-                body: Some(v1::card::Body::Summary(v1::Summary { tiles })),
+            dokime_protocol::model::Card {
+                body: Some(dokime_protocol::model::card::Body::Summary(dokime_protocol::model::Summary { tiles })),
                 ..Default::default()
             },
         );
-        let document = v1::Document {
-            sections: vec![v1::Section { cards, ..Default::default() }],
+        let document = dokime_protocol::model::Document {
+            sections: vec![dokime_protocol::model::Section { cards, ..Default::default() }],
             ..Default::default()
         };
         Self { document, _fixture: fixture, rows, plots }
@@ -215,9 +226,9 @@ impl DocumentFixture {
         // Without HTML Rendering Or File Output.
         let cut = store.cut("document").unwrap();
         let (reader, _cancellation) = store.read_session().unwrap();
-        let expansion = dokime_operations::client::document_expansion::expand(&reader, &cut, &self.document, 0, 256).unwrap();
+        let expansion = dokime_operations::host::documents::expansion::expand(&reader, &cut, &self.document, 0, 256).unwrap();
         assert!(expansion.next.is_none());
-        let scope = v1::EvidenceScope {
+        let scope = dokime_protocol::model::EvidenceScope {
             execution_id: Some("document".into()),
             cycle_id: Some("cycle".into()),
             ..Default::default()
@@ -226,19 +237,19 @@ impl DocumentFixture {
         for section in &expansion.document.sections {
             for card in &section.cards {
                 match card.body.as_ref().unwrap() {
-                    v1::card::Body::Summary(summary) => {
+                    dokime_protocol::model::card::Body::Summary(summary) => {
                         for tile in &summary.tiles {
                             black_box(reader.document_value(&cut, tile.value.as_ref().unwrap()).unwrap());
                         }
                     }
-                    v1::card::Body::Plot(plot) => {
-                        let mut request = dokime_operations::client::document_plot::request(plot, scope.clone()).unwrap();
+                    dokime_protocol::model::card::Body::Plot(plot) => {
+                        let mut request = dokime_operations::host::documents::plot::request(plot, scope.clone()).unwrap();
                         request.max_points = Some(1500);
                         let envelope =
-                            dokime_operations::client::plots_snapshots_list::snapshot_at(&reader, &cut, &request, 1500, 0, "v1").unwrap();
+                            dokime_operations::host::plots::snapshots::list::snapshot_at(&reader, &cut, &request, 1500, 0, "v1").unwrap();
                         assert_eq!(envelope.payload.as_ref().unwrap().series[0].raw_points, (self.rows / self.plots) as u64);
                         black_box(envelope);
-                        black_box(dokime_operations::client::document_plot::presentation(&reader, &cut, plot).unwrap());
+                        black_box(dokime_operations::host::documents::plot::presentation(&reader, &cut, plot).unwrap());
                         plots += 1;
                     }
                     _ => unreachable!("declared benchmark cards"),
@@ -282,12 +293,12 @@ fn definition() -> Execution {
     Execution {
         identifier: "execution".into(),
         cycle: "cycle".into(),
-        origin: Some(v1::Origin {
-            kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+        origin: Some(dokime_protocol::model::Origin {
+            kind: Some(dokime_protocol::model::origin::Kind::Import(dokime_protocol::model::Import::default())),
         }),
-        catalog: Catalog {
+        catalog: Declarations {
             types: Some(types),
-            streams: vec![harmos_protocol::v1::StreamDeclaration {
+            streams: vec![harmos_protocol::model::StreamDeclaration {
                 id: "readings".into(),
                 row: "benchmark.Row".into(),
                 ..Default::default()
@@ -343,11 +354,11 @@ fn window(count: u64) -> NumericWindow<'static> {
     }
 }
 fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
-    v1::DataExpression {
-        kind: Some(v1::data_expression::Kind::Aggregate(Box::new(v1::AggregateExpression {
+    dokime_protocol::model::DataExpression {
+        kind: Some(dokime_protocol::model::data_expression::Kind::Aggregate(Box::new(dokime_protocol::model::AggregateExpression {
             kind: kind as i32,
-            input: Some(Box::new(v1::DataExpression {
-                kind: Some(v1::data_expression::Kind::Stream(v1::FieldReference {
+            input: Some(Box::new(dokime_protocol::model::DataExpression {
+                kind: Some(dokime_protocol::model::data_expression::Kind::Stream(dokime_protocol::model::FieldReference {
                     identifier: stream.into(),
                     field: "value".into(),
                 })),
@@ -416,16 +427,27 @@ fn main() {
         );
         group.bench_function(format!("window_full_scan_lttb_{temperature}/1000000"), |b| {
             let query = query.get_or_insert_with(|| Fixture::populated(QUERY_ROWS));
-            black_box(query.store.sampled_time_series_window(window(QUERY_ROWS as u64), v1::Downsample::Lttb, 1500).unwrap());
+            black_box(
+                query.store.sampled_time_series_window(window(QUERY_ROWS as u64), dokime_protocol::model::Downsample::Lttb, 1500).unwrap(),
+            );
             b.iter_custom(|iterations| {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iterations {
                     let started = Instant::now();
                     if cold {
                         let store = Store::open(query.root.path()).unwrap();
-                        black_box(store.sampled_time_series_window(window(QUERY_ROWS as u64), v1::Downsample::Lttb, 1500).unwrap());
+                        black_box(
+                            store
+                                .sampled_time_series_window(window(QUERY_ROWS as u64), dokime_protocol::model::Downsample::Lttb, 1500)
+                                .unwrap(),
+                        );
                     } else {
-                        black_box(query.store.sampled_time_series_window(window(QUERY_ROWS as u64), v1::Downsample::Lttb, 1500).unwrap());
+                        black_box(
+                            query
+                                .store
+                                .sampled_time_series_window(window(QUERY_ROWS as u64), dokime_protocol::model::Downsample::Lttb, 1500)
+                                .unwrap(),
+                        );
                     }
                     elapsed += started.elapsed();
                 }

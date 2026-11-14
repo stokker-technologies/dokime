@@ -15,14 +15,15 @@
 
 /* === Imports === */
 
-use super::{ClientSettings, Context};
 use crate::Result;
-use dokime_protocol::client::files::{UploadsPublishRequest, UploadsPublishResponse};
-use harmos_protocol::v1::OperationContract;
+use crate::host::{ClientSettings, Context};
+use dokime_protocol::host::files::UploadsPublishRequest;
+use dokime_protocol::host::files::UploadsPublishResponse;
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.files.Uploads/Publish";
+pub const ID: &str = "dokime.host.v1.files.Uploads/Publish";
 
 /* === Macros === */
 
@@ -39,10 +40,10 @@ pub const ID: &str = "dokime.client.v1.files.Uploads/Publish";
 /* === Public Functions === */
 
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    super::declaration::<UploadsPublishRequest, UploadsPublishResponse>(ID, settings.mutation_timeout)
+    crate::host::declaration::<UploadsPublishRequest, UploadsPublishResponse>(ID, settings.mutation_timeout)
 }
 pub async fn handle(context: &Context, request: UploadsPublishRequest) -> Result<UploadsPublishResponse> {
-    super::complete(ID, context.settings.mutation_timeout, async { Ok(context.host.store().publish_file_upload(request)?) }).await
+    crate::host::complete(ID, context.settings.mutation_timeout, async { Ok(context.host.store().publish_file_upload(request)?) }).await
 }
 
 /* === Private Functions === */

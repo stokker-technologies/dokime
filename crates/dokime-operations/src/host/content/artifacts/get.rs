@@ -18,16 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
+use crate::{Error, Result, host::Context};
+use dokime_protocol::model;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.content.Artifacts/Get";
+pub const ID: &str = "dokime.host.v1.content.Artifacts/Get";
 
 /* === Macros === */
 
@@ -43,23 +43,23 @@ pub const ID: &str = "dokime.client.v1.content.Artifacts/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::content::ArtifactsGetRequest, dokime_protocol::client::content::ArtifactsGetResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::content::ArtifactsGetRequest, dokime_protocol::host::content::ArtifactsGetResponse>(
         ID,
         settings.read_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::content::ArtifactsGetRequest,
-) -> Result<dokime_protocol::client::content::ArtifactsGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        let (mut reply, cut) = super::views::read(context, &format!("artifact/{}", request.name), request.at.as_ref(), async {
+    context: &Context, request: dokime_protocol::host::content::ArtifactsGetRequest,
+) -> Result<dokime_protocol::host::content::ArtifactsGetResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        let (mut reply, cut) = crate::host::views::read(context, &format!("artifact/{}", request.name), request.at.as_ref(), async {
             let entry = context.host.store().content(&request.name)?;
             if !entry.artifact {
                 return Err(Error::Invalid("Get Artifact: Select an Artifact Identifier".into()));
             }
-            Ok(dokime_protocol::client::content::ArtifactsGetResponse {
-                metadata: Some(v1::ArtifactMetadata::decode(entry.metadata.as_slice())?),
+            Ok(dokime_protocol::host::content::ArtifactsGetResponse {
+                metadata: Some(dokime_protocol::model::ArtifactMetadata::decode(entry.metadata.as_slice())?),
                 file: Some(reference(context, &entry)?),
                 ..Default::default()
             })
@@ -73,7 +73,7 @@ pub async fn handle(
 
 /* === Private Functions === */
 
-pub(super) fn reference(context: &Context, entry: &dokime_storage::ContentEntry) -> Result<harmos_protocol::storage::FileReference> {
+pub(crate) fn reference(context: &Context, entry: &dokime_storage::ContentEntry) -> Result<harmos_protocol::model::FileReference> {
     let digest = (0..entry.sha256.len())
         .step_by(2)
         .map(|offset| {
@@ -81,12 +81,12 @@ pub(super) fn reference(context: &Context, entry: &dokime_storage::ContentEntry)
                 .map_err(|_| Error::Invalid("Read Content: Restore Its Stored Digest".into()))
         })
         .collect::<Result<Vec<_>>>()?;
-    Ok(harmos_protocol::storage::FileReference {
-        metadata: Some(harmos_protocol::storage::FileMetadata {
+    Ok(harmos_protocol::model::FileReference {
+        metadata: Some(harmos_protocol::model::FileMetadata {
             id: entry.identifier.clone(),
             scope: Some(entry.execution.clone()),
             media_type: if entry.artifact {
-                v1::ArtifactMetadata::decode(entry.metadata.as_slice())?.content_type.unwrap_or_default()
+                dokime_protocol::model::ArtifactMetadata::decode(entry.metadata.as_slice())?.content_type.unwrap_or_default()
             } else {
                 "application/octet-stream".into()
             },
@@ -95,8 +95,8 @@ pub(super) fn reference(context: &Context, entry: &dokime_storage::ContentEntry)
         }),
         length: entry.length,
         sha256: digest,
-        position: Some(harmos_protocol::storage::StorageCursor {
-            history: Some(harmos_protocol::storage::StoreHistory {
+        position: Some(harmos_protocol::model::Position {
+            history: Some(harmos_protocol::model::History {
                 store: context.host.identity().backend_id,
                 epoch: entry.execution.clone(),
             }),

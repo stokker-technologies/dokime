@@ -18,20 +18,22 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1::{Failure, OperationContract};
+use harmos_protocol::model::{Failure, OperationContract};
 
 // Local Imports
-use crate::{Result, client::Context};
+use crate::{Result, host::Context};
 
-use dokime_protocol::client::{DocumentsGetRequest, DocumentsWatchRequest, DocumentsWatchResponse};
+use dokime_protocol::host::DocumentsGetRequest;
+use dokime_protocol::host::DocumentsWatchRequest;
+use dokime_protocol::host::DocumentsWatchResponse;
 
-use crate::client::ClientSettings;
+use crate::host::ClientSettings;
 
 use dokime_storage::ExecutionState;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Documents/Watch";
+pub const ID: &str = "dokime.host.v1.Documents/Watch";
 
 /* === Macros === */
 
@@ -48,10 +50,10 @@ pub const ID: &str = "dokime.client.v1.Documents/Watch";
 /* === Public Functions === */
 
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    super::declaration::<DocumentsWatchRequest, DocumentsWatchResponse>(ID, settings.watch_timeout)
+    crate::host::declaration::<DocumentsWatchRequest, DocumentsWatchResponse>(ID, settings.watch_timeout)
 }
-pub async fn handle(context: &Context, request: DocumentsWatchRequest) -> Result<super::Output<DocumentsWatchResponse>> {
-    super::complete(ID, context.settings.watch_timeout, async {
+pub async fn handle(context: &Context, request: DocumentsWatchRequest) -> Result<crate::host::Output<DocumentsWatchResponse>> {
+    crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();
         let mut runtime = context.host.changes();
         let mut selection = DocumentsGetRequest {
@@ -64,7 +66,7 @@ pub async fn handle(context: &Context, request: DocumentsWatchRequest) -> Result
             max_frames: request.max_frames,
             at: request.at,
         };
-        let first = super::documents_get::handle(context, selection.clone()).await?;
+        let first = crate::host::documents::get::handle(context, selection.clone()).await?;
         let context = context.clone();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
         tokio::spawn(async move {
@@ -104,7 +106,7 @@ pub async fn handle(context: &Context, request: DocumentsWatchRequest) -> Result
                         selection.at = None;
                         selection.page_token.clear();
                     }
-                    page = match super::documents_get::handle(&context, selection.clone()).await {
+                    page = match crate::host::documents::get::handle(&context, selection.clone()).await {
                         Ok(page) => page,
                         Err(error) => {
                             let _ = sender

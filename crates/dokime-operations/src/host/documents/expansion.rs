@@ -21,7 +21,7 @@
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_storage::{ExecutionCut, Store};
 use prost::Message;
 use sha2::{Digest, Sha256};
@@ -35,8 +35,8 @@ use sha2::{Digest, Sha256};
 /* === Structs === */
 
 pub struct Expansion {
-    pub document: v1::Document,
-    pub frames: Vec<dokime_protocol::client::document_frame_frame::Kind>,
+    pub document: dokime_protocol::model::Document,
+    pub frames: Vec<dokime_protocol::host::document_frame_frame::Kind>,
     pub next: Option<usize>,
 }
 struct Reader<'a> {
@@ -47,7 +47,7 @@ struct Reader<'a> {
     remaining: usize,
     visited: usize,
     more: bool,
-    frames: Vec<dokime_protocol::client::document_frame_frame::Kind>,
+    frames: Vec<dokime_protocol::host::document_frame_frame::Kind>,
 }
 
 /* === Enums === */
@@ -58,8 +58,9 @@ struct Reader<'a> {
 
 impl Reader<'_> {
     fn section(
-        &mut self, section: &v1::Section, filters: &[v1::PlotFilter], path: &str, suffix: &str, depth: usize,
-    ) -> Result<Vec<v1::Section>> {
+        &mut self, section: &dokime_protocol::model::Section, filters: &[dokime_protocol::model::PlotFilter], path: &str, suffix: &str,
+        depth: usize,
+    ) -> Result<Vec<dokime_protocol::model::Section>> {
         if depth > 32 {
             return Err(Error::Invalid("Expand Document: Reduce Section Nesting to 32 Levels".into()));
         }
@@ -77,8 +78,8 @@ impl Reader<'_> {
                 let (values, total) =
                     self.store.document_distinct(self.cut, expression, repeat.order_by.as_ref(), filters, offset, self.page_size)?;
                 if offset == 0 {
-                    selection_frame = Some(dokime_protocol::client::document_frame_frame::Kind::RepeatSelection(
-                        dokime_protocol::client::DocumentRepeatSelection {
+                    selection_frame = Some(dokime_protocol::host::document_frame_frame::Kind::RepeatSelection(
+                        dokime_protocol::host::DocumentRepeatSelection {
                             node_id: selection.clone(),
                             instance_count: total,
                             pending: false,
@@ -91,9 +92,9 @@ impl Reader<'_> {
                 for value in values {
                     let key = Sha256::digest(value.encode_to_vec()).iter().take(16).map(|byte| format!("{byte:02x}")).collect::<String>();
                     let next_suffix = format!("{suffix}.{key}");
-                    let filter = v1::PlotFilter {
+                    let filter = dokime_protocol::model::PlotFilter {
                         expression: Some(expression.clone()),
-                        operator: v1::FilterOperator::Eq as i32,
+                        operator: dokime_protocol::model::FilterOperator::Eq as i32,
                         value: Some(value.clone()),
                     };
                     let mut inherited = filters.to_vec();
@@ -105,10 +106,14 @@ impl Reader<'_> {
                     let label = display(&value);
                     metadata.label = repeat.label_template.replace("{value}", &label);
                     let field = match expression.kind.as_ref() {
-                        Some(v1::data_expression::Kind::Stream(reference) | v1::data_expression::Kind::Record(reference)) => {
-                            Some(reference.field.as_str())
-                        }
-                        Some(v1::data_expression::Kind::Parameter(key) | v1::data_expression::Kind::Dimension(key)) => Some(key.as_str()),
+                        Some(
+                            dokime_protocol::model::data_expression::Kind::Stream(reference)
+                            | dokime_protocol::model::data_expression::Kind::Record(reference),
+                        ) => Some(reference.field.as_str()),
+                        Some(
+                            dokime_protocol::model::data_expression::Kind::Parameter(key)
+                            | dokime_protocol::model::data_expression::Kind::Dimension(key),
+                        ) => Some(key.as_str()),
                         _ => None,
                     };
                     if let Some(field) = field {
@@ -117,8 +122,8 @@ impl Reader<'_> {
                     instance.metadata = Some(metadata);
                     let sections = self.section(&instance, &inherited, path, &next_suffix, depth + 1)?;
                     if !sections.is_empty() {
-                        self.frames.push(dokime_protocol::client::document_frame_frame::Kind::RepeatInstance(
-                            dokime_protocol::client::DocumentRepeatInstance {
+                        self.frames.push(dokime_protocol::host::document_frame_frame::Kind::RepeatInstance(
+                            dokime_protocol::host::DocumentRepeatInstance {
                                 selection_id: selection.clone(),
                                 ordinal: offset as u64,
                                 suffix: next_suffix.trim_start_matches('.').into(),
@@ -165,7 +170,7 @@ impl Reader<'_> {
                     metadata.identifier = format!("{path}.card-{index}");
                 }
                 metadata.identifier.push_str(suffix);
-                card.filters.extend(filters.iter().map(|filter| v1::DocumentFilter {
+                card.filters.extend(filters.iter().map(|filter| dokime_protocol::model::DocumentFilter {
                     expression: filter.expression.clone(),
                     operator: filter.operator,
                     value: filter.value.clone(),
@@ -191,7 +196,9 @@ impl Reader<'_> {
 
 /* === Public Functions === */
 
-pub fn expand(store: &Store, cut: &ExecutionCut, document: &v1::Document, offset: usize, page_size: usize) -> Result<Expansion> {
+pub fn expand(
+    store: &Store, cut: &ExecutionCut, document: &dokime_protocol::model::Document, offset: usize, page_size: usize,
+) -> Result<Expansion> {
     let mut reader = Reader {
         store,
         cut,
@@ -224,13 +231,13 @@ pub fn expand(store: &Store, cut: &ExecutionCut, document: &v1::Document, offset
 
 /* === Private Functions === */
 
-fn display(value: &v1::Value) -> String {
+fn display(value: &dokime_protocol::model::Value) -> String {
     match &value.kind {
-        Some(v1::value::Kind::Number(value)) => value.to_string(),
-        Some(v1::value::Kind::Integer(value)) => value.to_string(),
-        Some(v1::value::Kind::UnsignedInteger(value)) => value.to_string(),
-        Some(v1::value::Kind::Text(value)) => value.clone(),
-        Some(v1::value::Kind::Boolean(value)) => value.to_string(),
+        Some(dokime_protocol::model::value::Kind::Number(value)) => value.to_string(),
+        Some(dokime_protocol::model::value::Kind::Integer(value)) => value.to_string(),
+        Some(dokime_protocol::model::value::Kind::UnsignedInteger(value)) => value.to_string(),
+        Some(dokime_protocol::model::value::Kind::Text(value)) => value.clone(),
+        Some(dokime_protocol::model::value::Kind::Boolean(value)) => value.to_string(),
         _ => String::new(),
     }
 }

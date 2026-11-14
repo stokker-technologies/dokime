@@ -20,7 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::{builders::Plot, v1};
+use dokime_protocol::builders::Plot;
+use dokime_protocol::model;
 use dokime_runtime::{Host, RenderSettings};
 use std::num::NonZeroUsize;
 
@@ -85,8 +86,9 @@ async fn documents_and_reports() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(one_at_a_time.html()?, html);
 
         // Refuse an Unresolvable Plot Without Publishing Any Partial Output
-        let invalid = v1::Document::new("Missing Field").section(
-            v1::Section::new("Measurements").plot(Plot::time_series(v1::FieldReference::new("execution.reading").field("absent"))),
+        let invalid = dokime_protocol::model::Document::new("Missing Field").section(
+            dokime_protocol::model::Section::new("Measurements")
+                .plot(Plot::time_series(dokime_protocol::model::FieldReference::new("execution.reading").field("absent"))),
         );
         assert!(host.render_document(&fixed, invalid, settings).is_err());
         assert!(host.reports(&execution)?.is_empty());

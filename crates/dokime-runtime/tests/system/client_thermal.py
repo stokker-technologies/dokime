@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Local Imports
 import dokime
-from dokime.v1 import message
+from dokime import ExecutionDetail
 
 # Third Party Imports
 
@@ -36,13 +36,13 @@ from dokime.v1 import message
 # === Public Functions === #
 
 
-async def journey(phase, url, plugin_url, expected):
+async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None:
     # Connect with the Pure SDK's Generated Client Half
     client = await dokime.connect(url)
     try:
         if phase == "read":
             # Read the Same Verified Execution, Records and Samples After Restart
-            saved = message("dokime.client.v1.ExecutionDetail")
+            saved = ExecutionDetail()
             saved.ParseFromString(expected.read_bytes())
             identifier = saved.summary.execution_id
             detail = await client.executions.get(identifier)

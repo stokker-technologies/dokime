@@ -18,16 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
-use dokime_protocol::v1;
+use crate::{Error, Result, host::Context};
+use dokime_protocol::model;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.RecordSchemas/Get";
+pub const ID: &str = "dokime.host.v1.RecordSchemas/Get";
 
 /* === Macros === */
 
@@ -43,20 +43,20 @@ pub const ID: &str = "dokime.client.v1.RecordSchemas/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::RecordSchemasGetRequest, dokime_protocol::client::RecordSchemasGetResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::RecordSchemasGetRequest, dokime_protocol::host::RecordSchemasGetResponse>(
         ID,
         settings.read_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::RecordSchemasGetRequest,
-) -> Result<dokime_protocol::client::RecordSchemasGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
+    context: &Context, request: dokime_protocol::host::RecordSchemasGetRequest,
+) -> Result<dokime_protocol::host::RecordSchemasGetResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
         let key = format!("record-schema/{}/{}/{}", request.parent, request.name, request.schema_version);
-        let (value, cut) = super::views::read(context, &key, request.at.as_ref(), async {
+        let (value, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
             if request.parent.is_empty() {
-                let inventory = super::catalog_inventory::Inventory::read(context).await?;
+                let inventory = crate::host::catalog_inventory::Inventory::read(context).await?;
                 if let Some(value) = inventory.records.into_iter().find(|record| record.record_type == request.name) {
                     return Ok(value);
                 }
@@ -71,18 +71,18 @@ pub async fn handle(
                 )?)
                 .map_err(|error| Error::Invalid(error.to_string()))?;
                 let descriptor = pool
-                    .get_message_by_name("dokime.plugin.host.v1.evidence.LogsAppendRequest")
+                    .get_message_by_name("dokime.host.v1.evidence.LogsAppendRequest")
                     .ok_or_else(|| Error::Invalid("Get Captured Log Schema: Rebuild the Host Protocol".into()))?;
-                return Ok(v1::RecordSchema {
+                return Ok(dokime_protocol::host::RecordSchema {
                     record_type: request.name,
                     schema_version: 1,
-                    metadata: Some(v1::Metadata {
+                    metadata: Some(dokime_protocol::model::Metadata {
                         identifier: "dokime.log".into(),
                         label: "Execution Log".into(),
                         ..Default::default()
                     }),
                     fields: fields(descriptor),
-                    default_severity: v1::Severity::Info as i32,
+                    default_severity: dokime_protocol::model::Severity::Info as i32,
                     ..Default::default()
                 });
             }
@@ -90,12 +90,12 @@ pub async fn handle(
             let mut frozen_shape = None;
             for id in context.host.store().identifiers()?.into_iter().filter(|id| request.parent.is_empty() || id == &request.parent) {
                 let cut = context.host.store().metadata(&id)?;
-                let catalog = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice())?;
+                let catalog = harmos_protocol::model::Declarations::decode(cut.execution.catalog.as_slice())?;
                 for section in &catalog.sections {
-                    if section.r#type != "dokime.v1.RecordContracts" {
+                    if section.r#type != "dokime.model.v1.RecordContracts" {
                         continue;
                     }
-                    for record in v1::RecordContracts::decode(section.payload.as_slice())?.records {
+                    for record in dokime_protocol::model::RecordContracts::decode(section.payload.as_slice())?.records {
                         if record.metadata.as_ref().is_none_or(|metadata| metadata.identifier != request.name) {
                             continue;
                         }
@@ -118,7 +118,7 @@ pub async fn handle(
                         }
                         frozen_shape = Some(shape);
                         let fields = fields(descriptor);
-                        let candidate = v1::RecordSchema {
+                        let candidate = dokime_protocol::host::RecordSchema {
                             record_type: request.name.clone(),
                             schema_version: 1,
                             metadata: record.metadata,
@@ -137,7 +137,7 @@ pub async fn handle(
             found.ok_or_else(|| Error::Invalid(format!("Get Captured Schema: Select a Captured Record Type {}", request.name)))
         })
         .await?;
-        Ok(dokime_protocol::client::RecordSchemasGetResponse {
+        Ok(dokime_protocol::host::RecordSchemasGetResponse {
             value: Some(value),
             resolved_at: Some(cut),
         })
@@ -175,34 +175,36 @@ fn shape(descriptor: &prost_reflect::MessageDescriptor) -> Vec<u8> {
     shape
 }
 
-fn fields(descriptor: prost_reflect::MessageDescriptor) -> Vec<v1::RecordField> {
+fn fields(descriptor: prost_reflect::MessageDescriptor) -> Vec<dokime_protocol::host::RecordField> {
     descriptor
         .fields()
         .map(|field| {
             let value_type = if field.is_list() || field.is_map() {
-                v1::ValueType::List
+                dokime_protocol::model::ValueType::List
             } else {
                 match field.kind() {
-                    prost_reflect::Kind::Bool => v1::ValueType::Boolean,
-                    prost_reflect::Kind::Double | prost_reflect::Kind::Float => v1::ValueType::Number,
+                    prost_reflect::Kind::Bool => dokime_protocol::model::ValueType::Boolean,
+                    prost_reflect::Kind::Double | prost_reflect::Kind::Float => dokime_protocol::model::ValueType::Number,
                     prost_reflect::Kind::Uint32
                     | prost_reflect::Kind::Fixed32
                     | prost_reflect::Kind::Uint64
-                    | prost_reflect::Kind::Fixed64 => v1::ValueType::UnsignedInteger,
+                    | prost_reflect::Kind::Fixed64 => dokime_protocol::model::ValueType::UnsignedInteger,
                     prost_reflect::Kind::Int32
                     | prost_reflect::Kind::Sint32
                     | prost_reflect::Kind::Sfixed32
                     | prost_reflect::Kind::Int64
                     | prost_reflect::Kind::Sint64
                     | prost_reflect::Kind::Sfixed64
-                    | prost_reflect::Kind::Enum(_) => v1::ValueType::Integer,
-                    prost_reflect::Kind::String => v1::ValueType::Text,
-                    prost_reflect::Kind::Message(message) if message.full_name() == "google.protobuf.Timestamp" => v1::ValueType::Datetime,
-                    _ => v1::ValueType::Bytes,
+                    | prost_reflect::Kind::Enum(_) => dokime_protocol::model::ValueType::Integer,
+                    prost_reflect::Kind::String => dokime_protocol::model::ValueType::Text,
+                    prost_reflect::Kind::Message(message) if message.full_name() == "google.protobuf.Timestamp" => {
+                        dokime_protocol::model::ValueType::Datetime
+                    }
+                    _ => dokime_protocol::model::ValueType::Bytes,
                 }
             };
-            v1::RecordField {
-                metadata: Some(v1::Metadata {
+            dokime_protocol::host::RecordField {
+                metadata: Some(dokime_protocol::model::Metadata {
                     identifier: field.name().into(),
                     label: field.name().into(),
                     ..Default::default()

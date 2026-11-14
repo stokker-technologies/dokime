@@ -22,13 +22,15 @@
 // Local Imports
 use crate::{
     Result,
-    client::{Context, Output},
+    host::{Context, Output},
 };
-use dokime_protocol::client::executions::{ProgressGetRequest, ProgressWatchRequest, ProgressWatchResponse};
+use dokime_protocol::host::executions::ProgressGetRequest;
+use dokime_protocol::host::executions::ProgressWatchRequest;
+use dokime_protocol::host::executions::ProgressWatchResponse;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.executions.Progress/Watch";
+pub const ID: &str = "dokime.host.v1.executions.Progress/Watch";
 
 /* === Macros === */
 
@@ -44,12 +46,12 @@ pub const ID: &str = "dokime.client.v1.executions.Progress/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<harmos_protocol::v1::OperationContract> {
-    super::declaration::<ProgressWatchRequest, ProgressWatchResponse>(ID, settings.watch_timeout)
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<harmos_protocol::model::OperationContract> {
+    crate::host::declaration::<ProgressWatchRequest, ProgressWatchResponse>(ID, settings.watch_timeout)
 }
 
 pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<Output<ProgressWatchResponse>> {
-    super::complete(ID, context.settings.watch_timeout, async {
+    crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut runtime = context.host.progress(&request.name)?;
         let mut storage = context.host.store().subscribe();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer.saturating_add(1));
@@ -67,9 +69,9 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
                         return;
                     }
                     let pinned_opening = at.is_some();
-                    let saved = match super::executions_progress_get::handle(&context, ProgressGetRequest { name: request.name.clone(), at: at.take() }).await {
+                    let saved = match crate::host::executions::progress::get::handle(&context, ProgressGetRequest { name: request.name.clone(), at: at.take() }).await {
                         Ok(saved) => saved,
-                        Err(error) => { let _ = sender.send(Err(super::status(error))).await; return; }
+                        Err(error) => { let _ = sender.send(Err(crate::host::status(error))).await; return; }
                     };
                     let response = ProgressWatchResponse { value: saved.value, revision: saved.revision, resolved_at: saved.resolved_at, phase: live.phase, finished: live.finished };
                     let unchanged = previous.as_ref().is_some_and(|previous| {

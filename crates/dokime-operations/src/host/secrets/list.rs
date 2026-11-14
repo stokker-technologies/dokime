@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{Error, Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Secrets/List";
+pub const ID: &str = "dokime.host.v1.Secrets/List";
 
 /* === Macros === */
 
@@ -41,23 +41,23 @@ pub const ID: &str = "dokime.client.v1.Secrets/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::SecretsListRequest, dokime_protocol::client::SecretsListResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::SecretsListRequest, dokime_protocol::host::SecretsListResponse>(
         ID,
         settings.read_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::SecretsListRequest,
-) -> Result<dokime_protocol::client::SecretsListResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        let super::secrets_store::Reply::Snapshot(snapshot) =
-            super::secrets_store::perform(context, super::secrets_store::Action::List).await?
+    context: &Context, request: dokime_protocol::host::SecretsListRequest,
+) -> Result<dokime_protocol::host::SecretsListResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        let crate::host::secrets::store::Reply::Snapshot(snapshot) =
+            crate::host::secrets::store::perform(context, crate::host::secrets::store::Action::List).await?
         else {
             return Err(Error::Invalid("List Secrets: Restart the Secret Store".into()));
         };
         let cut = cut(context, "", snapshot.generation, request.at.as_ref())?;
-        Ok(dokime_protocol::client::SecretsListResponse {
+        Ok(dokime_protocol::host::SecretsListResponse {
             entries: snapshot.entries,
             generation: snapshot.generation,
             resolved_at: Some(cut),
@@ -68,7 +68,7 @@ pub async fn handle(
 
 /* === Private Functions === */
 
-pub(super) fn cut(context: &Context, name: &str, generation: u64, at: Option<&h::ReadCut>) -> Result<h::ReadCut> {
+pub(crate) fn cut(context: &Context, name: &str, generation: u64, at: Option<&h::ReadCut>) -> Result<h::ReadCut> {
     let cut = h::ReadCut {
         positions: Vec::new(),
         revisions: vec![h::ResourceRevision {

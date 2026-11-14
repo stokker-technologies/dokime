@@ -22,12 +22,16 @@ use std::io::Write;
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::client::{
-    PlotPresentation,
-    plots::{ContourGrid, GridFrame, GridFrames, PlotEnvelope, PlotFrame, PlotPayload},
-};
-use dokime_protocol::v1;
-use dokime_protocol::v1::{Plot, Value};
+use dokime_protocol::host::PlotPresentation;
+use dokime_protocol::host::plots::ContourGrid;
+use dokime_protocol::host::plots::GridFrame;
+use dokime_protocol::host::plots::GridFrames;
+use dokime_protocol::host::plots::PlotEnvelope;
+use dokime_protocol::host::plots::PlotFrame;
+use dokime_protocol::host::plots::PlotPayload;
+use dokime_protocol::model;
+use dokime_protocol::model::Plot;
+use dokime_protocol::model::Value;
 
 /* === Constants === */
 
@@ -62,7 +66,7 @@ pub(crate) fn render(output: &mut impl Write, plot: &Plot, envelope: &PlotEnvelo
     if let Some(analysis) = payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         match analysis {
-            dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(histogram) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::Histogram(histogram) => {
                 let max = histogram.series.iter().flat_map(|series| &series.bins).map(|bin| bin.count).max().unwrap_or(1).max(1) as f64;
                 let total = histogram.series.iter().map(|series| series.bins.len()).sum::<usize>().max(1);
                 let mut index = 0;
@@ -85,7 +89,7 @@ pub(crate) fn render(output: &mut impl Write, plot: &Plot, envelope: &PlotEnvelo
                     }
                 }
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
                 let min = boxes.series.iter().filter_map(|series| series.min.as_ref().and_then(number)).reduce(f64::min).unwrap_or(0.0);
                 let max = boxes.series.iter().filter_map(|series| series.max.as_ref().and_then(number)).reduce(f64::max).unwrap_or(1.0);
                 let y = |value| 220.0 - 200.0 * (value - min) / (max - min).max(f64::EPSILON);
@@ -108,7 +112,7 @@ pub(crate) fn render(output: &mut impl Write, plot: &Plot, envelope: &PlotEnvelo
                     }
                 }
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
                 let bins = interval.series.iter().flat_map(|series| &series.bins).collect::<Vec<_>>();
                 let min_x = bins.iter().map(|bin| bin.x).reduce(f64::min).unwrap_or(0.0);
                 let max_x = bins.iter().map(|bin| bin.x).reduce(f64::max).unwrap_or(1.0);
@@ -129,22 +133,22 @@ pub(crate) fn render(output: &mut impl Write, plot: &Plot, envelope: &PlotEnvelo
                     }
                 }
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::Contour(grid) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::Contour(grid) => {
                 render_contour(output, plot, grid, &envelope.selection)?
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(grid) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::GridChart(grid) => {
                 if let Some(frame) = grid.frames.first() {
                     grid_frame(output, grid, frame)?;
                 }
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::Error(error) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::Error(error) => {
                 return Err(Error::Invalid(format!("Render Plot: {}", error.message)));
             }
         }
     }
     render_references(output, payload, presentation)?;
     write!(output, "</svg>")?;
-    if let Some(dokime_protocol::client::plots::plot_analysis_result::Kind::GridChart(grid)) =
+    if let Some(dokime_protocol::host::plots::plot_analysis_result::Kind::GridChart(grid)) =
         payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         for frame in grid.frames.iter().skip(1) {
@@ -176,25 +180,25 @@ fn render_references(output: &mut impl Write, payload: &PlotPayload, presentatio
     if let Some(analysis) = payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         match analysis {
-            dokime_protocol::client::plots::plot_analysis_result::Kind::Histogram(histogram) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::Histogram(histogram) => {
                 values.extend(histogram.series.iter().flat_map(|series| series.bins.iter().map(|bin| bin.count as f64)))
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::BoxPlot(boxes) => {
                 values.extend(boxes.series.iter().flat_map(|series| {
                     [series.min.as_ref().and_then(number).unwrap_or(0.0), series.max.as_ref().and_then(number).unwrap_or(0.0)]
                 }))
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
+            dokime_protocol::host::plots::plot_analysis_result::Kind::SigmaInterval(interval) => {
                 values.extend(interval.series.iter().flat_map(|series| series.bins.iter().flat_map(|bin| [bin.lower, bin.upper])))
             }
-            dokime_protocol::client::plots::plot_analysis_result::Kind::Contour(grid) => values.extend(&grid.y_edges),
+            dokime_protocol::host::plots::plot_analysis_result::Kind::Contour(grid) => values.extend(&grid.y_edges),
             _ => (),
         }
     }
     let min = values.iter().copied().reduce(f64::min).unwrap_or(0.0).min(0.0);
     let max = values.iter().copied().reduce(f64::max).unwrap_or(1.0);
     let y = |value| 220.0 - 200.0 * (value - min) / (max - min).max(f64::EPSILON);
-    let constant = |value: Option<&dokime_protocol::client::PlotReferenceValue>| value.and_then(|value| value.constant);
+    let constant = |value: Option<&dokime_protocol::host::PlotReferenceValue>| value.and_then(|value| value.constant);
     for band in &presentation.reference_bands {
         let bounds = match (
             constant(band.min.as_ref()),
@@ -234,8 +238,8 @@ fn render_references(output: &mut impl Write, payload: &PlotPayload, presentatio
     Ok(())
 }
 fn render_frame(output: &mut impl Write, plot: &Plot, frame: &PlotFrame) -> Result<()> {
-    let kind = v1::PlotKind::try_from(plot.kind).unwrap_or(v1::PlotKind::TimeSeries);
-    if kind == v1::PlotKind::Pie {
+    let kind = dokime_protocol::model::PlotKind::try_from(plot.kind).unwrap_or(dokime_protocol::model::PlotKind::TimeSeries);
+    if kind == dokime_protocol::model::PlotKind::Pie {
         let values = frame.series.iter().flat_map(|column| column.y.iter().filter_map(|value| value.value)).collect::<Vec<_>>();
         let total = values.iter().sum::<f64>();
         let mut angle = -std::f64::consts::FRAC_PI_2;
@@ -269,7 +273,7 @@ fn render_frame(output: &mut impl Write, plot: &Plot, frame: &PlotFrame) -> Resu
     let min_y =
         frame.series.iter().flat_map(|column| column.y.iter().filter_map(|value| value.value)).reduce(f64::min).unwrap_or(0.0).min(0.0);
     let max_y = frame.series.iter().flat_map(|column| column.y.iter().filter_map(|value| value.value)).reduce(f64::max).unwrap_or(1.0);
-    if kind == v1::PlotKind::Bar {
+    if kind == dokime_protocol::model::PlotKind::Bar {
         let mut categories = Vec::new();
         for value in frame.series.iter().flat_map(|column| &column.x) {
             let value = display(value);
@@ -277,7 +281,7 @@ fn render_frame(output: &mut impl Write, plot: &Plot, frame: &PlotFrame) -> Resu
                 categories.push(value);
             }
         }
-        let stacked = plot.arrangement == Some(v1::BarArrangement::Stacked as i32);
+        let stacked = plot.arrangement == Some(dokime_protocol::model::BarArrangement::Stacked as i32);
         let mut stacks = vec![0.0; categories.len()];
         let max = if stacked {
             categories
@@ -350,10 +354,13 @@ fn render_frame(output: &mut impl Write, plot: &Plot, frame: &PlotFrame) -> Resu
             })
             .collect::<Vec<_>>();
         let color = COLORS[index % COLORS.len()];
-        if plot.style != v1::PlotStyle::Points as i32 {
+        if plot.style != dokime_protocol::model::PlotStyle::Points as i32 {
             polyline(output, &points, color)?;
         }
-        if matches!(v1::PlotStyle::try_from(plot.style), Ok(v1::PlotStyle::Points | v1::PlotStyle::LinePoints)) {
+        if matches!(
+            dokime_protocol::model::PlotStyle::try_from(plot.style),
+            Ok(dokime_protocol::model::PlotStyle::Points | dokime_protocol::model::PlotStyle::LinePoints)
+        ) {
             for (x, y) in &points {
                 write!(output, "<circle cx=\"{x}\" cy=\"{y}\" r=\"2\" fill=\"{color}\"/>")?;
             }
@@ -377,8 +384,12 @@ fn render_contour(output: &mut impl Write, plot: &Plot, grid: &ContourGrid, iden
     if rows == 0 || columns == 0 {
         return Ok(());
     }
-    let x = |position: f64| contour_coordinate(position, &grid.x_edges, plot.x_scale == v1::AxisScale::Log as i32, 20.0, 600.0);
-    let y = |position: f64| contour_coordinate(position, &grid.y_edges, plot.y_scale == v1::AxisScale::Log as i32, 220.0, -200.0);
+    let x = |position: f64| {
+        contour_coordinate(position, &grid.x_edges, plot.x_scale == dokime_protocol::model::AxisScale::Log as i32, 20.0, 600.0)
+    };
+    let y = |position: f64| {
+        contour_coordinate(position, &grid.y_edges, plot.y_scale == dokime_protocol::model::AxisScale::Log as i32, 220.0, -200.0)
+    };
     let values = grid.values.iter().zip(&grid.valid).filter_map(|(value, valid)| valid.then_some(*value)).collect::<Vec<_>>();
     let mask = format!("contour-{}", escape(identity));
     write!(output, "<defs><clipPath id=\"{mask}\" clipPathUnits=\"userSpaceOnUse\">")?;
@@ -414,7 +425,7 @@ fn render_contour(output: &mut impl Write, plot: &Plot, grid: &ContourGrid, iden
             }
         }
     }
-    if plot.render != v1::ContourRender::Bands as i32 {
+    if plot.render != dokime_protocol::model::ContourRender::Bands as i32 {
         return Ok(());
     }
     let min = values.iter().copied().reduce(f64::min).unwrap_or(0.0);
@@ -536,10 +547,10 @@ fn color(value: f64, values: &[f64]) -> String {
 }
 fn number(value: &Value) -> Option<f64> {
     match value.kind.as_ref()? {
-        v1::value::Kind::Number(value) => Some(*value),
-        v1::value::Kind::Integer(value) => Some(*value as f64),
-        v1::value::Kind::UnsignedInteger(value) => Some(*value as f64),
-        v1::value::Kind::Exact(value) => {
+        dokime_protocol::model::value::Kind::Number(value) => Some(*value),
+        dokime_protocol::model::value::Kind::Integer(value) => Some(*value as f64),
+        dokime_protocol::model::value::Kind::UnsignedInteger(value) => Some(*value as f64),
+        dokime_protocol::model::value::Kind::Exact(value) => {
             Some((if value.negative { -1.0 } else { 1.0 }) * value.numerator.parse::<f64>().ok()? / value.denominator.parse::<f64>().ok()?)
         }
         _ => None,
@@ -547,12 +558,12 @@ fn number(value: &Value) -> Option<f64> {
 }
 pub(crate) fn display(value: &Value) -> String {
     match value.kind.as_ref() {
-        Some(v1::value::Kind::Text(value)) => value.clone(),
-        Some(v1::value::Kind::Boolean(value)) => value.to_string(),
-        Some(v1::value::Kind::Number(value)) => value.to_string(),
-        Some(v1::value::Kind::Integer(value)) => value.to_string(),
-        Some(v1::value::Kind::UnsignedInteger(value)) => value.to_string(),
-        Some(v1::value::Kind::Exact(value)) => {
+        Some(dokime_protocol::model::value::Kind::Text(value)) => value.clone(),
+        Some(dokime_protocol::model::value::Kind::Boolean(value)) => value.to_string(),
+        Some(dokime_protocol::model::value::Kind::Number(value)) => value.to_string(),
+        Some(dokime_protocol::model::value::Kind::Integer(value)) => value.to_string(),
+        Some(dokime_protocol::model::value::Kind::UnsignedInteger(value)) => value.to_string(),
+        Some(dokime_protocol::model::value::Kind::Exact(value)) => {
             format!("{}{}/{}", if value.negative { "-" } else { "" }, value.numerator, value.denominator)
         }
         _ => String::new(),

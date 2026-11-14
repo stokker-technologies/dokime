@@ -21,12 +21,21 @@
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::v1;
+use dokime_protocol::model;
 
-use dokime_protocol::client::{PlotPresentation, PlotReferenceBand, PlotReferenceLine, PlotReferenceValue};
-use dokime_protocol::v1::{
-    DataExpression, EvidenceScope, GridDefinition, Plot, PlotFftOptions, PlotFilter, PlotHistogramOptions, PlotKind, PlotRequest,
-};
+use dokime_protocol::host::PlotPresentation;
+use dokime_protocol::host::PlotReferenceBand;
+use dokime_protocol::host::PlotReferenceLine;
+use dokime_protocol::host::PlotReferenceValue;
+use dokime_protocol::host::plots::PlotRequest;
+use dokime_protocol::model::DataExpression;
+use dokime_protocol::model::EvidenceScope;
+use dokime_protocol::model::GridDefinition;
+use dokime_protocol::model::Plot;
+use dokime_protocol::model::PlotFftOptions;
+use dokime_protocol::model::PlotFilter;
+use dokime_protocol::model::PlotHistogramOptions;
+use dokime_protocol::model::PlotKind;
 use dokime_storage::{ExecutionCut, Store};
 
 /* === Constants === */
@@ -109,9 +118,9 @@ pub fn presentation(store: &Store, cut: &ExecutionCut, plot: &Plot) -> Result<Pl
         };
         let value = store.document_value(cut, expression)?;
         let value = match value.kind {
-            Some(v1::value::Kind::Number(value)) => value,
-            Some(v1::value::Kind::Integer(value)) => value as f64,
-            Some(v1::value::Kind::UnsignedInteger(value)) => value as f64,
+            Some(dokime_protocol::model::value::Kind::Number(value)) => value,
+            Some(dokime_protocol::model::value::Kind::Integer(value)) => value as f64,
+            Some(dokime_protocol::model::value::Kind::UnsignedInteger(value)) => value as f64,
             _ => return Err(Error::Invalid("Render Plot Reference: Select a Numeric Scalar".into())),
         };
         Ok(Some(PlotReferenceValue { constant: Some(value), expression: None }))
@@ -153,9 +162,9 @@ pub fn presentation(store: &Store, cut: &ExecutionCut, plot: &Plot) -> Result<Pl
 
 fn stream(expression: &DataExpression) -> Option<String> {
     match expression.kind.as_ref()? {
-        v1::data_expression::Kind::Stream(reference) => Some(reference.identifier.clone()),
-        v1::data_expression::Kind::Aggregate(value) => value.input.as_ref().and_then(|input| stream(input)),
-        v1::data_expression::Kind::Transform(value) => value.input.as_ref().and_then(|input| stream(input)),
+        dokime_protocol::model::data_expression::Kind::Stream(reference) => Some(reference.identifier.clone()),
+        dokime_protocol::model::data_expression::Kind::Aggregate(value) => value.input.as_ref().and_then(|input| stream(input)),
+        dokime_protocol::model::data_expression::Kind::Transform(value) => value.input.as_ref().and_then(|input| stream(input)),
         _ => None,
     }
 }

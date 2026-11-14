@@ -20,19 +20,20 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use arrow_array::{Float64Array, StructArray, UInt64Array};
-use harmos_protocol::v1::{Catalog, OperationContract};
+use harmos_protocol::model::{Declarations, OperationContract};
 use prost::Message;
 use prost_reflect::{DescriptorPool, Kind};
 use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::{Error, Resources, Result};
-use dokime_protocol::context::{EvidenceStatisticsRequest, EvidenceStatisticsResponse};
+use dokime_protocol::host::EvidenceStatisticsRequest;
+use dokime_protocol::host::EvidenceStatisticsResponse;
 use dokime_storage::{BatchSelection, Error as StorageError, NumericWindow, StatisticsRead};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.plugin.host.v1.Evidence/Statistics";
+pub const ID: &str = "dokime.host.v1.Evidence/Statistics";
 
 /* === Macros === */
 
@@ -55,11 +56,16 @@ pub fn declaration() -> Result<OperationContract> {
     )
 }
 pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
-    resources.check_action_scope(&request.execution, ID)?;
+    let selected = request.scope.as_ref().and_then(|scope| scope.execution_id.as_deref());
+    let execution = resources.resolve_execution(selected, ID)?;
+    resources.check_action_scope(execution, ID)?;
     let mut snapshot = resources.store.cut(&resources.execution)?;
-    let resolved_at = resources.store.resource_value(&resources.execution, "progress", request.at.as_ref())?.resolved_at;
+    let resolved_at = resources
+        .store
+        .resource_value(&resources.execution, "progress", request.at.as_ref().and_then(|at| at.positions.first()))?
+        .resolved_at;
     snapshot.frontier = resolved_at.sequence;
-    let catalog = Catalog::decode(snapshot.execution.catalog.as_slice())?;
+    let catalog = Declarations::decode(snapshot.execution.catalog.as_slice())?;
     let stream = catalog
         .streams
         .iter()
@@ -107,7 +113,10 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
     if let Some(mut read) = resources.store.cached_statistics(&resources.execution, &key, start, frontier)? {
         read.request = Some(request);
         let response = read.response.get_or_insert_default();
-        response.resolved_at = Some(resolved_at);
+        response.resolved_at = Some(harmos_protocol::model::ReadCut {
+            positions: vec![resolved_at],
+            revisions: Vec::new(),
+        });
         let response = response.clone();
         resources.evidence("read:statistics", read.encode_to_vec(), None)?;
         return Ok(response);
@@ -136,7 +145,7 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
             Ok(true)
         },
     )?;
-    let mut response = resources.store.numeric_statistics(&NumericWindow {
+    let statistics = resources.store.numeric_statistics(&NumericWindow {
         execution: &resources.execution,
         stream: &request.stream,
         field: field.name(),
@@ -146,7 +155,13 @@ pub async fn handle(resources: &Resources, request: EvidenceStatisticsRequest) -
         end_ns: i64::MAX,
         bins: NonZeroUsize::MIN,
     })?;
-    response.resolved_at = Some(resolved_at);
+    let response = EvidenceStatisticsResponse {
+        statistics: Some(statistics),
+        resolved_at: Some(harmos_protocol::model::ReadCut {
+            positions: vec![resolved_at],
+            revisions: Vec::new(),
+        }),
+    };
     let read = StatisticsRead {
         request: Some(request),
         positions,

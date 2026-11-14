@@ -24,7 +24,8 @@ use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::Result;
-use dokime_protocol::plugin::{CriteriaEvaluateRequest, CriteriaEvaluateResponse};
+use dokime_protocol::plugin::CriteriaEvaluateRequest;
+use dokime_protocol::plugin::CriteriaEvaluateResponse;
 
 /* === Constants === */
 

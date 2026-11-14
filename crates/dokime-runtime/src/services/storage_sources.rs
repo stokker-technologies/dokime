@@ -37,21 +37,25 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::client::storage::sources_server::Sources for Services {
+impl dokime_protocol::host::storage::sources_server::Sources for Services {
     async fn get(
-        &self, request: tonic::Request<dokime_protocol::client::storage::SourcesGetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::storage::SourcesGetResponse>, tonic::Status> {
-        let reply = dokime_operations::client::storage_sources_get::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::storage::SourcesGetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::storage::SourcesGetResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.storage.Sources/Get", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::storage::sources::get::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
     async fn set(
-        &self, request: tonic::Request<dokime_protocol::client::storage::SourcesSetRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::storage::SourcesSetResponse>, tonic::Status> {
-        let reply = dokime_operations::client::storage_sources_set::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::storage::SourcesSetRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::storage::SourcesSetResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.storage.Sources/Set", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::storage::sources::set::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
 }

@@ -30,7 +30,7 @@ use tonic::transport::Channel;
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::v1;
+use dokime_protocol::model;
 
 /* === Constants === */
 
@@ -64,7 +64,7 @@ struct OwnedChild(std::process::Child);
 pub(crate) struct Entry {
     pub client: InstanceClient<Channel>,
     pub description: harmos_protocol::plugin::InstanceGetResponse,
-    pub suites: v1::Suites,
+    pub suites: dokime_protocol::model::Suites,
     pub state: EntryState,
     pub process: tokio::sync::Mutex<Option<PluginProcess>>,
 }
@@ -108,7 +108,7 @@ impl PluginProcess {
         let endpoint = format!(
             "http://{}",
             line.strip_prefix("harmos listening ")
-                .ok_or_else(|| Error::Invalid("Serve harmos.v1 and Announce the Bound Endpoint".into()))?
+                .ok_or_else(|| Error::Invalid("Serve harmos.model.v1 and Announce the Bound Endpoint".into()))?
         );
         let drain = tokio::spawn(async move { while lines.next_line().await.ok().flatten().is_some() {} });
         Ok(Self {
@@ -185,8 +185,8 @@ impl Entry {
         if description.id.is_empty() || description.started_at.is_none() || description.revision < 1 {
             return Err(Error::Invalid("Serve a Plugin Identity, Process Start Time and Protocol Revision".into()));
         }
-        let catalog = description.catalog.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin with Its Catalog".into()))?;
-        if catalog.digest != harmos_protocol::schema::catalog_digest(catalog) {
+        let catalog = description.declarations.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin with Its Catalog".into()))?;
+        if catalog.digest != harmos_protocol::schema::declarations_digest(catalog) {
             return Err(Error::Invalid("Rebuild the Plugin Catalog with a Valid Digest".into()));
         }
         let types = catalog.types.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin with Its Message Descriptors".into()))?;
@@ -223,9 +223,9 @@ impl Entry {
         let section = catalog
             .sections
             .iter()
-            .find(|section| section.r#type == "dokime.v1.Suites")
-            .ok_or_else(|| Error::Invalid("Publish a dokime.v1.Suites Catalog Section".into()))?;
-        let suites = v1::Suites::decode(section.payload.as_slice())?;
+            .find(|section| section.r#type == "dokime.model.v1.Suites")
+            .ok_or_else(|| Error::Invalid("Publish a dokime.model.v1.Suites Catalog Section".into()))?;
+        let suites = dokime_protocol::model::Suites::decode(section.payload.as_slice())?;
         Ok(Self {
             client,
             description,
@@ -234,7 +234,7 @@ impl Entry {
             process: tokio::sync::Mutex::new(process),
         })
     }
-    pub fn template(&self, identifier: &str) -> Result<v1::TestCaseTemplate> {
+    pub fn template(&self, identifier: &str) -> Result<dokime_protocol::model::TestCaseTemplate> {
         self.suites
             .suites
             .iter()
@@ -264,8 +264,9 @@ impl Entry {
 
 // Materialize a Case Against Its Admitted Catalog
 pub(crate) async fn materialize(
-    entry: std::sync::Arc<Entry>, template: &str, parameters: std::collections::HashMap<String, v1::Value>, settings: &crate::HostSettings,
-) -> Result<v1::Origin> {
+    entry: std::sync::Arc<Entry>, template: &str, parameters: std::collections::HashMap<String, dokime_protocol::model::Value>,
+    settings: &crate::HostSettings,
+) -> Result<dokime_protocol::model::Origin> {
     let definition = entry.template(template)?;
     let dispatch = crate::dispatch::Dispatch {
         entry: entry.clone(),
@@ -287,7 +288,7 @@ pub(crate) async fn materialize(
     if test_case.parameters != parameters {
         return Err(Error::Invalid("Materialize Without Changing the Resolved Parameter Set".into()));
     }
-    let catalog = entry.description.catalog.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin Catalog".into()))?;
+    let catalog = entry.description.declarations.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin Catalog".into()))?;
     for operation in
         test_case.steps.iter().map(|step| &step.operation).chain(test_case.criteria.iter().map(|criterion| &criterion.operation))
     {
@@ -295,7 +296,7 @@ pub(crate) async fn materialize(
             return Err(Error::Invalid(format!("Materialize Test Case: Declare the Bound Operation {operation} as Protected")));
         }
     }
-    let run = v1::PluginRun {
+    let run = dokime_protocol::model::PluginRun {
         test_case: Some(test_case),
         plugin: entry.description.id.clone(),
         template: template.into(),
@@ -303,8 +304,8 @@ pub(crate) async fn materialize(
         started_at: entry.description.started_at,
     };
     run.validate().map_err(Error::Invalid)?;
-    Ok(v1::Origin {
-        kind: Some(v1::origin::Kind::PluginRun(run)),
+    Ok(dokime_protocol::model::Origin {
+        kind: Some(dokime_protocol::model::origin::Kind::PluginRun(run)),
     })
 }
 

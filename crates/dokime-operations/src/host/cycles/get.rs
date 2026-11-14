@@ -18,15 +18,15 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Result, client::Context};
-use dokime_protocol::v1;
+use crate::{Result, host::Context};
+use dokime_protocol::model;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Cycles/Get";
+pub const ID: &str = "dokime.host.v1.Cycles/Get";
 
 /* === Macros === */
 
@@ -42,23 +42,23 @@ pub const ID: &str = "dokime.client.v1.Cycles/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::CyclesGetRequest, dokime_protocol::client::CyclesGetResponse>(ID, settings.read_timeout)
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::CyclesGetRequest, dokime_protocol::host::CyclesGetResponse>(ID, settings.read_timeout)
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::CyclesGetRequest,
-) -> Result<dokime_protocol::client::CyclesGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
-        let cycle = super::execution_state::cycle(context, &request.name)?;
-        let value = dokime_protocol::client::CycleWritable {
+    context: &Context, request: dokime_protocol::host::CyclesGetRequest,
+) -> Result<dokime_protocol::host::CyclesGetResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
+        let cycle = crate::host::execution_state::cycle(context, &request.name)?;
+        let value = dokime_protocol::host::CycleWritable {
             label: cycle.metadata.as_ref().map_or(String::new(), |metadata| metadata.label.clone()),
-            paused: cycle.status == v1::CycleStatus::Paused as i32,
+            paused: cycle.status == dokime_protocol::host::CycleStatus::Paused as i32,
             archived: cycle.archived,
             continue_automatically: cycle.continue_automatically,
         };
         let position = context.host.store().evidence_position(request.at.as_ref())?;
-        Ok(dokime_protocol::client::CyclesGetResponse {
-            revision: super::paging::bytes(&value),
+        Ok(dokime_protocol::host::CyclesGetResponse {
+            revision: crate::host::paging::bytes(&value),
             value: Some(value),
             cycle: Some(cycle),
             resolved_at: Some(position),

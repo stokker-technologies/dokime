@@ -39,7 +39,7 @@ pub mod views;
 
 /* === Re-Exports === */
 
-pub use secrets_store::{register_redactions, remove_root_secrets};
+pub use secrets::store::{register_redactions, remove_root_secrets};
 
 /* === Imports === */
 
@@ -48,33 +48,34 @@ use std::{collections::HashMap, future::Future, sync::Arc, time::Duration};
 
 // Third Party Imports
 use async_trait::async_trait;
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 use tokio::sync::watch;
 
 // Local Imports
 use crate::{Error, Result};
 use dokime_protocol::FILE_DESCRIPTOR_SET;
-use dokime_protocol::client::BootstrapPaths;
-use dokime_protocol::client::ExecutionControls;
-use dokime_protocol::client::ExecutionMode;
-use dokime_protocol::client::Plugin;
-use dokime_protocol::client::PluginInstallation;
-use dokime_protocol::client::ReportMetadata;
-use dokime_protocol::client::ReportSubject;
-use dokime_protocol::client::executions::CommandsCreateRequest;
-use dokime_protocol::client::executions::ExecutionCommandReceipt;
-use dokime_protocol::context::PromptsCreateRequest;
-use dokime_protocol::context::PromptsCreateResponse;
-use dokime_protocol::v1;
-use dokime_protocol::v1::{Document, DocumentScope};
+use dokime_protocol::host::BootstrapPaths;
+use dokime_protocol::host::DocumentScope;
+use dokime_protocol::host::ExecutionControls;
+use dokime_protocol::host::ExecutionMode;
+use dokime_protocol::host::Plugin;
+use dokime_protocol::host::PluginInstallation;
+use dokime_protocol::host::PromptsCreateRequest;
+use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::host::ReportMetadata;
+use dokime_protocol::host::ReportSubject;
+use dokime_protocol::host::executions::CommandsCreateRequest;
+use dokime_protocol::host::executions::ExecutionCommandReceipt;
+use dokime_protocol::model;
+use dokime_protocol::model::Document;
 use dokime_storage::ExecutionCut;
 use dokime_storage::Report;
 use dokime_storage::Store;
-use harmos_protocol::storage::FileReference;
-use harmos_protocol::v1::OperationContract;
-use harmos_protocol::v1::ReadCut;
-use harmos_protocol::v1::Receipt;
+use harmos_protocol::model::FileReference;
+use harmos_protocol::model::OperationContract;
+use harmos_protocol::model::ReadCut;
+use harmos_protocol::model::Receipt;
 use prost_reflect::ReflectMessage;
 use prost_types::FileDescriptorSet;
 use prost_types::Timestamp;
@@ -91,119 +92,119 @@ const DEFAULT_PAGE_ITEMS: usize = 50;
 const MAX_PAGE_ITEMS: usize = 500;
 
 pub const METHODS: &[&str] = &[
-    "/dokime.client.v1.Files/Get",
-    "/dokime.client.v1.Files/Read",
-    "/dokime.client.v1.Files/Delete",
-    "/dokime.client.v1.files.Uploads/Create",
-    "/dokime.client.v1.files.Uploads/Get",
-    "/dokime.client.v1.files.Uploads/Resume",
-    "/dokime.client.v1.files.Uploads/Append",
-    "/dokime.client.v1.files.Uploads/Publish",
-    "/dokime.client.v1.files.Uploads/Delete",
-    "/dokime.client.v1.Files/Watch",
-    "/dokime.client.v1.Aggregates/Get",
-    "/dokime.client.v1.Backend/Appearance",
-    "/dokime.client.v1.Cases/Create",
-    "/dokime.client.v1.Cases/Delete",
-    "/dokime.client.v1.Cases/Get",
-    "/dokime.client.v1.Cases/List",
-    "/dokime.client.v1.Cases/Parameters",
-    "/dokime.client.v1.Cases/Watch",
-    "/dokime.client.v1.Analyses/List",
-    "/dokime.client.v1.Cycles/Create",
-    "/dokime.client.v1.Cycles/Get",
-    "/dokime.client.v1.Cycles/List",
-    "/dokime.client.v1.Cycles/Seal",
-    "/dokime.client.v1.Cycles/Set",
-    "/dokime.client.v1.Cycles/Watch",
-    "/dokime.client.v1.Documents/Get",
-    "/dokime.client.v1.Documents/Watch",
-    "/dokime.client.v1.Evidence/Archive",
-    "/dokime.client.v1.Evidence/Statistics",
-    "/dokime.client.v1.Executions/Cancel",
-    "/dokime.client.v1.Executions/Create",
-    "/dokime.client.v1.Executions/Delete",
-    "/dokime.client.v1.Executions/Get",
-    "/dokime.client.v1.executions.Schemas/Get",
-    "/dokime.client.v1.Executions/List",
-    "/dokime.client.v1.Executions/Parameters",
-    "/dokime.client.v1.Executions/Set",
-    "/dokime.client.v1.Executions/Start",
-    "/dokime.client.v1.Executions/Steps",
-    "/dokime.client.v1.Executions/Stop",
-    "/dokime.client.v1.Executions/Watch",
-    "/dokime.client.v1.Plugins/Add",
-    "/dokime.client.v1.Plugins/GetInstallation",
-    "/dokime.client.v1.Plugins/Install",
-    "/dokime.client.v1.Plugins/List",
-    "/dokime.client.v1.Plugins/ListAdmittedPlugins",
-    "/dokime.client.v1.Plugins/ListInstallations",
-    "/dokime.client.v1.Plugins/Reload",
-    "/dokime.client.v1.Plugins/Remove",
-    "/dokime.client.v1.Plugins/SetEnabled",
-    "/dokime.client.v1.Prompts/Get",
-    "/dokime.client.v1.Prompts/List",
-    "/dokime.client.v1.Prompts/Watch",
-    "/dokime.client.v1.Reports/Create",
-    "/dokime.client.v1.Reports/Get",
-    "/dokime.client.v1.Reports/Publish",
-    "/dokime.client.v1.Secrets/Delete",
-    "/dokime.client.v1.Secrets/Export",
-    "/dokime.client.v1.Secrets/Get",
-    "/dokime.client.v1.Secrets/Import",
-    "/dokime.client.v1.Secrets/List",
-    "/dokime.client.v1.Secrets/Set",
-    "/dokime.client.v1.Secrets/Watch",
-    "/dokime.client.v1.Settings/Get",
-    "/dokime.client.v1.Settings/Schema",
-    "/dokime.client.v1.Settings/Set",
-    "/dokime.client.v1.backend.Overview/Get",
-    "/dokime.client.v1.backend.Overview/Watch",
-    "/dokime.client.v1.PromptDefinitions/Get",
-    "/dokime.client.v1.PromptDefinitions/List",
-    "/dokime.client.v1.RecordSchemas/Get",
-    "/dokime.client.v1.RecordSchemas/List",
-    "/dokime.client.v1.StreamSchemas/Get",
-    "/dokime.client.v1.StreamSchemas/List",
-    "/dokime.client.v1.Suites/Get",
-    "/dokime.client.v1.Suites/List",
-    "/dokime.client.v1.content.Artifacts/Create",
-    "/dokime.client.v1.content.Artifacts/Get",
-    "/dokime.client.v1.content.Artifacts/List",
-    "/dokime.client.v1.content.Artifacts/Watch",
-    "/dokime.client.v1.content.ExecutionFiles/Get",
-    "/dokime.client.v1.content.ExecutionFiles/List",
-    "/dokime.client.v1.content.ExecutionFiles/Watch",
-    "/dokime.client.v1.evidence.HealthEvents/List",
-    "/dokime.client.v1.evidence.HealthEvents/Watch",
-    "/dokime.client.v1.evidence.Notes/Create",
-    "/dokime.client.v1.evidence.Notes/Get",
-    "/dokime.client.v1.evidence.Notes/List",
-    "/dokime.client.v1.evidence.Notes/Set",
-    "/dokime.client.v1.evidence.Notes/Watch",
-    "/dokime.client.v1.evidence.Records/List",
-    "/dokime.client.v1.evidence.Records/Watch",
-    "/dokime.client.v1.evidence.Samples/List",
-    "/dokime.client.v1.evidence.Samples/Watch",
-    "/dokime.client.v1.evidence.Traceability/Get",
-    "/dokime.client.v1.evidence.Traceability/Watch",
-    "/dokime.client.v1.executions.Commands/Create",
-    "/dokime.client.v1.executions.Commands/Get",
-    "/dokime.client.v1.executions.Progress/Get",
-    "/dokime.client.v1.executions.Progress/Watch",
-    "/dokime.client.v1.media.Captures/Create",
-    "/dokime.client.v1.media.Captures/Get",
-    "/dokime.client.v1.media.Captures/Stop",
-    "/dokime.client.v1.media.Captures/Watch",
-    "/dokime.client.v1.plots.Settings/Get",
-    "/dokime.client.v1.plots.Settings/Set",
-    "/dokime.client.v1.plots.Snapshots/List",
-    "/dokime.client.v1.plots.Snapshots/Watch",
-    "/dokime.client.v1.plugins.Settings/Get",
-    "/dokime.client.v1.plugins.Settings/Set",
-    "/dokime.client.v1.prompts.Answers/Create",
-    "/dokime.client.v1.storage.Sources/Get",
-    "/dokime.client.v1.storage.Sources/Set",
+    "/dokime.host.v1.Files/Get",
+    "/dokime.host.v1.Files/Read",
+    "/dokime.host.v1.Files/Delete",
+    "/dokime.host.v1.files.Uploads/Create",
+    "/dokime.host.v1.files.Uploads/Get",
+    "/dokime.host.v1.files.Uploads/Resume",
+    "/dokime.host.v1.files.Uploads/Append",
+    "/dokime.host.v1.files.Uploads/Publish",
+    "/dokime.host.v1.files.Uploads/Delete",
+    "/dokime.host.v1.Files/Watch",
+    "/dokime.host.v1.Aggregates/Get",
+    "/dokime.host.v1.Backend/Appearance",
+    "/dokime.host.v1.Cases/Create",
+    "/dokime.host.v1.Cases/Delete",
+    "/dokime.host.v1.Cases/Get",
+    "/dokime.host.v1.Cases/List",
+    "/dokime.host.v1.Cases/Parameters",
+    "/dokime.host.v1.Cases/Watch",
+    "/dokime.host.v1.Analyses/List",
+    "/dokime.host.v1.Cycles/Create",
+    "/dokime.host.v1.Cycles/Get",
+    "/dokime.host.v1.Cycles/List",
+    "/dokime.host.v1.Cycles/Seal",
+    "/dokime.host.v1.Cycles/Set",
+    "/dokime.host.v1.Cycles/Watch",
+    "/dokime.host.v1.Documents/Get",
+    "/dokime.host.v1.Documents/Watch",
+    "/dokime.host.v1.Evidence/Archive",
+    "/dokime.host.v1.Evidence/Statistics",
+    "/dokime.host.v1.Executions/Cancel",
+    "/dokime.host.v1.Executions/Create",
+    "/dokime.host.v1.Executions/Delete",
+    "/dokime.host.v1.Executions/Get",
+    "/dokime.host.v1.executions.Schemas/Get",
+    "/dokime.host.v1.Executions/List",
+    "/dokime.host.v1.Executions/Parameters",
+    "/dokime.host.v1.Executions/Set",
+    "/dokime.host.v1.Executions/Start",
+    "/dokime.host.v1.Executions/Steps",
+    "/dokime.host.v1.Executions/Stop",
+    "/dokime.host.v1.Executions/Watch",
+    "/dokime.host.v1.Plugins/Add",
+    "/dokime.host.v1.Plugins/GetInstallation",
+    "/dokime.host.v1.Plugins/Install",
+    "/dokime.host.v1.Plugins/List",
+    "/dokime.host.v1.Plugins/ListAdmittedPlugins",
+    "/dokime.host.v1.Plugins/ListInstallations",
+    "/dokime.host.v1.Plugins/Reload",
+    "/dokime.host.v1.Plugins/Remove",
+    "/dokime.host.v1.Plugins/SetEnabled",
+    "/dokime.host.v1.Prompts/Get",
+    "/dokime.host.v1.Prompts/List",
+    "/dokime.host.v1.Prompts/Watch",
+    "/dokime.host.v1.Reports/Create",
+    "/dokime.host.v1.Reports/Get",
+    "/dokime.host.v1.Reports/Publish",
+    "/dokime.host.v1.Secrets/Delete",
+    "/dokime.host.v1.Secrets/Export",
+    "/dokime.host.v1.Secrets/Get",
+    "/dokime.host.v1.Secrets/Import",
+    "/dokime.host.v1.Secrets/List",
+    "/dokime.host.v1.Secrets/Set",
+    "/dokime.host.v1.Secrets/Watch",
+    "/dokime.host.v1.Settings/Get",
+    "/dokime.host.v1.Settings/Schema",
+    "/dokime.host.v1.Settings/Set",
+    "/dokime.host.v1.backend.Overview/Get",
+    "/dokime.host.v1.backend.Overview/Watch",
+    "/dokime.host.v1.PromptDefinitions/Get",
+    "/dokime.host.v1.PromptDefinitions/List",
+    "/dokime.host.v1.RecordSchemas/Get",
+    "/dokime.host.v1.RecordSchemas/List",
+    "/dokime.host.v1.StreamSchemas/Get",
+    "/dokime.host.v1.StreamSchemas/List",
+    "/dokime.host.v1.Suites/Get",
+    "/dokime.host.v1.Suites/List",
+    "/dokime.host.v1.content.Artifacts/Create",
+    "/dokime.host.v1.content.Artifacts/Get",
+    "/dokime.host.v1.content.Artifacts/List",
+    "/dokime.host.v1.content.Artifacts/Watch",
+    "/dokime.host.v1.content.ExecutionFiles/Get",
+    "/dokime.host.v1.content.ExecutionFiles/List",
+    "/dokime.host.v1.content.ExecutionFiles/Watch",
+    "/dokime.host.v1.evidence.HealthEvents/List",
+    "/dokime.host.v1.evidence.HealthEvents/Watch",
+    "/dokime.host.v1.evidence.Notes/Create",
+    "/dokime.host.v1.evidence.Notes/Get",
+    "/dokime.host.v1.evidence.Notes/List",
+    "/dokime.host.v1.evidence.Notes/Set",
+    "/dokime.host.v1.evidence.Notes/Watch",
+    "/dokime.host.v1.evidence.Records/List",
+    "/dokime.host.v1.evidence.Records/Watch",
+    "/dokime.host.v1.evidence.Samples/List",
+    "/dokime.host.v1.evidence.Samples/Watch",
+    "/dokime.host.v1.evidence.Traceability/Get",
+    "/dokime.host.v1.evidence.Traceability/Watch",
+    "/dokime.host.v1.executions.Commands/Create",
+    "/dokime.host.v1.executions.Commands/Get",
+    "/dokime.host.v1.executions.Progress/Get",
+    "/dokime.host.v1.executions.Progress/Watch",
+    "/dokime.host.v1.media.Captures/Create",
+    "/dokime.host.v1.media.Captures/Get",
+    "/dokime.host.v1.media.Captures/Stop",
+    "/dokime.host.v1.media.Captures/Watch",
+    "/dokime.host.v1.plots.Settings/Get",
+    "/dokime.host.v1.plots.Settings/Set",
+    "/dokime.host.v1.plots.Snapshots/List",
+    "/dokime.host.v1.plots.Snapshots/Watch",
+    "/dokime.host.v1.plugins.Settings/Get",
+    "/dokime.host.v1.plugins.Settings/Set",
+    "/dokime.host.v1.prompts.Answers/Create",
+    "/dokime.host.v1.storage.Sources/Get",
+    "/dokime.host.v1.storage.Sources/Set",
 ];
 
 /* === Macros === */
@@ -281,7 +282,9 @@ pub trait Host: Send + Sync {
     fn retain_report(&self, file: File, reference: FileReference) -> Result<()>;
     fn temporary_report(&self, identifier: &str) -> Result<Option<(File, FileReference)>>;
     fn publish_report(&self, prepared: Report) -> Result<Report>;
-    async fn analyze(&self, plugin: &str, operation: &str, request: v1::AnalysisRequest) -> Result<v1::AnalysisResponse>;
+    async fn analyze(
+        &self, plugin: &str, operation: &str, request: dokime_protocol::plugin::AnalysesComputeRequest,
+    ) -> Result<dokime_protocol::plugin::AnalysesComputeResponse>;
     async fn add_remote(&self, url: &str) -> Result<Plugin>;
     fn plugins(&self) -> Result<Vec<Plugin>>;
     async fn refresh_plugin_states(&self) -> Result<()>;
@@ -291,9 +294,11 @@ pub trait Host: Send + Sync {
     async fn set_plugin_enabled(&self, identifier: &str, enabled: bool) -> Result<PluginInstallation>;
     async fn remove_plugin_entry(&self, identifier: &str) -> Result<()>;
     async fn reload_plugin_entry(&self, identifier: &str) -> Result<()>;
-    fn suites(&self) -> Result<Vec<(String, v1::Suite)>>;
-    async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, v1::Value>) -> Result<v1::Origin>;
-    async fn start(&self, origins: Vec<v1::Origin>) -> Result<StartedCycle>;
+    fn suites(&self) -> Result<Vec<(String, dokime_protocol::model::Suite)>>;
+    async fn materialize(
+        &self, plugin: &str, template: &str, parameters: HashMap<String, dokime_protocol::model::Value>,
+    ) -> Result<dokime_protocol::model::Origin>;
+    async fn start(&self, origins: Vec<dokime_protocol::model::Origin>) -> Result<StartedCycle>;
     fn progress(&self, execution: &str) -> Result<watch::Receiver<Progress>>;
     fn pending(&self) -> Result<Vec<(String, PromptsCreateRequest)>>;
     fn answer(&self, execution: &str, answer: PromptsCreateResponse) -> Result<()>;
@@ -323,7 +328,7 @@ pub async fn complete<T>(action: &str, timeout: Duration, work: impl Future<Outp
         Err(_) => Err(Error::Deadline(action.into())),
     }
 }
-pub(super) fn page_size(requested: u32, configured: usize) -> Result<usize> {
+pub(crate) fn page_size(requested: u32, configured: usize) -> Result<usize> {
     let maximum = MAX_PAGE_ITEMS.min(configured);
     if requested as usize > maximum {
         return Err(Error::Invalid(format!("List: Request at Most {maximum} Items and Follow the Returned Cursor")));
@@ -332,6 +337,7 @@ pub(super) fn page_size(requested: u32, configured: usize) -> Result<usize> {
 }
 pub fn status(error: Error) -> Status {
     match error {
+        Error::Permission(message) => Status::permission_denied(message),
         Error::Deadline(action) => Status::deadline_exceeded(format!("{action}: Operation Deadline Expired")),
         Error::NotFound(message) => Status::not_found(message),
         Error::Precondition(message) => Status::failed_precondition(message),

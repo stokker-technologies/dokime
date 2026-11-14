@@ -18,16 +18,17 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
 use crate::{Resources, Result};
-use dokime_protocol::{context::evidence::TraceabilitySetRequest, context::evidence::TraceabilitySetResponse};
+use dokime_protocol::host::evidence::TraceabilitySetRequest;
+use dokime_protocol::host::evidence::TraceabilitySetResponse;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.plugin.host.v1.evidence.Traceability/Set";
+pub const ID: &str = "dokime.host.v1.evidence.Traceability/Set";
 
 /* === Macros === */
 
@@ -86,10 +87,10 @@ pub async fn handle(resources: &Resources, request: TraceabilitySetRequest) -> R
 
 /* === Private Functions === */
 
-fn valid_value(value: &dokime_protocol::v1::Value) -> bool {
+fn valid_value(value: &dokime_protocol::model::Value) -> bool {
     match &value.kind {
         None => false,
-        Some(dokime_protocol::v1::value::Kind::List(values)) => values.values.iter().all(valid_value),
+        Some(dokime_protocol::model::value::Kind::List(values)) => values.values.iter().all(valid_value),
         Some(_) => true,
     }
 }

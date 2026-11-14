@@ -31,7 +31,7 @@ use crate::{Error, Result};
 
 /* === Constants === */
 
-use dokime_operations::client::plugins_install::BUNDLE_BYTES;
+use dokime_operations::host::plugins_install::BUNDLE_BYTES;
 const BUNDLE_FILES: usize = 4096;
 const MANIFEST_BYTES: usize = 16777216;
 
@@ -71,7 +71,7 @@ struct Compatibility {
     requires_dokime: semver::VersionReq,
 }
 pub(super) struct Bundle {
-    pub metadata: dokime_protocol::client::PluginMetadata,
+    pub metadata: dokime_protocol::host::PluginMetadata,
     pub executable: PathBuf,
     pub files: BTreeMap<String, Vec<u8>>,
 }
@@ -168,8 +168,8 @@ impl Bundle {
         }
         let executable = PathBuf::from(&executables[0].path);
         Ok(Self {
-            metadata: dokime_protocol::client::PluginMetadata {
-                identity: Some(dokime_protocol::client::PluginIdentity {
+            metadata: dokime_protocol::host::PluginMetadata {
+                identity: Some(dokime_protocol::host::PluginIdentity {
                     name: manifest.identity.name,
                     version: manifest.identity.version,
                     description: manifest.identity.description,

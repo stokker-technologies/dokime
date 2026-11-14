@@ -18,14 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 
 // Local Imports
-use crate::{Error, Result, client::Context};
+use crate::{Error, Result, host::Context};
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.StreamSchemas/Get";
+pub const ID: &str = "dokime.host.v1.StreamSchemas/Get";
 
 /* === Macros === */
 
@@ -41,22 +41,22 @@ pub const ID: &str = "dokime.client.v1.StreamSchemas/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::StreamSchemasGetRequest, dokime_protocol::client::StreamSchemasGetResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::StreamSchemasGetRequest, dokime_protocol::host::StreamSchemasGetResponse>(
         ID,
         settings.read_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::StreamSchemasGetRequest,
-) -> Result<dokime_protocol::client::StreamSchemasGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
+    context: &Context, request: dokime_protocol::host::StreamSchemasGetRequest,
+) -> Result<dokime_protocol::host::StreamSchemasGetResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
         if request.schema_version != 0 && request.schema_version != 1 {
             return Err(Error::Invalid("Get Stream Schema: Select Schema Version 1".into()));
         }
-        let reply = super::catalog_stream_schemas_list::handle(
+        let reply = crate::host::stream_schemas::list::handle(
             context,
-            dokime_protocol::client::StreamSchemasListRequest { parent: request.parent, at: request.at },
+            dokime_protocol::host::StreamSchemasListRequest { parent: request.parent, at: request.at },
         )
         .await?;
         let value = reply
@@ -64,7 +64,7 @@ pub async fn handle(
             .into_iter()
             .find(|value| value.stream == request.name)
             .ok_or_else(|| Error::NotFound("Get StreamSchemas: Select a Declared Identifier".into()))?;
-        Ok(dokime_protocol::client::StreamSchemasGetResponse {
+        Ok(dokime_protocol::host::StreamSchemasGetResponse {
             value: Some(value),
             resolved_at: reply.resolved_at,
         })

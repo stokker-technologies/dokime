@@ -18,16 +18,16 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1 as h;
+use harmos_protocol::model as h;
 use prost::Message;
 
 // Local Imports
-use crate::{Result, client::Context};
-use dokime_protocol::v1;
+use crate::{Result, host::Context};
+use dokime_protocol::model;
 
 /* === Constants === */
 
-pub const ID: &str = "dokime.client.v1.Executions/Get";
+pub const ID: &str = "dokime.host.v1.Executions/Get";
 
 /* === Macros === */
 
@@ -43,28 +43,28 @@ pub const ID: &str = "dokime.client.v1.Executions/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &super::ClientSettings) -> Result<h::OperationContract> {
-    super::declaration::<dokime_protocol::client::ExecutionsGetRequest, dokime_protocol::client::ExecutionsGetResponse>(
+pub fn declaration(settings: &crate::host::ClientSettings) -> Result<h::OperationContract> {
+    crate::host::declaration::<dokime_protocol::host::ExecutionsGetRequest, dokime_protocol::host::ExecutionsGetResponse>(
         ID,
         settings.read_timeout,
     )
 }
 pub async fn handle(
-    context: &Context, request: dokime_protocol::client::ExecutionsGetRequest,
-) -> Result<dokime_protocol::client::ExecutionsGetResponse> {
-    super::complete(ID, context.settings.read_timeout, async {
+    context: &Context, request: dokime_protocol::host::ExecutionsGetRequest,
+) -> Result<dokime_protocol::host::ExecutionsGetResponse> {
+    crate::host::complete(ID, context.settings.read_timeout, async {
         let progress = context.host.store().resource_value(&request.name, "progress", request.at.as_ref())?;
-        let execution = super::execution_state::detail(context, &request.name)?;
-        let value = dokime_protocol::client::ExecutionWritable {
+        let execution = crate::host::execution_state::detail(context, &request.name)?;
+        let value = dokime_protocol::host::ExecutionWritable {
             label: context.host.store().execution_presentation(&request.name)?.1,
             paused: execution.controls.as_ref().is_some_and(|controls| controls.paused),
             archived: execution.summary.as_ref().is_some_and(|summary| summary.archived),
         };
-        let revision = super::paging::bytes(&value);
-        Ok(dokime_protocol::client::ExecutionsGetResponse {
+        let revision = crate::host::paging::bytes(&value);
+        Ok(dokime_protocol::host::ExecutionsGetResponse {
             value: Some(value),
             revision,
-            progress: Some(v1::ExecutionProgressValue::decode(progress.payload.as_slice())?),
+            progress: Some(dokime_protocol::model::ExecutionProgressValue::decode(progress.payload.as_slice())?),
             execution: Some(execution),
             resolved_at: Some(progress.resolved_at),
         })

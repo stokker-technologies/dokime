@@ -21,7 +21,7 @@ use std::collections::HashMap;
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::v1;
+use dokime_protocol::model;
 use dokime_runtime::{Host, PluginProcess};
 use dokime_storage::{ExecutionState, OutcomeCounts};
 
@@ -70,8 +70,8 @@ async fn cpp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std::e
             // Materialize the Complete Frozen Case and Await the Door Event
             let parameters = HashMap::from([(
                 "limit".into(),
-                v1::Value {
-                    kind: Some(v1::value::Kind::Number(85.0)),
+                dokime_protocol::model::Value {
+                    kind: Some(dokime_protocol::model::value::Kind::Number(85.0)),
                 },
             )]);
             let origin = host.materialize(&entry, "thermal.cycle", parameters).await?;
@@ -80,7 +80,7 @@ async fn cpp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std::e
             let prompt = host.next_prompt(&execution).await?;
             host.answer(
                 &execution,
-                dokime_protocol::context::PromptsCreateResponse {
+                dokime_protocol::host::PromptsCreateResponse {
                     prompt: prompt.prompt,
                     action: "yes".into(),
                     accepted: true,
@@ -90,14 +90,14 @@ async fn cpp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn std::e
             let result = cycle.wait().await?;
             let snapshot = result.executions[0].clone();
             assert_eq!(snapshot.state, ExecutionState::Sealed);
-            assert_eq!(snapshot.execution.termination, v1::Termination::Completed as i32);
+            assert_eq!(snapshot.execution.termination, dokime_protocol::model::Termination::Completed as i32);
             assert_eq!(
                 result.counts,
                 OutcomeCounts {
                     evaluated: 1,
                     not_evaluated: 0,
                     declared: 0,
-                    verdict: Some(v1::ResultStatus::Passed)
+                    verdict: Some(dokime_protocol::host::ResultStatus::Passed)
                 }
             );
             assert_eq!(snapshot.samples.len(), 3);

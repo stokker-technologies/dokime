@@ -37,22 +37,26 @@ use super::Services;
 /* === Implementations === */
 
 #[tonic::async_trait]
-impl dokime_protocol::client::evidence::records_server::Records for Services {
+impl dokime_protocol::host::evidence::records_server::Records for Services {
     async fn list(
-        &self, request: tonic::Request<dokime_protocol::client::evidence::RecordsListRequest>,
-    ) -> Result<tonic::Response<dokime_protocol::client::evidence::RecordsListResponse>, tonic::Status> {
-        let reply = dokime_operations::client::evidence_records_list::handle(&self.context, request.into_inner())
+        &self, request: tonic::Request<dokime_protocol::host::evidence::RecordsListRequest>,
+    ) -> Result<tonic::Response<dokime_protocol::host::evidence::RecordsListResponse>, tonic::Status> {
+        dokime_operations::authorize("dokime.host.v1.evidence.Records/List", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::evidence::records::list::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
-    type WatchStream = dokime_operations::client::Output<dokime_protocol::client::evidence::RecordsWatchResponse>;
+    type WatchStream = dokime_operations::host::Output<dokime_protocol::host::evidence::RecordsWatchResponse>;
     async fn watch(
-        &self, request: tonic::Request<dokime_protocol::client::evidence::RecordsWatchRequest>,
+        &self, request: tonic::Request<dokime_protocol::host::evidence::RecordsWatchRequest>,
     ) -> Result<tonic::Response<Self::WatchStream>, tonic::Status> {
-        let reply = dokime_operations::client::evidence_records_watch::handle(&self.context, request.into_inner())
+        dokime_operations::authorize("dokime.host.v1.evidence.Records/Watch", harmos_protocol::model::Callers::Clients)
+            .map_err(dokime_operations::host::status)?;
+        let reply = dokime_operations::host::evidence::records::watch::handle(&self.context, request.into_inner())
             .await
-            .map_err(dokime_operations::client::status)?;
+            .map_err(dokime_operations::host::status)?;
         Ok(tonic::Response::new(reply))
     }
 }

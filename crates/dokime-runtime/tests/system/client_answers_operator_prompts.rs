@@ -56,14 +56,14 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = tonic::transport::Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = HostClient::new(channel.clone(), super::support::client_settings())?;
-        let mut prompts = dokime_protocol::client::prompts_client::PromptsClient::new(channel.clone());
-        let mut answers = dokime_protocol::client::prompts::answers_client::AnswersClient::new(channel.clone());
-        let mut definitions = dokime_protocol::client::prompt_definitions_client::PromptDefinitionsClient::new(channel.clone());
+        let mut prompts = dokime_protocol::host::prompts_client::PromptsClient::new(channel.clone());
+        let mut answers = dokime_protocol::host::prompts::answers_client::AnswersClient::new(channel.clone());
+        let mut definitions = dokime_protocol::host::prompt_definitions_client::PromptDefinitionsClient::new(channel.clone());
         client.plugins.add(plugin.endpoint()).await?;
-        let catalog = definitions.list(dokime_protocol::client::PromptDefinitionsListRequest::default()).await?.into_inner();
+        let catalog = definitions.list(dokime_protocol::host::PromptDefinitionsListRequest::default()).await?.into_inner();
         assert_eq!(catalog.values.len(), 1);
         let definition = definitions
-            .get(dokime_protocol::client::PromptDefinitionsGetRequest {
+            .get(dokime_protocol::host::PromptDefinitionsGetRequest {
                 name: "thermal.door".into(),
                 ..Default::default()
             })
@@ -74,7 +74,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         assert_eq!(definition.metadata.as_ref().unwrap().identifier, catalog.values[0].metadata.as_ref().unwrap().identifier);
         assert_eq!(
             definitions
-                .get(dokime_protocol::client::PromptDefinitionsGetRequest {
+                .get(dokime_protocol::host::PromptDefinitionsGetRequest {
                     name: "missing".into(),
                     ..Default::default()
                 })
@@ -85,7 +85,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         );
         let cases = client.templates.materialize("thermal", "thermal.cycle", std::collections::HashMap::new()).await?;
         let mut repeated_origin = cases[0].origin.clone().unwrap();
-        if let Some(v1::origin::Kind::PluginRun(run)) = repeated_origin.kind.as_mut() {
+        if let Some(model::origin::Kind::PluginRun(run)) = repeated_origin.kind.as_mut() {
             run.test_case.as_mut().unwrap().steps[1].repeatable = true;
         }
         let cycle = client.cycles.start(cases).await?;
@@ -97,7 +97,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
             }
         }
         let pending = prompts
-            .list(dokime_protocol::client::PromptsListRequest {
+            .list(dokime_protocol::host::PromptsListRequest {
                 execution_id: Some(execution.clone()),
                 pending_only: true,
                 ..Default::default()
@@ -108,7 +108,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         let prompt_id = pending.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
         assert!(
             prompts
-                .list(dokime_protocol::client::PromptsListRequest {
+                .list(dokime_protocol::host::PromptsListRequest {
                     execution_id: Some("another".into()),
                     pending_only: true,
                     ..Default::default()
@@ -120,7 +120,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         );
         assert!(
             answers
-                .create(dokime_protocol::client::prompts::AnswersCreateRequest {
+                .create(dokime_protocol::host::prompts::AnswersCreateRequest {
                     parent: prompt_id.clone(),
                     action: "unknown".into(),
                     accepted: true,
@@ -132,7 +132,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         );
         assert!(
             prompts
-                .get(dokime_protocol::client::PromptsGetRequest {
+                .get(dokime_protocol::host::PromptsGetRequest {
                     name: prompt_id.clone(),
                     ..Default::default()
                 })
@@ -143,7 +143,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
                 .response
                 .is_none()
         );
-        let request = dokime_protocol::client::prompts::AnswersCreateRequest {
+        let request = dokime_protocol::host::prompts::AnswersCreateRequest {
             parent: prompt_id.clone(),
             action: "yes".into(),
             accepted: true,
@@ -155,7 +155,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         assert_eq!(receipt.answer.as_ref().unwrap().prompt_id, prompt_id);
         while watch.next().await?.is_some() {}
         let answered = prompts
-            .get(dokime_protocol::client::PromptsGetRequest {
+            .get(dokime_protocol::host::PromptsGetRequest {
                 name: prompt_id.clone(),
                 ..Default::default()
             })
@@ -166,7 +166,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         assert!(answered.response.as_ref().unwrap().accepted);
         assert!(
             answers
-                .create(dokime_protocol::client::prompts::AnswersCreateRequest {
+                .create(dokime_protocol::host::prompts::AnswersCreateRequest {
                     parent: prompt_id.clone(),
                     action: "no".into(),
                     request_id: "another-answer".into(),
@@ -177,7 +177,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         );
         assert!(
             prompts
-                .list(dokime_protocol::client::PromptsListRequest { pending_only: true, ..Default::default() })
+                .list(dokime_protocol::host::PromptsListRequest { pending_only: true, ..Default::default() })
                 .await?
                 .into_inner()
                 .prompts
@@ -185,9 +185,9 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         );
 
         // Repeated Questions Keep Distinct Identities and Durable Answers.
-        let mut cycles = dokime_protocol::client::cycles_client::CyclesClient::new(channel.clone());
+        let mut cycles = dokime_protocol::host::cycles_client::CyclesClient::new(channel.clone());
         let admitted = cycles
-            .create(dokime_protocol::client::CyclesCreateRequest {
+            .create(dokime_protocol::host::CyclesCreateRequest {
                 origins: vec![repeated_origin],
                 request_id: "repeat-cycle".into(),
                 ..Default::default()
@@ -195,9 +195,9 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
             .await?
             .into_inner();
         let parent = admitted.cycle.unwrap().cycle_id;
-        let mut executions = dokime_protocol::client::executions_client::ExecutionsClient::new(channel.clone());
+        let mut executions = dokime_protocol::host::executions_client::ExecutionsClient::new(channel.clone());
         let repeated =
-            executions.list(dokime_protocol::client::ExecutionsListRequest { parent, ..Default::default() }).await?.into_inner().executions
+            executions.list(dokime_protocol::host::ExecutionsListRequest { parent, ..Default::default() }).await?.into_inner().executions
                 [0]
             .summary
             .as_ref()
@@ -205,30 +205,30 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
             .execution_id
             .clone();
         executions
-            .start(dokime_protocol::client::ExecutionsStartRequest {
+            .start(dokime_protocol::host::ExecutionsStartRequest {
                 name: repeated.clone(),
                 request_id: "interactive".into(),
-                mode: dokime_protocol::client::ExecutionMode::Interactive as i32,
+                mode: dokime_protocol::host::ExecutionMode::Interactive as i32,
             })
             .await?;
-        let mut runtime = dokime_protocol::client::backend::overview_client::OverviewClient::new(channel.clone())
-            .watch(dokime_protocol::client::backend::OverviewWatchRequest::default())
+        let mut runtime = dokime_protocol::host::backend::overview_client::OverviewClient::new(channel.clone())
+            .watch(dokime_protocol::host::backend::OverviewWatchRequest::default())
             .await?
             .into_inner();
         runtime.message().await?.unwrap();
-        let mut commands = dokime_protocol::client::executions::commands_client::CommandsClient::new(channel.clone());
-        let mut progress = dokime_protocol::client::executions::progress_client::ProgressClient::new(channel)
-            .watch(dokime_protocol::client::executions::ProgressWatchRequest { name: repeated.clone(), at: None })
+        let mut commands = dokime_protocol::host::executions::commands_client::CommandsClient::new(channel.clone());
+        let mut progress = dokime_protocol::host::executions::progress_client::ProgressClient::new(channel)
+            .watch(dokime_protocol::host::executions::ProgressWatchRequest { name: repeated.clone(), at: None })
             .await?
             .into_inner();
         let mut questions = Vec::new();
         for command in ["first-question", "second-question"] {
             commands
-                .create(dokime_protocol::client::executions::CommandsCreateRequest {
+                .create(dokime_protocol::host::executions::CommandsCreateRequest {
                     parent: repeated.clone(),
                     request_id: command.into(),
                     command_id: command.into(),
-                    action: dokime_protocol::client::executions::ExecutionCommandAction::RunStep as i32,
+                    action: dokime_protocol::host::executions::ExecutionCommandAction::RunStep as i32,
                     step_id: Some("hold".into()),
                 })
                 .await?;
@@ -244,7 +244,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
             questions.push(question);
             loop {
                 let saved = commands
-                    .get(dokime_protocol::client::executions::CommandsGetRequest {
+                    .get(dokime_protocol::host::executions::CommandsGetRequest {
                         parent: repeated.clone(),
                         name: command.into(),
                         ..Default::default()
@@ -253,7 +253,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
                     .into_inner()
                     .command
                     .unwrap();
-                if saved.phase == dokime_protocol::client::executions::ExecutionCommandPhase::Completed as i32 {
+                if saved.phase == dokime_protocol::host::executions::ExecutionCommandPhase::Completed as i32 {
                     break;
                 }
                 runtime.message().await?.unwrap();
@@ -263,7 +263,7 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
             assert!(client.prompts.get(question).await?.prompt.unwrap().response.unwrap().accepted);
         }
         executions
-            .stop(dokime_protocol::client::ExecutionsStopRequest {
+            .stop(dokime_protocol::host::ExecutionsStopRequest {
                 name: repeated,
                 request_id: "stop".into(),
             })
@@ -272,9 +272,9 @@ async fn client_answers_operator_prompts() -> Result<(), Box<dyn std::error::Err
         drop(runtime);
         process.close().await?;
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let mut prompts = dokime_protocol::client::prompts_client::PromptsClient::connect(process.url.clone()).await?;
+        let mut prompts = dokime_protocol::host::prompts_client::PromptsClient::connect(process.url.clone()).await?;
         let reopened = prompts
-            .get(dokime_protocol::client::PromptsGetRequest { name: prompt_id, ..Default::default() })
+            .get(dokime_protocol::host::PromptsGetRequest { name: prompt_id, ..Default::default() })
             .await?
             .into_inner()
             .prompt

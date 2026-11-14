@@ -30,8 +30,9 @@ use std::{collections::HashMap, error::Error, path::PathBuf};
 // Third Party Imports
 
 // Local Imports
-use dokime::client::ClientSettings;
-use dokime_protocol::{context::PromptsCreateRequest, v1::Value};
+use dokime::host::ClientSettings;
+use dokime_protocol::host::PromptsCreateRequest;
+use dokime_protocol::model::Value;
 use dokime_runtime::{Host, Result as HostResult};
 
 /* === Constants === */
@@ -120,7 +121,8 @@ pub fn secrets_fixture() -> Result<PathBuf, Box<dyn Error>> {
     Ok(path)
 }
 pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> HashMap<String, Value> {
-    use dokime_protocol::v1::{Value, value::Kind};
+    use dokime_protocol::model::Value;
+    use dokime_protocol::model::value::Kind;
     std::collections::HashMap::from([
         ("value".into(), Value { kind: Some(Kind::Number(value)) }),
         (
@@ -135,7 +137,7 @@ pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> HashMap<Str
 pub fn answer(host: &Host, execution: &str, prompt: PromptsCreateRequest) -> HostResult<()> {
     host.answer(
         execution,
-        dokime_protocol::context::PromptsCreateResponse {
+        dokime_protocol::host::PromptsCreateResponse {
             prompt: prompt.prompt,
             accepted: true,
             action: "continue".into(),
@@ -176,8 +178,8 @@ pub fn python() -> PathBuf {
 
 pub fn client_settings() -> ClientSettings {
     let bounds = settings();
-    dokime::client::ClientSettings {
-        transfer: harmos_protocol::storage::StorageTransferSettings { chunk_bytes: Some(1024) },
+    dokime::host::ClientSettings {
+        transfer: harmos_protocol::model::StorageTransferSettings { chunk_bytes: Some(1024) },
         retained_bytes: bounds.placement.message_bytes,
         message_bytes: bounds.placement.message_bytes,
         input_items: bounds.placement.stream_window,

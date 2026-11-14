@@ -25,10 +25,13 @@ use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime::{client::HostClient, v1};
-use dokime_protocol::client::{
-    PluginState, SecretWritable, SecretsDeleteRequest, SecretsGetRequest, SecretsListRequest, SecretsSetRequest,
-    secrets_client::SecretsClient,
-};
+use dokime_protocol::host::PluginState;
+use dokime_protocol::host::SecretWritable;
+use dokime_protocol::host::SecretsDeleteRequest;
+use dokime_protocol::host::SecretsGetRequest;
+use dokime_protocol::host::SecretsListRequest;
+use dokime_protocol::host::SecretsSetRequest;
+use dokime_protocol::host::secrets_client::SecretsClient;
 use dokime_runtime::PluginProcess;
 
 /* === Constants === */
@@ -62,8 +65,8 @@ async fn read(client: &HostClient, plugin: &str, identifier: &str) -> Result<Rea
     // Materialize the Requested Identifier and Execute the Plugin's Read
     let parameters = HashMap::from([(
         "identifier".into(),
-        vec![v1::Value {
-            kind: Some(v1::value::Kind::Text(identifier.into())),
+        vec![dokime_protocol::model::Value {
+            kind: Some(model::value::Kind::Text(identifier.into())),
         }],
     )]);
     let cases = client.templates.materialize(plugin, format!("{plugin}.read"), parameters).await?;
@@ -117,7 +120,7 @@ async fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
                 .set(SecretsSetRequest {
                     name: identifier.into(),
                     value: Some(SecretWritable {
-                        metadata: Some(v1::Metadata {
+                        metadata: Some(dokime_protocol::model::Metadata {
                             identifier: identifier.into(),
                             label: "Fixture Secret".into(),
                             ..Default::default()
