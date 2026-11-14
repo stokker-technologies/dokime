@@ -43,13 +43,13 @@ use dokime_protocol::model::Reduction;
 use dokime_storage::{BatchSelection, ExecutionState, KindWindow, NumericWindow, Result, SampleWindow, Store, storage_defaults};
 
 use dokime_protocol::host::ExecutionOutcome;
-use dokime_protocol::host::ExecutionsDeleteResponse;
 use dokime_protocol::host::UnevaluatedOutcome;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::plots::PlotRequest;
 use dokime_protocol::model::Aggregate;
 use dokime_protocol::model::AggregateExpression;
+use dokime_protocol::model::ExactNumber;
 use dokime_protocol::model::Metadata;
 use dokime_protocol::model::RecordContract;
 use dokime_protocol::model::RecordContracts;
@@ -60,7 +60,6 @@ use dokime_protocol::model::data_expression;
 use dokime_protocol::model::transform_expression;
 use dokime_protocol::model::value;
 use harmos_protocol::model::Declarations;
-use harmos_storage::ExactNumber;
 
 /* === Constants === */
 
@@ -527,77 +526,6 @@ async fn configured_clock_flushes_without_waiting_for_wall_time() -> Result<()> 
     Ok(())
 }
 
-#[tokio::test]
-async fn pinned_native_arrow_pages_keep_their_saved_cut() -> Result<()> {
-    use harmos_storage::query::columnar::{ArrowScan, Cancellation, ColumnKind, ColumnSource};
-    use harmos_storage::{PayloadEncoding, ReadLimits, SchemaKey, StorageBackend};
-    let root = tempfile::tempdir()?;
-    let store = Store::open(root.path())?;
-    store.create(&fixture::execution())?;
-    store.open_stream("execution", "readings")?;
-    store.sample_batch("execution", &fixture::samples(23))?;
-    store.flush_samples()?;
-    let backend = dokime_storage::Backend::for_execution(store.clone(), "execution")?;
-    let saved = backend.get_saved_position().await?;
-    let snapshot = backend.create_snapshot(&saved).await?;
-    store.sample_batch("execution", &fixture::samples(10))?;
-    store.flush_samples()?;
-    let mut scan = ArrowScan {
-        source: ColumnSource {
-            kind: ColumnKind::Stream,
-            schema: SchemaKey {
-                id: harmos_storage::Identifier::new("readings").unwrap(),
-                version: 1.try_into().unwrap(),
-                payload_encoding: PayloadEncoding::PostcardV1,
-            },
-        },
-        columns: vec!["values.value".into()],
-        predicate: None,
-        time: None,
-        start: 0,
-        after: None,
-        limits: ReadLimits {
-            rows: NonZeroUsize::new(7).unwrap(),
-            bytes: NonZeroUsize::new(4096).unwrap(),
-        },
-        work: ReadLimits {
-            rows: NonZeroUsize::new(10).unwrap(),
-            bytes: NonZeroUsize::new(4096).unwrap(),
-        },
-    };
-    let cancel = Cancellation::default();
-    let version = scan.source.schema.version;
-    scan.source.schema.version = (version.get() + 1).try_into().unwrap();
-    assert!(backend.list_column_rows(&snapshot, &scan, &cancel).await.is_err());
-    scan.source.schema.version = version;
-    let mut changed = snapshot.clone();
-    changed.at.sequence += 1;
-    assert!(backend.list_column_rows(&changed, &scan, &cancel).await.is_err());
-    assert!(backend.delete_snapshot(&changed).await.is_err());
-    let mut values = Vec::new();
-    loop {
-        let page = backend.list_column_rows(&snapshot, &scan, &cancel).await?;
-        let column = page.batch.column(0).as_any().downcast_ref::<UInt64Array>().unwrap();
-        values.extend(column.values().iter().copied());
-        if page.complete {
-            break;
-        }
-        scan.after = page.next;
-    }
-    assert_eq!(values, (0..23).collect::<Vec<_>>());
-    store.close_streams("execution")?;
-    store.close("execution", Termination::Completed, ExecutionOutcome::default())?;
-    store.seal("execution")?;
-    let seal = store.cut("execution")?.seal;
-    let response = ExecutionsDeleteResponse::default();
-    assert!(store.delete_sealed_execution("delete", "execution", &seal, &response).is_err());
-    backend.delete_snapshot(&snapshot).await?;
-    store.delete_sealed_execution("delete", "execution", &seal, &response)?;
-    assert_eq!(std::fs::read_dir(root.path().join("telemetry"))?.count(), 0);
-    assert!(backend.list_column_rows(&snapshot, &scan, &cancel).await.is_err());
-    backend.delete_session().await?;
-    Ok(())
-}
 #[test]
 fn rejected_rebuilt_root_preserves_its_database() -> Result<()> {
     let root = tempfile::tempdir()?;

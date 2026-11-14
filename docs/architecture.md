@@ -535,9 +535,9 @@ still refuses. Numeric frame expressions denote source-time seconds; returned
 frame instants are canonical timestamps, including for playback.
 Frame reduction retains typed source-time keys and formats only the bounded
 returned instants; walking a long history does not allocate timestamp text per row.
-The pre-migration `ordered_merge.rs` contains one as-of merge over two ordered
-Arrow batch iterators, with no product/storage types in its signature. Expression
-binding uses it for stream-to-stream and record-to-stream alignment, record-based
+`expressions.rs` uses `harmos_query::merge::TimeMergeReader` over retained,
+projected table readers at one cut. Its AtOrBefore plan supplies the shared
+time alignment for stream-to-stream and record-to-stream expressions, record-based
 ranges and grouping, values at records, and paired record intervals. Intervals pair
 the previous record at the current record's time before alignment to later samples.
 Exact integer rank selection spills projected order keys to an ephemeral query
@@ -561,19 +561,25 @@ variance uses bounded exact sums of squares, so small spreads above f64 integer
 precision survive. Standard deviation, RMS and chart coordinates remain floating
 point; these drawing coordinates never replace the exact statistic or its label.
 
-The previous `Backend::for_execution` adapter awaits migration to the final native
-ports. Its unsupported defaults and per-execution history do not establish complete
-backend support. The assembly contract below replaces it with root-scoped primary
-and state backends sharing one history. Product state, protobuf descriptors,
-receipts and file histories must be mapped explicitly; never install a second
-sample representation or duplicate content owner to conceal an unsupported port.
+`Backend::open(&store)` returns the library's `StorageBackends` pair, sharing the
+root's durable history. `backend.rs` and `backend/**` implement the native primary
+and recovery contracts. Their catalog is `storage.sqlite3`; native sample batches
+live in compressed `storage.arrow/<id>.arrow` files. SQLite retains replay digests
+and column bounds, with no native sample payload or Arrow-column blobs. Each file
+is synced before its catalog transaction commits; startup collects uncataloged
+owned files after a failed transaction. Native row reads reconstruct Postcard
+values from those Arrow columns, preserving optional messages and repeated values.
+Native storage and the existing descriptor-driven evidence store remain distinct
+until operations/runtime callers complete their native-port adoption. Product
+protobuf values and descriptors must be mapped explicitly at those callers.
 
 Execution archives copy finalized stream files unchanged under
 `telemetry/<stream>.arrow`; `manifest.json` records paths, sizes and SHA-256, and
 `evidence.pb` retains the sealed execution, records, reports and content. Cycle ZIPs
 contain those execution ZIPs and a manifest. Sealed deletion records stream tombstones
-in its transaction; startup completes pending physical deletion. Retained native
-backend snapshots prevent deletion until their readers release the files.
+in its transaction; startup completes pending physical deletion. Native file
+deletion fences new readers while existing snapshots retain their original bytes;
+releasing the final older reader permits physical reclamation.
 
 The baseline remains v1. A root with the rebuilt `samples`, `sample_fields` and
 `sample_batches` inventory is refused with an action to select a fresh root; no
@@ -613,7 +619,7 @@ remain shared. Narrowing never widens an upstream caller set.
 The runtime consumer must apply this shape before listeners or plugins start:
 
 ```rust
-let backends = StorageBackends { primary, state };
+let backends = Backend::open(&store)?;
 let storage = StorageManager::with_catalog(catalog, backends, storage_settings)?;
 setup.settings().storage(&storage);
 setup.composition(include_str!("../../../protocol/composition.toml"))?;
@@ -729,6 +735,15 @@ data positions; flushing through a recovery position establishes its durability.
 
 ### Library Query Merge and Removals
 
+The product merge module and per-execution backend facade are removed.
+`TimeMergeReader` now supplies expression alignment with bounds from the product
+storage settings. The native backend implements every StorageBackend method;
+`advance_projection` returns `None` to use the library's bounded executor.
+Record views and record-position seeking are implemented. All eight StateBackend
+methods persist recovery entries, snapshots and their saved frontier in the same
+native catalog. Recovery flush refuses a frontier whose required primary data is
+not durable. No implemented native method reports an unsupported capability.
+
 `harmos_query::merge::TimeMergeReader::new` takes two `Box<dyn BatchReader>`, a
 native `TimeMerge` plan and a nonzero output row bound. Both readers must retain
 the same cut. `TimeMerge { source, primary_time, secondary_time, mode, work }`
@@ -738,8 +753,7 @@ and consume bounded batches for record ranges, values at records, grouped record
 intervals and stream-to-stream alignment. No DataFusion or general product join
 engine is introduced.
 
-Delete `ordered_merge.rs`, its module/imports and redundant tests after migration;
-remove remaining direct Store paths in operations/runtime, product installation
+The remaining consumer migration removes direct Store paths in operations/runtime, product installation
 records, settings wrappers and clock dispatch. The definition already deletes
 product plugin service/handler modules and Store::save_plugin_administration.
 Keep product schemas, report publication, expression binding, durable Arrow I/O and

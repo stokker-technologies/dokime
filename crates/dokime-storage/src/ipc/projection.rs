@@ -69,7 +69,14 @@ impl Projection {
                 }
                 DataType::List(field) => 2 + buffer_count(field.data_type())?,
                 DataType::Utf8 | DataType::Binary => 3,
-                DataType::Boolean | DataType::Int64 | DataType::UInt64 | DataType::Float64 | DataType::Timestamp(_, _) => 2,
+                DataType::Boolean
+                | DataType::Int32
+                | DataType::UInt32
+                | DataType::Float32
+                | DataType::Int64
+                | DataType::UInt64
+                | DataType::Float64
+                | DataType::Timestamp(_, _) => 2,
                 _ => return Err(Error::Data("unsupported projected query layout")),
             })
         }
@@ -133,7 +140,9 @@ impl Projection {
         for field in storage_fields {
             storage_buffers += match field.data_type() {
                 DataType::Utf8 | DataType::Binary => 3,
-                DataType::Int64 | DataType::UInt64 | DataType::Timestamp(_, _) => 2,
+                DataType::Int32 | DataType::UInt32 | DataType::Float32 | DataType::Int64 | DataType::UInt64 | DataType::Timestamp(_, _) => {
+                    2
+                }
                 _ => return Err(Error::Corrupt("telemetry storage metadata is not scalar")),
             };
         }

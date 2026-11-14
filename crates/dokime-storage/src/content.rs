@@ -346,7 +346,7 @@ impl Store {
     pub fn execution_file(&self, execution: &str, path: &str) -> Result<ContentEntry> {
         crate::validate_execution_path(path)?;
         let connection = self.lock()?;
-        connection.query_row("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND path=?2 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) ORDER BY rowid DESC LIMIT 1",params![execution,path],entry).optional()?.ok_or_else(||Error::NotFound("Read Execution File: Select a Registered File from This Execution's Listing".into()))
+        connection.query_row("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND path=?2 AND artifact=0 ORDER BY rowid DESC LIMIT 1",params![execution,path],entry).optional()?.ok_or_else(||Error::NotFound("Read Execution File: Select a Registered File from This Execution's Listing".into()))
     }
     pub fn content_window(&self, identifier: &str, offset: u64, maximum: usize) -> Result<Vec<u8>> {
         if maximum == 0 || maximum > CONTENT_CHUNK_BYTES || offset > i64::MAX as u64 - maximum as u64 {
@@ -385,7 +385,7 @@ impl Store {
     pub fn files_page(&self, execution: &str, after: &str, limit: usize) -> Result<Vec<ContentEntry>> {
         self.metadata(execution)?;
         let connection = self.lock()?;
-        let mut statement = connection.prepare("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) AND path>?2 AND rowid IN(SELECT MAX(rowid) FROM content_objects WHERE execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads) GROUP BY path) ORDER BY path LIMIT ?3")?;
+        let mut statement = connection.prepare("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND artifact=0 AND path>?2 AND rowid IN(SELECT MAX(rowid) FROM content_objects WHERE execution=?1 AND artifact=0 GROUP BY path) ORDER BY path LIMIT ?3")?;
         Ok(statement.query_map(params![execution, after, limit as i64], entry)?.collect::<std::result::Result<_, _>>()?)
     }
     pub fn write_cycle_archive(&self, cycle: &str, page: NonZeroUsize, output: &mut impl Write) -> Result<()> {
@@ -493,7 +493,7 @@ impl Store {
             write_field(output, 2, &row?)?;
         }
         let mut query = connection.prepare(
-            "SELECT id,path,artifact,metadata,length,sha256,phase FROM content_objects WHERE execution=?1 AND phase>=2 AND id NOT IN (SELECT id FROM file_uploads) ORDER BY id",
+            "SELECT id,path,artifact,metadata,length,sha256,phase FROM content_objects WHERE execution=?1 AND phase>=2 ORDER BY id",
         )?;
         for row in query.query_map([execution], |row| {
             Ok(ArchivedContent {
@@ -531,7 +531,7 @@ impl Store {
     }
     pub fn content_fingerprint(&self, execution: Option<&str>) -> Result<Vec<u8>> {
         let connection = self.lock()?;
-        let mut statement = connection.prepare("SELECT id,metadata,length,phase FROM content_objects WHERE (?1 IS NULL AND artifact=1 AND phase=2) OR (execution=?1 AND artifact=0 AND id NOT IN (SELECT id FROM file_uploads)) ORDER BY id")?;
+        let mut statement = connection.prepare("SELECT id,metadata,length,phase FROM content_objects WHERE (?1 IS NULL AND artifact=1 AND phase=2) OR (execution=?1 AND artifact=0) ORDER BY id")?;
         let mut hash = Sha256::new();
         for row in statement.query_map([execution], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?, row.get::<_, i64>(2)?, row.get::<_, i32>(3)?))

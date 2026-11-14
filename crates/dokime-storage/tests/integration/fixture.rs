@@ -90,7 +90,7 @@ pub fn execution() -> Execution {
         origin: Some(Origin {
             kind: Some(origin::Kind::Import(Import::default())),
         }),
-        catalog: Catalog {
+        catalog: Declarations {
             types: Some(types),
             streams: vec![StreamDeclaration {
                 id: "readings".into(),

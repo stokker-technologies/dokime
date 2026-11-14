@@ -24,8 +24,15 @@ use std::{
 
 // Third Party Imports
 use arrow_array::{Array, ArrayRef, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray, StructArray, UInt64Array};
-use arrow_schema::{ArrowError, DataType, Field, Schema};
+use arrow_schema::SchemaRef;
+use arrow_schema::{DataType, Field, Schema};
 use arrow_select::filter::filter_record_batch;
+use harmos_domain::Identifier;
+use harmos_domain::model::storage::query::{Source as QuerySource, StreamSelection, TimeMerge, TimeMergeMode};
+use harmos_domain::model::storage::{PayloadEncoding, ReadLimits, SchemaKey, StorageCursor, StoreHistory};
+use harmos_query::TableReader;
+use harmos_query::batches::{BatchPage, BatchReader, QueryFuture};
+use harmos_query::merge::TimeMergeReader;
 use harmos_query::{
     Accumulator, Table, TableWriter,
     transform::{
@@ -36,10 +43,12 @@ use harmos_query::{
 use prost::Message;
 use prost_reflect::DescriptorPool;
 use rusqlite::params;
+use std::num::NonZeroU32;
+use std::task::{Context, Poll, Waker};
 
 // Local Imports
 use crate::{
-    BatchSelection, Error, ExecutionCut, NumericWindow, Result, Sample, Store, ordered_merge,
+    BatchSelection, Error, ExecutionCut, NumericWindow, Result, Sample, Store,
     scalar::{self, Agg, ScalarValue},
     telemetry::codec::Codec,
 };
@@ -83,6 +92,12 @@ pub(crate) struct Evaluation<'a> {
     attached: BTreeMap<Source, String>,
     intervals: BTreeMap<(String, String), String>,
     aggregates: RefCell<BTreeMap<Vec<u8>, ScalarValue>>,
+}
+
+struct RetainedTable {
+    table: Table,
+    reader: TableReader,
+    at: StorageCursor,
 }
 
 /* === Enums === */
@@ -185,7 +200,7 @@ impl Store {
                 &fields.into_iter().collect::<Vec<_>>(),
             )?;
             let name = format!("_joined{}", evaluation.attached.len());
-            base = align(&base, &right, &name)?;
+            base = align(self, cut, &base, &right, &name)?;
             evaluation.attached.insert(other, name);
         }
         for (current, previous) in intervals {
@@ -209,7 +224,7 @@ impl Store {
                 },
                 &[],
             )?;
-            let paired = align(&current_table, &previous_table, "_previous")?;
+            let paired = align(self, cut, &current_table, &previous_table, "_previous")?;
             let value_fields = arrow_schema::Fields::from(vec![Field::new("elapsed", DataType::Float64, true)]);
             let schema = Arc::new(Schema::new(vec![
                 current_table.schema().field(0).clone(),
@@ -238,7 +253,7 @@ impl Store {
                 output.push(&RecordBatch::try_new(schema.clone(), vec![batch.column(0).clone(), Arc::new(values)])?, &mut || Ok(()))?;
             }
             let name = format!("_interval{}", evaluation.intervals.len());
-            base = align(&base, &output.finish()?, &name)?;
+            base = align(self, cut, &base, &output.finish()?, &name)?;
             evaluation.intervals.insert((current, previous), name);
         }
         let mut reader = base.reader()?;
@@ -513,58 +528,90 @@ impl<'a> From<NumericWindow<'a>> for BatchSelection<'a> {
     }
 }
 
+impl BatchReader for RetainedTable {
+    fn schema(&self) -> SchemaRef {
+        self.table.schema()
+    }
+    fn at(&self) -> &StorageCursor {
+        &self.at
+    }
+    fn next(&mut self) -> QueryFuture<'_, BatchPage> {
+        Box::pin(async move {
+            let batch = self.reader.next(&mut || Ok(()))?;
+            let complete = batch.is_none();
+            let batch = batch.unwrap_or_else(|| RecordBatch::new_empty(self.table.schema()));
+            Ok(BatchPage { batch, complete })
+        })
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
 
-fn align(base: &Table, right: &Table, name: &str) -> Result<Table> {
+fn align(store: &Store, cut: &ExecutionCut, base: &Table, right: &Table, name: &str) -> Result<Table> {
+    let settings = store.storage_settings()?;
+    let history = StoreHistory {
+        store: Identifier::new(store.identity()).map_err(|error| Error::Invalid(error.to_string()))?,
+        epoch: Identifier::new(&cut.execution.identifier).map_err(|error| Error::Invalid(error.to_string()))?,
+    };
+    let at = StorageCursor { history, sequence: cut.frontier };
+    let left = RetainedTable {
+        table: base.clone(),
+        reader: base.reader()?,
+        at: at.clone(),
+    };
+    let right_input = RetainedTable {
+        table: right.clone(),
+        reader: right.reader()?,
+        at,
+    };
+    let schema = SchemaKey {
+        id: Identifier::new(name).map_err(|error| Error::Invalid(error.to_string()))?,
+        version: NonZeroU32::MIN,
+        payload_encoding: PayloadEncoding::PostcardV1,
+    };
+    let plan = TimeMerge {
+        source: QuerySource::Stream(StreamSelection {
+            schema,
+            scope: None,
+            item: None,
+            stream: None,
+            source_start: None,
+            source_end: None,
+            after: 0,
+        }),
+        primary_time: FieldPath::from("_storage.source_ns"),
+        secondary_time: FieldPath::from("_storage.source_ns"),
+        mode: TimeMergeMode::AtOrBefore,
+        work: ReadLimits {
+            rows: settings.flush_rows,
+            bytes: settings.query_bytes,
+        },
+    };
+    let mut merged = TimeMergeReader::new(Box::new(left), Box::new(right_input), plan, settings.flush_rows)?;
     let mut fields = base.schema().fields().to_vec();
     fields.push(Arc::new(Field::new(name, DataType::Struct(right.schema().fields().clone()), true)));
-    let mut output = TableWriter::new(Arc::new(Schema::new(fields)))?;
-    let mut left_reader = base.reader()?;
-    let mut right_reader = right.reader()?;
-    let mut left_done = false;
-    let mut right_done = false;
-    let left = std::iter::from_fn(|| {
-        if left_done {
-            return None;
+    let output_schema = Arc::new(Schema::new(fields));
+    let mut output = TableWriter::new(output_schema.clone())?;
+    loop {
+        store.check_read()?;
+        // Both Retained Table Readers Complete Their File Read Within One Poll.
+        let mut next = merged.next();
+        let mut context = Context::from_waker(Waker::noop());
+        let page = match next.as_mut().poll(&mut context) {
+            Poll::Ready(page) => page?,
+            Poll::Pending => return Err(Error::Data("Merge Retained Tables: The Local Reader Must Complete Its Read")),
+        };
+        let left = page.batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("merged primary is not a struct"))?;
+        let mut columns = left.columns().to_vec();
+        columns.push(page.batch.column(1).clone());
+        let joined = RecordBatch::try_new(output_schema.clone(), columns)?;
+        output.push(&joined, &mut || Ok(()))?;
+        if page.complete {
+            break;
         }
-        match left_reader.next(&mut || Ok(())) {
-            Ok(Some(b)) => Some(Ok(b)),
-            Ok(None) => {
-                left_done = true;
-                None
-            }
-            Err(e) => {
-                left_done = true;
-                Some(Err(ArrowError::ExternalError(Box::new(e))))
-            }
-        }
-    });
-    let right_input = std::iter::from_fn(|| {
-        if right_done {
-            return None;
-        }
-        match right_reader.next(&mut || Ok(())) {
-            Ok(Some(b)) => Some(Ok(b)),
-            Ok(None) => {
-                right_done = true;
-                None
-            }
-            Err(e) => {
-                right_done = true;
-                Some(Err(ArrowError::ExternalError(Box::new(e))))
-            }
-        }
-    });
-    ordered_merge::as_of(left, right_input, right.schema(), |batch, aligned| {
-        let mut fields = batch.schema().fields().to_vec();
-        fields.push(Arc::new(Field::new(name, aligned.data_type().clone(), true)));
-        let mut columns = batch.columns().to_vec();
-        columns.push(Arc::new(aligned));
-        let joined = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)?;
-        output.push(&joined, &mut || Ok(())).map_err(|e| ArrowError::ExternalError(Box::new(e)))
-    })?;
+    }
     Ok(output.finish()?)
 }
 fn collect_intervals(expression: &DataExpression, pairs: &mut BTreeSet<(String, String)>) {

@@ -88,6 +88,8 @@ mod tests {
 
     // Local Imports
     use super::*;
+    use dokime_protocol::host::{DeclaredOutcome, EvaluatedOutcome, UnevaluatedOutcome};
+    use dokime_protocol::model::Termination;
 
     /* === Constants === */
 

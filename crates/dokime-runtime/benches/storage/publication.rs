@@ -180,6 +180,7 @@ pub fn serve() -> Result<()> {
         .prompt(Prompt::new("continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
         .requires_host(HostOperation::PromptsCreate)
         .requires_host(HostOperation::EvidenceRecordsAppend)
+        .requires_host(HostOperation::TimeGet)
         .requires_host(HostOperation::TimeSleep)
         .remote()
         .serve()
@@ -210,6 +211,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                     let completed = fixture.cycle.wait().await.unwrap();
                     assert_eq!(completed.executions[0].samples.len(), 1024, "Prepare Runtime Publication: Retain Every Sample");
                     fixture.host.shutdown().await.unwrap();
+                    services::remove_credentials(fixture.root.path()).unwrap();
                 }
                 super::report(elapsed, iterations)
             })
@@ -233,6 +235,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                     let completed = fixture.cycle.wait().await.unwrap();
                     fixture.host.shutdown().await.unwrap();
                     elapsed += started.elapsed();
+                    services::remove_credentials(fixture.root.path()).unwrap();
                     assert_eq!(completed.executions[0].samples.len(), 65536, "Prepare Runtime Shutdown: Retain Every Sample");
                 }
                 super::report(elapsed, iterations)
@@ -402,23 +405,11 @@ fn settings() -> HostSettings {
 }
 
 async fn capture(context: &Context) -> Result<()> {
-    context
-        .prompt(PromptsCreateRequest {
-            prompt: "ready".into(),
-            prompt_type: "continue".into(),
-            ..Default::default()
-        })
-        .await?;
+    context.host().prompts.create("ready".into(), "continue".into(), HashMap::new()).await?;
     let rows = context.parameters::<Capture>()?.rows;
     context.sleep(Duration::from_millis(rows.div_ceil(1024) - 1)).await?;
     context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows }).await?;
-    context
-        .prompt(PromptsCreateRequest {
-            prompt: "captured".into(),
-            prompt_type: "continue".into(),
-            ..Default::default()
-        })
-        .await?;
+    context.host().prompts.create("captured".into(), "continue".into(), HashMap::new()).await?;
     Ok(())
 }
 

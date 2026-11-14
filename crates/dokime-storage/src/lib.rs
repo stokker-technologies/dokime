@@ -25,7 +25,6 @@ mod expressions;
 mod history;
 mod ipc;
 mod notes;
-mod ordered_merge;
 mod outcome;
 mod plans;
 mod plot_kinds;

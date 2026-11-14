@@ -167,6 +167,20 @@ and its console report stay under `target/benchmarks/storage/`; desktop observat
 stay under `target/benchmarks/criterion/`. Run producers and consumers sequentially:
 the producer replaces its exported benchmark directory, which Windows locks while
 an executable is running. Storage selection needs no desktop frontend.
+The storage backend's focused proof uses package selection:
+
+```sh
+mise run format -- --language rust --package dokime-storage
+mise run check -- --language rust --package dokime-storage
+mise run test -- --package dokime-storage --target lib
+mise run test -- --package dokime-storage --target integration
+```
+
+These stories cover compressed IPC rollback/recovery, root-scoped native reads,
+original append receipts, resumable uploads, recovery snapshots and entries,
+integer-exact statistics, retained file readers and unchanged archive stream bytes.
+The runtime benchmark additionally depends on the runtime and Rust SDK consumers;
+a backend package check alone does not establish that benchmark's build or run.
 On Linux its consumer owns the same isolated Secret Service as native host
 fixtures, so the runtime archive case needs no unlocked personal keyring.
 

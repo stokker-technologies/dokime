@@ -138,9 +138,6 @@ pub(crate) fn wire(value: &ScalarValue) -> Result<Value> {
         ScalarValue::Exact(v) if v.denominator.get() == 1 && !v.negative && v.numerator <= u64::MAX as u128 => {
             value::Kind::UnsignedInteger(v.numerator as u64)
         }
-        ScalarValue::Exact(v) if v.denominator.get() > 1 && v.denominator.get().is_power_of_two() && v.numerator <= (1u128 << 53) => {
-            value::Kind::Number(number(value).unwrap())
-        }
         ScalarValue::Exact(v) => value::Kind::Exact(WireExactNumber {
             negative: v.negative,
             numerator: v.numerator.to_string(),

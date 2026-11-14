@@ -73,7 +73,7 @@ struct HashedFile {
     batch_hash: Option<Sha256>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct BatchIndex {
     pub offset: u64,
     pub metadata_bytes: u32,

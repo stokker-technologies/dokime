@@ -102,7 +102,6 @@ impl Store {
         }
         transaction
             .execute("DELETE FROM content_chunks WHERE object IN (SELECT id FROM content_objects WHERE execution=?1)", [execution])?;
-        transaction.execute("DELETE FROM file_uploads WHERE id IN (SELECT id FROM content_objects WHERE execution=?1)", [execution])?;
         transaction.execute("DELETE FROM content_objects WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM notes WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM administration WHERE id LIKE ?1", [format!("plot-settings:{execution}/%")])?;

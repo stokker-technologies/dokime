@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod backend;
 mod fixture;
 mod report_integrity;
 mod resource_positions;

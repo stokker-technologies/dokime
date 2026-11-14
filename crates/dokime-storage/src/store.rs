@@ -138,10 +138,7 @@ impl Store {
                     "evidence",
                     "evidence_reads",
                     "executions",
-                    "file_requests",
-                    "file_uploads",
                     "notes",
-                    "plugins",
                     "read_positions",
                     "record_fields",
                     "registrations",
@@ -185,14 +182,11 @@ impl Store {
                 {telemetry_schema}
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
                 CREATE TABLE content_objects(id TEXT PRIMARY KEY, execution TEXT NOT NULL, path TEXT NOT NULL, artifact INTEGER NOT NULL, metadata BLOB NOT NULL, length INTEGER NOT NULL, sha256 TEXT NOT NULL, phase INTEGER NOT NULL);
-                CREATE TABLE file_uploads(id TEXT PRIMARY KEY REFERENCES content_objects(id), metadata BLOB NOT NULL, generation INTEGER NOT NULL);
-                CREATE TABLE file_requests(sequence INTEGER PRIMARY KEY AUTOINCREMENT, operation TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, response BLOB NOT NULL, UNIQUE(operation,request));
                 CREATE TABLE content_chunks(object TEXT NOT NULL REFERENCES content_objects(id), offset INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(object,offset));
                 CREATE INDEX content_path ON content_objects(execution,path);
                 CREATE TABLE record_fields(execution TEXT NOT NULL, record TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,record,field,position));
                 CREATE INDEX record_fields_time ON record_fields(execution,record,field,source_ns,position);
                 CREATE TABLE notes(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, execution TEXT, receipt BLOB NOT NULL, payload BLOB NOT NULL);
-                CREATE TABLE plugins(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE registrations(id INTEGER PRIMARY KEY, key TEXT UNIQUE, plan BLOB NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE cases(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE cycles(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
@@ -317,21 +311,6 @@ impl Store {
         let mut statement = connection.prepare("SELECT id FROM executions ORDER BY rowid")?;
         Ok(statement.query_map([], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
     }
-    pub fn save_plugin(&self, identifier: &str, description: &[u8]) -> Result<()> {
-        self.lock()?.execute(
-            "INSERT INTO plugins VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-            params![identifier, description],
-        )?;
-        Ok(())
-    }
-    pub fn plugin(&self, identifier: &str) -> Result<Vec<u8>> {
-        Ok(self.lock()?.query_row("SELECT payload FROM plugins WHERE id=?1", [identifier], |row| row.get(0))?)
-    }
-    pub fn plugin_identifiers(&self) -> Result<Vec<String>> {
-        let connection = self.lock()?;
-        let mut statement = connection.prepare("SELECT id FROM plugins ORDER BY id")?;
-        Ok(statement.query_map([], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
-    }
     pub fn cycle_outcomes(&self, cycle: &str) -> Result<Vec<ExecutionOutcome>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT payload FROM executions WHERE cycle=?1 ORDER BY id")?;
@@ -342,10 +321,6 @@ impl Store {
             outcomes.push(execution.outcome.unwrap_or_default());
         }
         Ok(outcomes)
-    }
-    pub fn remove_plugin(&self, identifier: &str) -> Result<()> {
-        self.lock()?.execute("DELETE FROM plugins WHERE id=?1", [identifier])?;
-        Ok(())
     }
     pub fn export(&self, execution: &str) -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
