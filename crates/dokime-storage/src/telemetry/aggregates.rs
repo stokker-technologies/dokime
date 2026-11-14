@@ -240,6 +240,15 @@ impl Moments {
 }
 impl Store {
     pub(crate) fn moments(&self, window: NumericWindow<'_>) -> Result<Moments> {
+        let window = if (window.start_ns != i64::MIN || window.end_ns != i64::MAX) && self.preview_bounds(window)?.is_some() {
+            NumericWindow {
+                start_ns: i64::MIN,
+                end_ns: i64::MAX,
+                ..window
+            }
+        } else {
+            window
+        };
         let mut moments = Moments::empty();
         if !self.has_projection(window)? && window.after == 0 && window.start_ns == i64::MIN && window.end_ns == i64::MAX {
             let connection = self.lock()?;

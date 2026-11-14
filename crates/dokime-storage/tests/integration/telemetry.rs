@@ -396,6 +396,15 @@ fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
             assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(kind.clone()));
         }
     }
+    for (start_ns, end_ns, count, minimum, mean, maximum) in
+        [(0, 100, 101, base, base + 5_000, base + 10_000), (20, 60, 41, base + 2_000, base + 4_000, base + 6_000)]
+    {
+        let (_, summary, selected) = store.time_series_window(NumericWindow { start_ns, end_ns, ..numeric(101) })?;
+        assert_eq!(selected, count);
+        for (value, expected) in [(&summary.min, minimum), (&summary.mean, mean), (&summary.max, maximum)] {
+            assert_eq!(value.as_ref().unwrap().kind, Some(v1::value::Kind::UnsignedInteger(expected)));
+        }
+    }
     let statistics = store.numeric_statistics(&numeric(101))?;
     for (value, expected) in [
         (&statistics.min, base),

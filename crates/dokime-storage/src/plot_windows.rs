@@ -149,15 +149,7 @@ impl Store {
     }
     #[tracing::instrument(name = "plot.statistics", skip_all)]
     pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<EvidenceStatisticsResponse> {
-        let moments = self.moments(if self.preview_bounds(*window)?.is_some() {
-            NumericWindow {
-                start_ns: i64::MIN,
-                end_ns: i64::MAX,
-                ..*window
-            }
-        } else {
-            *window
-        })?;
+        let moments = self.moments(*window)?;
         if moments.count == 0 {
             return Ok(Default::default());
         }
