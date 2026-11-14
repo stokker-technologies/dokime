@@ -46,10 +46,11 @@ let historyRows = 2073600;
 async function command(line) {
   if (host.failure) throw host.failure;
   const pending = hostLines.next();
+  const handoffWallMs = performance.timeOrigin + performance.now();
   const written = new Promise((resolve, reject) => host.stdin.write(`${line}\n`, (error) => (error ? reject(error) : resolve())));
   const [response] = await Promise.all([pending, written]);
   if (response.done) throw new Error("Fixture host closed before command completion");
-  return JSON.parse(response.value);
+  return { ...JSON.parse(response.value), handoffWallMs };
 }
 
 // Resource Samples Include The Owned Fixture Host, Shell And Descendants, Including WebView Workers.
@@ -286,6 +287,7 @@ try {
       let resourceStart = Date.now();
       let started = performance.now();
       let drawingDeadline;
+      let producerHandoffLeadMs;
       const operations = [];
       const to = fixture.end_s + 600;
       const from = fixture.origin_s;
@@ -322,8 +324,15 @@ try {
           }
           resourceStart = Date.now();
           started = performance.now();
-          await desktop.execute("desktopAction(...arguments)", [condition, fixture.end_s - 150, fixture.end_s - 120]);
-          if (["live", "late", "stalled"].includes(condition)) operations.push(await command(condition === "late" ? "late" : "live"));
+          const actionStartedWallMs = await desktop.execute(
+            "desktopAction(...arguments); return performance.timeOrigin + __desktopBench.started;",
+            [condition, fixture.end_s - 150, fixture.end_s - 120],
+          );
+          if (["live", "late", "stalled"].includes(condition)) {
+            const publication = await command(condition === "late" ? "late" : "live");
+            producerHandoffLeadMs = publication.handoffWallMs - actionStartedWallMs;
+            operations.push(publication);
+          }
           if (condition === "stalled") {
             drawingDeadline = started + DRAW_WAIT_MS;
             let status;
@@ -373,6 +382,8 @@ try {
         backendMode,
         fixture: { ...fixture },
         ...observation,
+        // Monotonic Clocks Share Their Epoch Origins; Exclude The Driver's Reset Round Trip.
+        producerHandoffToChangedDrawingMs: producerHandoffLeadMs === undefined ? null : observation.allVisibleMs - producerHandoffLeadMs,
         durationMs,
         queryMs: stages["plot.query"] ?? [],
         backendStages: stages,
