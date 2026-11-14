@@ -35,7 +35,7 @@ use tempfile::TempDir;
 
 // Local Imports
 use dokime_protocol::{builders::Plot, v1};
-use dokime_runtime_next::{ControlledClock, Host, HostSettings, PlacementSettings, RenderSettings};
+use dokime_runtime_next::{ControlledClock, Host, HostSettings, PlacementSettings};
 use dokime_storage::{BatchSelection, Execution, NumericWindow, Sample, Store, storage_defaults};
 
 /* === Constants === */
@@ -81,6 +81,8 @@ struct DocumentFixture {
     host: Host,
     document: v1::Document,
     _fixture: Fixture,
+    rows: usize,
+    plots: usize,
 }
 
 /* === Enums === */
@@ -218,22 +220,52 @@ impl DocumentFixture {
             sections: vec![v1::Section { cards, ..Default::default() }],
             ..Default::default()
         };
-        Self { host, document, _fixture: fixture }
+        Self {
+            host,
+            document,
+            _fixture: fixture,
+            rows,
+            plots,
+        }
     }
     fn query(&self) {
-        let snapshot = self.host.snapshot("document").unwrap();
-        let document = self
-            .host
-            .render_document(
-                &snapshot,
-                self.document.clone(),
-                RenderSettings {
-                    page_size: NonZeroUsize::new(256).unwrap(),
-                    display_points: NonZeroUsize::new(1500).unwrap(),
-                },
-            )
-            .unwrap();
-        black_box(document);
+        // The Old Cards-And-Plots Workload Captured Values And Plot Payloads,
+        // Without HTML Rendering Or File Output.
+        let cut = self._fixture.store.cut("document").unwrap();
+        let (reader, _cancellation) = self._fixture.store.read_session().unwrap();
+        let expansion = dokime_operations_next::client::document_expansion::expand(&reader, &cut, &self.document, 0, 256).unwrap();
+        assert!(expansion.next.is_none());
+        let scope = v1::EvidenceScope {
+            execution_id: Some("document".into()),
+            cycle_id: Some("cycle".into()),
+            ..Default::default()
+        };
+        let mut plots = 0;
+        for section in &expansion.document.sections {
+            for card in &section.cards {
+                match card.body.as_ref().unwrap() {
+                    v1::card::Body::Summary(summary) => {
+                        for tile in &summary.tiles {
+                            black_box(reader.document_value(&cut, tile.value.as_ref().unwrap()).unwrap());
+                        }
+                    }
+                    v1::card::Body::Plot(plot) => {
+                        let mut request = dokime_operations_next::client::document_plot::request(plot, scope.clone()).unwrap();
+                        request.max_points = Some(1500);
+                        let envelope =
+                            dokime_operations_next::client::plots_snapshots_list::snapshot_at(&reader, &cut, &request, 1500, 0, "v1")
+                                .unwrap();
+                        assert_eq!(envelope.payload.as_ref().unwrap().series[0].raw_points, (self.rows / self.plots) as u64);
+                        black_box(envelope);
+                        black_box(dokime_operations_next::client::document_plot::presentation(&reader, &cut, plot).unwrap());
+                        plots += 1;
+                    }
+                    _ => unreachable!("declared benchmark cards"),
+                }
+            }
+        }
+        assert_eq!(plots, self.plots);
+        black_box(expansion.document);
     }
 }
 

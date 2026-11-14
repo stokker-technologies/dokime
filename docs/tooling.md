@@ -135,7 +135,9 @@ window and exact median, finalization (65,536), unchanged-file export (16,384),
 ingest throughput, and three-day documents with 30 plots at the original 307,200,
 1,536,000 and 3,072,000 row densities. The deterministic three-phase waveform and
 three-day time span come from the old workload; settings and datasets are not
-adjusted to meet a timing budget.
+adjusted to meet a timing budget. Document and median measurements capture summary
+values and plot payloads, matching the old cards-and-plots query boundary; they do
+not include HTML serialization or temporary report-file writes.
 
 ## Hosted Validation
 
