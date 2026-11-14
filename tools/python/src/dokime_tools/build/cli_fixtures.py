@@ -108,7 +108,7 @@ def build(profile: str, language: str = "rust") -> None:
                 sdk = root / "target/cp/tests/dokime-cpp.tar.gz"
                 with sdk.open("rb") as archive_file:
                     digest = hashlib.file_digest(archive_file, "sha256").hexdigest()
-                arguments += ["--sdk-url", sdk.as_uri(), "--sdk-sha256", digest]
+                arguments += ["--sdk-url", sdk.as_posix(), "--sdk-sha256", digest]
             subprocess.run(
                 arguments,
                 cwd=root,

@@ -70,7 +70,7 @@ pub(crate) struct Args {
     #[arg(long, value_enum)]
     lang: Language,
 
-    #[arg(long, requires = "sdk_sha256", help = "C++ Installed SDK Archive URL")]
+    #[arg(long, requires = "sdk_sha256", help = "C++ Installed SDK Archive URL or Local Path")]
     sdk_url: Option<String>,
 
     #[arg(long, requires = "sdk_url", help = "C++ SDK Source Archive SHA-256")]
