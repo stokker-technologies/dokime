@@ -83,7 +83,8 @@ while the document is assembled.
 
 Plot cards publish visibility through their existing intersection observer.
 `src/plots/live-data.ts` partitions consecutive cards by plot kind into stable
-groups of at most 32, and opens visible groups and the next group concurrently.
+groups of at most 32. Visible groups start independently in parallel; the next
+group prefetches once a visible group has data, without competing with its first read.
 Off-screen analyses cannot delay a group of ordinary traces. This is a
 per-request memory/admission bound, never a document-size limit. Each group owns
 its watch, retries and cancellation. Changing one group's viewport or dimensions
@@ -103,7 +104,8 @@ and displayed message. The benchmark times traversal inside the WebView and
 records the driver round trip separately from drawing.
 Evidence statistics, plot legends and summary tiles retain integer and exact
 rational values. Large values are formatted from their decimal representation;
-only chart coordinate calculation uses floating point.
+chart coordinates use floating point. Dispersion and RMS retain their approximate
+floating outputs derived from exact integer moments.
 
 `Executions.Get` carries frozen record/stream declarations and a schema digest.
 `src/lib/host/schemas.ts` fetches complete descriptor-file pages through
@@ -147,9 +149,6 @@ removal operation, preserving any earlier generator or user storage roots.
 
 Execution evidence reads use the execution and cycle identities. A planned case
 identity selects planning state; it does not filter an execution’s records or plots.
-
-Visible plot groups start independently in parallel. The next group prefetches
-once a visible group has data, so lookahead does not compete with the first read.
 
 Frozen descriptor inventories verify their digest in transport order, then resolve
 imports before constructing the desktop registry. Inventory order does not require
