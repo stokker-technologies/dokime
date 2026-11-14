@@ -53,8 +53,9 @@ Fixtures are exported under
 `target/build/<profile>/<target>/fixtures/host/`. CLI fixtures include a generated
 Rust starter built through its own mise task. Stories never compile plugins.
 
-`HARMOS_SOURCE` and `DOKIME_HARMOS_CACHE` may select
-workstation source/dependency caches; do not put them in project configuration.
+`HARMOS_SOURCE` may select an existing checkout when preparing the C# dependency
+feed. C++ uses its pinned vcpkg checkout in mise's machine cache and FetchContent
+under `target/cp/`; no product-specific dependency-cache override is required.
 Python consumes the built pure wheel and the pinned library SDK. Python system
 and coverage tasks select the conformance executable from the host fixtures.
 Linux host stories own an isolated session bus/keyring for credential storage;

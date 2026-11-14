@@ -461,8 +461,8 @@ frozen catalog at the exact 26010c03 Harmos revision.
 Build the shared fixtures and install the Python wheel with the tasks above.
 `build:host-fixtures` invokes each compiled SDK's own tasks and exports the
 fixtures under `target/build/<profile>/<target>/fixtures/host/`. C# includes its
-runtime. C++ builds Harmos's pinned dependencies; `HARMOS_SOURCE` and
-`DOKIME_HARMOS_CACHE` can select existing workstation inputs. Tests never compile
+runtime. C++ resolves its pinned native graph through vcpkg and fetches the
+pinned Harmos source through CMake FetchContent. Tests never compile
 fixtures. Local Tests Build includes every available compiled SDK fixture and the
 full selection runs every story. Pull requests build Rust and Python and
 run every story except the C# and C++ equivalence stories, which run in Nightly. Nightly
