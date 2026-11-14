@@ -1,38 +1,29 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Cycles Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "dokime/v1/execution.proto";
 import "dokime/v1/metadata.proto";
 import "google/protobuf/timestamp.proto";
-import "harmos/v1/types.proto";
+import "harmos/model/v1/position.proto";
 
-enum ArchiveScope {
-  ARCHIVE_SCOPE_UNSPECIFIED = 0;
-  ARCHIVE_SCOPE_UNARCHIVED = 1;
-  ARCHIVE_SCOPE_ARCHIVED = 2;
-  ARCHIVE_SCOPE_ALL = 3;
-}
+// === Options === //
 
-enum CyclePhase {
-  CYCLE_PHASE_UNSPECIFIED = 0;
-  CYCLE_PHASE_ACTIVE = 1;
-  CYCLE_PHASE_SEALING = 2;
-  CYCLE_PHASE_SEALED = 3;
-  CYCLE_PHASE_SEAL_FAILED = 4;
-}
+option csharp_namespace = "Dokime.Protocol.V1";
 
-enum CycleStatus {
-  CYCLE_STATUS_UNSPECIFIED = 0;
-  CYCLE_STATUS_READY = 1;
-  CYCLE_STATUS_RUNNING = 2;
-  CYCLE_STATUS_PAUSED = 3;
-  CYCLE_STATUS_STOPPING = 4;
-  CYCLE_STATUS_COMPLETED = 5;
-  CYCLE_STATUS_FAILED = 6;
-  CYCLE_STATUS_BLOCKED = 7;
-  CYCLE_STATUS_STOPPED = 8;
-}
+// === Services === //
 
+// === Requests and Responses === //
+
+// === Resources === //
+
+// CycleSummary value owned by this resource.
 message CycleSummary {
   string cycle_id = 1;
   .dokime.v1.Metadata metadata = 2;
@@ -41,7 +32,7 @@ message CycleSummary {
   uint64 case_count = 5;
   uint64 execution_count = 6;
   bool continue_automatically = 7;
-  .harmos.v1.ReadCut observed_cursor = 8;
+  .harmos.model.v1.ReadCut observed_cursor = 8;
   .google.protobuf.Timestamp created_at = 9;
   .google.protobuf.Timestamp started_at = 10;
   .google.protobuf.Timestamp updated_at = 11;
@@ -52,4 +43,36 @@ message CycleSummary {
   uint64 queued_count = 16;
   optional string seal_failure = 17;
   optional string rerun_of = 18;
+}
+
+// === Enums === //
+
+// ArchiveScope choices.
+enum ArchiveScope {
+  ARCHIVE_SCOPE_UNSPECIFIED = 0;
+  ARCHIVE_SCOPE_UNARCHIVED = 1;
+  ARCHIVE_SCOPE_ARCHIVED = 2;
+  ARCHIVE_SCOPE_ALL = 3;
+}
+
+// CyclePhase choices.
+enum CyclePhase {
+  CYCLE_PHASE_UNSPECIFIED = 0;
+  CYCLE_PHASE_ACTIVE = 1;
+  CYCLE_PHASE_SEALING = 2;
+  CYCLE_PHASE_SEALED = 3;
+  CYCLE_PHASE_SEAL_FAILED = 4;
+}
+
+// CycleStatus choices.
+enum CycleStatus {
+  CYCLE_STATUS_UNSPECIFIED = 0;
+  CYCLE_STATUS_READY = 1;
+  CYCLE_STATUS_RUNNING = 2;
+  CYCLE_STATUS_PAUSED = 3;
+  CYCLE_STATUS_STOPPING = 4;
+  CYCLE_STATUS_COMPLETED = 5;
+  CYCLE_STATUS_FAILED = 6;
+  CYCLE_STATUS_BLOCKED = 7;
+  CYCLE_STATUS_STOPPED = 8;
 }

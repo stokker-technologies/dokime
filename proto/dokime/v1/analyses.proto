@@ -1,12 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Analyses Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "dokime/v1/metadata.proto";
 import "dokime/v1/parameters.proto";
 import "dokime/v1/scalar.proto";
 
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// Analyses value owned by this resource.
 message Analyses { repeated .dokime.v1.Analysis analyses = 1; }
 
+// Analysis value owned by this resource.
 message Analysis {
   .dokime.v1.Metadata metadata = 1;
   uint32 version = 2;
@@ -16,6 +35,7 @@ message Analysis {
   uint32 max_output_values = 6;
 }
 
+// AnalysisOutput value owned by this resource.
 message AnalysisOutput {
   .dokime.v1.Metadata metadata = 1;
   string unit = 2;
@@ -23,13 +43,13 @@ message AnalysisOutput {
   string axis_unit = 4;
 }
 
-// Unary analysis operations use the analysis metadata identifier as their operation ID.
-// Input is one bounded raw scalar series; output must match every declared output.
+// AnalysisRequest value owned by this resource.
 message AnalysisRequest {
   .dokime.v1.AnalysisSamples samples = 1;
   .dokime.v1.MapValue parameters = 2;
 }
 
+// AnalysisSamples value owned by this resource.
 message AnalysisSamples {
   repeated double axis = 1;
   repeated double values = 2;
@@ -37,14 +57,17 @@ message AnalysisSamples {
   string unit = 4;
 }
 
+// AnalysisResponse value owned by this resource.
 message AnalysisResponse { repeated .dokime.v1.AnalysisValues outputs = 1; }
 
+// AnalysisSelection value owned by this resource.
 message AnalysisSelection {
   string id = 1;
   uint32 version = 2;
   .dokime.v1.MapValue parameters = 3;
 }
 
+// AnalysisValues value owned by this resource.
 message AnalysisValues {
   string key = 1;
   string unit = 2;
@@ -53,3 +76,5 @@ message AnalysisValues {
   repeated double values = 5;
   repeated uint32 display_indices = 6;
 }
+
+// === Enums === //

@@ -1,0 +1,142 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Backend Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/v1/appearance.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Host.V1";
+
+// === Services === //
+
+// Host operations with explicit caller admission.
+service Backend {
+  // Environment the Backend resource; admission and policy are owned by the executor.
+  rpc Environment(.dokime.host.v1.BackendEnvironmentRequest) returns (.dokime.host.v1.BackendEnvironmentResponse) {
+    option (harmos.model.v1.callers) = PLUGINS;
+  }
+  // Appearance the Backend resource; admission and policy are owned by the executor.
+  rpc Appearance(.dokime.host.v1.BackendAppearanceRequest) returns (.dokime.host.v1.BackendAppearanceResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Environment === //
+
+// BackendEnvironmentRequest for Backend.Environment.
+message BackendEnvironmentRequest { .harmos.model.v1.Position at = 1; }
+
+// BackendEnvironmentResponse for Backend.Environment.
+message BackendEnvironmentResponse { uint32 backend_pid = 1; bool in_step = 2; .harmos.model.v1.Position resolved_at = 3; }
+
+// === Appearance === //
+
+// BackendAppearanceRequest for Backend.Appearance.
+message BackendAppearanceRequest { .harmos.model.v1.ReadCut at = 1; }
+
+// BackendAppearanceResponse for Backend.Appearance.
+message BackendAppearanceResponse { .dokime.host.v1.AppearanceSnapshot appearance = 1; .harmos.model.v1.ReadCut resolved_at = 2; }
+
+// === Resources === //
+
+// AppearanceSnapshot value owned by this resource.
+message AppearanceSnapshot {
+  string app_name = 1;
+  .dokime.host.v1.OrganizationIdentity organization = 2;
+  optional string title_template = 3;
+  repeated .dokime.host.v1.AppearanceLogo logos = 4;
+  repeated .dokime.host.v1.ThemeFamily themes = 5;
+  optional string active_theme = 6;
+  bool theme_family_locked = 7;
+  .dokime.host.v1.ThemeModePolicy mode_policy = 8;
+  bool mode_locked = 9;
+  optional string source_plugin_id = 10;
+}
+
+// OrganizationIdentity value owned by this resource.
+message OrganizationIdentity {
+  string name = 1;
+  optional string unit = 2;
+  optional string website = 3;
+}
+
+// AppearanceLogo value owned by this resource.
+message AppearanceLogo {
+  .dokime.host.v1.LogoVariant variant = 1;
+  .dokime.v1.AppearanceAssetMetadata asset = 2;
+  optional string alt = 3;
+}
+
+// ThemeFamily value owned by this resource.
+message ThemeFamily {
+  string plugin_id = 1;
+  string theme_id = 2;
+  string label = 3;
+  optional string description = 4;
+  
+  optional string stylesheet = 5;
+  map<string, string> variables = 6;
+  .dokime.host.v1.ThemeCornerRadii corner_radii = 7;
+  .dokime.host.v1.ThemeVariant light = 8;
+  .dokime.host.v1.ThemeVariant dark = 9;
+}
+
+// ThemeCornerRadii value owned by this resource.
+message ThemeCornerRadii {
+  optional string base = 1;
+  optional string sm = 2;
+  optional string md = 3;
+  optional string lg = 4;
+  optional string xl = 5;
+  optional string two_xl = 6;
+  optional string three_xl = 7;
+  optional string four_xl = 8;
+}
+
+// ThemeVariant value owned by this resource.
+message ThemeVariant {
+  map<string, string> variables = 1;
+  repeated string plot_palette = 2;
+}
+
+// AppearanceFailure value owned by this resource.
+message AppearanceFailure { .dokime.host.v1.AppearanceFailureKind kind = 1; }
+
+// === Enums === //
+
+// LogoVariant choices.
+enum LogoVariant {
+  LOGO_VARIANT_UNSPECIFIED = 0;
+  LOGO_VARIANT_TRANSPARENT_ON_LIGHT = 1;
+  LOGO_VARIANT_TRANSPARENT_ON_DARK = 2;
+  LOGO_VARIANT_CONTAINED_ON_LIGHT = 3;
+  LOGO_VARIANT_CONTAINED_ON_DARK = 4;
+}
+
+// ThemeModePolicy choices.
+enum ThemeModePolicy {
+  THEME_MODE_POLICY_UNSPECIFIED = 0;
+  THEME_MODE_POLICY_USER_OR_SYSTEM = 1;
+  THEME_MODE_POLICY_FORCE_SYSTEM = 2;
+  THEME_MODE_POLICY_FORCE_LIGHT = 3;
+  THEME_MODE_POLICY_FORCE_DARK = 4;
+}
+
+// AppearanceFailureKind choices.
+enum AppearanceFailureKind {
+  APPEARANCE_FAILURE_KIND_UNSPECIFIED = 0;
+  APPEARANCE_FAILURE_KIND_ASSET_MISSING = 1;
+  APPEARANCE_FAILURE_KIND_ASSET_CHANGED = 2;
+  APPEARANCE_FAILURE_KIND_TOO_LARGE = 3;
+  APPEARANCE_FAILURE_KIND_INVALID_REFERENCE = 4;
+  APPEARANCE_FAILURE_KIND_ASSET_UNAVAILABLE = 5;
+}

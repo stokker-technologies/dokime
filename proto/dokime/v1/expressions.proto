@@ -1,10 +1,26 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Expressions Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "dokime/v1/scalar.proto";
 
-// Expression operands are messages, never source text. References are validated
-// against the catalog on connection, before any document is evaluated.
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// DataExpression value owned by this resource.
 message DataExpression {
   string label = 1;
   oneof kind {
@@ -19,15 +35,35 @@ message DataExpression {
   }
 }
 
+// FieldReference value owned by this resource.
 message FieldReference { string identifier = 1; string field = 2; }
 
+// AggregateExpression value owned by this resource.
 message AggregateExpression {
   .dokime.v1.DataExpression input = 1;
   .dokime.v1.Aggregate kind = 2;
-  // Inclusive 0..100; used only for PERCENTILE.
+  
   double percentile = 3;
 }
 
+// TransformExpression value owned by this resource.
+message TransformExpression {
+  .dokime.v1.DataExpression input = 1;
+  oneof kind {
+    string detail = 2;
+    string time_between = 3;
+    bool per_case = 4;
+    double scale = 5;
+    double offset = 6;
+  }
+}
+
+// DocumentFilter value owned by this resource.
+message DocumentFilter { .dokime.v1.DataExpression expression = 1; .dokime.v1.FilterOperator operator = 2; .dokime.v1.Value value = 3; }
+
+// === Enums === //
+
+// Aggregate choices.
 enum Aggregate {
   AGGREGATE_UNSPECIFIED = 0;
   AGGREGATE_COUNT = 1;
@@ -43,19 +79,7 @@ enum Aggregate {
   AGGREGATE_RMS = 11;
 }
 
-message TransformExpression {
-  .dokime.v1.DataExpression input = 1;
-  oneof kind {
-    string detail = 2;
-    string time_between = 3;
-    bool per_case = 4;
-    double scale = 5;
-    double offset = 6;
-  }
-}
-
-message DocumentFilter { .dokime.v1.DataExpression expression = 1; .dokime.v1.FilterOperator operator = 2; .dokime.v1.Value value = 3; }
-
+// FilterOperator choices.
 enum FilterOperator {
   FILTER_OPERATOR_UNSPECIFIED = 0;
   FILTER_OPERATOR_EQ = 1;

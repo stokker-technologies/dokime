@@ -1,20 +1,39 @@
-syntax = "proto3";
-package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
-import "harmos/v1/storage_types.proto";
+// SPDX-License-Identifier: Apache-2.0
 
-// Public asset identity, never a filesystem path or URL. A changed digest
-// requires a new appearance read; a download must not substitute new bytes.
+// Appearance Contracts
+
+syntax = "proto3";
+
+package dokime.v1;
+
+// === Imports === //
+
+import "harmos/model/v1/file.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// AppearanceAssetReference value owned by this resource.
 message AppearanceAssetReference {
   string plugin_id = 1;
   string asset_id = 2;
   string sha256 = 3;
 }
 
+// AppearanceAssetMetadata value owned by this resource.
 message AppearanceAssetMetadata {
   .dokime.v1.AppearanceAssetReference reference = 1;
   string content_type = 2;
   uint64 size_bytes = 3;
-  // Published Product File for Bounded Asset Reads.
-  .harmos.storage.v1.FileReference file = 4;
+  
+  .harmos.model.v1.FileReference file = 4;
 }
+
+// === Enums === //

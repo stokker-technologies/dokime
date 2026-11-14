@@ -1,14 +1,32 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Prompts Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "dokime/v1/evidence.proto";
 import "dokime/v1/metadata.proto";
 import "dokime/v1/scalar.proto";
 import "google/protobuf/timestamp.proto";
 
-// Shared prompt, traceability, file-capture and effect payloads.
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// PromptDefinitions value owned by this resource.
 message PromptDefinitions { repeated .dokime.v1.Prompt prompts = 1; }
 
+// Prompt value owned by this resource.
 message Prompt {
   .dokime.v1.Metadata metadata = 1;
   string message = 2;
@@ -23,16 +41,10 @@ message Prompt {
   .dokime.v1.Severity level = 11;
 }
 
+// PromptValues value owned by this resource.
 message PromptValues { map<string, .dokime.v1.Value> values = 1; }
 
-enum PromptArchetype {
-  PROMPT_ARCHETYPE_UNSPECIFIED = 0;
-  PROMPT_ARCHETYPE_CONFIRMATION = 1;
-  PROMPT_ARCHETYPE_FORM = 2;
-  PROMPT_ARCHETYPE_CHOICE = 3;
-  PROMPT_ARCHETYPE_STATUS = 4;
-}
-
+// PromptField value owned by this resource.
 message PromptField {
   .dokime.v1.Metadata metadata = 1;
   .dokime.v1.ValueType type = 2;
@@ -44,6 +56,7 @@ message PromptField {
   .dokime.v1.PromptFieldKind kind = 8;
 }
 
+// PromptFieldValidation value owned by this resource.
 message PromptFieldValidation {
   optional uint64 min_length = 1;
   optional uint64 max_length = 2;
@@ -54,15 +67,7 @@ message PromptFieldValidation {
   optional uint64 max_items = 7;
 }
 
-enum PromptFieldKind {
-  PROMPT_FIELD_KIND_UNSPECIFIED = 0;
-  PROMPT_FIELD_KIND_TEXT = 1;
-  PROMPT_FIELD_KIND_FLOAT = 2;
-  PROMPT_FIELD_KIND_INTEGER = 3;
-  PROMPT_FIELD_KIND_CHOICE = 4;
-  PROMPT_FIELD_KIND_BOOLEAN = 5;
-}
-
+// PromptAction value owned by this resource.
 message PromptAction {
   string identifier = 1;
   string label = 2;
@@ -70,15 +75,10 @@ message PromptAction {
   bool requires_condition = 4;
 }
 
-enum PromptActionEmphasis {
-  PROMPT_ACTION_EMPHASIS_UNSPECIFIED = 0;
-  PROMPT_ACTION_EMPHASIS_PRIMARY = 1;
-  PROMPT_ACTION_EMPHASIS_SECONDARY = 2;
-  PROMPT_ACTION_EMPHASIS_DANGER = 3;
-}
-
+// AnswerRule value owned by this resource.
 message AnswerRule { .dokime.v1.AnswerPredicate predicate = 1; string message = 2; }
 
+// AnswerPredicate value owned by this resource.
 message AnswerPredicate {
   oneof kind {
     .dokime.v1.Value literal = 1;
@@ -88,8 +88,49 @@ message AnswerPredicate {
   }
 }
 
+// AnswerBinaryPredicate value owned by this resource.
 message AnswerBinaryPredicate { .dokime.v1.AnswerOperator operator = 1; .dokime.v1.AnswerPredicate left = 2; .dokime.v1.AnswerPredicate right = 3; }
 
+// PromptResponse value owned by this resource.
+message PromptResponse {
+  string prompt_id = 1;
+  string action = 2;
+  string responder = 3;
+  .google.protobuf.Timestamp submitted_at = 4;
+  .dokime.v1.MapValue values = 5;
+  bool accepted = 6;
+}
+
+// === Enums === //
+
+// PromptArchetype choices.
+enum PromptArchetype {
+  PROMPT_ARCHETYPE_UNSPECIFIED = 0;
+  PROMPT_ARCHETYPE_CONFIRMATION = 1;
+  PROMPT_ARCHETYPE_FORM = 2;
+  PROMPT_ARCHETYPE_CHOICE = 3;
+  PROMPT_ARCHETYPE_STATUS = 4;
+}
+
+// PromptFieldKind choices.
+enum PromptFieldKind {
+  PROMPT_FIELD_KIND_UNSPECIFIED = 0;
+  PROMPT_FIELD_KIND_TEXT = 1;
+  PROMPT_FIELD_KIND_FLOAT = 2;
+  PROMPT_FIELD_KIND_INTEGER = 3;
+  PROMPT_FIELD_KIND_CHOICE = 4;
+  PROMPT_FIELD_KIND_BOOLEAN = 5;
+}
+
+// PromptActionEmphasis choices.
+enum PromptActionEmphasis {
+  PROMPT_ACTION_EMPHASIS_UNSPECIFIED = 0;
+  PROMPT_ACTION_EMPHASIS_PRIMARY = 1;
+  PROMPT_ACTION_EMPHASIS_SECONDARY = 2;
+  PROMPT_ACTION_EMPHASIS_DANGER = 3;
+}
+
+// AnswerOperator choices.
 enum AnswerOperator {
   ANSWER_OPERATOR_UNSPECIFIED = 0;
   ANSWER_OPERATOR_AND = 1;
@@ -103,13 +144,4 @@ enum AnswerOperator {
   ANSWER_OPERATOR_CONTAINS = 9;
   ANSWER_OPERATOR_STARTS_WITH = 10;
   ANSWER_OPERATOR_ENDS_WITH = 11;
-}
-
-message PromptResponse {
-  string prompt_id = 1;
-  string action = 2;
-  string responder = 3;
-  .google.protobuf.Timestamp submitted_at = 4;
-  .dokime.v1.MapValue values = 5;
-  bool accepted = 6;
 }

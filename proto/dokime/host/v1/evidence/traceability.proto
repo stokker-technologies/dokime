@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Traceability Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.evidence;
+
+// === Imports === //
+
+import "dokime/v1/evidence.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/traceability.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Host.V1.EvidenceResources";
+
+// === Services === //
+
+// Host operations with explicit caller admission.
+service Traceability {
+  // Get the Traceability resource; plugin selectors default to and are restricted to trusted caller identity.
+  rpc Get(.dokime.host.v1.evidence.TraceabilityGetRequest) returns (.dokime.host.v1.evidence.TraceabilityGetResponse) {
+    option (harmos.model.v1.callers) = ALL;
+  }
+  // Set the Traceability resource; admission and policy are owned by the executor.
+  rpc Set(.dokime.host.v1.evidence.TraceabilitySetRequest) returns (.dokime.host.v1.evidence.TraceabilitySetResponse) {
+    option (harmos.model.v1.callers) = PLUGINS;
+  }
+  // Watch the Traceability resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.evidence.TraceabilityWatchRequest) returns (stream .dokime.host.v1.evidence.TraceabilityWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// TraceabilityGetRequest for Traceability.Get.
+message TraceabilityGetRequest { string name = 1; string entry = 2; 
+optional string name = 4; optional string entry = 5;
+}
+
+// TraceabilityGetResponse for Traceability.Get.
+message TraceabilityGetResponse {
+  .dokime.v1.TraceabilityEntry value = 1;
+  bytes revision = 2;
+  .harmos.model.v1.Position resolved_at = 3;
+
+.dokime.v1.TraceabilityEntry value = 4; bytes revision = 5;
+}
+
+// === Set === //
+
+// TraceabilitySetRequest for Traceability.Set.
+message TraceabilitySetRequest {
+  string name = 1;
+  .dokime.v1.TraceabilityEntry value = 2;
+  bytes expected_revision = 3;
+  string request_id = 4;
+  string entry = 5;
+}
+
+// TraceabilitySetResponse for Traceability.Set.
+message TraceabilitySetResponse {
+  .dokime.v1.TraceabilityEntry value = 1;
+  bytes revision = 2;
+  .harmos.model.v1.Receipt receipt = 3;
+}
+
+// === Watch === //
+
+// TraceabilityWatchRequest for Traceability.Watch.
+message TraceabilityWatchRequest {
+  .dokime.v1.EvidenceScope scope = 1;
+  .harmos.model.v1.PageRequest page = 2;
+  .harmos.model.v1.ReadCut at = 3;
+}
+
+// TraceabilityWatchResponse for Traceability.Watch.
+message TraceabilityWatchResponse {
+  repeated .dokime.host.v1.evidence.TraceabilitySnapshot snapshots = 1;
+  .harmos.model.v1.ReadCut resolved_at = 2;
+  bool opening = 3;
+}
+
+// === Resources === //
+
+// TraceabilitySnapshot value owned by this resource.
+message TraceabilitySnapshot {
+  bytes revision = 6;
+  .harmos.model.v1.Position resolved_at = 7;
+  string traceability_id = 1;
+  .dokime.v1.EvidenceScope scope = 2;
+  .google.protobuf.Timestamp created_at = 3;
+  repeated .dokime.v1.TraceabilityEntry entries = 4;
+  .dokime.v1.Metadata metadata = 5;
+}
+
+// === Enums === //

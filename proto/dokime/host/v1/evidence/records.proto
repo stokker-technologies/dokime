@@ -1,0 +1,175 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Records Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.evidence;
+
+// === Imports === //
+
+import "dokime/v1/evidence.proto";
+import "dokime/v1/scalar.proto";
+import "dokime/v1/schemas.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Host.V1.EvidenceResources";
+
+// === Services === //
+
+// Host operations with explicit caller admission.
+service Records {
+  // Append the Records resource; admission and policy are owned by the executor.
+  rpc Append(.dokime.host.v1.evidence.RecordsAppendRequest) returns (.dokime.host.v1.evidence.RecordsAppendResponse) {
+    option (harmos.model.v1.callers) = PLUGINS;
+  }
+  // List the Records resource; plugin selectors default to and are restricted to trusted caller identity.
+  rpc List(.dokime.host.v1.evidence.RecordsListRequest) returns (.dokime.host.v1.evidence.RecordsListResponse) {
+    option (harmos.model.v1.callers) = ALL;
+  }
+  // Watch the Records resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.evidence.RecordsWatchRequest) returns (stream .dokime.host.v1.evidence.RecordsWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Append === //
+
+// RecordsAppendRequest for Records.Append.
+message RecordsAppendRequest {
+  string execution = 1;
+  
+  string kind = 2;
+  
+  bytes payload = 3;
+  
+  .google.protobuf.Timestamp source_at = 4;
+  string request_id = 5;
+}
+
+// RecordsAppendResponse for Records.Append.
+message RecordsAppendResponse {
+  
+  uint64 ordinal = 1;
+  .harmos.model.v1.Receipt receipt = 2;
+}
+
+// === List === //
+
+// RecordsListRequest for Records.List.
+message RecordsListRequest {
+  string execution = 1;
+  string kind = 2;
+  
+  string step = 3;
+  .harmos.model.v1.PageRequest page = 4;
+  .harmos.model.v1.Position at = 5;
+}
+
+// RecordsListResponse for Records.List.
+message RecordsListResponse {
+  uint64 count = 1;
+  .dokime.host.v1.evidence.Record last = 2;
+  
+  repeated .dokime.host.v1.evidence.Record records = 3;
+  .harmos.model.v1.Position resolved_at = 4;
+  string next_page_token = 5;
+
+uint64 count = 4; .dokime.host.v1.evidence.CapturedRecord last = 5;
+}
+
+// === Watch === //
+
+// RecordsWatchRequest for Records.Watch.
+message RecordsWatchRequest {
+  .dokime.host.v1.evidence.RecordScope scope = 1;
+  string record_type = 2;
+  repeated uint32 versions = 3;
+  .dokime.v1.Window between = 4;
+  string step = 5;
+  .dokime.host.v1.evidence.CapturedRecordSelection selection = 6;
+  .harmos.model.v1.ReadCut at = 90;
+  .harmos.model.v1.PageRequest page = 91;
+}
+
+// RecordsWatchResponse for Records.Watch.
+message RecordsWatchResponse {
+  repeated .dokime.host.v1.evidence.CapturedRecord records = 1;
+  .dokime.v1.Schema schema = 2;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Resources === //
+
+// CapturedErrorCause value owned by this resource.
+message CapturedErrorCause {
+  string message = 1;
+  optional string code = 2;
+  optional string source = 3;
+}
+
+// CapturedRecord value owned by this resource.
+message CapturedRecord {
+  
+  bytes payload = 16;
+  string record_id = 1;
+  uint64 sequence = 2;
+  .google.protobuf.Timestamp timestamp = 3;
+  string record_type = 4;
+  uint32 schema_version = 5;
+  string source = 6;
+  .dokime.v1.Severity severity = 7;
+  optional string message = 8;
+  .dokime.host.v1.evidence.CapturedRecordError error = 9;
+  .dokime.v1.Value details = 10;
+  .dokime.v1.EvidenceScope scope = 11;
+  optional string related_sample_id = 12;
+  optional string related_stream_id = 13;
+  optional string related_artifact_id = 14;
+  .google.protobuf.Timestamp received_at = 15;
+}
+
+// CapturedRecordError value owned by this resource.
+message CapturedRecordError {
+  string message = 1;
+  optional string code = 2;
+  optional string source = 3;
+  repeated .dokime.host.v1.evidence.CapturedErrorCause cause_chain = 4;
+  optional string stacktrace_attachment = 5;
+  optional string trace_id = 6;
+  optional string correlation_id = 7;
+  optional string diagnostics = 8;
+}
+
+// CycleScope value owned by this resource.
+message CycleScope {
+  string cycle_id = 1;
+  optional string execution_id = 2;
+}
+
+// RecordScope value owned by this resource.
+message RecordScope {
+  oneof kind {
+    string execution = 1;
+    .dokime.host.v1.evidence.CycleScope cycle = 2;
+  }
+}
+
+// CapturedRecordSelection value owned by this resource.
+message CapturedRecordSelection {
+  .dokime.v1.EvidenceScope scope = 1;
+  repeated string record_types = 2;
+  repeated string sources = 3;
+  repeated .dokime.v1.Severity severities = 4;
+}
+
+// === Enums === //

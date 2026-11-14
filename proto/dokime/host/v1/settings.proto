@@ -1,0 +1,289 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Settings Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/v1/plots.proto";
+import "dokime/v1/scalar.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Host.V1";
+
+// === Services === //
+
+// Host operations with explicit caller admission.
+service Settings {
+  // Get the Settings resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.SettingsGetRequest) returns (.dokime.host.v1.SettingsGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Set the Settings resource; admission and policy are owned by the executor.
+  rpc Set(.dokime.host.v1.SettingsSetRequest) returns (.dokime.host.v1.SettingsSetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Schema the Settings resource; admission and policy are owned by the executor.
+  rpc Schema(.dokime.host.v1.SettingsSchemaRequest) returns (.dokime.host.v1.SettingsSchemaResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// SettingsGetRequest for Settings.Get.
+message SettingsGetRequest {  .harmos.model.v1.ReadCut at = 90; }
+
+// SettingsGetResponse for Settings.Get.
+message SettingsGetResponse { .dokime.host.v1.ApplicationSettings value = 1; bytes revision = 2;  .harmos.model.v1.ReadCut resolved_at = 90; }
+
+// === Set === //
+
+// SettingsSetRequest for Settings.Set.
+message SettingsSetRequest {  .dokime.host.v1.ApplicationSettings value = 20; bytes expected_revision = 21; string request_id = 22; }
+
+// SettingsSetResponse for Settings.Set.
+message SettingsSetResponse { .dokime.host.v1.ApplicationSettings value = 1; bytes revision = 2; .harmos.model.v1.Receipt receipt = 3; }
+
+// === Schema === //
+
+// SettingsSchemaRequest for Settings.Schema.
+message SettingsSchemaRequest { .harmos.model.v1.ReadCut at = 1; }
+
+// SettingsSchemaResponse for Settings.Schema.
+message SettingsSchemaResponse { .dokime.host.v1.SettingsFrame schema = 1; .harmos.model.v1.ReadCut resolved_at = 2; }
+
+// === Resources === //
+
+// ReadSettings value owned by this resource.
+message ReadSettings {}
+
+// SavedSettings value owned by this resource.
+message SavedSettings {
+  
+  map<string, .dokime.v1.Value> values = 1;
+}
+
+// ApplicationAppearance value owned by this resource.
+message ApplicationAppearance {
+  .dokime.host.v1.ThemeMode theme_mode = 1;
+  optional string theme_family = 2;
+  .dokime.host.v1.Density density = 3;
+}
+
+// ApplicationSettings value owned by this resource.
+message ApplicationSettings {
+  .dokime.host.v1.ApplicationAppearance appearance = 1;
+  .dokime.host.v1.ReportDefaults report = 2;
+  .dokime.host.v1.ClientPreferences client = 3;
+  .dokime.host.v1.TelemetryPreferences telemetry = 4;
+  .dokime.host.v1.RemoteListenerSettings listener = 5;
+  .dokime.host.v1.PluginPreferences plugins = 6;
+}
+
+// BootstrapPaths value owned by this resource.
+message BootstrapPaths {
+  string application = 1;
+  string storage = 2;
+  string plugins = 3;
+  string logs = 4;
+}
+
+// CachedRefresh value owned by this resource.
+message CachedRefresh {
+  uint64 max_age_ms = 1;
+}
+
+// ClientPreferences value owned by this resource.
+message ClientPreferences {
+  uint64 connect_timeout_ms = 1;
+  uint64 request_timeout_ms = 2;
+}
+
+// HostCardBlock value owned by this resource.
+message HostCardBlock {
+  .dokime.host.v1.HostCardBlockKind kind = 1;
+}
+
+// HostCardBlockKind value owned by this resource.
+message HostCardBlockKind {
+  oneof kind {
+    string text = 1;
+    .dokime.host.v1.HostCardStatus status = 2;
+    .dokime.host.v1.HostCardKeyValueList key_value_list = 3;
+    .dokime.host.v1.HostCardMetrics metrics = 4;
+  }
+}
+
+// HostCardBody value owned by this resource.
+message HostCardBody {
+  repeated .dokime.host.v1.HostCardBlock blocks = 1;
+}
+
+// HostCardKeyValue value owned by this resource.
+message HostCardKeyValue {
+  string label = 1;
+  string value = 2;
+  optional string detail = 3;
+}
+
+// HostCardKeyValueList value owned by this resource.
+message HostCardKeyValueList {
+  repeated .dokime.host.v1.HostCardKeyValue items = 1;
+}
+
+// HostCardMetric value owned by this resource.
+message HostCardMetric {
+  string label = 1;
+  string value = 2;
+  optional string unit = 3;
+  optional string trend = 4;
+}
+
+// HostCardMetrics value owned by this resource.
+message HostCardMetrics {
+  repeated .dokime.host.v1.HostCardMetric items = 1;
+}
+
+// HostCardStatus value owned by this resource.
+message HostCardStatus {
+  string label = 1;
+  .dokime.host.v1.HostCardTone tone = 2;
+  optional string detail = 3;
+}
+
+// ManualRefresh value owned by this resource.
+message ManualRefresh {
+
+}
+
+// OnDemandRefresh value owned by this resource.
+message OnDemandRefresh {
+
+}
+
+// PluginPreferences value owned by this resource.
+message PluginPreferences {
+  uint32 startup_timeout_s = 1;
+  uint32 stop_timeout_s = 2;
+}
+
+// RemoteListenerSettings value owned by this resource.
+message RemoteListenerSettings {
+  bool enabled = 1;
+  string address = 2;
+  bool tls_enabled = 3;
+  bool authentication_enabled = 4;
+  repeated string certificate_names = 5;
+}
+
+// ReportDefaults value owned by this resource.
+message ReportDefaults {
+  uint32 source_bytes = 1;
+  uint32 value_depth = 2;
+  uint32 table_rows = 3;
+  uint32 plot_points = 4;
+  .dokime.v1.Downsample plot_downsample = 5;
+}
+
+// SettingsCard value owned by this resource.
+message SettingsCard {
+  string plugin_id = 1;
+  string card_id = 2;
+  string section_id = 3;
+  string label = 4;
+  optional string description = 5;
+  .dokime.host.v1.HostCardBody body = 6;
+  .dokime.host.v1.SettingsCardRefreshPolicy refresh = 7;
+  .dokime.host.v1.SettingsCardState state = 8;
+  int32 order = 9;
+}
+
+// SettingsCardRefreshPolicy value owned by this resource.
+message SettingsCardRefreshPolicy {
+  .dokime.host.v1.SettingsCardRefreshPolicyPolicy policy = 1;
+}
+
+// SettingsCardRefreshPolicyPolicy value owned by this resource.
+message SettingsCardRefreshPolicyPolicy {
+  oneof kind {
+    .dokime.host.v1.ManualRefresh manual = 1;
+    .dokime.host.v1.CachedRefresh cached = 2;
+    .dokime.host.v1.OnDemandRefresh on_demand = 3;
+  }
+}
+
+// SettingsFrame value owned by this resource.
+message SettingsFrame {
+  .dokime.host.v1.BootstrapPaths bootstrap_paths = 1;
+  repeated .dokime.host.v1.SettingsSection sections = 2;
+  repeated .dokime.host.v1.SettingsCard cards = 3;
+}
+
+// SettingsSection value owned by this resource.
+message SettingsSection {
+  string section_id = 1;
+  string label = 2;
+  optional string description = 3;
+  .dokime.host.v1.SettingsSectionOwner owner = 4;
+  int32 order = 5;
+}
+
+// SettingsSectionOwner value owned by this resource.
+message SettingsSectionOwner {
+  oneof kind {
+    bool app = 1;
+    string installed_plugin_id = 2;
+  }
+}
+
+// TelemetryPreferences value owned by this resource.
+message TelemetryPreferences {
+  uint64 interval_ms = 1;
+}
+
+// === Enums === //
+
+// Density choices.
+enum Density {
+  DENSITY_UNSPECIFIED = 0;
+  DENSITY_COMFORTABLE = 1;
+  DENSITY_COMPACT = 2;
+  DENSITY_TOUCH = 3;
+}
+
+// HostCardTone choices.
+enum HostCardTone {
+  HOST_CARD_TONE_UNSPECIFIED = 0;
+  HOST_CARD_TONE_NEUTRAL = 1;
+  HOST_CARD_TONE_INFO = 2;
+  HOST_CARD_TONE_SUCCESS = 3;
+  HOST_CARD_TONE_WARNING = 4;
+  HOST_CARD_TONE_DANGER = 5;
+}
+
+// SettingsCardState choices.
+enum SettingsCardState {
+  SETTINGS_CARD_STATE_UNSPECIFIED = 0;
+  SETTINGS_CARD_STATE_READY = 1;
+  SETTINGS_CARD_STATE_DISABLED = 2;
+  SETTINGS_CARD_STATE_DISCONNECTED = 3;
+  SETTINGS_CARD_STATE_STALE = 4;
+  SETTINGS_CARD_STATE_ERROR = 5;
+  SETTINGS_CARD_STATE_PERMISSION_DENIED = 6;
+}
+
+// ThemeMode choices.
+enum ThemeMode {
+  THEME_MODE_UNSPECIFIED = 0;
+  THEME_MODE_SYSTEM = 1;
+  THEME_MODE_LIGHT = 2;
+  THEME_MODE_DARK = 3;
+}

@@ -1,10 +1,26 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Scalar Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "google/protobuf/timestamp.proto";
 
-// A resolved parameter, setting or evidence scalar. No JSON encoding or object bag.
-// An unset kind is invalid; null is explicit. Integers retain their full precision.
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// Value value owned by this resource.
 message Value {
   oneof kind {
     .dokime.v1.Null null = 1;
@@ -19,10 +35,18 @@ message Value {
   }
 }
 
+// Null value owned by this resource.
 message Null {}
 
+// ValueList value owned by this resource.
 message ValueList { repeated .dokime.v1.Value values = 1; }
 
+// MapValue value owned by this resource.
+message MapValue { map<string, .dokime.v1.Value> values = 1; }
+
+// === Enums === //
+
+// ValueType choices.
 enum ValueType {
   VALUE_TYPE_UNSPECIFIED = 0;
   VALUE_TYPE_BOOLEAN = 1;
@@ -34,5 +58,3 @@ enum ValueType {
   VALUE_TYPE_LIST = 7;
   VALUE_TYPE_DATETIME = 8;
 }
-
-message MapValue { map<string, .dokime.v1.Value> values = 1; }

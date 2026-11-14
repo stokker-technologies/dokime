@@ -1,26 +1,53 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Files Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
+
+// === Imports === //
+
+
+// === Options === //
+
 option csharp_namespace = "Dokime.Protocol.V1";
 
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// FileSource value owned by this resource.
 message FileSource {
   oneof kind { .dokime.v1.FileLocation file = 1; .dokime.v1.FileSelection tree = 2; .dokime.v1.FileSelection newest = 3; }
 }
 
+// FileLocation value owned by this resource.
 message FileLocation { oneof kind { string local = 1; .dokime.v1.FtpLocation ftp = 2; } }
 
+// FtpLocation value owned by this resource.
 message FtpLocation { string url = 1; optional string secret_id = 2; }
 
+// FileSelection value owned by this resource.
 message FileSelection { .dokime.v1.FileLocation root = 1; repeated .dokime.v1.FileRule rules = 2; }
 
-// Last matching rule wins. No rules selects every relative path.
+// FileRule value owned by this resource.
 message FileRule { string glob = 1; .dokime.v1.FileRuleAction action = 2; }
 
-enum FileRuleAction { FILE_RULE_ACTION_UNSPECIFIED = 0; FILE_RULE_ACTION_INCLUDE = 1; FILE_RULE_ACTION_EXCLUDE = 2; }
-
+// CapturedArtifact value owned by this resource.
 message CapturedArtifact { string artifact = 1; uint64 size_bytes = 2; }
 
+// CaptureGap value owned by this resource.
 message CaptureGap { string path = 1; uint64 offset = 2; .dokime.v1.CaptureGapReason reason = 3; }
 
+// === Enums === //
+
+// FileRuleAction choices.
+enum FileRuleAction { FILE_RULE_ACTION_UNSPECIFIED = 0; FILE_RULE_ACTION_INCLUDE = 1; FILE_RULE_ACTION_EXCLUDE = 2; }
+
+// CaptureGapReason choices.
 enum CaptureGapReason {
   CAPTURE_GAP_REASON_UNSPECIFIED = 0;
   CAPTURE_GAP_REASON_TRUNCATED = 1;

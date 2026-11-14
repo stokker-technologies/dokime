@@ -1,9 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Parameters Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "dokime/v1/metadata.proto";
 import "dokime/v1/scalar.proto";
 
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// Parameter value owned by this resource.
 message Parameter {
   .dokime.v1.Metadata metadata = 1;
   .dokime.v1.ValueType type = 2;
@@ -21,6 +39,7 @@ message Parameter {
   bool runtime_writable = 14;
 }
 
+// ParameterExpansion value owned by this resource.
 message ParameterExpansion {
   oneof kind {
     bool single = 1;
@@ -29,7 +48,7 @@ message ParameterExpansion {
   }
 }
 
-// A tree, never expression text. Range stop is exclusive; linspace includes stop.
+// ParameterExpression value owned by this resource.
 message ParameterExpression {
   oneof kind {
     .dokime.v1.Value literal = 1;
@@ -44,43 +63,56 @@ message ParameterExpression {
   }
 }
 
+// ParameterExpressions value owned by this resource.
 message ParameterExpressions { repeated .dokime.v1.ParameterExpression values = 1; }
 
+// IntegerRange value owned by this resource.
 message IntegerRange { sint64 start = 1; sint64 stop = 2; sint64 step = 3; }
 
+// NumberRange value owned by this resource.
 message NumberRange { double start = 1; double stop = 2; double step = 3; }
 
+// LinearSpace value owned by this resource.
 message LinearSpace { double start = 1; double stop = 2; uint64 count = 3; }
 
+// DynamicDefault value owned by this resource.
 message DynamicDefault { .dokime.v1.DynamicDefaultKey key = 1; .dokime.v1.ParameterExpression fallback = 2; }
 
-enum DynamicDefaultKey {
-  DYNAMIC_DEFAULT_KEY_UNSPECIFIED = 0;
-  DYNAMIC_DEFAULT_KEY_OPERATOR_NAME = 1;
-  DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL = 2;
-}
-
+// ParameterUnary value owned by this resource.
 message ParameterUnary { .dokime.v1.ParameterUnaryOperator operator = 1; .dokime.v1.ParameterExpression value = 2; }
 
-enum ParameterUnaryOperator { PARAMETER_UNARY_OPERATOR_UNSPECIFIED = 0; PARAMETER_UNARY_OPERATOR_NEGATE = 1; }
-
+// ParameterBinary value owned by this resource.
 message ParameterBinary {
   .dokime.v1.ParameterBinaryOperator operator = 1;
   .dokime.v1.ParameterExpression left = 2;
   .dokime.v1.ParameterExpression right = 3;
 }
 
+// FileParameter value owned by this resource.
+message FileParameter {
+  .dokime.v1.Metadata metadata = 1;
+  optional string default_value = 2;
+  bool required = 3;
+  repeated string media_types = 4;
+}
+
+// === Enums === //
+
+// DynamicDefaultKey choices.
+enum DynamicDefaultKey {
+  DYNAMIC_DEFAULT_KEY_UNSPECIFIED = 0;
+  DYNAMIC_DEFAULT_KEY_OPERATOR_NAME = 1;
+  DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL = 2;
+}
+
+// ParameterUnaryOperator choices.
+enum ParameterUnaryOperator { PARAMETER_UNARY_OPERATOR_UNSPECIFIED = 0; PARAMETER_UNARY_OPERATOR_NEGATE = 1; }
+
+// ParameterBinaryOperator choices.
 enum ParameterBinaryOperator {
   PARAMETER_BINARY_OPERATOR_UNSPECIFIED = 0;
   PARAMETER_BINARY_OPERATOR_ADD = 1;
   PARAMETER_BINARY_OPERATOR_SUBTRACT = 2;
   PARAMETER_BINARY_OPERATOR_MULTIPLY = 3;
   PARAMETER_BINARY_OPERATOR_DIVIDE = 4;
-}
-
-message FileParameter {
-  .dokime.v1.Metadata metadata = 1;
-  optional string default_value = 2;
-  bool required = 3;
-  repeated string media_types = 4;
 }

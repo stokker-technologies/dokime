@@ -1,13 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Plots Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "dokime/v1/analyses.proto";
 import "dokime/v1/evidence.proto";
 import "dokime/v1/expressions.proto";
 import "dokime/v1/metadata.proto";
 import "dokime/v1/scalar.proto";
-import "harmos/v1/types.proto";
+import "harmos/model/v1/position.proto";
 
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// Plot value owned by this resource.
 message Plot {
   .dokime.v1.Metadata metadata = 1;
   .dokime.v1.PlotKind kind = 2;
@@ -33,49 +51,12 @@ message Plot {
   .dokime.v1.PlotStyle style = 22;
   .dokime.v1.AxisScale x_scale = 23;
   .dokime.v1.AxisScale y_scale = 24;
-  // Frequency input: latest N finite samples in source-time order, within filters.
-  // Absent uses the host's bounded transform input. Larger requests are refused.
+  
+  
   optional uint32 input_samples = 25;
 }
 
-enum PlotStyle {
-  PLOT_STYLE_UNSPECIFIED = 0;
-  PLOT_STYLE_LINE = 1;
-  PLOT_STYLE_POINTS = 2;
-  PLOT_STYLE_LINE_POINTS = 3;
-  PLOT_STYLE_STEP = 4;
-}
-
-enum AxisScale {
-  AXIS_SCALE_UNSPECIFIED = 0;
-  AXIS_SCALE_LINEAR = 1;
-  AXIS_SCALE_LOG = 2;
-}
-
-enum Reduction {
-  REDUCTION_UNSPECIFIED = 0;
-  REDUCTION_MEAN = 1;
-  REDUCTION_MIN = 2;
-  REDUCTION_MAX = 3;
-}
-
-enum ContourRender {
-  CONTOUR_RENDER_UNSPECIFIED = 0;
-  CONTOUR_RENDER_CELLS = 1;
-  CONTOUR_RENDER_BANDS = 2;
-}
-
-enum BarArrangement {
-  BAR_ARRANGEMENT_UNSPECIFIED = 0;
-  BAR_ARRANGEMENT_GROUPED = 1;
-  BAR_ARRANGEMENT_STACKED = 2;
-}
-
-enum XyInterval {
-  XY_INTERVAL_UNSPECIFIED = 0;
-  XY_INTERVAL_SIGMA = 1;
-}
-
+// GridAxisEntry value owned by this resource.
 message GridAxisEntry {
   string key = 1;
   string label = 2;
@@ -83,12 +64,14 @@ message GridAxisEntry {
   optional string group = 4;
 }
 
+// GridHighlight value owned by this resource.
 message GridHighlight {
   .dokime.v1.DataExpression row = 1;
   .dokime.v1.DataExpression column = 2;
   string label = 3;
 }
 
+// GridChart value owned by this resource.
 message GridChart {
   .dokime.v1.DataExpression row = 1;
   .dokime.v1.DataExpression column = 2;
@@ -99,8 +82,10 @@ message GridChart {
   string summary_label = 7;
 }
 
+// ReferenceLine value owned by this resource.
 message ReferenceLine { .dokime.v1.DataExpression value = 1; string label = 2; string color = 3; }
 
+// ReferenceBand value owned by this resource.
 message ReferenceBand {
   .dokime.v1.DataExpression min = 1;
   .dokime.v1.DataExpression max = 2;
@@ -110,53 +95,7 @@ message ReferenceBand {
   .dokime.v1.DataExpression tolerance = 6;
 }
 
-enum PlotKind {
-  reserved 3, 4, 6, 7, 9, 11, 12, 13, 16, 17;
-  reserved "PLOT_KIND_GROUPED_BAR", "PLOT_KIND_STACKED_BAR", "PLOT_KIND_DONUT",
-      "PLOT_KIND_PARETO", "PLOT_KIND_XY_INTERVAL", "PLOT_KIND_HEATMAP",
-      "PLOT_KIND_XY_VALUE_HEATMAP", "PLOT_KIND_WIFI_CHANNEL_OCCUPANCY",
-      "PLOT_KIND_BOX_SUMMARY", "PLOT_KIND_AGGREGATE_TABLE";
-  PLOT_KIND_UNSPECIFIED = 0;
-  PLOT_KIND_TIME_SERIES = 1;
-  PLOT_KIND_BAR = 2;
-  PLOT_KIND_PIE = 5;
-  PLOT_KIND_XY = 8;
-  PLOT_KIND_TRAJECTORY = 10;
-  PLOT_KIND_FREQUENCY_SERIES = 14;
-  PLOT_KIND_HISTOGRAM = 15;
-  PLOT_KIND_CONTOUR = 18;
-  PLOT_KIND_GRID_CHART = 19;
-  PLOT_KIND_BOX_PLOT = 20;
-}
-
-enum Downsample {
-  DOWNSAMPLE_UNSPECIFIED = 0;
-  DOWNSAMPLE_RAW = 1;
-  DOWNSAMPLE_MIN_MAX = 2;
-  DOWNSAMPLE_LTTB = 3;
-  DOWNSAMPLE_AUTO = 4;
-}
-
-enum FftDetrend {
-  FFT_DETREND_UNSPECIFIED = 0;
-  FFT_DETREND_NONE = 1;
-  FFT_DETREND_MEAN = 2;
-}
-
-enum FftWindow {
-  FFT_WINDOW_UNSPECIFIED = 0;
-  FFT_WINDOW_HANN = 1;
-  FFT_WINDOW_RECTANGULAR = 2;
-}
-
-enum FrequencyLevelUnit {
-  FREQUENCY_LEVEL_UNIT_UNSPECIFIED = 0;
-  FREQUENCY_LEVEL_UNIT_LINEAR = 1;
-  FREQUENCY_LEVEL_UNIT_DB = 2;
-  FREQUENCY_LEVEL_UNIT_DBU = 3;
-  FREQUENCY_LEVEL_UNIT_DBM = 4;
-}
-
+// GridDefinition value owned by this resource.
 message GridDefinition {
   .dokime.v1.DataExpression row = 1;
   .dokime.v1.DataExpression column = 2;
@@ -167,14 +106,7 @@ message GridDefinition {
   string summary_label = 7;
 }
 
-enum LineStyle {
-  LINE_STYLE_UNSPECIFIED = 0;
-  LINE_STYLE_LINE = 1;
-  LINE_STYLE_POINTS = 2;
-  LINE_STYLE_LINE_POINTS = 3;
-  LINE_STYLE_STEP = 4;
-}
-
+// PlotFftOptions value owned by this resource.
 message PlotFftOptions {
   optional double sample_rate_hz = 1;
   .dokime.v1.FftWindow window = 2;
@@ -183,28 +115,32 @@ message PlotFftOptions {
   bool include_dc = 5;
   optional double min_frequency_hz = 6;
   optional double max_frequency_hz = 7;
-  // Latest N finite source samples; independent of output resolution and taper.
-  // Absent uses the host's bounded transform input. Must fit that input bound.
+  
+  
   optional uint32 input_samples = 8;
 }
 
+// PlotFilter value owned by this resource.
 message PlotFilter {
   .dokime.v1.DataExpression expression = 1;
   .dokime.v1.FilterOperator operator = 2;
   .dokime.v1.Value value = 3;
 }
 
+// PlotHistogramOptions value owned by this resource.
 message PlotHistogramOptions {
   uint64 bins = 1;
   optional string unit = 2;
 }
 
+// PlotIntervalOptions value owned by this resource.
 message PlotIntervalOptions {
   double bin_width = 1;
   double sigma = 2;
   bool clip_to_observed = 3;
 }
 
+// PlotRequest value owned by this resource.
 message PlotRequest {
   optional .dokime.v1.BarArrangement arrangement = 1;
   bool pareto = 2;
@@ -244,11 +180,119 @@ message PlotRequest {
   .dokime.v1.PlotWindow summary_window = 36;
   .dokime.v1.PlotWindow viewport = 37;
   optional uint32 panel_width = 38;
-  // Optional fixed evidence cut; binds document plots to one captured snapshot.
-  .harmos.v1.ReadCut at = 39;
+  
+  .harmos.model.v1.ReadCut at = 39;
 }
 
+// PlotWindow value owned by this resource.
 message PlotWindow {
   double from = 1;
   double to = 2;
+}
+
+// === Enums === //
+
+// PlotStyle choices.
+enum PlotStyle {
+  PLOT_STYLE_UNSPECIFIED = 0;
+  PLOT_STYLE_LINE = 1;
+  PLOT_STYLE_POINTS = 2;
+  PLOT_STYLE_LINE_POINTS = 3;
+  PLOT_STYLE_STEP = 4;
+}
+
+// AxisScale choices.
+enum AxisScale {
+  AXIS_SCALE_UNSPECIFIED = 0;
+  AXIS_SCALE_LINEAR = 1;
+  AXIS_SCALE_LOG = 2;
+}
+
+// Reduction choices.
+enum Reduction {
+  REDUCTION_UNSPECIFIED = 0;
+  REDUCTION_MEAN = 1;
+  REDUCTION_MIN = 2;
+  REDUCTION_MAX = 3;
+}
+
+// ContourRender choices.
+enum ContourRender {
+  CONTOUR_RENDER_UNSPECIFIED = 0;
+  CONTOUR_RENDER_CELLS = 1;
+  CONTOUR_RENDER_BANDS = 2;
+}
+
+// BarArrangement choices.
+enum BarArrangement {
+  BAR_ARRANGEMENT_UNSPECIFIED = 0;
+  BAR_ARRANGEMENT_GROUPED = 1;
+  BAR_ARRANGEMENT_STACKED = 2;
+}
+
+// XyInterval choices.
+enum XyInterval {
+  XY_INTERVAL_UNSPECIFIED = 0;
+  XY_INTERVAL_SIGMA = 1;
+}
+
+// PlotKind choices.
+enum PlotKind {
+  reserved 3, 4, 6, 7, 9, 11, 12, 13, 16, 17;
+  reserved "PLOT_KIND_GROUPED_BAR", "PLOT_KIND_STACKED_BAR", "PLOT_KIND_DONUT",
+      "PLOT_KIND_PARETO", "PLOT_KIND_XY_INTERVAL", "PLOT_KIND_HEATMAP",
+      "PLOT_KIND_XY_VALUE_HEATMAP", "PLOT_KIND_WIFI_CHANNEL_OCCUPANCY",
+      "PLOT_KIND_BOX_SUMMARY", "PLOT_KIND_AGGREGATE_TABLE";
+  PLOT_KIND_UNSPECIFIED = 0;
+  PLOT_KIND_TIME_SERIES = 1;
+  PLOT_KIND_BAR = 2;
+  PLOT_KIND_PIE = 5;
+  PLOT_KIND_XY = 8;
+  PLOT_KIND_TRAJECTORY = 10;
+  PLOT_KIND_FREQUENCY_SERIES = 14;
+  PLOT_KIND_HISTOGRAM = 15;
+  PLOT_KIND_CONTOUR = 18;
+  PLOT_KIND_GRID_CHART = 19;
+  PLOT_KIND_BOX_PLOT = 20;
+}
+
+// Downsample choices.
+enum Downsample {
+  DOWNSAMPLE_UNSPECIFIED = 0;
+  DOWNSAMPLE_RAW = 1;
+  DOWNSAMPLE_MIN_MAX = 2;
+  DOWNSAMPLE_LTTB = 3;
+  DOWNSAMPLE_AUTO = 4;
+}
+
+// FftDetrend choices.
+enum FftDetrend {
+  FFT_DETREND_UNSPECIFIED = 0;
+  FFT_DETREND_NONE = 1;
+  FFT_DETREND_MEAN = 2;
+}
+
+// FftWindow choices.
+enum FftWindow {
+  FFT_WINDOW_UNSPECIFIED = 0;
+  FFT_WINDOW_HANN = 1;
+  FFT_WINDOW_RECTANGULAR = 2;
+}
+
+// FrequencyLevelUnit choices.
+enum FrequencyLevelUnit {
+  FREQUENCY_LEVEL_UNIT_UNSPECIFIED = 0;
+  FREQUENCY_LEVEL_UNIT_LINEAR = 1;
+  FREQUENCY_LEVEL_UNIT_DB = 2;
+  FREQUENCY_LEVEL_UNIT_DBU = 3;
+  FREQUENCY_LEVEL_UNIT_DBM = 4;
+}
+
+// LineStyle choices.
+enum LineStyle {
+  LINE_STYLE_UNSPECIFIED = 0;
+  LINE_STYLE_LINE = 1;
+  LINE_STYLE_POINTS = 2;
+  LINE_STYLE_LINE_POINTS = 3;
+  LINE_STYLE_STEP = 4;
 }

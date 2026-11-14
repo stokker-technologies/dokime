@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Aggregates Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/v1/expressions.proto";
+import "dokime/v1/scalar.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Host.V1";
+
+// === Services === //
+
+// Host operations with explicit caller admission.
+service Aggregates {
+  // Get the Aggregates resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.AggregatesGetRequest) returns (.dokime.host.v1.AggregatesGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// AggregatesGetRequest for Aggregates.Get.
+message AggregatesGetRequest {
+  .dokime.host.v1.QuerySource source = 1;
+  repeated .dokime.host.v1.QueryFilter filters = 2;
+  repeated string group_by = 3;
+  repeated .dokime.host.v1.QueryAggregate aggregates = 4;
+  uint32 limit = 5;
+  .harmos.model.v1.ReadCut at = 90;
+}
+
+// AggregatesGetResponse for Aggregates.Get.
+message AggregatesGetResponse { .dokime.host.v1.AggregateReply value = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+
+// === Resources === //
+
+// AggregateReply value owned by this resource.
+message AggregateReply {
+  repeated string columns = 1;
+  repeated .dokime.host.v1.QueryRow rows = 2;
+  bool complete = 3;
+}
+
+// QueryAggregate value owned by this resource.
+message QueryAggregate {
+  .dokime.v1.Aggregate aggregate = 1;
+  string column = 2;
+  string alias = 3;
+  optional double percentile = 4;
+}
+
+// QueryFilter value owned by this resource.
+message QueryFilter {
+  string column = 1;
+  .dokime.host.v1.QueryFilterOperator op = 2;
+  repeated .dokime.v1.Value values = 3;
+}
+
+// QueryRow value owned by this resource.
+message QueryRow {
+  repeated .dokime.v1.Value values = 1;
+}
+
+// === Enums === //
+
+// QueryFilterOperator choices.
+enum QueryFilterOperator {
+  QUERY_FILTER_OPERATOR_UNSPECIFIED = 0;
+  QUERY_FILTER_OPERATOR_EQ = 1;
+  QUERY_FILTER_OPERATOR_NEQ = 2;
+  QUERY_FILTER_OPERATOR_IN = 3;
+  QUERY_FILTER_OPERATOR_GT = 4;
+  QUERY_FILTER_OPERATOR_GTE = 5;
+  QUERY_FILTER_OPERATOR_LT = 6;
+  QUERY_FILTER_OPERATOR_LTE = 7;
+  QUERY_FILTER_OPERATOR_IS_NULL = 8;
+}
+
+// QuerySource choices.
+enum QuerySource {
+  QUERY_SOURCE_UNSPECIFIED = 0;
+  QUERY_SOURCE_CYCLES = 1;
+  QUERY_SOURCE_CASES = 2;
+  QUERY_SOURCE_EXECUTIONS = 3;
+  QUERY_SOURCE_STEPS = 4;
+  QUERY_SOURCE_RECORDS = 5;
+}

@@ -1,10 +1,29 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Settings Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "dokime/v1/metadata.proto";
 
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// SettingsDeclarations value owned by this resource.
 message SettingsDeclarations { repeated .dokime.v1.Setting settings = 1; }
 
+// Setting value owned by this resource.
 message Setting {
   .dokime.v1.Metadata metadata = 1;
   oneof kind {
@@ -17,26 +36,36 @@ message Setting {
   }
 }
 
+// BooleanSetting value owned by this resource.
 message BooleanSetting { bool default_value = 1; }
 
+// TextSetting value owned by this resource.
 message TextSetting { string default_value = 1; bool required = 2; }
 
+// PathSetting value owned by this resource.
 message PathSetting { string default_value = 1; bool required = 2; }
 
+// NumberSetting value owned by this resource.
 message NumberSetting { double default_value = 1; optional double min = 2; optional double max = 3; optional double step = 4; }
 
+// ChoiceSetting value owned by this resource.
 message ChoiceSetting {
   string default_value = 1;
   repeated .dokime.v1.SettingChoice choices = 2;
   optional string provider = 3;
 }
 
+// SettingChoice value owned by this resource.
 message SettingChoice { string value = 1; string label = 2; }
 
+// SecretSetting value owned by this resource.
 message SecretSetting { bool required = 1; }
 
+// RunStart value owned by this resource.
 message RunStart {
-  // Serialized request for a declared operation, using its protobuf contract.
+  
   string operation = 1;
   bytes request = 2;
 }
+
+// === Enums === //

@@ -1,17 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Evidence Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "dokime/v1/scalar.proto";
 import "google/protobuf/timestamp.proto";
 
-enum Severity {
-  SEVERITY_UNSPECIFIED = 0;
-  SEVERITY_DEBUG = 1;
-  SEVERITY_INFO = 2;
-  SEVERITY_WARNING = 3;
-  SEVERITY_ERROR = 4;
-}
+// === Options === //
 
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// EvidenceCondition value owned by this resource.
 message EvidenceCondition {
   oneof kind {
     .dokime.v1.RecordMatch record = 1;
@@ -21,10 +31,13 @@ message EvidenceCondition {
   }
 }
 
+// EvidenceConditions value owned by this resource.
 message EvidenceConditions { repeated .dokime.v1.EvidenceCondition conditions = 1; }
 
+// RecordMatch value owned by this resource.
 message RecordMatch { string kind = 1; map<string, .dokime.v1.Value> fields = 2; }
 
+// StreamMatch value owned by this resource.
 message StreamMatch {
   string stream = 1;
   string field = 2;
@@ -33,17 +46,7 @@ message StreamMatch {
   optional double tolerance = 5;
 }
 
-enum StreamMatchOperator {
-  STREAM_MATCH_OPERATOR_UNSPECIFIED = 0;
-  STREAM_MATCH_OPERATOR_EXISTS = 1;
-  STREAM_MATCH_OPERATOR_EQ = 2;
-  STREAM_MATCH_OPERATOR_GT = 3;
-  STREAM_MATCH_OPERATOR_GE = 4;
-  STREAM_MATCH_OPERATOR_LT = 5;
-  STREAM_MATCH_OPERATOR_LE = 6;
-  STREAM_MATCH_OPERATOR_WITHIN = 7;
-}
-
+// ArtifactMetadata value owned by this resource.
 message ArtifactMetadata {
   string artifact_id = 1;
   string upload_id = 2;
@@ -57,24 +60,19 @@ message ArtifactMetadata {
   optional string error = 10;
 }
 
+// ArtifactScope value owned by this resource.
 message ArtifactScope {
   optional string cycle_id = 1;
   optional string case_id = 2;
   optional string execution_id = 3;
 }
 
-enum ArtifactState {
-  ARTIFACT_STATE_UNSPECIFIED = 0;
-  ARTIFACT_STATE_COMPLETE = 1;
-  ARTIFACT_STATE_CANCELLED = 2;
-  ARTIFACT_STATE_REJECTED = 3;
-  ARTIFACT_STATE_FAILED = 4;
-}
-
+// EvidenceOrigin value owned by this resource.
 message EvidenceOrigin {
   .dokime.v1.EvidenceOriginKind kind = 1;
 }
 
+// EvidenceOriginKind value owned by this resource.
 message EvidenceOriginKind {
   oneof kind {
     bool default = 1;
@@ -84,6 +82,7 @@ message EvidenceOriginKind {
   }
 }
 
+// EvidenceScope value owned by this resource.
 message EvidenceScope {
   optional string session_id = 1;
   optional string cycle_id = 2;
@@ -96,7 +95,40 @@ message EvidenceScope {
   .dokime.v1.EvidenceOrigin origin = 9;
 }
 
+// Window value owned by this resource.
 message Window {
   .google.protobuf.Timestamp start = 1;
   .google.protobuf.Timestamp end = 2;
+}
+
+// === Enums === //
+
+// Severity choices.
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_DEBUG = 1;
+  SEVERITY_INFO = 2;
+  SEVERITY_WARNING = 3;
+  SEVERITY_ERROR = 4;
+}
+
+// StreamMatchOperator choices.
+enum StreamMatchOperator {
+  STREAM_MATCH_OPERATOR_UNSPECIFIED = 0;
+  STREAM_MATCH_OPERATOR_EXISTS = 1;
+  STREAM_MATCH_OPERATOR_EQ = 2;
+  STREAM_MATCH_OPERATOR_GT = 3;
+  STREAM_MATCH_OPERATOR_GE = 4;
+  STREAM_MATCH_OPERATOR_LT = 5;
+  STREAM_MATCH_OPERATOR_LE = 6;
+  STREAM_MATCH_OPERATOR_WITHIN = 7;
+}
+
+// ArtifactState choices.
+enum ArtifactState {
+  ARTIFACT_STATE_UNSPECIFIED = 0;
+  ARTIFACT_STATE_COMPLETE = 1;
+  ARTIFACT_STATE_CANCELLED = 2;
+  ARTIFACT_STATE_REJECTED = 3;
+  ARTIFACT_STATE_FAILED = 4;
 }

@@ -1,21 +1,36 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Executions Contracts
+
 syntax = "proto3";
+
 package dokime.plugin.v1;
-option csharp_namespace = "Dokime.Protocol.Plugin.V1";
+
+// === Imports === //
+
 import "dokime/v1/execution.proto";
 
-// Shared Payloads for Independently Bound Protected Registry Operations.
-// Each plugin-authored dotted lifecycle identity retains its own handler and
-// callee-owned policy. These message families are not wire operation identities.
-// Only the host invokes a binding through harmos.plugin.v1.Instance/Invoke;
-// no lifecycle dispatch service or client binding is declared here.
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Plugin.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// ExecutionsInitializeRequest value owned by this resource.
 message ExecutionsInitializeRequest {
   string execution = 1;
   .dokime.v1.TestCase test_case = 2;
   .dokime.v1.Origin origin = 3;
 }
 
+// ExecutionsInitializeResponse value owned by this resource.
 message ExecutionsInitializeResponse {}
 
+// ExecutionsCleanupRequest value owned by this resource.
 message ExecutionsCleanupRequest {
   string execution = 1;
   .dokime.v1.Termination termination = 2;
@@ -23,4 +38,7 @@ message ExecutionsCleanupRequest {
   .dokime.v1.Origin origin = 4;
 }
 
+// ExecutionsCleanupResponse value owned by this resource.
 message ExecutionsCleanupResponse {}
+
+// === Enums === //

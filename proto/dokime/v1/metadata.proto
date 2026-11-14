@@ -1,9 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Metadata Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
-option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Imports === //
+
 import "dokime/v1/scalar.proto";
 import "google/protobuf/timestamp.proto";
 
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.V1";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// Metadata value owned by this resource.
 message Metadata {
   string identifier = 1;
   string label = 2;
@@ -13,3 +31,5 @@ message Metadata {
   .google.protobuf.Timestamp created_at = 6;
   .google.protobuf.Timestamp updated_at = 7;
 }
+
+// === Enums === //

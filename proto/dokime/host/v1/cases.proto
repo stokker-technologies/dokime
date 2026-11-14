@@ -1,0 +1,216 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Cases Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/v1/execution.proto";
+import "dokime/v1/metadata.proto";
+import "dokime/v1/scalar.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Protocol.Host.V1";
+
+// === Services === //
+
+// Host operations with explicit caller admission.
+service Cases {
+  // Create the Cases resource; admission and policy are owned by the executor.
+  rpc Create(.dokime.host.v1.CasesCreateRequest) returns (.dokime.host.v1.CasesCreateResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Get the Cases resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.CasesGetRequest) returns (.dokime.host.v1.CasesGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // List the Cases resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.CasesListRequest) returns (.dokime.host.v1.CasesListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Watch the Cases resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.CasesWatchRequest) returns (stream .dokime.host.v1.CasesWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Delete the Cases resource; admission and policy are owned by the executor.
+  rpc Delete(.dokime.host.v1.CasesDeleteRequest) returns (.dokime.host.v1.CasesDeleteResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Parameters the Cases resource; admission and policy are owned by the executor.
+  rpc Parameters(.dokime.host.v1.CasesParametersRequest) returns (.dokime.host.v1.CasesParametersResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Create === //
+
+// CasesCreateRequest for Cases.Create.
+message CasesCreateRequest { .dokime.host.v1.SelectionPlan plan = 1; bool validate_only = 2; string request_id = 3; }
+
+// CasesCreateResponse for Cases.Create.
+message CasesCreateResponse { repeated .dokime.host.v1.PlannedCase cases = 1; .harmos.model.v1.Receipt receipt = 2; }
+
+// === Get === //
+
+// CasesGetRequest for Cases.Get.
+message CasesGetRequest { string name = 1; string parent = 2; .harmos.model.v1.ReadCut at = 90; }
+
+// CasesGetResponse for Cases.Get.
+message CasesGetResponse { .dokime.host.v1.CaseDetail value = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+
+// === List === //
+
+// CasesListRequest for Cases.List.
+message CasesListRequest { string parent = 1; .harmos.model.v1.ReadCut at = 90; }
+
+// CasesListResponse for Cases.List.
+message CasesListResponse { repeated .dokime.host.v1.CaseSummary cases = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+
+// === Watch === //
+
+// CasesWatchRequest for Cases.Watch.
+message CasesWatchRequest { string parent = 1; .harmos.model.v1.ReadCut at = 90; }
+
+// CasesWatchResponse for Cases.Watch.
+message CasesWatchResponse {
+  repeated .dokime.host.v1.CaseSummary cases = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Delete === //
+
+// CasesDeleteRequest for Cases.Delete.
+message CasesDeleteRequest { string name = 1; string parent = 2; string request_id = 3; }
+
+// CasesDeleteResponse for Cases.Delete.
+message CasesDeleteResponse { .harmos.model.v1.Receipt receipt = 1; }
+
+// === Parameters === //
+
+// CasesParametersRequest for Cases.Parameters.
+message CasesParametersRequest { string name = 1; string parent = 2; .harmos.model.v1.ReadCut at = 90; }
+
+// CasesParametersResponse for Cases.Parameters.
+message CasesParametersResponse { repeated .dokime.host.v1.CaseParameter parameters = 1; .harmos.model.v1.ReadCut resolved_at = 90; }
+
+// === Resources === //
+
+// CaseActions value owned by this resource.
+message CaseActions {
+  bool delete = 1;
+  repeated string unavailable_reasons = 2;
+}
+
+// CaseDetail value owned by this resource.
+message CaseDetail {
+  .dokime.host.v1.CaseSummary summary = 1;
+  .dokime.v1.Metadata suite = 2;
+  uint64 parameter_count = 3;
+  uint64 generation_index = 4;
+  .harmos.model.v1.ReadCut observed_cursor = 5;
+}
+
+// CaseParameter value owned by this resource.
+message CaseParameter {
+  string name = 1;
+  .dokime.v1.Value value = 2;
+}
+
+// CaseSummary value owned by this resource.
+message CaseSummary {
+  string case_id = 1;
+  string template_id = 2;
+  .dokime.v1.Metadata metadata = 3;
+  uint64 ordinal = 4;
+  .dokime.host.v1.CaseStatus status = 5;
+  optional string latest_execution_id = 6;
+  optional .dokime.v1.ExecutionState latest_execution_status = 7;
+  uint32 attempt_count = 8;
+  .dokime.host.v1.CaseActions actions = 9;
+  string suite_id = 10;
+  .dokime.v1.ExecutionOutcome latest_execution_outcome = 11;
+}
+
+// PlannedCase value owned by this resource.
+message PlannedCase {
+  string case_id = 1;
+  string suite_id = 2;
+  string template_id = 3;
+  .dokime.v1.Metadata metadata = 4;
+  uint64 ordinal = 5;
+  uint64 selection_index = 6;
+  .dokime.v1.Origin origin = 7;
+}
+
+// RegisteredSelection value owned by this resource.
+message RegisteredSelection {
+  string suite_id = 1;
+  string template_id = 2;
+  repeated .dokime.host.v1.RegisteredSelectionParametersEntry parameters = 3;
+  repeated .dokime.host.v1.RegisteredSelectionFilesEntry files = 4;
+}
+
+// RegisteredSelectionFilesEntry value owned by this resource.
+message RegisteredSelectionFilesEntry {
+  string key = 1;
+  .dokime.host.v1.SelectedFile value = 2;
+}
+
+// RegisteredSelectionParametersEntry value owned by this resource.
+message RegisteredSelectionParametersEntry {
+  string key = 1;
+  .dokime.host.v1.SelectionValues value = 2;
+}
+
+// SelectedFile value owned by this resource.
+message SelectedFile {
+  .dokime.host.v1.SelectedFileKind kind = 1;
+}
+
+// SelectedFileKind value owned by this resource.
+message SelectedFileKind {
+  oneof kind {
+    string value = 1;
+    .dokime.v1.Null clear = 2;
+  }
+}
+
+// SelectionPlan value owned by this resource.
+message SelectionPlan {
+  repeated .dokime.host.v1.RegisteredSelection selections = 1;
+  uint32 max_cases = 2;
+  repeated string case_ids = 3;
+  string cycle_id = 4;
+}
+
+// SelectionValues value owned by this resource.
+message SelectionValues {
+  repeated .dokime.v1.Value values = 1;
+}
+
+// === Enums === //
+
+// CaseStatus choices.
+enum CaseStatus {
+  CASE_STATUS_UNSPECIFIED = 0;
+  CASE_STATUS_SKIPPED = 1;
+  CASE_STATUS_INVALIDATED = 2;
+  CASE_STATUS_PLANNED = 3;
+  CASE_STATUS_QUEUED = 4;
+  CASE_STATUS_RUNNING = 5;
+  CASE_STATUS_PASSED = 6;
+  CASE_STATUS_FAILED = 7;
+  CASE_STATUS_BLOCKED = 8;
+  CASE_STATUS_CANCELLED = 9;
+  CASE_STATUS_INTERRUPTED = 10;
+}

@@ -1,10 +1,25 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Empty Contracts
+
 syntax = "proto3";
+
 package dokime.v1;
+
+// === Imports === //
+
+
+// === Options === //
+
 option csharp_namespace = "Dokime.Protocol.V1";
 
-// Shared Resource Payloads; Operation Wrappers Live With Their Face Resource.
+// === Services === //
 
-// Shared Resource Message Contracts
-// Canonical values, documents, catalogs and plugin origins are imported, never mirrored.
-// New message field numbers are protocol-owned; native row-derived schemas are retired.
+// === Requests and Responses === //
+
+// === Resources === //
+
+// ClientEmpty value owned by this resource.
 message ClientEmpty {}
+
+// === Enums === //
