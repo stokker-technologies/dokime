@@ -2332,7 +2332,7 @@ test("Native Columns Reach Trajectory and Categorical Renderers", () => {
         style: "line",
         x_scale: "linear",
         y_scale: "linear",
-        fft: null,
+        fft: { window: "hann", detrend: "mean", level_unit: "linear", include_dc: false },
       },
       payload: update.payload,
     });
