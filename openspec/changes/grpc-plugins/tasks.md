@@ -4,7 +4,7 @@
 
 This checkout has one writer on `fix/face-split-stories`; commits remain local.
 Inventory: runtime plot services and operations plus their focused host stories;
-Python host client story; desktop WebView report stories and any demonstrated
+Python host client story and `tests/support/thermal.rs` (final request IDs, statistics receipts and prose-free cross-SDK evidence comparisons); desktop WebView report stories and any demonstrated
 connection defect, `documents_get.rs` section-identity frames and their fixed-document host story, and `sdk/rust/examples/thermal.rs` (the shared fixture report document); host fixture producers, C++ package dependency configuration/runtime-DLL staging, focused workspace-check dispatch and Rust
 story launcher, its `release/sbom.py` wrapper and the CLI/desktop fixture launchers; README, AGENTS and operation-grammar completion checkboxes.
 Preserve the library-owned discovery refusal in `operator_calls_operation`.
