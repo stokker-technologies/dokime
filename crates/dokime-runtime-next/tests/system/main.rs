@@ -51,6 +51,7 @@ mod execution_capabilities;
 mod execution_isolation;
 mod execution_outcomes;
 mod manager_lifecycles;
+mod plugin_reads_only_declared_secrets;
 mod process_interruption;
 mod python_client_runs_thermal_suite_over_grpc;
 mod python_plugin_matches_rust_thermal_evidence;
