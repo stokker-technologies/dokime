@@ -126,7 +126,7 @@ function mapNativeHealth(item: NativeHealthItem): HealthItem {
   return {
     health_id: item.healthItemId,
     level:
-      item.severity === Severity.ERROR
+      item.severity === Severity.FAILURE
         ? "error"
         : item.severity === Severity.WARNING
           ? "warning"

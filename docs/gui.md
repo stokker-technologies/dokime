@@ -588,20 +588,17 @@ from Inspect. Frozen HTML retains its original media and download links under
 
 ## Canonical Bindings and Transport
 
-- `mise run check:typescript:generated` regenerates the bindings and GUI types
-  from the current sources and type-checks them; it never restores staged build
-  output. `mise run check:typescript` owns formatting and lint.
-- Rust `dokime-operations` declarations own operation contracts and
-  `dokime-protocol` owns their messages; do not maintain parallel domain DTOs or a second codec.
-- `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
-  together. The `prepare:generated` prerequisite checks those tracked clients,
-  generates frontend protobuf modules from the checked-in product descriptor. Native
-  preference/default export and full generated client drift checks return with
-  the desktop host switch, under the combined restoration task.
-  The server build-script export supplies application settings
-  and remains the Python generator's input; no backend process runs for generation.
-  Desktop wrappers bind the ordinary methods in the canonical contract inventory;
-  Harmos's additional managed `Run…` RPCs remain transport projections.
+- `mise run check:generated -- --language typescript` compiles the generated desktop
+  client independently of the runtime. `mise run check:typescript` owns formatting
+  and lint; `mise exec -- pnpm --dir crates/dokime-gui run typecheck` checks the
+  complete frontend and its stories.
+- `dokime-operations` owns operation handlers, and `dokime-protocol` owns the
+  canonical messages. Do not maintain parallel domain DTOs or a second codec.
+- `mise run generate:typescript` generates desktop messages and native dispatch
+  from the frozen descriptors. The `export_preferences` example exports native
+  defaults from `dokime-runtime::services::initial_preferences`; the TypeScript
+  generator projects that snapshot into application settings. Frontend test tasks
+  consume matching staged generated modules from Product outputs.
 - Calls and subscriptions in `src/lib/rpc/generated/client.ts` go through the
   seam in `src/lib/rpc/transport.ts`. The desktop binds it to `ipc.ts`, the opaque
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a
@@ -624,37 +621,18 @@ from Inspect. Frozen HTML retains its original media and download links under
   Client regression guards also cover ordinary and prepared upload futures.
   Native transport guards return with the desktop host switch; the SDK owns
   current remote client transport.
-- Settings › Plugins keeps installed programs' ordinary settings editable after
-  startup fails. Their declared schema comes from the verified bundle inventory.
-  Secret declarations show identifiers and availability read-only; Add In Secret
-  Storage opens the shared Add Secret dialog prefilled with the identifier.
-  Every owner in an inactive bundle remains visible. Add missing identifiers, then
-  use the page's **Reload**, which calls `Plugins.Reload` for that installation only.
-- Saving plugin settings keeps its running generation unchanged. Fields whose saved
-  values differ from its startup settings show **Applied on Reload** with a warning
-  highlight. The backend computes these marks, so reopening the view, restarting
-  the GUI or attaching another GUI preserves them. Restarting the backend starts
-  programs with saved values. Every plugin page offers **Reload**, and the plugin
-  table puts status in its own column beside direct Settings, Reload and Delete
-  actions. Reload applies saved settings and restarts all observers, including
-  plugin-activated observers. It waits as **Restart Pending** while active work
-  owns the plugin; preparation refusal keeps the running generation and marks,
-  with **Restart Refused** and its reason. A plugin that does not run starts at
-  once. A successful reload clears marks for the values it applied.
-- Install, reinstall, update, enable, disable and remove apply in the running
-  backend; no plugin action prompts to restart the application. After a successful
-  live stop, removed or replaced installations disappear with their bundles.
-  A deletion failure keeps the row with its error until startup retries.
-  `PluginInstallation.restart` drives the row badge (**Restarting…**, **Restart
-  Pending** with its reason) and, while any row is not idle, Settings › Plugins
-  re-reads the list on operation changes. A refused replacement is a
-  `removal_pending` row reported as **Refused**; the previous installation stays
-  **Active**. `startNotification` in `src/features/settings/plugins/plugin-queries.ts`
-  raises one toast per recorded failed startup or refused restart.
-  Startup notifications and plugin views keep root prose separate from collapsed
-  consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
-  the identifier prefilled; notification history retains the same destination.
-  Secret Storage References lists declaring plugins, including inactive programs.
+- Settings › Plugins keeps declared settings editable while a library entry is
+  unavailable. Secret declarations show their names, binding identifiers and
+  availability. Add in Secret Storage opens the shared dialog with the declared
+  identifier prefilled; bindings remain independently editable.
+- Saving plugin settings uses the library settings revision. The page's **Reload**
+  calls `Plugins.Restart` for that entry. Inventory uses the entry name, activation,
+  enablement, current state and failure. The contract supplies no applied-field
+  marks, restart queue or installation history, so the views expose none.
+- Native file installation uploads a verified bundle before library `Plugins.Create`.
+  Enablement and removal use revision-checked library entry operations. Current
+  failures appear in the row and notification details. Secret Storage References
+  lists declaring plugins, including unavailable entries.
 - Completed executions and cycles retain their evidence and reports after plugin
   reload, reinstall or removal, even before sealing. Retry Seal and history reads
   use frozen report inputs, including plugin analysis results. In an open cycle,

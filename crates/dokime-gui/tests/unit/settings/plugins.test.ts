@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 
 // Third Party Imports
 import { beforeEach, test, vi } from "vitest";
+import { create } from "@bufbuild/protobuf";
 import { createElement, type ComponentProps, type ReactNode } from "react";
 import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
 import type { InstalledPluginDetail as PluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
@@ -32,7 +33,7 @@ import { bundleSettingsPage } from "@/features/settings/plugins/PluginPrograms";
 import { startNotification } from "@/features/settings/plugins/plugin-queries";
 import { SecretsSection } from "@/features/settings/sections/SecretsSection";
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
-import { PluginState } from "@host/model";
+import { FailureSchema, PluginEntrySchema, PluginState } from "@host/model";
 
 /* === Re-Exports === */
 
@@ -55,14 +56,14 @@ const fixture = vi.hoisted(() => ({
   rows: [] as PluginTableRow[],
 }));
 const session = { generation: "1", isCurrent: () => true };
-const entry: ManagedPlugin = {
+const entry: ManagedPlugin = create(PluginEntrySchema, {
   name: "equipment",
   revision: new Uint8Array([1]),
   activation: 1n,
   state: PluginState.UNAVAILABLE,
   value: { enabled: true },
-  failure: { message: "activation-refused" },
-};
+  failure: create(FailureSchema, { message: "activation-refused" }),
+});
 
 vi.mock("react", async (original) => {
   const react = await original<typeof import("react")>();

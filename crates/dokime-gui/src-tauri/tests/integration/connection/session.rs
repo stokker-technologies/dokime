@@ -18,8 +18,8 @@
 use crate::support::server::{Fixture, attach};
 use dokime_gui::connection::{ConnectionError, ConnectionPhase, ConnectionSession};
 use dokime_gui::native_session::BackendSelection;
-use dokime_sdk::client::StatusGetRequest;
 use dokime_sdk::client::StatusGetResponse;
+use harmos_protocol::host::StatusGetRequest;
 
 /* === Constants === */
 

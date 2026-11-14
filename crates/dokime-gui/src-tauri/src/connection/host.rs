@@ -36,10 +36,10 @@ use tonic::{Request, Status, transport::Endpoint};
 
 // Local Imports
 
+use dokime_sdk::StorageTransferSettings;
 use dokime_sdk::client::BackendOverviewGetOptions;
 use dokime_sdk::client::OperationsListOptions;
 use dokime_sdk::client::StatusGetOptions;
-use dokime_sdk::client::StorageTransferSettings;
 use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
 
 use super::ConnectionTarget;

@@ -86,7 +86,7 @@ function mapNativePrompt(prompt: PromptInstance, response?: NativePromptResponse
     prompt_type: definition.metadata?.identifier ?? "",
     kind: mapPromptKind(prompt.kind),
     level:
-      definition.level === Severity.ERROR
+      definition.level === Severity.FAILURE
         ? "error"
         : definition.level === Severity.WARNING
           ? "warning"

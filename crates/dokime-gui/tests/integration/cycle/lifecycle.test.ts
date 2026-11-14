@@ -646,7 +646,7 @@ test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
     if (path.endsWith("plugins.Settings/Set")) {
       assert.deepEqual(request.value.values.power.value, { case: "flag", value: false });
       assert.deepEqual(request.expectedRevision, new Uint8Array([4]));
-    } else assert.ok(path.endsWith("plugins.Settings/Get"));
+    } else assert.ok(path.endsWith("plugins.Settings/List"));
     return settings;
   });
   const frame = await fetchNativeSettingsFrame(session);

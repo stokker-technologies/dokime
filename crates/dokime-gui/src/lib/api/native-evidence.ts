@@ -167,7 +167,7 @@ function mapNativeRecord(record: CapturedRecord, details: JsonObject): HubRecord
   const timestamp = timestampIso(record.timestamp);
   if (!timestamp) throw new Error(`Native record ${record.recordId} has no valid timestamp.`);
   const level =
-    record.severity === Severity.ERROR
+    record.severity === Severity.FAILURE
       ? "error"
       : record.severity === Severity.WARNING
         ? "warning"

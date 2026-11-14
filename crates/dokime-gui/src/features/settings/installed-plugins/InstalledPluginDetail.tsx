@@ -85,6 +85,7 @@ export function InstalledPluginDetail({ detail, onSaveSettings, onSaveBinding }:
               const available = binding?.available ?? false;
               return (
                 <SettingsRow key={secret.id} label={secret.title} description={secret.description}>
+                  <code className="text-xs">{secret.id}</code>
                   <SecretBinding value={binding?.secret ?? ""} onSave={(value) => onSaveBinding(detail.plugin_id, secret.id, value)} />
                   <span>
                     {secret.required ? "Required" : "Optional"} · {available ? "Available" : "Missing"}
