@@ -60,6 +60,7 @@ export function DocumentMetricGroup({
       <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,9.5rem),1fr))]">
         {metrics.map((metric) => (
           <Metric
+            metricId={metric.metricId}
             detail={metric.detail}
             key={metric.label}
             label={metric.label}

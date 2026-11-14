@@ -165,7 +165,25 @@ async function execute() {
   const samples = await call(desktop, "dokime.client.v1.evidence.Samples", "List", { scope: { executionId } });
   assert.ok(records.records.some((record) => record.payload));
   assert.ok(samples.samples.some((sample) => sample.raw?.payload));
-  assert.ok(await desktop.execute('return Boolean(document.querySelector("[data-execution-section=Records]"));'));
+  await until("Captured Record Rows in the Authored Document", () =>
+    desktop.execute('return Boolean(document.querySelector("[data-testid=record-rows] li[data-window-row]"));'),
+  );
+  await until("Captured Plot Data in the Authored Document", () =>
+    desktop.execute(`
+      const plot = document.querySelector('[data-plot-viewport]');
+      plot?.scrollIntoView({block: 'center'});
+      return Boolean(plot?.querySelector('.plot-card canvas'));`),
+  );
+  const values = await until("Exact Summary Tiles", () =>
+    desktop.execute(`
+    const tiles = [...document.querySelectorAll('[data-document-metric]')];
+    return tiles.length >= 11 ? Object.fromEntries(tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong')?.textContent])) : null;`),
+  );
+  const base = 1152921504606847975n;
+  for (const name of ["mean", "median", "min", "max", "first", "last", "p05", "p95", "p99"]) assert.equal(values[name], String(base));
+  const count = BigInt(values.count.replace(/[^0-9]/g, ""));
+  assert.ok(count > 0n);
+  assert.equal(values.sum, String(base * count));
 }
 
 async function reportsAndHistory() {
@@ -259,7 +277,21 @@ async function settings() {
     assert.equal(await desktop.execute('return Boolean(document.querySelector("[data-error-boundary]"));'), false);
   }
   await desktop.goto("/settings/plugins");
-  assert.ok((await desktop.text()).includes("Thermal"));
+  const installed = await call(desktop, "Plugins", "ListInstallations", { pageSize: 100 });
+  const admitted = await call(desktop, "Plugins", "ListAdmittedPlugins", { pageSize: 100 });
+  const rowIds = installed.installations.map((entry) => entry.installId);
+  for (const entry of admitted.plugins) {
+    const plugin = entry.plugin;
+    if (plugin.remote) rowIds.push(JSON.stringify(["remote", null, null, null, plugin.entry]));
+    else if (plugin.managed && !rowIds.includes(plugin.entry)) rowIds.push(`bundle:${plugin.managed.bundle}`);
+  }
+  assert.ok(rowIds.length > 0);
+  await until("Admitted and Installed Plugin Rows", () =>
+    desktop.execute(
+      'return arguments[0].every(id => [...document.querySelectorAll("[data-row-id]")].some(row => row.dataset.rowId === id));',
+      [rowIds],
+    ),
+  );
   await desktop.goto("/settings/diagnostics");
   assert.ok(/recovery|preserv|unavailable|not.*support/i.test(await desktop.text()));
 }

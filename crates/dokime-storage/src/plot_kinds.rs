@@ -20,14 +20,15 @@
 // Third Party Imports
 
 // Local Imports
-use crate::BatchSelection;
 use crate::scalar::{self, ScalarValue};
+use crate::{BatchSelection, expressions};
 use crate::{Error, NumericWindow, Result, Store};
 use arrow_array::{Int64Array, StructArray, UInt64Array};
 use dokime_protocol::v1::{
     self, Aggregate, DataExpression, FftDetrend, FftWindow, FrequencyLevelUnit, GridAxisEntry, GridDefinition, PlotFftOptions,
     PlotIntervalOptions, PlotWindow, Reduction, Value,
 };
+use harmos_storage::query::Accumulator;
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 
@@ -139,7 +140,7 @@ impl Store {
         ))
     }
     pub fn category_window(&self, request: KindWindow<'_>, aggregate: Option<Aggregate>, unique: bool) -> Result<CartesianRead> {
-        let mut grouped = BTreeMap::<(String, String), (Input, u64, f64, f64, f64)>::new();
+        let mut grouped = BTreeMap::<(String, String), (Input, u64, Accumulator)>::new();
         self.kind_values(&request, |row| {
             if missing(&row.x) {
                 return Ok(());
@@ -148,33 +149,34 @@ impl Store {
             if !grouped.contains_key(&key) && grouped.len() >= request.limit {
                 return Err(Error::Data("narrow categories or select fewer groups"));
             }
-            let entry = grouped.entry(key).or_insert((row.clone(), 0, 0.0, row.y, row.y));
+            if !grouped.contains_key(&key) {
+                grouped.insert(key.clone(), (row.clone(), 0, expressions::accumulator(aggregate.unwrap_or(Aggregate::Sum), 0.0)?));
+            }
+            let entry = grouped.get_mut(&key).unwrap();
             entry.1 += 1;
-            entry.2 += row.y;
-            entry.3 = entry.3.min(row.y);
-            entry.4 = entry.4.max(row.y);
+            if aggregate.is_some() {
+                entry.2.push(row.position, &row.scalar).map_err(|error| Error::Invalid(error.to_string()))?;
+            }
             if row.position > entry.0.position {
                 entry.0 = row;
             }
             Ok(())
         })?;
-        let rows = grouped.into_values().map(|(row, n, sum, min, max)| {
-            let y = match aggregate {
-                Some(Aggregate::Count) => n as f64,
-                Some(Aggregate::Sum) => sum,
-                Some(Aggregate::Mean) => sum / n as f64,
-                Some(Aggregate::Min) => min,
-                Some(Aggregate::Max) => max,
-                _ => row.y,
+        let rows = grouped.into_values().map(|(row, n, accumulator)| {
+            let total = if aggregate.is_some() {
+                accumulator.finish(&mut || Ok(())).map_err(|error| Error::Invalid(error.to_string()))?
+            } else {
+                row.scalar
             };
-            Ok::<_, Error>((row.x, y, row.g, n as i64))
+            let y = scalar::number(&total).ok_or(Error::Data("Read Category Total: Select a Numeric Aggregate"))?;
+            Ok::<_, Error>((row.x, y, row.g, n as i64, total))
         });
         let mut columns: BTreeMap<String, PlotColumn> = BTreeMap::new();
         let mut points = 0;
         let mut count = 0;
         let mut raw_counts = BTreeMap::<String, u64>::new();
         for row in rows {
-            let (x, y, group, n) = row?;
+            let (x, y, group, n, total) = row?;
             points += 1;
             count += n as u64;
             if points > request.limit {
@@ -191,6 +193,7 @@ impl Store {
             let column = columns.entry(group).or_default();
             column.x.push(value(x));
             column.y.push(NullableNumber { value: Some(y) });
+            column.totals.push(scalar::wire(&total)?);
         }
         let keys = columns.keys().map(|key| (key.clone(), raw_counts.get(key).copied().unwrap_or(0))).collect();
         Ok((
@@ -684,6 +687,7 @@ struct Input {
     time: i64,
     x: ScalarValue,
     y: f64,
+    scalar: ScalarValue,
     z: ScalarValue,
     g: ScalarValue,
 }
@@ -705,7 +709,8 @@ impl Store {
             let zs = request.z.map(|field| scalar::column(&batch, field)).transpose()?;
             let groups = request.group.map(|field| scalar::column(&batch, field)).transpose()?;
             for row in 0..batch.num_rows() {
-                let Some(y) = scalar::number(&ys.value(row)?).filter(|v| v.is_finite()) else {
+                let scalar = ys.value(row)?;
+                let Some(y) = scalar::number(&scalar).filter(|v| v.is_finite()) else {
                     continue;
                 };
                 read(Input {
@@ -713,6 +718,7 @@ impl Store {
                     time: times.value(row),
                     x: xs.as_ref().map(|column| column.value(row)).transpose()?.unwrap_or(ScalarValue::Null),
                     y,
+                    scalar,
                     z: zs.as_ref().map(|column| column.value(row)).transpose()?.unwrap_or(ScalarValue::Null),
                     g: groups.as_ref().map(|column| column.value(row)).transpose()?.unwrap_or(ScalarValue::Text(String::new())),
                 })?;

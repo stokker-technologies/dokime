@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 from datetime import UTC, datetime
+from fractions import Fraction
 from typing import Any
 
 # Third Party Imports
@@ -40,6 +41,10 @@ def encode(value: Any) -> Any:
         return message("Value", null={})
     if isinstance(value, bool):
         return message("Value", boolean=value)
+    if isinstance(value, Fraction):
+        return message(
+            "Value", exact={"negative": value < 0, "numerator": str(abs(value.numerator)), "denominator": str(value.denominator)}
+        )
     if isinstance(value, int):
         return message("Value", **{"unsigned_integer" if value >= 2**63 else "integer": value})
     if isinstance(value, (float, str, bytes)):
@@ -64,6 +69,8 @@ def decode(value: Any) -> Any:
         return None
     if kind == "list":
         return [decode(item) for item in value.list.values]
+    if kind == "exact":
+        return Fraction((-1 if value.exact.negative else 1) * int(value.exact.numerator), int(value.exact.denominator))
     if kind == "datetime":
         return value.datetime.ToDatetime(tzinfo=UTC)
     return getattr(value, kind)

@@ -16,7 +16,8 @@ import { scaleLinear } from "d3-scale";
 import { formatNumber, formatUnitLabel } from "@/lib/format";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
-import { categoryFractions, categoryTotals } from "@/plots/categories";
+import { categoryFractions, categoryTotals, formatCategoryTotal } from "@/plots/categories";
+import type { StatisticValue } from "@/lib/statistics";
 import { plotColor } from "@/plots/colors";
 import type { PlotCardSpec } from "@/plots/types";
 
@@ -27,6 +28,7 @@ type BarReading = {
   color?: string;
   label: string;
   value: number;
+  exact?: StatisticValue;
 };
 
 /* === Components === */
@@ -77,7 +79,9 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
               />
               <span className="absolute inset-y-0 w-px bg-foreground" style={{ left: `${baseline}%` }} />
             </div>
-            <span className="whitespace-nowrap text-right text-xs font-semibold tabular-nums">{formatBarValue(bar.value, plot.unit)}</span>
+            <span className="whitespace-nowrap text-right text-xs font-semibold tabular-nums">
+              {formatUnitLabel(formatCategoryTotal(bar, { kind: "normal", max_fraction_digits: 2 }), plot.unit)}
+            </span>
           </div>
         ))}
       </div>
@@ -87,12 +91,14 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
 
 function ArrangedBarPlot({ plot }: { plot: PlotCardSpec }) {
   const categories = new Map<string, Map<number, number>>();
+  const exact = new Map<string, StatisticValue>();
   plot.series.forEach((series, seriesIndex) => {
     for (const point of series.points) {
       if (typeof point.y !== "number" || !Number.isFinite(point.y)) continue;
       const key = String(point.x);
       if (!categories.has(key)) categories.set(key, new Map());
       categories.get(key)?.set(seriesIndex, point.y);
+      if (point.exact_y !== undefined) exact.set(JSON.stringify([key, seriesIndex]), point.exact_y);
     }
   });
   if (!categories.size) return <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot)} />;
@@ -129,7 +135,14 @@ function ArrangedBarPlot({ plot }: { plot: PlotCardSpec }) {
         if (value < 0) negative = end;
         else positive = end;
       }
-      return { seriesIndex, value, start, end, top: 20 + rowIndex * rowHeight + (stacked ? 0 : seriesIndex * 24) };
+      return {
+        seriesIndex,
+        value,
+        exact: exact.get(JSON.stringify([category, seriesIndex])),
+        start,
+        end,
+        top: 20 + rowIndex * rowHeight + (stacked ? 0 : seriesIndex * 24),
+      };
     });
     return { category, rowIndex, bars };
   });
@@ -156,7 +169,7 @@ function ArrangedBarPlot({ plot }: { plot: PlotCardSpec }) {
                 height={20}
                 fill={plot.colors[bar.seriesIndex] ?? plotColor(bar.seriesIndex)}
               >
-                <title>{`${plot.series[bar.seriesIndex].label}: ${formatUnitLabel(formatNumber(bar.value, plot.yFormat ?? null), plot.unit)}`}</title>
+                <title>{`${plot.series[bar.seriesIndex].label}: ${formatUnitLabel(formatCategoryTotal(bar, plot.yFormat ?? null), plot.unit)}`}</title>
               </rect>
             ))}
           </g>
@@ -214,13 +227,13 @@ function ParetoPlot({ plot }: { plot: PlotCardSpec }) {
               height={bar.height}
               fill={plot.colors[0] ?? plotColor(0)}
             >
-              <title>{`${bar.key}: ${formatUnitLabel(formatNumber(bar.value, plot.yFormat ?? null), plot.unit)}`}</title>
+              <title>{`${bar.key}: ${formatUnitLabel(formatCategoryTotal(bar, plot.yFormat ?? null), plot.unit)}`}</title>
             </rect>
             <text x={bar.x} y={300} textAnchor="middle" fill="currentColor" className="text-xs">
               {bar.key}
             </text>
             <text x={bar.x} y={Math.max(15, 274 - bar.height)} textAnchor="middle" fill="currentColor" className="text-xs">
-              {formatNumber(bar.value, plot.yFormat ?? null)}
+              {formatCategoryTotal(bar, plot.yFormat ?? null)}
             </text>
           </g>
         ))}
@@ -259,15 +272,15 @@ function ParetoPlot({ plot }: { plot: PlotCardSpec }) {
 export function latestBars(plot: PlotCardSpec): BarReading[] {
   return plot.series
     .flatMap((series, index) => {
-      const values = new Map<string, number>();
+      const values = new Map<string, { value: number; exact?: StatisticValue }>();
       series.points.forEach((point) => {
-        if (Number.isFinite(point.y)) values.set(String(point.x), Number(point.y));
+        if (Number.isFinite(point.y)) values.set(String(point.x), { value: Number(point.y), exact: point.exact_y });
       });
 
       return [...values.entries()].map(([category, value]) => ({
         key: JSON.stringify([series.key, category]),
         label: plot.series.length > 1 ? `${series.label} / ${category}` : category,
-        value,
+        ...value,
         color: plot.colors[index] ?? `var(--chart-${(index % 8) + 1})`,
       }));
     })
@@ -283,9 +296,4 @@ function compareBarLabels(left: BarReading, right: BarReading): number {
     return leftNumber - rightNumber;
   }
   return left.label.localeCompare(right.label, undefined, { numeric: true });
-}
-
-function formatBarValue(value: number, unit: string | null | undefined): string {
-  const formatted = formatNumber(value, { kind: "normal", max_fraction_digits: 2 });
-  return unit ? `${formatted} ${unit}` : formatted;
 }

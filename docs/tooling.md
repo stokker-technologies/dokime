@@ -226,168 +226,116 @@ avoids revalidating the entire pending population once per individual sample.
 
 ### Desktop Plot Documents
 
-The following instrumented Windows observations compare the original mixed-kind
-workload before the repair with code `ae0cfada8`. Each case has one observation;
-these are not regression estimates. Before measures elapsed time **to refusal**.
-After measures completed visible drawing, with each named action timed as described
-below. The after boundary also includes authored document reading on initial opens;
-the refused surface constructed its definitions locally. The 100-plot refusal
-numbers therefore measure rejection, not a faster successful document.
+These Windows x86-64 observations come from one fresh `--once` run on
+2026-11-14, run from `c61d90897` with the exact-moment implementation at
+`9b6f8191d`. Each case has one observation; these are elapsed measurements,
+not regression estimates or timing assertions. The history and plot-kind
+inventories, admission bounds and drawing deadlines are unchanged.
 
-| Case | Before, 30 Plots [ms] | After, 30 Plots [ms] | Before, 100 Plots [ms] | After, 100 Plots [ms] |
-| --- | ---: | ---: | ---: | ---: |
-| Cold | 10,740.274 | 652.066 | 162.000 | 1,074.220 |
-| Warm | 11,726.138 | 626.387 | 39.945 | 561.679 |
-| Live | 10,895.873 | 548.805 | 122.715 | 597.247 |
-| Late | 10,540.617 | 439.287 | 132.360 | 410.295 |
-| Zoom | 9,981.665 | 406.071 | 83.168 | 390.558 |
-| Resize | 9,052.881 | 333.580 | 390.631 | 373.929 |
-| Navigation | 14,823.041 | 577.947 | 27.932 | 601.189 |
-| Stalled | 13,662.201 | 2,304.425 | 2,117.609 | 2,118.553 |
-
-Before the repair, the 30-plot batch refused with `Process Arrow Evidence: narrow
-the frequency source window to its configured input bound; Check the Stream Contract`.
-The 100-plot batch refused with `Plots.Watch exceeded the native bounded read
-contract: more than 32 plots`. Neither drew its document. All 34 final cases draw;
-all eight traversals verify every authored plot, including all mixed kinds.
-The history, plot-kind inventory, message/read bounds and drawing guards remain
-unchanged. Prompt answers use a fresh request identity per question. Disposal
-removes each owned root's credentials without deleting unrelated credentials.
-
-The repair retains the original 2,073,600-row, three-day, 8 Hz workload and its
-16 cases. Additional desktop history cases use 307,200, 1,536,000 and 3,072,000
-rows across the same three-day span, for both 30 and 100 plots, cold, warm and
-active. Their sampling intervals are stated by the fixture; they are additional
-case identities, not replacements for the original density. Every desktop open
-now reads an authored document through `Documents.Get`, joins bounded frame pages,
-requests visible plot groups through the native SDK, decodes their previews and
-observes actual chart drawing plus two presentation opportunities. The original
-refused surface constructed its declarations locally, so the new boundary also
-includes document reading. Neither figure is a claim about physical display
-presentation. Cold host/desktop startup and fixture population stay outside the
-timer; saved-state queries use a fresh process without evicting the OS cache.
-
-Live, late and stalled cases first draw the initial view outside the timer, then
-time the producer prompt handoff through visibility of a changed saved selection.
-Unrelated runtime notifications cannot complete that measurement. The existing
-flush policy is unchanged; time awaiting saved visibility is distinct from query
-work. Zoom, resize and navigation time their named action through visible drawing.
-After navigation, and the additional history cases' cold opens, the driver visits
-every plot outside the timer and verifies actual drawing, including all mixed
-kinds. Separate `traversalMs` and `traversalBackendStages` observations retain that
-whole-document work without adding it to initial visible drawing. This traversal
-cannot silently omit an off-screen refusal. Frequency input
-declares 512 samples. Pie authors select an explicit mean over duplicate categories;
-all source rows and plot kinds remain present. Grid previews select bounded recent
-complete frames instead of attempting to allocate a frame per history timestamp.
-
-The additional histories have no measured pre-repair desktop counterpart. Their
-cold and warm boundaries run from document request to visible drawing. Active
-measures producer handoff through changed saved selection and visible drawing;
-initial view preparation is outside that timer. All values are milliseconds.
+Cold and warm measure **document request to visible drawing** (`timedBoundaryMs`).
+Active measures **producer handoff to changed drawing**; its marker is taken
+immediately before writing the producer command. Monotonic time origins align
+that marker with the WebView drawing observation, excluding the UI-reset driver
+round trip. Startup, population, initial active-view preparation, shutdown and
+full traversal are outside these boundaries. `durationMs` retains the broader
+driver round trip for diagnostics and is not the value in this table.
+Visible drawing includes two presentation opportunities, without claiming
+physical display presentation. Warm reads use an already queried store.
+The original 2,073,600-row, three-day history runs at 8 Hz; additional histories
+retain their real row counts across the same span. Live is labelled Active here.
 
 | History Rows | Plots | Cold [ms] | Warm [ms] | Active [ms] |
 | ---: | ---: | ---: | ---: | ---: |
-| 307,200 | 30 | 559.584 | 454.993 | 531.996 |
-| 307,200 | 100 | 626.552 | 571.102 | 639.327 |
-| 1,536,000 | 30 | 791.797 | 474.126 | 542.689 |
-| 1,536,000 | 100 | 815.431 | 528.701 | 594.319 |
-| 3,072,000 | 30 | 1,852.583 | 523.471 | 778.682 |
-| 3,072,000 | 100 | 1,360.599 | 700.697 | 716.950 |
+| 2,073,600 | 30 | 948.300 | 780.200 | 549.375 |
+| 2,073,600 | 100 | 869.700 | 726.200 | 642.516 |
+| 307,200 | 30 | 586.800 | 485.300 | 420.246 |
+| 307,200 | 100 | 589.700 | 554.300 | 393.479 |
+| 1,536,000 | 30 | 756.900 | 780.300 | 589.915 |
+| 1,536,000 | 100 | 906.100 | 766.300 | 664.649 |
+| 3,072,000 | 30 | 1,134.300 | 790.000 | 970.472 |
+| 3,072,000 | 100 | 1,607.200 | 1,171.100 | 838.485 |
 
-Whole-document traversal is outside those opening/action timers. It scrolls every
-card into view and awaits actual drawing, including each mixed analysis. The
-largest individual host `plot.query` span is also reported, rather than treating
-one bounded batch or the complete traversal as one plot query. These are elapsed
-observations, not timing assertions or a physical-display presentation claim.
+The remaining original-history actions use their named action to changed visible
+drawing; Late and Stalled use producer handoff. Stalled includes the existing
+intentional consumer pause and publication burst. Full traversal remains separate.
 
-| History Rows | Verified Plots | Full Traversal [ms] | Largest Plot Query [ms] | Query per Million Source Rows [ms] |
+| Action, 2,073,600 Rows | 30 Plots [ms] | 100 Plots [ms] |
+| --- | ---: | ---: |
+| Late | 658.006 | 837.778 |
+| Zoom | 554.700 | 574.300 |
+| Resize | 149.000 | 163.700 |
+| Navigation | 706.500 | 790.000 |
+| Stalled | 1,850.560 | 2,109.001 |
+
+Every case is marked drawn only after traversal verifies every authored card.
+The bench checks the mounted renderer and actual canvas work; an error or empty
+state fails with the plot identifier and displayed message. All 34 cases passed
+this verification, including `desktop.plot.27` and `desktop.plot.97`. Initial
+visible drawing is not a claim that all offscreen cards have already drawn.
+Traversal scrolls every card inside the WebView, awaits drawing and records one
+driver round trip separately. The table uses the cold case for each density.
+
+| History Rows | Verified Plots | WebView Traversal [ms] | Traversal With Driver [ms] | Completed Group Requests |
 | ---: | ---: | ---: | ---: | ---: |
-| 2,073,600 | 30 | 10,135.906 | 1,507.964 | 727.220 |
-| 2,073,600 | 100 | 17,866.350 | 1,128.255 | 544.104 |
-| 307,200 | 30 | 2,469.905 | 195.398 | 636.062 |
-| 307,200 | 100 | 8,893.971 | 226.675 | 737.875 |
-| 1,536,000 | 30 | 7,191.830 | 927.032 | 603.536 |
-| 1,536,000 | 100 | 18,090.956 | 1,012.284 | 659.039 |
-| 3,072,000 | 30 | 16,030.751 | 2,233.193 | 726.951 |
-| 3,072,000 | 100 | 31,640.014 | 2,322.839 | 756.133 |
+| 2,073,600 | 30 | 2,795.200 | 2,802.368 | 13 |
+| 2,073,600 | 100 | 5,327.000 | 5,334.955 | 10 |
+| 307,200 | 30 | 1,054.800 | 1,064.806 | 9 |
+| 307,200 | 100 | 4,528.300 | 4,538.013 | 11 |
+| 1,536,000 | 30 | 2,362.400 | 2,371.362 | 13 |
+| 1,536,000 | 100 | 5,131.400 | 5,140.389 | 11 |
+| 3,072,000 | 30 | 3,607.700 | 3,613.852 | 13 |
+| 3,072,000 | 100 | 6,352.100 | 6,366.564 | 11 |
 
-Desktop mixed analyses share a stream containing the stated number of rows.
-The storage document fixture distributes its total row count across 30 streams
-and uses summary tiles plus ordinary plot previews. Its tens-of-milliseconds
-figure does not include the desktop's mixed full-scan analyses or drawing.
+The supplied independent verification reported 9,649.706/18,054.688 ms for
+30/100 plots over **3,072,000 rows**, with 13/55 completed group requests during
+traversal. Its card verification missed pie errors. The corresponding verified
+final driver-inclusive traversals are 3,613.852/6,366.564 ms.
+The stronger card check and different driver orchestration must be considered
+when comparing these individual observations.
 
 ### Desktop Path Profile
 
-The original 30-plot, three-day cold observation is compared with the final cold
-observation over the same 2,073,600 source rows. Spans below are inclusive elapsed
-time, may overlap cancelled/reopened work and **must not be added** as a CPU
-profile. Bridge wait includes host work; React state/render and presentation
-opportunities overlap. A dash means no completed data sample before refusal,
-not zero cost. The before presentation opportunities draw the error UI only.
+The largest-history cold traversal records group latency, host work, adaptation,
+React work and drawing. Spans are inclusive elapsed time and overlap; their sums
+are not a CPU profile and must not be added together. Bridge wait includes host
+work. Canvas entries count drawing API calls, rather than complete card redraws.
 
-| Stage | Before Refusal [ms] | After Drawing [ms] |
+| Stage, 3,072,000 Rows | 30 Plots [ms] | 100 Plots [ms] |
 | --- | ---: | ---: |
-| Desktop Request to Outcome | 10,740.274 | 652.066 |
-| Client Call Open | — | 77.000 |
-| Documents.Get Host Operation | — | 17.869 |
-| Plots Host Operation | 10,679.317 | 301.028 |
-| Plot Query, Nested | 10,615.268 | 269.727 |
-| Store Exact Statistics, Nested | 10,100.403 | 267.892 |
-| Store Saved Preview, Nested | 14.160 | 1.804 |
-| Frozen Schema Construction, Nested | — | 32.582 |
-| Plot Reply Encoding | — | 0.321 |
-| Native Transport and Bridge Wait | — | 273.900 |
-| Protobuf Decode | — | 6.600 |
-| Native Frame Adaptation | — | 2.000 |
-| Retained Update | — | 0.200 |
-| Frontend State and React Render | — | 117.500 |
-| Canvas Draw Calls | — | 2.100 |
-| Presentation Opportunities | 126.600 | 236.000 |
+| Median Group Latency | 1,195.820 | 1,276.307 |
+| Largest Group Latency | 2,284.451 | 2,471.978 |
+| Plot Queries, Summed | 16,318.811 | 14,814.844 |
+| Schema Construction, Summed | 289.193 | 297.195 |
+| Native Adaptation, Summed | 1.300 | 2.600 |
+| Protobuf Decode, Summed | 2.400 | 8.500 |
+| Retained Updates, Summed | 0.100 | 0.100 |
+| React Render, Summed | 152.700 | 890.700 |
+| Canvas Calls, Summed | 2.600 | 15.000 |
+| Transport and Bridge Wait, Summed | 13,099.000 | 15,063.800 |
 
-The three root costs were repeated exact-statistics queries for identical cards,
-full-history moment scans when the saved preview already covered the complete
-window, and per-plot frozen descriptor construction:
+`src/plots/live-data.ts` keeps stable, consecutive groups by plot kind, capped
+at 32 requests. Visible groups load independently in parallel; lookahead starts
+after visible data arrives. Arriving groups retain unchanged plot-state identities,
+and already mounted cards retain their renderer. New generations cancel old groups
+and fence queued frames. The 100-plot traversal removes repeated group reopening;
+its completed request count falls from 55 to 11.
+`crates/dokime-storage/src/telemetry/aggregates.rs::moments` owns the full-coverage
+proof and reuses durable exact moments for statistics, previews and RMS. Clipped
+windows retain their selected rows. This avoids rescanning history merely to
+replace floating preview statistics with typed values. Rank selection remains exact.
 
-- `crates/dokime-operations-next/src/client/plots_snapshots_list.rs::query_batch`
-  now shares an identical selection within one bounded batch, with one isolated
-  reader and catalog/pool per execution. Before there were 22 statistics calls in
-  the refused opening; after there are two. This sharing ends with the batch.
-- `crates/dokime-storage/src/plot_windows.rs::numeric_statistics` now uses durable
-  moments when preview bounds prove full coverage; requested ranks remain exact.
-  These first two causes share the measured statistics span; their individual
-  times were not isolated. Statistics fall from 10,100.403 to 267.892 ms in this
-  observation.
-- `crates/dokime-operations-next/src/client/plots_snapshots_list.rs::snapshot_at`
-  previously rebuilt the descriptor pool for each plot. Batch preparation replaces
-  those rebuilds. The before non-statistics/non-preview query residual is 500.705 ms,
-  including descriptor work; it is an upper bound, not an isolated pool timing.
-  Final schema spans total 32.582 ms. Unrelated accepted/runtime notices no longer
-  repeat saved plot queries in `plots_snapshots_watch.rs::handle`.
+Each open reads the authored document through `Documents.Get`, with at most 32
+complete frames per page and the existing byte bound. Native plot requests retain
+`GUI_PLOT_REQUESTS`, the 4 MiB frame limit and 32-frame stream credit. A frequency
+declaration selects its latest finite input samples by source time and durable
+position; this benchmark still declares 512. Analysis receives its captured raw
+samples and aligned time axis. Category projection retains native scalar keys;
+pie authors still select a mean over duplicate categories. No data density,
+publication durability, input budget or deadline was changed.
 
-`crates/dokime-storage/src/plot_kinds.rs::grid_window` also retains typed frame
-keys through reduction and formats only returned instants, instead of allocating
-a timestamp string per source row. The largest measured individual queries in
-all traversals remain below one second per million source rows in this run.
-The benchmark-only Vite transform records client-open/bridge waits, protobuf
-decode, native adaptation, retained updates, React rendering and canvas calls.
-Its profiling React build is confined to the benchmark bundle.
-
-The 32-plot declaration remains `GUI_PLOT_REQUESTS` in
-`crates/dokime-gui/src/lib/api/native-plots.ts`; it bounds one desktop read/watch's
-admitted work and retained payload family. It is separate from the unchanged
-4 MiB native frame limit and 32-frame stream credit. `useLivePlotPayloads` selects
-visible cards and opens as many independent groups of at most 32 as needed.
-Document reads request at most 32 complete frames per page as well as the byte
-bound, preserving counters, continuation and fixed-cut validation. Packed aligned
-time columns avoid repeated recursive coordinate values; trajectory/category
-projection retains source instants and category scalars for its renderer.
-
-A frequency declaration's `input_samples` selects the latest N finite samples by
-source time and durable position within its filters/window; absent N uses the
-host's configured transform-input bound. The benchmark author declares 512.
-Input taper and display resolution stay independent. Invalid explicit oversize
-input still refuses; long history alone never makes a frequency plot unrenderable.
+Raw observations and the cleanup result remain in the desktop benchmark output
+under `target/benchmarks/criterion/`. `completion.json` records 34 cases, no
+failure, no cleanup errors and no retained fixture directories.
 
 ## Hosted Validation
 

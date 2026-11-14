@@ -212,7 +212,7 @@ async fn own_measurements(ctx: &Context) -> Result<bool> {
         && stats == latest
         && advanced
         && stats.count > 0
-        && stats.min == ctx.get::<Bench>()?.value
+        && stats.min.as_ref().and_then(|value| value.kind.as_ref()) == Some(&Kind::Number(ctx.get::<Bench>()?.value))
         && stats.max == stats.min
         && attempt.is_some_and(|record| record.scope_refused))
 }

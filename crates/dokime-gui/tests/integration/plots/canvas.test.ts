@@ -383,7 +383,12 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     }
     assert.equal(await evaluate(`document.querySelectorAll('script[src],link[rel="stylesheet"][href]').length`), 0);
     await command("Browser.close", {});
-    if (browser.exitCode === null) await once(browser, "exit", { signal: AbortSignal.timeout(30_000) });
+    connection.close();
+    if (browser.exitCode === null && browser.signalCode === null) browser.kill();
+    if (browser.exitCode === null && browser.signalCode === null)
+      await once(browser, "exit", { signal: AbortSignal.timeout(30_000) }).catch((cause) => {
+        throw new Error("Close Canvas Browser: Owned Process Did Not Exit", { cause });
+      });
   } finally {
     socket?.close();
     if (child && child.exitCode === null && child.signalCode === null) {

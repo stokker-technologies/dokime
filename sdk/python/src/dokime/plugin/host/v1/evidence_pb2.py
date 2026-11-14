@@ -23,9 +23,10 @@ _sym_db = _symbol_database.Default()
 
 
 from harmos.v1 import types_pb2 as harmos_dot_v1_dot_types__pb2
+from dokime.v1 import scalar_pb2 as dokime_dot_v1_dot_scalar__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$dokime/plugin/host/v1/evidence.proto\x12\x15\x64okime.plugin.host.v1\x1a\x15harmos/v1/types.proto\"|\n\x19\x45videnceStatisticsRequest\x12\x11\n\texecution\x18\x01 \x01(\t\x12\x0e\n\x06stream\x18\x02 \x01(\t\x12\r\n\x05\x66ield\x18\x03 \x01(\t\x12\x0c\n\x04step\x18\x04 \x01(\t\x12\x1f\n\x02\x61t\x18\x05 \x01(\x0b\x32\x13.harmos.v1.Position\"\xe1\x01\n\x1a\x45videnceStatisticsResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x04\x12\x0b\n\x03min\x18\x02 \x01(\x01\x12\x0b\n\x03max\x18\x03 \x01(\x01\x12\x0c\n\x04mean\x18\x04 \x01(\x01\x12\x0e\n\x06stddev\x18\x05 \x01(\x01\x12\x0e\n\x06median\x18\x06 \x01(\x01\x12\x0b\n\x03p05\x18\x07 \x01(\x01\x12\x0b\n\x03p95\x18\x08 \x01(\x01\x12\x0b\n\x03p99\x18\t \x01(\x01\x12\r\n\x05\x66irst\x18\n \x01(\x01\x12\x0c\n\x04last\x18\x0b \x01(\x01\x12(\n\x0bresolved_at\x18\x0c \x01(\x0b\x32\x13.harmos.v1.PositionB!\xaa\x02\x1e\x44okime.Protocol.Plugin.Host.V1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$dokime/plugin/host/v1/evidence.proto\x12\x15\x64okime.plugin.host.v1\x1a\x15harmos/v1/types.proto\x1a\x16\x64okime/v1/scalar.proto\"|\n\x19\x45videnceStatisticsRequest\x12\x11\n\texecution\x18\x01 \x01(\t\x12\x0e\n\x06stream\x18\x02 \x01(\t\x12\r\n\x05\x66ield\x18\x03 \x01(\t\x12\x0c\n\x04step\x18\x04 \x01(\t\x12\x1f\n\x02\x61t\x18\x05 \x01(\x0b\x32\x13.harmos.v1.Position\"\xa2\x03\n\x1a\x45videnceStatisticsResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x04\x12\x1d\n\x03min\x18\x02 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03max\x18\x03 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1e\n\x04mean\x18\x04 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x0e\n\x06stddev\x18\x05 \x01(\x01\x12 \n\x06median\x18\x06 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03p05\x18\x07 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03p95\x18\x08 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03p99\x18\t \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1f\n\x05\x66irst\x18\n \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1e\n\x04last\x18\x0b \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03sum\x18\r \x01(\x0b\x32\x10.dokime.v1.Value\x12(\n\x0bresolved_at\x18\x0c \x01(\x0b\x32\x13.harmos.v1.PositionB!\xaa\x02\x1e\x44okime.Protocol.Plugin.Host.V1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,8 +34,8 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dokime.plugin.host.v1.evide
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\252\002\036Dokime.Protocol.Plugin.Host.V1'
-  _globals['_EVIDENCESTATISTICSREQUEST']._serialized_start=86
-  _globals['_EVIDENCESTATISTICSREQUEST']._serialized_end=210
-  _globals['_EVIDENCESTATISTICSRESPONSE']._serialized_start=213
-  _globals['_EVIDENCESTATISTICSRESPONSE']._serialized_end=438
+  _globals['_EVIDENCESTATISTICSREQUEST']._serialized_start=110
+  _globals['_EVIDENCESTATISTICSREQUEST']._serialized_end=234
+  _globals['_EVIDENCESTATISTICSRESPONSE']._serialized_start=237
+  _globals['_EVIDENCESTATISTICSRESPONSE']._serialized_end=655
 # @@protoc_insertion_point(module_scope)

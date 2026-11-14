@@ -91,11 +91,11 @@ message PlotAnalysisResult {
 message PlotBoxSummary {
   string key = 1;
   uint64 count = 2;
-  double min = 3;
-  double q1 = 4;
-  double median = 5;
-  double q3 = 6;
-  double max = 7;
+  .dokime.v1.Value min = 3;
+  .dokime.v1.Value q1 = 4;
+  .dokime.v1.Value median = 5;
+  .dokime.v1.Value q3 = 6;
+  .dokime.v1.Value max = 7;
   double lower_whisker = 8;
   double upper_whisker = 9;
   repeated double outliers = 10;
@@ -118,6 +118,8 @@ message PlotColumn {
   repeated .dokime.v1.Value x = 2;
   repeated .dokime.client.v1.plots.NullableNumber y = 3;
   repeated .dokime.client.v1.plots.NullableNumber z = 4;
+  // Exact category totals; y remains the separate drawing coordinate.
+  repeated .dokime.v1.Value totals = 6;
 }
 
 message PlotDomain {
@@ -163,12 +165,12 @@ message PlotHistogramSeries {
 }
 
 message PlotHistogramStatistics {
-  double mean = 1;
-  double median = 2;
+  .dokime.v1.Value mean = 1;
+  .dokime.v1.Value median = 2;
   double std = 3;
   double rms = 4;
-  double min = 5;
-  double max = 6;
+  .dokime.v1.Value min = 5;
+  .dokime.v1.Value max = 6;
 }
 
 message PlotMarker {
@@ -225,10 +227,10 @@ message PlotSeries {
 message PlotSeriesSummary {
   string series_id = 1;
   uint64 count = 2;
-  optional double min = 3;
-  optional double max = 4;
-  optional double mean = 5;
-  optional double median = 6;
+  .dokime.v1.Value min = 3;
+  .dokime.v1.Value max = 4;
+  .dokime.v1.Value mean = 5;
+  .dokime.v1.Value median = 6;
   optional double std = 7;
   optional double rms = 8;
   .dokime.v1.PlotWindow window = 9;

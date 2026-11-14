@@ -4,7 +4,7 @@
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Value {
-    #[prost(oneof = "value::Kind", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
+    #[prost(oneof = "value::Kind", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10")]
     pub kind: ::core::option::Option<value::Kind>,
 }
 /// Nested message and enum types in `Value`.
@@ -30,6 +30,8 @@ pub mod value {
         List(super::ValueList),
         #[prost(message, tag = "9")]
         Datetime(::prost_types::Timestamp),
+        #[prost(message, tag = "10")]
+        Exact(::harmos_protocol::storage::ExactNumber),
     }
 }
 #[allow(clippy::all)]

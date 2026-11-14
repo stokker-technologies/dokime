@@ -611,12 +611,12 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             payload.summaries.push(PlotSeriesSummary {
                 series_id: field.clone(),
                 count: stats.count,
-                min: (stats.count > 0).then_some(stats.min),
-                max: (stats.count > 0).then_some(stats.max),
-                mean: (stats.count > 0).then_some(stats.mean),
-                median: (stats.count > 0).then_some(stats.median),
+                min: stats.min,
+                max: stats.max,
+                mean: stats.mean,
+                median: stats.median,
                 std: (stats.count > 0).then_some(stats.stddev),
-                rms: (stats.count > 0).then_some((stats.stddev * stats.stddev + stats.mean * stats.mean).sqrt()),
+                rms: Some(store.numeric_rms(&summary_window)?),
                 window: Some(*request.summary_window.as_ref().unwrap()),
             });
         }

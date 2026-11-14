@@ -9,12 +9,14 @@
 
 /* === Local Imports === */
 
+import type { StatisticValue } from "@/lib/statistics";
+import { formatNumber } from "@/lib/format";
 import { plotColor } from "@/plots/colors";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Types === */
 
-export type CategoryTotal = { key: string; value: number; order: number; color: string };
+export type CategoryTotal = { key: string; value: number; exact?: StatisticValue; order: number; color: string };
 export type CategoryTotals = { entries: CategoryTotal[]; error?: undefined } | { entries?: undefined; error: string };
 
 /* === Constants === */
@@ -34,10 +36,15 @@ export function categoryTotals(plot: PlotCardSpec): CategoryTotals {
       if (typeof point.y !== "number" || !Number.isFinite(point.y) || point.y < 0)
         return { error: `Category ${key} requires a finite nonnegative total.` };
       keys.add(key);
-      entries.push({ key, value: point.y, order: entries.length, color: plotColor(entries.length) });
+      entries.push({ key, value: point.y, exact: point.exact_y, order: entries.length, color: plotColor(entries.length) });
     }
   }
   return { entries };
+}
+
+/** Category Labels Use The Statistic, Never Its Drawing Coordinate. */
+export function formatCategoryTotal(entry: { value: number; exact?: StatisticValue }, format: Parameters<typeof formatNumber>[1]): string {
+  return entry.exact !== undefined && typeof entry.exact !== "number" ? entry.exact.decimal : formatNumber(entry.value, format);
 }
 
 /** Normalize Before Summing So Finite Magnitudes Cannot Overflow the Total. */

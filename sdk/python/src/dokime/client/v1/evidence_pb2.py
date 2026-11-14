@@ -28,7 +28,7 @@ from harmos.v1 import storage_types_pb2 as harmos_dot_v1_dot_storage__types__pb2
 from harmos.v1 import types_pb2 as harmos_dot_v1_dot_types__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64okime/client/v1/evidence.proto\x12\x10\x64okime.client.v1\x1a\x18\x64okime/v1/evidence.proto\x1a\x16\x64okime/v1/scalar.proto\x1a\x1dharmos/v1/storage_types.proto\x1a\x15harmos/v1/types.proto\"\xa7\x01\n\nStatistics\x12\r\n\x05\x63ount\x18\x01 \x01(\x04\x12\x0b\n\x03min\x18\x02 \x01(\x01\x12\x0b\n\x03max\x18\x03 \x01(\x01\x12\x0c\n\x04mean\x18\x04 \x01(\x01\x12\x0e\n\x06stddev\x18\x05 \x01(\x01\x12\x0e\n\x06median\x18\x06 \x01(\x01\x12\x0b\n\x03p05\x18\x07 \x01(\x01\x12\x0b\n\x03p95\x18\x08 \x01(\x01\x12\x0b\n\x03p99\x18\t \x01(\x01\x12\r\n\x05\x66irst\x18\n \x01(\x01\x12\x0c\n\x04last\x18\x0b \x01(\x01\"?\n\x0f\x45videnceSubject\x12\x13\n\texecution\x18\x01 \x01(\tH\x00\x12\x0f\n\x05\x63ycle\x18\x02 \x01(\tH\x00\x42\x06\n\x04kind\"D\n\x06Output\x12\x1e\n\x03log\x18\x01 \x01(\x0b\x32\x0f.dokime.v1.NullH\x00\x12\x12\n\x08\x61rtifact\x18\x02 \x01(\tH\x00\x42\x06\n\x04kind\"\xf2\x01\n\x19\x45videnceStatisticsRequest\x12\'\n\x05scope\x18\x01 \x01(\x0b\x32\x18.dokime.v1.EvidenceScope\x12\x0e\n\x06stream\x18\x02 \x01(\t\x12\x10\n\x08versions\x18\x03 \x03(\r\x12\"\n\x07\x62\x65tween\x18\x04 \x01(\x0b\x32\x11.dokime.v1.Window\x12)\n\x07outputs\x18\x05 \x03(\x0b\x32\x18.dokime.client.v1.Output\x12\r\n\x05\x66ield\x18\x06 \x01(\t\x12\x0c\n\x04step\x18\x07 \x01(\t\x12\x1e\n\x02\x61t\x18Z \x01(\x0b\x32\x12.harmos.v1.ReadCut\"w\n\x1a\x45videnceStatisticsResponse\x12\x30\n\nstatistics\x18\x01 \x01(\x0b\x32\x1c.dokime.client.v1.Statistics\x12\'\n\x0bresolved_at\x18Z \x01(\x0b\x32\x12.harmos.v1.ReadCut\"l\n\x16\x45videnceArchiveRequest\x12\x32\n\x07subject\x18\x01 \x01(\x0b\x32!.dokime.client.v1.EvidenceSubject\x12\x1e\n\x02\x61t\x18Z \x01(\x0b\x32\x12.harmos.v1.ReadCut\"r\n\x17\x45videnceArchiveResponse\x12.\n\x04\x66ile\x18\x01 \x01(\x0b\x32 .harmos.storage.v1.FileReference\x12\'\n\x0bresolved_at\x18Z \x01(\x0b\x32\x12.harmos.v1.ReadCut2\xd3\x01\n\x08\x45vidence\x12g\n\nStatistics\x12+.dokime.client.v1.EvidenceStatisticsRequest\x1a,.dokime.client.v1.EvidenceStatisticsResponse\x12^\n\x07\x41rchive\x12(.dokime.client.v1.EvidenceArchiveRequest\x1a).dokime.client.v1.EvidenceArchiveResponseB\x1c\xaa\x02\x19\x44okime.Protocol.Client.V1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1f\x64okime/client/v1/evidence.proto\x12\x10\x64okime.client.v1\x1a\x18\x64okime/v1/evidence.proto\x1a\x16\x64okime/v1/scalar.proto\x1a\x1dharmos/v1/storage_types.proto\x1a\x15harmos/v1/types.proto\"\xe8\x02\n\nStatistics\x12\r\n\x05\x63ount\x18\x01 \x01(\x04\x12\x1d\n\x03min\x18\x02 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03max\x18\x03 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1e\n\x04mean\x18\x04 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x0e\n\x06stddev\x18\x05 \x01(\x01\x12 \n\x06median\x18\x06 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03p05\x18\x07 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03p95\x18\x08 \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03p99\x18\t \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1f\n\x05\x66irst\x18\n \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1e\n\x04last\x18\x0b \x01(\x0b\x32\x10.dokime.v1.Value\x12\x1d\n\x03sum\x18\r \x01(\x0b\x32\x10.dokime.v1.Value\"?\n\x0f\x45videnceSubject\x12\x13\n\texecution\x18\x01 \x01(\tH\x00\x12\x0f\n\x05\x63ycle\x18\x02 \x01(\tH\x00\x42\x06\n\x04kind\"D\n\x06Output\x12\x1e\n\x03log\x18\x01 \x01(\x0b\x32\x0f.dokime.v1.NullH\x00\x12\x12\n\x08\x61rtifact\x18\x02 \x01(\tH\x00\x42\x06\n\x04kind\"\xf2\x01\n\x19\x45videnceStatisticsRequest\x12\'\n\x05scope\x18\x01 \x01(\x0b\x32\x18.dokime.v1.EvidenceScope\x12\x0e\n\x06stream\x18\x02 \x01(\t\x12\x10\n\x08versions\x18\x03 \x03(\r\x12\"\n\x07\x62\x65tween\x18\x04 \x01(\x0b\x32\x11.dokime.v1.Window\x12)\n\x07outputs\x18\x05 \x03(\x0b\x32\x18.dokime.client.v1.Output\x12\r\n\x05\x66ield\x18\x06 \x01(\t\x12\x0c\n\x04step\x18\x07 \x01(\t\x12\x1e\n\x02\x61t\x18Z \x01(\x0b\x32\x12.harmos.v1.ReadCut\"w\n\x1a\x45videnceStatisticsResponse\x12\x30\n\nstatistics\x18\x01 \x01(\x0b\x32\x1c.dokime.client.v1.Statistics\x12\'\n\x0bresolved_at\x18Z \x01(\x0b\x32\x12.harmos.v1.ReadCut\"l\n\x16\x45videnceArchiveRequest\x12\x32\n\x07subject\x18\x01 \x01(\x0b\x32!.dokime.client.v1.EvidenceSubject\x12\x1e\n\x02\x61t\x18Z \x01(\x0b\x32\x12.harmos.v1.ReadCut\"r\n\x17\x45videnceArchiveResponse\x12.\n\x04\x66ile\x18\x01 \x01(\x0b\x32 .harmos.storage.v1.FileReference\x12\'\n\x0bresolved_at\x18Z \x01(\x0b\x32\x12.harmos.v1.ReadCut2\xd3\x01\n\x08\x45vidence\x12g\n\nStatistics\x12+.dokime.client.v1.EvidenceStatisticsRequest\x1a,.dokime.client.v1.EvidenceStatisticsResponse\x12^\n\x07\x41rchive\x12(.dokime.client.v1.EvidenceArchiveRequest\x1a).dokime.client.v1.EvidenceArchiveResponseB\x1c\xaa\x02\x19\x44okime.Protocol.Client.V1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -37,19 +37,19 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\252\002\031Dokime.Protocol.Client.V1'
   _globals['_STATISTICS']._serialized_start=158
-  _globals['_STATISTICS']._serialized_end=325
-  _globals['_EVIDENCESUBJECT']._serialized_start=327
-  _globals['_EVIDENCESUBJECT']._serialized_end=390
-  _globals['_OUTPUT']._serialized_start=392
-  _globals['_OUTPUT']._serialized_end=460
-  _globals['_EVIDENCESTATISTICSREQUEST']._serialized_start=463
-  _globals['_EVIDENCESTATISTICSREQUEST']._serialized_end=705
-  _globals['_EVIDENCESTATISTICSRESPONSE']._serialized_start=707
-  _globals['_EVIDENCESTATISTICSRESPONSE']._serialized_end=826
-  _globals['_EVIDENCEARCHIVEREQUEST']._serialized_start=828
-  _globals['_EVIDENCEARCHIVEREQUEST']._serialized_end=936
-  _globals['_EVIDENCEARCHIVERESPONSE']._serialized_start=938
-  _globals['_EVIDENCEARCHIVERESPONSE']._serialized_end=1052
-  _globals['_EVIDENCE']._serialized_start=1055
-  _globals['_EVIDENCE']._serialized_end=1266
+  _globals['_STATISTICS']._serialized_end=518
+  _globals['_EVIDENCESUBJECT']._serialized_start=520
+  _globals['_EVIDENCESUBJECT']._serialized_end=583
+  _globals['_OUTPUT']._serialized_start=585
+  _globals['_OUTPUT']._serialized_end=653
+  _globals['_EVIDENCESTATISTICSREQUEST']._serialized_start=656
+  _globals['_EVIDENCESTATISTICSREQUEST']._serialized_end=898
+  _globals['_EVIDENCESTATISTICSRESPONSE']._serialized_start=900
+  _globals['_EVIDENCESTATISTICSRESPONSE']._serialized_end=1019
+  _globals['_EVIDENCEARCHIVEREQUEST']._serialized_start=1021
+  _globals['_EVIDENCEARCHIVEREQUEST']._serialized_end=1129
+  _globals['_EVIDENCEARCHIVERESPONSE']._serialized_start=1131
+  _globals['_EVIDENCEARCHIVERESPONSE']._serialized_end=1245
+  _globals['_EVIDENCE']._serialized_start=1248
+  _globals['_EVIDENCE']._serialized_end=1459
 # @@protoc_insertion_point(module_scope)

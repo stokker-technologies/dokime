@@ -74,24 +74,38 @@ returned cut and continuation token, then validates the complete frame sequence:
 structure with source cards, summary definitions, bindings and layout; the fixed
 evidence cut; card results; and completion counters. It rejects misplaced cuts,
 changed identities, incomplete cards and trailing frames. A page boundary never
-relaxes those checks.
+relaxes those checks. Structure bindings remain pending until their evaluated
+results follow the evidence cut. Summary bindings introduce their groups before
+tiles arrive; table row counts are checked when the card completes.
 The desktop asks for at most 32 complete frames per document page, in addition to
 the host's unchanged byte bound. Plot definitions do not trigger hidden plot reads
 while the document is assembled.
 
 Plot cards publish visibility through their existing intersection observer.
-`src/plots/live-data.ts` requests visible cards in groups of at most 32; this is a
+`src/plots/live-data.ts` partitions consecutive cards by plot kind into stable
+groups of at most 32. Visible groups start independently in parallel; the next
+group prefetches once a visible group has data, without competing with its first read.
+Off-screen analyses cannot delay a group of ordinary traces. This is a
 per-request memory/admission bound, never a document-size limit. Each group owns
 its watch, retries and cancellation. Changing one group's viewport or dimensions
 retains other subscriptions and rendered frames. Manual All uses the same bounded
 batch selection through paged snapshots. Off-screen cards resume when visible,
-and a replaced connection generation cancels every owned group. Failed groups
+and a replaced connection generation cancels every owned group, discards its
+queued frames and starts a separate data selection. Failed groups
 retain their actionable failure without discarding other groups' data.
 Native plot projection uses the requested plot kind: time-series, frequency and
 XY renderers retain one Cartesian frame; trajectory and categorical renderers
 receive one bounded point projection with source instants and exact category
 values, without a duplicate Cartesian copy. Whole-document benchmark traversal
 checks those real host-to-renderer handoffs as well as initial visible drawing.
+Numeric categories are unwrapped deliberately; integer category keys retain their
+exact decimal spelling. An error or empty card fails traversal with its identifier
+and displayed message. The benchmark times traversal inside the WebView and
+records the driver round trip separately from drawing.
+Evidence statistics, plot legends and summary tiles retain integer and exact
+rational values. Large values are formatted from their decimal representation;
+chart coordinates use floating point. Dispersion and RMS retain their approximate
+floating outputs derived from exact integer moments.
 
 `Executions.Get` carries frozen record/stream declarations and a schema digest.
 `src/lib/host/schemas.ts` fetches complete descriptor-file pages through
@@ -132,6 +146,13 @@ removal operation, preserving any earlier generator or user storage roots.
 | Remote Access | The Connections WebView proves native pairing export/import, independent profiles, shared execution and evidence, revocation, identity refusal, occupied storage and certificate rotation/recovery. `native-remote.ts` owns the listener's opaque revision. Application preference saves never absorb listener edits. TLS and pairing authentication are host requirements, shown as fixed controls. |
 | Status, Health and Diagnostics | Status bar identity uses `Status.Get`. Trace delivery pages one retained snapshot before watching its issued position; expired positions and gaps trigger replay. Diagnostics reads bounded stable `Status.Diagnostics.Get` ranges, verifies size and digest and saves the host's TAR archive. A native story proves trace snapshot/Watch and verified diagnostics ranges. |
 | Dependency Removal | Native paths/distribution identity, local build facts, installed appearance and logging have desktop owners. Filesystem publication uses Harmos runtime. Native stories, WebView drivers and the SDK stream benchmark use only the current host. Facade-specific negotiation/transcoding contracts and their unused dependencies are removed. |
+
+Execution evidence reads use the execution and cycle identities. A planned case
+identity selects planning state; it does not filter an execution’s records or plots.
+
+Frozen descriptor inventories verify their digest in transport order, then resolve
+imports before constructing the desktop registry. Inventory order does not require
+dependencies to precede their consumers. Missing and cyclic imports refuse decoding.
 
 ### Native Commands and Events
 

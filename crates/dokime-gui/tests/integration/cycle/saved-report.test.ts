@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* ***
  *
  * Dokime
@@ -20,6 +21,9 @@ import { test, vi } from "vitest";
 // Local Imports
 import { Metric } from "@/components/Metric";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
+import { nativeValueToJson } from "@/lib/host/values";
+import { create } from "@bufbuild/protobuf";
+import { ValueSchema } from "@host/dokime/v1/scalar_pb.js";
 import { documentSummaryTile } from "@/lib/document-presentation";
 import { seriesLegendColumns } from "@/lib/statistics";
 
@@ -109,5 +113,41 @@ test("Saved Report Browser", async () => {
     vi.doUnmock("@/lib/desktop-open");
     vi.doUnmock("@/lib/desktop/commands");
     vi.resetModules();
+  }
+});
+
+test("Every Integer Statistic Reaches the Summary Tile Without Rounding", () => {
+  const base = 1152921504606847975n;
+  const values = {
+    min: base,
+    max: base + 10000n,
+    first: base,
+    last: base + 10000n,
+    median: base + 5000n,
+    p05: base + 500n,
+    p95: base + 9500n,
+    p99: base + 9900n,
+    mean: base + 5000n,
+    sum: (base + 5000n) * 101n,
+  };
+  for (const [name, expected] of Object.entries(values)) {
+    const wire = create(ValueSchema, {
+      kind:
+        expected <= 18446744073709551615n
+          ? { case: "unsignedInteger", value: expected }
+          : { case: "exact", value: { numerator: String(expected), denominator: "1", negative: false } },
+    });
+    const value = nativeValueToJson(wire);
+    const tile = documentSummaryTile({
+      metadata: { identifier: name, label: name },
+      value,
+      stat: name as never,
+      format: "number",
+      presentation: "value",
+      state: null,
+    });
+    const host = document.createElement("div");
+    host.innerHTML = renderToStaticMarkup(createElement(Metric, { metricId: tile.metric_id, label: tile.label, value: tile.formatted }));
+    assert.equal(host.querySelector(`[data-document-metric="${name}"] strong`)?.textContent, String(expected));
   }
 });

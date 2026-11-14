@@ -94,6 +94,52 @@ export class NativeIntegerValue {
   }
 }
 
+/** Exact Arithmetic Results Never Pass Through A JavaScript Number. */
+export class NativeExactValue {
+  readonly __dokime_native_exact__ = true;
+  readonly decimal: string;
+
+  constructor(
+    readonly negative: boolean,
+    readonly numerator: string,
+    readonly denominator: string,
+  ) {
+    let n = BigInt(numerator);
+    let d = BigInt(denominator);
+    if (n < 0n || d <= 0n) throw new Error("Read Exact Value: Supply Nonnegative Magnitudes and a Positive Denominator");
+    let a = n;
+    let b = d;
+    while (b !== 0n) {
+      const next = a % b;
+      a = b;
+      b = next;
+    }
+    if (a > 0n) {
+      n /= a;
+      d /= a;
+    }
+    let remainder = n % d;
+    let fractional = "";
+    let finite = d;
+    while (finite % 2n === 0n) finite /= 2n;
+    while (finite % 5n === 0n) finite /= 5n;
+    if (finite === 1n) {
+      while (remainder !== 0n) {
+        remainder *= 10n;
+        fractional += (remainder / d).toString();
+        remainder %= d;
+      }
+      this.decimal = `${negative && n !== 0n ? "-" : ""}${n / d}${fractional ? `.${fractional}` : ""}`;
+    } else {
+      this.decimal = `${negative ? "-" : ""}${n}/${d}`;
+    }
+  }
+
+  toString(): string {
+    return this.decimal;
+  }
+}
+
 export type NativeIntegerJson = {
   readonly __dokime_native_integer__: true;
   readonly decimal: string;

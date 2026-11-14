@@ -110,6 +110,7 @@ export function formatRecordValue(value: unknown, format?: ValueFormat | null): 
   if (typeof value === "number" && Number.isFinite(value)) {
     return formatNumber(value, format ?? null);
   }
+  if (isRecord(value) && value.__dokime_native_exact__ === true && typeof value.decimal === "string") return value.decimal;
   if (isRecord(value) && value.__dokime_native_integer__ === true && typeof value.decimal === "string") return value.decimal;
   if (value === null || value === undefined) {
     return "-";
