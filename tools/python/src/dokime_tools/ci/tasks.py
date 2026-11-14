@@ -352,9 +352,9 @@ def main(arguments: list[str] | None = None) -> int:
         publication_guard()
     for task, options in tasks:
         if os.environ.get("COMPILER_CACHE_BACKEND"):
-            from .build import run_command
+            from harmos_tools.ci import build
 
-            status = run_command(["mise", "run", task, "--", *options], task)
+            status = build.run(["mise", "run", task, "--", *options], task)
             if status:
                 return status
             continue
