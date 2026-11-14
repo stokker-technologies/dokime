@@ -48,7 +48,7 @@ The existing [screenshots](docs/screenshots/) document desktop workflows.
 ### CLI
 
 `dokime` creates SDK projects, packages executable plugins, hosts Dokime and
-controls a running host. See [Command-Line Usage](docs/execution-host.md#command-line-candidate).
+controls a running host. See [Command-Line Usage](docs/execution-host.md#command-line-tool).
 
 #### Examples
 

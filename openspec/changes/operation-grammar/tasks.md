@@ -47,6 +47,22 @@ Final full validation is separate from source completion.
 
 ## Owner Amendments of 2026-11-13
 
+### Final Library Definition Pass
+
+This owner-authorized pass runs under the existing `grpc-plugins` delivery without
+starting or rebinding it. It closes definitions and generation only; consumer
+compilation and behavior remain the delivery obligations below. The complete
+source/type/operation inventory and eight consumer work lists are maintained in
+`docs/execution-host.md`; `docs/architecture.md` owns assembly and backend methods.
+
+- [x] 0.F.1 Pin the final library, delete product plugin records, plugin/settings wrappers and clock operations, compose library packages with explicit discovery narrowing, and declare plugins.Secrets and SecretsDeclarations. Runtime/desktop/SDK adoption remains open in 0.F.
+- [x] 0.H.7 Define the exact pinned StorageBackend and StateBackend method obligations, root-scoped primary/state registration, native-only storage boundary, direct Store consumer inventory and replacement/removal of ordered_merge by the library TimeMergeReader. Backend and caller implementation remains open in 0.H.4 and 0.H.5.
+- [x] 0.K.1 Own the protocol and four SDK generators in this repository, generate content arguments, owned call context, payload projection, internal wire and root/client/plugin barrels, and compose the library resource tree from one composition input. Migrate remaining handwritten SDK consumers/examples through their work lists before closing 0.K.
+- [x] 0.L.1 Rename the three candidate crates and executable with git mv; move operation sources into resource folders, declare plugin operation builders, and replace client/plugin-host protocol trees with model/host/plugin files and mandatory product caller options.
+- [x] 0.M.1 Harmonize Artifacts.Create, Evidence.Statistics, Records.List, Traceability.Get, Progress.Get and Secrets.Get into richer ALL contracts with optional trusted plugin selectors and client-only secret administration metadata; keep handlers/admission proof open with consumers.
+- [x] 0.N.1 Give formerly bare host/context and plugin lifecycle/analysis payloads real services, move resource-owned values, remove ClientEmpty and RunStart, and publish complete identity/message/caller mapping and per-owner repair inventories.
+- [ ] 0.P.1 Complete definition-only proof: format; repository checks including Buf format/lint, callers and workflow lint; compile dokime-protocol; prove second-generation clean status; locked offline Cargo metadata. This does not close consumer or full validation tasks.
+
 - [x] 0.A Record paging eligibility, one SDK package per language, unary transfers with 4 MiB default chunks and 8 MiB messages, and accepted threshold-free durable lag with no accepted-data snapshot in proposal/design/requirements/architecture; amended by the owner on 2026-11-13.
 - [ ] 0.B Lifecycle identity: keep every step, criterion and template lifecycle binding as its own Protected operation under its plugin-authored identity, sharing the plugin-face messages; align the mapping table, the requirements and the four SDKs; amended by the owner on 2026-11-13.
 - [ ] 0.C Merge gate, amended by the owner on 2026-11-13: the branch merges into dev once the face split with lifecycle identities, the library compositions and the desktop on the new host with both WebView lanes pass their targeted proof and the `-next` names are renamed. The missing context operations, command-line parity, held Query operations, invariant guards and test-placement findings land afterwards on dev, or earlier from worktrees with disjoint ownership; they do not hold the merge.
