@@ -9,7 +9,6 @@
 """Check The Installed Wheel Against Every Authoritative Proto And RPC."""
 
 # === Imports === #
-
 # Standard Library Imports
 import hashlib
 import json
@@ -17,6 +16,7 @@ from difflib import unified_diff
 from importlib import import_module
 from importlib.resources import files
 from pathlib import Path
+from typing import Any
 
 # Third Party Imports
 from google.protobuf import descriptor_pb2, descriptor_pool
@@ -36,11 +36,11 @@ from dokime.v1 import descriptors, message_type, services
 
 
 class RecordingChannel:
-    def __init__(self):
+    def __init__(self) -> None:
         self.methods = {}
 
-    def __getattr__(self, cardinality):
-        def register(path, request_serializer, response_deserializer, **options):
+    def __getattr__(self, cardinality: Any) -> Any:
+        def register(path: Any, request_serializer: Any, response_deserializer: Any, **options: Any) -> Any:
             self.methods[path] = (cardinality, request_serializer, response_deserializer)
 
         return register
@@ -49,7 +49,7 @@ class RecordingChannel:
 # === Public Functions === #
 
 
-def main():
+def main() -> Any:
     root = Path(__file__).resolve().parents[3]
     sources = root / "proto"
     manifest = json.loads(files("dokime.v1").joinpath("sources.json").read_text())

@@ -152,23 +152,15 @@ pub fn host_fixture() -> Result<PathBuf, Box<dyn Error>> {
 }
 
 pub fn language_fixture(language: &str) -> Result<PathBuf, Box<dyn Error>> {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let variable = format!("DOKIME_{}_THERMAL_PLUGIN", language.to_uppercase());
-    let default = match language {
-        "csharp" if cfg!(windows) => "sdk/csharp/tests/SystemPlugin/bin/Release/net10.0/dokime-system-story.exe",
-        "csharp" => "sdk/csharp/tests/SystemPlugin/bin/Release/net10.0/dokime-system-story",
-        "cpp" if cfg!(windows) => "target/cpp/tests/Debug/dokime-system-suite.exe",
-        "cpp" => "target/cpp/tests/dokime-system-suite",
+    let name = match language {
+        "csharp" => "csharp/dokime-system-story",
+        "cpp" => "dokime-system-suite",
         _ => return Err("Select a Compiled SDK Fixture".into()),
     };
-    let path = std::env::var_os(variable).map(PathBuf::from).unwrap_or_else(|| {
-        if std::env::var_os("TEST_PROFILE").is_some() {
-            let name = if language == "csharp" { "csharp/dokime-system-story" } else { "dokime-system-suite" };
-            fixture_root().join(format!("{name}{}", std::env::consts::EXE_SUFFIX))
-        } else {
-            repository.join(default)
-        }
-    });
+    let path = std::env::var_os(variable)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| fixture_root().join(format!("{name}{}", std::env::consts::EXE_SUFFIX)));
     if !path.is_file() {
         return Err(format!("Build the {language} Thermal Fixture Through Its SDK Mise Task: {}", path.display()).into());
     }
@@ -194,18 +186,9 @@ pub fn client_settings() -> ClientSettings {
 }
 
 pub fn content_fixture() -> Result<PathBuf, Box<dyn Error>> {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let folder = match std::env::var("TEST_PROFILE") {
-        Ok(profile) => repository
-            .join("target/build")
-            .join(profile)
-            .join(format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH))
-            .join("fixtures/host"),
-        Err(_) => repository.join("target/debug/examples"),
-    };
     let executable = std::env::var_os("DOKIME_CONTENT_PLUGIN")
         .map(PathBuf::from)
-        .unwrap_or_else(|| folder.join(format!("content_fixture{}", std::env::consts::EXE_SUFFIX)));
+        .unwrap_or_else(|| fixture_root().join(format!("content_fixture{}", std::env::consts::EXE_SUFFIX)));
     if !executable.is_file() {
         return Err("Build the Content Fixture Through mise run build:host-fixtures".into());
     }

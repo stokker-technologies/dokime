@@ -9,10 +9,10 @@
 """A Client Adds, Lists And Removes A Remote Plugin Through Generated RPCs."""
 
 # === Imports === #
-
 # Standard Library Imports
 import unittest
 from importlib import import_module
+from typing import Any
 
 # Third Party Imports
 import grpc
@@ -34,7 +34,7 @@ from dokime.v1 import message
 
 
 class ClientStory(unittest.IsolatedAsyncioTestCase):
-    async def test_add_list_remove_and_close(self):
+    async def test_add_list_remove_and_close(self) -> None:
         # Implement the Authoritative Services in Process.
         descriptor = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Plugins")
         status_rpc = import_module("harmos.v1.status_pb2_grpc")
@@ -46,7 +46,25 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         authorization = []
 
         class Plugins(plugins_rpc.PluginsServicer):
-            async def Add(self, request, context):
+            async def GetInstallation(self, request: Any, context: Any) -> Any:
+                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "GetInstallation Is Outside This Fixture")
+
+            async def Install(self, request_iterator: Any, context: Any) -> Any:
+                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Install Is Outside This Fixture")
+
+            async def ListAdmittedPlugins(self, request: Any, context: Any) -> Any:
+                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "ListAdmittedPlugins Is Outside This Fixture")
+
+            async def ListInstallations(self, request: Any, context: Any) -> Any:
+                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "ListInstallations Is Outside This Fixture")
+
+            async def Reload(self, request: Any, context: Any) -> Any:
+                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Reload Is Outside This Fixture")
+
+            async def SetEnabled(self, request: Any, context: Any) -> Any:
+                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "SetEnabled Is Outside This Fixture")
+
+            async def Add(self, request: Any, context: Any) -> Any:
                 authorization.append(dict(context.invocation_metadata()).get("authorization"))
                 if not request.url.startswith("http://"):
                     await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Plugin URL is required")
@@ -54,16 +72,16 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
                 entries[entry.entry] = entry
                 return entry
 
-            async def List(self, request, context):
+            async def List(self, request: Any, context: Any) -> Any:
                 return message("dokime.client.v1.PluginEntries", plugins=entries.values())
 
-            async def Remove(self, request, context):
+            async def Remove(self, request: Any, context: Any) -> Any:
                 if entries.pop(request.entry, None) is None:
                     await context.abort(grpc.StatusCode.NOT_FOUND, "Plugin entry is absent")
                 return message("dokime.client.v1.RemovePluginResponse")
 
         class Status(status_rpc.StatusServicer):
-            async def Get(self, request, context):
+            async def Get(self, request: Any, context: Any) -> Any:
                 if dict(context.invocation_metadata()).get("authorization") != "Bearer test-key":
                     await context.abort(grpc.StatusCode.UNAUTHENTICATED, "Read Status: Supply Credentials")
                 return status_wire.StatusGetResponse(
@@ -71,7 +89,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
                 )
 
         class Logs(logs_rpc.LogsServicer):
-            async def Watch(self, request, context):
+            async def Watch(self, request: Any, context: Any) -> Any:
                 authorization.append(dict(context.invocation_metadata()).get("authorization"))
                 yield logs_wire.LogsWatchResponse()
                 yield logs_wire.LogsWatchResponse(events=[logs_wire.Event(message="ready")])

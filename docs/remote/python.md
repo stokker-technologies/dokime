@@ -5,7 +5,7 @@ Harmos plugin serving, typed Dokime catalogs, composed documents and generated
 async client stubs. See the [SDK guide](../../sdk/python/README.md).
 
 ```sh
-uv add /path/to/dokime-0.1.5-py3-none-any.whl
+uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl
 ```
 
 ## Serve a Plugin
@@ -17,14 +17,15 @@ plugin and add its printed URL to the host:
 ```sh
 dokime new bench --lang python
 cd bench
-uv add /path/to/dokime-0.1.5-py3-none-any.whl
+uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl
 mise run test
 mise run serve
 ```
 
-The starter's own test uses a deterministic in-process Harmos host. Its suite
-demonstrates records, prompts, a host-clock observer, step-filtered statistics,
-criteria, cleanup and a report document. Host integration is still pending.
+The starter's test uses a prepared product host with a controlled clock. Set
+`DOKIME_TEST_HOST` to the host fixture executable before `mise run test`. The
+story answers the operator prompt, reads the retained confirmation record and
+checks the evaluated outcome and plugin cleanup.
 
 ## Connect a Client
 

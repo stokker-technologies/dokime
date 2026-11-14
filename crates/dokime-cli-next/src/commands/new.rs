@@ -38,8 +38,8 @@ const PYTHON: &[(&str, &[u8])] = &[
     ("suite.py", include_bytes!("../../../../sdk/python/examples/starter/suite.py")),
     ("pyproject.toml", include_bytes!("../../../../sdk/python/examples/starter/pyproject.toml")),
     ("mise.toml", include_bytes!("../../../../sdk/python/examples/starter/mise.toml")),
-    ("tests/host.py", include_bytes!("../../../../sdk/python/examples/starter/tests/host.py")),
-    ("tests/test_capture.py", include_bytes!("../../../../sdk/python/examples/starter/tests/test_capture.py")),
+    ("tests/host.py", include_bytes!("../../../../sdk/tests/fixtures/python/starter/host.py")),
+    ("tests/test_capture.py", include_bytes!("../../../../sdk/tests/fixtures/python/starter/test_capture.py")),
 ];
 const CSHARP: &[(&str, &[u8])] = &[
     ("Starter.csproj", include_bytes!("../../../../sdk/csharp/starter/Starter.csproj")),
@@ -70,7 +70,7 @@ pub(crate) struct Args {
     #[arg(long, value_enum)]
     lang: Language,
 
-    #[arg(long, requires = "sdk_sha256", help = "C++ SDK Source Archive URL")]
+    #[arg(long, requires = "sdk_sha256", help = "C++ Installed SDK Archive URL or Local Path")]
     sdk_url: Option<String>,
 
     #[arg(long, requires = "sdk_url", help = "C++ SDK Source Archive SHA-256")]

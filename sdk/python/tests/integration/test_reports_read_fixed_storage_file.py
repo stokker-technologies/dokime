@@ -9,11 +9,11 @@
 """Report Previews Read One Verified File Without Publishing It."""
 
 # === Imports === #
-
 # Standard Library Imports
 import unittest
 from hashlib import sha256
 from importlib import import_module
+from typing import Any
 
 # Third Party Imports
 import grpc
@@ -45,15 +45,27 @@ class ReportStory(unittest.IsolatedAsyncioTestCase):
         published = []
 
         class Reports(report_rpc.ReportsServicer):
-            async def Create(self, request, context):
+            async def Get(self, request: Any, context: Any) -> Any:
+                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Get Is Outside This Fixture")
+
+            async def Create(self, request: Any, context: Any) -> Any:
                 return message("dokime.client.v1.ReportsCreateResponse", file={"length": len(data), "sha256": digest})
 
-            async def Publish(self, request, context):
+            async def Publish(self, request: Any, context: Any) -> Any:
                 published.append(request)
                 await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Publish Report: Unexpected Mutation")
 
         class Files(storage_rpc.FilesServicer):
-            async def Read(self, request, context):
+            async def Get(self, request: Any, context: Any) -> Any:
+                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Get Is Outside This Fixture")
+
+            def Watch(self, request: Any, context: Any) -> Any:
+                return super().Watch(request, context)
+
+            async def Delete(self, request: Any, context: Any) -> Any:
+                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Delete Is Outside This Fixture")
+
+            async def Read(self, request: Any, context: Any) -> Any:
                 offsets.append(request.offset)
                 chunk = data[request.offset : request.offset + 2]
                 reply_digest = digest

@@ -40,7 +40,9 @@ def main() -> None:
     if placement == "remote":
         arguments += ["--address", "127.0.0.1:0"]
     creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    with subprocess.Popen(arguments, env=environment, stdout=subprocess.PIPE, text=True, creationflags=creationflags) as process:
+    with subprocess.Popen(
+        arguments, env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, creationflags=creationflags
+    ) as process:
         try:
             if process.stdout is None:
                 raise RuntimeError("Plugin Output Is Required")
@@ -50,10 +52,17 @@ def main() -> None:
                     break
             else:
                 raise RuntimeError("Plugin Exited Before Readiness")
-            subprocess.run([story, address, placement], check=True, creationflags=creationflags)
-            if placement == "managed":
-                if process.wait() != 0:
-                    raise RuntimeError("Managed Plugin Failed on Exit")
+            subprocess.run(
+                [story, address, placement],
+                check=True,
+                creationflags=creationflags,
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+                timeout=240,
+            )
+            if placement == "managed" and process.wait(timeout=240) != 0:
+                raise RuntimeError("Managed Plugin Failed on Exit")
         finally:
             if process.poll() is None:
                 process.terminate()

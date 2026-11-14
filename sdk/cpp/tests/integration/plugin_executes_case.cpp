@@ -12,6 +12,7 @@
 #include "../support/check.hpp"
 #include "../support/plugin_host.hpp"
 #include "dokime/dokime.hpp"
+#include <catch2/catch_session.hpp>
 
 /* === Macros === */
 
@@ -29,12 +30,14 @@
 
 /* === Entry Point === */
 
-int main(int argc, char **argv) {
-  if (argc != 3)
-    return 2;
+namespace {
+std::string address;
+std::string placement;
+} // namespace
 
+TEST_CASE("Plugin Executes a Case") {
   // Connect to the Managed or Remote Starter.
-  PluginHost host(argv[1]);
+  PluginHost host(address);
   auto description = host.describe();
   check(description.id() == "sample", "Wrong Plugin Connected");
 
@@ -108,6 +111,15 @@ int main(int argc, char **argv) {
 
   // Stop and Check the Placement's Lifecycle.
   host.stop();
-  if (std::string(argv[2]) == "remote")
+  if (placement == "remote")
     check(host.describe().id() == "sample", "Remote Stop Exited the Plugin");
+}
+
+int main(int argc, char **argv) {
+  if (argc != 3)
+    return 2;
+  address = argv[1];
+  placement = argv[2];
+  Catch::Session session;
+  return session.run(1, argv);
 }

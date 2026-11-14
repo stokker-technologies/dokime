@@ -25,9 +25,12 @@ from uuid import uuid4
 
 # Third Party Imports
 import grpc
+from google.protobuf import descriptor_pool, message_factory
+from google.protobuf.descriptor import MethodDescriptor
+from google.protobuf.message import Message
 
 # Local Imports
-from _dokime_resources import (
+from .generated.resources import (
     CyclesResource,
     ExecutionsResource,
     FilesResource,
@@ -37,10 +40,6 @@ from _dokime_resources import (
     Resource,
     SuitesResource,
 )
-from google.protobuf import descriptor_pool, message_factory
-from google.protobuf.descriptor import MethodDescriptor
-from google.protobuf.message import Message
-
 from .v1 import descriptors, message, services
 from .values import encode
 
@@ -125,6 +124,8 @@ class Client(Resource):
 
 
 class Files(FilesResource):
+    _client: Client
+
     async def upload(self, path: str | Path) -> Message:
         request_id = str(uuid4())
         source = await asyncio.to_thread(FileIO, path, "rb")
@@ -179,6 +180,8 @@ class Files(FilesResource):
 
 
 class Plugins(PluginsResource):
+    _client: Client
+
     def __init__(self, client: Client) -> None:
         super().__init__(client)
 
@@ -201,6 +204,8 @@ class Plugins(PluginsResource):
 
 
 class Suites(SuitesResource):
+    _client: Client
+
     def __init__(self, client: Client) -> None:
         super().__init__(client)
 
@@ -232,6 +237,8 @@ class Templates:
 
 
 class Cycles(CyclesResource):
+    _client: Client
+
     def __init__(self, client: Client) -> None:
         super().__init__(client)
 
@@ -271,6 +278,8 @@ class Cycle:
 
 
 class Executions(ExecutionsResource):
+    _client: Client
+
     def __init__(self, client: Client) -> None:
         super().__init__(client)
 
@@ -287,6 +296,8 @@ class Executions(ExecutionsResource):
 
 
 class Prompts(PromptsResource):
+    _client: Client
+
     def __init__(self, client: Client) -> None:
         super().__init__(client)
 
@@ -328,6 +339,8 @@ class Samples:
 
 
 class Reports(ReportsResource):
+    _client: Client
+
     def __init__(self, client: Client) -> None:
         super().__init__(client)
 

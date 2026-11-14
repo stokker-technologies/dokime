@@ -9,12 +9,12 @@
 """Frozen Descriptor Reads Retain Cuts, Verify Bytes and Reuse Digests."""
 
 # === Imports === #
-
 # Standard Library Imports
 import asyncio
 import unittest
 from hashlib import sha256
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 
 # Third Party Imports
@@ -104,7 +104,7 @@ class SchemaStory(unittest.IsolatedAsyncioTestCase):
         self.detail.schemas.records[0].message_name = "example.Row"
         seen = []
 
-        async def get(request):
+        async def get(request: Any) -> Any:
             seen.append(type(request).FromString(request.SerializeToString()))
             index = len(seen) - 1
             return message(

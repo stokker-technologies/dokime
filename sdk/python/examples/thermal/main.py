@@ -9,11 +9,11 @@
 """Serve the Shared Thermal Suite Until Explicit Stdin Close."""
 
 # === Imports === #
-
 # Standard Library Imports
 # SPDX-License-Identifier: Apache-2.0
 import asyncio
 import sys
+from typing import Any
 
 # Third Party Imports
 from suite import plugin
@@ -33,7 +33,7 @@ from suite import plugin
 # === Public Functions === #
 
 
-async def main():
+async def main() -> Any:
     endpoint = await plugin().start("127.0.0.1:0")
     print(endpoint.url, flush=True)
     try:

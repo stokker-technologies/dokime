@@ -9,11 +9,11 @@
 """An Author Materializes, Retries And Releases Isolated Executions Through A Host."""
 
 # === Imports === #
-
 # Standard Library Imports
 import runpy
 import unittest
 from pathlib import Path
+from typing import Any
 
 from google.protobuf.wrappers_pb2 import Int32Value
 from harmos.v1 import types_pb2 as wire
@@ -36,14 +36,14 @@ from dokime.v1 import message
 
 
 class MaterializationStory(unittest.IsolatedAsyncioTestCase):
-    async def test_materialize_retry_and_cleanup(self):
+    async def test_materialize_retry_and_cleanup(self) -> None:
         # Compose A Parameter-Dependent Template With Execution-Owned State.
         instances = []
         reading = dokime.Operation("example.reading.square", Int32Value, Int32Value, wire.VISIBILITY_PRIVATE)
 
         class Operations:
             @dokime.operation(reading.id, request=Int32Value, response=Int32Value, visibility=wire.VISIBILITY_PRIVATE)
-            async def read(self, ctx, request):
+            async def read(self, ctx: Any, request: Any) -> Any:
                 from operator import mul
 
                 return Int32Value(value=mul(request.value, request.value))
@@ -54,19 +54,19 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             parameters=[message("Parameter", metadata={"identifier": "channels", "label": "Channels"}, type=7, element_type=2)],
         )
         class Channels:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.channels = []
                 self.attempts = []
                 instances.append(self)
 
             @dokime.materialize
-            def cases(cls, case, parameters):
+            def cases(cls, case: Any, parameters: Any) -> Any:
                 for channel in parameters["channels"]:
                     case.step(f"Channel {channel}", cls.measure, channel=channel)
                 case.criterion("All Channels", cls.all_channels)
 
             @dokime.step("Measure", retries=1)
-            async def measure(self, ctx, *, channel):
+            async def measure(self, ctx: Any, *, channel: Any) -> Any:
                 self.attempts.append((channel, ctx.attempt))
                 if channel == 2 and ctx.attempt == 1:
                     raise dokime.Failure(
@@ -80,11 +80,11 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 self.channels.append(measured.value)
 
             @dokime.criterion("All Channels")
-            def all_channels(self, ctx):
+            def all_channels(self, ctx: Any) -> Any:
                 return self.channels == [channel * channel for channel in ctx.parameters["channels"]]
 
         # Admit The Plugin Through A Real Product Host And Its Client Root.
-        mechanical = Path(__file__).resolve().parents[2] / "examples/starter/tests/host.py"
+        mechanical = Path(__file__).resolve().parents[3] / "tests/fixtures/python/starter/host.py"
         host = await runpy.run_path(str(mechanical))["Host"].start(self)
         plugin = dokime.Plugin("channels", "1.0.0", suites=[Channels], requires=[], operations=Operations())
         self.assertNotIn(reading.id, {operation.id for operation in plugin.catalog().operations})

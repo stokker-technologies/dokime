@@ -136,8 +136,8 @@ class Plugin:
         endpoint = await transport.start(address)
         return Endpoint(endpoint, self)
 
-    def _materialize(self, template: Template):
-        async def execute(adapter, transport, request):
+    def _materialize(self, template: Template) -> Any:
+        async def execute(adapter: Any, transport: Any, request: Any) -> Any:
             try:
                 transport.scope()
             except harmos.Failure as error:
@@ -159,7 +159,7 @@ class Plugin:
             visibility=wire.VISIBILITY_PROTECTED,
         )(execute)
 
-    def _execution(self, template: Template, kind: str, handler=None, retries: int = 0):
+    def _execution(self, template: Template, kind: str, handler: Any = None, retries: int = 0) -> Any:
         family = {
             "step": "StepsExecute",
             "criterion": "CriteriaEvaluate",
@@ -167,7 +167,7 @@ class Plugin:
             "cleanup": "ExecutionsCleanup",
         }[kind]
 
-        async def execute(adapter, transport, request):
+        async def execute(adapter: Any, transport: Any, request: Any) -> Any:
             if not request.execution or transport.scope() != request.execution:
                 raise ValueError(f"{kind.title()} Execution: Execution and Harmos Scope Must Agree")
             origin = request.origin
@@ -231,11 +231,11 @@ class Plugin:
             replay_safe=bool(retries),
         )(execute)
 
-    def _stream(self, template: Template, name: str, method):
+    def _stream(self, template: Template, name: str, method: Any) -> Any:
         definition = method.__dokime_stream__
         interval = getattr(method, "__dokime_observer__", None)
 
-        async def observe(adapter, transport):
+        async def observe(adapter: Any, transport: Any) -> Any:
             key = (template.identifier, transport.scope())
             await self._ready.setdefault(key, asyncio.Event()).wait()
             session = self._sessions[key]
@@ -247,7 +247,7 @@ class Plugin:
                 result = await result
             return result if isinstance(result, definition.row) else definition.row(value=result)
 
-        async def publish(adapter, transport, publisher):
+        async def publish(adapter: Any, transport: Any, publisher: Any) -> Any:
             key = (template.identifier, transport.scope())
             await self._ready.setdefault(key, asyncio.Event()).wait()
             session = self._sessions[key]
@@ -266,8 +266,8 @@ class Plugin:
             )(observe)
         return harmos.publisher(definition.identifier, row=definition.row, description=definition.label)(publish)
 
-    def _stop(self):
-        async def release(adapter):
+    def _stop(self) -> Any:
+        async def release(adapter: object) -> None:
             self._sessions.clear()
             self._ready.clear()
 
@@ -286,7 +286,7 @@ class _ServingPlugin(harmos.Plugin):
 
 
 class Endpoint:
-    def __init__(self, transport: Any, plugin: Plugin) -> None:
+    def __init__(self, transport: harmos.Endpoint, plugin: Plugin) -> None:
         self._transport = transport
         self.plugin = plugin
         self.url = f"http://{transport.address}"

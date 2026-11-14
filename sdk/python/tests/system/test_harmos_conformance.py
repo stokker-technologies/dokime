@@ -35,7 +35,7 @@ import dokime
 
 
 class ConformanceStory(unittest.IsolatedAsyncioTestCase):
-    async def test_reference_host_accepts_remote_plugin(self):
+    async def test_reference_host_accepts_remote_plugin(self) -> None:
         # Compose The Language-Neutral Harmos Fixture Through Dokime's Plugin.
         fixture = plugin()
         remote = dokime.Plugin(

@@ -6,58 +6,63 @@
 #
 # ***
 
-# === Prepare === #
+# === Entry Points === #
 
-[tasks."sdk:prepare"]
-description = "Prepare the Shared Python Environment"
-usage = 'flag "--refresh-lock"'
+[tasks.prepare]
+description = "Prepare the Python Environment"
+run = 'uv sync --locked --all-groups --project ../../tools/python'
+
+[tasks.format]
+description = "Format the Python SDK"
 run = [
-  "{% if usage.refresh_lock %}uv lock --project ../..{% endif %}",
-  "uv sync --locked --project ../.. --all-groups",
-  "uv lock {% if not usage.refresh_lock %}--check{% endif %}",
+  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 --fix . ../tests/fixtures/python',
+  'uv run --no-sync --project ../../tools/python ruff format . ../tests/fixtures/python',
 ]
 
-# === Build === #
+[tasks.check]
+description = "Check the Python SDK"
+run = [
+  'uv run --no-sync --project ../../tools/python ruff format --check .',
+  'uv run --no-sync --project ../../tools/python ruff check .',
+  'uv run --no-sync --project ../../tools/python ty check --project .',
+]
 
-[tasks."sdk:build"]
-description = "Build the Pure Python SDK Wheel"
-run = "mise -C ../.. run build:python"
+[tasks.build]
+description = "Build the Python Distributions"
+run = 'mise -C ../.. run build:python -- --profile {{env.DOKIME_BUILD_PROFILE | default(value="dev")}}'
 
-[tasks."sdk:source"]
-description = "Build a Source Distribution With Authoritative Protos"
-run = "uv build --out-dir ../../target/build/dev/any/python ."
+[tasks.package]
+description = "Package the Built Python Distributions"
+run = 'uv run --no-sync --project ../../tools/python python tools/package.py'
 
-[tasks."sdk:lock"]
-description = "Refresh the Standalone SDK Lock"
-run = "uv lock"
+[tasks.install]
+description = "Install the Built Python Wheel"
+run = 'uv run --no-sync --project ../../tools/python python tools/installed.py install'
 
-# === Test === #
+[tasks.test]
+description = "Test the Installed Python SDK"
+run = [
+  'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v',
+  'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/integration -v',
+]
 
-[tasks."sdk:install"]
-description = "Install the Built SDK and Its Pinned Harmos Dependency"
-run = "uv run --no-sync --project ../../tools/python python tools/installed.py install"
+[tasks.wheel]
+description = "Test the Installed Wheel Story"
+run = 'mise -C ../.. run test:python:wheel'
 
-[tasks."sdk:unit"]
-description = "Test SDK Contracts Against the Installed Wheel"
-run = "uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v"
+[tasks.generated]
+description = "Check Generated Python Messages"
+run = 'uv run --no-sync --project ../../tools/python python tools/generated.py'
 
-[tasks."sdk:test"]
-description = "Run Focused SDK Client and Host Journeys"
-run = "uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/integration -v"
+[tasks.conformance]
+description = "Test Library Conformance"
+run = 'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/system -v'
 
-[tasks."sdk:conformance"]
-description = "Run the Harmos Reference Host Against the Python Plugin"
-run = "uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/system -p test_harmos_conformance.py -v"
-
-[tasks."sdk:starter"]
-description = "Run the Starter Through a Product Host"
+[tasks.starter]
+description = "Test the Starter"
 dir = "examples/starter"
-run = "uv run --no-sync --project ../../../../tools/python python -m unittest discover -s tests -v"
+run = 'uv run --no-sync --project ../../../../tools/python python -m unittest discover -s ../../../tests/fixtures/python/starter -v'
 
-[tasks."sdk:generated"]
-description = "Check Installed Generated Messages and Service Stubs Against Protos"
-run = "uv run --no-sync --project ../../tools/python python tools/generated.py"
-
-[tasks."sdk:wheel"]
-description = "Install the Wheel in a Fresh Environment and Test the Starter"
-run = "mise -C ../.. run test:python:wheel"
+[tasks.generate]
+description = "Generate Typed Python Protocol Packages"
+run = 'uv run --locked --group generate python tools/generate.py'

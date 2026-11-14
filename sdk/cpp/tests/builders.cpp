@@ -8,9 +8,9 @@
  */
 
 #include "dokime/plots.hpp"
-#include <stdexcept>
+#include <catch2/catch_test_macros.hpp>
 
-int main() {
+TEST_CASE("Documents Preserve Composed Plot Operands") {
   using namespace dokime::authoring;
   auto input = field("scan", "temperature");
   auto surface = contour(input.scale(2).offset(-1))
@@ -35,19 +35,18 @@ int main() {
   document.mutable_metadata()->set_label("Scan");
   section(document, target);
   dokime::v1::Document decoded;
-  if (!decoded.ParseFromString(document.SerializeAsString()))
-    throw std::runtime_error("document decode failed");
+  REQUIRE(decoded.ParseFromString(document.SerializeAsString()));
   surface.message.clear_y();
   input.message.mutable_stream()->set_field("changed");
   const auto &captured = decoded.sections(0).cards(0).plot();
-  if (captured.y_size() != 1 || captured.z().transform().input().transform().input().stream().field() != "temperature" ||
-      captured.reference_bands(0).tolerance().parameter() != "tolerance")
-    throw std::runtime_error("contour operands were not copied");
+  REQUIRE(captured.y_size() == 1);
+  REQUIRE(captured.z().transform().input().transform().input().stream().field() == "temperature");
+  REQUIRE(captured.reference_bands(0).tolerance().parameter() == "tolerance");
   const auto grid = grid_chart(field("scan", "value"))
                         .row(field("scan", "row"))
                         .column(field("scan", "column"))
                         .frame(field("scan", "timestamp"))
                         .reduce(dokime::v1::REDUCTION_MAX);
-  if (grid.message.grid().frame().stream().field() != "timestamp" || grid.message.reduction() != dokime::v1::REDUCTION_MAX)
-    throw std::runtime_error("grid bindings differ");
+  REQUIRE(grid.message.grid().frame().stream().field() == "timestamp");
+  REQUIRE(grid.message.reduction() == dokime::v1::REDUCTION_MAX);
 }

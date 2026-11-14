@@ -12,12 +12,12 @@
 
 # Standard Library Imports
 import re
-from typing import Any, Self
+from typing import Self
 
 # Third Party Imports
 # Local Imports
 from .plot import Expression, Plot, _expression
-from .v1 import message
+from .v1 import documents_pb2, expressions_pb2, message, metadata_pb2
 
 # Type Checking Imports
 
@@ -50,7 +50,7 @@ class Document:
         self.message.sections.add().CopyFrom(section.message)
         return self
 
-    def _definition(self) -> dict[str, Any]:
+    def _definition(self) -> dict[str, list[int]]:
         return {"message": list(self.message.SerializeToString())}
 
 
@@ -93,13 +93,13 @@ class Section:
         self.message.cards.add(metadata=metadata(label), markdown=markdown)
         return self
 
-    def card(self, card: Any) -> Self:
+    def card(self, card: documents_pb2.Card) -> Self:
         if card.DESCRIPTOR.full_name != "dokime.v1.Card":
             raise TypeError("Section.card requires a dokime.v1.Card message")
         self.message.cards.add().CopyFrom(card)
         return self
 
-    def _definition(self) -> dict[str, Any]:
+    def _definition(self) -> dict[str, list[int]]:
         return {"message": list(self.message.SerializeToString())}
 
 
@@ -115,14 +115,14 @@ class Summary:
 # === Public Functions === #
 
 
-def metadata(label: str) -> Any:
+def metadata(label: str) -> metadata_pb2.Metadata:
     return message("Metadata", identifier=".".join(part.lower() for part in re.split(r"[\W_]+", label) if part), label=label)
 
 
 # === Private Functions === #
 
 
-def expression_label(value: Any) -> str:
+def expression_label(value: expressions_pb2.DataExpression) -> str:
     if value.label:
         return value.label
     kind = value.WhichOneof("kind")

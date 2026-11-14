@@ -1,0 +1,84 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../../target/cp/${presetName}",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/../../target/cp/v"
+      }
+    },
+    {
+      "name": "development",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "DOKIME_BUILD_TESTS": true
+      }
+    },
+    {
+      "name": "tests",
+      "inherits": "development",
+      "cacheVariables": {
+        "DOKIME_BUILD_TESTS": true
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "development",
+      "configurePreset": "development"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "tests",
+      "configurePreset": "tests"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "development",
+      "configurePreset": "development",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "tests",
+      "configurePreset": "tests",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    }
+  ]
+}

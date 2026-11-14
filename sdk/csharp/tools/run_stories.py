@@ -36,9 +36,9 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 suffix = ".exe" if os.name == "nt" else ""
 environment = os.environ.copy()
-environment["HARMOS_CONFORMANCE_HOST"] = str(root / f"../../target/csharp-reference/target/debug/harmos-conformance{suffix}")
-environment["DOKIME_CONFORMANCE_PLUGIN"] = str(root / f"tests/Conformance/bin/Release/net10.0/dokime-conformance-plugin{suffix}")
-environment["DOKIME_STARTER"] = str(root / f"starter/bin/Release/net10.0/dokime-starter{suffix}")
+environment["HARMOS_CONFORMANCE_HOST"] = str(root / f"../../target/cs/reference/target/debug/harmos-conformance{suffix}")
+environment["DOKIME_CONFORMANCE_PLUGIN"] = str(root / f"../../target/cs/bin/Conformance/release/dokime-conformance-plugin{suffix}")
+environment.setdefault("DOKIME_STARTER", str(root / f"../../target/cs/bin/Starter/release/dokime-starter{suffix}"))
 subprocess.run(
     [
         sys.argv[1],

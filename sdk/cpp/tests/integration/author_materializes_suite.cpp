@@ -11,6 +11,7 @@
 
 #include "../support/check.hpp"
 #include "dokime/plugin.hpp"
+#include <catch2/catch_test_macros.hpp>
 #include <map>
 
 /* === Macros === */
@@ -29,7 +30,7 @@
 
 /* === Entry Point === */
 
-int main() {
+TEST_CASE("Author Materializes a Suite") {
   // Compose a Suite and Hand Its Values to the Plugin.
   dokime::Template value;
   *value.definition.mutable_metadata() = dokime::metadata("sample.measure", "Measure");

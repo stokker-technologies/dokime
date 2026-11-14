@@ -6,75 +6,70 @@
 #
 # ***
 
-# === Settings === #
-
 # === Tools === #
 
 [tools]
 cmake = "4.2.8"
-
-# === Environment === #
-
-# === Variables === #
-
-# === Generate === #
+ninja = "1.13.2"
+"pipx:clang-format" = "21.1.8"
 
 # === Entry Points === #
 
 [tasks.prepare]
-description = "Prepare the Shared Python Tooling Environment"
-run = 'uv sync --locked --all-groups --project ../../tools/python'
+description = "Prepare the C++ SDK"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py prepare {% for arg in usage.args %}"{{arg}}" {% endfor %}'
 
 [tasks.configure]
-hide = true
-description = "Configure the C++ SDK and Build-Time Protocol Generation"
+description = "Configure the C++ SDK"
 usage = 'arg "[args]" var=#true'
 run = 'python tools/sdk.py configure {% for arg in usage.args %}"{{arg}}" {% endfor %}'
 
 [tasks.format]
-description = "Format the C++ SDK and Its Python Task Tools"
-usage = 'flag "--check"'
+description = "Format the C++ SDK"
+usage = 'arg "[args]" var=#true'
 run = [
-  'python tools/sdk.py format {% if usage.check %}--check{% endif %}',
-  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 {% if not usage.check %}--fix{% endif %} tools tests/support',
-  'uv run --no-sync --project ../../tools/python ruff format {% if usage.check %}--check{% endif %} tools tests/support',
+  'python tools/sdk.py format {% for arg in usage.args %}"{{arg}}" {% endfor %}',
+  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 --fix tools tests/support',
+  'uv run --no-sync --project ../../tools/python ruff format tools tests/support',
 ]
 
-[tasks.build]
-description = "Build the C++ SDK and Focused Stories"
-usage = 'arg "[args]" var=#true'
-run = 'python tools/sdk.py build {% for arg in usage.args %}"{{arg}}" {% endfor %}'
-
-[tasks.test]
-description = "Run the Focused C++ SDK Stories"
-usage = 'arg "[args]" var=#true'
-run = 'python tools/sdk.py test {% for arg in usage.args %}"{{arg}}" {% endfor %}'
-
 [tasks.check]
-description = "Check the C++ CMake Graph"
+description = "Check the C++ SDK"
 usage = 'arg "[args]" var=#true'
 run = [
   'python tools/sdk.py check {% for arg in usage.args %}"{{arg}}" {% endfor %}',
   'python tools/sdk.py format --check',
-  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 tools tests/support',
+  'uv run --no-sync --project ../../tools/python ruff check tools tests/support',
   'uv run --no-sync --project ../../tools/python ruff format --check tools tests/support',
-  'uv run --no-sync --project ../../tools/python ty check tools tests/support',
+  'uv run --no-sync --project ../../tools/python ty check --python ../../.venv tools tests/support',
 ]
 
+[tasks.build]
+description = "Build the C++ SDK"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py build {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
+[tasks.test]
+description = "Test the C++ SDK"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py test {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
+[tasks.package]
+description = "Package the C++ SDK"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py package {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
+[tasks.consumer]
+description = "Build the Installed C++ Package Consumer"
+usage = 'arg "[args]" var=#true'
+run = 'python tools/sdk.py consumer {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+
 [tasks.conformance]
-hide = true
-description = "Prove the SDK Against the Harmos Reference Host"
+description = "Test Library Conformance with the C++ SDK"
 usage = 'arg "[args]" var=#true'
 run = 'python tools/sdk.py conformance {% for arg in usage.args %}"{{arg}}" {% endfor %}'
 
-[tasks.starter]
-hide = true
-description = "Configure and Build the C++ Starter Against This SDK"
-usage = 'arg "[args]" var=#true'
-run = 'python tools/sdk.py starter {% for arg in usage.args %}"{{arg}}" {% endfor %}'
-
-[tasks.archive]
-hide = true
-description = "Package the Versioned C++ Source Archive and Checksum"
-usage = 'arg "[args]" var=#true'
-run = 'python tools/sdk.py archive {% for arg in usage.args %}"{{arg}}" {% endfor %}'
+[tasks.clean]
+description = "Clean C++ Compiler Outputs"
+run = 'python tools/sdk.py clean'

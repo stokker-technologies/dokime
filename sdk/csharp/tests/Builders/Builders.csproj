@@ -8,6 +8,6 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../Dokime.csproj" />
+    <ProjectReference Include="../../src/Dokime/Dokime.csproj" />
   </ItemGroup>
 </Project>

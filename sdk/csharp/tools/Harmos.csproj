@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <PackageId>Harmos</PackageId>
+    <Version>0.1.0-dev.81d32d3bc9ab</Version>
+    <Description>Pinned Harmos SDK</Description>
+    <SourceRevisionId>81d32d3bc9ab3e2121746923712ec9508cee3ec7</SourceRevisionId>
+    <RepositoryCommit>81d32d3bc9ab3e2121746923712ec9508cee3ec7</RepositoryCommit>
+    <RepositoryUrl>https://github.com/stokker-technologies/harmos</RepositoryUrl>
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="sdk/csharp/Harmos/**/*.cs" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.76.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.36.2" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.76.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.76.0" PrivateAssets="All" />
+    <Protobuf Include="proto/harmos/**/*.proto" Exclude="proto/harmos/v1/guest.proto" ProtoRoot="proto" GrpcServices="Both" />
+  </ItemGroup>
+</Project>

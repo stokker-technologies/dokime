@@ -35,7 +35,7 @@ from dokime.values import decode, encode
 
 
 class DocumentStory(unittest.TestCase):
-    def test_compose_serialize_and_reopen(self):
+    def test_compose_serialize_and_reopen(self) -> None:
         # Build A Contour And Playback Grid From A Declared Stream.
         samples = dokime.Stream("example.samples")
         reading = samples.field("temperature").scale(2.0)

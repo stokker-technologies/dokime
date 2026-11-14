@@ -62,6 +62,20 @@ async fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), B
             }
             super::run(&arguments).await?;
             assert_eq!(std::fs::read(project.join(file))?, std::fs::read(super::root().join(folder).join(file))?);
+            if language == "python" {
+                for file in ["host.py", "test_capture.py"] {
+                    assert_eq!(
+                        std::fs::read(project.join("tests").join(file))?,
+                        std::fs::read(super::root().join("sdk/tests/fixtures/python/starter").join(file))?
+                    );
+                }
+            }
+            if language == "cpp" {
+                let presets: serde_json::Value = serde_json::from_slice(&std::fs::read(project.join("CMakePresets.json"))?)?;
+                let coordinates = &presets["configurePresets"][0]["cacheVariables"];
+                assert_eq!(coordinates["DOKIME_SDK_URL"], arguments[5]);
+                assert_eq!(coordinates["DOKIME_SDK_SHA256"], arguments[7]);
+            }
 
             // Preserve the Existing Project on a Repeated Invocation
             std::fs::write(project.join("owned.txt"), b"retained work")?;

@@ -33,7 +33,7 @@ from dokime_tools.process import spawn_flags
 # === Public Functions === #
 
 
-def main():
+def main() -> None:
     root = Path(__file__).resolve().parents[3]
     wheels = list((output(root, "build", "dev", "any") / "python").glob("*.whl"))
     if len(wheels) != 1:
