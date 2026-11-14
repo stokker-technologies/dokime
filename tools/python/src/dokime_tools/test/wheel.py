@@ -72,11 +72,14 @@ def main() -> None:
                 "-I",
                 "-c",
                 (
-                    "import dokime; from pathlib import Path; from importlib.metadata import distribution; "
-                    "package = Path(dokime.__file__).parent; "
-                    "assert package.joinpath('py.typed').is_file(); "
-                    "assert distribution('dokime-sdk').read_text('WHEEL').find('Root-Is-Purelib: true') >= 0; "
-                    "print('Installed Pure Wheel:', dokime.__version__, package)"
+                    "from importlib.metadata import distribution\n"
+                    "from pathlib import Path\n"
+                    "import dokime\n"
+                    "package = Path(dokime.__file__).parent\n"
+                    "installed = distribution('dokime-sdk')\n"
+                    "assert package.joinpath('py.typed').is_file()\n"
+                    "assert 'Root-Is-Purelib: true' in installed.read_text('WHEEL')\n"
+                    "print('Installed Pure Wheel:', installed.version, package)\n"
                 ),
             ],
         ]
