@@ -16,7 +16,7 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { on, once } from "node:events";
+import { once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -111,9 +111,15 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     const target = await fetch(`${endpoint}/json/new?about:blank`, {
       method: "PUT",
       signal: AbortSignal.timeout(30_000),
-    }).then((response) => response.json());
+    })
+      .then((response) => response.json())
+      .catch((cause) => {
+        throw new Error("Open Canvas Browser Target: Request Failed", { cause });
+      });
     socket = new WebSocket(target.webSocketDebuggerUrl);
-    await once(socket, "open", { signal: AbortSignal.timeout(30_000) });
+    await once(socket, "open", { signal: AbortSignal.timeout(30_000) }).catch((cause) => {
+      throw new Error("Connect Canvas Browser Target: Socket Did Not Open", { cause });
+    });
     const connection = socket;
     let sequence = 0;
     const pending = new Map<number, (reply: Reply) => void>();
@@ -144,19 +150,17 @@ test("Sparse Samples on Live and Frozen Canvas", async () => {
     const evaluate = async (expression: string) =>
       (await command("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }))?.result?.value;
 
-    // Attach Before Navigation And Await This Document's Loader.
-    const events = on(connection, "message", { signal: AbortSignal.timeout(30_000) });
+    // Read This Document's Ready State; A Transient Loader Notification Is Not Retained.
     await command("Page.enable", {});
-    await command("Page.setLifecycleEventsEnabled", { enabled: true });
-    const navigation = await command("Page.navigate", { url: pathToFileURL(join(scratch, "frozen/report.html")).href });
+    const documentUrl = pathToFileURL(join(scratch, "frozen/report.html")).href;
+    const navigation = await command("Page.navigate", { url: documentUrl });
     assert.ok(navigation?.loaderId && !navigation.errorText, JSON.stringify(navigation));
-    for await (const [event] of events) {
-      const message = JSON.parse(event.data);
-      if (message.method === "Page.lifecycleEvent" && message.params.name === "load" && message.params.loaderId === navigation.loaderId)
-        break;
-    }
     await evaluate(
-      `new Promise(resolve => { const ready = () => window.canvasFixture ? resolve(true) : requestAnimationFrame(ready); ready(); })`,
+      `new Promise(resolve => {
+        const ready = () => location.href === ${JSON.stringify(documentUrl)} && document.readyState === 'complete' && window.canvasFixture
+          ? resolve(true) : requestAnimationFrame(ready);
+        ready();
+      })`,
     );
     const results: unknown[] = [];
     for (const zoom of [false, true])
