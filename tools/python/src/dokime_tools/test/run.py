@@ -529,8 +529,10 @@ def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str], *,
     except OSError as error:
         raise policy.TestError(f"{command[0]} is unavailable: {error}") from error
     if output is not None:
-        with output.open("w", encoding="utf-8") as written, process.stdout:
-            for line in process.stdout:
+        stream = process.stdout
+        assert stream is not None, "Measure Native Benchmark: Capture Requires An Output Pipe"
+        with output.open("w", encoding="utf-8") as written, stream:
+            for line in stream:
                 print(line, end="", flush=True)
                 written.write(line)
     if not hasattr(os, "wait4"):
