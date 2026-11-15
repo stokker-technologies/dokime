@@ -134,6 +134,12 @@ pub(crate) enum Reply {
 pub fn remove_root_secrets(store: &Store) -> Result<()> {
     let catalog: Catalog = store.administration("secrets")?.unwrap_or_default();
     let journal: KeySlots = store.administration("secret-key-slots")?.unwrap_or_default();
+    // A Copied Root Names Another Root's Credentials; Never Delete Those.
+    if [&catalog.host_id, &journal.host_id].into_iter().any(|host| !host.is_empty() && host != store.identity()) {
+        return Err(Error::Precondition(
+            "Remove Root Secrets: The Root's Secret Catalog Belongs to Another Backend; Remove Credentials From the Original Root".into(),
+        ));
+    }
     let accounts: BTreeSet<_> = catalog
         .entries
         .iter()
@@ -549,3 +555,36 @@ fn run(context: &Context, action: Action, plugins: &[PluginEntry]) -> Result<Rep
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::{Catalog, KeySlots, Slot, remove_root_secrets};
+    use crate::Error;
+    use dokime_storage::Store;
+
+    #[test]
+    fn a_copied_root_never_removes_the_original_roots_credentials() {
+        // A Copy Without Its Identity File Opens Under a New Backend Identity.
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::open(root.path()).unwrap();
+        let catalog = Catalog {
+            generation: 1,
+            host_id: "00000000-0000-7000-8000-000000000001".into(),
+            entries: vec![Slot { metadata: None, slot: "slot".into() }],
+        };
+        store.save_administration("secrets", &catalog).unwrap();
+        let refused = remove_root_secrets(&store).unwrap_err();
+        assert!(matches!(refused, Error::Precondition(_)), "{refused}");
+        assert_eq!(store.administration::<Catalog>("secrets").unwrap(), Some(catalog));
+
+        // A Journal From Another Backend Is Refused Even Without Catalog Entries.
+        store.delete_administration("secrets").unwrap();
+        let journal = KeySlots {
+            host_id: "00000000-0000-7000-8000-000000000001".into(),
+            slots: vec!["slot".into()],
+        };
+        store.save_administration("secret-key-slots", &journal).unwrap();
+        assert!(matches!(remove_root_secrets(&store), Err(Error::Precondition(_))));
+        assert_eq!(store.administration::<KeySlots>("secret-key-slots").unwrap(), Some(journal));
+    }
+}
