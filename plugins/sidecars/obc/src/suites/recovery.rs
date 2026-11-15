@@ -45,6 +45,9 @@ pub const STOPPED: &str = "obc.charger.recovery.stopped";
 
 /* === Type Aliases === */
 
+/// The Record Contracts This Procedure Publishes, in Procedure Order.
+pub type Contracts = (Record<Initialized>, Record<Started>, Record<Faulted>, Record<Cleared>, Record<Stopped>);
+
 /* === Structs === */
 
 /// Whether Every Outage Was Contained and Recovered, and How Many Ran.
@@ -61,7 +64,7 @@ struct Outcome {
 
 /* === Public Functions === */
 
-pub fn contracts() -> (Record<Initialized>, Record<Started>, Record<Faulted>, Record<Cleared>, Record<Stopped>) {
+pub fn contracts() -> Contracts {
     (
         Record::new(INITIALIZED, "Charger Initialized").description("The charger was initialized for this attempt."),
         Record::new(STARTED, "Charger Energized").description("The supply was energized, initially or after an outage."),
