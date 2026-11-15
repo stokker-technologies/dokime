@@ -34,7 +34,7 @@ use crate::{
     data,
     message::Wire,
     operation::{self, Action},
-    stream::Registration,
+    stream::{Registration, Sampler},
 };
 use crate::{
     Criterion as CriterionDefinition, Document, FileParameter, Metadata, Parameter, Step as StepDefinition, TestCase, TestCaseTemplate,
@@ -51,21 +51,21 @@ use harmos::plugin::Plugin as HarmosPlugin;
 
 /* === Type Aliases === */
 
-type Materializer = Arc<dyn Fn(TestCase, &HashMap<String, Value>) -> Result<TestCase> + Send + Sync>;
+pub(crate) type Materializer = Arc<dyn Fn(TestCase, &HashMap<String, Value>) -> Result<TestCase> + Send + Sync>;
 
 /* === Structs === */
 
 pub struct Step {
-    metadata: Metadata,
-    handler: Action<()>,
-    policy: OperationPolicy,
+    pub(crate) metadata: Metadata,
+    pub(crate) handler: Action<()>,
+    pub(crate) policy: OperationPolicy,
     repeatable: bool,
-    replay_safe: bool,
+    pub(crate) replay_safe: bool,
 }
 
 pub struct Criterion {
-    metadata: Metadata,
-    handler: Action<bool>,
+    pub(crate) metadata: Metadata,
+    pub(crate) handler: Action<bool>,
 }
 
 // An Inert Template. Its Materializer Never Creates Execution Resources.
@@ -78,7 +78,21 @@ pub struct Template {
     streams: Vec<String>,
     registrations: Vec<Registration>,
     materialize: Option<Materializer>,
+    samplers: Vec<Sampler>,
     errors: Vec<String>,
+}
+
+// A Validated Template: Its Frozen Case Skeleton and the Handlers Behind Each Operation.
+pub(crate) struct Parts {
+    pub definition: TestCaseTemplate,
+    pub case: TestCase,
+    pub initialize: Option<Action<()>>,
+    pub cleanup: Option<Action<()>>,
+    pub steps: Vec<(String, Step)>,
+    pub criteria: Vec<(String, Criterion)>,
+    pub materialize: Option<Materializer>,
+    pub registrations: Vec<Registration>,
+    pub samplers: Vec<Sampler>,
 }
 
 /* === Enums === */
@@ -169,6 +183,7 @@ impl Template {
             streams: Vec::new(),
             registrations: Vec::new(),
             materialize: None,
+            samplers: Vec::new(),
             errors: Vec::new(),
         }
     }
@@ -200,6 +215,7 @@ impl Template {
         self
     }
     pub fn observer(mut self, observer: Observer) -> Self {
+        self.samplers.push(observer.sampler.clone());
         self.registrations.push(observer.registration());
         self
     }
@@ -246,7 +262,7 @@ impl Template {
         self
     }
 
-    pub(crate) fn register(mut self, mut plugin: HarmosPlugin, executions: Executions) -> Result<(TestCaseTemplate, HarmosPlugin)> {
+    pub(crate) fn parts(mut self) -> Result<Parts> {
         if !self.errors.is_empty() {
             return Err(Error::Invalid(self.errors.join("; ")));
         }
@@ -270,13 +286,58 @@ impl Template {
             streams: self.streams,
             ..Default::default()
         };
+        let mut steps = Vec::new();
         for (index, step) in self.steps.into_iter().enumerate() {
             let operation = format!("{identifier}.step.{index}");
             case.steps.push(StepDefinition {
-                metadata: Some(step.metadata),
+                metadata: Some(step.metadata.clone()),
                 operation: operation.clone(),
                 repeatable: step.repeatable,
             });
+            steps.push((operation, step));
+        }
+        let mut criteria = Vec::new();
+        for (index, criterion) in self.criteria.into_iter().enumerate() {
+            let operation = format!("{identifier}.criterion.{index}");
+            case.criteria.push(CriterionDefinition {
+                metadata: Some(criterion.metadata.clone()),
+                operation: operation.clone(),
+            });
+            criteria.push((operation, criterion));
+        }
+        if self.initialize.is_none() && !case.streams.is_empty() {
+            self.initialize = Some(operation::action(async |_: &Context| Ok(())));
+        }
+        if self.initialize.is_some() {
+            self.definition.initialize = Some(format!("{identifier}.initialize"));
+        }
+        Ok(Parts {
+            definition: self.definition,
+            case,
+            initialize: self.initialize,
+            cleanup: self.cleanup,
+            steps,
+            criteria,
+            materialize: self.materialize,
+            registrations: self.registrations,
+            samplers: self.samplers,
+        })
+    }
+
+    pub(crate) fn register(self, mut plugin: HarmosPlugin, executions: Executions) -> Result<(TestCaseTemplate, HarmosPlugin)> {
+        let Parts {
+            definition,
+            case,
+            initialize,
+            cleanup,
+            steps,
+            criteria,
+            materialize,
+            registrations,
+            samplers: _,
+        } = self.parts()?;
+        let identifier = definition.metadata.as_ref().expect("Template Metadata").identifier.clone();
+        for (operation, step) in steps {
             let store = executions.clone();
             let template = identifier.clone();
             let handler = operation::wire(
@@ -298,12 +359,7 @@ impl Template {
             let handler = if step.replay_safe { handler.replay_safe() } else { handler };
             plugin = plugin.operation(handler);
         }
-        for (index, criterion) in self.criteria.into_iter().enumerate() {
-            let operation = format!("{identifier}.criterion.{index}");
-            case.criteria.push(CriterionDefinition {
-                metadata: Some(criterion.metadata),
-                operation: operation.clone(),
-            });
+        for (operation, criterion) in criteria {
             let store = executions.clone();
             let template = identifier.clone();
             plugin = plugin.operation(operation::wire(
@@ -323,15 +379,12 @@ impl Template {
                 },
             ));
         }
-        if self.initialize.is_none() && !case.streams.is_empty() {
-            self.initialize = Some(operation::action(async |_: &Context| Ok(())));
-        }
         let allowed_steps = case.steps.iter().map(|step| step.operation.clone()).collect::<HashSet<_>>();
         let allowed_criteria = case.criteria.iter().map(|criterion| criterion.operation.clone()).collect::<HashSet<_>>();
         let allowed_streams = case.streams.iter().cloned().collect::<HashSet<_>>();
         let template = identifier.clone();
         plugin = plugin.operation(operation::wire(
-            self.definition.materialize.clone(),
+            definition.materialize.clone(),
             Visibility::Protected,
             async move |transport: &HarmosContext, Wire(request): Wire<TestCasesMaterializeRequest>| {
                 if transport.scope().is_ok() {
@@ -342,7 +395,7 @@ impl Template {
                 }
                 let mut case = case.clone();
                 case.parameters = request.parameters.clone();
-                if let Some(materialize) = &self.materialize {
+                if let Some(materialize) = &materialize {
                     case = materialize(case, &request.parameters)?;
                 }
                 if case.parameters != request.parameters {
@@ -370,9 +423,8 @@ impl Template {
                 Ok(Wire(TestCasesMaterializeResponse { test_case: Some(case) }))
             },
         ));
-        if let Some(initialize) = self.initialize {
+        if let Some(initialize) = initialize {
             let operation = format!("{identifier}.initialize");
-            self.definition.initialize = Some(operation.clone());
             let store = executions.clone();
             let template = identifier.clone();
             plugin = plugin.operation(operation::wire(
@@ -389,22 +441,22 @@ impl Template {
         let template = identifier;
         let store = executions.clone();
         plugin = plugin.operation(operation::wire(
-            self.definition.cleanup.clone().expect("SDK Cleanup Operation"),
+            definition.cleanup.clone().expect("SDK Cleanup Operation"),
             Visibility::Protected,
             async move |transport: &HarmosContext, Wire(request): Wire<ExecutionsCleanupRequest>| {
                 let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                 let _end = context.end(store.clone());
                 let context = context.with_termination(request.termination)?;
-                if let Some(cleanup) = &self.cleanup {
+                if let Some(cleanup) = &cleanup {
                     cleanup.execute(&context).await?;
                 }
                 Ok(Wire(ExecutionsCleanupResponse {}))
             },
         ));
-        for register in self.registrations {
+        for register in registrations {
             plugin = register(plugin, executions.clone());
         }
-        Ok((self.definition, plugin))
+        Ok((definition, plugin))
     }
 }
 

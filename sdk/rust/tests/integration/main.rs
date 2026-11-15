@@ -22,6 +22,7 @@ mod client;
 mod data;
 mod resource_release;
 mod resources;
+mod testing;
 
 #[path = "../support/mod.rs"]
 mod support;

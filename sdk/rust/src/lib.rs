@@ -32,6 +32,7 @@ mod record;
 mod stream;
 mod suite;
 mod template;
+pub mod testing;
 
 /* === Re-Exports === */
 
