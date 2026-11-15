@@ -252,7 +252,7 @@
           "Google.Protobuf": "[3.36.2, )",
           "Grpc.AspNetCore": "[2.76.0, )",
           "Grpc.Net.Client": "[2.76.0, )",
-          "Harmos": "[0.1.0-dev.299b7ce492e3, 0.1.0-dev.299b7ce492e3]"
+          "Harmos": "[0.1.0-dev.b15faaf202a0, 0.1.0-dev.b15faaf202a0]"
         }
       },
       "Google.Protobuf": {
@@ -290,9 +290,9 @@
       },
       "Harmos": {
         "type": "CentralTransitive",
-        "requested": "[0.1.0-dev.299b7ce492e3, 0.1.0-dev.299b7ce492e3]",
-        "resolved": "0.1.0-dev.299b7ce492e3",
-        "contentHash": "dMD6+fLCQ+gsoELdmieocvEvja1mPQK+6j008+jLOJSJo/mO/h98LHZ1GuoQNSHiBGLd0YkgaJTpEfEIK/ug+A==",
+        "requested": "[0.1.0-dev.b15faaf202a0, 0.1.0-dev.b15faaf202a0]",
+        "resolved": "0.1.0-dev.b15faaf202a0",
+        "contentHash": "mIJ4DKJVh5ZGNB/cfHWdnHmzUiI77wOCOYMjIoMoAzPjU+jD0fC64CII9sHXW+ZPXwt3Ef4XbUMAsm+UtCpHaA==",
         "dependencies": {
           "Google.Protobuf": "3.36.2",
           "Grpc.AspNetCore": "2.76.0",
