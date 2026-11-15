@@ -17,9 +17,11 @@ mod first_hour;
 mod operator_calls_operation;
 mod operator_diagnoses_storage;
 mod operator_discovers_operations;
+mod operator_exports_evidence;
 mod operator_identifies_build;
 mod operator_inspects_contract;
 mod operator_pairs_with_host;
+mod operator_starts_host_from_environment_file;
 mod remote_first_hour;
 mod scaffold;
 
@@ -102,6 +104,12 @@ fn fixtures() -> PathBuf {
     let native = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
     let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
     root().join("target/build").join(profile).join(native).join("fixtures/cli")
+}
+
+fn host_fixtures() -> PathBuf {
+    let native = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
+    let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
+    root().join("target/build").join(profile).join(native).join("fixtures/host")
 }
 
 fn command() -> tokio::process::Command {

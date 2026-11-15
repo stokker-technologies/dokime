@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::client::{ExecutionsProgressWatchOptions, PromptsListOptions};
+use dokime::client::{ExecutionsProgressWatchOptions, PromptView, PromptsListOptions};
 
 /* === Constants === */
 
@@ -36,6 +36,9 @@ pub(crate) struct Args {
 
     #[arg(long)]
     json: bool,
+
+    #[command(flatten)]
+    id_file: crate::commands::id_file::Args,
 }
 
 /* === Enums === */
@@ -47,6 +50,7 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
+    let id_file = args.id_file.open()?;
     let client = settings.sdk(endpoint).await?;
     let pending = client
         .prompts
@@ -60,7 +64,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         )
         .await?;
     if let Some(prompt) = pending.prompts.first() {
-        return crate::output::print(prompt, args.json);
+        return settle(prompt, id_file, args.json);
     }
     let mut events = client
         .executions
@@ -87,7 +91,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
                 )
                 .await?;
             if let Some(prompt) = pending.prompts.first() {
-                return crate::output::print(prompt, args.json);
+                return settle(prompt, id_file, args.json);
             }
         }
         if frame.finished {
@@ -98,5 +102,12 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
 }
 
 /* === Private Functions === */
+
+fn settle(prompt: &PromptView, id_file: Option<crate::commands::id_file::IdFile>, json: bool) -> crate::Result<()> {
+    if let Some(file) = id_file {
+        file.write(prompt.prompt.iter().map(|instance| &instance.prompt_id))?;
+    }
+    crate::output::print(prompt, json)
+}
 
 /* === Tests === */

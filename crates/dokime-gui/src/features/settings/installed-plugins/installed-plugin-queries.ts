@@ -22,7 +22,7 @@ import type { SettingValues } from "@/features/settings/installed-plugins/instal
 import { getInstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-data-source";
 import { settingsQueryKeys } from "@/features/settings/settings-queries";
 import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
-import { updateNativePluginSettings, setNativePluginSecret } from "@/lib/api/native-settings";
+import { updateNativePluginSettings } from "@/lib/api/native-settings";
 import { appearanceQueryKey } from "@/lib/appearance";
 
 /* === Query Keys === */
@@ -81,18 +81,6 @@ export function useInstalledPluginSettingsMutation() {
         queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.pluginId, session.identity.generation) }),
         queryClient.invalidateQueries({ queryKey: appearanceQueryKey }),
       ]);
-    },
-  });
-}
-
-export function useInstalledPluginSecretMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ name, identifier, secret }: { name: string; identifier: string; secret: string }) =>
-      setNativePluginSecret(session.identity, name, identifier, secret),
-    onSuccess: async (_result, variables) => {
-      await queryClient.invalidateQueries({ queryKey: pluginQueryKeys.detail(variables.name, session.identity.generation) });
     },
   });
 }

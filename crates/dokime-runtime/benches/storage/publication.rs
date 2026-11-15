@@ -425,6 +425,7 @@ fn settings() -> HostSettings {
             stream_window: NonZeroUsize::new(8).unwrap(),
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         },
+        capture: dokime_runtime::CaptureSettings::default(),
     }
 }
 

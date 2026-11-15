@@ -16,6 +16,8 @@ mise -C sdk/python run install
 
 Consumers install the built wheel with `uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl`.
 The wheel depends on `grpcio`, `protobuf` and the pinned Harmos SDK. Building it needs no Rust compiler.
+The `polars` and `pandas` extras add the optional dataframe helpers, for example
+`uv add "dokime-sdk[polars] @ file:///path/to/dokime_sdk-0.1.5-py3-none-any.whl"`.
 
 ## Connect a Client
 
@@ -70,10 +72,9 @@ async def register(endpoint: str, plugin_url: str) -> None:
         await client.close()
 ```
 
-Retain the same `request_id` when retrying a mutation. Product secret bindings
-are nested at `client.plugins.secrets`; they contain host secret identifiers and
-availability, never secret bytes. Binding replacement uses the revision returned
-by List. The plugin context exposes only the operations plugins may call after composition.
+Retain the same `request_id` when retrying a mutation. The read-only declared-secret
+view is nested at `client.plugins.secrets`; it lists each declared identifier and
+whether Secret Storage holds it, never secret bytes. The plugin context exposes only the operations plugins may call after composition.
 
 ## Author a Plugin
 
@@ -156,6 +157,15 @@ Use `upload_file` in `dokime.transfers` for unified Files uploads and
 `download_report(client, execution, max_bytes=...)` for verified report previews.
 Uploads honor returned chunk/message bounds and preserve mutation identities;
 report downloads verify file length and digest and never publish a report.
+
+## Query and Export Evidence
+
+`dokime.evidence` lists retained executions with `executions(client, template=...,
+status=...)`, reads one stream at a fixed cut with `execution.telemetry(...)` and
+converts it with `collect`, `to_polars` or `to_pandas`. `execution.export(path)` and
+`execution.cycle.export(path)` download verified evidence archives atomically and
+refuse existing destinations unless `overwrite=True`. See
+[Use Python Remotely](../../docs/remote/python.md#query-retained-evidence).
 
 ## Build and Verify
 

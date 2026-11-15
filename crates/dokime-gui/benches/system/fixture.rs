@@ -107,6 +107,7 @@ impl Fixture {
         // Start the Desktop's Current Embedded Host
         let settings = ConnectionSettings {
             host: HostSettings {
+                capture: dokime_runtime::CaptureSettings::default(),
                 clock: Arc::new(ControlledClock::new(ORIGIN_S as i64 * 1_000_000_000)),
                 storage: storage_defaults(),
                 placement: PlacementSettings {

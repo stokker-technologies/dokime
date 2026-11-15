@@ -302,7 +302,7 @@ export type RecordScope = {
   suite_id?: SuiteId | null;
 };
 
-export type SecretAvailability = { identifier: string; available: boolean; secret?: string };
+export type SecretAvailability = { identifier: string; available: boolean };
 
 export type ResultStatus = "pending" | "passed" | "failed" | "blocked" | "cancelled";
 

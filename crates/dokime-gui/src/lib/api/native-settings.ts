@@ -60,22 +60,21 @@ export type NativePluginRuntimeSettings = PluginRuntimeSettings;
 
 export function mapNativePluginRuntimeSettings(
   settings: NativePluginRuntimeSettings,
-  bindings: Wire<Awaited<ReturnType<typeof rpc.pluginsSecretsList>>>,
+  requirements: Wire<Awaited<ReturnType<typeof rpc.pluginsSecretsList>>>,
 ): PluginSettingsView {
-  const secrets = bindings.bindings.map((binding) => {
-    const declaration = required(binding.declaration, "List Plugin Secret Declaration");
+  const secrets = requirements.secrets.map((requirement) => {
+    const declaration = required(requirement.declaration, "List Plugin Secret Declaration");
     return {
       identifier: required(declaration.metadata, "List Plugin Secret Metadata").identifier,
-      secret: binding.secret,
-      available: binding.available,
+      available: requirement.available,
     };
   });
   return {
     settings: {
       contributions: [
         ...settings.declarations.map(mapSettingContribution),
-        ...bindings.bindings.map((binding): SettingsEntry => {
-          const declaration = required(binding.declaration, "List Plugin Secret Declaration");
+        ...requirements.secrets.map((requirement): SettingsEntry => {
+          const declaration = required(requirement.declaration, "List Plugin Secret Declaration");
           const metadata = required(declaration.metadata, "List Plugin Secret Metadata");
           return {
             kind: "secret",
@@ -93,11 +92,11 @@ export function mapNativePluginRuntimeSettings(
 }
 
 export async function getNativePluginSettings(session: SessionIdentity, pluginId: string) {
-  const [settings, bindings] = await Promise.all([
+  const [settings, requirements] = await Promise.all([
     rpc.pluginsSettingsList(session, { name: pluginId }),
     rpc.pluginsSecretsList(session, { name: pluginId }),
   ]);
-  return mapNativePluginRuntimeSettings(settings, bindings);
+  return mapNativePluginRuntimeSettings(settings, requirements);
 }
 
 export async function updateNativePluginSettings(session: SessionIdentity, pluginId: string, values: SettingValues) {
@@ -114,31 +113,6 @@ export async function updateNativePluginSettings(session: SessionIdentity, plugi
     value: { values: Object.fromEntries(entries) },
   });
   return getNativePluginSettings(session, pluginId);
-}
-
-export async function setNativePluginSecret(session: SessionIdentity, name: string, identifier: string, secret: string): Promise<void> {
-  const current = await rpc.pluginsSecretsList(session, { name });
-  const declaration = current.bindings.find((binding) => binding.declaration?.metadata?.identifier === identifier);
-  if (!declaration) throw new Error("Set Plugin Secret: Declaration Is Unavailable; Refresh Its Settings");
-  if (!secret) {
-    await rpc.pluginsSecretsDelete(session, {
-      name,
-      identifiers: [identifier],
-      expectedRevision: current.revision,
-      requestId: crypto.randomUUID(),
-    });
-    return;
-  }
-  const bindings = current.bindings.map((binding) => {
-    const metadata = required(required(binding.declaration, "Set Plugin Secret Declaration").metadata, "Set Plugin Secret Metadata");
-    return { identifier: metadata.identifier, secret: metadata.identifier === identifier ? secret : binding.secret };
-  });
-  await rpc.pluginsSecretsSet(session, {
-    name,
-    bindings: bindings.filter((binding) => binding.secret.length > 0),
-    expectedRevision: current.revision,
-    requestId: crypto.randomUUID(),
-  });
 }
 
 function settingValue(setting: Wire<SettingValue>): SettingValues[string] {

@@ -34,7 +34,6 @@ import { InstalledPluginDetail } from "@/features/settings/installed-plugins/Ins
 import {
   useInstalledPluginDetailQuery,
   useInstalledPluginSettingsMutation,
-  useInstalledPluginSecretMutation,
 } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
 import { usePluginsQuery, useReloadPluginMutation } from "@/features/settings/plugins/plugin-queries";
@@ -144,7 +143,6 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
 function PluginDetailCard({ pluginId }: { pluginId: string }) {
   const detailQuery = useInstalledPluginDetailQuery(pluginId, pluginId);
   const settingsMutation = useInstalledPluginSettingsMutation();
-  const secretMutation = useInstalledPluginSecretMutation();
   if (detailQuery.isPending) {
     return (
       <SettingsCard title="Settings">
@@ -181,9 +179,6 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
   return (
     <InstalledPluginDetail
       detail={detailQuery.data}
-      onSaveBinding={async (name, identifier, secret) => {
-        await secretMutation.mutateAsync({ name, identifier, secret });
-      }}
       onSaveSettings={async (id, values) => {
         await settingsMutation.mutateAsync({ pluginId: id, values });
       }}

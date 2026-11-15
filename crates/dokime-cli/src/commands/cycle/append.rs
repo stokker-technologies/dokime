@@ -40,6 +40,9 @@ pub(crate) struct Args {
 
     #[arg(long)]
     json: bool,
+
+    #[command(flatten)]
+    id_file: crate::commands::id_file::Args,
 }
 
 /* === Enums === */
@@ -55,6 +58,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         return Err(crate::error::Error::Capacity("Append Executions: Select a Smaller Request".into()));
     }
     let request = ExecutionsCreateRequest::decode(std::fs::read(args.request)?.as_slice())?;
+    let id_file = args.id_file.open()?;
     let client = settings.sdk(endpoint).await?;
     let value = client
         .executions
@@ -67,6 +71,9 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
             },
         )
         .await?;
+    if let Some(file) = id_file {
+        file.write(value.executions.iter().filter_map(|execution| execution.summary.as_ref()).map(|summary| &summary.execution_id))?;
+    }
     crate::output::print(&value, args.json)
 }
 

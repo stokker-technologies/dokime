@@ -14,10 +14,13 @@
 mod access_credentials;
 mod clock;
 pub(crate) mod composition;
+mod root_claim;
 mod state;
 mod status;
 
 /* === Re-Exports === */
+
+pub use root_claim::detach_credentials;
 
 pub use clock::WallClock;
 pub use dokime_operations::host::ClientSettings;
@@ -125,6 +128,10 @@ impl Server {
     pub fn status(&self) -> &Arc<Status> {
         &self.status
     }
+    /// Replaces the served host's capture folders for captures opened from now on.
+    pub fn set_capture_roots(&self, roots: Vec<std::path::PathBuf>) {
+        self.host.set_capture_roots(roots);
+    }
     pub async fn close(mut self) -> Result<()> {
         self.plugin_observation.cancel();
         if let Some(task) = self.plugin_task.take() {
@@ -185,8 +192,11 @@ pub fn remove_credentials(root: &Path) -> Result<()> {
     }
     let host_id = std::fs::read_to_string(root.join("backend-id"))?;
     let storage = Store::open(root)?;
+    // A Copied Folder Carries the Identity and Catalogs, Never the Native Owner Claim.
+    root_claim::require_owner(root, &storage)?;
     dokime_operations::host::remove_root_secrets(&storage)?;
-    access_credentials::Store::new(storage, host_id).remove()?;
+    access_credentials::Store::new(storage, host_id.clone()).remove()?;
+    root_claim::release(root, &host_id)?;
     Ok(())
 }
 
@@ -265,6 +275,7 @@ pub(crate) struct Assembly {
 }
 
 pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings) -> Result<Assembly> {
+    root_claim::claim(root, &host.store)?;
     let backend_id = host.store.identity().to_owned();
     let identity = HostIdentity {
         backend_id: backend_id.clone(),
@@ -303,6 +314,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         settings: settings.clone(),
         operations: runtime.operations.clone(),
         caller: None,
+        captures: Arc::new(dokime_operations::host::files::captures::Captures::new(host.settings.capture.clone())),
     });
     host.executions.bind_context(&context)?;
     host.executions
@@ -314,7 +326,6 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     binding.bind(&context)?;
     dokime_operations::host::content::validate_root(&context).await?;
     context.host.refresh_plugin_states().await?;
-    dokime_operations::host::plugins::secrets::reconcile(&context).await?;
     dokime_operations::host::register_redactions(&context)?;
     let registration = Arc::new(
         status
@@ -392,7 +403,6 @@ async fn observe_plugins(
                 status.record_trace(observation).map_err(|source| status::failure("Record Plugin Trace", source))?;
             }
             context.host.refresh_plugin_states().await?;
-            dokime_operations::host::plugins::secrets::reconcile(&context).await?;
             context.host.signal_change();
             if matches!(event.event, Some(Event::ResyncRequired(_))) {
                 watch.request_cancel();

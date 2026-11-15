@@ -21,6 +21,7 @@
 
 // Local Imports
 use crate::host::Context;
+use crate::host::files::captures::engine::{Capture, Mode};
 use crate::{Error, Result};
 use dokime_protocol::host::{FilesCaptureRequest, FilesCaptureResponse};
 
@@ -44,8 +45,17 @@ crate::native::unary!(FilesCaptureRequest, FilesCaptureResponse, context, "dokim
 
 /* === Public Functions === */
 
-pub async fn handle(_: &Context, _: FilesCaptureRequest) -> Result<FilesCaptureResponse> {
-    Err(Error::Unimplemented(format!("{ID}: File Capture Is Not Implemented")))
+/// Copies the source once, as it is now; the execution owns the copy, so a cancelled reply leaves
+/// sealing running and the execution waits for it before closing its evidence.
+pub async fn handle(context: &Context, request: FilesCaptureRequest) -> Result<FilesCaptureResponse> {
+    let caller = context.caller.as_ref().ok_or_else(|| Error::Permission(format!("{ID}: Call From a Plugin Execution")))?;
+    let capture = Capture::open(context, ID, request.source.as_ref(), &request.output, Mode::Copy).await?;
+    let identifier = context.captures.admit(capture)?;
+    let sealed = context.captures.stop(&caller.execution, identifier).await?;
+    Ok(FilesCaptureResponse {
+        artifacts: sealed.artifacts,
+        gaps: sealed.gaps,
+    })
 }
 
 /* === Private Functions === */

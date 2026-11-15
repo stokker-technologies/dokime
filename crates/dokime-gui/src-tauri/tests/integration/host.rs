@@ -84,6 +84,7 @@ use harmos_protocol::host::{StatusGetRequest, StatusGetResponse};
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
+            capture: dokime_runtime::CaptureSettings::default(),
             storage: dokime_runtime::storage_defaults(),
             clock: Arc::new(ControlledClock::new(0)),
             placement: PlacementSettings {

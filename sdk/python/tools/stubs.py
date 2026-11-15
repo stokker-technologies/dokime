@@ -33,6 +33,7 @@ MODULES = [
     "dokime.authoring",
     "dokime.client",
     "dokime.connection",
+    "dokime.evidence",
     "dokime.transfers",
     "dokime.documents",
     "dokime.plot",

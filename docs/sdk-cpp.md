@@ -59,7 +59,7 @@ A channel supplied to `Client` may carry TLS credentials and pinned trust. The
 composed client includes library `access`, `status`, `plugins`, `invocations` and
 `time`, alongside product `executions`, `files` and evidence resources.
 `client.plugins.settings.list()` uses the library settings resource, while
-`client.plugins.secrets.list()` uses the product's binding metadata resource.
+`client.plugins.secrets.list()` uses the product's declared-secret availability view.
 Discovery reflects the product's narrowed callers.
 
 `dokime::client::upload(client, path, configure)` reads a file in the limits

@@ -3,7 +3,7 @@ use super::{Error, Session};
 use dokime_protocol::host;
 use harmos_protocol as library;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [27, 98, 55, 162, 105, 252, 131, 255, 46, 100, 36, 30, 224, 39, 167, 225, 238, 125, 195, 214, 72, 26, 205, 232, 52, 173, 16, 80, 101, 251, 214, 194];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [91, 168, 59, 140, 189, 252, 219, 63, 217, 71, 114, 173, 15, 185, 202, 145, 107, 196, 180, 20, 204, 198, 151, 63, 144, 214, 40, 12, 150, 243, 163, 86];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {
@@ -88,9 +88,7 @@ pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Resul
         "/dokime.host.v1.plots.Settings/Get" => Box::pin(session.call::<host::plots::SettingsGetRequest, host::plots::SettingsGetResponse>("/dokime.host.v1.plots.Settings/Get", payload)).await,
         "/dokime.host.v1.plots.Settings/Set" => Box::pin(session.call::<host::plots::SettingsSetRequest, host::plots::SettingsSetResponse>("/dokime.host.v1.plots.Settings/Set", payload)).await,
         "/dokime.host.v1.plots.Snapshots/List" => Box::pin(session.call::<host::plots::SnapshotsListRequest, host::plots::SnapshotsListResponse>("/dokime.host.v1.plots.Snapshots/List", payload)).await,
-        "/dokime.host.v1.plugins.Secrets/Delete" => Box::pin(session.call::<host::plugins::SecretsDeleteRequest, host::plugins::SecretsDeleteResponse>("/dokime.host.v1.plugins.Secrets/Delete", payload)).await,
         "/dokime.host.v1.plugins.Secrets/List" => Box::pin(session.call::<host::plugins::SecretsListRequest, host::plugins::SecretsListResponse>("/dokime.host.v1.plugins.Secrets/List", payload)).await,
-        "/dokime.host.v1.plugins.Secrets/Set" => Box::pin(session.call::<host::plugins::SecretsSetRequest, host::plugins::SecretsSetResponse>("/dokime.host.v1.plugins.Secrets/Set", payload)).await,
         "/dokime.host.v1.prompts.Answers/Create" => Box::pin(session.call::<host::prompts::AnswersCreateRequest, host::prompts::AnswersCreateResponse>("/dokime.host.v1.prompts.Answers/Create", payload)).await,
         "/dokime.host.v1.storage.Sources/Get" => Box::pin(session.call::<host::storage::SourcesGetRequest, host::storage::SourcesGetResponse>("/dokime.host.v1.storage.Sources/Get", payload)).await,
         "/dokime.host.v1.storage.Sources/Set" => Box::pin(session.call::<host::storage::SourcesSetRequest, host::storage::SourcesSetResponse>("/dokime.host.v1.storage.Sources/Set", payload)).await,

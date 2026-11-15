@@ -30,6 +30,7 @@ use crate::EvidenceRecordsListResponse;
 use crate::EvidenceStatisticsResponse;
 use crate::OperationPolicy;
 use crate::Record;
+use crate::operation::FutureResult;
 use crate::plugin::EvidenceRecordsAppendResponse;
 use crate::wire::host::EvidenceStatisticsRequest;
 use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
@@ -54,9 +55,16 @@ pub(crate) type Executions = Arc<Mutex<HashMap<String, Arc<Execution>>>>;
 // One operation's host channel and the resources shared by its execution.
 #[derive(Clone)]
 pub struct Context {
-    transport: HarmosContext,
+    transport: Transport,
     execution: Arc<Execution>,
     termination: Option<Termination>,
+}
+
+// An In-Process Host Answering Encoded Requests by Operation Identity.
+pub(crate) struct Local {
+    pub host: Arc<dyn LocalHost>,
+    pub scope: String,
+    pub attempt: u32,
 }
 
 pub(crate) struct Execution {
@@ -83,12 +91,29 @@ impl<T: prost_reflect::ReflectMessage + Default + 'static> Watching<T> {
 
 /* === Enums === */
 
+#[derive(Clone)]
+enum Transport {
+    Harmos(Box<HarmosContext>),
+    Local(Arc<Local>),
+}
+
 /* === Traits === */
+
+pub(crate) trait LocalHost: Send + Sync {
+    fn call<'a>(&'a self, operation: &'static str, request: Vec<u8>) -> FutureResult<'a, Vec<u8>>;
+}
 
 /* === Implementations === */
 
 impl Execution {
-    fn clear(&self) -> Result<()> {
+    pub(crate) fn new(test_case: TestCase, origin: Origin) -> Arc<Self> {
+        Arc::new(Self {
+            test_case: OnceLock::from(test_case),
+            origin: OnceLock::from(origin),
+            resources: Mutex::new(HashMap::new()),
+        })
+    }
+    pub(crate) fn clear(&self) -> Result<()> {
         let retired = std::mem::take(&mut *self.resources.lock().map_err(|_| Error::Invalid("Execution Resource Store Poisoned".into()))?);
         drop(retired);
         Ok(())
@@ -127,7 +152,7 @@ impl Context {
         execution.test_case.get_or_init(|| test_case);
         execution.origin.get_or_init(|| origin);
         Ok(Self {
-            transport: transport.clone(),
+            transport: Transport::Harmos(Box::new(transport.clone())),
             execution: execution.clone(),
             termination: None,
         })
@@ -143,7 +168,7 @@ impl Context {
             })
         });
         Ok(Self {
-            transport: transport.clone(),
+            transport: Transport::Harmos(Box::new(transport.clone())),
             execution,
             termination: None,
         })
@@ -164,14 +189,25 @@ impl Context {
             Error::Invalid(format!("Start Execution {} Before Requesting Its Samples", transport.scope().unwrap_or_default()))
         })?;
         Ok(Self {
-            transport: transport.clone(),
+            transport: Transport::Harmos(Box::new(transport.clone())),
             execution: execution.clone(),
             termination: None,
         })
     }
 
+    pub(crate) fn local(local: Local, execution: Arc<Execution>) -> Self {
+        Self {
+            transport: Transport::Local(Arc::new(local)),
+            execution,
+            termination: None,
+        }
+    }
+
     pub fn execution_id(&self) -> &str {
-        self.transport.scope().unwrap_or_default()
+        match &self.transport {
+            Transport::Harmos(transport) => transport.scope().unwrap_or_default(),
+            Transport::Local(local) => &local.scope,
+        }
     }
     pub fn termination(&self) -> Option<Termination> {
         self.termination
@@ -181,7 +217,10 @@ impl Context {
         Ok(self)
     }
     pub fn attempt(&self) -> u32 {
-        self.transport.attempt
+        match &self.transport {
+            Transport::Harmos(transport) => transport.attempt,
+            Transport::Local(local) => local.attempt,
+        }
     }
     pub fn test_case(&self) -> Result<&TestCase> {
         self.execution.test_case.get().ok_or_else(|| Error::Invalid("This Call Has No Test Case".into()))
@@ -220,18 +259,30 @@ impl Context {
 
     // Route a typed operation to the host; its requirement must be declared on Plugin.
     pub async fn operation<Q: OperationRequest>(&self, request: Q) -> Result<Q::Response> {
-        self.transport.call(request).await.map_err(Error::from)
+        match &self.transport {
+            Transport::Harmos(transport) => transport.call(request).await.map_err(Error::from),
+            Transport::Local(_) => Err(unsimulated(Q::ID)),
+        }
     }
 
     pub(crate) async fn call_with<Q: host::Request>(&self, request: Q, policy: Option<OperationPolicy>) -> Result<Q::Response> {
-        Ok(self.transport.call_with(Call(request), policy).await?.0)
+        match &self.transport {
+            Transport::Harmos(transport) => Ok(transport.call_with(Call(request), policy).await?.0),
+            Transport::Local(local) => {
+                let reply = local.host.call(Q::ID, prost::Message::encode_to_vec(&request)).await?;
+                <Q::Response as prost::Message>::decode(reply.as_slice()).map_err(|error| Error::Invalid(format!("{}: {error}", Q::ID)))
+            }
+        }
     }
     pub(crate) async fn watch<Q: host::Request>(
         &self, request: Q, max_item_bytes: std::num::NonZeroUsize,
     ) -> Result<Watching<Q::Response>> {
-        Ok(Watching {
-            incoming: self.transport.watch(Call(request), max_item_bytes).await?,
-        })
+        match &self.transport {
+            Transport::Harmos(transport) => Ok(Watching {
+                incoming: transport.watch(Call(request), max_item_bytes).await?,
+            }),
+            Transport::Local(_) => Err(unsimulated(Q::ID)),
+        }
     }
 
     pub async fn sleep(&self, duration: Duration) -> Result<()> {
@@ -242,7 +293,11 @@ impl Context {
         self.host().time.get().await
     }
     pub async fn cancelled(&self) -> String {
-        self.transport.cancelled().await
+        match &self.transport {
+            Transport::Harmos(transport) => transport.cancelled().await,
+            // The In-Process Host Never Cancels a Running Invocation.
+            Transport::Local(_) => std::future::pending().await,
+        }
     }
 
     pub async fn typed_settings<T: Message>(&self) -> Result<T> {
@@ -347,5 +402,14 @@ pub(crate) fn clear(executions: &Executions) -> Result<()> {
 }
 
 /* === Private Functions === */
+
+fn unsimulated(operation: &str) -> Error {
+    Error::failure(
+        harmos::Classification::Refused,
+        "testing_host_unsupported",
+        format!("Testing Host: {operation} Is Not Simulated"),
+        "Exercise This Operation Against a Real Host",
+    )
+}
 
 /* === Tests === */

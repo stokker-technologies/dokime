@@ -14,7 +14,9 @@
 mod catalog;
 mod cycle;
 mod doctor;
+mod download;
 mod execution;
+mod id_file;
 mod new;
 mod operation;
 pub(crate) mod pairing;

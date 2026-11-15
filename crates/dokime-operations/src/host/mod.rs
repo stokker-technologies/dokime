@@ -122,6 +122,7 @@ pub struct Context {
     pub settings: ClientSettings,
     pub operations: OperationManager,
     pub caller: Option<crate::Resources>,
+    pub captures: Arc<files::captures::Captures>,
 }
 #[derive(Clone, Debug)]
 pub struct Progress {

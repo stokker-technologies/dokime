@@ -45,8 +45,10 @@ crate::native::unary!(CapturesStopRequest, CapturesStopResponse, context, "dokim
 
 /* === Public Functions === */
 
-pub async fn handle(_: &Context, _: CapturesStopRequest) -> Result<CapturesStopResponse> {
-    Err(Error::Unimplemented(format!("{ID}: File Capture Is Not Implemented")))
+/// Takes the final pass and seals once; a repeated stop returns the same outcome.
+pub async fn handle(context: &Context, request: CapturesStopRequest) -> Result<CapturesStopResponse> {
+    let caller = context.caller.as_ref().ok_or_else(|| Error::Permission(format!("{ID}: Call From a Plugin Execution")))?;
+    context.captures.stop(&caller.execution, request.capture_id).await
 }
 
 /* === Private Functions === */

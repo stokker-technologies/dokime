@@ -303,7 +303,7 @@ fn value_type(kind: &Kind) -> Result<ValueType> {
     })
 }
 
-fn scalar(value: &DynamicValue) -> Result<Value> {
+pub(crate) fn scalar(value: &DynamicValue) -> Result<Value> {
     use value::Kind as V;
     let kind = match value {
         DynamicValue::Bool(value) => V::Boolean(*value),

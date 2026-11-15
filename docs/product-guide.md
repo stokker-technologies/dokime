@@ -45,10 +45,18 @@ A shared operation has one request and response. Plugins inherit their trusted
 execution identity; a supplied selector cannot authorize another execution.
 
 The final library composition owns Plugins, plugin settings, Time and Invocations.
-Dokime adds `plugins.Secrets` for revision-checked declared-name bindings.
+Dokime adds `plugins.Secrets`, a read-only view of each plugin's declared secret
+identifiers and whether Secret Storage holds them. A plugin reads the secret stored
+under exactly its declared identifier; undeclared names are refused.
 `Secrets.Get` returns protected bytes; administrative metadata belongs only to
 clients. Typed statistics retain exact numeric values and sums independently of
 floating plotting coordinates.
+
+A step brings device output files into its execution with `Files.Capture` (one
+copy) or `files.Captures.Start` and `Stop` (bytes written in between). The host
+reads only directories listed in its `capture_roots` configuration
+(`capture_roots = ["D:/bench/device"]`, or `--capture-root` on `dokime-host`).
+See [File Capture](execution-host.md#handler-interfaces).
 
 ## Evidence and Reports
 
@@ -153,7 +161,14 @@ and a retained `request_id`; raw delivery awaits the discovery registration abov
 
 Report commands prepare with Reports.Create, read bounded product Files.Read
 ranges at the returned cut, verify length and SHA-256, and save without replacing an
-existing file. Rendering and downloading do not publish a report. Logical execution-file paths retain the original native file references in the
+existing file. Rendering and downloading do not publish a report. `execution export`
+and `cycle export` download the self-contained evidence ZIP from Evidence.Archive,
+the operation behind the desktop's Export Evidence, with the same verified,
+refuse-existing download. Scripts read confirmed UUIDs from `--id-file PATH` on
+`cycle create`, `cycle rerun`, `cycle append` and `execution prompt next`; see
+[Remote CLI Workflows](remote/cli.md#read-reports-and-recover).
+`server --env-file PATH` selects an explicit environment file; nothing searches
+for `.env`. Logical execution-file paths retain the original native file references in the
 execution transaction. Replacing a logical path preserves immutable prior bytes
 and returned read cuts. File uploads acknowledge accepted bytes; graceful host
 settlement persists the resumable prefix before restart. Product content

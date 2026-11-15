@@ -88,7 +88,9 @@ mise -C sdk/rust run sdk:test
 ```
 
 The [plugin example](sdk/rust/examples/plugin/) uses the public `dokime` and
-`dokime::plugin` barrels.
+`dokime::plugin` barrels. `dokime::testing::Harness` runs a template under
+`cargo test` with no host and no hardware; see
+[Test Templates Without a Host](docs/rust-sdk.md#test-templates-without-a-host).
 
 ### C#
 

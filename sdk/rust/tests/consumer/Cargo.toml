@@ -47,6 +47,10 @@ name = "dokime-rust-secrets"
 path = "../fixtures/secrets.rs"
 
 [[bin]]
+name = "dokime-rust-capture"
+path = "../fixtures/capture.rs"
+
+[[bin]]
 name = "dokime-rust-test"
 path = "../../examples/test/src/main.rs"
 

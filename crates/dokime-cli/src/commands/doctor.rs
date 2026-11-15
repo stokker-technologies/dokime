@@ -126,6 +126,10 @@ pub(crate) async fn run(command: Command, settings: Settings) -> Result<()> {
                 }
             }
         }
+        if copy.join("execution.sqlite3").is_file() {
+            // The Copy Never Reads or Removes the Original's Native Credentials
+            dokime_runtime::services::detach_credentials(&copy)?;
+        }
         let host = dokime_runtime::Host::open(&copy, settings.host(true), settings.services()).await?;
         host.shutdown().await?;
         drop(host);

@@ -11,6 +11,7 @@
 
 /* === Modules === */
 
+mod export;
 mod list;
 mod prompt;
 mod report;
@@ -50,6 +51,9 @@ pub(crate) enum Command {
 
     Report(report::Args),
 
+    #[command(about = "Download a Self-Contained Evidence ZIP")]
+    Export(export::Args),
+
     #[command(subcommand)]
     Prompt(prompt::Command),
 }
@@ -67,6 +71,7 @@ impl Command {
             Self::Stop(_) => "Stop Execution",
             Self::Wait(_) => "Watch Execution",
             Self::Report(_) => "Fetch Report",
+            Self::Export(_) => "Export Execution Evidence",
             Self::Prompt(command) => command.action(),
         }
     }
@@ -82,6 +87,7 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
         Command::Stop(args) => stop::run(args, endpoint, settings).await,
         Command::Wait(args) => wait::run(args, endpoint, settings).await,
         Command::Report(args) => report::run(args, endpoint, settings).await,
+        Command::Export(args) => export::run(args, endpoint, settings).await,
         Command::Prompt(args) => prompt::run(args, endpoint, settings).await,
     }
 }

@@ -11,10 +11,7 @@
 
 /* === External Imports === */
 
-import { useEffect, useId, useState } from "react";
-import { Input } from "@/components/ui/input";
-import { useAutosave } from "@/features/settings/settings-autosave";
-import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
+import { useState } from "react";
 
 /* === Local Imports === */
 
@@ -35,14 +32,12 @@ import { useBrand } from "@/lib/brand";
 
 type InstalledPluginDetailProps = {
   detail: InstalledPluginDetailModel;
-  /** Resolves when the write landed; each settings row states its own outcome. */
-  onSaveBinding: (name: string, identifier: string, secret: string) => Promise<void>;
   onSaveSettings: (pluginId: string, values: SettingValues) => Promise<void>;
 };
 
 /* === Components === */
 
-export function InstalledPluginDetail({ detail, onSaveSettings, onSaveBinding }: InstalledPluginDetailProps) {
+export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPluginDetailProps) {
   const brand = useBrand();
   const [adding, setAdding] = useState<string | null>(null);
   const registration =
@@ -76,17 +71,15 @@ export function InstalledPluginDetail({ detail, onSaveSettings, onSaveBinding }:
       {detail.settings.contributions?.some((entry) => entry.kind === "secret") ? (
         <SettingsCard
           title="Required Secrets"
-          description="Bind each declared name to an identifier in Secret Storage, then restart the plugin."
+          description="The plugin reads each identifier from Secret Storage; add any that are missing."
         >
           {detail.settings.contributions
             .filter((entry) => entry.kind === "secret")
             .map((secret) => {
-              const binding = detail.secrets.find((entry) => entry.identifier === secret.id);
-              const available = binding?.available ?? false;
+              const available = detail.secrets.find((entry) => entry.identifier === secret.id)?.available ?? false;
               return (
                 <SettingsRow key={secret.id} label={secret.title} description={secret.description}>
                   <code className="text-xs">{secret.id}</code>
-                  <SecretBinding value={binding?.secret ?? ""} onSave={(value) => onSaveBinding(detail.plugin_id, secret.id, value)} />
                   <span>
                     {secret.required ? "Required" : "Optional"} · {available ? "Available" : "Missing"}
                   </span>
@@ -102,27 +95,5 @@ export function InstalledPluginDetail({ detail, onSaveSettings, onSaveBinding }:
       ) : null}
       {adding !== null ? <AddSecretDialog identifier={adding} onClose={() => setAdding(null)} /> : null}
     </>
-  );
-}
-
-function SecretBinding({ value, onSave }: { value: string; onSave: (value: string) => Promise<void> }) {
-  const id = useId();
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  const autosave = useAutosave(onSave);
-  return (
-    <div className="flex items-center gap-2">
-      <Input
-        id={id}
-        aria-label="Secret Storage Identifier"
-        value={draft}
-        onChange={(event) => {
-          const next = event.target.value;
-          setDraft(next);
-          autosave.change(next);
-        }}
-      />
-      <SettingsFieldStatus state={autosave.state} onRetry={autosave.retry} />
-    </div>
   );
 }

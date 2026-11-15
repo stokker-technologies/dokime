@@ -26,7 +26,8 @@ temporary report retention. Shutdown releases retained files and closes publicat
 Rendering remains a pure storage read into temporary output, and never publishes.
 Evidence, Catalog, notes, Aggregates, Plots and Documents have no manager. Media
 still explicitly refuses its unsupported operations; this host has no live recording
-owner requiring a capture manager.
+owner requiring a capture manager. Local file captures are a registry, not a manager:
+the execution settles its captures before closing evidence, so they join with it.
 
 Guard **A5 — Managers Own Live Orchestration** is exercised by
 `execution_shutdown_joins_runs_after_observer_loss`,
@@ -311,7 +312,8 @@ in a disposable scratch directory, then opens and closes a scratch host.
 `--storage PATH` (or configured `storage`) additionally diagnoses an existing root
 from a bounded copy of its SQLite files under the root lease. Stop the host first.
 The original root is never opened for recovery or changed; missing roots are not
-created. `retained_bytes` bounds the database copy. Incompatible roots produce a
+created. The copy forgets its credential catalogs before opening, so it never reads
+or removes the original's native credentials. `retained_bytes` bounds the database copy. Incompatible roots produce a
 failed report and backup/fresh-root or explicit-reset guidance.
 
 Export access with `dokime --endpoint URL access pairing export --label Operator
@@ -386,6 +388,10 @@ retained_bytes = 67108864
 stream_buffer = 8
 max_cases = 1000
 page_items = 1000
+capture_roots = ["D:/bench/device"]
+capture_files = 64
+capture_bytes = 268435456
+captures = 256
 ```
 
 Materialized case files contain the authoritative `PreviewSelectionReply`
@@ -416,6 +422,12 @@ mise run test -- --package dokime-cli --target system
 
 Reports validate metadata, ordered offsets, total bytes, SHA-256 completion and
 terminal status before creating the requested output; existing output is retained.
+`execution export EXECUTION --out FILE.zip` and `cycle export CYCLE --out FILE.zip`
+download the Evidence.Archive ZIP with the same verified download, refusing an
+existing destination. `--id-file PATH` on cycle create/rerun/append and prompt next
+writes confirmed UUIDs, one per line. `server --env-file PATH` (and
+`dokime-host --env-file`) reads `RUST_LOG` from an explicit file; process variables
+win and unknown names are refused.
 Human output is default and inspection/read commands offer `--json` with proto
 field names. Diagnostics go to stderr; exit codes are 0 success, 2 invalid
 arguments/configuration, 3 operational failure and 4 resource-capacity refusal.
@@ -682,7 +694,7 @@ ALL. Backend, Documents, Evidence, Records, Traceability, Progress and Prompts h
 complementary client/context operations. Artifacts.Create, Statistics, Records.List,
 Traceability.Get, Progress.Get and Secrets.Get use one richer shape. None needs a
 caller-specific operation name. Media capture remains declared and unimplemented;
-FTP capture and the effects journal are not restored.
+FTP capture and the effects journal are not restored; local file capture is.
 
 ### Harmonized Request and Response Shapes
 
@@ -693,7 +705,7 @@ FTP capture and the effects journal are not restored.
 | evidence.Records.List | optional scope, record_type, versions, between, step, selection, optional at/page | records, schema, count, last, resolved_at, next_page_token; CapturedRecord retains payload, source timestamp and sequence. |
 | evidence.Traceability.Get | optional scope, page, at, entry | snapshots and page metadata, plus selected entry value/revision; scope selects the execution, entry selects the independently revisioned entry. Foreign selectors refuse. |
 | executions.Progress.Get | optional name, optional at | Complete value, revision and resolved_at; clients give name, plugins default to and are restricted to their execution. |
-| Secrets.Get | name, optional at | secret bytes, optional administrative value/revision and resolved_at; plugins read only declared names through their own bindings and receive no administrative metadata. |
+| Secrets.Get | name, optional at | secret bytes, optional administrative value/revision and resolved_at; plugins read only declared names, each the identifier of a host-wide secret, and receive no administrative metadata. |
 
 Message presence makes omitted selectors explicit. Client generators require scope
 or execution name where the operation needs it; plugin generators permit omission.
@@ -886,17 +898,16 @@ The complete library identity/type mapping is in the pinned
 | `plugin-authored Protected binding (Steps/Execute)` | `dokime.plugin.v1.Steps/Execute` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.StepsExecuteRequest` | `dokime.plugin.v1.StepsExecuteResponse` |
 | `plugin-authored Protected binding (TestCases/Materialize)` | `dokime.plugin.v1.TestCases/Materialize` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.TestCasesMaterializeRequest` | `dokime.plugin.v1.TestCasesMaterializeResponse` |
 | new | `dokime.host.v1.plugins.Secrets/List` | CLIENTS | `dokime.host.v1.plugins.SecretsListRequest` | `dokime.host.v1.plugins.SecretsListResponse` |
-| new | `dokime.host.v1.plugins.Secrets/Set` | CLIENTS | `dokime.host.v1.plugins.SecretsSetRequest` | `dokime.host.v1.plugins.SecretsSetResponse` |
-| new | `dokime.host.v1.plugins.Secrets/Delete` | CLIENTS | `dokime.host.v1.plugins.SecretsDeleteRequest` | `dokime.host.v1.plugins.SecretsDeleteResponse` |
 
-New resource: `dokime.host.v1.plugins.Secrets` has List, Set and Delete, all CLIENTS.
-Its messages are `Secrets{List,Set,Delete}{Request,Response}` in that package.
-The model contribution is `dokime.model.v1.SecretsDeclarations` containing
-`SecretDeclaration { metadata, required }`. Binding reads return declarations,
-bound host secret identifiers and availability, never secret values. Set replaces
-the complete map; Delete removes selected bindings. Both carry revision and retry
-identity. Reconcile bindings at startup and remove them when the library Plugins
-watch reports deletion.
+New resource: `dokime.host.v1.plugins.Secrets` has List only, for CLIENTS.
+It returns each `SecretRequirement { declaration, available }`: a declared
+identifier and whether Secret Storage holds a secret under exactly that identifier,
+never values. The model contribution is `dokime.model.v1.SecretsDeclarations`
+containing `SecretDeclaration { metadata, required }`. There is no binding,
+mapping or revisioned catalog between a declaration and its secret (owner decision
+of 2026-11-15). A plugin's Secrets.Get of an undeclared name is refused; a declared
+name with no stored secret fails, naming the action and identifier and asking to
+add it in Secret Storage.
 
 Decision: product plugin methods have no callers option; Protected admission
 restricts their bindings to the host. Upload replaces native wire FileProducer/FileSession/StagedFile/FileProgress;
@@ -1260,7 +1271,7 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.client.v1.PluginsListInstallationsRequest` | `harmos.host.v1.PluginsListRequest` |
 | `dokime.client.v1.PluginsReloadRequest` | `harmos.host.v1.PluginsRestartRequest` |
 | `dokime.client.v1.PluginsSetEnabledRequest` | `harmos.host.v1.PluginsSetRequest` |
-| `dokime.client.v1.plugins.SecretAvailability` | `dokime.host.v1.plugins.SecretBinding` |
+| `dokime.client.v1.plugins.SecretAvailability` | `dokime.host.v1.plugins.SecretRequirement` |
 | `dokime.client.v1.plugins.SettingsGetRequest` | `harmos.host.v1.plugins.SettingsListRequest` |
 | `dokime.client.v1.plugins.SettingsGetResponse` | `harmos.host.v1.plugins.SettingsListResponse` |
 | `dokime.client.v1.plugins.SettingsSetRequest` | `harmos.host.v1.plugins.SettingsSetRequest` |
@@ -1740,8 +1751,22 @@ assembly. Assembly owns the backend lease, and closure refuses further backend
 calls before releasing it.
 
 Files.Capture and files.Captures.Start/Stop register through those canonical
-adapters and enforce their plugin-only callers before returning an unimplemented
-refusal naming the action. Their capture engines remain absent.
+adapters, enforce their plugin-only callers and run the local capture engine in
+`crates/dokime-operations/src/host/files/captures/`. A source must resolve, after
+following links, inside one of the host's `capture_roots` (`--capture-root` on
+`dokime-host`); an empty list refuses every capture with a permission failure.
+Files.Capture copies its File, Tree or Newest source once. Captures.Start takes
+the baseline and returns its identifier; the calling execution owns the capture.
+Captures.Stop takes the final pass and seals once: Stream keeps bytes written after
+the baseline (later files whole), Mirror keeps each file whole as it is at the stop.
+A repeated stop returns the same outcome, and an abandoned reply leaves sealing
+running. Bytes travel through the native upload path and Artifacts.Create; gaps
+and early failures append `capture:gap` and `capture:failure` evidence. A capture
+nothing stopped takes its final pass when the execution's binding closes, before
+its evidence closes, including after cancellation; no capture outlives its
+execution. File, byte and capacity limits come from host settings. Interim passes,
+live growing artifacts and Stream line matchers or markers are not restored;
+matchers, markers and FTP/FTPS sources refuse as deferred, naming the action.
 The same registration owns the unsupported Effects, media.Captures and Aggregates
 operations. Direct and encoded calls share their refusals; no handwritten runtime
 service duplicates those declarations.
@@ -1845,5 +1870,5 @@ Native primary and state backends share the product root and history identity.
 | Logical execution-file metadata and retained references | Product Store transactions | Logical paths select original native file references; replacement retains previous immutable bytes and cuts. |
 | Artifact metadata and retained file references | Product Store transactions | Atomic execution-open admission, metadata publication and the original mutation receipt; file bytes remain native. |
 | Plugin entries and settings | Library Plugins and plugins.Settings | Library-owned objects and lifecycle; no product installation record. |
-| Plugin secret bindings and plot preferences | Library native administration objects | Product declarations and authorization remain product-owned. |
+| Plot preferences | Library native administration objects | Product declarations and authorization remain product-owned. |
 | Protected secrets and access credentials | Product credential store and transactional catalog | Credential values remain in the operating system store. |

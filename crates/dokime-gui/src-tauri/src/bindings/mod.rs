@@ -211,6 +211,17 @@ native_commands! {
         (values: crate::parameters::Values) -> Result<(), crate::app::settings::DesktopSettingsError>
         => crate::app::settings::desktop_parameters_write;
 
+    async desktop_capture_folders_read
+        [state: tauri::State<'_, crate::app::settings::DesktopSettingsState>]
+        () -> Result<Vec<String>, crate::app::settings::DesktopSettingsError>
+        => crate::app::settings::desktop_capture_folders_read;
+
+    // Save the folders plugins may capture from and apply them to the owned local host.
+    async desktop_capture_folders_write
+        [state: tauri::State<'_, crate::app::settings::DesktopSettingsState>, owner: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (folders: Vec<String>) -> Result<Vec<String>, crate::app::settings::DesktopSettingsError>
+        => crate::app::settings::desktop_capture_folders_write;
+
     async desktop_updates_status
         [state: tauri::State<'_, crate::app::updates::UpdateState>]
         () -> Result<crate::app::updates::UpdateStatus, String>

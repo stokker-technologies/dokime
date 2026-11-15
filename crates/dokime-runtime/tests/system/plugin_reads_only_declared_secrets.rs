@@ -31,7 +31,6 @@ use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
 use dokime::client::PluginState;
 use dokime::client::PluginValue;
-use dokime::client::PluginsSecretBindingValue;
 use dokime::client::PluginsSecretsListOptions;
 use dokime::client::SecretsDeleteOptions;
 use dokime::client::SecretsSetOptions;
@@ -114,11 +113,11 @@ async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadRes
 /* === Tests === */
 
 #[test]
-fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Result<(), Box<dyn StdError>> {
+fn plugin_secret_requirements_follow_secret_storage() -> Result<(), Box<dyn StdError>> {
     super::support::run(Box::pin(async {
         use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
         time::timeout(support::SYSTEM_HANG_GUARD, async {
-            // Create One Declared Binding Through the Library Entry
+            // A Declared Identifier Is Missing Until Secret Storage Holds It
             let root = support::tempdir()?;
             let credential_root = support::tempdir()?;
             let credentials = support::CredentialStore::start(credential_root.path()).await?;
@@ -131,76 +130,70 @@ fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Result<()
             };
             let created = client.plugins.create("secret_reader", placement.clone(), PluginValue { enabled: true }).await?;
             support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
-            let options = PluginsSecretsListOptions {
+            let options = || PluginsSecretsListOptions {
                 name: Some("secret_reader".into()),
                 ..Default::default()
             };
-            let before = client
-                .plugins
+            let missing = client.plugins.secrets.list_with(options()).await?;
+            let identifiers = missing
                 .secrets
-                .list_with(PluginsSecretsListOptions {
-                    name: options.name.clone(),
-                    ..Default::default()
-                })
+                .iter()
+                .map(|requirement| requirement.declaration.as_ref().unwrap().metadata.as_ref().unwrap().identifier.clone())
+                .collect::<Vec<_>>();
+            assert_eq!(identifiers, vec!["secrets.owned".to_owned()]);
+            assert!(!missing.secrets[0].available);
+
+            // Storing the Same Identifier Makes It Available, With No Binding in Between
+            let initial = client.secrets.list().await?;
+            client
+                .secrets
+                .set_with(
+                    "secrets.owned",
+                    SecretWritable {
+                        metadata: Some(Metadata {
+                            identifier: "secrets.owned".into(),
+                            label: "Fixture Secret".into(),
+                            ..Default::default()
+                        }),
+                        value: Some("fixture-secret-value".into()),
+                    },
+                    initial.generation.to_be_bytes().to_vec(),
+                    SecretsSetOptions {
+                        request_id: Some("save-owned".into()),
+                        ..Default::default()
+                    },
+                )
                 .await?;
-            let binding = PluginsSecretBindingValue {
-                identifier: "secrets.owned".into(),
-                secret: "unavailable.secret".into(),
-            };
-            let saved = client.plugins.secrets.set("secret_reader", vec![binding], before.revision).await?;
-            assert_eq!(saved.bindings[0].secret, "unavailable.secret");
-            assert!(!saved.bindings[0].available);
+            let stored = client.plugins.secrets.list_with(options()).await?;
+            assert!(stored.secrets[0].available);
             process.close().await?;
 
-            // Startup Retains the Current Declared Map With Its Revision
+            // Availability Is Derived Again After a Restart
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
-            let reopened = client
-                .plugins
-                .secrets
-                .list_with(PluginsSecretsListOptions {
-                    name: options.name.clone(),
-                    ..Default::default()
-                })
-                .await?;
-            assert_eq!(reopened.bindings, saved.bindings);
-            assert_eq!(reopened.revision, saved.revision);
+            let entry = client.plugins.get("secret_reader").await?.entry.unwrap();
+            support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            assert_eq!(client.plugins.secrets.list_with(options()).await?.secrets, stored.secrets);
 
-            // Entry Deletion Removes Its Bindings Before the Same Identity Is Reused
-            let mut changes = client.backend.overview.watch().await?;
-            changes.next().await?.ok_or("Observe Plugin Secrets: Missing Opening")?;
+            // Removing the Stored Secret Makes the Requirement Missing; a Deleted Entry Has No View
+            let initial = client.secrets.list().await?;
+            let deleted = client
+                .secrets
+                .delete_with(
+                    vec!["secrets.owned".into()],
+                    initial.generation.to_be_bytes().to_vec(),
+                    SecretsDeleteOptions {
+                        request_id: Some("remove-owned".into()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert!(!deleted.cleanup_pending);
+            assert!(!client.plugins.secrets.list_with(options()).await?.secrets[0].available);
             let entry = client.plugins.get("secret_reader").await?.entry.unwrap();
             client.plugins.delete(entry.name, entry.revision).await?;
-            assert!(
-                client
-                    .plugins
-                    .secrets
-                    .list_with(PluginsSecretsListOptions {
-                        name: options.name.clone(),
-                        ..Default::default()
-                    })
-                    .await
-                    .is_err()
-            );
-            let created = client.plugins.create("secret_reader", placement, PluginValue { enabled: true }).await?;
-            support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
-            loop {
-                let current = client
-                    .plugins
-                    .secrets
-                    .list_with(PluginsSecretsListOptions {
-                        name: options.name.clone(),
-                        ..Default::default()
-                    })
-                    .await?;
-                if current.bindings.iter().all(|binding| binding.secret.is_empty()) {
-                    assert!(current.bindings.iter().all(|binding| !binding.available));
-                    break;
-                }
-                changes.next().await?.ok_or("Observe Plugin Secrets: Closed Before Binding Cleanup")?;
-            }
-            drop(changes);
+            assert!(client.plugins.secrets.list_with(options()).await.is_err());
             process.close().await?;
             plugin.close().await?;
             Ok::<(), Box<dyn StdError>>(())
@@ -288,9 +281,9 @@ fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
                 assert_eq!(actual.value.unwrap().value.as_deref(), Some("fixture-secret-value"));
             }
 
-            // Bind Each Declared Name Without Exposing Credential Values
+            // Each Declared Identifier Names Its Stored Secret Directly
             for (name, identifier) in [("secret_reader", "secrets.owned"), ("secret_owner", "secrets.other")] {
-                let before = client
+                let requirements = client
                     .plugins
                     .secrets
                     .list_with(PluginsSecretsListOptions {
@@ -298,14 +291,9 @@ fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
                         ..Default::default()
                     })
                     .await?;
-                assert_eq!(before.bindings.len(), 1);
-                assert_eq!(before.bindings[0].declaration.as_ref().unwrap().metadata.as_ref().unwrap().identifier, identifier);
-                let bindings = vec![PluginsSecretBindingValue {
-                    identifier: identifier.into(),
-                    secret: identifier.into(),
-                }];
-                let saved = client.plugins.secrets.set(name, bindings, before.revision).await?;
-                assert!(saved.bindings[0].available);
+                assert_eq!(requirements.secrets.len(), 1);
+                assert_eq!(requirements.secrets[0].declaration.as_ref().unwrap().metadata.as_ref().unwrap().identifier, identifier);
+                assert!(requirements.secrets[0].available);
             }
 
             // Each Plugin Can Read Its Own Declared Secret

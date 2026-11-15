@@ -95,6 +95,9 @@ export const commands = {
   desktopRestart: () => invoke<null>("desktop_restart"),
   desktopParametersRead: () => invoke<ParameterOverrides | null>("desktop_parameters_read"),
   desktopParametersWrite: (values: ParameterOverrides) => invoke<null>("desktop_parameters_write", { values }),
+  desktopCaptureFoldersRead: () => invoke<string[]>("desktop_capture_folders_read"),
+  /** Save the folders plugins may capture from and apply them to the owned local host. */
+  desktopCaptureFoldersWrite: (folders: string[]) => invoke<string[]>("desktop_capture_folders_write", { folders }),
   desktopUpdatesStatus: () => invoke<UpdateStatus>("desktop_updates_status"),
   desktopUpdatesConfigure: (selection: UpdateSelection) => invoke<UpdateStatus>("desktop_updates_configure", { selection }),
   desktopUpdatesCheck: () => invoke<UpdateCheck>("desktop_updates_check"),

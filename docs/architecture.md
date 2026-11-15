@@ -121,6 +121,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    status/diagnostics/clock, OperationManager dispatch/invocations, StreamManager
    streams, RecordManager capture and StateManager live state; product execution,
    prompt and report managers own their lifecycles, with capture only if recordings remain.
+   Local file captures are an execution-owned registry settled before evidence closes.
    **Why:** One owner must join work and settle shutdown; storage reads and pure
    rendering need no invented manager. Assembly observes native plugin changes for
    redacted diagnostics, and waits for product watches to settle after execution
@@ -182,6 +183,11 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    product owners after the root lease is released, while ordinary shutdown keeps
    them for restart. Owners journal credential slots before native writes, so
    interrupted publication and failed retired-key removal retain cleanup ownership.
+   Opening a root claims its backend identity for that folder in the native store
+   (`services/root_claim.rs`). A folder copy carries `backend-id` and catalogs but
+   not the claim: while the original exists, the copy refuses to open with
+   credential records and refuses credential removal, so it can never delete the
+   original's accounts. A moved root reclaims; removal releases the claim.
    Access-key cleanup checks native absence before retiring its slot journal;
    a remaining or unreadable key preserves the root for cleanup. Access and shared
    secret owners submit native creation, reads and removal to one dedicated
@@ -194,8 +200,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    their publication pointers.
    The locked definition now composes the library PluginEntry and plugins.Settings;
    product plugin records/settings wrappers and clock operations are deleted.
-   Product plugins.Secrets owns declared-name bindings and availability, and
-   Secrets.Get admits only a calling plugin's declared names. Administrative
+   Product plugins.Secrets is a read-only view of declared names and their
+   availability. Secrets.Get admits only a calling plugin's declared names and
+   reads the host-wide secret stored under exactly that identifier (owner, 2026-11-15). Administrative
    metadata is client-only. Existing stories describe behavior to preserve during
    this consumer migration; they do not prove the new definitions.
 

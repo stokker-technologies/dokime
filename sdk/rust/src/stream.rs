@@ -16,10 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
+use crate::operation::{self, Action, FutureResult, Handler};
 use crate::{Context, Message, Result, context::Executions};
 use harmos::Error as HarmosError;
 use harmos::plugin::Context as HarmosContext;
@@ -49,7 +51,21 @@ pub struct Stream<T: Message> {
 pub struct Observer {
     register: Box<dyn FnOnce(Executions) -> HarmosObserver + Send>,
     configure: Vec<Box<dyn FnOnce(HarmosObserver) -> HarmosObserver + Send>>,
+    pub(crate) sampler: Sampler,
 }
+
+// The Same Observer Handler, Retained for In-Process Sampling Without a Host.
+#[derive(Clone)]
+pub(crate) struct Sampler {
+    pub stream: String,
+    pub interval_ms: Option<u64>,
+    pub setting: Option<String>,
+    pub types: prost_types::FileDescriptorSet,
+    pub name: String,
+    pub sample: Arc<dyn Handler<Vec<u8>>>,
+}
+
+struct Encoded<T>(Action<T>);
 
 /* === Enums === */
 
@@ -103,19 +119,30 @@ impl Observer {
         H: for<'a> AsyncFn(&'a Context) -> Result<T> + Send + Sync + 'static,
     {
         let identifier = stream.identifier.clone();
+        let action = operation::action(handler);
+        let sampler = Sampler {
+            stream: identifier.clone(),
+            interval_ms: None,
+            setting: None,
+            types: T::types(),
+            name: T::name(),
+            sample: Arc::new(Encoded(action.clone())),
+        };
         Self {
             register: Box::new(move |executions| {
                 let stream = HarmosStream::<T>::new(identifier);
                 HarmosObserver::new(&stream, async move |transport: &HarmosContext| {
                     let context = Context::publication(transport, &executions)?;
-                    handler(&context).await.map_err(HarmosError::from)
+                    action.execute(&context).await.map_err(HarmosError::from)
                 })
             }),
             configure: Vec::new(),
+            sampler,
         }
     }
 
-    pub fn every_ms(self, interval_ms: u64) -> Self {
+    pub fn every_ms(mut self, interval_ms: u64) -> Self {
+        self.sampler.interval_ms = Some(interval_ms);
         self.configure(move |observer| {
             observer.every(prost_types::Duration {
                 seconds: (interval_ms / 1000) as i64,
@@ -124,8 +151,9 @@ impl Observer {
         })
     }
 
-    pub fn interval_setting(self, identifier: impl Into<String>) -> Self {
+    pub fn interval_setting(mut self, identifier: impl Into<String>) -> Self {
         let identifier = identifier.into();
+        self.sampler.setting = Some(identifier.clone());
         self.configure(move |observer| observer.interval_setting(identifier))
     }
 
@@ -142,6 +170,12 @@ impl Observer {
             }
             plugin.observer(observer)
         })
+    }
+}
+
+impl<T: Message> Handler<Vec<u8>> for Encoded<T> {
+    fn execute<'a>(&'a self, context: &'a Context) -> FutureResult<'a, Vec<u8>> {
+        Box::pin(async move { Ok(self.0.execute(context).await?.encode_to_vec()) })
     }
 }
 

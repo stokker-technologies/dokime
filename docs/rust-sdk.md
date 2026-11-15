@@ -130,6 +130,45 @@ a `SecretDeclaration`, separate from ordinary settings. A plugin reads declared
 bindings through `ctx.host().secrets.get(name)`; returned bytes are in `secret`,
 and administrative metadata remains client-only.
 
+## Test Templates Without a Host
+
+`dokime::testing::Harness` runs one template of a composed plugin in-process, with
+no host process, storage or hardware. It resolves declared parameter defaults,
+applies the materializer, then runs initialization, each frozen step, the
+criteria and cleanup in the host's order against an in-memory host with a
+controlled clock starting at the epoch (`starting_at` moves it). `ctx.sleep`
+advances that clock and ticks each `every_ms` observer at its due intervals
+first; replay-safe steps retry within their policy. Declared host requirements
+are enforced. Prompts take the answer given with `answer`/`answer_with`,
+otherwise the declared prompt's first non-cancel action.
+
+```rust
+use dokime::testing::Harness;
+
+#[tokio::test]
+async fn soak_holds_the_setpoint() -> dokime::Result<()> {
+    let report = Harness::new(plugin(), "oven.soak")
+        .parameters(Setpoint { celsius: 85.0, hold_s: 2 })
+        .answer("oven.door", "closed")
+        .run()
+        .await?;
+    assert!(report.passed());
+    assert_eq!(report.samples::<Temperature>("oven.temperature")?.len(), 4);
+    assert_eq!(report.records::<Soaked>("oven.soaked")?[0].celsius, 85.0);
+    Ok(())
+}
+```
+
+`Report` exposes the termination and failure, evaluated criteria, typed records
+and samples with their step and virtual time, logs, answered prompts and the
+latest progress value. The in-memory host simulates Time, Backend.Environment,
+evidence records, logs and statistics (count, extremes, mean, sum, first and
+last of one numeric field), Prompts.Create and executions.Progress. Other host
+operations, peer operations, watches, `publish_on` producers and observers whose
+interval comes from a setting refuse with `testing_host_unsupported` or an
+action to adjust the test; prove those against a real host.
+[`testing.rs`](../sdk/rust/tests/integration/testing.rs) is the author story.
+
 ## Frozen Evidence and Exact Values
 
 `FrozenSchemaCache` is caller-owned. `get` fetches descriptor pages at one issued

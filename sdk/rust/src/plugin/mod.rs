@@ -71,6 +71,9 @@ pub struct Plugin<C = ()> {
 }
 
 struct Assembly {
+    identifier: String,
+    requirements: Vec<&'static str>,
+    samplers: Vec<crate::stream::Sampler>,
     inner: HarmosPlugin,
     suites: Vec<Suite>,
     records: Vec<RecordContract>,
@@ -105,6 +108,9 @@ impl Plugin {
         let identifier = identifier.into();
         Self {
             assembly: Assembly {
+                identifier: identifier.clone(),
+                requirements: Vec::new(),
+                samplers: Vec::new(),
                 inner: HarmosPlugin::new(identifier, version),
                 suites: Vec::new(),
                 records: Vec::new(),
@@ -139,6 +145,7 @@ impl<C: DeclarationTypes> Plugin<C> {
         self.operation(Operation::analysis(identifier, handler))
     }
     pub fn requires_operation<Q: OperationRequest>(mut self) -> Self {
+        self.assembly.requirements.push(Q::ID);
         self.assembly.inner = self.assembly.inner.requires::<Q>();
         self
     }
@@ -176,6 +183,7 @@ impl<C: DeclarationTypes> Plugin<C> {
         self
     }
     pub fn observer(mut self, observer: Observer) -> Self {
+        self.assembly.samplers.push(observer.sampler.clone());
         self.assembly.registrations.push(observer.registration());
         self
     }
@@ -189,9 +197,33 @@ impl<C: DeclarationTypes> Plugin<C> {
         self
     }
 
+    // Select One Template and What an In-Process Host Needs to Run It.
+    pub(crate) fn into_testing(self, template: &str) -> Result<crate::testing::Selected> {
+        if !self.assembly.errors.is_empty() {
+            return Err(Error::Invalid(self.assembly.errors.join("; ")));
+        }
+        let mut selected = Vec::new();
+        for suite in self.assembly.suites {
+            selected.extend(suite.templates.into_iter().filter(|candidate| candidate.identifier() == template));
+        }
+        if selected.len() != 1 {
+            return Err(Error::Invalid(format!("Test Template: Declare Exactly One Template {template}")));
+        }
+        Ok(crate::testing::Selected {
+            plugin: self.assembly.identifier,
+            template: selected.remove(0).parts()?,
+            prompts: self.assembly.prompts,
+            requirements: self.assembly.requirements,
+            samplers: self.assembly.samplers,
+        })
+    }
+
     // Finish Composition Without Opening a Socket or Running Author Callbacks.
     pub fn into_harmos(self) -> Result<HarmosPlugin> {
         let Assembly {
+            identifier: _,
+            requirements: _,
+            samplers: _,
             mut inner,
             suites,
             records,

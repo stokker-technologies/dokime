@@ -21,8 +21,9 @@
 
 // Local Imports
 
+use super::engine::{Capture, Mode};
+use crate::Result;
 use crate::host::Context;
-use crate::{Error, Result};
 use dokime_protocol::host::files::{CapturesStartRequest, CapturesStartResponse};
 
 /* === Constants === */
@@ -45,8 +46,12 @@ crate::native::unary!(CapturesStartRequest, CapturesStartResponse, context, "dok
 
 /* === Public Functions === */
 
-pub async fn handle(_: &Context, _: CapturesStartRequest) -> Result<CapturesStartResponse> {
-    Err(Error::Unimplemented(format!("{ID}: File Capture Is Not Implemented")))
+/// Takes the baseline and returns; the calling execution owns the capture until it is stopped or ends.
+pub async fn handle(context: &Context, request: CapturesStartRequest) -> Result<CapturesStartResponse> {
+    let mode = Mode::of(ID, request.mode.as_ref())?;
+    let capture = Capture::open(context, ID, request.source.as_ref(), &request.output, mode).await?;
+    let capture_id = context.captures.admit(capture)?;
+    Ok(CapturesStartResponse { capture_id })
 }
 
 /* === Private Functions === */

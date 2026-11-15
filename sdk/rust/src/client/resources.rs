@@ -230,13 +230,8 @@ use dokime_protocol::host::plots::SnapshotsListRequest as PlotsSnapshotsListRequ
 use dokime_protocol::host::plots::SnapshotsListResponse as PlotsSnapshotsListResponse;
 use dokime_protocol::host::plots::SnapshotsWatchRequest as PlotsSnapshotsWatchRequest;
 use dokime_protocol::host::plots::SnapshotsWatchResponse as PlotsSnapshotsWatchResponse;
-use dokime_protocol::host::plugins::SecretBindingValue as PluginsSecretBindingValue;
-use dokime_protocol::host::plugins::SecretsDeleteRequest as PluginsSecretsDeleteRequest;
-use dokime_protocol::host::plugins::SecretsDeleteResponse as PluginsSecretsDeleteResponse;
 use dokime_protocol::host::plugins::SecretsListRequest as PluginsSecretsListRequest;
 use dokime_protocol::host::plugins::SecretsListResponse as PluginsSecretsListResponse;
-use dokime_protocol::host::plugins::SecretsSetRequest as PluginsSecretsSetRequest;
-use dokime_protocol::host::plugins::SecretsSetResponse as PluginsSecretsSetResponse;
 use dokime_protocol::host::prompts::AnswersCreateRequest as PromptsAnswersCreateRequest;
 use dokime_protocol::host::prompts::AnswersCreateResponse as PromptsAnswersCreateResponse;
 use dokime_protocol::host::storage::SourcesGetRequest as StorageSourcesGetRequest;
@@ -1713,38 +1708,6 @@ impl Clone for PluginsSecretsListOptions {
         Self {
             name: self.name.clone(),
             at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsSecretsSetOptions {
-    pub request_id: Option<String>,
-    pub context: CallOptions,
-}
-impl Clone for PluginsSecretsSetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            request_id: self.request_id.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct PluginsSecretsDeleteOptions {
-    pub request_id: Option<String>,
-    pub context: CallOptions,
-}
-impl Clone for PluginsSecretsDeleteOptions {
-    fn clone(&self) -> Self {
-        Self {
-            request_id: self.request_id.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
                 timeout: self.context.timeout,
@@ -5400,67 +5363,6 @@ impl PluginsSecrets {
             .map_err(|error| action_error("plugins.secrets.list", error))?;
         let response = response.into_inner();
         Ok(response)
-    }
-    pub async fn set(
-        &self, name: impl Into<String>, bindings: Vec<PluginsSecretBindingValue>, expected_revision: Vec<u8>,
-    ) -> Result<PluginsSecretsSetResponse, RpcStatus> {
-        self.set_with(name, bindings, expected_revision, PluginsSecretsSetOptions::default()).await
-    }
-    pub async fn set_with(
-        &self, name: impl Into<String>, bindings: Vec<PluginsSecretBindingValue>, expected_revision: Vec<u8>,
-        options: PluginsSecretsSetOptions,
-    ) -> Result<PluginsSecretsSetResponse, RpcStatus> {
-        let value = PluginsSecretsSetRequest {
-            name: name.into(),
-            bindings,
-            expected_revision,
-            request_id: match options.request_id {
-                Some(value) => value,
-                None => request_id()?,
-            },
-        };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<PluginsSecretsSetRequest, PluginsSecretsSetResponse>(
-                PathAndQuery::from_static("/dokime.host.v1.plugins.Secrets/Set"),
-                request,
-                PluginsSecretsSetResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("plugins.secrets.set", error))?;
-        let response = response.into_inner();
-        Ok(response)
-    }
-    pub async fn delete(
-        &self, name: impl Into<String>, identifiers: Vec<String>, expected_revision: Vec<u8>,
-    ) -> Result<Receipt, RpcStatus> {
-        self.delete_with(name, identifiers, expected_revision, PluginsSecretsDeleteOptions::default()).await
-    }
-    pub async fn delete_with(
-        &self, name: impl Into<String>, identifiers: Vec<String>, expected_revision: Vec<u8>, options: PluginsSecretsDeleteOptions,
-    ) -> Result<Receipt, RpcStatus> {
-        let value = PluginsSecretsDeleteRequest {
-            name: name.into(),
-            identifiers,
-            expected_revision,
-            request_id: match options.request_id {
-                Some(value) => value,
-                None => request_id()?,
-            },
-        };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<PluginsSecretsDeleteRequest, PluginsSecretsDeleteResponse>(
-                PathAndQuery::from_static("/dokime.host.v1.plugins.Secrets/Delete"),
-                request,
-                PluginsSecretsDeleteResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("plugins.secrets.delete", error))?;
-        let response = response.into_inner();
-        response.receipt.ok_or_else(|| RpcStatus::data_loss("Read Secrets.Delete: Missing Payload"))
     }
 }
 #[derive(Clone)]
