@@ -34,10 +34,10 @@ mod streams;
 pub use capabilities::ExecutionCapabilities;
 pub use clock::{ControlledClock, SchedulerClock};
 pub use documents::{FixedSnapshot, RenderSettings, RenderedDocument};
+pub use dokime_operations::host::files::captures::CaptureSettings;
 pub use dokime_storage::{StorageSettings, storage_defaults};
 pub use error::Error;
 pub use execution::{Cycle, CycleResult, RunState};
-pub use dokime_operations::host::files::captures::CaptureSettings;
 pub use host::{Host, HostSettings};
 pub use plugin::{PlacementSettings, PluginProcess, describe_plugin};
 

@@ -28,13 +28,7 @@ pandas = ["pandas>=3,<4"]
 
 [dependency-groups]
 generate = ["grpcio-tools==1.85.1", "mypy-protobuf==5.1.0"]
-stubs = [
-  "mypy==2.4.1",
-  "pandas-stubs==3.1.0.261029",
-  "polars==2.1.0",
-  "types-protobuf==7.35.1.20260906",
-  "types-grpcio==1.85.0.20261028",
-]
+stubs = ["mypy==2.4.1", "pandas-stubs==3.1.0.261029", "polars==2.1.0", "types-protobuf==7.35.1.20260906", "types-grpcio==1.85.0.20261028"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
