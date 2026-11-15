@@ -26,6 +26,7 @@ import {
   createExecutionFileRefresh,
   createRuntimeProjectionRefreshCoordinator,
   createThrottledRefresh,
+  settledOf,
   type RuntimeProjectionRefreshCoordinator,
 } from "./runtime-refresh";
 
@@ -75,13 +76,22 @@ export function useRuntimeStream(): void {
         setHubState({ error: failureOf(error, "Runtime Stream Failed").message });
       });
     }, DOCUMENT_REFRESH_MS);
+    /* A cycle that settles or seals re-reads its documents at once: live growth
+       is throttled, but the settled evidence must not wait behind it. */
+    let observedSettled: string | null = null;
+    let settled = false;
     const refreshCoordinator = createRuntimeProjectionRefreshCoordinator(async () => {
       await Promise.all([
         invalidateRuntimeProjectionQueries(queryClient),
         queryClient.invalidateQueries({ queryKey: workflowQueryKeys.runtimeShell() }, { cancelRefetch: false }),
         queryClient.invalidateQueries({ queryKey: cyclesHomeQueryKeys.all }, { cancelRefetch: false }),
       ]);
-      documentRefresh.request();
+      if (settled) {
+        settled = false;
+        documentRefresh.now();
+      } else {
+        documentRefresh.request();
+      }
     });
 
     const connect = async () => {
@@ -97,6 +107,11 @@ export function useRuntimeStream(): void {
         for await (const frame of stream) {
           if (!active) break;
           fileRefresh.observe(frame);
+          const current = settledOf(frame);
+          if (current !== null && current !== observedSettled) {
+            settled ||= observedSettled !== null;
+            observedSettled = current;
+          }
           observed = handleRuntimeFrame(
             frame,
             observed,

@@ -67,9 +67,10 @@ export function createRuntimeProjectionRefreshCoordinator(refresh: () => Promise
 /**
  * Coalesce requests into at most one refresh per interval. A refresh runs one
  * interval after the first request it absorbs, so the last request always has
- * a refresh that starts after it.
+ * a refresh that starts after it. `now` runs the refresh at once and absorbs
+ * the pending request.
  */
-export function createThrottledRefresh(refresh: () => void, intervalMs: number): { request(): void; dispose(): void } {
+export function createThrottledRefresh(refresh: () => void, intervalMs: number): { request(): void; now(): void; dispose(): void } {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
 
@@ -81,12 +82,34 @@ export function createThrottledRefresh(refresh: () => void, intervalMs: number):
         if (!disposed) refresh();
       }, intervalMs);
     },
+    now(): void {
+      if (disposed) return;
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+      refresh();
+    },
     dispose(): void {
       disposed = true;
       if (timer !== undefined) clearTimeout(timer);
       timer = undefined;
     },
   };
+}
+
+/**
+ * The settled cycles a frame reports: those with nothing running or queued,
+ * with their status, results and seal. Telemetry growth and runs finishing
+ * inside a busy cycle leave it unchanged; a cycle that settles or seals changes it.
+ */
+export function settledOf(frame: Pick<RuntimeStateFrame, "overview">): string | null {
+  const cycles = frame.overview?.cycleSummaries;
+  if (!cycles) return null;
+  return JSON.stringify(
+    cycles
+      .filter((cycle) => cycle.sealed || (cycle.runningCount === 0n && cycle.queuedCount === 0n))
+      .map((cycle) => [cycle.cycleId, cycle.phase, cycle.status, cycle.result, cycle.sealed]),
+    (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value),
+  );
 }
 
 /** File capture can advance on an operation-only frame with an unchanged state cursor. */
