@@ -177,7 +177,10 @@ async function execute() {
   const values = await until("Exact Summary Tiles", () =>
     desktop.execute(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
-    return tiles.length >= 11 ? Object.fromEntries(tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong [data-exact-value]')?.dataset.exactValue])) : null;`),
+    const values = tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong [data-exact-value]')?.dataset.exactValue]);
+    // Tiles first render at the document's opening cut; wait for the cut that holds captured samples.
+    const captured = values.every(([, value]) => value && value !== '-') && /[1-9]/.test(Object.fromEntries(values).count ?? '');
+    return tiles.length >= 11 && captured ? Object.fromEntries(values) : null;`),
   );
   const base = 1152921504606847975n;
   for (const name of ["mean", "median", "min", "max", "first", "last", "p05", "p95", "p99"]) assert.equal(values[name], String(base));
