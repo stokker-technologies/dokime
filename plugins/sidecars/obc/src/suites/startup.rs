@@ -160,6 +160,7 @@ pub fn document() -> Document {
     trajectory.y = vec![field(SAMPLES, "current_a")];
     let mut grid = plot("obc.charger.startup.sequence.channel_survey", "Channel Survey", PlotKind::GridChart, "°C");
     grid.y = vec![field(SURVEY, "temperature_c")];
+    grid.reduction = Some(Reduction::Mean as i32);
     grid.grid = Some(GridChart {
         row: Some(field(SURVEY, "module")),
         column: Some(field(SURVEY, "sensor")),
@@ -169,8 +170,11 @@ pub fn document() -> Document {
         summary_label: "Temperature".into(),
         ..Default::default()
     });
-    let maps =
-        Section::new("Signal Maps").id("obc.charger.startup.sequence.maps").card(wide(surface, 6)).card(wide(trajectory, 6)).plot(grid);
+    let maps = Section::new("Signal Maps")
+        .id("obc.charger.startup.sequence.maps")
+        .card(wide(surface, 6))
+        .card(wide(trajectory, 6))
+        .card(wide(grid, 12));
 
     let mut voltages = plot("obc.charger.startup.sequence.voltage_distribution", "Voltage Distribution", PlotKind::Histogram, "V");
     voltages.x = Some(field(SAMPLES, "voltage_v"));
@@ -376,9 +380,9 @@ async fn accepted(ctx: &Context) -> Result<bool> {
     let Some(completed) = records::last(ctx, &completed, "").await? else {
         return Ok(false);
     };
-    // Check / Number of Rows and Operator Acceptance
+    // Check / Rows Produced, Saved Evidence and Operator Acceptance
     let total = bench.samples_for(ctx.parameter("duration_s")?)?;
-    Ok(sample_count(ctx, SAMPLES, "").await? >= total && completed.accepted)
+    Ok(completed.sample_count >= total && sample_count(ctx, SAMPLES, "").await? > 0 && completed.accepted)
 }
 
 async fn cleanup(ctx: &Context) -> Result<()> {

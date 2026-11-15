@@ -230,7 +230,7 @@ async fn observe(ctx: &Context, module: usize) -> Result<ModuleTelemetry> {
 async fn read_register(ctx: &Context) -> Result<MeterRegister> {
     if testbench::captures(ctx, METER) {
         // The Meter Advances the Shared Model Clock Once per Tick
-        ctx.get::<Testbench>()?.state().index += 1;
+        ctx.get::<Testbench>()?.advance();
     }
     Ok(MeterRegister { energy_register: REGISTER })
 }

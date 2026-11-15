@@ -20,6 +20,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 // Third Party Imports
+use tokio::sync::Notify;
 
 // Local Imports
 use crate::device::{Charger, Power, Supply};
@@ -46,6 +47,7 @@ const SURVEY_POINTS: u64 = 32;
 pub struct Testbench {
     state: Mutex<State>,
     tick: Duration,
+    published: Notify,
 }
 
 pub struct State {
@@ -88,6 +90,7 @@ impl Testbench {
                 survey: 0,
             }),
             tick,
+            published: Notify::new(),
         });
         Ok(())
     }
@@ -112,8 +115,23 @@ impl Testbench {
         if samples == 0 {
             return Ok(());
         }
+        let target = self.state().index + samples;
         let total = self.tick.checked_mul(u32::try_from(samples).map_err(|_| Error::Invalid("Wait: Too Many Samples".into()))?);
-        ctx.sleep(total.ok_or_else(|| Error::Invalid("Wait: Duration Overflow".into()))?).await
+        ctx.sleep(total.ok_or_else(|| Error::Invalid("Wait: Duration Overflow".into()))?).await?;
+        // The Last Tick Fires With the Sleep; Await Its Sample Without Advancing Time
+        loop {
+            let published = self.published.notified();
+            if self.state().index >= target {
+                return Ok(());
+            }
+            published.await;
+        }
+    }
+
+    /// Count One Published Sample and Wake Any Step Waiting for It.
+    pub fn advance(&self) {
+        self.state().index += 1;
+        self.published.notify_waiters();
     }
 }
 
@@ -149,7 +167,8 @@ pub async fn measure(ctx: &Context, stream: &str) -> Result<Measurement> {
         Some(_) => "after_prompt",
         None => state.label,
     };
-    state.index += 1;
+    drop(state);
+    bench.advance();
     Ok(Measurement::new(index, reading, phase))
 }
 
