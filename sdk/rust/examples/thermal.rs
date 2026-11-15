@@ -22,10 +22,7 @@
 // Local Imports
 use dokime::RetryPolicy;
 use dokime::prelude::*;
-use dokime::{
-    Aggregate, AggregateExpression, Card, DataExpression, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind,
-    PromptArchetype, Section, Severity, Summary, card, data_expression, value,
-};
+use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind, PromptArchetype, Section, Severity, card, value};
 use prost_types::Duration as ProtoDuration;
 
 /* === Constants === */
@@ -79,55 +76,22 @@ fn main() -> Result<()> {
     let observer = Observer::new(&temperature, read_temperature).every_ms(1000);
     let counter = Stream::<Counter>::new("thermal.counter", "Exact Counter");
     let counter_observer = Observer::new(&counter, read_counter).every_ms(1);
-    let mut summary = Summary::new();
-    for (name, kind, percentile) in [
-        ("Count", Aggregate::Count, 0.0),
-        ("Sum", Aggregate::Sum, 0.0),
-        ("Mean", Aggregate::Mean, 0.0),
-        ("Median", Aggregate::Median, 0.0),
-        ("Min", Aggregate::Min, 0.0),
-        ("Max", Aggregate::Max, 0.0),
-        ("First", Aggregate::First, 0.0),
-        ("Last", Aggregate::Last, 0.0),
-        ("P05", Aggregate::Percentile, 5.0),
-        ("P95", Aggregate::Percentile, 95.0),
-        ("P99", Aggregate::Percentile, 99.0),
-    ] {
-        let input = FieldReference::new("thermal.counter").field("value");
-        let value = DataExpression {
-            kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
-                input: Some(Box::new(input)),
-                kind: kind as i32,
-                percentile,
-            }))),
-            ..Default::default()
-        };
-        summary = summary.tile(name, value);
-    }
     let door = Record::<Door>::new("thermal.door", "Door Check");
     let prompt = Prompt::new("thermal.door", "Door Check", "Is the Door Closed?")
         .archetype(PromptArchetype::Confirmation)
         .action("yes", "Yes")
         .action("no", "No");
-    let mut plots = Section::new("Plots");
-    for index in 0..100 {
-        plots = plots.card(Card {
-            metadata: Some(Metadata {
-                identifier: format!("plot-card-{index}"),
-                ..Default::default()
-            }),
-            body: Some(card::Body::Plot(Plot {
-                metadata: Some(Metadata {
-                    identifier: format!("plot-{index}"),
-                    ..Default::default()
-                }),
-                kind: PlotKind::TimeSeries as i32,
-                y: vec![FieldReference::new("thermal.counter").field("value")],
-                ..Default::default()
-            })),
+    let plot = Plot {
+        metadata: Some(Metadata {
+            identifier: "thermal.temperature.plot".into(),
+            label: "Temperature".into(),
             ..Default::default()
-        });
-    }
+        }),
+        kind: PlotKind::TimeSeries as i32,
+        y: vec![FieldReference::new("thermal.temperature").field("celsius")],
+        unit: "°C".into(),
+        ..Default::default()
+    };
     let template = Template::new("thermal.cycle", "Thermal Cycle")
         .parameters(Parameters { limit: 85.0 })
         .initialize(initialize)
@@ -152,20 +116,17 @@ fn main() -> Result<()> {
         .observer(observer)
         .stream(counter)
         .observer(counter_observer)
-        .document(
-            Document::new("Thermal Report")
-                .id("thermal.report")
-                .section(Section::new("Evidence").id("thermal.evidence").summary("Exact Statistics", summary).card(Card {
-                    metadata: Some(Metadata {
-                        identifier: "thermal.records".into(),
-                        label: "Records".into(),
-                        ..Default::default()
-                    }),
-                    body: Some(card::Body::Evidence(EvidenceCard::Records as i32)),
+        .document(Document::new("Thermal Report").id("thermal.report").section(
+            Section::new("Evidence").id("thermal.evidence").plot(plot).card(Card {
+                metadata: Some(Metadata {
+                    identifier: "thermal.records".into(),
+                    label: "Records".into(),
                     ..Default::default()
-                }))
-                .section(plots),
-        );
+                }),
+                body: Some(card::Body::Evidence(EvidenceCard::Records as i32)),
+                ..Default::default()
+            }),
+        ));
     let plugin = Plugin::new("thermal", "1.0.0")
         .suite(Suite::new("thermal", "Thermal").template(template))
         .prompt(prompt)

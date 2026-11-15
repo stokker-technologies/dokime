@@ -28,6 +28,7 @@ import { parseArgs, promisify } from "node:util";
 import {
   answerPendingPrompts,
   chooseNativeFile,
+  obcExecutable,
   prepareNativeFixture,
   setDensity,
   settle,
@@ -303,7 +304,7 @@ try {
   const chrome = join(process.env.ProgramFiles ?? "", "Google/Chrome/Application/chrome.exe");
   if (process.platform === "win32" && !process.env.DOKIME_E2E_CHROME && existsSync(chrome)) process.env.DOKIME_E2E_CHROME = chrome;
   cleanup = await prepareNativeFixture(work, evidence);
-  backend = await startBackend(work, evidence, undefined, "backend", true, { environment });
+  backend = await startBackend(work, evidence, undefined, "backend", true, { environment, plugins: [obcExecutable] });
   session = await startSession(work, backend.endpoint, evidence);
   await session.connected();
   await sizeViewport(session, desktop);

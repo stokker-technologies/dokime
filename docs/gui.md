@@ -71,7 +71,10 @@ helper uses canonical host schemas and the descriptor fence, including numeric
 enums and fully qualified library service paths. System drivers now use the SDK
 thermal fixture, registered cases, execution state/outcome, Access resources and
 verified native delivery. Connections exercises two native owners; Execution
-visits the library, live execution, reports/history, settings and appearance.
+visits the library, live execution, reports/history, settings and appearance, and
+reads exact summary tiles from the [OBC](plugin-obc.md) Bench template admitted
+beside the thermal fixture. The native host story opens that Bench document's
+one hundred plots from two clients while its confirmation prompt is pending.
 The thermal fixture does not publish a report automatically. Stories explicitly
 publish a selected evidence document before requiring a sealed download; a render
 without publication correctly retains the host's Current origin.

@@ -372,11 +372,10 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
 }
 
 #[test]
-fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>> {
+fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>> {
     dokime_gui::test_support::run(async {
-        let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| dokime_gui::test_support::fixture("dokime-rust-thermal"));
+        let executable =
+            std::env::var_os("DOKIME_OBC_PLUGIN").map(PathBuf::from).unwrap_or_else(|| dokime_gui::test_support::fixture("plugin-obc"));
         let configuration = settings();
         let mut plugin = PluginProcess::start(&executable, true, &configuration.host.placement).await?;
         let root = dokime_gui::test_support::tempdir()?;
@@ -421,7 +420,11 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
             }
             drop(watching);
             let suites: SuitesListResponse = session.unary("/dokime.host.v1.Suites/List", SuitesListRequest::default()).await?;
-            let suite = suites.values.first().ok_or("Read Suite: Missing Prepared Fixture")?;
+            let suite = suites
+                .values
+                .iter()
+                .find(|suite| suite.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "obc.bench"))
+                .ok_or("Read Suite: Missing Prepared Bench Suite")?;
             let suite_id = suite.metadata.as_ref().ok_or("Read Suite: Missing Identity")?.identifier.clone();
             let suite: SuitesGetResponse = session
                 .unary(
@@ -507,9 +510,9 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
 
             // Observe a Plot Before Answering, Then Join the Terminal Progress.
             let plot_request = PlotsPlotRequest {
-                plot_id: Some("temperature".into()),
-                stream: "thermal.temperature".into(),
-                y_keys: vec!["celsius".into()],
+                plot_id: Some("module-voltage".into()),
+                stream: "obc.bench.module_01".into(),
+                y_keys: vec!["ac_voltage_v".into()],
                 scope: Some(EvidenceScope {
                     execution_id: Some(execution.clone()),
                     ..Default::default()
@@ -536,7 +539,7 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                     cycle_id: cycle.cycle_id.clone(),
                     execution_id: execution.clone(),
                 }),
-                document_id: "thermal.report".into(),
+                document_id: "obc.bench.module_array.report".into(),
                 max_frames: 32,
                 ..Default::default()
             };
@@ -654,7 +657,7 @@ fn thermal_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdErro
                     },
                 )
                 .await?;
-            assert!(records.records.iter().any(|record| record.record_type == "thermal.door"));
+            assert!(records.records.iter().any(|record| record.record_type == "obc.bench.confirmation"));
             let samples: EvidenceSamplesListResponse = session
                 .unary(
                     "/dokime.host.v1.evidence.Samples/List",
