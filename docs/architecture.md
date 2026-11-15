@@ -802,7 +802,7 @@ explicit fresh path.
 ### Final Library Pin
 
 The definition pass pins Harmos at `7181b5ed33c9d2be79c38d266b0a97d838b05ed6`.
-Consumer repairs follow the work lists in [Execution Host](execution-host.md).
+Consumer repairs follow the table below.
 The pin and generated contracts do not establish consumer compilation.
 
 | Consumer | Required Change at This Pin |
@@ -823,7 +823,8 @@ vcpkg manifest and exports `Dokime::Cpp` as an installed package. C# builds one
 solution with central dependency versions and consumes Harmos through a local
 NuGet feed. Python ships typed resource modules and generated protobuf packages.
 The final pin regenerates descriptor-derived surfaces and private wire output.
-SDK implementation/installed-consumer proof follows the consumer work lists.
+SDK implementation/installed-consumer proof follows the SDK rows of the Final
+Library Pin table.
 
 The CLI embeds the authoritative SDK starters and includes the Python starter's
 host-driven tests from `sdk/tests/fixtures/python/starter`. The per-language

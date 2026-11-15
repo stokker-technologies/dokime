@@ -118,7 +118,10 @@ let settings = ctx.host().plugins.settings.list().await?;
 
 `ctx.sleep` and `ctx.now` compose library Time operations. Controlled time advances
 through host waits and observer ticks; no SDK retry loop or wall-clock wait drives
-execution. Observer intervals and retry timing belong to declared settings and
+execution. Under controlled time, ticks due before a sleep ends have run when it
+returns; a tick due at
+the sleep's end can run after it, so a step that reads its observer's state for
+that tick awaits the tick's callback. Observer intervals and retry timing belong to declared settings and
 operation policies. `Operation::analysis` adapts typed analysis requests and
 responses while retaining raw sample axes and outputs.
 

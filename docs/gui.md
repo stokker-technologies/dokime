@@ -365,6 +365,9 @@ its own cancellation and retry lifetime. Runtime invalidation preserves in-fligh
 card reads, so fast cards keep refreshing while an exact median is still loading.
 An invalidation during a card read coalesces a following read at the latest cut
 after that card settles, independently of other cards.
+Live documents re-read at most every five seconds while telemetry grows. A change
+in a cycle's lifecycle, such as a run that finishes or seals, re-reads them at
+once, so the settled evidence does not wait behind the live throttle.
 A completed card remains visible when another card or transfer fails. Failed
 bindings render the existing ErrorCard with their native diagnostic and budget
 fields. Repeated sections keep a loading identity until their expansion arrives.
