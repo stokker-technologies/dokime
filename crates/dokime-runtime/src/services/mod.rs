@@ -12,7 +12,6 @@
 /* === Modules === */
 
 mod access_credentials;
-pub(crate) mod bundles;
 mod clock;
 pub(crate) mod composition;
 mod state;
@@ -263,7 +262,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         backend_id: backend_id.clone(),
         epoch: uuid::Uuid::now_v7().to_string(),
         product_version: env!("CARGO_PKG_VERSION").into(),
-        target: bundles::native_target().into(),
+        target: dokime_packaging::bundle::native_target().into(),
         started_at: Some(Timestamp {
             seconds: host.now_ns().div_euclid(1_000_000_000),
             nanos: host.now_ns().rem_euclid(1_000_000_000) as i32,

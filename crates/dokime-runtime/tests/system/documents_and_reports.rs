@@ -56,7 +56,7 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             // Seal Evidence and Take a Fixed Snapshot
             let root = super::support::tempdir()?;
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-            let entry = host.add_managed("execution", &super::support::execution_fixture()?).await?;
+            let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
             let document = host.catalog(&entry)?.suites[0].templates[0].documents[0].clone();
             let origin = host.materialize(&entry, "execution.capture", super::support::parameters(23.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![origin]).await?;

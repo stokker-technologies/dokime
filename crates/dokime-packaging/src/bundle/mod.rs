@@ -16,10 +16,15 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Read, path::Path};
+use std::{
+    collections::BTreeMap,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 // Third Party Imports
-use harmos_runtime::bundle::{Bundle as PluginBundle, Limits};
+use harmos_runtime::bundle::{Bundle as PluginBundle, Identity, Limits, Manifest};
+use sha2::{Digest, Sha256};
 
 // Local Imports
 
@@ -38,6 +43,73 @@ use harmos_runtime::bundle::{Bundle as PluginBundle, Limits};
 /* === Implementations === */
 
 /* === Public Functions === */
+
+pub fn native_target() -> &'static str {
+    match (std::env::consts::ARCH, std::env::consts::OS) {
+        ("x86_64", "windows") => "x86_64-pc-windows-msvc",
+        ("aarch64", "windows") => "aarch64-pc-windows-msvc",
+        ("x86_64", "linux") => "x86_64-unknown-linux-gnu",
+        ("aarch64", "linux") => "aarch64-unknown-linux-gnu",
+        ("aarch64", "macos") => "aarch64-apple-darwin",
+        ("x86_64", "macos") => "x86_64-apple-darwin",
+        _ => "unsupported",
+    }
+}
+
+pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, description: Option<&[u8]>) -> crate::Result<Vec<u8>> {
+    let limits = Limits::default();
+    if native_target() == "unsupported" {
+        return Err("Create Plugin Bundle: Select a Supported Native Target".into());
+    }
+    let name = executable.file_name().and_then(|name| name.to_str()).ok_or("Create Plugin Bundle: Supply a UTF-8 Executable Filename")?;
+    let entrypoint = format!("bin/{name}");
+    if assets.len() + 2 + usize::from(description.is_some()) > limits.files {
+        return Err("Create Plugin Bundle: Reduce Its File Inventory".into());
+    }
+    let mut contents = BTreeMap::from([(entrypoint.clone(), read(executable, limits.file_bytes as u64)?)]);
+    let mut total = contents.values().map(Vec::len).sum::<usize>();
+    for asset in assets {
+        let name = asset.file_name().and_then(|name| name.to_str()).ok_or("Create Plugin Bundle: Supply a UTF-8 Asset Filename")?;
+        let remaining = limits.total_file_bytes.saturating_sub(total);
+        let bytes = read(asset, limits.file_bytes.min(remaining) as u64)?;
+        total += bytes.len();
+        if contents.insert(format!("bin/{name}"), bytes).is_some() {
+            return Err("Create Plugin Bundle: Give Each Asset a Distinct Filename".into());
+        }
+    }
+    contents.insert(
+        "dokime.json".into(),
+        serde_json::to_vec(&serde_json::json!({"schema":1,"requires_dokime":format!("={}",env!("CARGO_PKG_VERSION"))}))?,
+    );
+    if let Some(description) = description {
+        contents.insert("description.pb".into(), description.to_vec());
+    }
+    if contents.len() > limits.files || contents.values().map(Vec::len).sum::<usize>() > limits.total_file_bytes {
+        return Err("Create Plugin Bundle: Reduce Its Files to the Bundle Bounds".into());
+    }
+    let files = contents.iter().map(|(path, bytes)| {
+        let mut value = serde_json::json!({"path":path,"size":bytes.len(),"sha256":Sha256::digest(bytes).iter().map(|byte|format!("{byte:02x}")).collect::<String>()});
+        if path == &entrypoint { value["executable"] = serde_json::json!({"facility":"sidecar","target":native_target(),"registrations":[]}); }
+        value
+    }).collect::<Vec<_>>();
+    let manifest: Manifest = serde_json::from_value(serde_json::json!({"schema":1,"identity":identity,"files":files}))?;
+    let mut archive = tar::Builder::new(Vec::new());
+    let manifest = serde_json::to_vec(&manifest)?;
+    for (path, bytes) in std::iter::once(("manifest.json".to_owned(), manifest)).chain(contents) {
+        let mut header = tar::Header::new_ustar();
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_uid(0);
+        header.set_gid(0);
+        header.set_mtime(0);
+        header.set_size(bytes.len() as u64);
+        header.set_mode(if path == entrypoint { 0o755 } else { 0o644 });
+        header.set_cksum();
+        archive.append_data(&mut header, path, bytes.as_slice())?;
+    }
+    let bytes = archive.into_inner()?;
+    PluginBundle::inspect(&bytes, limits)?;
+    Ok(bytes)
+}
 
 pub fn inspect(path: &Path) -> crate::Result<serde_json::Value> {
     let limits = Limits::default();

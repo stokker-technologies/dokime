@@ -171,7 +171,7 @@ pub(super) async fn launch(
         PluginManagerSettings {
             namespace: store.identity().to_owned(),
             directory: root.canonicalize()?.join("plugins"),
-            target: super::bundles::native_target().into(),
+            target: dokime_packaging::bundle::native_target().into(),
             placement: PlacementSettings {
                 connect_timeout: placement.connect_timeout,
                 reconnect_delay: placement.reconnect_delay,

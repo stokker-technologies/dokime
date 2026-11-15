@@ -64,7 +64,7 @@ fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn Err
             let mut settings = super::support::settings();
             settings.clock = Arc::new(ControlledClock::new(0));
             let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
-            let entry = host.add_managed("thermal", &super::support::thermal_fixture()?).await?;
+            let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
             let cleanup = host.catalog(&entry)?.suites[0].templates[0].cleanup.clone().unwrap();
             let origin = host
                 .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
@@ -112,7 +112,7 @@ fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn Error>> {
             // Refuse Cancel While the Admitted Execution Is Still Queued
             let root = super::support::tempdir()?;
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-            let entry = host.add_managed("thermal", &super::support::thermal_fixture()?).await?;
+            let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
             let origin = host
                 .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
                 .await?;
@@ -162,7 +162,7 @@ fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn Error>
             let root = super::support::tempdir()?;
             let settings = super::support::settings();
             let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
-            let entry = host.add_managed("thermal", &super::support::thermal_fixture()?).await?;
+            let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
             let origin = host
                 .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
                 .await?;

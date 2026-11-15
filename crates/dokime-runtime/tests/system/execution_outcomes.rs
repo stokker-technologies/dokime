@@ -70,7 +70,7 @@ fn execution_outcomes() -> Result<(), Box<dyn Error>> {
             let executable = super::support::execution_fixture()?;
             let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
             let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
-            let entry = host.add_remote(plugin.endpoint()).await?;
+            let entry = host.add_remote("execution", plugin.endpoint()).await?;
             let stale = host.materialize(&entry, "execution.capture", super::support::parameters(8.0, 0, true)).await?;
             let unevaluated = host.materialize(&entry, "execution.capture", super::support::parameters(9.0, 0, false)).await?;
             let cycle = host.start_cycle(vec![stale.clone(), unevaluated]).await?;
@@ -151,7 +151,7 @@ fn execution_outcomes() -> Result<(), Box<dyn Error>> {
                 &[("DOKIME_EXECUTION_REVISION".into(), "2".into())],
             )
             .await?;
-            let entry = host.add_remote(revised.endpoint()).await?;
+            let entry = host.add_remote("execution", revised.endpoint()).await?;
             let cycle = host.start_cycle(vec![stale.clone()]).await?;
             let prompt = host.next_prompt(&cycle.executions[0]).await?;
             super::support::answer(&host, &cycle.executions[0], prompt)?;

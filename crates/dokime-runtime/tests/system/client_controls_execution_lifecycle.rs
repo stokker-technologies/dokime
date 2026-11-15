@@ -519,7 +519,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .clone()
             .create_with(
                 Default::default(),
-                Default::default(),
+                Metadata { label: "Repeated Cycle".into(), ..Default::default() },
                 true,
                 cycle.cycle_id.clone(),
                 CyclesCreateOptions {

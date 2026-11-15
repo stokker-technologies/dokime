@@ -113,7 +113,7 @@ impl Fixture {
             stream_buffer: settings.placement.stream_window.get(),
         };
         let host = Host::open(root.path(), settings, operations).await.unwrap();
-        let plugin = host.add_remote(endpoint).await.unwrap();
+        let plugin = host.add_remote("storage.benchmark", endpoint).await.unwrap();
         let parameters = HashMap::from([(
             "rows".into(),
             Value {

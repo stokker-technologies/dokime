@@ -60,10 +60,10 @@ fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
                 let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
                 let mut python = None;
                 let entry = match placement {
-                    None => host.add_managed("thermal", &super::support::thermal_fixture()?).await?,
+                    None => host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?,
                     Some(_) => {
                         let child = super::support::PythonPlugin::start().await?;
-                        let entry = host.add_remote(&child.url).await?;
+                        let entry = host.add_remote("thermal", &child.url).await?;
                         python = Some(child);
                         entry
                     }
@@ -102,10 +102,15 @@ fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
                         verdict: Some(ResultStatus::Passed)
                     }
                 );
-                assert_eq!(snapshot.samples.len(), 3);
+                assert_eq!(snapshot.samples.len(), 2502);
                 assert_eq!(
-                    snapshot.samples.iter().map(|sample| sample.source_ns).collect::<Vec<_>>(),
-                    vec![0, 1_000_000_000, 2_000_000_000]
+                    snapshot
+                        .samples
+                        .iter()
+                        .filter(|sample| sample.stream == "thermal.temperature")
+                        .map(|sample| sample.source_ns)
+                        .collect::<Vec<_>>(),
+                    vec![1_000_000_000, 2_000_000_000]
                 );
                 assert_eq!(snapshot.records("thermal.door").len(), 1);
                 assert!(host.streams_closed(&execution)?);

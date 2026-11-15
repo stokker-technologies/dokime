@@ -18,8 +18,8 @@
 // Standard Library Imports
 use std::{
     collections::HashMap,
-    path::Path,
-    sync::{Arc, Mutex, MutexGuard},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex, MutexGuard, Weak},
 };
 
 // Third Party Imports
@@ -130,21 +130,28 @@ impl Host {
             assembly: None,
         })
     }
-    pub async fn add_remote(&self, endpoint: &str) -> Result<String> {
-        let description = crate::describe_plugin(endpoint, &self.settings.placement).await?;
+    pub async fn add_remote(&self, name: &str, endpoint: &str) -> Result<String> {
         let placement = PluginPlacement {
             kind: Some(PlacementKind::Remote(PluginRemote { url: endpoint.into() })),
         };
-        self.create_plugin(description.id, placement).await
+        self.create_plugin(name.into(), placement).await
     }
-    pub async fn add_managed(&self, name: &str, executable: &Path) -> Result<String> {
-        let bytes = crate::services::bundles::from_executable(executable)?;
+    pub async fn add_managed(&self, name: &str, executable: &Path, assets: &[PathBuf]) -> Result<String> {
+        use harmos_runtime::bundle::Identity;
+        let identity = Identity {
+            name: name.into(),
+            version: env!("CARGO_PKG_VERSION").parse().map_err(|source| Error::Invalid(format!("Create Plugin Bundle: {source}")))?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        let bytes = dokime_packaging::bundle::create(executable, assets, identity, None)
+            .map_err(|source| Error::Invalid(format!("Create Plugin Bundle: {source}")))?;
         let context = self
             .executions
             .inner
             .context
             .get()
-            .and_then(std::sync::Weak::upgrade)
+            .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Add Plugin: Assemble the Host Context".into()))?;
         use dokime_operations::host::files::uploads::{append, create, publish};
         use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsPublishRequest};
@@ -206,7 +213,7 @@ impl Host {
             .inner
             .context
             .get()
-            .and_then(std::sync::Weak::upgrade)
+            .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Add Plugin: Assemble the Host Context".into()))?;
         context
             .operations
@@ -229,7 +236,7 @@ impl Host {
             .inner
             .context
             .get()
-            .and_then(std::sync::Weak::upgrade)
+            .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Await Plugin Ready: Assemble the Host Context".into()))?;
         let mut watch = context.operations.download_protobuf::<Watch>(
             PluginsWatchRequest { name: Some(name.into()), at: None },
@@ -299,7 +306,7 @@ impl Host {
             .inner
             .context
             .get()
-            .and_then(std::sync::Weak::upgrade)
+            .and_then(Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Remove Plugin: Assemble the Host Context".into()))?;
         let entry = context
             .host

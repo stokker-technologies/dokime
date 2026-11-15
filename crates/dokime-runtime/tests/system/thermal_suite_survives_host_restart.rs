@@ -66,8 +66,11 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
 
             // Add the Same Suite Through Remote and Managed Entries
             for managed in [false, true] {
-                let entry =
-                    if managed { host.add_managed("thermal", &executable).await? } else { host.add_remote(remote.endpoint()).await? };
+                let entry = if managed {
+                    host.add_managed("thermal", &executable, &[]).await?
+                } else {
+                    host.add_remote("thermal", remote.endpoint()).await?
+                };
                 let catalog = host.catalog(&entry)?;
                 assert_eq!(catalog.suites[0].templates[0].metadata.as_ref().unwrap().identifier, "thermal.cycle");
 

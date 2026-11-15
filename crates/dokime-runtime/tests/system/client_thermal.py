@@ -75,7 +75,7 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
             )
             samples = await client.evidence.samples.list(
                 EvidenceScope(execution_id=identifier),
-                [],
+                ["thermal.temperature"],
                 [],
                 [],
                 [],
@@ -177,7 +177,7 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
         assert fields["closed"] is True
         samples = await client.evidence.samples.list(
             EvidenceScope(execution_id=identifier),
-            [],
+            ["thermal.temperature"],
             [],
             [],
             [],
@@ -187,7 +187,7 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
             False,
         )
         assert all(sample.WhichOneof("kind") == "raw" for sample in samples.samples)
-        assert [sample.raw.timestamp.seconds for sample in samples.samples] == [0, 1, 2]
+        assert [sample.raw.timestamp.seconds for sample in samples.samples] == [1, 2]
         assert all(sample.raw.payload for sample in samples.samples)
         assert all(
             sample.raw.values.values["celsius"].number == 84.0

@@ -97,12 +97,12 @@ fn client_edits_settings() -> Result<(), Box<dyn Error>> {
             let provider = SettingsPlugin(InstanceGetResponse {
                 id: "settings_fixture".into(),
                 version: "0.1.0".into(),
-                sdk: "dokime-rust".into(),
+                sdk: "rust".into(),
+                sdk_version: env!("CARGO_PKG_VERSION").into(),
                 message_bytes: support::settings().placement.message_bytes.get() as u64,
                 declarations: Some(catalog),
                 revision: 1,
                 started_at: Some(Timestamp::default()),
-                ..Default::default()
             });
             let listener = TcpListener::bind("127.0.0.1:0").await?;
             let url = format!("http://{}", listener.local_addr()?);

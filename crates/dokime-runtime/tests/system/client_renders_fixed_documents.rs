@@ -376,6 +376,8 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             let mut request = DocumentsGetRequest {
                 scope: Some(scope.clone()),
                 document_id: "measurements".into(),
+                max_frames: 4,
+                max_bytes: 1_000_000,
                 ..Default::default()
             };
             let first = documents
@@ -573,8 +575,8 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                         structure_only: Some(Default::default()),
                         card_ids: Some(Default::default()),
                         page_token: Some(String::new()),
-                        max_bytes: Some(Default::default()),
-                        max_frames: Some(Default::default()),
+                        max_bytes: Some(1_000_000),
+                        max_frames: Some(4),
                         at: first.resolved_at.clone(),
                         ..Default::default()
                     },
@@ -585,6 +587,8 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 scope: Some(scope),
                 document_id: "measurements".into(),
                 structure_only: true,
+                max_frames: 4,
+                max_bytes: 1_000_000,
                 ..Default::default()
             };
             let mut cut_seen = false;
@@ -707,6 +711,8 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                     execution_id: String::new(),
                 }),
                 document_id: "default".into(),
+                max_frames: 4,
+                max_bytes: 1_000_000,
                 ..Default::default()
             };
             let mut cacheable = None;

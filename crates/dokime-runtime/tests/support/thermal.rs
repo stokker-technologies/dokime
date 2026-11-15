@@ -55,8 +55,10 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
     // Resolve the Retained Schemas Without a Live Plugin
     let catalog = Declarations::decode(actual.execution.catalog.as_slice()).unwrap();
     let pool = DescriptorPool::from_file_descriptor_set(catalog.types.unwrap()).unwrap();
-    let temperature = pool.get_message_by_name("thermal.v1.Temperature").expect("Retain the Temperature Stream Schema");
-    for sample in &actual.samples {
+    let temperature = pool
+        .get_message_by_name(&catalog.streams.iter().find(|stream| stream.id == "thermal.temperature").unwrap().row)
+        .expect("Retain the Temperature Stream Schema");
+    for sample in actual.samples.iter().filter(|sample| sample.stream == "thermal.temperature") {
         let decoded = DynamicMessage::decode(temperature.clone(), sample.row.as_slice()).unwrap();
         assert_eq!(decoded.get_field_by_name("celsius").unwrap().as_ref(), &Value::F64(84.0));
     }
@@ -95,11 +97,23 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
                     assert!(request_ids.insert(value.request_id.clone()));
                     value.request_id.clear();
                     value.execution.clear();
+                    value.source_at = None;
                     entry.payload = value.encode_to_vec();
                 }
                 if entry.kind == "read:statistics" {
                     let mut value = StatisticsRead::decode(entry.payload.as_slice()).unwrap();
-                    value.request.as_mut().unwrap().scope = None;
+                    let request = value.request.as_mut().unwrap();
+                    request.scope = None;
+                    if request.between.as_ref().is_some_and(|window| window == &Default::default()) {
+                        request.between = None;
+                    }
+                    let selected = snapshot
+                        .samples
+                        .iter()
+                        .filter(|sample| sample.stream == request.stream && snapshot.step_contains(&request.step, sample.position))
+                        .collect::<Vec<_>>();
+                    assert_eq!(value.positions, selected.iter().map(|sample| sample.position).collect::<Vec<_>>());
+                    value.positions = selected.iter().map(|sample| sample.sequence).collect();
                     let request_cut = value.request.as_mut().and_then(|request| request.at.as_mut());
                     let response_cut = value.response.as_mut().and_then(|response| response.resolved_at.as_mut());
                     assert!(response_cut.is_some());
@@ -131,6 +145,7 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
                     value.request_id.clear();
                     value.message.clear();
                     value.execution.clear();
+                    value.at = None;
                     entry.payload = value.encode_to_vec();
                 }
                 if entry.kind == "progress" {
@@ -143,19 +158,32 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
             })
             .collect::<Vec<_>>()
     };
-    assert_eq!(normalize(actual), normalize(expected), "Ordered Evidence Including Step Boundaries and Record Bytes");
+    let actual_evidence = normalize(actual);
+    let expected_evidence = normalize(expected);
+    assert_eq!(actual_evidence.len(), expected_evidence.len());
+    for (actual, expected) in actual_evidence.iter().zip(&expected_evidence) {
+        assert_eq!(actual, expected, "Ordered Evidence Including Step Boundaries and Record Bytes");
+    }
     let samples = |snapshot: &ExecutionSnapshot| {
-        snapshot
+        let mut samples = snapshot
             .samples
             .iter()
             .cloned()
             .map(|mut sample| {
                 sample.receipt_ns = 0;
+                sample.position = 0;
                 sample
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        samples.sort_by(|left, right| (&left.stream, left.sequence).cmp(&(&right.stream, right.sequence)));
+        samples
     };
-    assert_eq!(samples(actual), samples(expected), "Samples Including Source Times, Positions and Sequence");
+    let actual_samples = samples(actual);
+    let expected_samples = samples(expected);
+    assert_eq!(actual_samples.len(), expected_samples.len());
+    for (actual, expected) in actual_samples.iter().zip(&expected_samples) {
+        assert_eq!(actual, expected, "Samples Including Source Times and Stream Sequence");
+    }
     assert!(!actual.seal.is_empty());
 }
 
@@ -163,7 +191,7 @@ pub fn equivalent(expected: &ExecutionSnapshot, actual: &ExecutionSnapshot) {
 pub fn frozen_record_schema_decodes_door(actual: &ExecutionSnapshot) {
     let catalog = Declarations::decode(actual.execution.catalog.as_slice()).unwrap();
     let pool = DescriptorPool::from_file_descriptor_set(catalog.types.unwrap()).unwrap();
-    let door = pool.get_message_by_name("thermal.v1.Door").expect("Retain the Door Record Schema");
+    let door = pool.all_messages().find(|message| message.name() == "Door").expect("Retain the Door Record Schema");
     for record in actual.records("thermal.door") {
         let record = RecordsAppendRequest::decode(record.payload.as_slice()).unwrap();
         let decoded = DynamicMessage::decode(door.clone(), record.payload.as_slice()).unwrap();

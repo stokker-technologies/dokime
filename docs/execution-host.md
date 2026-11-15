@@ -332,7 +332,7 @@ dokime new first-plugin --lang rust
 dokime new remote-plugin --lang python
 dokime new managed-plugin --lang csharp
 dokime new native-plugin --lang cpp
-dokime plugin bundle --executable first-plugin/target/debug/dokime-starter --out first.dokime
+dokime plugin bundle --executable first-plugin/test/target/debug/dokime-example-test --out first.dokime
 dokime plugin inspect --bundle first.dokime --json
 dokime --endpoint 127.0.0.1:7000 server --storage ./evidence
 dokime --endpoint http://127.0.0.1:7000 plugin install first.dokime
@@ -349,8 +349,10 @@ dokime proto export --out proto
 
 Bundles include `dokime.json` with an exact requirement for the bundling tool's
 Dokime version. Run each generated project's `mise run build` before bundling its executable.
-Rust's executable is `dokime-starter` (`.exe` on Windows); C# must be published as
-a self-contained single-file executable for an executable-only bundle. Python
+Rust's test executable is `dokime-example-test` (`.exe` on Windows). Supply each
+required runtime file with a repeated `--asset PATH`; assets are installed beside
+the executable. C# must be published self-contained, with its supporting runtime
+files supplied as assets, or as a single-file executable. Python
 stays remote. C++ generation retrieves the versioned SDK archive's published
 SHA-256 sidecar before creating the project; an unpublished candidate requires
 paired `--sdk-url` and `--sdk-sha256` overrides. Existing destinations are refused.
@@ -1758,10 +1760,15 @@ transaction. File bytes remain in native storage. Admission refuses incompatible
 product file objects before execution recovery and refuses earlier native artifact
 objects with the action to select a fresh storage root; it never resets that data.
 
-Bundle creation and inspection use the library's canonical manifest and USTAR
-rules. Install, add and development commands observe Plugins.Watch and read the
+Bundle creation and inspection live in `dokime-packaging` and use the library's
+canonical manifest and USTAR rules. Native managed preparation takes an executable
+and an explicit asset inventory, preserves their filenames, and includes the
+C# runtime or C++ shared libraries beside the entrypoint. The command-line bundle
+producer accepts each supporting file through `--asset`. Install, add and development commands observe Plugins.Watch and read the
 current entry until it is Ready; the desktop installer uses the same admission
-condition. Case materialization and analysis invoke the admitted library operation
+condition. Both remote and managed in-process admission take the entry name explicitly;
+remote admission lets the library describe its own connection.
+Case materialization and analysis invoke the admitted library operation
 from the selected entry's catalog. They do not reconnect a second plugin instance.
 
 Execution admission resolves the library PluginEntry and its admitted activation.
@@ -1784,7 +1791,8 @@ Production units use independent real clocks. `ControlledClock` creates a separa
 virtual clock for each execution; awaiting the library Time.Sleep drives its due
 sample ticks and their ingestion. Operator prompts hold their execution's timeline
 while other executions can complete. Runtime retry delays remain owned by the
-library operation policy and are observed through the library invocation lifecycle.
+library operation policy. Attempt evidence is observed through the library
+invocation middleware, including each actual retry.
 The library samples interval streams first at their first due interval, rather than
 inserting an extra sample at the binding's origin.
 
@@ -1850,13 +1858,13 @@ not close application admission, durability or real-host stories.
 
 | Consumer | Reported Source Closure | Remaining After This Repair |
 | --- | --- | --- |
-| Operations and runtime | None of 1–11 | All 11; registration/dispatch, harmonized handlers, Plugins/settings, callers, native storage and clock. |
-| Storage backend | 1–6 and 8–10 | 7: caller mapping and registration with runtime. |
+| Operations and runtime | 1–11 adopted in source | Combined proof; native pending-startup deletion still requires the library to reap its child before removing the installation. |
+| Storage backend | 1–10 adopted in source | Combined proof; product object migration remains explicitly open in 0.H.5. |
 | Rust SDK | 1–6 and 8 | 7: full SDK/installed/host proof; generated consumer now compiles. |
 | Python SDK | 1–6 and 8 | 7: installed/host proof; generated consumer, lint and public typing pass. |
-| C# SDK | 1–5 and 7 reported closed | 2 reopened for the two authored FileTransfers errors; 6 full proof. Generated consumer passes with that file excluded. |
+| C# SDK | 1–5 and 7 adopted in source | 6: final installed/host proof. The complete solution and generated consumer compile together. |
 | C++ SDK | 1–6 and 8 | 7: installed/host proof; generated client/plugin compile. |
-| Command-line tool | 1–6 migrated in source | Compile and real-host proof after operations/runtime; fixture producer now selects the exported test subfolder. |
+| Command-line tool | 1–6 adopted in source | Final full proof; native file references support prepared reports and reruns retain the source label. |
 | Desktop | 1–5 and 7 migrated in source | 6: core compilation and both native WebView lanes; generated desktop client compiles. |
 
 ## Consumer Work Lists
@@ -1868,9 +1876,9 @@ must now adopt them together, preserving all existing behavior and fresh-root re
 
 ### Operations and Runtime Crates (11 Items)
 
-All items remain open. Renamed frozen symbols are not compatibility APIs: remove
-ReadSettings and PluginInstallation while composing library settings and PluginEntry.
-The generated layer is now available; its compilation does not close these owners.
+The consumers use library PluginEntry, plugin settings, scoped bindings and clock
+operations. Superseded product records and carriers are removed. The numbered
+inventory remains the source boundary; combined validation is a separate obligation.
 
 1. In `crates/dokime-operations/src/{lib.rs,host/mod.rs,resources.rs}` and `crates/dokime-runtime/src/{lib.rs,host.rs,dispatch.rs,plugin.rs,execution.rs,execution_manager.rs}`, replace old client/context/v1 module imports and registration identities using the complete map; repair references left by the file moves below.
 2. In `host/content/artifacts/create.rs`, `host/evidence/{statistics.rs,records/list.rs,traceability/get.rs}` and `host/executions/progress/get.rs`, implement the richer request/reply and trusted plugin selectors. The narrower duplicate handlers are deleted. Preserve statistics logic; apply only admission/shape changes around it while adapting the merged correctness changes.
@@ -1886,9 +1894,10 @@ The generated layer is now available; its compilation does not close these owner
 
 ### Storage Backend (10 Items)
 
-The backend report closes source items 1–6 and 8–10. Item 7 remains with operations/
-runtime: map product callers and register primary/state backend declarations.
-Keep the backend algorithms and durability changes; do not reimplement them.
+Primary and state backends are registered together at runtime assembly, with one
+stable native history for the root. The backend algorithms and durability changes
+remain the implementation; product object migration is recorded separately in
+0.H.5 and Storage Paths After This Wave.
 
 1. In `crates/dokime-storage/src/{backend.rs,store.rs,lib.rs,history.rs}`, implement one root-scoped StorageBackend with stable history, selecting executions through product scope. Retire the per-execution Backend facade as consumers move. Add the StateBackend owner with the same history and durable recovery state.
 2. Implement every mandatory trait method in the tables below, including resumable-file fencing/checkpoints, original mutation receipts, conditional objects, schema identities and native projected Arrow reads; unsupported default methods do not establish product capability. The pin still supports only native PostcardV1: map product values/schema losslessly at the ports and retain frozen protobuf definitions, never relabel protobuf bytes as Postcard or add a duplicate durable sample representation.

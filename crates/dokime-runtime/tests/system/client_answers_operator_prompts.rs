@@ -23,6 +23,7 @@
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Client;
 use dokime::MapValue;
+use dokime::Metadata;
 use dokime::client::CyclesCreateOptions;
 use dokime::client::ExecutionMode;
 use dokime::client::ExecutionsCommandsCreateOptions;
@@ -214,7 +215,10 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
             let admitted = cycles
                 .create_with(
                     vec![repeated_origin],
-                    Default::default(),
+                    Metadata {
+                        label: "Repeated Questions".into(),
+                        ..Default::default()
+                    },
                     Default::default(),
                     String::new(),
                     CyclesCreateOptions {

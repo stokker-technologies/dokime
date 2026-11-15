@@ -62,7 +62,7 @@ fn process_interruption() -> Result<(), Box<dyn Error>> {
             // Run the Production Host in a Separately Killable Process
             if let Some(root) = std::env::var_os("DOKIME_INTERRUPTION_CHILD") {
                 let host = Host::open(Path::new(&root), super::support::settings(), super::support::service_settings()).await?;
-                let entry = host.add_remote(&std::env::var("DOKIME_INTERRUPTION_ENDPOINT")?).await?;
+                let entry = host.add_remote("execution", &std::env::var("DOKIME_INTERRUPTION_ENDPOINT")?).await?;
                 let origin = host.materialize(&entry, "execution.capture", super::support::parameters(19.0, 0, true)).await?;
                 let cycle = host.start_cycle(vec![origin]).await?;
                 host.next_prompt(&cycle.executions[0]).await?;
@@ -111,12 +111,12 @@ fn process_interruption() -> Result<(), Box<dyn Error>> {
             assert_eq!(recovered.evidence, before.evidence);
             assert_eq!(recovered.samples, before.samples);
             assert!(host.streams_closed(&execution)?);
-            assert_eq!(host.entry_state("execution")?, PluginState::Unavailable);
+            host.await_plugin_ready("execution").await?;
+            assert_eq!(host.entry_state("execution")?, PluginState::Ready);
             assert!(host.description("execution")?.declarations.is_some());
             assert!(!host.capabilities(&execution)?.cancel);
 
             // Reattach Without Replaying Operations or Samples
-            host.add_remote(plugin.endpoint()).await?;
             assert_eq!(host.entry_state("execution")?, PluginState::Ready);
             assert_eq!(host.execution(&execution)?, recovered);
             host.shutdown().await?;

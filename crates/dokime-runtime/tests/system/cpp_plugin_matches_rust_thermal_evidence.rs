@@ -61,14 +61,25 @@ fn cpp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
                 let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
                 let mut remote = None;
                 let entry = match placement {
-                    None => host.add_managed("thermal", &super::support::thermal_fixture()?).await?,
+                    None => host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?,
                     Some(managed) => {
                         let executable = super::support::language_fixture("cpp")?;
                         if managed {
-                            host.add_managed("thermal", &executable).await?
+                            let folder = executable.parent().ok_or("Bundle Fixture: Select Its Artifact Folder")?;
+                            let assets = std::fs::read_dir(folder)?
+                                .map(|entry| entry.map(|entry| entry.path()))
+                                .collect::<std::io::Result<Vec<_>>>()?
+                                .into_iter()
+                                .filter(|path| {
+                                    path.is_file()
+                                        && path != &executable
+                                        && path.extension().is_some_and(|extension| extension == "dll" || extension == "so")
+                                })
+                                .collect::<Vec<_>>();
+                            host.add_managed("thermal", &executable, &assets).await?
                         } else {
                             let child = PluginProcess::start(&executable, true, &super::support::settings().placement).await?;
-                            let entry = host.add_remote(child.endpoint()).await?;
+                            let entry = host.add_remote("thermal", child.endpoint()).await?;
                             remote = Some(child);
                             entry
                         }
@@ -108,10 +119,15 @@ fn cpp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
                         verdict: Some(ResultStatus::Passed)
                     }
                 );
-                assert_eq!(snapshot.samples.len(), 3);
+                assert_eq!(snapshot.samples.len(), 2502);
                 assert_eq!(
-                    snapshot.samples.iter().map(|sample| sample.source_ns).collect::<Vec<_>>(),
-                    vec![0, 1_000_000_000, 2_000_000_000]
+                    snapshot
+                        .samples
+                        .iter()
+                        .filter(|sample| sample.stream == "thermal.temperature")
+                        .map(|sample| sample.source_ns)
+                        .collect::<Vec<_>>(),
+                    vec![1_000_000_000, 2_000_000_000]
                 );
                 assert_eq!(snapshot.records("thermal.door").len(), 1);
                 assert!(host.streams_closed(&execution)?);

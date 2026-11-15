@@ -234,7 +234,7 @@ fn client_queries_advanced_plots() -> Result<(), Box<dyn StdError>> {
         let single=snapshots.list(vec![budget_request.clone()]).await?;
         let original_points=single.envelopes[0].diagnostics.as_ref().unwrap().point_count;
         let requests=vec![budget_request;10];
-        let mut batch=snapshots.list(requests.clone()).await?;
+        let mut batch=snapshots.list_with(requests.clone(), PlotsSnapshotsListOptions {page:Some(PageRequest {max_bytes:1_000_000,..Default::default()}),..Default::default()}).await?;
         assert!(batch.envelopes.len()<requests.len());
         let cut=batch.resolved_at.clone();
         let mut envelopes=Vec::new();
@@ -242,7 +242,7 @@ fn client_queries_advanced_plots() -> Result<(), Box<dyn StdError>> {
             envelopes.extend(batch.envelopes);
             if batch.next_page_token.is_empty() { break;
  }
-            batch=snapshots.list_with(requests.clone(), PlotsSnapshotsListOptions { at: cut.clone(), page: Some(PageRequest {page_token:batch.next_page_token,..Default::default()}), ..Default::default() }).await?;
+            batch=snapshots.list_with(requests.clone(), PlotsSnapshotsListOptions { at: cut.clone(), page: Some(PageRequest {page_token:batch.next_page_token,max_bytes:1_000_000,..Default::default()}), ..Default::default() }).await?;
             assert_eq!(batch.resolved_at,cut);
         }
         assert_eq!(envelopes.len(),requests.len());
@@ -254,9 +254,10 @@ fn client_queries_advanced_plots() -> Result<(), Box<dyn StdError>> {
         let types=FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?;
         let mut operation=OperationContract {id:"analysis.scale".into(),request:"dokime.plugin.v1.AnalysesComputeRequest".into(),response:"dokime.plugin.v1.AnalysesComputeResponse".into(),visibility:Visibility::Protected as i32,policy:Some(OperationPolicy {timeout:Some(Duration::try_from(super::support::settings().placement.connect_timeout)?),..Default::default()}),..Default::default()};
         operation.fingerprint=harmos_protocol::schema::fingerprint(&operation.id,&types,&operation.request,&operation.response)?;
+        let types=harmos_protocol::schema::operation_types(&types,&[&operation.request,&operation.response,"dokime.model.v1.Suites","dokime.model.v1.Analyses"])?;
         let mut analysis_catalog=Declarations {types:Some(types),operations:vec![operation],sections:vec![Section {r#type:"dokime.model.v1.Suites".into(),payload:Suites::default().encode_to_vec()},Section {r#type:"dokime.model.v1.Analyses".into(),payload:Analyses {analyses:vec![definition]}.encode_to_vec()}],..Default::default()};
         analysis_catalog.digest=harmos_protocol::schema::declarations_digest(&analysis_catalog);
-        let provider=AnalysisProvider {description:InstanceGetResponse {id:"analysis_fixture".into(),version:"0.1.0".into(),message_bytes:super::support::settings().placement.message_bytes.get() as u64,started_at:Some(Timestamp::default()),revision:1,declarations:Some(analysis_catalog),..Default::default()}};
+        let provider=AnalysisProvider {description:InstanceGetResponse {id:"analysis_fixture".into(),version:"0.1.0".into(),sdk:"rust".into(),sdk_version:env!("CARGO_PKG_VERSION").into(),message_bytes:super::support::settings().placement.message_bytes.get() as u64,started_at:Some(Timestamp::default()),revision:1,declarations:Some(analysis_catalog)}};
         let listener=TcpListener::bind("127.0.0.1:0").await?;
         let endpoint=format!("http://{}",listener.local_addr()?);
         let (stop,stopped)=tokio::sync::oneshot::channel::<()>();

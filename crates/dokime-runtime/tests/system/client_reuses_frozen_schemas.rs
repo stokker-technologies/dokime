@@ -162,7 +162,7 @@ fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
             let mut cache = FrozenSchemaCache::default();
             let types = cache.get(&client, &first).await?;
             let pool = DescriptorPool::from_file_descriptor_set((*types).clone())?;
-            let message = pool.get_message_by_name("thermal.v1.Door").unwrap();
+            let message = pool.get_message_by_name("thermal.Door").unwrap();
             let door = cache.decode(&client, &first, &records[0].record_type, records[0].payload.as_slice()).await?;
             assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &Value::Bool(true));
 

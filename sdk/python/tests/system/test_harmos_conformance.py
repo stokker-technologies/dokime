@@ -53,6 +53,7 @@ class ConformanceStory(unittest.IsolatedAsyncioTestCase):
             fixture.version,
             requires=fixture.requires,
             sections=fixture.sections,
+            settings=fixture.settings,
             messages=fixture.messages,
             operations=fixture.instance,
         )

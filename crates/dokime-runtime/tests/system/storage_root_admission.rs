@@ -99,7 +99,7 @@ fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn E
         host.shutdown().await?;
         let reopened = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         assert!(reopened.executions()?.is_empty());
-        assert!(retained.add_remote("http://127.0.0.1:1").await.is_err());
+        assert!(retained.add_remote("unavailable", "http://127.0.0.1:1").await.is_err());
         assert!(retained.start_cycle(Vec::new()).await.is_err());
         reopened.shutdown().await?;
 

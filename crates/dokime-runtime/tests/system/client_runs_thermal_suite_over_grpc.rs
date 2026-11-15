@@ -225,7 +225,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
         let mut schema_cache = FrozenSchemaCache::default();
         let frozen = schema_cache.get(&client, &detail).await?;
         let pool = DescriptorPool::from_file_descriptor_set((*frozen).clone())?;
-        let door = DynamicMessage::decode(pool.get_message_by_name("thermal.v1.Door").unwrap(), records.records[0].payload.as_slice())?;
+        let door = DynamicMessage::decode(pool.get_message_by_name("thermal.Door").unwrap(), records.records[0].payload.as_slice())?;
         assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &ProstReflectValue::Bool(true));
         let samples = client
             .evidence
@@ -233,7 +233,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             .list_with(EvidenceScope {
                     execution_id: Some(execution_id.clone()),
                     ..Default::default()
-                }, Vec::new(), EvidenceSamplesListOptions { versions: Some(Vec::new()), fields: Some(Vec::new()), sources: Some(Vec::new()), signals: Some(Vec::new()), between: Some(Default::default()), bucket: Some(Default::default()), latest: Some(false), ..Default::default() })
+                }, vec!["thermal.temperature".into()], EvidenceSamplesListOptions { versions: Some(Vec::new()), fields: Some(Vec::new()), sources: Some(Vec::new()), signals: Some(Vec::new()), between: Some(Default::default()), bucket: Some(Default::default()), latest: Some(false), ..Default::default() })
             .await?;
         let raw = samples
             .samples
@@ -243,8 +243,8 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 _ => panic!("Expected Raw Samples"),
             })
             .collect::<Vec<_>>();
-        assert_eq!(raw.len(), 3);
-        assert_eq!(raw.iter().map(|sample| sample.timestamp.unwrap().seconds).collect::<Vec<_>>(), vec![0, 1, 2]);
+        assert_eq!(raw.len(), 2);
+        assert_eq!(raw.iter().map(|sample| sample.timestamp.unwrap().seconds).collect::<Vec<_>>(), vec![1, 2]);
         assert!(raw.iter().all(|sample| !sample.payload.is_empty()));
         assert!(raw.iter().all(|sample| sample.values.as_ref().unwrap().values["celsius"].kind == Some(ValueKind::Number(84.0))));
 
@@ -317,7 +317,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             assert_eq!(records.records.len(), 1);
             let record = &records.records[0];
             assert_eq!(record.scope.as_ref().unwrap().execution_id.as_deref(), Some(id.as_str()));
-            let door = DynamicMessage::decode(pool.get_message_by_name("thermal.v1.Door").unwrap(), record.payload.as_slice())?;
+            let door = DynamicMessage::decode(pool.get_message_by_name("thermal.Door").unwrap(), record.payload.as_slice())?;
             assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &ProstReflectValue::Bool(closed));
             record_ids.push(record.record_id.clone());
             let detail = client.executions.get(id.clone()).await?.execution.unwrap();
@@ -351,7 +351,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 .list_with(EvidenceScope {
                         execution_id: Some(execution_id),
                         ..Default::default()
-                    }, Vec::new(), EvidenceSamplesListOptions { versions: Some(Vec::new()), fields: Some(Vec::new()), sources: Some(Vec::new()), signals: Some(Vec::new()), between: Some(Default::default()), bucket: Some(Default::default()), latest: Some(false), ..Default::default() })
+                    }, vec!["thermal.temperature".into()], EvidenceSamplesListOptions { versions: Some(Vec::new()), fields: Some(Vec::new()), sources: Some(Vec::new()), signals: Some(Vec::new()), between: Some(Default::default()), bucket: Some(Default::default()), latest: Some(false), ..Default::default() })
                 .await?
                 .samples,
             samples.samples

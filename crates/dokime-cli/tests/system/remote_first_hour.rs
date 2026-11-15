@@ -23,6 +23,7 @@ use prost::Message;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 // Local Imports
+use dokime::Metadata;
 use dokime::client::{CyclesCreateOptions, ExecutionBinding};
 use dokime_protocol::host::{CasesCreateResponse, ExecutionsCreateRequest};
 
@@ -162,7 +163,10 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::error::Er
                         .cycles
                         .create_with(
                             origins,
-                            Default::default(),
+                            Metadata {
+                                label: "Manual Cycle".into(),
+                                ..Default::default()
+                            },
                             false,
                             "",
                             CyclesCreateOptions {

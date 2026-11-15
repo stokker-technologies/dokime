@@ -32,6 +32,7 @@ path = "src/bin/host.rs"
 [dependencies]
 # Local
 dokime-operations = { workspace = true }
+dokime-packaging = { workspace = true }
 dokime-protocol = { workspace = true }
 dokime-storage = { workspace = true }
 

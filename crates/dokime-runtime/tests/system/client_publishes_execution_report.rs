@@ -65,7 +65,7 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             let credential_root = super::support::tempdir()?;
             let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-            let entry = host.add_managed("execution", &super::support::execution_fixture()?).await?;
+            let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
             let document = host.catalog(&entry)?.suites[0].templates[0].documents[0].clone();
             let origin = host.materialize(&entry, "execution.capture", super::support::parameters(23.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![origin]).await?;

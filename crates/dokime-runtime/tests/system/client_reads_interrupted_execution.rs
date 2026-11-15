@@ -181,7 +181,7 @@ fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
             .await?;
         assert_eq!(saved.entries.len(), 1);
         assert_eq!(saved.entries[0].name, entry.name);
-        assert_eq!(saved.entries[0].state, PluginState::Unavailable as i32);
+        super::support::plugin_state(&plugins, saved.entries[0].clone(), PluginState::Ready).await?;
         assert_eq!(saved.entries[0].description, entry.description);
         let mut progress =
             Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?

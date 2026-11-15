@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::sync::{Arc, atomic::AtomicU32};
 
 // Third Party Imports
 use prost::Message;
@@ -360,7 +360,7 @@ async fn drive(
         execution: execution.clone(),
         step: String::new(),
         operation: String::new(),
-        attempt: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        attempt: Arc::new(AtomicU32::new(0)),
         clock: time.clone(),
         prompts: host.inner.prompts.clone(),
     };
