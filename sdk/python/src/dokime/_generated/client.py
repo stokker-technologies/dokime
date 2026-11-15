@@ -267,13 +267,8 @@ from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsListRequest as Plo
 from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsListResponse as PlotsSnapshotsListResponse
 from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsWatchRequest as PlotsSnapshotsWatchRequest
 from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsWatchResponse as PlotsSnapshotsWatchResponse
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretBindingValue as PluginsSecretBindingValue
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsDeleteRequest as PluginsSecretsDeleteRequest
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsDeleteResponse as PluginsSecretsDeleteResponse
 from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsListRequest as PluginsSecretsListRequest
 from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsListResponse as PluginsSecretsListResponse
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsSetRequest as PluginsSecretsSetRequest
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsSetResponse as PluginsSecretsSetResponse
 from dokime._wire.host.v1.prompt_definitions_pb2 import (
     PromptDefinitionsGetRequest,
     PromptDefinitionsGetResponse,
@@ -1672,66 +1667,6 @@ class PluginsSecretsResource:
             action="plugins.secrets.list",
         )
         return response
-
-    async def set(
-        self,
-        name: str,
-        bindings: Sequence[PluginsSecretBindingValue],
-        expected_revision: bytes,
-        *,
-        request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> PluginsSecretsSetResponse:
-        request = PluginsSecretsSetRequest(
-            name=name,
-            bindings=bindings,
-            expected_revision=expected_revision,
-            request_id=request_id if request_id is not None else str(uuid4()),
-        )
-        response = await unary(
-            self._channel,
-            "/dokime.host.v1.plugins.Secrets/Set",
-            request,
-            PluginsSecretsSetResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="plugins.secrets.set",
-        )
-        return response
-
-    async def delete(
-        self,
-        name: str,
-        identifiers: Sequence[str],
-        expected_revision: bytes,
-        *,
-        request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> Receipt:
-        request = PluginsSecretsDeleteRequest(
-            name=name,
-            identifiers=identifiers,
-            expected_revision=expected_revision,
-            request_id=request_id if request_id is not None else str(uuid4()),
-        )
-        response = await unary(
-            self._channel,
-            "/dokime.host.v1.plugins.Secrets/Delete",
-            request,
-            PluginsSecretsDeleteResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="plugins.secrets.delete",
-        )
-        if not response.HasField("receipt"):
-            raise ValueError("Read Secrets.Delete: Missing Payload")
-        return response.receipt
 
 
 class PluginsSettingsResource:

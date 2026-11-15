@@ -188,13 +188,8 @@ using SnapshotsListRequest = global::Dokime.Clients.PlotsResources.SnapshotsList
 using SnapshotsListResponse = global::Dokime.Clients.PlotsResources.SnapshotsListResponse;
 using SnapshotsWatchRequest = global::Dokime.Clients.PlotsResources.SnapshotsWatchRequest;
 using SnapshotsWatchResponse = global::Dokime.Clients.PlotsResources.SnapshotsWatchResponse;
-using SecretBindingValue = global::Dokime.Clients.PluginsResources.SecretBindingValue;
-using DokimeClientsPluginsResourcesSecretsDeleteRequest = global::Dokime.Clients.PluginsResources.SecretsDeleteRequest;
-using DokimeClientsPluginsResourcesSecretsDeleteResponse = global::Dokime.Clients.PluginsResources.SecretsDeleteResponse;
 using DokimeClientsPluginsResourcesSecretsListRequest = global::Dokime.Clients.PluginsResources.SecretsListRequest;
 using DokimeClientsPluginsResourcesSecretsListResponse = global::Dokime.Clients.PluginsResources.SecretsListResponse;
-using DokimeClientsPluginsResourcesSecretsSetRequest = global::Dokime.Clients.PluginsResources.SecretsSetRequest;
-using DokimeClientsPluginsResourcesSecretsSetResponse = global::Dokime.Clients.PluginsResources.SecretsSetResponse;
 using PromptDefinitionsGetRequest = global::Dokime.Clients.PromptDefinitionsGetRequest;
 using PromptDefinitionsGetResponse = global::Dokime.Clients.PromptDefinitionsGetResponse;
 using PromptDefinitionsListRequest = global::Dokime.Clients.PromptDefinitionsListRequest;
@@ -223,8 +218,8 @@ using ReportsPublishRequest = global::Dokime.Clients.ReportsPublishRequest;
 using ReportsPublishResponse = global::Dokime.Clients.ReportsPublishResponse;
 using SecretImportChoice = global::Dokime.Clients.SecretImportChoice;
 using SecretWritable = global::Dokime.Clients.SecretWritable;
-using DokimeClientsSecretsDeleteRequest = global::Dokime.Clients.SecretsDeleteRequest;
-using DokimeClientsSecretsDeleteResponse = global::Dokime.Clients.SecretsDeleteResponse;
+using SecretsDeleteRequest = global::Dokime.Clients.SecretsDeleteRequest;
+using SecretsDeleteResponse = global::Dokime.Clients.SecretsDeleteResponse;
 using SecretsExportRequest = global::Dokime.Clients.SecretsExportRequest;
 using SecretsExportResponse = global::Dokime.Clients.SecretsExportResponse;
 using SecretsGetRequest = global::Dokime.Clients.SecretsGetRequest;
@@ -233,8 +228,8 @@ using SecretsImportRequest = global::Dokime.Clients.SecretsImportRequest;
 using SecretsImportResponse = global::Dokime.Clients.SecretsImportResponse;
 using DokimeClientsSecretsListRequest = global::Dokime.Clients.SecretsListRequest;
 using DokimeClientsSecretsListResponse = global::Dokime.Clients.SecretsListResponse;
-using DokimeClientsSecretsSetRequest = global::Dokime.Clients.SecretsSetRequest;
-using DokimeClientsSecretsSetResponse = global::Dokime.Clients.SecretsSetResponse;
+using SecretsSetRequest = global::Dokime.Clients.SecretsSetRequest;
+using SecretsSetResponse = global::Dokime.Clients.SecretsSetResponse;
 using SecretsWatchRequest = global::Dokime.Clients.SecretsWatchRequest;
 using SecretsWatchResponse = global::Dokime.Clients.SecretsWatchResponse;
 using SelectionPlan = global::Dokime.Clients.SelectionPlan;
@@ -2953,54 +2948,6 @@ public sealed class PluginsSecretsResource
     }
     return response;
   }
-  public async Task<DokimeClientsPluginsResourcesSecretsSetResponse> Set(string name, IReadOnlyList<SecretBindingValue> bindings, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
-  {
-    var request = new DokimeClientsPluginsResourcesSecretsSetRequest
-    {
-      Name = name,
-      ExpectedRevision = expectedRevision,
-      RequestId = requestId ?? Guid.NewGuid().ToString("N"),
-    };
-    request.Bindings.Add(bindings);
-    var method = new Method<DokimeClientsPluginsResourcesSecretsSetRequest, DokimeClientsPluginsResourcesSecretsSetResponse>(MethodType.Unary, "dokime.host.v1.plugins.Secrets", "Set",
-        Marshallers.Create<DokimeClientsPluginsResourcesSecretsSetRequest>(value => value.ToByteArray(), bytes => DokimeClientsPluginsResourcesSecretsSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsPluginsResourcesSecretsSetResponse>(value => value.ToByteArray(), bytes => DokimeClientsPluginsResourcesSecretsSetResponse.Parser.ParseFrom(bytes)));
-    using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsPluginsResourcesSecretsSetResponse response;
-    try
-    {
-      response = await call.ResponseAsync;
-    }
-    catch (RpcException error)
-    {
-      throw new RpcException(new Status(error.StatusCode, "Call plugins.secrets.set: " + error.Status.Detail), error.Trailers);
-    }
-    return response;
-  }
-  public async Task<Receipt> Delete(string name, IReadOnlyList<string> identifiers, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
-  {
-    var request = new DokimeClientsPluginsResourcesSecretsDeleteRequest
-    {
-      Name = name,
-      ExpectedRevision = expectedRevision,
-      RequestId = requestId ?? Guid.NewGuid().ToString("N"),
-    };
-    request.Identifiers.Add(identifiers);
-    var method = new Method<DokimeClientsPluginsResourcesSecretsDeleteRequest, DokimeClientsPluginsResourcesSecretsDeleteResponse>(MethodType.Unary, "dokime.host.v1.plugins.Secrets", "Delete",
-        Marshallers.Create<DokimeClientsPluginsResourcesSecretsDeleteRequest>(value => value.ToByteArray(), bytes => DokimeClientsPluginsResourcesSecretsDeleteRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsPluginsResourcesSecretsDeleteResponse>(value => value.ToByteArray(), bytes => DokimeClientsPluginsResourcesSecretsDeleteResponse.Parser.ParseFrom(bytes)));
-    using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsPluginsResourcesSecretsDeleteResponse response;
-    try
-    {
-      response = await call.ResponseAsync;
-    }
-    catch (RpcException error)
-    {
-      throw new RpcException(new Status(error.StatusCode, "Call plugins.secrets.delete: " + error.Status.Detail), error.Trailers);
-    }
-    return response.Receipt ?? throw new InvalidOperationException("Read Secrets.Delete: Missing Payload");
-  }
 }
 public sealed class PluginsSettingsResource
 {
@@ -3420,20 +3367,20 @@ public sealed class SecretsResource
     }
     return response;
   }
-  public async Task<DokimeClientsSecretsSetResponse> Set(string name, SecretWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<SecretsSetResponse> Set(string name, SecretWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new DokimeClientsSecretsSetRequest
+    var request = new SecretsSetRequest
     {
       Name = name,
       Value = value,
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<DokimeClientsSecretsSetRequest, DokimeClientsSecretsSetResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Set",
-        Marshallers.Create<DokimeClientsSecretsSetRequest>(value => value.ToByteArray(), bytes => DokimeClientsSecretsSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsSecretsSetResponse>(value => value.ToByteArray(), bytes => DokimeClientsSecretsSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<SecretsSetRequest, SecretsSetResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Set",
+        Marshallers.Create<SecretsSetRequest>(value => value.ToByteArray(), bytes => SecretsSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<SecretsSetResponse>(value => value.ToByteArray(), bytes => SecretsSetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsSecretsSetResponse response;
+    SecretsSetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3501,19 +3448,19 @@ public sealed class SecretsResource
       yield return response;
     }
   }
-  public async Task<DokimeClientsSecretsDeleteResponse> Delete(IReadOnlyList<string> names, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<SecretsDeleteResponse> Delete(IReadOnlyList<string> names, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new DokimeClientsSecretsDeleteRequest
+    var request = new SecretsDeleteRequest
     {
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
     request.Names.Add(names);
-    var method = new Method<DokimeClientsSecretsDeleteRequest, DokimeClientsSecretsDeleteResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Delete",
-        Marshallers.Create<DokimeClientsSecretsDeleteRequest>(value => value.ToByteArray(), bytes => DokimeClientsSecretsDeleteRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsSecretsDeleteResponse>(value => value.ToByteArray(), bytes => DokimeClientsSecretsDeleteResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<SecretsDeleteRequest, SecretsDeleteResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Delete",
+        Marshallers.Create<SecretsDeleteRequest>(value => value.ToByteArray(), bytes => SecretsDeleteRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<SecretsDeleteResponse>(value => value.ToByteArray(), bytes => SecretsDeleteResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsSecretsDeleteResponse response;
+    SecretsDeleteResponse response;
     try
     {
       response = await call.ResponseAsync;

@@ -49,14 +49,6 @@ namespace Dokime.Clients.PluginsResources;
     static readonly grpc::Marshaller<global::Dokime.Clients.PluginsResources.SecretsListRequest> __Marshaller_dokime_host_v1_plugins_SecretsListRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.PluginsResources.SecretsListRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Dokime.Clients.PluginsResources.SecretsListResponse> __Marshaller_dokime_host_v1_plugins_SecretsListResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.PluginsResources.SecretsListResponse.Parser));
-    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Marshaller<global::Dokime.Clients.PluginsResources.SecretsSetRequest> __Marshaller_dokime_host_v1_plugins_SecretsSetRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.PluginsResources.SecretsSetRequest.Parser));
-    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Marshaller<global::Dokime.Clients.PluginsResources.SecretsSetResponse> __Marshaller_dokime_host_v1_plugins_SecretsSetResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.PluginsResources.SecretsSetResponse.Parser));
-    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Marshaller<global::Dokime.Clients.PluginsResources.SecretsDeleteRequest> __Marshaller_dokime_host_v1_plugins_SecretsDeleteRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.PluginsResources.SecretsDeleteRequest.Parser));
-    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Marshaller<global::Dokime.Clients.PluginsResources.SecretsDeleteResponse> __Marshaller_dokime_host_v1_plugins_SecretsDeleteResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Dokime.Clients.PluginsResources.SecretsDeleteResponse.Parser));
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Dokime.Clients.PluginsResources.SecretsListRequest, global::Dokime.Clients.PluginsResources.SecretsListResponse> __Method_List = new grpc::Method<global::Dokime.Clients.PluginsResources.SecretsListRequest, global::Dokime.Clients.PluginsResources.SecretsListResponse>(
@@ -65,22 +57,6 @@ namespace Dokime.Clients.PluginsResources;
         "List",
         __Marshaller_dokime_host_v1_plugins_SecretsListRequest,
         __Marshaller_dokime_host_v1_plugins_SecretsListResponse);
-
-    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Method<global::Dokime.Clients.PluginsResources.SecretsSetRequest, global::Dokime.Clients.PluginsResources.SecretsSetResponse> __Method_Set = new grpc::Method<global::Dokime.Clients.PluginsResources.SecretsSetRequest, global::Dokime.Clients.PluginsResources.SecretsSetResponse>(
-        grpc::MethodType.Unary,
-        __ServiceName,
-        "Set",
-        __Marshaller_dokime_host_v1_plugins_SecretsSetRequest,
-        __Marshaller_dokime_host_v1_plugins_SecretsSetResponse);
-
-    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Method<global::Dokime.Clients.PluginsResources.SecretsDeleteRequest, global::Dokime.Clients.PluginsResources.SecretsDeleteResponse> __Method_Delete = new grpc::Method<global::Dokime.Clients.PluginsResources.SecretsDeleteRequest, global::Dokime.Clients.PluginsResources.SecretsDeleteResponse>(
-        grpc::MethodType.Unary,
-        __ServiceName,
-        "Delete",
-        __Marshaller_dokime_host_v1_plugins_SecretsDeleteRequest,
-        __Marshaller_dokime_host_v1_plugins_SecretsDeleteResponse);
 
     /// <summary>Service descriptor</summary>
     public static global::Google.Protobuf.Reflection.ServiceDescriptor Descriptor
@@ -94,18 +70,6 @@ namespace Dokime.Clients.PluginsResources;
     {
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::System.Threading.Tasks.Task<global::Dokime.Clients.PluginsResources.SecretsListResponse> List(global::Dokime.Clients.PluginsResources.SecretsListRequest request, grpc::ServerCallContext context)
-      {
-        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
-      }
-
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::System.Threading.Tasks.Task<global::Dokime.Clients.PluginsResources.SecretsSetResponse> Set(global::Dokime.Clients.PluginsResources.SecretsSetRequest request, grpc::ServerCallContext context)
-      {
-        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
-      }
-
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::System.Threading.Tasks.Task<global::Dokime.Clients.PluginsResources.SecretsDeleteResponse> Delete(global::Dokime.Clients.PluginsResources.SecretsDeleteRequest request, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
@@ -159,46 +123,6 @@ namespace Dokime.Clients.PluginsResources;
       {
         return CallInvoker.AsyncUnaryCall(__Method_List, null, options, request);
       }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::Dokime.Clients.PluginsResources.SecretsSetResponse Set(global::Dokime.Clients.PluginsResources.SecretsSetRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
-      {
-        return Set(request, new grpc::CallOptions(headers, deadline, cancellationToken));
-      }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::Dokime.Clients.PluginsResources.SecretsSetResponse Set(global::Dokime.Clients.PluginsResources.SecretsSetRequest request, grpc::CallOptions options)
-      {
-        return CallInvoker.BlockingUnaryCall(__Method_Set, null, options, request);
-      }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.PluginsResources.SecretsSetResponse> SetAsync(global::Dokime.Clients.PluginsResources.SecretsSetRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
-      {
-        return SetAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
-      }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.PluginsResources.SecretsSetResponse> SetAsync(global::Dokime.Clients.PluginsResources.SecretsSetRequest request, grpc::CallOptions options)
-      {
-        return CallInvoker.AsyncUnaryCall(__Method_Set, null, options, request);
-      }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::Dokime.Clients.PluginsResources.SecretsDeleteResponse Delete(global::Dokime.Clients.PluginsResources.SecretsDeleteRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
-      {
-        return Delete(request, new grpc::CallOptions(headers, deadline, cancellationToken));
-      }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::Dokime.Clients.PluginsResources.SecretsDeleteResponse Delete(global::Dokime.Clients.PluginsResources.SecretsDeleteRequest request, grpc::CallOptions options)
-      {
-        return CallInvoker.BlockingUnaryCall(__Method_Delete, null, options, request);
-      }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.PluginsResources.SecretsDeleteResponse> DeleteAsync(global::Dokime.Clients.PluginsResources.SecretsDeleteRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
-      {
-        return DeleteAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
-      }
-      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual grpc::AsyncUnaryCall<global::Dokime.Clients.PluginsResources.SecretsDeleteResponse> DeleteAsync(global::Dokime.Clients.PluginsResources.SecretsDeleteRequest request, grpc::CallOptions options)
-      {
-        return CallInvoker.AsyncUnaryCall(__Method_Delete, null, options, request);
-      }
       /// <summary>Creates a new instance of client from given <c>ClientBaseConfiguration</c>.</summary>
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       protected override SecretsClient NewInstance(ClientBaseConfiguration configuration)
@@ -213,9 +137,7 @@ namespace Dokime.Clients.PluginsResources;
     public static grpc::ServerServiceDefinition BindService(SecretsBase serviceImpl)
     {
       return grpc::ServerServiceDefinition.CreateBuilder()
-          .AddMethod(__Method_List, serviceImpl.List)
-          .AddMethod(__Method_Set, serviceImpl.Set)
-          .AddMethod(__Method_Delete, serviceImpl.Delete).Build();
+          .AddMethod(__Method_List, serviceImpl.List).Build();
     }
 
     /// <summary>Register service method with a service binder with or without implementation. Useful when customizing the service binding logic.
@@ -226,8 +148,6 @@ namespace Dokime.Clients.PluginsResources;
     public static void BindService(grpc::ServiceBinderBase serviceBinder, SecretsBase serviceImpl)
     {
       serviceBinder.AddMethod(__Method_List, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.PluginsResources.SecretsListRequest, global::Dokime.Clients.PluginsResources.SecretsListResponse>(serviceImpl.List));
-      serviceBinder.AddMethod(__Method_Set, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.PluginsResources.SecretsSetRequest, global::Dokime.Clients.PluginsResources.SecretsSetResponse>(serviceImpl.Set));
-      serviceBinder.AddMethod(__Method_Delete, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Dokime.Clients.PluginsResources.SecretsDeleteRequest, global::Dokime.Clients.PluginsResources.SecretsDeleteResponse>(serviceImpl.Delete));
     }
 
   }

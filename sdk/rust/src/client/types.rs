@@ -337,11 +337,8 @@ pub use crate::wire::host::plots::SettingsSetResponse as PlotsSettingsSetRespons
 pub use crate::wire::host::plots::SnapshotsListResponse as PlotsSnapshotsListResponse;
 pub use crate::wire::host::plots::SnapshotsWatchResponse as PlotsSnapshotsWatchResponse;
 pub use crate::wire::host::plots::plot_analysis_result;
-pub use crate::wire::host::plugins::SecretBinding as PluginsSecretBinding;
-pub use crate::wire::host::plugins::SecretBindingValue as PluginsSecretBindingValue;
-pub use crate::wire::host::plugins::SecretsDeleteResponse as PluginsSecretsDeleteResponse;
+pub use crate::wire::host::plugins::SecretRequirement as PluginsSecretRequirement;
 pub use crate::wire::host::plugins::SecretsListResponse as PluginsSecretsListResponse;
-pub use crate::wire::host::plugins::SecretsSetResponse as PluginsSecretsSetResponse;
 pub use crate::wire::host::prompts::AnswersCreateResponse as PromptsAnswersCreateResponse;
 pub use crate::wire::host::report_subject;
 pub use crate::wire::host::selected_file_kind;

@@ -2174,34 +2174,9 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SecretsListResponse").expect("generated protocol descriptor")
 }
 }
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SecretsSetRequest {
+impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SecretRequirement {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SecretsSetRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SecretsSetResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SecretsSetResponse").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SecretsDeleteRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SecretsDeleteRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SecretsDeleteResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SecretsDeleteResponse").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SecretBindingValue {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SecretBindingValue").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plugins::SecretBinding {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SecretBinding").expect("generated protocol descriptor")
+crate::descriptor_pool().get_message_by_name("dokime.host.v1.plugins.SecretRequirement").expect("generated protocol descriptor")
 }
 }
 impl prost_reflect::ReflectMessage for crate::dokime::model::v1::PromptDefinitions {

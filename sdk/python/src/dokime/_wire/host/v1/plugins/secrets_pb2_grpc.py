@@ -28,11 +28,11 @@ if _version_not_supported:
 class SecretsStub:
     """Reads select the latest durable boundary without flushing accepted writes.
     Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
-    Mutation request identities replay the original receipt for the same normalized input.
 
     === Services === //
 
-    Owns the Secrets resource on the host; callers are checked before handler admission.
+    Read-only view of what each plugin requires from Secret Storage; callers are checked before handler admission.
+    A plugin reads the host-wide secret stored under exactly its declared identifier; nothing maps one to the other.
     """
 
     def __init__(self, channel):
@@ -46,44 +46,20 @@ class SecretsStub:
                 request_serializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsListRequest.SerializeToString,
                 response_deserializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsListResponse.FromString,
                 _registered_method=True)
-        self.Set = channel.unary_unary(
-                '/dokime.host.v1.plugins.Secrets/Set',
-                request_serializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsSetRequest.SerializeToString,
-                response_deserializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsSetResponse.FromString,
-                _registered_method=True)
-        self.Delete = channel.unary_unary(
-                '/dokime.host.v1.plugins.Secrets/Delete',
-                request_serializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsDeleteRequest.SerializeToString,
-                response_deserializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsDeleteResponse.FromString,
-                _registered_method=True)
 
 
 class SecretsServicer:
     """Reads select the latest durable boundary without flushing accepted writes.
     Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
-    Mutation request identities replay the original receipt for the same normalized input.
 
     === Services === //
 
-    Owns the Secrets resource on the host; callers are checked before handler admission.
+    Read-only view of what each plugin requires from Secret Storage; callers are checked before handler admission.
+    A plugin reads the host-wide secret stored under exactly its declared identifier; nothing maps one to the other.
     """
 
     def List(self, request, context):
         """List the Secrets resource; admission and policy are owned by the executor.
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def Set(self, request, context):
-        """Replace the complete writable value of the Secrets resource; admission and policy are owned by the executor.
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def Delete(self, request, context):
-        """Delete the Secrets resource; admission and policy are owned by the executor.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -97,16 +73,6 @@ def add_SecretsServicer_to_server(servicer, server):
                     request_deserializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsListRequest.FromString,
                     response_serializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsListResponse.SerializeToString,
             ),
-            'Set': grpc.unary_unary_rpc_method_handler(
-                    servicer.Set,
-                    request_deserializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsSetRequest.FromString,
-                    response_serializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsSetResponse.SerializeToString,
-            ),
-            'Delete': grpc.unary_unary_rpc_method_handler(
-                    servicer.Delete,
-                    request_deserializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsDeleteRequest.FromString,
-                    response_serializer=dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsDeleteResponse.SerializeToString,
-            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'dokime.host.v1.plugins.Secrets', rpc_method_handlers)
@@ -118,11 +84,11 @@ def add_SecretsServicer_to_server(servicer, server):
 class Secrets:
     """Reads select the latest durable boundary without flushing accepted writes.
     Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
-    Mutation request identities replay the original receipt for the same normalized input.
 
     === Services === //
 
-    Owns the Secrets resource on the host; callers are checked before handler admission.
+    Read-only view of what each plugin requires from Secret Storage; callers are checked before handler admission.
+    A plugin reads the host-wide secret stored under exactly its declared identifier; nothing maps one to the other.
     """
 
     @staticmethod
@@ -142,60 +108,6 @@ class Secrets:
             '/dokime.host.v1.plugins.Secrets/List',
             dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsListRequest.SerializeToString,
             dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsListResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def Set(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/dokime.host.v1.plugins.Secrets/Set',
-            dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsSetRequest.SerializeToString,
-            dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsSetResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def Delete(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/dokime.host.v1.plugins.Secrets/Delete',
-            dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsDeleteRequest.SerializeToString,
-            dokime_dot_host_dot_v1_dot_plugins_dot_secrets__pb2.SecretsDeleteResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -349,14 +349,6 @@ struct PluginsSecretsListOptions {
   std::optional<::harmos::ReadCut> at;
   std::shared_ptr<grpc::ClientContext> context;
 };
-struct PluginsSecretsSetOptions {
-  std::optional<std::string> request_id;
-  std::shared_ptr<grpc::ClientContext> context;
-};
-struct PluginsSecretsDeleteOptions {
-  std::optional<std::string> request_id;
-  std::shared_ptr<grpc::ClientContext> context;
-};
 struct PromptDefinitionsGetOptions {
   std::optional<::harmos::ReadCut> at;
   std::shared_ptr<grpc::ClientContext> context;
@@ -1528,40 +1520,6 @@ struct PluginsSecretsResource {
       throw std::runtime_error("Call plugins.secrets.list: " + status.error_message());
     }
     return response;
-  }
-  ::dokime::client::PluginsSecretsSetResponse set(const std::string &name,
-                                                  const std::vector<::dokime::client::PluginsSecretBindingValue> &bindings,
-                                                  const std::string &expected_revision, client::PluginsSecretsSetOptions options = {}) {
-    detail::PluginsSecretsSetRequest request;
-    request.set_name(name);
-    request.mutable_bindings()->Assign(bindings.begin(), bindings.end());
-    request.set_expected_revision(expected_revision);
-    request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
-    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsSecretsSetResponse response;
-    const auto status = detail::PluginsSecretsSetService::NewStub(channel)->Set(context.get(), request, &response);
-    if (!status.ok()) {
-      throw std::runtime_error("Call plugins.secrets.set: " + status.error_message());
-    }
-    return response;
-  }
-  ::harmos::Receipt delete_(const std::string &name, const std::vector<std::string> &identifiers, const std::string &expected_revision,
-                            client::PluginsSecretsDeleteOptions options = {}) {
-    detail::PluginsSecretsDeleteRequest request;
-    request.set_name(name);
-    request.mutable_identifiers()->Assign(identifiers.begin(), identifiers.end());
-    request.set_expected_revision(expected_revision);
-    request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
-    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsSecretsDeleteResponse response;
-    const auto status = detail::PluginsSecretsDeleteService::NewStub(channel)->Delete(context.get(), request, &response);
-    if (!status.ok()) {
-      throw std::runtime_error("Call plugins.secrets.delete: " + status.error_message());
-    }
-    if (!response.has_receipt()) {
-      throw std::runtime_error("Read plugins.secrets.delete: Missing Payload");
-    }
-    return std::move(*response.mutable_receipt());
   }
 };
 struct PluginsSettingsResource {

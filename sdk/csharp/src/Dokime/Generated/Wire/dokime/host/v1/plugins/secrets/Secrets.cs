@@ -27,51 +27,25 @@ namespace Dokime.Clients.PluginsResources;
             "CiRkb2tpbWUvaG9zdC92MS9wbHVnaW5zL3NlY3JldHMucHJvdG8SFmRva2lt",
             "ZS5ob3N0LnYxLnBsdWdpbnMaHWRva2ltZS9tb2RlbC92MS9zZWNyZXRzLnBy",
             "b3RvGh1oYXJtb3MvbW9kZWwvdjEvY2FsbGVycy5wcm90bxoeaGFybW9zL21v",
-            "ZGVsL3YxL3Bvc2l0aW9uLnByb3RvGh1oYXJtb3MvbW9kZWwvdjEvcmVjZWlw",
-            "dC5wcm90byJsChJTZWNyZXRzTGlzdFJlcXVlc3QSFwoEbmFtZRgBIAEoCUgA",
-            "UgRuYW1liAEBEi0KAmF0GAIgASgLMhguaGFybW9zLm1vZGVsLnYxLlJlYWRD",
-            "dXRIAVICYXSIAQFCBwoFX25hbWVCBQoDX2F0Iq8BChNTZWNyZXRzTGlzdFJl",
-            "c3BvbnNlEkEKCGJpbmRpbmdzGAEgAygLMiUuZG9raW1lLmhvc3QudjEucGx1",
-            "Z2lucy5TZWNyZXRCaW5kaW5nUghiaW5kaW5ncxIaCghyZXZpc2lvbhgCIAEo",
-            "DFIIcmV2aXNpb24SOQoLcmVzb2x2ZWRfYXQYAyABKAsyGC5oYXJtb3MubW9k",
-            "ZWwudjEuUmVhZEN1dFIKcmVzb2x2ZWRBdCK7AQoRU2VjcmV0c1NldFJlcXVl",
-            "c3QSEgoEbmFtZRgBIAEoCVIEbmFtZRJGCghiaW5kaW5ncxgCIAMoCzIqLmRv",
-            "a2ltZS5ob3N0LnYxLnBsdWdpbnMuU2VjcmV0QmluZGluZ1ZhbHVlUghiaW5k",
-            "aW5ncxIrChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoDFIQZXhwZWN0ZWRSZXZp",
-            "c2lvbhIdCgpyZXF1ZXN0X2lkGAQgASgJUglyZXF1ZXN0SWQipwEKElNlY3Jl",
-            "dHNTZXRSZXNwb25zZRJBCghiaW5kaW5ncxgBIAMoCzIlLmRva2ltZS5ob3N0",
-            "LnYxLnBsdWdpbnMuU2VjcmV0QmluZGluZ1IIYmluZGluZ3MSGgoIcmV2aXNp",
-            "b24YAiABKAxSCHJldmlzaW9uEjIKB3JlY2VpcHQYAyABKAsyGC5oYXJtb3Mu",
-            "bW9kZWwudjEuUmVjZWlwdFIHcmVjZWlwdCKYAQoUU2VjcmV0c0RlbGV0ZVJl",
-            "cXVlc3QSEgoEbmFtZRgBIAEoCVIEbmFtZRIgCgtpZGVudGlmaWVycxgCIAMo",
-            "CVILaWRlbnRpZmllcnMSKwoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAxSEGV4",
-            "cGVjdGVkUmV2aXNpb24SHQoKcmVxdWVzdF9pZBgEIAEoCVIJcmVxdWVzdElk",
-            "IksKFVNlY3JldHNEZWxldGVSZXNwb25zZRIyCgdyZWNlaXB0GAEgASgLMhgu",
-            "aGFybW9zLm1vZGVsLnYxLlJlY2VpcHRSB3JlY2VpcHQiTAoSU2VjcmV0Qmlu",
-            "ZGluZ1ZhbHVlEh4KCmlkZW50aWZpZXIYASABKAlSCmlkZW50aWZpZXISFgoG",
-            "c2VjcmV0GAIgASgJUgZzZWNyZXQiiwEKDVNlY3JldEJpbmRpbmcSRAoLZGVj",
-            "bGFyYXRpb24YASABKAsyIi5kb2tpbWUubW9kZWwudjEuU2VjcmV0RGVjbGFy",
-            "YXRpb25SC2RlY2xhcmF0aW9uEhYKBnNlY3JldBgCIAEoCVIGc2VjcmV0EhwK",
-            "CWF2YWlsYWJsZRgDIAEoCFIJYXZhaWxhYmxlMsECCgdTZWNyZXRzEmUKBExp",
-            "c3QSKi5kb2tpbWUuaG9zdC52MS5wbHVnaW5zLlNlY3JldHNMaXN0UmVxdWVz",
-            "dBorLmRva2ltZS5ob3N0LnYxLnBsdWdpbnMuU2VjcmV0c0xpc3RSZXNwb25z",
-            "ZSIEyPMYARJiCgNTZXQSKS5kb2tpbWUuaG9zdC52MS5wbHVnaW5zLlNlY3Jl",
-            "dHNTZXRSZXF1ZXN0GiouZG9raW1lLmhvc3QudjEucGx1Z2lucy5TZWNyZXRz",
-            "U2V0UmVzcG9uc2UiBMjzGAESawoGRGVsZXRlEiwuZG9raW1lLmhvc3QudjEu",
-            "cGx1Z2lucy5TZWNyZXRzRGVsZXRlUmVxdWVzdBotLmRva2ltZS5ob3N0LnYx",
-            "LnBsdWdpbnMuU2VjcmV0c0RlbGV0ZVJlc3BvbnNlIgTI8xgBQiKqAh9Eb2tp",
-            "bWUuQ2xpZW50cy5QbHVnaW5zUmVzb3VyY2VzYgZwcm90bzM="));
+            "ZGVsL3YxL3Bvc2l0aW9uLnByb3RvImwKElNlY3JldHNMaXN0UmVxdWVzdBIX",
+            "CgRuYW1lGAEgASgJSABSBG5hbWWIAQESLQoCYXQYAiABKAsyGC5oYXJtb3Mu",
+            "bW9kZWwudjEuUmVhZEN1dEgBUgJhdIgBAUIHCgVfbmFtZUIFCgNfYXQilQEK",
+            "E1NlY3JldHNMaXN0UmVzcG9uc2USQwoHc2VjcmV0cxgBIAMoCzIpLmRva2lt",
+            "ZS5ob3N0LnYxLnBsdWdpbnMuU2VjcmV0UmVxdWlyZW1lbnRSB3NlY3JldHMS",
+            "OQoLcmVzb2x2ZWRfYXQYAiABKAsyGC5oYXJtb3MubW9kZWwudjEuUmVhZEN1",
+            "dFIKcmVzb2x2ZWRBdCJ3ChFTZWNyZXRSZXF1aXJlbWVudBJECgtkZWNsYXJh",
+            "dGlvbhgBIAEoCzIiLmRva2ltZS5tb2RlbC52MS5TZWNyZXREZWNsYXJhdGlv",
+            "blILZGVjbGFyYXRpb24SHAoJYXZhaWxhYmxlGAIgASgIUglhdmFpbGFibGUy",
+            "cAoHU2VjcmV0cxJlCgRMaXN0EiouZG9raW1lLmhvc3QudjEucGx1Z2lucy5T",
+            "ZWNyZXRzTGlzdFJlcXVlc3QaKy5kb2tpbWUuaG9zdC52MS5wbHVnaW5zLlNl",
+            "Y3JldHNMaXN0UmVzcG9uc2UiBMjzGAFCIqoCH0Rva2ltZS5DbGllbnRzLlBs",
+            "dWdpbnNSZXNvdXJjZXNiBnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
-          new pbr::FileDescriptor[] { global::Dokime.SecretsReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, global::Harmos.ReceiptReflection.Descriptor, },
+          new pbr::FileDescriptor[] { global::Dokime.SecretsReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretsListRequest), global::Dokime.Clients.PluginsResources.SecretsListRequest.Parser, new[]{ "Name", "At" }, new[]{ "Name", "At" }, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretsListResponse), global::Dokime.Clients.PluginsResources.SecretsListResponse.Parser, new[]{ "Bindings", "Revision", "ResolvedAt" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretsSetRequest), global::Dokime.Clients.PluginsResources.SecretsSetRequest.Parser, new[]{ "Name", "Bindings", "ExpectedRevision", "RequestId" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretsSetResponse), global::Dokime.Clients.PluginsResources.SecretsSetResponse.Parser, new[]{ "Bindings", "Revision", "Receipt" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretsDeleteRequest), global::Dokime.Clients.PluginsResources.SecretsDeleteRequest.Parser, new[]{ "Name", "Identifiers", "ExpectedRevision", "RequestId" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretsDeleteResponse), global::Dokime.Clients.PluginsResources.SecretsDeleteResponse.Parser, new[]{ "Receipt" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretBindingValue), global::Dokime.Clients.PluginsResources.SecretBindingValue.Parser, new[]{ "Identifier", "Secret" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretBinding), global::Dokime.Clients.PluginsResources.SecretBinding.Parser, new[]{ "Declaration", "Secret", "Available" }, null, null, null, null)
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretsListResponse), global::Dokime.Clients.PluginsResources.SecretsListResponse.Parser, new[]{ "Secrets", "ResolvedAt" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.PluginsResources.SecretRequirement), global::Dokime.Clients.PluginsResources.SecretRequirement.Parser, new[]{ "Declaration", "Available" }, null, null, null, null)
           }));
     }
     #endregion
@@ -371,8 +345,7 @@ namespace Dokime.Clients.PluginsResources;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public SecretsListResponse(SecretsListResponse other) : this() {
-      bindings_ = other.bindings_.Clone();
-      revision_ = other.revision_;
+      secrets_ = other.secrets_.Clone();
       resolvedAt_ = other.resolvedAt_ != null ? other.resolvedAt_.Clone() : null;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
@@ -383,31 +356,19 @@ namespace Dokime.Clients.PluginsResources;
       return new SecretsListResponse(this);
     }
 
-    /// <summary>Field number for the "bindings" field.</summary>
-    public const int BindingsFieldNumber = 1;
-    private static readonly pb::FieldCodec<global::Dokime.Clients.PluginsResources.SecretBinding> _repeated_bindings_codec
-        = pb::FieldCodec.ForMessage(10, global::Dokime.Clients.PluginsResources.SecretBinding.Parser);
-    private readonly pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretBinding> bindings_ = new pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretBinding>();
+    /// <summary>Field number for the "secrets" field.</summary>
+    public const int SecretsFieldNumber = 1;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.PluginsResources.SecretRequirement> _repeated_secrets_codec
+        = pb::FieldCodec.ForMessage(10, global::Dokime.Clients.PluginsResources.SecretRequirement.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretRequirement> secrets_ = new pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretRequirement>();
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretBinding> Bindings {
-      get { return bindings_; }
-    }
-
-    /// <summary>Field number for the "revision" field.</summary>
-    public const int RevisionFieldNumber = 2;
-    private pb::ByteString revision_ = pb::ByteString.Empty;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pb::ByteString Revision {
-      get { return revision_; }
-      set {
-        revision_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
+    public pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretRequirement> Secrets {
+      get { return secrets_; }
     }
 
     /// <summary>Field number for the "resolved_at" field.</summary>
-    public const int ResolvedAtFieldNumber = 3;
+    public const int ResolvedAtFieldNumber = 2;
     private global::Harmos.ReadCut resolvedAt_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -433,8 +394,7 @@ namespace Dokime.Clients.PluginsResources;
       if (ReferenceEquals(other, this)) {
         return true;
       }
-      if(!bindings_.Equals(other.bindings_)) return false;
-      if (Revision != other.Revision) return false;
+      if(!secrets_.Equals(other.secrets_)) return false;
       if (!object.Equals(ResolvedAt, other.ResolvedAt)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
@@ -443,8 +403,7 @@ namespace Dokime.Clients.PluginsResources;
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override int GetHashCode() {
       int hash = 1;
-      hash ^= bindings_.GetHashCode();
-      if (Revision.Length != 0) hash ^= Revision.GetHashCode();
+      hash ^= secrets_.GetHashCode();
       if (resolvedAt_ != null) hash ^= ResolvedAt.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
@@ -464,13 +423,9 @@ namespace Dokime.Clients.PluginsResources;
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       output.WriteRawMessage(this);
     #else
-      bindings_.WriteTo(output, _repeated_bindings_codec);
-      if (Revision.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteBytes(Revision);
-      }
+      secrets_.WriteTo(output, _repeated_secrets_codec);
       if (resolvedAt_ != null) {
-        output.WriteRawTag(26);
+        output.WriteRawTag(18);
         output.WriteMessage(ResolvedAt);
       }
       if (_unknownFields != null) {
@@ -483,13 +438,9 @@ namespace Dokime.Clients.PluginsResources;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      bindings_.WriteTo(ref output, _repeated_bindings_codec);
-      if (Revision.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteBytes(Revision);
-      }
+      secrets_.WriteTo(ref output, _repeated_secrets_codec);
       if (resolvedAt_ != null) {
-        output.WriteRawTag(26);
+        output.WriteRawTag(18);
         output.WriteMessage(ResolvedAt);
       }
       if (_unknownFields != null) {
@@ -502,10 +453,7 @@ namespace Dokime.Clients.PluginsResources;
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public int CalculateSize() {
       int size = 0;
-      size += bindings_.CalculateSize(_repeated_bindings_codec);
-      if (Revision.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeBytesSize(Revision);
-      }
+      size += secrets_.CalculateSize(_repeated_secrets_codec);
       if (resolvedAt_ != null) {
         size += 1 + pb::CodedOutputStream.ComputeMessageSize(ResolvedAt);
       }
@@ -521,10 +469,7 @@ namespace Dokime.Clients.PluginsResources;
       if (other == null) {
         return;
       }
-      bindings_.Add(other.bindings_);
-      if (other.Revision.Length != 0) {
-        Revision = other.Revision;
-      }
+      secrets_.Add(other.secrets_);
       if (other.resolvedAt_ != null) {
         if (resolvedAt_ == null) {
           ResolvedAt = new global::Harmos.ReadCut();
@@ -551,14 +496,10 @@ namespace Dokime.Clients.PluginsResources;
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
             break;
           case 10: {
-            bindings_.AddEntriesFrom(input, _repeated_bindings_codec);
+            secrets_.AddEntriesFrom(input, _repeated_secrets_codec);
             break;
           }
           case 18: {
-            Revision = input.ReadBytes();
-            break;
-          }
-          case 26: {
             if (resolvedAt_ == null) {
               ResolvedAt = new global::Harmos.ReadCut();
             }
@@ -585,14 +526,10 @@ namespace Dokime.Clients.PluginsResources;
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
             break;
           case 10: {
-            bindings_.AddEntriesFrom(ref input, _repeated_bindings_codec);
+            secrets_.AddEntriesFrom(ref input, _repeated_secrets_codec);
             break;
           }
           case 18: {
-            Revision = input.ReadBytes();
-            break;
-          }
-          case 26: {
             if (resolvedAt_ == null) {
               ResolvedAt = new global::Harmos.ReadCut();
             }
@@ -607,16 +544,16 @@ namespace Dokime.Clients.PluginsResources;
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  internal sealed partial class SecretsSetRequest : pb::IMessage<SecretsSetRequest>
+  public sealed partial class SecretRequirement : pb::IMessage<SecretRequirement>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
   {
-    private static readonly pb::MessageParser<SecretsSetRequest> _parser = new pb::MessageParser<SecretsSetRequest>(() => new SecretsSetRequest());
+    private static readonly pb::MessageParser<SecretRequirement> _parser = new pb::MessageParser<SecretRequirement>(() => new SecretRequirement());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<SecretsSetRequest> Parser { get { return _parser; } }
+    public static pb::MessageParser<SecretRequirement> Parser { get { return _parser; } }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -632,7 +569,7 @@ namespace Dokime.Clients.PluginsResources;
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsSetRequest() {
+    public SecretRequirement() {
       OnConstruction();
     }
 
@@ -640,1325 +577,16 @@ namespace Dokime.Clients.PluginsResources;
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsSetRequest(SecretsSetRequest other) : this() {
-      name_ = other.name_;
-      bindings_ = other.bindings_.Clone();
-      expectedRevision_ = other.expectedRevision_;
-      requestId_ = other.requestId_;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsSetRequest Clone() {
-      return new SecretsSetRequest(this);
-    }
-
-    /// <summary>Field number for the "name" field.</summary>
-    public const int NameFieldNumber = 1;
-    private string name_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string Name {
-      get { return name_; }
-      set {
-        name_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    /// <summary>Field number for the "bindings" field.</summary>
-    public const int BindingsFieldNumber = 2;
-    private static readonly pb::FieldCodec<global::Dokime.Clients.PluginsResources.SecretBindingValue> _repeated_bindings_codec
-        = pb::FieldCodec.ForMessage(18, global::Dokime.Clients.PluginsResources.SecretBindingValue.Parser);
-    private readonly pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretBindingValue> bindings_ = new pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretBindingValue>();
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretBindingValue> Bindings {
-      get { return bindings_; }
-    }
-
-    /// <summary>Field number for the "expected_revision" field.</summary>
-    public const int ExpectedRevisionFieldNumber = 3;
-    private pb::ByteString expectedRevision_ = pb::ByteString.Empty;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pb::ByteString ExpectedRevision {
-      get { return expectedRevision_; }
-      set {
-        expectedRevision_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    /// <summary>Field number for the "request_id" field.</summary>
-    public const int RequestIdFieldNumber = 4;
-    private string requestId_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string RequestId {
-      get { return requestId_; }
-      set {
-        requestId_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override bool Equals(object other) {
-      return Equals(other as SecretsSetRequest);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(SecretsSetRequest other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (Name != other.Name) return false;
-      if(!bindings_.Equals(other.bindings_)) return false;
-      if (ExpectedRevision != other.ExpectedRevision) return false;
-      if (RequestId != other.RequestId) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (Name.Length != 0) hash ^= Name.GetHashCode();
-      hash ^= bindings_.GetHashCode();
-      if (ExpectedRevision.Length != 0) hash ^= ExpectedRevision.GetHashCode();
-      if (RequestId.Length != 0) hash ^= RequestId.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (Name.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Name);
-      }
-      bindings_.WriteTo(output, _repeated_bindings_codec);
-      if (ExpectedRevision.Length != 0) {
-        output.WriteRawTag(26);
-        output.WriteBytes(ExpectedRevision);
-      }
-      if (RequestId.Length != 0) {
-        output.WriteRawTag(34);
-        output.WriteString(RequestId);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Name.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Name);
-      }
-      bindings_.WriteTo(ref output, _repeated_bindings_codec);
-      if (ExpectedRevision.Length != 0) {
-        output.WriteRawTag(26);
-        output.WriteBytes(ExpectedRevision);
-      }
-      if (RequestId.Length != 0) {
-        output.WriteRawTag(34);
-        output.WriteString(RequestId);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int CalculateSize() {
-      int size = 0;
-      if (Name.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(Name);
-      }
-      size += bindings_.CalculateSize(_repeated_bindings_codec);
-      if (ExpectedRevision.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeBytesSize(ExpectedRevision);
-      }
-      if (RequestId.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(RequestId);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(SecretsSetRequest other) {
-      if (other == null) {
-        return;
-      }
-      if (other.Name.Length != 0) {
-        Name = other.Name;
-      }
-      bindings_.Add(other.bindings_);
-      if (other.ExpectedRevision.Length != 0) {
-        ExpectedRevision = other.ExpectedRevision;
-      }
-      if (other.RequestId.Length != 0) {
-        RequestId = other.RequestId;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            Name = input.ReadString();
-            break;
-          }
-          case 18: {
-            bindings_.AddEntriesFrom(input, _repeated_bindings_codec);
-            break;
-          }
-          case 26: {
-            ExpectedRevision = input.ReadBytes();
-            break;
-          }
-          case 34: {
-            RequestId = input.ReadString();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            Name = input.ReadString();
-            break;
-          }
-          case 18: {
-            bindings_.AddEntriesFrom(ref input, _repeated_bindings_codec);
-            break;
-          }
-          case 26: {
-            ExpectedRevision = input.ReadBytes();
-            break;
-          }
-          case 34: {
-            RequestId = input.ReadString();
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsSetResponse : pb::IMessage<SecretsSetResponse>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<SecretsSetResponse> _parser = new pb::MessageParser<SecretsSetResponse>(() => new SecretsSetResponse());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<SecretsSetResponse> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.Clients.PluginsResources.SecretsReflection.Descriptor.MessageTypes[3]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsSetResponse() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsSetResponse(SecretsSetResponse other) : this() {
-      bindings_ = other.bindings_.Clone();
-      revision_ = other.revision_;
-      receipt_ = other.receipt_ != null ? other.receipt_.Clone() : null;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsSetResponse Clone() {
-      return new SecretsSetResponse(this);
-    }
-
-    /// <summary>Field number for the "bindings" field.</summary>
-    public const int BindingsFieldNumber = 1;
-    private static readonly pb::FieldCodec<global::Dokime.Clients.PluginsResources.SecretBinding> _repeated_bindings_codec
-        = pb::FieldCodec.ForMessage(10, global::Dokime.Clients.PluginsResources.SecretBinding.Parser);
-    private readonly pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretBinding> bindings_ = new pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretBinding>();
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Dokime.Clients.PluginsResources.SecretBinding> Bindings {
-      get { return bindings_; }
-    }
-
-    /// <summary>Field number for the "revision" field.</summary>
-    public const int RevisionFieldNumber = 2;
-    private pb::ByteString revision_ = pb::ByteString.Empty;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pb::ByteString Revision {
-      get { return revision_; }
-      set {
-        revision_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    /// <summary>Field number for the "receipt" field.</summary>
-    public const int ReceiptFieldNumber = 3;
-    private global::Harmos.Receipt receipt_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Harmos.Receipt Receipt {
-      get { return receipt_; }
-      set {
-        receipt_ = value;
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override bool Equals(object other) {
-      return Equals(other as SecretsSetResponse);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(SecretsSetResponse other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if(!bindings_.Equals(other.bindings_)) return false;
-      if (Revision != other.Revision) return false;
-      if (!object.Equals(Receipt, other.Receipt)) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override int GetHashCode() {
-      int hash = 1;
-      hash ^= bindings_.GetHashCode();
-      if (Revision.Length != 0) hash ^= Revision.GetHashCode();
-      if (receipt_ != null) hash ^= Receipt.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      bindings_.WriteTo(output, _repeated_bindings_codec);
-      if (Revision.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteBytes(Revision);
-      }
-      if (receipt_ != null) {
-        output.WriteRawTag(26);
-        output.WriteMessage(Receipt);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      bindings_.WriteTo(ref output, _repeated_bindings_codec);
-      if (Revision.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteBytes(Revision);
-      }
-      if (receipt_ != null) {
-        output.WriteRawTag(26);
-        output.WriteMessage(Receipt);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int CalculateSize() {
-      int size = 0;
-      size += bindings_.CalculateSize(_repeated_bindings_codec);
-      if (Revision.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeBytesSize(Revision);
-      }
-      if (receipt_ != null) {
-        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Receipt);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(SecretsSetResponse other) {
-      if (other == null) {
-        return;
-      }
-      bindings_.Add(other.bindings_);
-      if (other.Revision.Length != 0) {
-        Revision = other.Revision;
-      }
-      if (other.receipt_ != null) {
-        if (receipt_ == null) {
-          Receipt = new global::Harmos.Receipt();
-        }
-        Receipt.MergeFrom(other.Receipt);
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            bindings_.AddEntriesFrom(input, _repeated_bindings_codec);
-            break;
-          }
-          case 18: {
-            Revision = input.ReadBytes();
-            break;
-          }
-          case 26: {
-            if (receipt_ == null) {
-              Receipt = new global::Harmos.Receipt();
-            }
-            input.ReadMessage(Receipt);
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            bindings_.AddEntriesFrom(ref input, _repeated_bindings_codec);
-            break;
-          }
-          case 18: {
-            Revision = input.ReadBytes();
-            break;
-          }
-          case 26: {
-            if (receipt_ == null) {
-              Receipt = new global::Harmos.Receipt();
-            }
-            input.ReadMessage(Receipt);
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  internal sealed partial class SecretsDeleteRequest : pb::IMessage<SecretsDeleteRequest>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<SecretsDeleteRequest> _parser = new pb::MessageParser<SecretsDeleteRequest>(() => new SecretsDeleteRequest());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<SecretsDeleteRequest> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.Clients.PluginsResources.SecretsReflection.Descriptor.MessageTypes[4]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsDeleteRequest() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsDeleteRequest(SecretsDeleteRequest other) : this() {
-      name_ = other.name_;
-      identifiers_ = other.identifiers_.Clone();
-      expectedRevision_ = other.expectedRevision_;
-      requestId_ = other.requestId_;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsDeleteRequest Clone() {
-      return new SecretsDeleteRequest(this);
-    }
-
-    /// <summary>Field number for the "name" field.</summary>
-    public const int NameFieldNumber = 1;
-    private string name_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string Name {
-      get { return name_; }
-      set {
-        name_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    /// <summary>Field number for the "identifiers" field.</summary>
-    public const int IdentifiersFieldNumber = 2;
-    private static readonly pb::FieldCodec<string> _repeated_identifiers_codec
-        = pb::FieldCodec.ForString(18);
-    private readonly pbc::RepeatedField<string> identifiers_ = new pbc::RepeatedField<string>();
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<string> Identifiers {
-      get { return identifiers_; }
-    }
-
-    /// <summary>Field number for the "expected_revision" field.</summary>
-    public const int ExpectedRevisionFieldNumber = 3;
-    private pb::ByteString expectedRevision_ = pb::ByteString.Empty;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pb::ByteString ExpectedRevision {
-      get { return expectedRevision_; }
-      set {
-        expectedRevision_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    /// <summary>Field number for the "request_id" field.</summary>
-    public const int RequestIdFieldNumber = 4;
-    private string requestId_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string RequestId {
-      get { return requestId_; }
-      set {
-        requestId_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override bool Equals(object other) {
-      return Equals(other as SecretsDeleteRequest);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(SecretsDeleteRequest other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (Name != other.Name) return false;
-      if(!identifiers_.Equals(other.identifiers_)) return false;
-      if (ExpectedRevision != other.ExpectedRevision) return false;
-      if (RequestId != other.RequestId) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (Name.Length != 0) hash ^= Name.GetHashCode();
-      hash ^= identifiers_.GetHashCode();
-      if (ExpectedRevision.Length != 0) hash ^= ExpectedRevision.GetHashCode();
-      if (RequestId.Length != 0) hash ^= RequestId.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (Name.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Name);
-      }
-      identifiers_.WriteTo(output, _repeated_identifiers_codec);
-      if (ExpectedRevision.Length != 0) {
-        output.WriteRawTag(26);
-        output.WriteBytes(ExpectedRevision);
-      }
-      if (RequestId.Length != 0) {
-        output.WriteRawTag(34);
-        output.WriteString(RequestId);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Name.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Name);
-      }
-      identifiers_.WriteTo(ref output, _repeated_identifiers_codec);
-      if (ExpectedRevision.Length != 0) {
-        output.WriteRawTag(26);
-        output.WriteBytes(ExpectedRevision);
-      }
-      if (RequestId.Length != 0) {
-        output.WriteRawTag(34);
-        output.WriteString(RequestId);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int CalculateSize() {
-      int size = 0;
-      if (Name.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(Name);
-      }
-      size += identifiers_.CalculateSize(_repeated_identifiers_codec);
-      if (ExpectedRevision.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeBytesSize(ExpectedRevision);
-      }
-      if (RequestId.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(RequestId);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(SecretsDeleteRequest other) {
-      if (other == null) {
-        return;
-      }
-      if (other.Name.Length != 0) {
-        Name = other.Name;
-      }
-      identifiers_.Add(other.identifiers_);
-      if (other.ExpectedRevision.Length != 0) {
-        ExpectedRevision = other.ExpectedRevision;
-      }
-      if (other.RequestId.Length != 0) {
-        RequestId = other.RequestId;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            Name = input.ReadString();
-            break;
-          }
-          case 18: {
-            identifiers_.AddEntriesFrom(input, _repeated_identifiers_codec);
-            break;
-          }
-          case 26: {
-            ExpectedRevision = input.ReadBytes();
-            break;
-          }
-          case 34: {
-            RequestId = input.ReadString();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            Name = input.ReadString();
-            break;
-          }
-          case 18: {
-            identifiers_.AddEntriesFrom(ref input, _repeated_identifiers_codec);
-            break;
-          }
-          case 26: {
-            ExpectedRevision = input.ReadBytes();
-            break;
-          }
-          case 34: {
-            RequestId = input.ReadString();
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretsDeleteResponse : pb::IMessage<SecretsDeleteResponse>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<SecretsDeleteResponse> _parser = new pb::MessageParser<SecretsDeleteResponse>(() => new SecretsDeleteResponse());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<SecretsDeleteResponse> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.Clients.PluginsResources.SecretsReflection.Descriptor.MessageTypes[5]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsDeleteResponse() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsDeleteResponse(SecretsDeleteResponse other) : this() {
-      receipt_ = other.receipt_ != null ? other.receipt_.Clone() : null;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretsDeleteResponse Clone() {
-      return new SecretsDeleteResponse(this);
-    }
-
-    /// <summary>Field number for the "receipt" field.</summary>
-    public const int ReceiptFieldNumber = 1;
-    private global::Harmos.Receipt receipt_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Harmos.Receipt Receipt {
-      get { return receipt_; }
-      set {
-        receipt_ = value;
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override bool Equals(object other) {
-      return Equals(other as SecretsDeleteResponse);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(SecretsDeleteResponse other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (!object.Equals(Receipt, other.Receipt)) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (receipt_ != null) hash ^= Receipt.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (receipt_ != null) {
-        output.WriteRawTag(10);
-        output.WriteMessage(Receipt);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (receipt_ != null) {
-        output.WriteRawTag(10);
-        output.WriteMessage(Receipt);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int CalculateSize() {
-      int size = 0;
-      if (receipt_ != null) {
-        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Receipt);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(SecretsDeleteResponse other) {
-      if (other == null) {
-        return;
-      }
-      if (other.receipt_ != null) {
-        if (receipt_ == null) {
-          Receipt = new global::Harmos.Receipt();
-        }
-        Receipt.MergeFrom(other.Receipt);
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            if (receipt_ == null) {
-              Receipt = new global::Harmos.Receipt();
-            }
-            input.ReadMessage(Receipt);
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            if (receipt_ == null) {
-              Receipt = new global::Harmos.Receipt();
-            }
-            input.ReadMessage(Receipt);
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretBindingValue : pb::IMessage<SecretBindingValue>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<SecretBindingValue> _parser = new pb::MessageParser<SecretBindingValue>(() => new SecretBindingValue());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<SecretBindingValue> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.Clients.PluginsResources.SecretsReflection.Descriptor.MessageTypes[6]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretBindingValue() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretBindingValue(SecretBindingValue other) : this() {
-      identifier_ = other.identifier_;
-      secret_ = other.secret_;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretBindingValue Clone() {
-      return new SecretBindingValue(this);
-    }
-
-    /// <summary>Field number for the "identifier" field.</summary>
-    public const int IdentifierFieldNumber = 1;
-    private string identifier_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string Identifier {
-      get { return identifier_; }
-      set {
-        identifier_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    /// <summary>Field number for the "secret" field.</summary>
-    public const int SecretFieldNumber = 2;
-    private string secret_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string Secret {
-      get { return secret_; }
-      set {
-        secret_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override bool Equals(object other) {
-      return Equals(other as SecretBindingValue);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(SecretBindingValue other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (Identifier != other.Identifier) return false;
-      if (Secret != other.Secret) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (Identifier.Length != 0) hash ^= Identifier.GetHashCode();
-      if (Secret.Length != 0) hash ^= Secret.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (Identifier.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Identifier);
-      }
-      if (Secret.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteString(Secret);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Identifier.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Identifier);
-      }
-      if (Secret.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteString(Secret);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int CalculateSize() {
-      int size = 0;
-      if (Identifier.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(Identifier);
-      }
-      if (Secret.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(Secret);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(SecretBindingValue other) {
-      if (other == null) {
-        return;
-      }
-      if (other.Identifier.Length != 0) {
-        Identifier = other.Identifier;
-      }
-      if (other.Secret.Length != 0) {
-        Secret = other.Secret;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            Identifier = input.ReadString();
-            break;
-          }
-          case 18: {
-            Secret = input.ReadString();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            Identifier = input.ReadString();
-            break;
-          }
-          case 18: {
-            Secret = input.ReadString();
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class SecretBinding : pb::IMessage<SecretBinding>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<SecretBinding> _parser = new pb::MessageParser<SecretBinding>(() => new SecretBinding());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<SecretBinding> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Dokime.Clients.PluginsResources.SecretsReflection.Descriptor.MessageTypes[7]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretBinding() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretBinding(SecretBinding other) : this() {
+    public SecretRequirement(SecretRequirement other) : this() {
       declaration_ = other.declaration_ != null ? other.declaration_.Clone() : null;
-      secret_ = other.secret_;
       available_ = other.available_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public SecretBinding Clone() {
-      return new SecretBinding(this);
+    public SecretRequirement Clone() {
+      return new SecretRequirement(this);
     }
 
     /// <summary>Field number for the "declaration" field.</summary>
@@ -1973,20 +601,8 @@ namespace Dokime.Clients.PluginsResources;
       }
     }
 
-    /// <summary>Field number for the "secret" field.</summary>
-    public const int SecretFieldNumber = 2;
-    private string secret_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string Secret {
-      get { return secret_; }
-      set {
-        secret_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
     /// <summary>Field number for the "available" field.</summary>
-    public const int AvailableFieldNumber = 3;
+    public const int AvailableFieldNumber = 2;
     private bool available_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -2000,12 +616,12 @@ namespace Dokime.Clients.PluginsResources;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
-      return Equals(other as SecretBinding);
+      return Equals(other as SecretRequirement);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(SecretBinding other) {
+    public bool Equals(SecretRequirement other) {
       if (ReferenceEquals(other, null)) {
         return false;
       }
@@ -2013,7 +629,6 @@ namespace Dokime.Clients.PluginsResources;
         return true;
       }
       if (!object.Equals(Declaration, other.Declaration)) return false;
-      if (Secret != other.Secret) return false;
       if (Available != other.Available) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
@@ -2023,7 +638,6 @@ namespace Dokime.Clients.PluginsResources;
     public override int GetHashCode() {
       int hash = 1;
       if (declaration_ != null) hash ^= Declaration.GetHashCode();
-      if (Secret.Length != 0) hash ^= Secret.GetHashCode();
       if (Available != false) hash ^= Available.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
@@ -2047,12 +661,8 @@ namespace Dokime.Clients.PluginsResources;
         output.WriteRawTag(10);
         output.WriteMessage(Declaration);
       }
-      if (Secret.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteString(Secret);
-      }
       if (Available != false) {
-        output.WriteRawTag(24);
+        output.WriteRawTag(16);
         output.WriteBool(Available);
       }
       if (_unknownFields != null) {
@@ -2069,12 +679,8 @@ namespace Dokime.Clients.PluginsResources;
         output.WriteRawTag(10);
         output.WriteMessage(Declaration);
       }
-      if (Secret.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteString(Secret);
-      }
       if (Available != false) {
-        output.WriteRawTag(24);
+        output.WriteRawTag(16);
         output.WriteBool(Available);
       }
       if (_unknownFields != null) {
@@ -2090,9 +696,6 @@ namespace Dokime.Clients.PluginsResources;
       if (declaration_ != null) {
         size += 1 + pb::CodedOutputStream.ComputeMessageSize(Declaration);
       }
-      if (Secret.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(Secret);
-      }
       if (Available != false) {
         size += 1 + 1;
       }
@@ -2104,7 +707,7 @@ namespace Dokime.Clients.PluginsResources;
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(SecretBinding other) {
+    public void MergeFrom(SecretRequirement other) {
       if (other == null) {
         return;
       }
@@ -2113,9 +716,6 @@ namespace Dokime.Clients.PluginsResources;
           Declaration = new global::Dokime.SecretDeclaration();
         }
         Declaration.MergeFrom(other.Declaration);
-      }
-      if (other.Secret.Length != 0) {
-        Secret = other.Secret;
       }
       if (other.Available != false) {
         Available = other.Available;
@@ -2146,11 +746,7 @@ namespace Dokime.Clients.PluginsResources;
             input.ReadMessage(Declaration);
             break;
           }
-          case 18: {
-            Secret = input.ReadString();
-            break;
-          }
-          case 24: {
+          case 16: {
             Available = input.ReadBool();
             break;
           }
@@ -2180,11 +776,7 @@ namespace Dokime.Clients.PluginsResources;
             input.ReadMessage(Declaration);
             break;
           }
-          case 18: {
-            Secret = input.ReadString();
-            break;
-          }
-          case 24: {
+          case 16: {
             Available = input.ReadBool();
             break;
           }

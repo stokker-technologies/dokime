@@ -704,7 +704,7 @@ FTP capture and the effects journal are not restored; local file capture is.
 | evidence.Records.List | optional scope, record_type, versions, between, step, selection, optional at/page | records, schema, count, last, resolved_at, next_page_token; CapturedRecord retains payload, source timestamp and sequence. |
 | evidence.Traceability.Get | optional scope, page, at, entry | snapshots and page metadata, plus selected entry value/revision; scope selects the execution, entry selects the independently revisioned entry. Foreign selectors refuse. |
 | executions.Progress.Get | optional name, optional at | Complete value, revision and resolved_at; clients give name, plugins default to and are restricted to their execution. |
-| Secrets.Get | name, optional at | secret bytes, optional administrative value/revision and resolved_at; plugins read only declared names through their own bindings and receive no administrative metadata. |
+| Secrets.Get | name, optional at | secret bytes, optional administrative value/revision and resolved_at; plugins read only declared names, each the identifier of a host-wide secret, and receive no administrative metadata. |
 
 Message presence makes omitted selectors explicit. Client generators require scope
 or execution name where the operation needs it; plugin generators permit omission.
@@ -897,17 +897,16 @@ The complete library identity/type mapping is in the pinned
 | `plugin-authored Protected binding (Steps/Execute)` | `dokime.plugin.v1.Steps/Execute` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.StepsExecuteRequest` | `dokime.plugin.v1.StepsExecuteResponse` |
 | `plugin-authored Protected binding (TestCases/Materialize)` | `dokime.plugin.v1.TestCases/Materialize` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.TestCasesMaterializeRequest` | `dokime.plugin.v1.TestCasesMaterializeResponse` |
 | new | `dokime.host.v1.plugins.Secrets/List` | CLIENTS | `dokime.host.v1.plugins.SecretsListRequest` | `dokime.host.v1.plugins.SecretsListResponse` |
-| new | `dokime.host.v1.plugins.Secrets/Set` | CLIENTS | `dokime.host.v1.plugins.SecretsSetRequest` | `dokime.host.v1.plugins.SecretsSetResponse` |
-| new | `dokime.host.v1.plugins.Secrets/Delete` | CLIENTS | `dokime.host.v1.plugins.SecretsDeleteRequest` | `dokime.host.v1.plugins.SecretsDeleteResponse` |
 
-New resource: `dokime.host.v1.plugins.Secrets` has List, Set and Delete, all CLIENTS.
-Its messages are `Secrets{List,Set,Delete}{Request,Response}` in that package.
-The model contribution is `dokime.model.v1.SecretsDeclarations` containing
-`SecretDeclaration { metadata, required }`. Binding reads return declarations,
-bound host secret identifiers and availability, never secret values. Set replaces
-the complete map; Delete removes selected bindings. Both carry revision and retry
-identity. Reconcile bindings at startup and remove them when the library Plugins
-watch reports deletion.
+New resource: `dokime.host.v1.plugins.Secrets` has List only, for CLIENTS.
+It returns each `SecretRequirement { declaration, available }`: a declared
+identifier and whether Secret Storage holds a secret under exactly that identifier,
+never values. The model contribution is `dokime.model.v1.SecretsDeclarations`
+containing `SecretDeclaration { metadata, required }`. There is no binding,
+mapping or revisioned catalog between a declaration and its secret (owner decision
+of 2026-11-15). A plugin's Secrets.Get of an undeclared name is refused; a declared
+name with no stored secret fails, naming the action and identifier and asking to
+add it in Secret Storage.
 
 Decision: product plugin methods have no callers option; Protected admission
 restricts their bindings to the host. Upload replaces native wire FileProducer/FileSession/StagedFile/FileProgress;
@@ -1271,7 +1270,7 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.client.v1.PluginsListInstallationsRequest` | `harmos.host.v1.PluginsListRequest` |
 | `dokime.client.v1.PluginsReloadRequest` | `harmos.host.v1.PluginsRestartRequest` |
 | `dokime.client.v1.PluginsSetEnabledRequest` | `harmos.host.v1.PluginsSetRequest` |
-| `dokime.client.v1.plugins.SecretAvailability` | `dokime.host.v1.plugins.SecretBinding` |
+| `dokime.client.v1.plugins.SecretAvailability` | `dokime.host.v1.plugins.SecretRequirement` |
 | `dokime.client.v1.plugins.SettingsGetRequest` | `harmos.host.v1.plugins.SettingsListRequest` |
 | `dokime.client.v1.plugins.SettingsGetResponse` | `harmos.host.v1.plugins.SettingsListResponse` |
 | `dokime.client.v1.plugins.SettingsSetRequest` | `harmos.host.v1.plugins.SettingsSetRequest` |
@@ -1870,5 +1869,5 @@ Native primary and state backends share the product root and history identity.
 | Logical execution-file metadata and retained references | Product Store transactions | Logical paths select original native file references; replacement retains previous immutable bytes and cuts. |
 | Artifact metadata and retained file references | Product Store transactions | Atomic execution-open admission, metadata publication and the original mutation receipt; file bytes remain native. |
 | Plugin entries and settings | Library Plugins and plugins.Settings | Library-owned objects and lifecycle; no product installation record. |
-| Plugin secret bindings and plot preferences | Library native administration objects | Product declarations and authorization remain product-owned. |
+| Plot preferences | Library native administration objects | Product declarations and authorization remain product-owned. |
 | Protected secrets and access credentials | Product credential store and transactional catalog | Credential values remain in the operating system store. |

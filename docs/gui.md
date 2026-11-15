@@ -53,8 +53,8 @@ The views display current activation state and failure; installation timestamps,
 last-boot outcomes, discovered settings and pending/applied-field facts are absent
 because the library entry and settings contracts do not supply them. Settings retain
 their declared flag, integer, number, text or duration type. Integer fields use decimal
-text rather than a floating-point input. Secret declarations and bindings come from
-product `plugins.Secrets`; secret bytes remain in Secret Storage.
+text rather than a floating-point input. Secret declarations and their availability come
+from product `plugins.Secrets`; secret bytes remain in Secret Storage.
 Native method availability comes from the SDK operation catalog. Access/Status
 advertise their RPC bindings; the host's product catalog currently omits those
 bindings, so storage source changes remain disabled with a visible reason and a
@@ -226,7 +226,7 @@ Generated modules are rebuilt by their generators, never edited by hand.
 | `Evidence.Notes` | Create owns its identity; edits use the matching Get revision and replace the whole writable value. |
 | `Documents` | Get assembles ordered frame pages at one fixed cut without weakening structure, evidence or completion validation. |
 | `Plots.Snapshots`, `Plots.Settings` | Bounded snapshots and Watch updates; plot edits use the matching Get revision. |
-| `Plugins`, `plugins.Settings`, `plugins.Secrets` | Library entries own managed/remote/guest placement, enablement, revision, activation and current failure. Library settings use List/Set; the product separately owns declared secret bindings with List/Set/Delete. |
+| `Plugins`, `plugins.Settings`, `plugins.Secrets` | Library entries own managed/remote/guest placement, enablement, revision, activation and current failure. Library settings use List/Set; the product separately owns the read-only declared secret view with List. |
 | `Settings`, `Secrets`, `Storage.Sources` | Whole writable values with matching Get revisions. Secret import/export retain explicit generation checks and reviewed choices. |
 | `content.Artifacts`, `content.ExecutionFiles`, `Evidence.Archive`, `Reports` | Product-owned metadata and immutable references; bytes use product `Files.Read`. Uploads use product Files.Uploads before artifact attachment. |
 | Library `Status`, `Access`, `Operations`, `Invocations`, `Time` | Direct library contracts on the same native connection. Missing host capabilities retain disabled controls and their visible reason. |
@@ -658,9 +658,9 @@ from Inspect. Frozen HTML retains its original media and download links under
   Native transport guards return with the desktop host switch; the SDK owns
   current remote client transport.
 - Settings › Plugins keeps declared settings editable while a library entry is
-  unavailable. Secret declarations show their names, binding identifiers and
+  unavailable. Required Secrets show each declared identifier and its
   availability. Add in Secret Storage opens the shared dialog with the declared
-  identifier prefilled; bindings remain independently editable.
+  identifier prefilled; the plugin reads the secret stored under that identifier.
 - Saving plugin settings uses the library settings revision. The page's **Reload**
   calls `Plugins.Restart` for that entry. Inventory uses the entry name, activation,
   enablement, current state and failure. The contract supplies no applied-field

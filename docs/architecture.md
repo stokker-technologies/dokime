@@ -195,8 +195,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    their publication pointers.
    The locked definition now composes the library PluginEntry and plugins.Settings;
    product plugin records/settings wrappers and clock operations are deleted.
-   Product plugins.Secrets owns declared-name bindings and availability, and
-   Secrets.Get admits only a calling plugin's declared names. Administrative
+   Product plugins.Secrets is a read-only view of declared names and their
+   availability. Secrets.Get admits only a calling plugin's declared names and
+   reads the host-wide secret stored under exactly that identifier (owner, 2026-11-15). Administrative
    metadata is client-only. Existing stories describe behavior to preserve during
    this consumer migration; they do not prove the new definitions.
 

@@ -319,7 +319,6 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     binding.bind(&context)?;
     dokime_operations::host::content::validate_root(&context).await?;
     context.host.refresh_plugin_states().await?;
-    dokime_operations::host::plugins::secrets::reconcile(&context).await?;
     dokime_operations::host::register_redactions(&context)?;
     let registration = Arc::new(
         status
@@ -397,8 +396,7 @@ async fn observe_plugins(
                 status.record_trace(observation).map_err(|source| status::failure("Record Plugin Trace", source))?;
             }
             context.host.refresh_plugin_states().await?;
-            dokime_operations::host::plugins::secrets::reconcile(&context).await?;
-            context.host.signal_change();
+                    context.host.signal_change();
             if matches!(event.event, Some(Event::ResyncRequired(_))) {
                 watch.request_cancel();
                 match watch.join().await {

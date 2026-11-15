@@ -642,7 +642,7 @@ test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
           ],
         },
       };
-    if (path.endsWith("plugins.Secrets/List")) return { bindings: [], revision: new Uint8Array([9]) };
+    if (path.endsWith("plugins.Secrets/List")) return { secrets: [] };
     if (path.endsWith("plugins.Settings/Set")) {
       assert.deepEqual(request.value.values.power.value, { case: "flag", value: false });
       assert.deepEqual(request.expectedRevision, new Uint8Array([4]));

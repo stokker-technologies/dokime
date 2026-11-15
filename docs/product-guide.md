@@ -45,7 +45,9 @@ A shared operation has one request and response. Plugins inherit their trusted
 execution identity; a supplied selector cannot authorize another execution.
 
 The final library composition owns Plugins, plugin settings, Time and Invocations.
-Dokime adds `plugins.Secrets` for revision-checked declared-name bindings.
+Dokime adds `plugins.Secrets`, a read-only view of each plugin's declared secret
+identifiers and whether Secret Storage holds them. A plugin reads the secret stored
+under exactly its declared identifier; undeclared names are refused.
 `Secrets.Get` returns protected bytes; administrative metadata belongs only to
 clients. Typed statistics retain exact numeric values and sums independently of
 floating plotting coordinates.

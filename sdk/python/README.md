@@ -72,10 +72,9 @@ async def register(endpoint: str, plugin_url: str) -> None:
         await client.close()
 ```
 
-Retain the same `request_id` when retrying a mutation. Product secret bindings
-are nested at `client.plugins.secrets`; they contain host secret identifiers and
-availability, never secret bytes. Binding replacement uses the revision returned
-by List. The plugin context exposes only the operations plugins may call after composition.
+Retain the same `request_id` when retrying a mutation. The read-only declared-secret
+view is nested at `client.plugins.secrets`; it lists each declared identifier and
+whether Secret Storage holds it, never secret bytes. The plugin context exposes only the operations plugins may call after composition.
 
 ## Author a Plugin
 

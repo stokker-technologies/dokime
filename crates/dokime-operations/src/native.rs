@@ -120,9 +120,7 @@ const OPERATIONS: &[&str] = &[
     crate::host::plots::settings::get::ID,
     crate::host::plots::settings::set::ID,
     crate::host::plots::snapshots::list::ID,
-    crate::host::plugins::secrets::delete::ID,
     crate::host::plugins::secrets::list::ID,
-    crate::host::plugins::secrets::set::ID,
     crate::host::prompt_definitions::get::ID,
     crate::host::prompt_definitions::list::ID,
     crate::host::prompts::answers::create::ID,
@@ -395,9 +393,7 @@ pub fn registration(settings: &ClientSettings) -> Result<harmos_runtime::operati
     registration = registration.entry(factory::<crate::host::plots::settings::get::Operation>(settings.read_timeout)?);
     registration = registration.entry(factory::<crate::host::plots::settings::set::Operation>(settings.mutation_timeout)?);
     registration = registration.entry(factory::<crate::host::plots::snapshots::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::plugins::secrets::delete::Operation>(settings.mutation_timeout)?);
     registration = registration.entry(factory::<crate::host::plugins::secrets::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::plugins::secrets::set::Operation>(settings.mutation_timeout)?);
     registration = registration.entry(factory::<crate::host::prompt_definitions::get::Operation>(settings.read_timeout)?);
     registration = registration.entry(factory::<crate::host::prompt_definitions::list::Operation>(settings.read_timeout)?);
     registration = registration.entry(factory::<crate::host::prompts::answers::create::Operation>(settings.mutation_timeout)?);

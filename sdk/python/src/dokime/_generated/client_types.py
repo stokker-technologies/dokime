@@ -552,11 +552,8 @@ from dokime._wire.host.v1.plots.snapshots_pb2 import PlotStreamUpdate as PlotsPl
 from dokime._wire.host.v1.plots.snapshots_pb2 import PlotWindow as PlotsPlotWindow
 from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsListResponse as PlotsSnapshotsListResponse
 from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsWatchResponse as PlotsSnapshotsWatchResponse
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretBinding as PluginsSecretBinding
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretBindingValue as PluginsSecretBindingValue
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsDeleteResponse as PluginsSecretsDeleteResponse
+from dokime._wire.host.v1.plugins.secrets_pb2 import SecretRequirement as PluginsSecretRequirement
 from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsListResponse as PluginsSecretsListResponse
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsSetResponse as PluginsSecretsSetResponse
 from dokime._wire.host.v1.prompt_definitions_pb2 import PromptDefinitionsGetResponse, PromptDefinitionsListResponse
 from dokime._wire.host.v1.prompts.answers_pb2 import AnswersCreateResponse as PromptsAnswersCreateResponse
 from dokime._wire.host.v1.prompts_pb2 import (
@@ -1157,16 +1154,10 @@ PlotsSnapshotsListResponse.__module__ = "dokime.client"
 PlotsSnapshotsListResponse.__qualname__ = "PlotsSnapshotsListResponse"
 PlotsSnapshotsWatchResponse.__module__ = "dokime.client"
 PlotsSnapshotsWatchResponse.__qualname__ = "PlotsSnapshotsWatchResponse"
-PluginsSecretBinding.__module__ = "dokime.client"
-PluginsSecretBinding.__qualname__ = "PluginsSecretBinding"
-PluginsSecretBindingValue.__module__ = "dokime.client"
-PluginsSecretBindingValue.__qualname__ = "PluginsSecretBindingValue"
-PluginsSecretsDeleteResponse.__module__ = "dokime.client"
-PluginsSecretsDeleteResponse.__qualname__ = "PluginsSecretsDeleteResponse"
+PluginsSecretRequirement.__module__ = "dokime.client"
+PluginsSecretRequirement.__qualname__ = "PluginsSecretRequirement"
 PluginsSecretsListResponse.__module__ = "dokime.client"
 PluginsSecretsListResponse.__qualname__ = "PluginsSecretsListResponse"
-PluginsSecretsSetResponse.__module__ = "dokime.client"
-PluginsSecretsSetResponse.__qualname__ = "PluginsSecretsSetResponse"
 PromptDefinitionsGetResponse.__module__ = "dokime.client"
 PromptDefinitionsGetResponse.__qualname__ = "PromptDefinitionsGetResponse"
 PromptDefinitionsListResponse.__module__ = "dokime.client"
@@ -1925,11 +1916,8 @@ __all__ = [
     "PluginsListResponse",
     "PluginsReplaceResponse",
     "PluginsRestartResponse",
-    "PluginsSecretBinding",
-    "PluginsSecretBindingValue",
-    "PluginsSecretsDeleteResponse",
+    "PluginsSecretRequirement",
     "PluginsSecretsListResponse",
-    "PluginsSecretsSetResponse",
     "PluginsSetResponse",
     "PluginsSettingsSetResponse",
     "PluginsWatchResponse",
