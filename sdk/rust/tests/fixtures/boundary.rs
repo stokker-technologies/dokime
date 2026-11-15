@@ -16,7 +16,10 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::future::poll_fn;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::task::{Poll, Waker};
 use std::time::Duration;
 
 // Third Party Imports
@@ -45,7 +48,10 @@ struct CaptureRows {
 }
 
 #[derive(Default)]
-struct Published(AtomicU64);
+struct Published {
+    count: AtomicU64,
+    waiter: Mutex<Option<Waker>>,
+}
 
 /* === Enums === */
 
@@ -63,7 +69,11 @@ fn main() -> Result<()> {
         if context.execution_id().is_empty() {
             return Ok(Reading { value: 0.0 });
         }
-        let index = context.get::<Published>()?.0.fetch_add(1, Ordering::SeqCst);
+        let published = context.get::<Published>()?;
+        let index = published.count.fetch_add(1, Ordering::SeqCst);
+        if let Some(waiter) = published.waiter.lock().expect("publication waiter lock is healthy").take() {
+            waiter.wake();
+        }
         Ok(Reading { value: index as f64 })
     })
     .every_ms(1);
@@ -74,14 +84,15 @@ fn main() -> Result<()> {
             Ok(())
         })
         .step(Step::new("Capture", async |context: &Context| {
+            // The Last Tick Fires With the Sleep; Await Its Callback Without Advancing Time.
             let rows = context.parameters::<CaptureRows>()?.rows;
-            loop {
-                let published = context.get::<Published>()?.0.load(Ordering::SeqCst);
-                if published >= rows {
-                    break;
-                }
-                context.sleep(Duration::from_millis(rows - published)).await?;
-            }
+            let published = context.get::<Published>()?;
+            context.sleep(Duration::from_millis(rows.saturating_sub(published.count.load(Ordering::SeqCst)))).await?;
+            poll_fn(|task| {
+                *published.waiter.lock().expect("publication waiter lock is healthy") = Some(task.waker().clone());
+                if published.count.load(Ordering::SeqCst) >= rows { Poll::Ready(()) } else { Poll::Pending }
+            })
+            .await;
             Ok(())
         }))
         .stream(boundary_stream)

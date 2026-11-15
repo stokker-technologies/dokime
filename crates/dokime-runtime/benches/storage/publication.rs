@@ -30,7 +30,7 @@ use std::{
 
 // Third Party Imports
 use criterion::{Criterion, SamplingMode};
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, sync::Notify};
 
 // Local Imports
 use dokime::plugin::HostOperation;
@@ -85,7 +85,10 @@ struct Capture {
 }
 
 #[derive(Default)]
-struct Observed(AtomicU64);
+struct Observed {
+    count: AtomicU64,
+    published: Notify,
+}
 
 struct Fixture {
     host: Host,
@@ -167,7 +170,10 @@ pub fn serve() -> Result<()> {
     let observer = Observer::new(&stream, async |context: &Context| {
         let at = context.now().await?;
         let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "readings")) {
-            context.get::<Observed>()?.0.fetch_add(1, Ordering::SeqCst)
+            let observed = context.get::<Observed>()?;
+            let index = observed.count.fetch_add(1, Ordering::SeqCst);
+            observed.published.notify_waiters();
+            index
         } else {
             0
         };
@@ -189,7 +195,10 @@ pub fn serve() -> Result<()> {
     let pulse = Stream::<Pulse>::new("pulse", "Pulse");
     let observer = Observer::new(&pulse, async |context: &Context| {
         let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "pulse")) {
-            context.get::<Observed>()?.0.fetch_add(1, Ordering::SeqCst)
+            let observed = context.get::<Observed>()?;
+            let index = observed.count.fetch_add(1, Ordering::SeqCst);
+            observed.published.notify_waiters();
+            index
         } else {
             0
         };
@@ -422,14 +431,17 @@ fn settings() -> HostSettings {
 async fn capture(context: &Context) -> Result<()> {
     context.host().prompts.create("ready".into(), "continue".into(), HashMap::new()).await?;
     let rows = context.parameters::<Capture>()?.rows;
+    let observed = context.get::<Observed>()?;
+    context.sleep(Duration::from_millis(rows.saturating_sub(observed.count.load(Ordering::SeqCst)))).await?;
+    // The Last Tick Fires With the Sleep; Await Its Callback Without Advancing Time.
     loop {
-        let observed = context.get::<Observed>()?.0.load(Ordering::SeqCst);
-        if observed >= rows {
-            assert_eq!(observed, rows, "Publish Runtime Samples: Retain the Requested Row Count");
+        let published = observed.published.notified();
+        if observed.count.load(Ordering::SeqCst) >= rows {
             break;
         }
-        context.sleep(Duration::from_millis(rows - observed)).await?;
+        published.await;
     }
+    assert_eq!(observed.count.load(Ordering::SeqCst), rows, "Publish Runtime Samples: Retain the Requested Row Count");
     context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows }).await?;
     context.host().prompts.create("captured".into(), "continue".into(), HashMap::new()).await?;
     Ok(())
