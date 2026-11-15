@@ -54,12 +54,12 @@ dokime-runtime = { version = "0.1.5", path = "crates/dokime-runtime" }
 dokime-storage = { version = "0.1.5", path = "crates/dokime-storage" }
 
 # Git
-harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b15faaf202a005cf5077b3938557980f7f49fa37" }
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b15faaf202a005cf5077b3938557980f7f49fa37" }
-harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b15faaf202a005cf5077b3938557980f7f49fa37" }
-harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b15faaf202a005cf5077b3938557980f7f49fa37" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b15faaf202a005cf5077b3938557980f7f49fa37" }
-harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "b15faaf202a005cf5077b3938557980f7f49fa37" }
+harmos = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a8cee45c84b632a7a6987d94c911e0d76b6eed10" }
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a8cee45c84b632a7a6987d94c911e0d76b6eed10" }
+harmos-domain = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a8cee45c84b632a7a6987d94c911e0d76b6eed10" }
+harmos-query = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a8cee45c84b632a7a6987d94c911e0d76b6eed10" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a8cee45c84b632a7a6987d94c911e0d76b6eed10" }
+harmos-storage = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "a8cee45c84b632a7a6987d94c911e0d76b6eed10" }
 
 # Error Handling
 thiserror = { version = "2.0.21" }
@@ -77,6 +77,7 @@ semver = { version = "1.0.28" }
 sha2 = { version = "0.11.1" }
 uuid = { version = "1.28.0", features = ["v5", "v7", "serde"] }
 zeroize = { version = "=1.9.1" }
+windows-sys = { version = "0.61.2" }
 
 # Serialization
 arrow-buffer = { version = "=60.1.0" }

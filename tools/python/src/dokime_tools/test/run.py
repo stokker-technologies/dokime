@@ -492,6 +492,11 @@ def _console() -> dict:
 
 
 def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | None, *, timeout_s: float | None = None) -> int:
+    from .job import own_children
+
+    own_children()
+    if os.name == "nt":
+        command = [sys.executable, "-m", "dokime_tools.test.job", "--", *command]
     try:
         with subprocess.Popen(
             list(command), cwd=cwd, env=environment, start_new_session=os.name != "nt" and timeout_s is not None, **_console()
@@ -522,6 +527,11 @@ def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | No
 
 def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str], *, output: Path | None = None) -> tuple[int, int | None]:
     """Exit status and peak resident bytes of one process and the children it waited for."""
+    from .job import own_children
+
+    own_children()
+    if os.name == "nt":
+        command = [sys.executable, "-m", "dokime_tools.test.job", "--", *command]
     try:
         console = _console()
         if output is not None:

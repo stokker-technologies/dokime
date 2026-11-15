@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 // Third Party Imports
@@ -62,6 +63,15 @@ struct Bench {
     value: f64,
     fail_attempts: u32,
 }
+
+#[derive(dokime::Parameters)]
+#[harmos(package = "execution")]
+struct CaptureRows {
+    rows: u64,
+}
+
+#[derive(Default)]
+struct Published(AtomicU64);
 
 /* === Enums === */
 
@@ -125,8 +135,33 @@ fn main() -> Result<()> {
         .document(document)
         .stream(reading)
         .observer(observer);
+    let boundary_stream = Stream::<Reading>::new("execution.boundary", "Boundary Samples");
+    let boundary_observer = Observer::new(&boundary_stream, async |context: &Context| {
+        let index = context.get::<Published>()?.0.fetch_add(1, Ordering::SeqCst);
+        Ok(Reading { value: index as f64 })
+    })
+    .every_ms(1);
+    let boundary = Template::new("execution.boundary", "Publication Boundary")
+        .parameters(CaptureRows { rows: 1024 })
+        .initialize(async |context: &Context| {
+            context.set(Published::default());
+            Ok(())
+        })
+        .step(Step::new("Capture", async |context: &Context| {
+            let rows = context.parameters::<CaptureRows>()?.rows;
+            loop {
+                let published = context.get::<Published>()?.0.load(Ordering::SeqCst);
+                if published >= rows {
+                    break;
+                }
+                context.sleep(Duration::from_millis(rows - published)).await?;
+            }
+            Ok(())
+        }))
+        .stream(boundary_stream)
+        .observer(boundary_observer);
     let plugin = Plugin::new("execution", "1.0.0")
-        .suite(Suite::new("execution", "Execution").template(template))
+        .suite(Suite::new("execution", "Execution").template(template).template(boundary))
         .prompt(Prompt::new("execution.continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
         .requires_host(HostOperation::PromptsCreate)
         .requires_host(HostOperation::EvidenceRecordsAppend)

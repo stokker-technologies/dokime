@@ -19,6 +19,7 @@
 use std::sync::Mutex;
 
 // Third Party Imports
+use dokime_operations::host::credentials::Entry;
 use harmos_runtime::grpc::access::{CredentialStore, Credentials, Pairing, Pending};
 use prost::Message;
 use zeroize::Zeroizing;
@@ -92,11 +93,12 @@ impl Store {
     pub(super) fn new(storage: dokime_storage::Store, host_id: String) -> Self {
         Self { storage, host_id, commit: Mutex::new(()) }
     }
-    fn key(&self, slot: &str) -> Result<keyring::Entry, keyring::Error> {
-        keyring::Entry::new(SERVICE, &format!("{}:{slot}", self.host_id))
+    fn key(&self, slot: &str) -> Result<Entry, keyring::Error> {
+        Entry::new(SERVICE, &format!("{}:{slot}", self.host_id))
     }
 
     pub(super) fn remove(&self) -> crate::Result<()> {
+        let _guard = self.commit.lock().map_err(|_| crate::Error::Invalid("Remove Access Credentials: Store Lock Failed".into()))?;
         self.remove_keys(None)?;
         self.storage.delete_administration("access")?;
         Ok(())

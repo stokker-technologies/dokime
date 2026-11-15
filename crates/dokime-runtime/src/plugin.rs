@@ -106,6 +106,9 @@ impl PluginProcess {
     pub fn endpoint(&self) -> &str {
         &self.endpoint
     }
+    pub fn id(&self) -> u32 {
+        self.child.0.id()
+    }
     pub async fn close(&mut self) -> Result<()> {
         let stopped = tokio::time::timeout(self.settings.stop_grace, async {
             let mut client = connect(&self.endpoint, &self.settings).await?;

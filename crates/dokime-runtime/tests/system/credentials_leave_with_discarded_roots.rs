@@ -67,6 +67,49 @@ struct SecretSlot {
 /* === Tests === */
 
 #[test]
+fn concurrent_hosts_remove_native_credentials_on_their_owner_thread() {
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let names = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..2)
+            .map(|_| {
+                let barrier = barrier.clone();
+                scope.spawn(move || {
+                    super::support::run(Box::pin(async move {
+                        let root = super::support::tempdir().unwrap();
+                        let server = dokime_runtime::services::serve(
+                            "127.0.0.1:0".parse().unwrap(),
+                            root.path(),
+                            super::support::settings(),
+                            super::support::service_settings(),
+                        )
+                        .await
+                        .unwrap();
+                        let store = Store::open(root.path()).unwrap();
+                        let pointer: AccessPointer = store.administration("access").unwrap().unwrap();
+                        let name = format!("{}:{}", store.identity(), pointer.key_slot);
+                        assert!(!keyring::Entry::new("dokime.access", &name).unwrap().get_password().unwrap().is_empty());
+                        tokio::task::spawn_blocking(move || barrier.wait()).await.unwrap();
+                        server.close().await.unwrap();
+                        drop(store);
+                        drop(root);
+                        // This Guard Deliberately Reads From the Calling Thread, Outside the Owner.
+                        assert!(matches!(
+                            keyring::Entry::new("dokime.access", &name).unwrap().get_password(),
+                            Err(keyring::Error::NoEntry)
+                        ));
+                        name
+                    }))
+                })
+            })
+            .collect();
+        workers.into_iter().map(|worker| worker.join().unwrap()).collect::<Vec<_>>()
+    });
+    for name in names {
+        assert!(matches!(keyring::Entry::new("dokime.access", &name).unwrap().get_password(), Err(keyring::Error::NoEntry)));
+    }
+}
+
+#[test]
 fn failed_live_story_removes_its_access_credential() {
     let created = std::sync::Arc::new(std::sync::Mutex::new(None));
     let recorded = created.clone();

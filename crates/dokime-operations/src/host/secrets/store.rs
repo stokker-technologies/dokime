@@ -141,7 +141,7 @@ pub fn remove_root_secrets(store: &Store) -> Result<()> {
         .chain(journal.slots.iter().map(|slot| format!("{}:{slot}", journal.host_id)))
         .collect();
     for account in accounts {
-        let entry = keyring::Entry::new(SERVICE, &account).map_err(|_| unavailable())?;
+        let entry = super::super::credentials::Entry::new(SERVICE, &account).map_err(|_| unavailable())?;
         match entry.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => {}
             Err(_) => return Err(unavailable()),
@@ -231,8 +231,8 @@ fn value(value: &str) -> Result<()> {
     }
     Ok(())
 }
-fn entry(context: &Context, slot: &str) -> Result<keyring::Entry> {
-    keyring::Entry::new(SERVICE, &format!("{}:{slot}", context.host.identity().backend_id)).map_err(|_| unavailable())
+fn entry(context: &Context, slot: &str) -> Result<super::super::credentials::Entry> {
+    super::super::credentials::Entry::new(SERVICE, &format!("{}:{slot}", context.host.identity().backend_id)).map_err(|_| unavailable())
 }
 fn lookup(context: &Context, catalog: &Catalog, id: &str) -> Result<Zeroizing<String>> {
     identifier(id)?;
@@ -533,7 +533,8 @@ fn run(context: &Context, action: Action, plugins: &[PluginEntry]) -> Result<Rep
         if next.entries.iter().any(|next| &next.slot == slot) {
             return true;
         }
-        let removed = keyring::Entry::new(SERVICE, &format!("{}:{slot}", journal.host_id)).and_then(|entry| entry.delete_credential());
+        let removed = super::super::credentials::Entry::new(SERVICE, &format!("{}:{slot}", journal.host_id))
+            .and_then(|entry| entry.delete_credential());
         if matches!(removed, Ok(()) | Err(keyring::Error::NoEntry)) {
             return false;
         }

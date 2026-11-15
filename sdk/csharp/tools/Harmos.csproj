@@ -13,8 +13,8 @@
     <PackageId>Harmos</PackageId>
     <Version>0.1.0-dev.b15faaf202a0</Version>
     <Description>Pinned Harmos SDK</Description>
-    <SourceRevisionId>b15faaf202a005cf5077b3938557980f7f49fa37</SourceRevisionId>
-    <RepositoryCommit>b15faaf202a005cf5077b3938557980f7f49fa37</RepositoryCommit>
+    <SourceRevisionId>a8cee45c84b632a7a6987d94c911e0d76b6eed10</SourceRevisionId>
+    <RepositoryCommit>a8cee45c84b632a7a6987d94c911e0d76b6eed10</RepositoryCommit>
     <RepositoryUrl>https://github.com/stokker-technologies/harmos</RepositoryUrl>
     <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

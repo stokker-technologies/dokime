@@ -51,8 +51,11 @@ mod execution_capabilities;
 mod execution_isolation;
 mod execution_outcomes;
 mod manager_lifecycles;
+#[cfg(target_os = "windows")]
+mod owned_processes;
 mod plugin_reads_only_declared_secrets;
 mod process_interruption;
+mod publication_boundaries;
 mod python_client_runs_thermal_suite_over_grpc;
 mod python_plugin_matches_rust_thermal_evidence;
 mod step_failure_and_retries;

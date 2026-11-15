@@ -17,6 +17,7 @@ pub mod backend;
 pub mod cases;
 pub mod catalog_inventory;
 pub mod content;
+pub mod credentials;
 pub mod cycles;
 pub mod documents;
 pub mod effects;
