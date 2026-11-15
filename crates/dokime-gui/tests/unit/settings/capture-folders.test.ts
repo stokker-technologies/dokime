@@ -54,7 +54,17 @@ vi.mock("react", async (original) => ({
   useState: () => [fixture.draft, vi.fn()],
 }));
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ "aria-label": label, children, disabled, onClick }: { "aria-label"?: string; children: ReactNode; disabled?: boolean; onClick: () => void }) => {
+  Button: ({
+    "aria-label": label,
+    children,
+    disabled,
+    onClick,
+  }: {
+    "aria-label"?: string;
+    children: ReactNode;
+    disabled?: boolean;
+    onClick: () => void;
+  }) => {
     fixture.buttons.set(label ?? String(children), { onClick, disabled: Boolean(disabled) });
     return createElement("button", { type: "button" });
   },
