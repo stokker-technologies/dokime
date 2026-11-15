@@ -109,6 +109,8 @@ Numeric categories are unwrapped deliberately; integer category keys retain thei
 exact decimal spelling. An error or empty card fails traversal with its identifier
 and displayed message. The benchmark times traversal inside the WebView and
 records the driver round trip separately from drawing.
+The benchmark awaits its library plugin entry's Ready state through Watch before
+planning the capture, so admission cannot race declaration availability.
 Evidence statistics, plot legends and summary tiles retain integer and exact
 rational values. Large values are formatted from their decimal representation;
 chart coordinates use floating point. Dispersion and RMS retain their approximate

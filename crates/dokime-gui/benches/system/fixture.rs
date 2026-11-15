@@ -37,6 +37,7 @@ use dokime_sdk::client::PluginRemote;
 use dokime_sdk::client::PluginValue;
 use dokime_sdk::client::PluginsCreateOptions;
 use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 use super::sample_carrier::Producer;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Session};
@@ -174,7 +175,24 @@ impl Fixture {
             .execute(session.client().plugins.create_with("bench.pipeline", placement, PluginValue { enabled: true }, options))
             .await
             .unwrap();
-        assert!(!admitted.entry.unwrap().name.is_empty());
+        let mut entry = admitted.entry.expect("Admit Benchmark Fixture: Missing Entry");
+        let options = PluginsWatchOptions {
+            name: Some(entry.name.clone()),
+            context: session.call_options().unwrap(),
+            ..Default::default()
+        };
+        let mut watching = session.execute(session.client().plugins.watch_with(options)).await.unwrap();
+        while entry.state != PluginState::Ready as i32 {
+            assert!(entry.failure.is_none(), "Admit Benchmark Fixture: {:?}", entry.failure);
+            assert_ne!(entry.state, PluginState::Stopped as i32);
+            session.execute(watching.next()).await.unwrap().expect("Admit Benchmark Fixture: Watch Closed");
+            let options = PluginsGetOptions {
+                context: session.call_options().unwrap(),
+                ..Default::default()
+            };
+            entry = session.execute(session.client().plugins.get_with(entry.name, options)).await.unwrap().entry.unwrap();
+        }
+        drop(watching);
         let plan: CasesCreateResponse = session
             .unary(
                 "/dokime.host.v1.Cases/Create",
