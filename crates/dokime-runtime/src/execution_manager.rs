@@ -305,7 +305,17 @@ impl ExecutionManager {
         self.signal_change();
         Ok(())
     }
+    /// Seals the execution's running file captures before its evidence closes.
+    pub(crate) async fn settle_captures(&self, execution: &str) {
+        if let Some(context) = self.inner.context.get().and_then(Weak::upgrade) {
+            context.captures.settle(execution).await;
+        }
+    }
     pub(crate) fn finish_progress(&self, execution: &str, failure: Option<String>) -> Result<()> {
+        // An Execution Closed Outside Its Driver Leaves No Capture Behind.
+        if let Some(context) = self.inner.context.get().and_then(Weak::upgrade) {
+            context.captures.discard(execution);
+        }
         if let Some(sender) = lock(&self.inner.progress)?.remove(execution) {
             sender.send_modify(|progress| {
                 progress.revision += 1;

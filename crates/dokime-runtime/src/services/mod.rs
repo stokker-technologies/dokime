@@ -303,6 +303,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         settings: settings.clone(),
         operations: runtime.operations.clone(),
         caller: None,
+        captures: Arc::new(dokime_operations::host::files::captures::Captures::new(host.settings.capture.clone())),
     });
     host.executions.bind_context(&context)?;
     host.executions

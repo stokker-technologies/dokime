@@ -50,6 +50,12 @@ Dokime adds `plugins.Secrets` for revision-checked declared-name bindings.
 clients. Typed statistics retain exact numeric values and sums independently of
 floating plotting coordinates.
 
+A step brings device output files into its execution with `Files.Capture` (one
+copy) or `files.Captures.Start` and `Stop` (bytes written in between). The host
+reads only directories listed in its `capture_roots` configuration
+(`capture_roots = ["D:/bench/device"]`, or `--capture-root` on `dokime-host`).
+See [File Capture](execution-host.md#handler-interfaces).
+
 ## Evidence and Reports
 
 Records are acknowledged scoped host operations. Samples retain their declared

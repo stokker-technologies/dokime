@@ -506,6 +506,7 @@ async fn drive(
     }
     .await;
     let closed = binding.close().await;
+    host.settle_captures(&execution).await;
     let (resources, mut termination, evaluated, result) = prepared?;
     if let Err(error) = closed.map_err(|source| Error::Invalid(format!("Close Execution Binding: {source}"))) {
         termination = Termination::Interrupted;

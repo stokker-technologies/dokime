@@ -212,6 +212,13 @@ pub fn secrets_fixture() -> Result<PathBuf, Box<dyn Error>> {
     }
     Ok(path)
 }
+pub fn capture_fixture() -> Result<PathBuf, Box<dyn Error>> {
+    let path = fixture_root().join(format!("dokime-rust-capture{}", EXE_SUFFIX));
+    if !path.is_file() {
+        return Err("Build the Capture Fixture Through mise run build:host-fixtures".into());
+    }
+    Ok(path)
+}
 pub fn boundary_fixture() -> Result<PathBuf, Box<dyn Error>> {
     let path = fixture_root().join(format!("dokime-rust-boundary{}", EXE_SUFFIX));
     if !path.is_file() {

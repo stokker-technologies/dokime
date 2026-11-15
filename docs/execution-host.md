@@ -26,7 +26,8 @@ temporary report retention. Shutdown releases retained files and closes publicat
 Rendering remains a pure storage read into temporary output, and never publishes.
 Evidence, Catalog, notes, Aggregates, Plots and Documents have no manager. Media
 still explicitly refuses its unsupported operations; this host has no live recording
-owner requiring a capture manager.
+owner requiring a capture manager. Local file captures are a registry, not a manager:
+the execution settles its captures before closing evidence, so they join with it.
 
 Guard **A5 — Managers Own Live Orchestration** is exercised by
 `execution_shutdown_joins_runs_after_observer_loss`,
@@ -386,6 +387,10 @@ retained_bytes = 67108864
 stream_buffer = 8
 max_cases = 1000
 page_items = 1000
+capture_roots = ["D:/bench/device"]
+capture_files = 64
+capture_bytes = 268435456
+captures = 256
 ```
 
 Materialized case files contain the authoritative `PreviewSelectionReply`
@@ -416,6 +421,12 @@ mise run test -- --package dokime-cli --target system
 
 Reports validate metadata, ordered offsets, total bytes, SHA-256 completion and
 terminal status before creating the requested output; existing output is retained.
+`execution export EXECUTION --out FILE.zip` and `cycle export CYCLE --out FILE.zip`
+download the Evidence.Archive ZIP with the same verified download, refusing an
+existing destination. `--id-file PATH` on cycle create/rerun/append and prompt next
+writes confirmed UUIDs, one per line. `server --env-file PATH` (and
+`dokime-host --env-file`) reads `RUST_LOG` from an explicit file; process variables
+win and unknown names are refused.
 Human output is default and inspection/read commands offer `--json` with proto
 field names. Diagnostics go to stderr; exit codes are 0 success, 2 invalid
 arguments/configuration, 3 operational failure and 4 resource-capacity refusal.
@@ -682,7 +693,7 @@ ALL. Backend, Documents, Evidence, Records, Traceability, Progress and Prompts h
 complementary client/context operations. Artifacts.Create, Statistics, Records.List,
 Traceability.Get, Progress.Get and Secrets.Get use one richer shape. None needs a
 caller-specific operation name. Media capture remains declared and unimplemented;
-FTP capture and the effects journal are not restored.
+FTP capture and the effects journal are not restored; local file capture is.
 
 ### Harmonized Request and Response Shapes
 
@@ -1740,8 +1751,22 @@ assembly. Assembly owns the backend lease, and closure refuses further backend
 calls before releasing it.
 
 Files.Capture and files.Captures.Start/Stop register through those canonical
-adapters and enforce their plugin-only callers before returning an unimplemented
-refusal naming the action. Their capture engines remain absent.
+adapters, enforce their plugin-only callers and run the local capture engine in
+`crates/dokime-operations/src/host/files/captures/`. A source must resolve, after
+following links, inside one of the host's `capture_roots` (`--capture-root` on
+`dokime-host`); an empty list refuses every capture with a permission failure.
+Files.Capture copies its File, Tree or Newest source once. Captures.Start takes
+the baseline and returns its identifier; the calling execution owns the capture.
+Captures.Stop takes the final pass and seals once: Stream keeps bytes written after
+the baseline (later files whole), Mirror keeps each file whole as it is at the stop.
+A repeated stop returns the same outcome, and an abandoned reply leaves sealing
+running. Bytes travel through the native upload path and Artifacts.Create; gaps
+and early failures append `capture:gap` and `capture:failure` evidence. A capture
+nothing stopped takes its final pass when the execution's binding closes, before
+its evidence closes, including after cancellation; no capture outlives its
+execution. File, byte and capacity limits come from host settings. Interim passes,
+live growing artifacts and Stream line matchers or markers are not restored;
+matchers, markers and FTP/FTPS sources refuse as deferred, naming the action.
 The same registration owns the unsupported Effects, media.Captures and Aggregates
 operations. Direct and encoded calls share their refusals; no handwritten runtime
 service duplicates those declarations.

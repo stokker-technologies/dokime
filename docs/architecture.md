@@ -121,6 +121,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    status/diagnostics/clock, OperationManager dispatch/invocations, StreamManager
    streams, RecordManager capture and StateManager live state; product execution,
    prompt and report managers own their lifecycles, with capture only if recordings remain.
+   Local file captures are an execution-owned registry settled before evidence closes.
    **Why:** One owner must join work and settle shutdown; storage reads and pure
    rendering need no invented manager. Assembly observes native plugin changes for
    redacted diagnostics, and waits for product watches to settle after execution
