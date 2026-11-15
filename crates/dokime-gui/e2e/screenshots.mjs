@@ -346,7 +346,7 @@ try {
     const plan = await call(session, "Cases", "Create", {
       requestId: crypto.randomUUID(),
       plan: { selections: [{ suiteId: suite.metadata.identifier, templateId: template.metadata.identifier, parameters }] },
-      validateOnly: true,
+      validateOnly: false,
     });
     const cycle = await call(session, "Cycles", "Create", {
       requestId: crypto.randomUUID(),
@@ -361,7 +361,11 @@ try {
     });
     const route = `/cycles/${cycle.cycleId}?executionId=${executionId}`;
     await session.goto(route);
-    await session.clickNamed("button", "Start");
+    await until("registered execution row", () =>
+      session.find("css selector", `li[data-execution-id="${executionId}"] button[data-tree-actions]`),
+    );
+    await session.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-actions]`);
+    await session.clickNamed("menuitem", "Start Execution");
     // Keep Inspection Pending Until Both Running Captures Are Saved.
     await until("live measurement plots", async () => {
       await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
@@ -535,7 +539,11 @@ try {
         executions: [{ executionId: activeId, caseId: plan.cases[0].caseId }],
       });
       await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
-      await session.clickNamed("button", "Start");
+      await until("registered active row", () =>
+        session.find("css selector", `li[data-execution-id="${activeId}"] button[data-tree-actions]`),
+      );
+      await session.clickCss(`li[data-execution-id="${activeId}"] button[data-tree-actions]`);
+      await session.clickNamed("menuitem", "Start Execution");
       // The Operator Answers After Capturing The Active And Touch Views.
       await until("active observation", async () => {
         await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
