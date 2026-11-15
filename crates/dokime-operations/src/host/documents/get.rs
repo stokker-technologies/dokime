@@ -230,11 +230,12 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                             node: Some(DocumentLayoutNodeNode {
                                 kind: Some(DocumentLayoutNodeNodeKind::Placement(DocumentPlacement {
                                     card_id: id.clone(),
-                                    column_span: Some(DocumentSpan {
-                                        base: placement.columns.max(1),
+                                    // An Undeclared Layout Leaves Both Spans Absent So Clients Use Full Width.
+                                    column_span: (placement.columns > 0).then(|| DocumentSpan {
+                                        base: placement.columns,
                                         ..Default::default()
                                     }),
-                                    row_span: placement.rows.max(1),
+                                    row_span: placement.rows,
                                     order: placement.order,
                                     ..Default::default()
                                 })),

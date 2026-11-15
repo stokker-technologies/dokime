@@ -195,6 +195,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                             identifier: "table".into(),
                             ..Default::default()
                         }),
+                        layout: Some(dokime_protocol::model::CardLayout { columns: 6, rows: 2, order: 0 }),
                         body: Some(Body::Table(Table {
                             rows: vec![
                                 TableRow {
@@ -434,6 +435,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             let mut section_identities = BTreeSet::new();
             let mut repeats = BTreeSet::new();
             let mut layout_count = 0;
+            let mut spans_checked = 0;
             let mut table_rows = 0;
             let mut summaries = BTreeMap::new();
             let mut grouped_counts = Vec::new();
@@ -475,8 +477,26 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                     DocumentFrameFrameKind::LayoutNode(node) => {
                         assert!(!structures);
                         layout_count += 1;
-                        if let Some(DocumentLayoutNodeNodeKind::Section(section)) = node.node.as_ref().and_then(|node| node.kind.as_ref()) {
-                            assert!(sections.insert(section.node_id.clone()));
+                        match node.node.as_ref().and_then(|node| node.kind.as_ref()) {
+                            Some(DocumentLayoutNodeNodeKind::Section(section)) => assert!(sections.insert(section.node_id.clone())),
+                            // An Undeclared Layout Reports No Span; a Declared Span Is Kept.
+                            Some(DocumentLayoutNodeNodeKind::Placement(placement)) if placement.card_id.ends_with("summary") => {
+                                assert_eq!(
+                                    (placement.column_span.as_ref(), placement.row_span),
+                                    (None, 0),
+                                    "Leave Undeclared Card Spans Absent"
+                                );
+                                spans_checked += 1;
+                            }
+                            Some(DocumentLayoutNodeNodeKind::Placement(placement)) if placement.card_id.ends_with("table") => {
+                                assert_eq!(
+                                    (placement.column_span.as_ref().map(|span| span.base), placement.row_span),
+                                    (Some(6), 2),
+                                    "Keep Declared Card Spans"
+                                );
+                                spans_checked += 1;
+                            }
+                            _ => {}
                         }
                     }
                     DocumentFrameFrameKind::RepeatSelection(value) => {
@@ -490,6 +510,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                         assert_eq!(counts.card_count, cards.len() as u64);
                         assert_eq!(counts.binding_count, bindings.len() as u64);
                         assert_eq!(counts.layout_node_count, layout_count);
+                        assert_eq!(spans_checked, 2, "Report Both Card Placements");
                         assert_eq!(counts.section_count, sections.len() as u64);
                         assert_eq!(section_identities, sections);
                         assert_eq!(counts.repeat_count, repeats.len() as u64);
