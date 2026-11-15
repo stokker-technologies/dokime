@@ -345,163 +345,169 @@ async fn drive(
     lock(&host.inner.sample_scopes)?.insert(execution.clone(), scope);
     let binding =
         runtime.bind_grpc(&activation, &execution, time.clock.clone()).await.map_err(|source| Error::ComposedStartup(Box::new(source)))?;
-    let resources = Resources {
-        plugin: Arc::new(entry.clone()),
-        context: host
-            .inner
-            .context
-            .get()
-            .and_then(Weak::upgrade)
-            .ok_or_else(|| Error::Invalid("Start Execution: Assemble the Host Context Before Running".into()))?,
-        store: host.inner.store.clone(),
-        execution: execution.clone(),
-        step: String::new(),
-        operation: String::new(),
-        attempt: Arc::new(AtomicU32::new(0)),
-        clock: time.clone(),
-        prompts: host.inner.prompts.clone(),
-    };
-    let mut dispatch = Dispatch {
-        time: time.clone(),
-        sample_failures: host.inner.sample_failures.clone(),
-        binding: &binding,
-        resources,
-        cancellation,
-        controller: controller.map(Arc::new),
-    };
-    states.push(RunState::Initializing);
-    host.set_run_phase(&execution, "initializing")?;
-    let mut initialized = template.initialize.is_none();
-    let mut evaluated = Vec::new();
-    let result: Result<()> = async {
-        if dispatch.cancellation.is_cancelled() {
-            return Err(Error::Cancelled);
-        }
-        if let Some(operation) = &template.initialize {
-            dispatch
-                .invoke::<_, ExecutionsInitializeResponse>(
-                    operation,
-                    ExecutionsInitializeRequest {
-                        execution: execution.clone(),
-                        test_case: Some(case.clone()),
-                        origin: Some(origin.clone()),
-                    },
-                )
-                .await?;
-            initialized = true;
-        }
-        states.push(RunState::Stepping);
-        host.set_run_phase(&execution, "stepping")?;
-        while let Some((index, mut command)) = control.next(case, &dispatch.cancellation).await? {
-            let step = &case.steps[index];
-            host.signal_change();
-            let identifier =
-                step.metadata.as_ref().ok_or_else(|| Error::Invalid("Materialize Steps with Identifiers".into()))?.identifier.clone();
-            dispatch.resources.step = identifier.clone();
-            let position = dispatch.resources.evidence("step:start", Vec::new(), None)?;
-            if let Some(command) = &mut command {
-                command.phase = ExecutionCommandPhase::Running as i32;
-                command.attempt_id = Some(format!("{execution}/{position}"));
-                let now = host.now_ns();
-                command.updated_at = Some(prost_types::Timestamp {
-                    seconds: now.div_euclid(1_000_000_000),
-                    nanos: now.rem_euclid(1_000_000_000) as i32,
-                });
-                host.inner.store.save_command(command)?;
+    // Close the Binding on Every Exit So Accepted Samples Drain Before the Scope Is Removed.
+    let prepared: Result<(Resources, Termination, Vec<bool>, Result<()>)> = async {
+        let resources = Resources {
+            plugin: Arc::new(entry.clone()),
+            context: host
+                .inner
+                .context
+                .get()
+                .and_then(Weak::upgrade)
+                .ok_or_else(|| Error::Invalid("Start Execution: Assemble the Host Context Before Running".into()))?,
+            store: host.inner.store.clone(),
+            execution: execution.clone(),
+            step: String::new(),
+            operation: String::new(),
+            attempt: Arc::new(AtomicU32::new(0)),
+            clock: time.clone(),
+            prompts: host.inner.prompts.clone(),
+        };
+        let mut dispatch = Dispatch {
+            time: time.clone(),
+            sample_failures: host.inner.sample_failures.clone(),
+            binding: &binding,
+            resources,
+            cancellation,
+            controller: controller.map(Arc::new),
+        };
+        states.push(RunState::Initializing);
+        host.set_run_phase(&execution, "initializing")?;
+        let mut initialized = template.initialize.is_none();
+        let mut evaluated = Vec::new();
+        let result: Result<()> = async {
+            if dispatch.cancellation.is_cancelled() {
+                return Err(Error::Cancelled);
             }
-            host.signal_change();
-            let result = dispatch
-                .invoke::<_, StepsExecuteResponse>(
-                    &step.operation,
-                    StepsExecuteRequest {
+            if let Some(operation) = &template.initialize {
+                dispatch
+                    .invoke::<_, ExecutionsInitializeResponse>(
+                        operation,
+                        ExecutionsInitializeRequest {
+                            execution: execution.clone(),
+                            test_case: Some(case.clone()),
+                            origin: Some(origin.clone()),
+                        },
+                    )
+                    .await?;
+                initialized = true;
+            }
+            states.push(RunState::Stepping);
+            host.set_run_phase(&execution, "stepping")?;
+            while let Some((index, mut command)) = control.next(case, &dispatch.cancellation).await? {
+                let step = &case.steps[index];
+                host.signal_change();
+                let identifier =
+                    step.metadata.as_ref().ok_or_else(|| Error::Invalid("Materialize Steps with Identifiers".into()))?.identifier.clone();
+                dispatch.resources.step = identifier.clone();
+                let position = dispatch.resources.evidence("step:start", Vec::new(), None)?;
+                if let Some(command) = &mut command {
+                    command.phase = ExecutionCommandPhase::Running as i32;
+                    command.attempt_id = Some(format!("{execution}/{position}"));
+                    let now = host.now_ns();
+                    command.updated_at = Some(prost_types::Timestamp {
+                        seconds: now.div_euclid(1_000_000_000),
+                        nanos: now.rem_euclid(1_000_000_000) as i32,
+                    });
+                    host.inner.store.save_command(command)?;
+                }
+                host.signal_change();
+                let result = dispatch
+                    .invoke::<_, StepsExecuteResponse>(
+                        &step.operation,
+                        StepsExecuteRequest {
+                            execution: execution.clone(),
+                            step: identifier,
+                            test_case: Some(case.clone()),
+                            origin: Some(origin.clone()),
+                        },
+                    )
+                    .await;
+                dispatch.resources.evidence("step:end", Vec::new(), None)?;
+                if result.is_err() {
+                    dispatch.resources.evidence("step:failure", Vec::new(), None)?;
+                }
+                if let Some(mut command) = command {
+                    command.phase = if result.is_ok() { ExecutionCommandPhase::Completed } else { ExecutionCommandPhase::Failed } as i32;
+                    command.detail = result.as_ref().err().map(ToString::to_string);
+                    let now = host.now_ns();
+                    command.updated_at = Some(prost_types::Timestamp {
+                        seconds: now.div_euclid(1_000_000_000),
+                        nanos: now.rem_euclid(1_000_000_000) as i32,
+                    });
+                    host.inner.store.save_command(&command)?;
+                }
+                control.complete_step(index)?;
+                host.signal_change();
+                result?;
+            }
+            dispatch.resources.step.clear();
+            states.push(RunState::Evaluating);
+            host.set_run_phase(&execution, "evaluating")?;
+            for criterion in &case.criteria {
+                let identifier = criterion
+                    .metadata
+                    .as_ref()
+                    .ok_or_else(|| Error::Invalid("Materialize Criteria with Identifiers".into()))?
+                    .identifier
+                    .clone();
+                let response: CriteriaEvaluateResponse = dispatch
+                    .invoke(
+                        &criterion.operation,
+                        CriteriaEvaluateRequest {
+                            execution: execution.clone(),
+                            criterion: identifier.clone(),
+                            test_case: Some(case.clone()),
+                            origin: Some(origin.clone()),
+                        },
+                    )
+                    .await?;
+                dispatch.resources.evidence(&format!("criterion:{identifier}"), response.encode_to_vec(), None)?;
+                evaluated.push(response.passed);
+            }
+            Ok(())
+        }
+        .await;
+        if let Some(mut command) = control.take_pending()? {
+            command.phase = if result.is_ok() { ExecutionCommandPhase::Completed } else { ExecutionCommandPhase::Interrupted } as i32;
+            host.inner.store.save_command(&command)?;
+        }
+        let mut termination = match &result {
+            Ok(()) => Termination::Completed,
+            Err(Error::Cancelled) => Termination::Cancelled,
+            Err(Error::Plugin(_)) => Termination::Failed,
+            Err(_) => Termination::Interrupted,
+        };
+        states.push(RunState::CleaningUp);
+        host.set_run_phase(&execution, "cleaning_up")?;
+        dispatch.cancellation = CancellationToken::new();
+        dispatch.resources.step.clear();
+        if initialized && let Some(operation) = &template.cleanup {
+            let cleanup = dispatch
+                .invoke::<_, ExecutionsCleanupResponse>(
+                    operation,
+                    ExecutionsCleanupRequest {
                         execution: execution.clone(),
-                        step: identifier,
+                        termination: termination as i32,
                         test_case: Some(case.clone()),
                         origin: Some(origin.clone()),
                     },
                 )
                 .await;
-            dispatch.resources.evidence("step:end", Vec::new(), None)?;
-            if result.is_err() {
-                dispatch.resources.evidence("step:failure", Vec::new(), None)?;
+            if let Err(error) = cleanup {
+                termination = Termination::Interrupted;
+                dispatch.resources.evidence("cleanup:failure", error.to_string().into_bytes(), None)?;
             }
-            if let Some(mut command) = command {
-                command.phase = if result.is_ok() { ExecutionCommandPhase::Completed } else { ExecutionCommandPhase::Failed } as i32;
-                command.detail = result.as_ref().err().map(ToString::to_string);
-                let now = host.now_ns();
-                command.updated_at = Some(prost_types::Timestamp {
-                    seconds: now.div_euclid(1_000_000_000),
-                    nanos: now.rem_euclid(1_000_000_000) as i32,
-                });
-                host.inner.store.save_command(&command)?;
-            }
-            control.complete_step(index)?;
-            host.signal_change();
-            result?;
         }
-        dispatch.resources.step.clear();
-        states.push(RunState::Evaluating);
-        host.set_run_phase(&execution, "evaluating")?;
-        for criterion in &case.criteria {
-            let identifier = criterion
-                .metadata
-                .as_ref()
-                .ok_or_else(|| Error::Invalid("Materialize Criteria with Identifiers".into()))?
-                .identifier
-                .clone();
-            let response: CriteriaEvaluateResponse = dispatch
-                .invoke(
-                    &criterion.operation,
-                    CriteriaEvaluateRequest {
-                        execution: execution.clone(),
-                        criterion: identifier.clone(),
-                        test_case: Some(case.clone()),
-                        origin: Some(origin.clone()),
-                    },
-                )
-                .await?;
-            dispatch.resources.evidence(&format!("criterion:{identifier}"), response.encode_to_vec(), None)?;
-            evaluated.push(response.passed);
+        if let Err(error) = &result {
+            dispatch.resources.evidence("execution:failure", error.to_string().into_bytes(), None)?;
         }
-        Ok(())
+        Ok((dispatch.resources, termination, evaluated, result))
     }
     .await;
-    if let Some(mut command) = control.take_pending()? {
-        command.phase = if result.is_ok() { ExecutionCommandPhase::Completed } else { ExecutionCommandPhase::Interrupted } as i32;
-        host.inner.store.save_command(&command)?;
-    }
-    let mut termination = match &result {
-        Ok(()) => Termination::Completed,
-        Err(Error::Cancelled) => Termination::Cancelled,
-        Err(Error::Plugin(_)) => Termination::Failed,
-        Err(_) => Termination::Interrupted,
-    };
-    states.push(RunState::CleaningUp);
-    host.set_run_phase(&execution, "cleaning_up")?;
-    dispatch.cancellation = CancellationToken::new();
-    dispatch.resources.step.clear();
-    if initialized && let Some(operation) = &template.cleanup {
-        let cleanup = dispatch
-            .invoke::<_, ExecutionsCleanupResponse>(
-                operation,
-                ExecutionsCleanupRequest {
-                    execution: execution.clone(),
-                    termination: termination as i32,
-                    test_case: Some(case.clone()),
-                    origin: Some(origin.clone()),
-                },
-            )
-            .await;
-        if let Err(error) = cleanup {
-            termination = Termination::Interrupted;
-            dispatch.resources.evidence("cleanup:failure", error.to_string().into_bytes(), None)?;
-        }
-    }
-    if let Err(error) = &result {
-        dispatch.resources.evidence("execution:failure", error.to_string().into_bytes(), None)?;
-    }
-    let resources = dispatch.resources;
-    if let Err(error) = binding.close().await.map_err(|source| Error::Invalid(format!("Close Execution Binding: {source}"))) {
+    let closed = binding.close().await;
+    let (resources, mut termination, evaluated, result) = prepared?;
+    if let Err(error) = closed.map_err(|source| Error::Invalid(format!("Close Execution Binding: {source}"))) {
         termination = Termination::Interrupted;
         resources.evidence("streams:failure", error.to_string().into_bytes(), None)?;
     }
