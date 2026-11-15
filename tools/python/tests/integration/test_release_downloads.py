@@ -134,7 +134,7 @@ class DownloadManifestTests(unittest.TestCase):
 class StageTests(unittest.TestCase):
     def test_local_rehearsal_prepares_native_packages_without_credentials(self) -> None:
         commands: list[list[str]] = []
-        settings = {"targets": ["windows-x86_64"]}
+        settings = {"targets": ["windows-x86_64", "linux-x86_64"]}
 
         def execute(directory: Path, arguments: list[str]) -> str:
             self.assertNotIn("GH_TOKEN", os.environ)
@@ -164,6 +164,7 @@ class StageTests(unittest.TestCase):
         ):
             run.rehearse(Path.cwd(), settings, profile="dev")
             verify.assert_called_once()
+            self.assertEqual(verify.call_args.kwargs["targets"], ["windows-x86_64"])
             self.assertEqual(os.environ["GH_TOKEN"], "rehearsal-secret")
 
     def test_stage_requires_packaged_notices(self):

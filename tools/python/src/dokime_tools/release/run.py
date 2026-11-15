@@ -611,9 +611,7 @@ def rehearse(directory: Path, settings: dict, *, target: str | None = None, prof
         raise policy.ToolError("rehearsal profile must be dev or release")
     if hosted and (profile != "release" or stage_only):
         raise policy.ToolError("hosted rehearsal requires complete release-profile verification")
-    if hosted and target not in (None, "all"):
-        raise policy.ToolError("hosted rehearsal requires all declared release targets")
-    target = target or ("all" if hosted else "native")
+    target = target or "native"
     selected = native_target(settings) if target == "native" else target
     if selected != "all" and selected not in settings.get("targets", []):
         raise policy.ToolError(f"undeclared release target: {selected}")
@@ -630,7 +628,10 @@ def rehearse(directory: Path, settings: dict, *, target: str | None = None, prof
             registry.rehearse_crates(directory, skip_published=False)
         if not stage_only and _task_defined(directory, "release:publish:python"):
             registry.python(directory, settings, dry_run=True)
-    print(f"release {'staging' if stage_only else 'rehearsal'} passed using staged {profile}-profile packages")
+    print(f"Release {'Staging' if stage_only else 'Rehearsal'} Passed: {', '.join(targets)} ({profile} Profile)")
+    uncovered = sorted(set(settings.get("targets", [])) - set(targets))
+    if uncovered:
+        print(f"Targets Not Covered: {', '.join(uncovered)}; Use --target all With Those Packages Available to Rehearse Them")
 
 
 def identity(directory: Path, settings: dict) -> None:
