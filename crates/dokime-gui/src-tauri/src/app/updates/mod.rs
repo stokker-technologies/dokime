@@ -170,6 +170,12 @@ impl UpdateState {
             .endpoints(vec![manifest])
             .map_err(|_| "The update manifest URL is invalid")?
             .configure_client(sources::client)
+            // The Installer Starts Right After This Hook and Must Outlive the Exiting Desktop.
+            .on_before_exit(|| {
+                if let Err(error) = dokime_runtime::process::detach_later_children() {
+                    tracing::error!(%error, "Detach the Update Installer");
+                }
+            })
             .build()
             .map_err(|_| "The compiled updater is unavailable")?;
         let found = updater.check().await.map_err(|_| "The update manifest could not be checked")?;
@@ -308,7 +314,13 @@ pub async fn desktop_updates_install(state: State<'_, UpdateState>, candidate: S
         if inner.generation != generation || inner.candidate.as_ref().is_none_or(|selected| selected.id != candidate) {
             return Err("The reviewed update changed before installation".into());
         }
-        update.install(bytes).map_err(|_| "The verified update could not be installed")?;
+        // A Failed Launch Returns Here With the Desktop Still Running; Own Its Children Again.
+        update.install(bytes).map_err(|_| {
+            if let Err(error) = dokime_runtime::process::own_later_children() {
+                tracing::error!(%error, "Own Child Processes After a Failed Update Launch");
+            }
+            "The verified update could not be installed"
+        })?;
         inner.candidate = None;
         Ok(InstallResult { version: update.version })
     }

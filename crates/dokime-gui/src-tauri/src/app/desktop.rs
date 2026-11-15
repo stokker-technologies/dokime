@@ -26,6 +26,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+#[cfg(not(target_os = "windows"))]
 use tauri_plugin_opener::OpenerExt;
 
 // Local Imports
@@ -152,15 +153,11 @@ pub fn desktop_build() -> DesktopBuild {
 }
 
 pub async fn desktop_open_path(app: AppHandle, path: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string()))
-        .await
-        .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || open_path(&app, path)).await.map_err(|error| error.to_string())?
 }
 
 pub async fn desktop_open_target(app: AppHandle, target: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || app.opener().open_url(target, None::<&str>).map_err(|error| error.to_string()))
-        .await
-        .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || open_url(&app, target)).await.map_err(|error| error.to_string())?
 }
 
 pub async fn desktop_pairing_create(
@@ -483,10 +480,8 @@ pub async fn desktop_artifact_deliver(
         response.error_for_status().map_err(|error| open(error.to_string()))?;
     } else {
         tauri::async_runtime::spawn_blocking(move || {
-            let opener = app.opener();
-            let opened = session.with_current(&generation, || opener.open_path(launched, None::<&str>));
-            let opened = opened.map_err(|error| format!("Native report delivery lost its owning connection: {error:?}"))?;
-            opened.map_err(|error| error.to_string())
+            let opened = session.with_current(&generation, || open_path(&app, launched));
+            opened.map_err(|error| format!("Native report delivery lost its owning connection: {error:?}"))?
         })
         .await
         .map_err(|error| open(error.to_string()))?
@@ -557,6 +552,30 @@ pub(crate) fn set_private_file(path: &Path) -> Result<(), String> {
 }
 
 /* === Private Functions === */
+
+// Opened Viewers, Browsers and Editors Outlive the Desktop and Its Owned Host.
+#[cfg(target_os = "windows")]
+fn open_path(_app: &AppHandle, path: String) -> Result<(), String> {
+    if !Path::new(&path).exists() {
+        return Err(format!("Open {path}: The File No Longer Exists; Save or Export It Again"));
+    }
+    dokime_runtime::process::open(&path).map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn open_path(app: &AppHandle, path: String) -> Result<(), String> {
+    app.opener().open_path(path, None::<&str>).map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn open_url(_app: &AppHandle, target: String) -> Result<(), String> {
+    dokime_runtime::process::open(&target).map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn open_url(app: &AppHandle, target: String) -> Result<(), String> {
+    app.opener().open_url(target, None::<&str>).map_err(|error| error.to_string())
+}
 
 fn protect(
     path: &Path, directory: bool, create: impl FnOnce(&Path) -> Result<(), String>, restrict: impl FnOnce(&Path, u32) -> Result<(), String>,
