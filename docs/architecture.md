@@ -27,8 +27,8 @@ Upstream source citations below use **Harmos** paths at the exact revision pinne
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
-consumers. Runtime admission and application proof remain in the
-[consumer work lists](execution-host.md#consumer-work-lists).
+consumers. Runtime admission and application proof remain open in the
+[gRPC plugins tasks](../openspec/changes/grpc-plugins/tasks.md).
 
 Composition narrows callers before projecting either SDK surface. Shared payloads
 have one public home; versioned wire packages remain internal and the repository
@@ -625,7 +625,7 @@ SQLite catalog and compressed Arrow file backend remain product-owned in
 StorageManager/StateManager and query engine. Its in-memory backend is test support.
 
 The exact [operation/message/caller map](execution-host.md#operation-identity-and-caller-mapping)
-and [consumer work lists](execution-host.md#consumer-work-lists) are canonical.
+is canonical.
 The definition replaces these ownership paths:
 
 | Former Owner | Final Definition Owner |

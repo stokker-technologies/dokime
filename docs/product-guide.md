@@ -48,8 +48,7 @@ The final library composition owns Plugins, plugin settings, Time and Invocation
 Dokime adds `plugins.Secrets` for revision-checked declared-name bindings.
 `Secrets.Get` returns protected bytes; administrative metadata belongs only to
 clients. Typed statistics retain exact numeric values and sums independently of
-floating plotting coordinates. The [consumer work lists](execution-host.md#consumer-work-lists)
-track adoption of these contracts by the runtime and SDKs.
+floating plotting coordinates.
 
 ## Evidence and Reports
 

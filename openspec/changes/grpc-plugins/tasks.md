@@ -60,6 +60,7 @@ Preserve the library-owned discovery refusal in `operator_calls_operation`.
 - [x] Assert saved report identity in both WebView lanes; repair any independent connection failure.
 - [x] Repair Windows fixture paths/compiler resolution and Rust launcher diagnostics/cause.
 - [x] Correct starter guidance and merged face split completion inventory.
+- [ ] Prove each consumer on the final library pin: Rust, Python, C# and C++ SDK installed and real-host journeys, the command-line tool's real-host stories and both native WebView desktop lanes.
 - [ ] Obtain passing final focused proof; `operator_calls_operation` remains blocked by the pinned library external-service registration API described in `docs/execution-host.md`. Run and report all other requested checks on the committed candidate.
 
 ## Focused Test Feedback
