@@ -11,7 +11,6 @@
 
 /* === Modules === */
 
-mod administration;
 mod capabilities;
 mod clock;
 mod dispatch;
@@ -39,7 +38,7 @@ pub use dokime_storage::{StorageSettings, storage_defaults};
 pub use error::Error;
 pub use execution::{Cycle, CycleResult, RunState};
 pub use host::{Host, HostSettings};
-pub use plugin::{EntryState, PlacementSettings, PluginProcess, describe_plugin};
+pub use plugin::{PlacementSettings, PluginProcess, describe_plugin};
 
 /* === Imports === */
 

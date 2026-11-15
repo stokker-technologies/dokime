@@ -63,9 +63,11 @@ pub async fn handle(context: &Context, request: ExecutionFilesListRequest) -> Re
                 if page.is_empty() {
                     break;
                 }
-                after = page.last().unwrap().path.clone();
+                after = page.last().unwrap().metadata.as_ref().unwrap().relative_path.clone();
                 for entry in page {
-                    files.push(entry.file_metadata()?);
+                    files.push(
+                        entry.metadata.ok_or_else(|| crate::Error::Precondition("List Execution Files: Restore Its Metadata".into()))?,
+                    );
                 }
             }
             Ok(ExecutionFilesListResponse { files, ..Default::default() })

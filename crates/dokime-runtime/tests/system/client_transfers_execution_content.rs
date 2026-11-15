@@ -23,7 +23,6 @@ use dokime::client::FilesWatchOptions;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::ArtifactMetadata;
 use dokime::ArtifactScope;
 use dokime::Client;
 use dokime::Import;
@@ -202,33 +201,31 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 state: ContentExecutionFileState::Streaming as i32,
                 ..Default::default()
             };
-            store.register_execution_file("file-original", "content-a", file.clone())?;
-            store.append_content("file-original", 0, b"original\n")?;
-            store.finish_execution_file("file-original", false)?;
-            store.register_execution_file("file-replacement", "content-a", file)?;
-            store.append_content("file-replacement", 0, b"replacement\n")?;
-            store.finish_execution_file("file-replacement", false)?;
-
-            let bytes = vec![42; 140003];
-            let digest = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>();
-            store.begin_artifact(ArtifactMetadata {
-                artifact_id: "uploaded".into(),
-                scope: Some(ArtifactScope {
-                    execution_id: Some("content-a".into()),
-                    cycle_id: Some("content-cycle".into()),
-                    ..Default::default()
-                }),
-                filename: "capture.bin".into(),
-                size_bytes: bytes.len() as u64,
-                sha256: digest.clone(),
-                ..Default::default()
-            })?;
-            for (index, chunk) in bytes.chunks(CONTENT_CHUNK_BYTES).enumerate() {
-                store.append_content("uploaded", (index * CONTENT_CHUNK_BYTES) as u64, chunk)?;
-            }
-            store.finish_artifact("uploaded", bytes.len() as u64, &digest)?;
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
+            let original = super::support::native_file(&client, "file-original", "content-a", b"original\n").await?;
+            store.attach_execution_file("content-a", file.clone(), original.clone())?;
+            let replacement = super::support::native_file(&client, "file-replacement", "content-a", b"replacement\n").await?;
+            store.attach_execution_file("content-a", file, replacement)?;
+            let bytes = vec![42; 140003];
+            let reference = super::support::native_file(&client, "uploaded", "content-a", &bytes).await?;
+            let uploaded = client
+                .content
+                .artifacts
+                .create(
+                    reference,
+                    ArtifactScope {
+                        execution_id: Some("content-a".into()),
+                        cycle_id: Some("content-cycle".into()),
+                        ..Default::default()
+                    },
+                    "capture.bin",
+                    "application/octet-stream",
+                )
+                .await?
+                .artifact
+                .unwrap();
             let artifacts = Client::from_channel(channel.clone(), super::support::client_settings())?.content.artifacts.clone();
             let files = Client::from_channel(channel, super::support::client_settings())?.content.execution_files.clone();
             let first = artifacts
@@ -241,7 +238,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 )
                 .await?;
             assert_eq!(first.artifacts.len(), 1);
-            let uploaded = artifacts.get("uploaded").await?;
+            let uploaded = artifacts.get(uploaded.artifact_id).await?;
             let reference = uploaded.file.unwrap();
             assert_eq!(reference.length, bytes.len() as u64);
             assert_eq!(reference.sha256, Sha256::digest(&bytes).as_slice());
@@ -307,18 +304,18 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             let file = files.get("content-a", "logs/output.txt").await?;
             assert_eq!(file.metadata.as_ref().unwrap().size_bytes, 12);
             let file = file.file.unwrap();
-            assert_eq!(store.content_window(&file.metadata.as_ref().unwrap().id, 0, 64)?, b"replacement\n");
-            assert_eq!(store.content_window("file-original", 0, 64)?, b"original\n");
+            assert_eq!(client.files.read(file.clone(), 0, 64).await?.data, b"replacement\n");
+            assert_eq!(client.files.read(original, 0, 64).await?.data, b"original\n");
             assert!(files.get("content-b", "logs/output.txt").await.is_err());
             assert!(files.get("content-a", "../logs/output.txt").await.is_err());
             let listed = files.list("content-a").await?;
             assert_eq!(listed.files.len(), 1);
             let attached = attached.artifact.unwrap();
-            let stored = store.content(&attached.artifact_id)?;
+            let stored = artifacts.get(attached.artifact_id.clone()).await?.file.unwrap();
             assert_eq!(stored.length, bytes.len() as u64);
             let mut actual = Vec::new();
             while actual.len() < bytes.len() {
-                actual.extend(store.content_window(&stored.identifier, actual.len() as u64, CONTENT_CHUNK_BYTES)?);
+                actual.extend(client.files.read(stored.clone(), actual.len() as u64, CONTENT_CHUNK_BYTES as u64).await?.data);
             }
             assert_eq!(actual, bytes);
             // Replay Upload Creation and a Lost Chunk Reply Without Appending Twice
@@ -376,7 +373,8 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             assert!(client.files.uploads.append_with(original.clone(), 0, changed, options).await.is_err());
             let progress = client.files.uploads.get(original.clone()).await?.upload.unwrap();
             assert_eq!(progress.accepted_length, split as u64);
-            assert_eq!(progress.durable_length, split as u64);
+            assert!(first.receipt.as_ref().unwrap().durable_at.is_none());
+            // Await Graceful Settlement Before Verifying the Durable Prefix After Restart
             process.close().await?;
 
             // Reopen the Backend, Resume the Upload and Fence Its Previous Writer

@@ -76,14 +76,14 @@ void identifier(const string &value) {
     throw invalid_argument("Identifier Is Required");
 }
 template <class Q>
-Context execution_context(TransportContext &transport, const Q &request, const string &template_id, const string &plugin_id,
+Context execution_context(TransportContext &transport, const Q &request, const string &template_id,
                           const shared_ptr<detail::Executions> &executions, const string &action, string item = {}) {
   const auto &origin = request.origin();
   const bool same_case = MessageDifferencer::Equals(request.test_case(), origin.plugin_run().test_case());
-  const bool same_plugin = origin.plugin_run().plugin() == plugin_id;
+  const bool has_entry = !origin.plugin_run().plugin().empty();
   const bool same_template = origin.plugin_run().template_() == template_id;
   if (request.execution().empty() || transport.scope() != request.execution() || !origin.has_plugin_run() || !same_case || !same_template ||
-      !same_plugin)
+      !has_entry)
     throw invalid_argument(action + ": Execution Scope, Template and Frozen Origin Must Agree");
   auto resources = executions->open(request.execution());
   {
@@ -123,7 +123,6 @@ Plugin &Plugin::suite(Suite suite) {
       if (previous.metadata().identifier() == id)
         throw invalid_argument("Duplicate Template Identifier");
     const auto state = executions_;
-    const auto plugin_id = identifier_;
     TestCase test_case;
     set<string> steps;
     size_t step_index = 0;
@@ -141,10 +140,10 @@ Plugin &Plugin::suite(Suite suite) {
       const auto item = step.metadata.identifier();
       Operation<StepsExecuteRequest, StepsExecuteResponse> operation(
           operation_id, VISIBILITY_PROTECTED,
-          [state, id, plugin_id, item, run = move(step.run)](TransportContext &transport, StepsExecuteRequest request) {
+          [state, id, item, run = move(step.run)](TransportContext &transport, StepsExecuteRequest request) {
             if (request.step() != item)
               throw invalid_argument("Execute Step: Identifier Does Not Match Its Operation");
-            auto ctx = execution_context(transport, request, id, plugin_id, state, "Execute Step", item);
+            auto ctx = execution_context(transport, request, id, state, "Execute Step", item);
             run(ctx);
             return StepsExecuteResponse{};
           });
@@ -170,10 +169,10 @@ Plugin &Plugin::suite(Suite suite) {
       const auto item = criterion.metadata.identifier();
       native_.operation(Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(
           operation_id, VISIBILITY_PROTECTED,
-          [state, id, plugin_id, item, evaluate = move(criterion.evaluate)](TransportContext &transport, CriteriaEvaluateRequest request) {
+          [state, id, item, evaluate = move(criterion.evaluate)](TransportContext &transport, CriteriaEvaluateRequest request) {
             if (request.criterion() != item)
               throw invalid_argument("Evaluate Criterion: Identifier Does Not Match Its Operation");
-            auto ctx = execution_context(transport, request, id, plugin_id, state, "Evaluate Criterion", item);
+            auto ctx = execution_context(transport, request, id, state, "Evaluate Criterion", item);
             CriteriaEvaluateResponse response;
             response.set_passed(evaluate(ctx));
             return response;
@@ -206,8 +205,8 @@ Plugin &Plugin::suite(Suite suite) {
       value.definition.set_initialize(id + ".initialize");
       native_.operation(Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(
           id + ".initialize", VISIBILITY_PROTECTED,
-          [state, id, plugin_id, initialize = move(value.initialize)](TransportContext &transport, ExecutionsInitializeRequest request) {
-            auto ctx = execution_context(transport, request, id, plugin_id, state, "Initialize Execution");
+          [state, id, initialize = move(value.initialize)](TransportContext &transport, ExecutionsInitializeRequest request) {
+            auto ctx = execution_context(transport, request, id, state, "Initialize Execution");
             try {
               initialize(ctx);
             } catch (...) {
@@ -221,8 +220,8 @@ Plugin &Plugin::suite(Suite suite) {
     value.definition.set_cleanup(id + ".cleanup");
     native_.operation(Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(
         id + ".cleanup", VISIBILITY_PROTECTED,
-        [state, id, plugin_id, cleanup = move(value.cleanup)](TransportContext &transport, ExecutionsCleanupRequest request) {
-          auto ctx = execution_context(transport, request, id, plugin_id, state, "Clean Up Execution");
+        [state, id, cleanup = move(value.cleanup)](TransportContext &transport, ExecutionsCleanupRequest request) {
+          auto ctx = execution_context(transport, request, id, state, "Clean Up Execution");
           try {
             if (cleanup)
               cleanup(ctx);

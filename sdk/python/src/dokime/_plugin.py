@@ -204,7 +204,7 @@ class Plugin:
             origin = request.origin
             if (
                 origin.WhichOneof("kind") != "plugin_run"
-                or origin.plugin_run.plugin != self.identifier
+                or not origin.plugin_run.plugin
                 or origin.plugin_run.template != template.identifier
                 or origin.plugin_run.test_case != request.test_case
             ):

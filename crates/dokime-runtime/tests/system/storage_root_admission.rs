@@ -20,11 +20,11 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_operations::Error as OperationError;
-use dokime_protocol::model::{ArtifactMetadata, ArtifactScope, Import, Origin, origin::Kind};
+use dokime_protocol::model::{Import, Origin, origin::Kind};
 use dokime_runtime::Error;
 use dokime_runtime::Host;
-use dokime_storage::{Execution, ExecutionState, Store};
+use dokime_storage::{Execution, Store};
+use rusqlite::Connection;
 use std::error::Error as ErrorError;
 use std::fs::OpenOptions;
 
@@ -51,7 +51,7 @@ use std::fs::OpenOptions;
 #[test]
 fn incompatible_content_roots_are_refused_without_resetting_evidence() -> Result<(), Box<dyn ErrorError>> {
     super::support::run(Box::pin(async {
-        let root = super::support::tempdir()?;
+        let root = tempfile::tempdir()?;
         let store = Store::open(root.path())?;
         let execution = Execution {
             identifier: "evidence".into(),
@@ -63,21 +63,15 @@ fn incompatible_content_roots_are_refused_without_resetting_evidence() -> Result
         };
         let identifier = execution.identifier.clone();
         store.create(&execution)?;
-        store.begin_artifact(ArtifactMetadata {
-            artifact_id: "legacy".into(),
-            filename: "evidence.bin".into(),
-            scope: Some(ArtifactScope {
-                execution_id: Some(identifier.clone()),
-                ..Default::default()
-            }),
-            ..Default::default()
-        })?;
+        let database = Connection::open(root.path().join("execution.sqlite3"))?;
+        database.execute_batch("CREATE TABLE content_objects(id TEXT PRIMARY KEY); INSERT INTO content_objects VALUES('retired-file')")?;
+        drop(database);
         drop(store);
         let refused = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await;
-        assert!(matches!(refused, Err(Error::Operation(OperationError::Precondition(_)))));
-        let store = Store::open(root.path())?;
-        assert_eq!(store.cut(&identifier)?.state, ExecutionState::Open);
-        assert!(store.has_incompatible_content()?);
+        assert!(matches!(refused, Err(Error::Storage(dokime_storage::Error::Incompatible(_)))));
+        let database = Connection::open(root.path().join("execution.sqlite3"))?;
+        assert_eq!(database.query_row("SELECT state FROM executions WHERE id=?1", [identifier], |row| row.get::<_, i32>(0))?, 0);
+        assert_eq!(database.query_row("SELECT COUNT(*) FROM content_objects", [], |row| row.get::<_, i64>(0))?, 1);
         Ok(())
     }))
 }

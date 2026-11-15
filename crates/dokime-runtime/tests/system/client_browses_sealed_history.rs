@@ -31,7 +31,6 @@ use dokime::Origin;
 use dokime::Termination;
 use dokime::client::ContentExecutionFileKind;
 use dokime::client::ContentExecutionFileMetadata;
-use dokime::client::ContentExecutionFileState;
 use dokime::client::CyclesCreateOptions;
 use dokime::client::CyclesGetOptions;
 use dokime::client::CyclesListOptions;
@@ -109,19 +108,21 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                 }),
                 ..Default::default()
             })?;
-            // Retain Registered Chunked Content with Its Execution
-            store.register_execution_file(
-                "history-file",
+            // Publish Native Bytes and Retain Their Logical Path in the Execution Transaction
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let reference = super::support::native_file(&client, "history-file", "imported-capture", b"abcdef").await?;
+            store.attach_execution_file(
                 "imported-capture",
                 ContentExecutionFileMetadata {
                     relative_path: "capture.txt".into(),
                     kind: ContentExecutionFileKind::Text as i32,
-                    state: ContentExecutionFileState::Streaming as i32,
                     ..Default::default()
                 },
+                reference,
             )?;
-            store.append_content("history-file", 0, b"abcdef")?;
-            store.finish_execution_file("history-file", false)?;
+            process.close().await?;
             store.close_streams("imported-capture")?;
             store.close(
                 "imported-capture",
@@ -154,7 +155,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             let file = files.get("imported-capture", "capture.txt").await?;
             let reference = file.file.unwrap();
             assert_eq!(reference.length, 6);
-            assert_eq!(Store::open(root.path())?.content_window(&reference.metadata.unwrap().id, 2, 3)?, b"cde");
+            assert_eq!(client.files.read(reference, 2, 3).await?.data, b"cde");
             assert!(files.get("imported-capture", "../capture.txt").await.is_err());
 
             // Complete a Plugin Run and Inspect Each Retained Resource at Its Own Cut.
@@ -177,7 +178,10 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             let created = cycles
                 .create_with(
                     cases.into_iter().map(|case| case.origin.unwrap()).collect(),
-                    Default::default(),
+                    Metadata {
+                        label: "History Run".into(),
+                        ..Default::default()
+                    },
                     true,
                     String::new(),
                     CyclesCreateOptions {
@@ -298,7 +302,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                 request.at = page.resolved_at;
                 request.page.as_mut().unwrap().page_token = page.next_page_token;
             }
-            assert_eq!(samples.len(), 3);
+            assert_eq!(samples.len(), 2);
 
             // Cycle and Execution Pages Retain Their Selection Across Later Presentation Edits.
             let first = cycles
@@ -470,7 +474,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             );
             assert!(executions.get_with("imported-capture", ExecutionsGetOptions { at: None, ..Default::default() }).await.is_err());
             process.close().await?;
-            assert!(Store::open(root.path())?.content("history-file").is_err());
+            assert!(Store::open(root.path())?.execution_file("imported-capture", "capture.txt").is_err());
             plugin.close().await?;
             Ok::<_, Box<dyn Error>>(())
         })

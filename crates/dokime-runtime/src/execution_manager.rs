@@ -25,11 +25,16 @@ use std::{
 };
 
 // Third Party Imports
+use crate::services::composition::Application;
+use crate::streams::SampleScope;
+use harmos_protocol::host::PluginEntry;
+use harmos_runtime::Runtime as ComposedRuntime;
+use harmos_runtime::plugin::manager::Manager as PluginManager;
 use tokio::{sync::watch, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use crate::{Cycle, Error, HostSettings, Result, host::lock, plugin::Entry, prompts::PromptManager};
+use crate::{Cycle, Error, HostSettings, Result, host::lock, prompts::PromptManager};
 use dokime_operations::host::{Context, Progress};
 use dokime_storage::{ExecutionState, Store};
 
@@ -48,11 +53,14 @@ pub(crate) struct ExecutionManager {
 pub(crate) struct Runtime {
     pub store: Store,
     pub settings: HostSettings,
-    pub plugins: Arc<Mutex<HashMap<String, Arc<Entry>>>>,
     pub prompts: Arc<PromptManager>,
     pub active: Mutex<HashMap<String, Active>>,
     pub changed: watch::Sender<u64>,
     pub context: OnceLock<Weak<Context>>,
+    pub sample_scopes: Arc<Mutex<HashMap<String, SampleScope>>>,
+    pub sample_failures: Arc<Mutex<HashMap<String, String>>>,
+    pub runtime: OnceLock<Weak<ComposedRuntime<Application>>>,
+    pub library_plugins: OnceLock<PluginManager>,
     admission: tokio::sync::Mutex<()>,
     shutting_down: AtomicBool,
     tasks: Mutex<Vec<JoinHandle<()>>>,
@@ -73,8 +81,7 @@ pub(crate) struct Active {
 
 impl ExecutionManager {
     pub(crate) fn new(
-        store: Store, settings: HostSettings, plugins: Arc<Mutex<HashMap<String, Arc<Entry>>>>, prompts: Arc<PromptManager>,
-        changed: watch::Sender<u64>, root_lease: crate::host::RootLease,
+        store: Store, settings: HostSettings, prompts: Arc<PromptManager>, changed: watch::Sender<u64>, root_lease: crate::host::RootLease,
     ) -> Result<Self> {
         // Recover Only Executions Driven by a Plugin Run
         for identifier in store.identifiers()? {
@@ -114,10 +121,13 @@ impl ExecutionManager {
                 _root_lease: root_lease,
                 store,
                 settings,
-                plugins,
                 prompts,
                 changed,
                 context: OnceLock::new(),
+                sample_scopes: Arc::new(Mutex::new(HashMap::new())),
+                sample_failures: Arc::new(Mutex::new(HashMap::new())),
+                runtime: OnceLock::new(),
+                library_plugins: OnceLock::new(),
                 active: Mutex::new(HashMap::new()),
                 admission: tokio::sync::Mutex::new(()),
                 shutting_down: AtomicBool::new(false),
@@ -147,16 +157,31 @@ impl ExecutionManager {
         }
         Ok(())
     }
-    pub(crate) fn entry(&self, identifier: &str) -> Result<Arc<Entry>> {
-        lock(&self.inner.plugins)?
-            .get(identifier)
-            .cloned()
+    pub(crate) async fn entry(&self, identifier: &str) -> Result<PluginEntry> {
+        let context = self
+            .inner
+            .context
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Start Execution: Assemble the Host Context".into()))?;
+        context
+            .host
+            .plugins()
+            .await?
+            .into_iter()
+            .find(|entry| entry.name == identifier)
             .ok_or_else(|| Error::Invalid(format!("Start Execution: Connect Plugin {identifier}")))
     }
     pub(crate) async fn materialize(
         &self, plugin: &str, template: &str, parameters: HashMap<String, dokime_protocol::model::Value>,
     ) -> Result<dokime_protocol::model::Origin> {
-        crate::plugin::materialize(self.entry(plugin)?, template, parameters, &self.inner.settings).await
+        let context = self
+            .inner
+            .context
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Materialize Test Case: Assemble the Host Context".into()))?;
+        Ok(context.host.materialize(plugin, template, parameters).await?)
     }
     pub(crate) fn now_ns(&self) -> i64 {
         self.inner.settings.clock.now_ns()

@@ -48,7 +48,7 @@ use std::error::Error;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::net::TcpListener;
-use tokio_stream::{Empty, wrappers::ReceiverStream};
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::Code;
 use tonic::Request;
 use tonic::Response;
@@ -275,9 +275,31 @@ impl Instance for ScopeProbe {
         });
         Ok(Response::new(ReceiverStream::new(receive)))
     }
-    type SamplesStream = Empty<Result<InstanceSamplesResponse, Status>>;
-    async fn samples(&self, _: Request<Streaming<InstanceSamplesRequest>>) -> Result<Response<Self::SamplesStream>, Status> {
-        Err(Status::unimplemented("Sample Scope Probe: No Sample Producer"))
+    type SamplesStream = ReceiverStream<Result<InstanceSamplesResponse, Status>>;
+    async fn samples(&self, request: Request<Streaming<InstanceSamplesRequest>>) -> Result<Response<Self::SamplesStream>, Status> {
+        let mut input = request.into_inner();
+        let (send, receive) = tokio::sync::mpsc::channel(1);
+        tokio::spawn(async move {
+            use harmos_protocol::plugin::instance_samples_request::Frame;
+            let mut sequence = 0;
+            while let Ok(Some(request)) = input.message().await {
+                if let Some(Frame::Tick(tick)) = request.frame {
+                    sequence += 1;
+                    let response = InstanceSamplesResponse {
+                        samples: vec![harmos_protocol::plugin::Sample {
+                            sequence,
+                            at: tick.at,
+                            row: harmos_protocol::model::Position { history: None, sequence: u64::MAX }.encode_to_vec(),
+                        }],
+                        ..Default::default()
+                    };
+                    if send.send(Ok(response)).await.is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+        Ok(Response::new(ReceiverStream::new(receive)))
     }
     async fn stop(&self, _: Request<InstanceStopRequest>) -> Result<Response<InstanceStopResponse>, Status> {
         Ok(Response::new(InstanceStopResponse {}))
@@ -420,7 +442,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                     ..Default::default()
                 }],
             };
-            let requires = dokime_operations::declarations()?
+            let requires: Vec<Requirement> = dokime_operations::declarations()?
                 .iter()
                 .filter(|contract| {
                     matches!(
@@ -437,6 +459,23 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                     fingerprint: contract.fingerprint.clone(),
                 })
                 .collect();
+            let mut roots =
+                operations.iter().flat_map(|operation| [operation.request.as_str(), operation.response.as_str()]).collect::<Vec<_>>();
+            roots.extend(["harmos.model.v1.Position", "dokime.model.v1.Suites"]);
+            let host_contracts = dokime_operations::declarations()?;
+            roots.extend(
+                host_contracts
+                    .iter()
+                    .filter(|contract| {
+                        requires.iter().any(|required| required.id == contract.id)
+                            || matches!(
+                                contract.id.as_str(),
+                                "dokime.host.v1.Settings/Get" | "harmos.host.v1.Operations/List" | "harmos.host.v1.Operations/Get"
+                            )
+                    })
+                    .flat_map(|contract| [contract.request.as_str(), contract.response.as_str()]),
+            );
+            let types = harmos_protocol::schema::operation_types(&types, &roots)?;
             let mut catalog = Declarations {
                 operations,
                 requires,
@@ -459,11 +498,12 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 description: InstanceGetResponse {
                     id: "scope_fixture".into(),
                     version: "0.1.0".into(),
+                    sdk: "rust".into(),
+                    sdk_version: env!("CARGO_PKG_VERSION").into(),
                     message_bytes: support::settings().placement.message_bytes.get() as u64,
                     revision: 1,
                     declarations: Some(catalog),
                     started_at: Some(Timestamp::default()),
-                    ..Default::default()
                 },
                 store,
                 file: file.clone(),
@@ -496,11 +536,37 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 )
                 .await?;
             support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
-            *file.lock().unwrap() = Some(support::bundles::upload(&client, vec![1, 2, 3]).await?);
             let cases = support::materialize(&client, "scope_fixture", "scope_fixture.capture", Default::default()).await?;
-            let executions = support::admit(&client, cases).await?;
+            let origins = cases.into_iter().map(|case| case.origin.unwrap()).collect();
+            let cycle = client
+                .cycles
+                .create(
+                    origins,
+                    Metadata {
+                        label: "Scope Probe".into(),
+                        ..Default::default()
+                    },
+                    false,
+                    String::new(),
+                )
+                .await?
+                .cycle
+                .unwrap();
+            let entries =
+                client.executions.list(cycle.cycle_id, Default::default(), Default::default(), Default::default()).await?.executions;
+            let executions = entries.into_iter().map(|entry| entry.summary.unwrap().execution_id).collect::<Vec<_>>();
+            let reference = support::native_file(&client, "scope-probe-file", &executions[0], &[1, 2, 3]).await?;
+            *file.lock().unwrap() = Some(reference);
+            client.executions.start(executions[0].clone(), dokime::client::ExecutionMode::Automatic).await?;
             let mut watch = client.executions.progress.watch(executions[0].clone()).await?;
             while watch.next().await?.is_some() {}
+            let completed = client.executions.get(executions[0].clone()).await?.execution.unwrap();
+            assert!(
+                matches!(completed.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
+                Some(ExecutionOutcomeAttribution::NotEvaluated(outcome)) if outcome.termination == Termination::Completed as i32),
+                "{:?}",
+                completed.outcome
+            );
             let results = observations.lock().unwrap().clone();
             assert_eq!(results.len(), 18, "{results:?}");
             for (operation, expected_refusal, refused) in results {
@@ -522,7 +588,7 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
             // Start Three Executions Before Releasing Any Measurement
             let root = super::support::tempdir()?;
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-            let entry = host.add_managed(&super::support::execution_fixture()?).await?;
+            let entry = host.add_managed("execution", &super::support::execution_fixture()?).await?;
             let first = host.materialize(&entry, "execution.capture", super::support::parameters(11.0, 0, true)).await?;
             let second = host.materialize(&entry, "execution.capture", super::support::parameters(22.0, 0, true)).await?;
             let third = host.materialize(&entry, "execution.capture", super::support::parameters(33.0, 0, true)).await?;
@@ -560,6 +626,50 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
                 assert_eq!(attempt.value, value);
                 assert!(attempt.scope_refused);
                 assert!(host.cancel(&snapshot.execution.identifier).is_err());
+            }
+            host.shutdown().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
+
+#[test]
+fn concurrent_execution_clocks_advance_independently() -> Result<(), Box<dyn Error>> {
+    super::support::run(Box::pin(async {
+        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+            // Admit Two Units on One Managed Connection
+            let root = super::support::tempdir()?;
+            let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
+            let entry = host.add_managed("execution", &super::support::execution_fixture()?).await?;
+            let first = host.materialize(&entry, "execution.capture", super::support::parameters(11.0, 0, true)).await?;
+            let second = host.materialize(&entry, "execution.capture", super::support::parameters(22.0, 0, true)).await?;
+            let left = host.start_cycle(vec![first]).await?;
+            let right = host.start_cycle(vec![second]).await?;
+            let left_id = left.executions[0].clone();
+            let right_id = right.executions[0].clone();
+            let left_prompt = host.next_prompt(&left_id).await?;
+            let right_prompt = host.next_prompt(&right_id).await?;
+            let held = host.execution(&left_id)?.samples;
+
+            // Settle Only Right and Observe That Left's Timeline Stays Still
+            super::support::answer(&host, &right_id, right_prompt)?;
+            let right = right.wait().await?.executions.remove(0);
+            assert_eq!(host.execution(&left_id)?.samples, held);
+            assert_eq!(right.execution.termination, Termination::Completed as i32);
+
+            // Advance Left Through Its Own Sleep and Retain Separate Evidence
+            super::support::answer(&host, &left_id, left_prompt)?;
+            let left = left.wait().await?.executions.remove(0);
+            assert_eq!(left.execution.termination, Termination::Completed as i32);
+            for (snapshot, expected) in [(left, 11.0), (right, 22.0)] {
+                assert_eq!(
+                    snapshot.samples.iter().map(|sample| sample.source_ns).collect::<Vec<_>>(),
+                    vec![1_000_000_000, 2_000_000_000, 3_000_000_000]
+                );
+                for sample in snapshot.samples {
+                    assert_eq!(super::support::Reading::decode(sample.row.as_slice())?.value, expected);
+                }
             }
             host.shutdown().await?;
             Ok::<(), Box<dyn Error>>(())

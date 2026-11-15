@@ -16,11 +16,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashSet, num::NonZeroUsize, path::Path, process::Stdio, time::Duration};
+use std::{num::NonZeroUsize, path::Path, process::Stdio, time::Duration};
 
 // Third Party Imports
-use harmos_protocol::{model as h, plugin::instance_client::InstanceClient};
-use prost::Message;
+use harmos_protocol::plugin::instance_client::InstanceClient;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::ChildStdout,
@@ -60,24 +59,7 @@ pub struct PluginProcess {
 
 struct OwnedChild(std::process::Child);
 
-pub(crate) struct Entry {
-    pub client: InstanceClient<Channel>,
-    pub description: harmos_protocol::plugin::InstanceGetResponse,
-    pub suites: dokime_protocol::model::Suites,
-    pub state: EntryState,
-    pub process: tokio::sync::Mutex<Option<PluginProcess>>,
-}
-
 /* === Enums === */
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EntryState {
-    Starting,
-    Connecting,
-    Ready,
-    Failed,
-    Unavailable,
-}
 
 /* === Traits === */
 
@@ -170,147 +152,7 @@ impl Drop for PluginProcess {
         self.drain.abort();
     }
 }
-impl Entry {
-    pub async fn admit(endpoint: &str, process: Option<PluginProcess>, settings: &PlacementSettings) -> Result<Self> {
-        let mut client = connect(endpoint, settings).await?;
-        let description = client
-            .get(harmos_protocol::plugin::InstanceGetRequest {
-                revision: 1,
-                host: "dokime".into(),
-                host_version: env!("CARGO_PKG_VERSION").into(),
-            })
-            .await?
-            .into_inner();
-        if description.id.is_empty() || description.started_at.is_none() || description.revision < 1 {
-            return Err(Error::Invalid("Serve a Plugin Identity, Process Start Time and Protocol Revision".into()));
-        }
-        let catalog = description.declarations.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin with Its Catalog".into()))?;
-        if catalog.digest != harmos_protocol::schema::declarations_digest(catalog) {
-            return Err(Error::Invalid("Rebuild the Plugin Catalog with a Valid Digest".into()));
-        }
-        let types = catalog.types.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin with Its Message Descriptors".into()))?;
-        let declarations = dokime_operations::declarations()?;
-        for requirement in &catalog.requires {
-            if requirement.id.starts_with("dokime.host.v1.") || requirement.id.starts_with("harmos.host.v1.") {
-                dokime_operations::authorize(&requirement.id, h::Callers::Plugins)
-                    .map_err(|failure| Error::Plugin(Box::new(h::Failure::from(&failure))))?;
-            }
-            let available =
-                declarations.iter().any(|operation| operation.id == requirement.id && operation.fingerprint == requirement.fingerprint);
-            if !available {
-                return Err(Error::Invalid(format!("Connect a Matching Provider for Required Operation {}", requirement.id)));
-            }
-        }
-        let mut identifiers = HashSet::new();
-        for operation in &catalog.operations {
-            if !identifiers.insert(&operation.id) {
-                return Err(Error::Invalid("Give Every Plugin Operation a Unique Identifier".into()));
-            }
-            if !matches!(h::Visibility::try_from(operation.visibility), Ok(h::Visibility::Protected | h::Visibility::Public)) {
-                return Err(Error::Invalid(format!(
-                    "Admit {}: Declare Protected or Public Visibility; Keep Private Operations Local",
-                    operation.id
-                )));
-            }
-            let policy = harmos_protocol::policy::OperationPolicy::try_from(operation.policy.as_ref())
-                .map_err(|error| Error::Invalid(format!("Admit {}: {error}", operation.id)))?;
-            if policy.retries != harmos_protocol::policy::RetryPolicy::Never && !operation.replay_safe {
-                return Err(Error::Invalid(format!("Admit {}: Declare Replay Safety Before Enabling Retries", operation.id)));
-            }
-            let fingerprint = harmos_protocol::schema::fingerprint(&operation.id, types, &operation.request, &operation.response)
-                .map_err(|error| Error::Invalid(error.to_string()))?;
-            if fingerprint != operation.fingerprint {
-                return Err(Error::Invalid(format!("Rebuild the Contract Fingerprint for {}", operation.id)));
-            }
-        }
-        let section = catalog
-            .sections
-            .iter()
-            .find(|section| section.r#type == "dokime.model.v1.Suites")
-            .ok_or_else(|| Error::Invalid("Publish a dokime.model.v1.Suites Catalog Section".into()))?;
-        let suites = dokime_protocol::model::Suites::decode(section.payload.as_slice())?;
-        Ok(Self {
-            client,
-            description,
-            suites,
-            state: EntryState::Ready,
-            process: tokio::sync::Mutex::new(process),
-        })
-    }
-    pub fn template(&self, identifier: &str) -> Result<dokime_protocol::model::TestCaseTemplate> {
-        self.suites
-            .suites
-            .iter()
-            .flat_map(|suite| &suite.templates)
-            .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == identifier))
-            .cloned()
-            .ok_or_else(|| Error::Invalid(format!("Select a Catalog Template: {identifier}")))
-    }
-    pub async fn close(&self, settings: &PlacementSettings) -> Result<()> {
-        if let Some(mut process) = self.process.lock().await.take() {
-            return process.close().await;
-        }
-        let mut client = self.client.clone();
-        tokio::time::timeout(
-            settings.stop_grace,
-            client.stop(harmos_protocol::plugin::InstanceStopRequest {
-                reason: "Host Removed the Remote Entry".into(),
-            }),
-        )
-        .await
-        .map_err(|_| Error::Invalid("Remote Plugin Did Not Stop; Check Its Logs".into()))??;
-        Ok(())
-    }
-}
-
 /* === Public Functions === */
-
-// Materialize a Case Against Its Admitted Catalog
-pub(crate) async fn materialize(
-    entry: std::sync::Arc<Entry>, template: &str, parameters: std::collections::HashMap<String, dokime_protocol::model::Value>,
-    settings: &crate::HostSettings,
-) -> Result<dokime_protocol::model::Origin> {
-    let definition = entry.template(template)?;
-    let dispatch = crate::dispatch::Dispatch {
-        entry: entry.clone(),
-        resources: None,
-        cancellation: tokio_util::sync::CancellationToken::new(),
-        settings: settings.placement.clone(),
-        clock: settings.clock.clone(),
-    };
-    let response: dokime_protocol::plugin::TestCasesMaterializeResponse = dispatch
-        .invoke(
-            &definition.materialize,
-            dokime_protocol::plugin::TestCasesMaterializeRequest {
-                template: template.into(),
-                parameters: parameters.clone(),
-            },
-        )
-        .await?;
-    let test_case = response.test_case.ok_or_else(|| Error::Invalid("Materialize Test Case: Return Its Frozen Case".into()))?;
-    if test_case.parameters != parameters {
-        return Err(Error::Invalid("Materialize Without Changing the Resolved Parameter Set".into()));
-    }
-    let catalog = entry.description.declarations.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin Catalog".into()))?;
-    for operation in
-        test_case.steps.iter().map(|step| &step.operation).chain(test_case.criteria.iter().map(|criterion| &criterion.operation))
-    {
-        if !catalog.operations.iter().any(|contract| &contract.id == operation && contract.visibility == h::Visibility::Protected as i32) {
-            return Err(Error::Invalid(format!("Materialize Test Case: Declare the Bound Operation {operation} as Protected")));
-        }
-    }
-    let run = dokime_protocol::model::PluginRun {
-        test_case: Some(test_case),
-        plugin: entry.description.id.clone(),
-        template: template.into(),
-        digest: catalog.digest.clone(),
-        started_at: entry.description.started_at,
-    };
-    run.validate().map_err(Error::Invalid)?;
-    Ok(dokime_protocol::model::Origin {
-        kind: Some(dokime_protocol::model::origin::Kind::PluginRun(run)),
-    })
-}
 
 pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Result<harmos_protocol::plugin::InstanceGetResponse> {
     let mut client = connect(endpoint, settings).await?;

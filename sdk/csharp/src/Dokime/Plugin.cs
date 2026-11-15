@@ -259,7 +259,7 @@ public sealed partial class Plugin(string identifier, string version, params Sui
   private void Validate(TransportContext raw, string execution, string template, TestCase testCase, Origin origin, string action)
   {
     if (string.IsNullOrWhiteSpace(execution) || raw.Scope() != execution || testCase is null ||
-        origin?.PluginRun is not { } run || run.Plugin != identifier || run.Template != template || !testCase.Equals(run.TestCase))
+        origin?.PluginRun is not { } run || string.IsNullOrWhiteSpace(run.Plugin) || run.Template != template || !testCase.Equals(run.TestCase))
       throw new ArgumentException($"{action}: Execution Scope, Origin and Frozen Case Must Agree");
   }
 

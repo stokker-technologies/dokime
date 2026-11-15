@@ -29,7 +29,6 @@ use crate::{
     dispatch::Dispatch,
     execution_manager::{Active, ExecutionManager},
     host::lock,
-    plugin::Entry,
     streams::ExecutionTime,
 };
 use dokime_operations::Resources;
@@ -87,6 +86,12 @@ impl Drop for ActiveRun {
         if let Ok(mut active) = self.host.inner.active.lock() {
             active.remove(&self.execution);
         }
+        if let Ok(mut scopes) = self.host.inner.sample_scopes.lock() {
+            scopes.remove(&self.execution);
+        }
+        if let Ok(mut failures) = self.host.inner.sample_failures.lock() {
+            failures.remove(&self.execution);
+        }
         self.host.inner.prompts.clear(&self.execution);
         self.host.signal_change();
     }
@@ -105,9 +110,16 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<dokime_protocol::
             return Err(Error::Invalid("Start Cycles with PluginRun Origins; Import Evidence Separately".into()));
         };
         run.validate().map_err(Error::Invalid)?;
-        let entry = host.entry(&run.plugin)?;
-        let digest = &entry.description.declarations.as_ref().ok_or_else(|| Error::Invalid("Reconnect the Plugin Catalog".into()))?.digest;
-        if &run.digest != digest || run.started_at != entry.description.started_at {
+        let entry = host.entry(&run.plugin).await?;
+        let digest = &entry
+            .description
+            .as_ref()
+            .unwrap()
+            .declarations
+            .as_ref()
+            .ok_or_else(|| Error::Invalid("Reconnect the Plugin Catalog".into()))?
+            .digest;
+        if &run.digest != digest || run.started_at != entry.description.as_ref().unwrap().started_at {
             origin = host.materialize(&run.plugin, &run.template, run.test_case.take().unwrap().parameters).await?;
         } else {
             origin.kind = Some(dokime_protocol::model::origin::Kind::PluginRun(run));
@@ -120,7 +132,7 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<dokime_protocol::
             identifier: execution.clone(),
             cycle: identifier.clone(),
             origin: Some(origin.clone()),
-            catalog: entry.description.declarations.as_ref().unwrap().encode_to_vec(),
+            catalog: entry.description.as_ref().unwrap().declarations.as_ref().unwrap().encode_to_vec(),
             ..Default::default()
         })
         .collect();
@@ -133,7 +145,7 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<dokime_protocol::
             active.insert(
                 execution.clone(),
                 Active {
-                    plugin: entry.description.id.clone(),
+                    plugin: entry.name.clone(),
                     cancellation: CancellationToken::new(),
                     control: Arc::new(crate::run_control::RunControl::default()),
                 },
@@ -155,9 +167,9 @@ pub(crate) async fn start_existing_mode(
         return Err(Error::Invalid("Start Execution: Imports Cannot Enter the Run Queue".into()));
     };
     run.validate().map_err(Error::Invalid)?;
-    let entry = host.entry(&run.plugin)?;
-    if entry.description.declarations.as_ref().is_none_or(|catalog| catalog.digest != run.digest)
-        || entry.description.started_at != run.started_at
+    let entry = host.entry(&run.plugin).await?;
+    if entry.description.as_ref().unwrap().declarations.as_ref().is_none_or(|catalog| catalog.digest != run.digest)
+        || entry.description.as_ref().unwrap().started_at != run.started_at
     {
         return Err(Error::Invalid("Start Execution: Rematerialize the Changed Plugin Catalog into New Execution Evidence".into()));
     }
@@ -187,7 +199,7 @@ pub(crate) async fn start_existing_mode(
 
 fn launch(
     host: ExecutionManager, identifier: String, executions: Vec<String>,
-    prepared: Vec<(String, dokime_protocol::model::Origin, Arc<Entry>)>,
+    prepared: Vec<(String, dokime_protocol::model::Origin, harmos_protocol::host::PluginEntry)>,
 ) -> Result<Cycle> {
     host.track(&executions)?;
     let (send, result) = tokio::sync::oneshot::channel();
@@ -293,7 +305,7 @@ fn launch(
 }
 
 async fn drive(
-    host: ExecutionManager, execution: String, origin: dokime_protocol::model::Origin, entry: Arc<Entry>,
+    host: ExecutionManager, execution: String, origin: dokime_protocol::model::Origin, entry: harmos_protocol::host::PluginEntry,
 ) -> Result<(ExecutionSnapshot, Vec<RunState>)> {
     let mut states = Vec::new();
     let _active = ActiveRun {
@@ -306,20 +318,38 @@ async fn drive(
     states.push(RunState::Queued);
     let Some(dokime_protocol::model::origin::Kind::PluginRun(run)) = origin.kind.as_ref() else { unreachable!() };
     let case = run.test_case.as_ref().unwrap();
-    let template = entry.template(&run.template)?;
-    let catalog = entry.description.declarations.as_ref().unwrap();
-    let time = ExecutionTime::open(
-        &entry.client,
-        catalog,
-        &case.streams,
-        &execution,
-        host.inner.store.clone(),
-        host.inner.settings.clock.clone(),
-        &host.inner.settings.placement,
-    )
-    .await?;
+    let description = entry.description.as_ref().ok_or_else(|| Error::Invalid("Start Execution: Discover the Plugin".into()))?;
+    let catalog = description.declarations.as_ref().ok_or_else(|| Error::Invalid("Start Execution: Discover Its Catalog".into()))?;
+    let suites = catalog
+        .sections
+        .iter()
+        .find(|section| section.r#type == "dokime.model.v1.Suites")
+        .ok_or_else(|| Error::Invalid("Start Execution: Declare Its Suites".into()))?;
+    let suites = dokime_protocol::model::Suites::decode(suites.payload.as_slice())?;
+    let template = suites
+        .suites
+        .iter()
+        .flat_map(|suite| &suite.templates)
+        .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == run.template))
+        .ok_or_else(|| Error::Invalid("Start Execution: Select Its Declared Template".into()))?;
+    let runtime = host
+        .inner
+        .runtime
+        .get()
+        .and_then(std::sync::Weak::upgrade)
+        .ok_or_else(|| Error::Invalid("Start Execution: Assemble the Runtime".into()))?;
+    let plugins = host.inner.library_plugins.get().ok_or_else(|| Error::Invalid("Start Execution: Assemble Plugins".into()))?;
+    let activation = plugins.activation(&entry.name).await.map_err(|source| Error::ComposedStartup(Box::new(source)))?;
+    let (time, controller) = ExecutionTime::open(host.inner.settings.clock.as_ref());
+    for stream in &case.streams {
+        host.inner.store.open_stream(&execution, stream)?;
+    }
+    let scope = crate::streams::SampleScope::new(catalog, &case.streams)?;
+    lock(&host.inner.sample_scopes)?.insert(execution.clone(), scope);
+    let binding =
+        runtime.bind_grpc(&activation, &execution, time.clock.clone()).await.map_err(|source| Error::ComposedStartup(Box::new(source)))?;
     let resources = Resources {
-        plugin: Arc::new(entry.description.clone()),
+        plugin: Arc::new(entry.clone()),
         context: host
             .inner
             .context
@@ -330,16 +360,17 @@ async fn drive(
         execution: execution.clone(),
         step: String::new(),
         operation: String::new(),
-        attempt: 0,
+        attempt: Arc::new(std::sync::atomic::AtomicU32::new(0)),
         clock: time.clone(),
         prompts: host.inner.prompts.clone(),
     };
     let mut dispatch = Dispatch {
-        entry: entry.clone(),
-        resources: Some(resources),
+        time: time.clone(),
+        sample_failures: host.inner.sample_failures.clone(),
+        binding: &binding,
+        resources,
         cancellation,
-        settings: host.inner.settings.placement.clone(),
-        clock: host.inner.settings.clock.clone(),
+        controller: controller.map(Arc::new),
     };
     states.push(RunState::Initializing);
     host.set_run_phase(&execution, "initializing")?;
@@ -369,8 +400,8 @@ async fn drive(
             host.signal_change();
             let identifier =
                 step.metadata.as_ref().ok_or_else(|| Error::Invalid("Materialize Steps with Identifiers".into()))?.identifier.clone();
-            dispatch.resources.as_mut().unwrap().step = identifier.clone();
-            let position = dispatch.resources.as_ref().unwrap().evidence("step:start", Vec::new(), None)?;
+            dispatch.resources.step = identifier.clone();
+            let position = dispatch.resources.evidence("step:start", Vec::new(), None)?;
             if let Some(command) = &mut command {
                 command.phase = dokime_protocol::host::executions::ExecutionCommandPhase::Running as i32;
                 command.attempt_id = Some(format!("{execution}/{position}"));
@@ -393,9 +424,9 @@ async fn drive(
                     },
                 )
                 .await;
-            dispatch.resources.as_ref().unwrap().evidence("step:end", Vec::new(), None)?;
+            dispatch.resources.evidence("step:end", Vec::new(), None)?;
             if result.is_err() {
-                dispatch.resources.as_ref().unwrap().evidence("step:failure", Vec::new(), None)?;
+                dispatch.resources.evidence("step:failure", Vec::new(), None)?;
             }
             if let Some(mut command) = command {
                 command.phase = if result.is_ok() {
@@ -415,7 +446,7 @@ async fn drive(
             host.signal_change();
             result?;
         }
-        dispatch.resources.as_mut().unwrap().step.clear();
+        dispatch.resources.step.clear();
         states.push(RunState::Evaluating);
         host.set_run_phase(&execution, "evaluating")?;
         for criterion in &case.criteria {
@@ -436,7 +467,7 @@ async fn drive(
                     },
                 )
                 .await?;
-            dispatch.resources.as_ref().unwrap().evidence(&format!("criterion:{identifier}"), response.encode_to_vec(), None)?;
+            dispatch.resources.evidence(&format!("criterion:{identifier}"), response.encode_to_vec(), None)?;
             evaluated.push(response.passed);
         }
         Ok(())
@@ -459,7 +490,7 @@ async fn drive(
     states.push(RunState::CleaningUp);
     host.set_run_phase(&execution, "cleaning_up")?;
     dispatch.cancellation = CancellationToken::new();
-    dispatch.resources.as_mut().unwrap().step.clear();
+    dispatch.resources.step.clear();
     if initialized && let Some(operation) = &template.cleanup {
         let cleanup = dispatch
             .invoke::<_, dokime_protocol::plugin::ExecutionsCleanupResponse>(
@@ -474,16 +505,22 @@ async fn drive(
             .await;
         if let Err(error) = cleanup {
             termination = dokime_protocol::model::Termination::Interrupted;
-            dispatch.resources.as_ref().unwrap().evidence("cleanup:failure", error.to_string().into_bytes(), None)?;
+            dispatch.resources.evidence("cleanup:failure", error.to_string().into_bytes(), None)?;
         }
     }
     if let Err(error) = &result {
-        dispatch.resources.as_ref().unwrap().evidence("execution:failure", error.to_string().into_bytes(), None)?;
+        dispatch.resources.evidence("execution:failure", error.to_string().into_bytes(), None)?;
     }
-    if let Err(error) = time.close().await {
+    let resources = dispatch.resources;
+    if let Err(error) = binding.close().await.map_err(|source| Error::Invalid(format!("Close Execution Binding: {source}"))) {
         termination = dokime_protocol::model::Termination::Interrupted;
-        dispatch.resources.as_ref().unwrap().evidence("streams:failure", error.to_string().into_bytes(), None)?;
+        resources.evidence("streams:failure", error.to_string().into_bytes(), None)?;
     }
+    if let Some(source) = lock(&host.inner.sample_failures)?.remove(&execution) {
+        termination = dokime_protocol::model::Termination::Interrupted;
+        resources.evidence("streams:failure", source.into_bytes(), None)?;
+    }
+    host.inner.store.close_streams(&execution)?;
     let attribution = if termination == dokime_protocol::model::Termination::Failed {
         dokime_protocol::host::execution_outcome::Attribution::Evaluated(dokime_protocol::host::EvaluatedOutcome {
             status: dokime_protocol::host::ResultStatus::Failed as i32,

@@ -168,7 +168,14 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    Backend/Runtime services and product collection machinery are removed.
    `client_collects_backend_diagnostics` proves health events, redaction and ranged
    archives; `client_reads_runtime` proves status observation and stable restart identity.
-   **Status:** Access and Status composition landed; transfers and plugin composition remain open (`operation-grammar`).
+   **Status:** Access, Status, native transfers and library plugin entries are composed.
+   Executions bind the admitted activation once per unit with a trusted scope and
+   independent clock; lifecycle dispatch uses the library operation manager. Scoped
+   sample ingestion acknowledges only after the product Arrow write and binding
+   closure precedes sealing. Product file presentation stores logical paths and
+   original native file references in the execution transaction. Retired SQL file
+   byte objects and writers are removed; incompatible development roots are preserved
+   and refused at baseline v1. Final combined validation remains a separate obligation.
    Explicit root disposal removes access and secret credentials through their
    product owners after the root lease is released, while ordinary shutdown keeps
    them for restart. Owners journal credential slots before native writes, so

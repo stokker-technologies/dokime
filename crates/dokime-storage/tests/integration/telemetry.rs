@@ -29,7 +29,6 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use super::fixture::{self, Row};
 use dokime_protocol::host::content::ExecutionFileMetadata;
-use dokime_protocol::host::content::ExecutionFileState;
 
 use dokime_protocol::model::DataExpression;
 use dokime_protocol::model::FftDetrend;
@@ -271,22 +270,25 @@ fn accepted_tail_saved_cut_and_failed_catalog_commit() -> Result<()> {
     })?;
     assert_eq!(count, 1024);
     store.sample_batch("execution", &fixture::samples(3))?;
-    store.register_execution_file(
-        "capture",
-        "execution",
-        ExecutionFileMetadata {
-            relative_path: "capture.bin".into(),
-            state: ExecutionFileState::Streaming as i32,
+    let metadata = ExecutionFileMetadata {
+        relative_path: "capture.bin".into(),
+        ..Default::default()
+    };
+    let file = harmos_protocol::model::FileReference {
+        metadata: Some(harmos_protocol::model::FileMetadata {
+            id: "capture".into(),
+            scope: Some("execution".into()),
             ..Default::default()
-        },
-    )?;
+        }),
+        ..Default::default()
+    };
     db.execute_batch(
         "CREATE TRIGGER refuse_barrier BEFORE INSERT ON telemetry_batches BEGIN SELECT RAISE(ABORT,'injected barrier failure'); END;",
     )?;
-    assert!(store.finish_execution_file("capture", false).is_err());
+    assert!(store.attach_execution_file("execution", metadata.clone(), file.clone()).is_err());
     assert_eq!(store.cut("execution")?.frontier, 1034);
     db.execute_batch("DROP TRIGGER refuse_barrier;")?;
-    store.finish_execution_file("capture", false)?;
+    store.attach_execution_file("execution", metadata.clone(), file.clone())?;
     assert_eq!(store.cut("execution")?.frontier, 1038);
     db.execute_batch(
         "CREATE TRIGGER refuse_closure BEFORE UPDATE OF closed ON streams BEGIN SELECT RAISE(ABORT,'injected closure failure'); END;",

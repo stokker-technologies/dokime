@@ -38,6 +38,7 @@ dokime-storage = { workspace = true }
 # Git
 harmos-protocol = { workspace = true }
 harmos-runtime = { workspace = true }
+harmos-domain = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -88,6 +89,7 @@ tonic = { workspace = true, features = ["tls-ring"] }
 # === Dev Dependencies === #
 
 [dev-dependencies]
+rusqlite = { workspace = true }
 # Local
 dokime = { path = "../../sdk/rust" }
 

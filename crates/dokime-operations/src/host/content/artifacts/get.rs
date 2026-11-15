@@ -20,19 +20,12 @@ use crate::host::ClientSettings;
 // Standard Library Imports
 
 // Third Party Imports
-use prost::Message;
 
 // Local Imports
-use crate::{Error, Result, host::Context};
+use crate::{Result, host::Context};
 
 use dokime_protocol::host::content::ArtifactsGetRequest;
 use dokime_protocol::host::content::ArtifactsGetResponse;
-use dokime_protocol::model::ArtifactMetadata;
-use dokime_storage::ContentEntry;
-use harmos_protocol::model::FileMetadata;
-use harmos_protocol::model::FileReference;
-use harmos_protocol::model::History;
-use harmos_protocol::model::Position;
 
 use harmos_protocol::model::OperationContract;
 
@@ -75,38 +68,6 @@ pub async fn handle(context: &Context, request: ArtifactsGetRequest) -> Result<A
 }
 
 /* === Private Functions === */
-
-pub(crate) fn reference(context: &Context, entry: &ContentEntry) -> Result<FileReference> {
-    let digest = (0..entry.sha256.len())
-        .step_by(2)
-        .map(|offset| {
-            u8::from_str_radix(&entry.sha256[offset..offset + 2], 16)
-                .map_err(|_| Error::Invalid("Read Content: Restore Its Stored Digest".into()))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(FileReference {
-        metadata: Some(FileMetadata {
-            id: entry.identifier.clone(),
-            scope: Some(entry.execution.clone()),
-            media_type: if entry.artifact {
-                ArtifactMetadata::decode(entry.metadata.as_slice())?.content_type.unwrap_or_default()
-            } else {
-                "application/octet-stream".into()
-            },
-            expected_length: Some(entry.length),
-            expected_sha256: Some(digest.clone()),
-        }),
-        length: entry.length,
-        sha256: digest,
-        position: Some(Position {
-            history: Some(History {
-                store: context.host.identity().backend_id,
-                epoch: entry.execution.clone(),
-            }),
-            sequence: context.host.store().metadata(&entry.execution)?.frontier,
-        }),
-    })
-}
 
 /* === Tests === */
 

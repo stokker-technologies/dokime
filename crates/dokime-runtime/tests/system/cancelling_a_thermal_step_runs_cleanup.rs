@@ -54,7 +54,7 @@ fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn Error>> {
             // Add the Shared Suite as a Managed Plugin
             let root = super::support::tempdir()?;
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-            let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
+            let entry = host.add_managed("thermal", &super::support::thermal_fixture()?).await?;
             let parameters = HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]);
             let origin = host.materialize(&entry, "thermal.cycle", parameters).await?;
 

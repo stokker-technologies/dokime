@@ -66,7 +66,8 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
 
             // Add the Same Suite Through Remote and Managed Entries
             for managed in [false, true] {
-                let entry = if managed { host.add_managed(&executable).await? } else { host.add_remote(remote.endpoint()).await? };
+                let entry =
+                    if managed { host.add_managed("thermal", &executable).await? } else { host.add_remote(remote.endpoint()).await? };
                 let catalog = host.catalog(&entry)?;
                 assert_eq!(catalog.suites[0].templates[0].metadata.as_ref().unwrap().identifier, "thermal.cycle");
 
@@ -124,10 +125,18 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
                         RunState::Finished
                     ]
                 );
-                assert_eq!(snapshot.samples.len(), 3);
+                let temperatures = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.temperature").collect::<Vec<_>>();
+                let counters = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.counter").collect::<Vec<_>>();
+                assert_eq!(snapshot.samples.len(), 2502);
+                assert_eq!(temperatures.len(), 2);
+                assert_eq!(counters.len(), 2500);
                 assert_eq!(
-                    snapshot.samples.iter().map(|sample| sample.source_ns).collect::<Vec<_>>(),
-                    vec![start_ns, start_ns + 1_000_000_000, start_ns + 2_000_000_000]
+                    temperatures.iter().map(|sample| sample.source_ns).collect::<Vec<_>>(),
+                    vec![start_ns + 1_000_000_000, start_ns + 2_000_000_000]
+                );
+                assert_eq!(
+                    counters.iter().map(|sample| sample.source_ns).collect::<Vec<_>>(),
+                    (1..=2500).map(|index| start_ns + index * 1_000_000).collect::<Vec<_>>()
                 );
                 assert!(snapshot.samples.iter().all(|sample| sample.receipt_ns >= sample.source_ns));
                 assert!(snapshot.samples.windows(2).all(|pair| pair[0].position < pair[1].position));

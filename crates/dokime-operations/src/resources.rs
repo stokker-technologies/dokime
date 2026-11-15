@@ -16,11 +16,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU32, Ordering},
+};
 
 // Third Party Imports
 use async_trait::async_trait;
-use harmos_protocol::plugin::InstanceGetResponse;
+use harmos_protocol::host::PluginEntry;
 
 // Local Imports
 use crate::host::Context;
@@ -37,13 +40,13 @@ use dokime_storage::{Evidence, Store};
 
 #[derive(Clone)]
 pub struct Resources {
-    pub plugin: Arc<InstanceGetResponse>,
+    pub plugin: Arc<PluginEntry>,
     pub context: Arc<Context>,
     pub store: Store,
     pub execution: String,
     pub step: String,
     pub operation: String,
-    pub attempt: u32,
+    pub attempt: Arc<AtomicU32>,
     pub clock: Arc<dyn Clock>,
     pub prompts: Arc<dyn Prompts>,
 }
@@ -67,6 +70,9 @@ pub trait Prompts: Send + Sync {
 /* === Implementations === */
 
 impl Resources {
+    pub fn attempt(&self) -> u32 {
+        self.attempt.load(Ordering::SeqCst)
+    }
     pub fn resolve_execution<'a>(&'a self, selected: Option<&'a str>, action: &str) -> Result<&'a str> {
         resolve_execution(Some(&self.execution), selected, action)
     }
@@ -93,7 +99,7 @@ impl Resources {
                 source_ns: source_ns.unwrap_or(receipt_ns),
                 receipt_ns,
                 operation: self.operation.clone(),
-                attempt: self.attempt,
+                attempt: self.attempt(),
                 ..Default::default()
             },
         )?)
@@ -115,7 +121,7 @@ impl Resources {
                 kind: kind.into(),
                 step: self.step.clone(),
                 operation: self.operation.clone(),
-                attempt: self.attempt,
+                attempt: self.attempt(),
                 source_ns: source_ns.unwrap_or(receipt_ns),
                 receipt_ns,
                 payload,

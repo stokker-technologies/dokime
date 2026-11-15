@@ -154,7 +154,10 @@ and a retained `request_id`; raw delivery awaits the discovery registration abov
 
 Report commands prepare with Reports.Create, read bounded product Files.Read
 ranges at the returned cut, verify length and SHA-256, and save without replacing an
-existing file. Rendering and downloading do not publish a report. Product content
+existing file. Rendering and downloading do not publish a report. Logical execution-file paths retain the original native file references in the
+execution transaction. Replacing a logical path preserves immutable prior bytes
+and returned read cuts. File uploads acknowledge accepted bytes; graceful host
+settlement persists the resumable prefix before restart. Product content
 byte delivery verifies the file length, SHA-256 and retained read cut;
 the product serves those resources over its current content store.
 

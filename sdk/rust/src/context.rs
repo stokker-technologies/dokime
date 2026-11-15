@@ -98,7 +98,7 @@ impl Execution {
 impl Context {
     pub(crate) fn execution(
         transport: &HarmosContext, executions: &Executions, identifier: &str, test_case: Option<TestCase>, origin: Option<Origin>,
-        template: &str, plugin: &str,
+        template: &str,
     ) -> Result<Self> {
         if identifier.is_empty() || transport.scope()? != identifier {
             return Err(Error::Invalid("Execution Must Match the Inherited Harmos Scope".into()));
@@ -108,8 +108,8 @@ impl Context {
         let Some(origin::Kind::PluginRun(run)) = origin.kind.as_ref() else {
             return Err(Error::Invalid("Plugin Operations Require a PluginRun Origin".into()));
         };
-        if run.template != template || run.plugin != plugin || run.test_case.as_ref() != Some(&test_case) {
-            return Err(Error::Invalid("Execution Origin Does Not Match the Plugin, Template and Test Case".into()));
+        if run.template != template || run.plugin.is_empty() || run.test_case.as_ref() != Some(&test_case) {
+            return Err(Error::Invalid("Execution Origin Requires an Entry and Matching Template and Test Case".into()));
         }
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.entry(identifier.into()).or_insert_with(|| {

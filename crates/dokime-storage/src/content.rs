@@ -7,7 +7,7 @@
  * ***
  */
 
-// Durable Chunked Content
+// Retained Native Content Metadata
 
 /* === Modules === */
 
@@ -21,8 +21,6 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use prost::Message;
 use rusqlite::Connection;
-use rusqlite::Result as SqlResult;
-use rusqlite::Row;
 use rusqlite::{OptionalExtension, params};
 use sha2::{Digest, Sha256};
 
@@ -47,17 +45,6 @@ pub const CONTENT_CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Structs === */
 
-pub struct ContentEntry {
-    pub identifier: String,
-    pub execution: String,
-    pub path: String,
-    pub metadata: Vec<u8>,
-    pub length: u64,
-    pub sha256: String,
-    pub phase: ExecutionFileState,
-    pub artifact: bool,
-}
-
 pub struct ArchivedNativeFile {
     pub reference: harmos_protocol::model::FileReference,
     pub path: tempfile::TempPath,
@@ -72,39 +59,12 @@ pub struct StoredArtifact {
 }
 
 #[derive(Clone, PartialEq, Message)]
-pub struct ArchivedContent {
-    #[prost(string, tag = "1")]
-    pub identifier: String,
+pub struct StoredExecutionFile {
+    #[prost(message, optional, tag = "1")]
+    pub metadata: Option<ExecutionFileMetadata>,
 
-    #[prost(string, tag = "2")]
-    pub path: String,
-
-    #[prost(bool, tag = "3")]
-    pub artifact: bool,
-
-    #[prost(bytes = "vec", tag = "4")]
-    pub metadata: Vec<u8>,
-
-    #[prost(uint64, tag = "5")]
-    pub length: u64,
-
-    #[prost(string, tag = "6")]
-    pub sha256: String,
-
-    #[prost(int32, tag = "7")]
-    pub phase: i32,
-}
-
-#[derive(Clone, PartialEq, Message)]
-pub struct ArchivedContentChunk {
-    #[prost(string, tag = "1")]
-    pub identifier: String,
-
-    #[prost(uint64, tag = "2")]
-    pub offset: u64,
-
-    #[prost(bytes = "vec", tag = "3")]
-    pub payload: Vec<u8>,
+    #[prost(message, optional, tag = "2")]
+    pub file: Option<harmos_protocol::model::FileReference>,
 }
 
 /* === Enums === */
@@ -213,7 +173,11 @@ impl Store {
             .ok_or_else(|| Error::NotFound("Read Artifact: Select a Committed Artifact Identifier".into()))
     }
     pub fn has_incompatible_content(&self) -> Result<bool> {
-        Ok(self.lock()?.query_row("SELECT EXISTS(SELECT 1 FROM content_objects)", [], |row| row.get(0))?)
+        Ok(self.lock()?.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ('content_objects','content_chunks'))",
+            [],
+            |row| row.get(0),
+        )?)
     }
     pub fn artifact_records_page(&self, after: &str, limit: usize) -> Result<Vec<StoredArtifact>> {
         let connection = self.lock()?;
@@ -224,165 +188,39 @@ impl Store {
             .map(|row| Ok(StoredArtifact::decode(row?.as_slice())?))
             .collect()
     }
-    pub fn begin_artifact(&self, metadata: ArtifactMetadata) -> Result<()> {
-        let execution = metadata
-            .scope
-            .as_ref()
-            .and_then(|scope| scope.execution_id.as_deref())
-            .ok_or_else(|| Error::Invalid("Upload Artifact: Select Its Execution".into()))?;
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        require_open(&transaction, execution)?;
-        transaction.execute(
-            "INSERT INTO content_objects(id,execution,path,artifact,metadata,length,sha256,phase) VALUES(?1,?2,?3,1,?4,0,'',0)",
-            params![metadata.artifact_id, execution, metadata.filename, metadata.encode_to_vec()],
-        )?;
-        transaction.commit()?;
-        Ok(())
-    }
-    pub fn abort_artifact(&self, identifier: &str) -> Result<()> {
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        transaction.execute(
-            "DELETE FROM content_chunks WHERE object=?1 AND EXISTS(SELECT 1 FROM content_objects WHERE id=?1 AND artifact=1 AND phase=0)",
-            [identifier],
-        )?;
-        transaction.execute("DELETE FROM content_objects WHERE id=?1 AND artifact=1 AND phase=0", [identifier])?;
-        transaction.commit()?;
-        Ok(())
-    }
-    pub fn append_content(&self, identifier: &str, offset: u64, bytes: &[u8]) -> Result<()> {
-        if bytes.is_empty() || bytes.len() > CONTENT_CHUNK_BYTES || offset > i64::MAX as u64 - bytes.len() as u64 {
-            return Err(Error::Invalid("Write Content: Send Nonempty Chunks of at Most 64 KiB Within the File Bound".into()));
-        }
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        let (execution, length, phase): (String, u64, i32) =
-            transaction.query_row("SELECT execution,length,phase FROM content_objects WHERE id=?1", [identifier], |row| {
-                Ok((row.get(0)?, row.get::<_, i64>(1)? as u64, row.get(2)?))
-            })?;
-        require_open(&transaction, &execution)?;
-        if phase > 1 || offset != length {
-            return Err(Error::Invalid("Write Content: Append at the Next Offset of an Open Production".into()));
-        }
-        transaction.execute("INSERT INTO content_chunks VALUES(?1,?2,?3)", params![identifier, offset as i64, bytes])?;
-        transaction
-            .execute("UPDATE content_objects SET length=?2 WHERE id=?1", params![identifier, (offset + bytes.len() as u64) as i64])?;
-        transaction.commit()?;
-        self.changed.send_modify(|revision| *revision += 1);
-        Ok(())
-    }
-    pub fn finish_artifact(&self, identifier: &str, expected_size: u64, expected_sha256: &str) -> Result<ArtifactMetadata> {
-        let mut connection = self.lock()?;
-        self.flush_samples_locked(&mut connection)?;
-        let transaction = connection.transaction()?;
-        let (execution, length, metadata, phase): (String, u64, Vec<u8>, i32) = transaction.query_row(
-            "SELECT execution,length,metadata,phase FROM content_objects WHERE id=?1 AND artifact=1",
-            [identifier],
-            |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as u64, row.get(2)?, row.get(3)?)),
-        )?;
-        require_open(&transaction, &execution)?;
-        let digest = content_digest(&transaction, identifier)?;
-        let mut metadata = ArtifactMetadata::decode(metadata.as_slice())?;
-        if phase != 0
-            || length != expected_size
-            || length != metadata.size_bytes
-            || digest != expected_sha256
-            || !metadata.sha256.is_empty() && metadata.sha256 != digest
-        {
-            return Err(Error::Invalid("Complete Artifact: Match the Declared Length and SHA-256 Before Committing".into()));
-        }
-        metadata.sha256 = digest.clone();
-        metadata.state = ArtifactState::Complete as i32;
-        transaction.execute(
-            "UPDATE content_objects SET phase=2,sha256=?2,metadata=?3 WHERE id=?1",
-            params![identifier, digest, metadata.encode_to_vec()],
-        )?;
-        append_reference(&transaction, &execution, "artifact", metadata.encode_to_vec())?;
-        transaction.commit()?;
-        self.changed.send_modify(|revision| *revision += 1);
-        Ok(metadata)
-    }
-    pub fn register_execution_file(&self, identifier: &str, execution: &str, metadata: ExecutionFileMetadata) -> Result<()> {
+    pub fn attach_execution_file(
+        &self, execution: &str, mut metadata: ExecutionFileMetadata, file: harmos_protocol::model::FileReference,
+    ) -> Result<()> {
         crate::validate_execution_path(&metadata.relative_path)?;
-        if metadata.size_bytes != 0 || metadata.state != ExecutionFileState::Streaming as i32 {
-            return Err(Error::Invalid("Register Execution File: Start an Empty Streaming Production".into()));
+        let scope = file.metadata.as_ref().and_then(|metadata| metadata.scope.as_deref());
+        if scope != Some(execution) {
+            return Err(Error::Invalid("Attach Execution File: Select a Native File in This Execution's Scope".into()));
         }
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        require_open(&transaction, execution)?;
-        transaction.execute(
-            "INSERT INTO content_objects(id,execution,path,artifact,metadata,length,sha256,phase) VALUES(?1,?2,?3,0,?4,0,'',1)",
-            params![identifier, execution, metadata.relative_path, metadata.encode_to_vec()],
-        )?;
-        transaction.commit()?;
-        self.changed.send_modify(|revision| *revision += 1);
-        Ok(())
-    }
-    pub fn finish_execution_file(&self, identifier: &str, abandoned: bool) -> Result<()> {
+        metadata.size_bytes = file.length;
+        metadata.state = ExecutionFileState::Finalized as i32;
+        let key = format!("execution-file/{execution}/{}", metadata.relative_path);
+        let stored = StoredExecutionFile {
+            metadata: Some(metadata.clone()),
+            file: Some(file),
+        };
         let mut connection = self.lock()?;
         self.flush_samples_locked(&mut connection)?;
         let transaction = connection.transaction()?;
-        let (execution, phase): (String, i32) =
-            transaction.query_row("SELECT execution,phase FROM content_objects WHERE id=?1 AND artifact=0", [identifier], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            })?;
-        require_open(&transaction, &execution)?;
-        if phase != 1 {
-            return Err(Error::Invalid("Finish Execution File: Select Its Open Production".into()));
-        }
-        let digest = content_digest(&transaction, identifier)?;
+        require_open(&transaction, execution)?;
         transaction.execute(
-            "UPDATE content_objects SET phase=?2,sha256=?3 WHERE id=?1",
-            params![identifier, if abandoned { 3 } else { 2 }, digest],
+            "INSERT INTO administration(id,payload) VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+            params![key, stored.encode_to_vec()],
         )?;
-        append_reference(&transaction, &execution, "execution-file", format!("{identifier}:{digest}").into_bytes())?;
+        append_reference(&transaction, execution, "file:metadata", metadata.encode_to_vec())?;
         transaction.commit()?;
         self.changed.send_modify(|revision| *revision += 1);
         Ok(())
     }
-    pub fn content(&self, identifier: &str) -> Result<ContentEntry> {
-        let connection = self.lock()?;
-        connection
-            .query_row(
-                "SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE id=?1 AND phase>0",
-                [identifier],
-                entry,
-            )
-            .optional()?
-            .ok_or_else(|| {
-                Error::NotFound("Download Content: Select a Completed Artifact or Materialize the Temporary Report Again".into())
-            })
-    }
-    pub fn execution_file(&self, execution: &str, path: &str) -> Result<ContentEntry> {
+    pub fn execution_file(&self, execution: &str, path: &str) -> Result<StoredExecutionFile> {
+        self.metadata(execution)?;
         crate::validate_execution_path(path)?;
-        let connection = self.lock()?;
-        connection.query_row("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND path=?2 AND artifact=0 ORDER BY rowid DESC LIMIT 1",params![execution,path],entry).optional()?.ok_or_else(||Error::NotFound("Read Execution File: Select a Registered File from This Execution's Listing".into()))
-    }
-    pub fn content_window(&self, identifier: &str, offset: u64, maximum: usize) -> Result<Vec<u8>> {
-        if maximum == 0 || maximum > CONTENT_CHUNK_BYTES || offset > i64::MAX as u64 - maximum as u64 {
-            return Err(Error::Invalid("Read Content: Request at Most 64 KiB Within the File Bound".into()));
-        }
-        let connection = self.lock()?;
-        let mut statement = connection.prepare(
-            "SELECT offset,payload FROM content_chunks WHERE object=?1 AND offset<?2 AND offset+length(payload)>?3 AND offset>=?4 ORDER BY offset",
-        )?;
-        let mut bytes = Vec::with_capacity(maximum);
-        for row in statement.query_map(
-            params![
-                identifier,
-                (offset + maximum as u64) as i64,
-                offset as i64,
-                offset.saturating_sub(CONTENT_CHUNK_BYTES as u64 - 1) as i64
-            ],
-            |row| Ok((row.get::<_, i64>(0)? as u64, row.get::<_, Vec<u8>>(1)?)),
-        )? {
-            let (start, payload) = row?;
-            let from = offset.saturating_sub(start) as usize;
-            let through = payload.len().min((offset + maximum as u64 - start) as usize);
-            bytes.extend_from_slice(&payload[from..through]);
-        }
-        Ok(bytes)
+        self.administration(&format!("execution-file/{execution}/{path}"))?
+            .ok_or_else(|| Error::NotFound("Read Execution File: Select a Registered Logical Path".into()))
     }
     pub fn artifacts_page(&self, after: &str, limit: usize) -> Result<Vec<ArtifactMetadata>> {
         self.artifact_records_page(after, limit)?
@@ -390,11 +228,16 @@ impl Store {
             .map(|stored| stored.artifact.ok_or_else(|| Error::Invalid("Read Artifact: Restore Its Committed Metadata".into())))
             .collect()
     }
-    pub fn files_page(&self, execution: &str, after: &str, limit: usize) -> Result<Vec<ContentEntry>> {
+    pub fn files_page(&self, execution: &str, after: &str, limit: usize) -> Result<Vec<StoredExecutionFile>> {
         self.metadata(execution)?;
+        let prefix = format!("execution-file/{execution}/");
         let connection = self.lock()?;
-        let mut statement = connection.prepare("SELECT id,execution,path,metadata,length,sha256,phase,artifact FROM content_objects WHERE execution=?1 AND artifact=0 AND path>?2 AND rowid IN(SELECT MAX(rowid) FROM content_objects WHERE execution=?1 AND artifact=0 GROUP BY path) ORDER BY path LIMIT ?3")?;
-        Ok(statement.query_map(params![execution, after, limit as i64], entry)?.collect::<std::result::Result<_, _>>()?)
+        let mut statement =
+            connection.prepare("SELECT payload FROM administration WHERE substr(id,1,length(?1))=?1 AND id>?2 ORDER BY id LIMIT ?3")?;
+        statement
+            .query_map(params![prefix, format!("{prefix}{after}"), limit as i64], |row| row.get::<_, Vec<u8>>(0))?
+            .map(|row| Ok(StoredExecutionFile::decode(row?.as_slice())?))
+            .collect()
     }
     pub fn write_cycle_archive(&self, cycle: &str, page: NonZeroUsize, output: &mut impl Write) -> Result<()> {
         self.write_cycle_archive_with_files(cycle, page, output, &mut std::collections::HashMap::new())
@@ -547,36 +390,6 @@ impl Store {
         for row in query.query_map([execution], |row| row.get::<_, Vec<u8>>(0))? {
             write_field(output, 2, &row?)?;
         }
-        let mut query = connection.prepare(
-            "SELECT id,path,artifact,metadata,length,sha256,phase FROM content_objects WHERE execution=?1 AND phase>=2 ORDER BY id",
-        )?;
-        for row in query.query_map([execution], |row| {
-            Ok(ArchivedContent {
-                identifier: row.get(0)?,
-                path: row.get(1)?,
-                artifact: row.get(2)?,
-                metadata: row.get(3)?,
-                length: row.get::<_, i64>(4)? as u64,
-                sha256: row.get(5)?,
-                phase: row.get(6)?,
-            })
-        })? {
-            let content = row?;
-            if !content.sha256.is_empty() && content_digest(&connection, &content.identifier)? != content.sha256 {
-                return Err(Error::Invalid("Export Evidence: Restore Content Matching Its Frozen Digest".into()));
-            }
-            write_field(output, 7, &content.encode_to_vec())?;
-            let mut chunks = connection.prepare("SELECT offset,payload FROM content_chunks WHERE object=?1 ORDER BY offset")?;
-            for row in chunks.query_map([&content.identifier], |row| {
-                Ok(ArchivedContentChunk {
-                    identifier: content.identifier.clone(),
-                    offset: row.get::<_, i64>(0)? as u64,
-                    payload: row.get(1)?,
-                })
-            })? {
-                write_field(output, 8, &row?.encode_to_vec())?;
-            }
-        }
         write_field(output, 4, &seal)?;
         let mut query = connection.prepare("SELECT payload FROM administration WHERE id LIKE 'artifact/%' ORDER BY id")?;
         for row in query.query_map([], |row| row.get::<_, Vec<u8>>(0))? {
@@ -588,6 +401,11 @@ impl Store {
                 write_field(output, 9, &payload)?;
             }
         }
+        let prefix = format!("execution-file/{execution}/");
+        let mut query = connection.prepare("SELECT payload FROM administration WHERE substr(id,1,length(?1))=?1 ORDER BY id")?;
+        for row in query.query_map([prefix], |row| row.get::<_, Vec<u8>>(0))? {
+            write_field(output, 10, &row?)?;
+        }
         let mut query = connection.prepare("SELECT payload FROM reports WHERE execution=?1 ORDER BY id")?;
         for row in query.query_map([execution], |row| row.get::<_, Vec<u8>>(0))? {
             write_field(output, 5, &row?)?;
@@ -595,37 +413,18 @@ impl Store {
         Ok(())
     }
     pub fn content_fingerprint(&self, execution: Option<&str>) -> Result<Vec<u8>> {
+        let prefix = execution.map_or_else(|| "artifact/".into(), |execution| format!("execution-file/{execution}/"));
         let connection = self.lock()?;
-        let mut statement = connection.prepare("SELECT id,metadata,length,phase FROM content_objects WHERE (?1 IS NULL AND artifact=1 AND phase=2) OR (execution=?1 AND artifact=0) ORDER BY id")?;
+        let mut statement = connection.prepare("SELECT id,payload FROM administration WHERE substr(id,1,length(?1))=?1 ORDER BY id")?;
         let mut hash = Sha256::new();
-        for row in statement.query_map([execution], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?, row.get::<_, i64>(2)?, row.get::<_, i32>(3)?))
-        })? {
-            let (id, metadata, length, phase) = row?;
+        for row in statement.query_map([prefix], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))? {
+            let (id, payload) = row?;
             hash.update((id.len() as u64).to_le_bytes());
             hash.update(id.as_bytes());
-            hash.update((metadata.len() as u64).to_le_bytes());
-            hash.update(metadata);
-            hash.update(length.to_le_bytes());
-            hash.update(phase.to_le_bytes());
+            hash.update((payload.len() as u64).to_le_bytes());
+            hash.update(payload);
         }
         Ok(hash.finalize().to_vec())
-    }
-}
-
-impl ContentEntry {
-    pub fn file_metadata(&self) -> Result<ExecutionFileMetadata> {
-        if self.artifact {
-            return Err(Error::Invalid("Read Execution File: Select a Registered File Production".into()));
-        }
-        let mut metadata = ExecutionFileMetadata::decode(self.metadata.as_slice())?;
-        metadata.size_bytes = self.length;
-        metadata.state = match self.phase {
-            ExecutionFileState::Streaming => ExecutionFileState::Streaming,
-            ExecutionFileState::Finalized => ExecutionFileState::Finalized,
-            _ => ExecutionFileState::Interrupted,
-        } as i32;
-        Ok(metadata)
     }
 }
 
@@ -650,15 +449,6 @@ fn require_open(connection: &Connection, execution: &str) -> Result<()> {
     Ok(())
 }
 
-fn content_digest(connection: &Connection, identifier: &str) -> Result<String> {
-    let mut hash = Sha256::new();
-    let mut statement = connection.prepare("SELECT payload FROM content_chunks WHERE object=?1 ORDER BY offset")?;
-    for row in statement.query_map([identifier], |row| row.get::<_, Vec<u8>>(0))? {
-        hash.update(row?);
-    }
-    Ok(hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect())
-}
-
 fn append_reference(connection: &Connection, execution: &str, kind: &str, payload: Vec<u8>) -> Result<()> {
     let evidence = crate::Evidence {
         position: next_position(connection, execution)?,
@@ -671,24 +461,6 @@ fn append_reference(connection: &Connection, execution: &str, kind: &str, payloa
         params![execution, evidence.position as i64, evidence.encode_to_vec(), evidence.kind],
     )?;
     Ok(())
-}
-
-fn entry(row: &Row<'_>) -> SqlResult<ContentEntry> {
-    let phase = match row.get::<_, i32>(6)? {
-        1 => ExecutionFileState::Streaming,
-        2 => ExecutionFileState::Finalized,
-        _ => ExecutionFileState::Interrupted,
-    };
-    Ok(ContentEntry {
-        identifier: row.get(0)?,
-        execution: row.get(1)?,
-        path: row.get(2)?,
-        metadata: row.get(3)?,
-        length: row.get::<_, i64>(4)? as u64,
-        sha256: row.get(5)?,
-        phase,
-        artifact: row.get(7)?,
-    })
 }
 
 /* === Tests === */

@@ -53,7 +53,7 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: SecretsGetRequest) -> Result<SecretsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         if let Some(caller) = &context.caller {
-            let (name, binding_revision) = crate::host::plugins::secrets::resolve(context, &caller.plugin.id, &request.name).await?;
+            let (name, binding_revision) = crate::host::plugins::secrets::resolve(context, &caller.plugin.name, &request.name).await?;
             let crate::host::secrets::store::Reply::Lookup(value, generation) =
                 crate::host::secrets::store::perform(context, crate::host::secrets::store::Action::Lookup(name))
                     .await
@@ -65,7 +65,7 @@ pub async fn handle(context: &Context, request: SecretsGetRequest) -> Result<Sec
                 value.value.ok_or_else(|| Error::Permission(format!("{ID}: The Calling Plugin Cannot Read This Name")))?.into_bytes();
             let mut cut = crate::host::secrets::list::cut(context, &request.name, generation, None)?;
             cut.revisions.push(ResourceRevision {
-                name: format!("{}/plugin-secret/{}/{}", context.host.identity().backend_id, caller.plugin.id, request.name),
+                name: format!("{}/plugin-secret/{}/{}", context.host.identity().backend_id, caller.plugin.name, request.name),
                 revision: binding_revision,
             });
             if request.at.as_ref().is_some_and(|at| at != &cut) {

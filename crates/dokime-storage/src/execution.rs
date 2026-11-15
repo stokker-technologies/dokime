@@ -129,14 +129,11 @@ pub struct ExecutionArchive {
     #[prost(bytes = "vec", repeated, tag = "5")]
     pub reports: Vec<Vec<u8>>,
 
-    #[prost(message, repeated, tag = "7")]
-    pub content: Vec<crate::ArchivedContent>,
-
-    #[prost(message, repeated, tag = "8")]
-    pub content_chunks: Vec<crate::ArchivedContentChunk>,
-
     #[prost(message, repeated, tag = "9")]
     pub artifacts: Vec<crate::StoredArtifact>,
+
+    #[prost(message, repeated, tag = "10")]
+    pub files: Vec<crate::StoredExecutionFile>,
 }
 
 /* === Enums === */

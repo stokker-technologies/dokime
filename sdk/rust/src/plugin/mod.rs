@@ -72,7 +72,6 @@ pub struct Plugin<C = ()> {
 
 struct Assembly {
     inner: HarmosPlugin,
-    identifier: String,
     suites: Vec<Suite>,
     records: Vec<RecordContract>,
     prompts: Vec<PromptDefinition>,
@@ -106,8 +105,7 @@ impl Plugin {
         let identifier = identifier.into();
         Self {
             assembly: Assembly {
-                inner: HarmosPlugin::new(identifier.clone(), version),
-                identifier,
+                inner: HarmosPlugin::new(identifier, version),
                 suites: Vec::new(),
                 records: Vec::new(),
                 prompts: Vec::new(),
@@ -195,7 +193,6 @@ impl<C: DeclarationTypes> Plugin<C> {
     pub fn into_harmos(self) -> Result<HarmosPlugin> {
         let Assembly {
             mut inner,
-            identifier,
             suites,
             records,
             prompts,
@@ -248,7 +245,7 @@ impl<C: DeclarationTypes> Plugin<C> {
         let mut definitions = Vec::new();
         for mut suite in suites {
             for template in suite.templates {
-                let (definition, registered) = template.register(inner, executions.clone(), &identifier)?;
+                let (definition, registered) = template.register(inner, executions.clone())?;
                 inner = registered;
                 suite.definition.templates.push(definition);
             }

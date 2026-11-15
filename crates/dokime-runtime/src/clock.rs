@@ -16,9 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::time::{Duration, SystemTime};
 
 // Third Party Imports
 use async_trait::async_trait;
+use harmos_runtime::clock::{Clock as RuntimeClock, Controller};
 use tokio::sync::watch;
 
 // Local Imports
@@ -45,6 +47,9 @@ pub trait SchedulerClock: Send + Sync {
     fn now_ns(&self) -> i64;
     async fn wait_until(&self, at_ns: i64) -> Result<()>;
     async fn reached(&self, at_ns: i64);
+    fn execution_clock(&self) -> (RuntimeClock, Option<Controller>) {
+        (RuntimeClock::real_at(date(self.now_ns())), None)
+    }
 }
 
 /* === Implementations === */
@@ -56,6 +61,10 @@ impl ControlledClock {
 }
 #[async_trait]
 impl SchedulerClock for ControlledClock {
+    fn execution_clock(&self) -> (RuntimeClock, Option<Controller>) {
+        let (clock, controller) = RuntimeClock::virtual_at(date(self.now_ns()));
+        (clock, Some(controller))
+    }
     fn now_ns(&self) -> i64 {
         *self.now.borrow()
     }
@@ -85,6 +94,14 @@ impl SchedulerClock for ControlledClock {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn date(at_ns: i64) -> SystemTime {
+    if at_ns >= 0 {
+        SystemTime::UNIX_EPOCH + Duration::from_nanos(at_ns as u64)
+    } else {
+        SystemTime::UNIX_EPOCH - Duration::from_nanos(at_ns.unsigned_abs())
+    }
+}
 
 /* === Tests === */
 

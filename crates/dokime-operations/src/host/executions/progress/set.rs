@@ -71,7 +71,7 @@ pub async fn handle(resources: &Resources, request: ProgressSetRequest) -> Resul
             source_ns: now,
             receipt_ns: now,
             operation: resources.operation.clone(),
-            attempt: resources.attempt,
+            attempt: resources.attempt(),
             ..Default::default()
         },
     )?;

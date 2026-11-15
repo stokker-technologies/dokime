@@ -16,17 +16,19 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 // Third Party Imports
-use harmos_protocol::model as h;
+use harmos_runtime::clock::Controller;
+use harmos_runtime::{operations::OperationHost, plugin::grpc::ScopedBinding};
 use prost_reflect::ReflectMessage;
-use tokio::{sync::mpsc, task::JoinSet};
-use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use crate::{Error, PlacementSettings, Result, SchedulerClock, plugin::Entry};
+use crate::{Error, Result};
 use dokime_operations::Resources;
 
 /* === Constants === */
@@ -37,12 +39,13 @@ use dokime_operations::Resources;
 
 /* === Structs === */
 
-pub(crate) struct Dispatch {
-    pub entry: Arc<Entry>,
-    pub resources: Option<Resources>,
+pub(crate) struct Dispatch<'a> {
+    pub time: Arc<crate::streams::ExecutionTime>,
+    pub sample_failures: Arc<Mutex<HashMap<String, String>>>,
+    pub binding: &'a ScopedBinding,
+    pub resources: Resources,
     pub cancellation: CancellationToken,
-    pub settings: PlacementSettings,
-    pub clock: Arc<dyn SchedulerClock>,
+    pub controller: Option<Arc<Controller>>,
 }
 
 /* === Enums === */
@@ -51,205 +54,58 @@ pub(crate) struct Dispatch {
 
 /* === Implementations === */
 
-impl Dispatch {
+impl Dispatch<'_> {
     pub async fn invoke<Q: ReflectMessage + Default, R: ReflectMessage + Default>(&self, operation: &str, request: Q) -> Result<R> {
-        let contract = self
-            .entry
-            .description
-            .declarations
-            .as_ref()
-            .and_then(|catalog| catalog.operations.iter().find(|contract| contract.id == operation))
-            .ok_or_else(|| Error::Invalid(format!("Reconnect a Plugin Serving {operation}")))?;
-        if contract.request != Q::default().descriptor().full_name() || contract.response != R::default().descriptor().full_name() {
-            return Err(Error::Invalid(format!("Use the Declared Request and Response for {operation}")));
-        }
-        let retry_policy = harmos_protocol::policy::OperationPolicy::try_from(contract.policy.as_ref())
-            .map_err(|error| Error::Invalid(format!("Invoke {operation}: {error}")))?;
-        let policy = contract.policy.unwrap_or_default();
-        let started_ns = self.clock.now_ns();
-        let total_ns = duration_ns(policy.timeout.as_ref())?.and_then(|duration| started_ns.checked_add(duration));
-        let payload = request.encode_to_vec();
-        let mut attempt = 0;
-        loop {
-            attempt += 1;
-            let resources = self.resources.clone().map(|mut resources| {
-                resources.operation = operation.into();
-                resources.attempt = attempt;
-                resources
-            });
-            if let Some(resources) = &resources {
-                resources.evidence("attempt:start", Vec::new(), None)?;
-            }
-            let attempt_ns = duration_ns(policy.attempt_timeout.as_ref())?.and_then(|duration| self.clock.now_ns().checked_add(duration));
-            let deadline = total_ns.into_iter().chain(attempt_ns).min();
-            let result = tokio::select! {
-                biased;
-                _ = reached(&self.clock, deadline) => Err(Error::Invalid(format!("Operation {operation} Reached Its Deadline; Inspect Evidence Before Retrying"))),
-                result = self.attempt(operation, payload.clone(), attempt) => result,
-            };
-            if let Some(resources) = &resources {
-                let payload = result.as_ref().err().map_or_else(Vec::new, |error| error.to_string().into_bytes());
-                resources.evidence(if result.is_ok() { "attempt:succeeded" } else { "attempt:failed" }, payload, None)?;
-            }
-            let failure = match &result {
-                Err(Error::Plugin(failure)) if failure.classification == h::Classification::Transient as i32 => {
-                    harmos_protocol::policy::FailureKind::Transient
-                }
-                Err(Error::Status(status)) if status.code() == tonic::Code::Unavailable => harmos_protocol::policy::FailureKind::Transient,
-                _ => harmos_protocol::policy::FailureKind::Permanent,
-            };
-            let replay = if contract.replay_safe {
-                harmos_protocol::policy::ReplaySafety::Idempotent
-            } else {
-                harmos_protocol::policy::ReplaySafety::Unknown
-            };
-            let Some(backoff) = retry_policy.retries.retry_after((attempt - 1) as usize, failure, replay, 0) else {
-                return result.and_then(|bytes| R::decode(bytes.as_slice()).map_err(Into::into));
-            };
-            let mut client = self.entry.client.clone();
-            let description = client
-                .get(harmos_protocol::plugin::InstanceGetRequest {
-                    revision: 1,
-                    host: "dokime".into(),
-                    host_version: env!("CARGO_PKG_VERSION").into(),
-                })
-                .await?
-                .into_inner();
-            if description.started_at != self.entry.description.started_at {
-                return Err(Error::Invalid("Plugin Process Changed; Inspect the Interrupted Execution and Start a New Cycle".into()));
-            }
-            let backoff = i64::try_from(backoff.as_nanos())
-                .map_err(|_| Error::Invalid(format!("Retry {operation}: Backoff Exceeds the Host Clock Range")))?;
-            if let Some(resources) = &self.resources {
-                resources.clock.sleep(backoff).await?;
-            } else {
-                self.clock.wait_until(self.clock.now_ns() + backoff).await?;
-            }
-        }
-    }
-    async fn attempt(&self, operation: &str, payload: Vec<u8>, attempt: u32) -> Result<Vec<u8>> {
-        let (send, receive) = mpsc::channel(self.settings.stream_window.get());
-        send.send(harmos_protocol::plugin::InstanceInvokeRequest {
-            frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Request(harmos_protocol::plugin::Request {
-                operation: operation.into(),
-                payload,
-                invocation: uuid::Uuid::now_v7().to_string(),
-                attempt,
-                scope: self.resources.as_ref().map_or_else(String::new, |resources| resources.execution.clone()),
-            })),
-        })
-        .await
-        .map_err(|_| Error::Invalid("Reconnect the Plugin Invocation".into()))?;
-        let mut output = self.entry.client.clone().invoke(ReceiverStream::new(receive)).await?.into_inner();
-        let mut children = JoinSet::new();
-        let mut pending = HashMap::new();
-        loop {
+        let mut operations = self.binding.operations().clone();
+        let mut resources = self.resources.clone();
+        resources.operation = operation.into();
+        resources.attempt = Arc::new(std::sync::atomic::AtomicU32::new(1));
+        let attempts = Arc::new(crate::streams::Attempts::new(resources.clock.now_ns()));
+        let mut context = OperationHost::context(&operations).clone();
+        context.insert(self.time.clone()).map_err(|source| Error::Invalid(format!("Invoke {operation}: {source}")))?;
+        context.insert(attempts).map_err(|source| Error::Invalid(format!("Invoke {operation}: {source}")))?;
+        context.insert(resources).map_err(|source| Error::Invalid(format!("Invoke {operation}: {source}")))?;
+        operations = operations.with_context(context);
+        let action = operation;
+        let mut invocation = operations.submit_encoded(action, request.encode_to_vec())?;
+        let mut sleeping = self.time.sleeping.subscribe();
+        let result = loop {
+            let advancing = !sleeping.borrow_and_update().is_empty();
             tokio::select! {
                 biased;
                 _ = self.cancellation.cancelled() => {
-                    let frame = harmos_protocol::plugin::InstanceInvokeRequest {
-                        frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Cancel(harmos_protocol::plugin::Cancel {
-                            reason: "Operator Cancelled the Execution".into(),
-                        })),
-                    };
-                    send.send(frame).await.map_err(|_| Error::Invalid("Reconnect the Cancelled Plugin Invocation".into()))?;
-                    return Err(Error::Cancelled);
+                    invocation.request_cancel();
+                    invocation.settle().await?;
+                    break Err(Error::Cancelled);
                 }
-                child = children.join_next(), if !children.is_empty() => {
-                    let (call, result): (u64, dokime_operations::Result<Vec<u8>>) = match child {
-                        Some(Ok(value)) => value,
-                        Some(Err(error)) if error.is_cancelled() => continue,
-                        Some(Err(error)) => return Err(Error::Join(error)),
-                        None => continue,
-                    };
-                    pending.remove(&call);
-                    let result = match result {
-                        Ok(payload) => harmos_protocol::plugin::child_response::Result::Payload(payload),
-                        Err(error) => harmos_protocol::plugin::child_response::Result::Failure(h::Failure {
-                            classification: h::Classification::Permanent as i32,
-                            code: "host_operation_failed".into(),
-                            message: error.to_string(),
-                            action: "Inspect the Execution Evidence and Correct the Host Call".into(),
-                            ..Default::default()
-                        }),
-                    };
-                    let frame = harmos_protocol::plugin::InstanceInvokeRequest {
-                        frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Child(harmos_protocol::plugin::ChildResponse { call, result: Some(result) })),
-                    };
-                    send.send(frame).await.map_err(|_| Error::Invalid("Reconnect the Plugin Before Returning Host Evidence".into()))?;
-                }
-                frame = output.message() => {
-                    let frame = frame?.and_then(|frame| frame.frame).ok_or_else(|| {
-                        Error::Invalid("Plugin Closed Before Settling the Operation; Inspect Interrupted Evidence".into())
-                    })?;
-                    match frame {
-                        harmos_protocol::plugin::instance_invoke_response::Frame::Child(request) => {
-                            if let Err(failure) = self.resources.as_ref().map(|resources| resources.context.authorize(&request.operation, h::Callers::Plugins))
-                                .unwrap_or_else(|| dokime_operations::authorize(&request.operation, h::Callers::Plugins)) {
-                                let frame = harmos_protocol::plugin::InstanceInvokeRequest {
-                                    frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Child(
-                                        harmos_protocol::plugin::ChildResponse {
-                                            call: request.call,
-                                            result: Some(harmos_protocol::plugin::child_response::Result::Failure(h::Failure::from(&failure))),
-                                        },
-                                    )),
-                                };
-                                send.send(frame).await.map_err(|source| Error::Invalid(format!("Refuse Child Call: {source}")))?;
-                                continue;
-                            }
-                            let mut resources = self.resources.clone().ok_or_else(|| {
-                                Error::Invalid("Keep Materialization Pure; Remove Its Host Calls".into())
-                            })?;
-                            resources.operation = operation.into();
-                            resources.attempt = attempt;
-                            if pending.contains_key(&request.call) {
-                                return Err(Error::Invalid("Give Each Child Call a Unique Identifier".into()));
-                            }
-                            let call = request.call;
-                            let handle = children.spawn(async move {
-                                (call, dokime_operations::dispatch(&resources, &request).await)
-                            });
-                            pending.insert(call, handle);
-                        }
-                        harmos_protocol::plugin::instance_invoke_response::Frame::ChildCancel(cancel) => {
-                            if let Some(handle) = pending.remove(&cancel.call) { handle.abort(); }
-                        }
-                        harmos_protocol::plugin::instance_invoke_response::Frame::ChildDemand(demand) => {
-                            return Err(Error::Invalid(format!("Watch {}: No Streaming Child Was Opened", demand.call)));
-                        }
-                        harmos_protocol::plugin::instance_invoke_response::Frame::Response(response) => return match response.result {
-                            Some(harmos_protocol::plugin::response::Result::Payload(payload)) => Ok(payload),
-                            Some(harmos_protocol::plugin::response::Result::Failure(failure)) => Err(Error::Plugin(Box::new(failure))),
-                            None => Err(Error::Invalid("Return a Result from the Plugin Operation".into())),
-                        },
-                    }
-                }
+                result = &mut invocation => break result.map_err(|source| match source.failure() {
+                    Some(failure) => Error::Plugin(Box::new(harmos_protocol::model::Failure::from(failure))),
+                    None => Error::Library(source),
+                }),
+                _ = sleeping.changed() => {},
+                _ = async {
+                    match &self.controller { Some(controller) => controller.advance_next().await, None => std::future::pending().await }
+                }, if advancing => {}
             }
+        };
+        if let Some(controller) = &self.controller {
+            controller.advance_by(std::time::Duration::ZERO).await;
         }
+        if let Some(source) = self
+            .sample_failures
+            .lock()
+            .map_err(|source| Error::Invalid(format!("Read Sample Failure: {source}")))?
+            .get(&self.resources.execution)
+        {
+            return Err(Error::Invalid(format!("Ingest Execution Samples: {source}")));
+        }
+        let payload = result?;
+        R::decode(payload.as_slice()).map_err(Into::into)
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn duration_ns(duration: Option<&prost_types::Duration>) -> Result<Option<i64>> {
-    duration
-        .map(|duration| {
-            duration
-                .seconds
-                .checked_mul(1_000_000_000)
-                .and_then(|value| value.checked_add(duration.nanos as i64))
-                .filter(|value| *value >= 0)
-                .ok_or_else(|| Error::Invalid("Set a Nonnegative Operation Policy Duration Within Range".into()))
-        })
-        .transpose()
-}
-async fn reached(clock: &Arc<dyn SchedulerClock>, at_ns: Option<i64>) {
-    match at_ns {
-        Some(at_ns) => clock.reached(at_ns).await,
-        None => std::future::pending().await,
-    }
-}
 
 /* === Tests === */

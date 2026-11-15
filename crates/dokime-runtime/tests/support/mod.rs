@@ -292,6 +292,33 @@ pub fn content_fixture() -> Result<PathBuf, Box<dyn Error>> {
     Ok(executable)
 }
 
+pub async fn native_file(client: &Client, id: &str, execution: &str, bytes: &[u8]) -> Result<dokime::FileReference, Box<dyn Error>> {
+    use dokime::FileMetadata;
+    use sha2::{Digest, Sha256};
+    let created = client
+        .files
+        .uploads
+        .create(FileMetadata {
+            id: id.into(),
+            scope: Some(execution.into()),
+            media_type: "application/octet-stream".into(),
+            expected_length: Some(bytes.len() as u64),
+            expected_sha256: Some(Sha256::digest(bytes).to_vec()),
+        })
+        .await?;
+    let upload = created.upload.ok_or("Create Story File: Missing Upload")?;
+    for (index, chunk) in bytes.chunks(created.chunk_bytes as usize).enumerate() {
+        client.files.uploads.append(upload.clone(), (index * created.chunk_bytes as usize) as u64, chunk.to_vec()).await?;
+    }
+    Ok(client
+        .files
+        .uploads
+        .publish(upload, bytes.len() as u64, Sha256::digest(bytes).to_vec())
+        .await?
+        .upload
+        .ok_or("Publish Story File: Missing Reference")?)
+}
+
 /* === Private Functions === */
 
 fn fixture_root() -> PathBuf {

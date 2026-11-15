@@ -16,28 +16,34 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, SystemTime},
+};
 
 // Third Party Imports
 use async_trait::async_trait;
-use harmos_protocol::{
-    model::Declarations,
-    plugin::{
-        InstanceSamplesRequest, InstanceSamplesResponse, SamplesSelection, Tick, instance_client::InstanceClient,
-        instance_samples_request::Frame,
-    },
+use harmos_domain::schema::json::JsonCodec;
+use harmos_protocol::model::Declarations;
+use harmos_runtime::operations::OperationOutcome;
+use harmos_runtime::operations::middleware::{AttemptObservation, Enter, Invocation, Middleware, Observation};
+use harmos_runtime::streams::{Definition, PublicationRow};
+use harmos_runtime::{BackendFailure, Error as RuntimeError};
+use harmos_runtime::{
+    clock::{Clock as RuntimeClock, Controller},
+    storage::{Batch, Cursor, StreamConsumer},
 };
-use prost_types::Timestamp;
-use tokio::sync::{
-    Mutex,
-    mpsc::{self, Sender},
-};
-use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Streaming, transport::Channel};
+use prost::Message;
+use prost_reflect::{DescriptorPool, DynamicMessage, Kind, MapKey, MessageDescriptor, Value as FieldValue};
+use serde_json::Value;
 
 // Local Imports
-use crate::{Error, PlacementSettings, Result, SchedulerClock};
-use dokime_operations::{Clock, Result as OperationsResult};
+use crate::services::composition::Application;
+use dokime_operations::{Clock, Resources, Result};
 use dokime_storage::{Sample, Store};
 
 /* === Constants === */
@@ -49,18 +55,47 @@ use dokime_storage::{Sample, Store};
 /* === Structs === */
 
 pub(crate) struct ExecutionTime {
-    clock: Arc<dyn SchedulerClock>,
-    streams: Mutex<Vec<Publication>>,
-    store: Store,
-    execution: String,
+    pub clock: RuntimeClock,
+    pub sleeping: tokio::sync::watch::Sender<BTreeSet<u64>>,
 }
-struct Publication {
-    identifier: String,
-    send: Sender<InstanceSamplesRequest>,
-    output: Streaming<InstanceSamplesResponse>,
-    interval_ns: i64,
-    next_ns: i64,
+
+pub(crate) struct Samples {
+    pub store: Store,
+    pub cursor: Cursor,
+    pub failures: Arc<Mutex<HashMap<String, String>>>,
+    pub scopes: Arc<Mutex<HashMap<String, SampleScope>>>,
+}
+
+pub(crate) struct SampleScope {
+    streams: HashMap<String, SampleRow>,
+}
+struct SampleRow {
+    descriptor: MessageDescriptor,
+    codec: Option<JsonCodec>,
     sequence: u64,
+}
+
+pub(crate) struct Timing;
+
+pub(crate) struct Attempts {
+    started: AtomicBool,
+    start_ns: Mutex<i64>,
+}
+
+impl Attempts {
+    pub fn new(start_ns: i64) -> Self {
+        Self {
+            started: AtomicBool::new(false),
+            start_ns: Mutex::new(start_ns),
+        }
+    }
+    fn start(&self, resources: &Resources) -> Result<()> {
+        if !self.started.swap(true, Ordering::SeqCst) {
+            let at = *self.start_ns.lock().expect("attempt clock lock is healthy");
+            resources.evidence("attempt:start", Vec::new(), Some(at))?;
+        }
+        Ok(())
+    }
 }
 
 /* === Enums === */
@@ -69,142 +104,182 @@ struct Publication {
 
 /* === Implementations === */
 
-impl ExecutionTime {
-    pub async fn open(
-        client: &InstanceClient<Channel>, catalog: &Declarations, identifiers: &[String], execution: &str, store: Store,
-        clock: Arc<dyn SchedulerClock>, settings: &PlacementSettings,
-    ) -> Result<Arc<Self>> {
-        let mut streams = Vec::new();
-        for identifier in identifiers {
-            let declaration = catalog
-                .streams
-                .iter()
-                .find(|stream| &stream.id == identifier)
-                .ok_or_else(|| Error::Invalid(format!("Declare the Execution Stream {identifier}")))?;
-            let interval =
-                declaration.interval.as_ref().ok_or_else(|| Error::Invalid("Configure an Observer Interval for This Stream".into()))?;
-            let interval_ns = interval
-                .seconds
-                .checked_mul(1_000_000_000)
-                .and_then(|value| value.checked_add(interval.nanos as i64))
-                .filter(|value| *value > 0)
-                .ok_or_else(|| Error::Invalid("Set a Positive Observer Interval".into()))?;
-            store.open_stream(execution, identifier)?;
-            let (send, receive) = mpsc::channel(settings.stream_window.get());
-            send.send(InstanceSamplesRequest {
-                frame: Some(Frame::Open(SamplesSelection {
-                    stream: identifier.clone(),
-                    scope: execution.into(),
-                })),
-            })
-            .await
-            .map_err(|_| Error::Invalid("Reconnect the Plugin Stream".into()))?;
-            let output = client.clone().samples(ReceiverStream::new(receive)).await?.into_inner();
-            streams.push(Publication {
-                identifier: identifier.clone(),
-                send,
-                output,
-                interval_ns,
-                next_ns: clock.now_ns(),
-                sequence: 0,
-            });
-        }
-        Ok(Arc::new(Self {
-            clock,
-            streams: Mutex::new(streams),
-            store,
-            execution: execution.into(),
-        }))
-    }
-    pub async fn close(&self) -> Result<()> {
-        let publications = std::mem::take(&mut *self.streams.lock().await);
-        let mut failure = None;
-        for publication in publications {
-            let Publication { send, mut output, .. } = publication;
-            drop(send);
-            loop {
-                match output.message().await {
-                    Ok(Some(_)) => continue,
-                    Ok(None) => break,
-                    Err(error) => {
-                        failure.get_or_insert(Error::Status(error));
-                        break;
-                    }
-                }
+impl Middleware for Timing {
+    fn enter<'a>(&'a self, invocation: &'a mut Invocation) -> Enter<'a> {
+        Box::pin(async move {
+            if let Some(attempts) = invocation.context().get::<Arc<Attempts>>().cloned()
+                && let Some(resources) = invocation.context().get::<Resources>().cloned()
+            {
+                attempts
+                    .start(&resources)
+                    .map_err(|source| RuntimeError::backend("Record Invocation Attempt", BackendFailure::Permanent, source))?;
             }
-        }
-        self.store.close_streams(&self.execution)?;
-        match failure {
-            Some(error) => Err(error),
-            None => Ok(()),
-        }
-    }
-    async fn advance(&self, duration_ns: i64) -> Result<()> {
-        let end_ns = self
-            .clock
-            .now_ns()
-            .checked_add(duration_ns)
-            .ok_or_else(|| Error::Invalid("Choose a Sleep Duration Within the Evidence Clock Range".into()))?;
-        let mut streams = self.streams.lock().await;
-        while let Some((index, at_ns)) = streams
-            .iter()
-            .enumerate()
-            .map(|(index, stream)| (index, stream.next_ns))
-            .filter(|(_, at)| *at <= end_ns)
-            .min_by_key(|(_, at)| *at)
-        {
-            self.clock.wait_until(at_ns).await?;
-            let stream = &mut streams[index];
-            let at = Timestamp {
-                seconds: at_ns.div_euclid(1_000_000_000),
-                nanos: at_ns.rem_euclid(1_000_000_000) as i32,
-            };
-            stream
-                .send
-                .send(InstanceSamplesRequest {
-                    frame: Some(Frame::Tick(Tick { at: Some(at) })),
-                })
-                .await
-                .map_err(|_| Error::Invalid("Reconnect the Plugin Stream Before Sampling".into()))?;
-            let samples =
-                stream.output.message().await?.ok_or_else(|| Error::Invalid("Reconnect the Plugin After Its Stream Closed".into()))?;
-            let mut batch = Vec::with_capacity(samples.samples.len());
-            for sample in samples.samples {
-                if sample.sequence <= stream.sequence {
-                    return Err(Error::Invalid("Reconnect the Plugin After an Out-of-Order Sample".into()));
-                }
-                stream.sequence = sample.sequence;
-                let source = sample.at.unwrap_or(at);
-                let source_ns = source
-                    .seconds
-                    .checked_mul(1_000_000_000)
-                    .and_then(|value| value.checked_add(source.nanos as i64))
-                    .ok_or_else(|| Error::Invalid("Publish a Source Time Within the Evidence Clock Range".into()))?;
-                batch.push(Sample {
-                    stream: stream.identifier.clone(),
-                    position: 0,
-                    source_ns,
-                    receipt_ns: self.clock.now_ns(),
-                    sequence: sample.sequence,
-                    row: sample.row,
+            if invocation.operation().id.as_str() == "harmos.host.v1.Time/Sleep"
+                && let Some(time) = invocation.context().get::<Arc<ExecutionTime>>()
+            {
+                time.sleeping.send_modify(|active| {
+                    active.insert(invocation.id().value());
                 });
             }
-            self.store.sample_batch(&self.execution, &batch)?;
-            stream.next_ns = stream
-                .next_ns
-                .checked_add(stream.interval_ns)
-                .ok_or_else(|| Error::Invalid("Restart Sampling Within the Clock Range".into()))?;
+            Ok(())
+        })
+    }
+    fn attempt<'a>(&'a self, invocation: &'a Invocation, observation: AttemptObservation) -> Enter<'a> {
+        Box::pin(async move {
+            if let Some(attempts) = invocation.context().get::<Arc<Attempts>>()
+                && let Some(resources) = invocation.context().get::<Resources>().cloned()
+                && invocation.operation().id.as_str() == resources.operation
+            {
+                resources.attempt.store(observation.attempt as u32 + 1, Ordering::SeqCst);
+                attempts
+                    .start(&resources)
+                    .map_err(|source| RuntimeError::backend("Record Invocation Attempt", BackendFailure::Permanent, source))?;
+                let kind = if observation.outcome == OperationOutcome::Succeeded { "attempt:succeeded" } else { "attempt:failed" };
+                resources
+                    .evidence(kind, Vec::new(), None)
+                    .map_err(|source| RuntimeError::backend("Record Invocation Attempt", BackendFailure::Permanent, source))?;
+                *attempts.start_ns.lock().expect("attempt clock lock is healthy") = resources.clock.now_ns();
+                resources.attempt.store(observation.attempt as u32 + 2, Ordering::SeqCst);
+                attempts.started.store(false, Ordering::SeqCst);
+            }
+            if invocation.operation().id.as_str() == "harmos.host.v1.Time/Sleep"
+                && let Some(time) = invocation.context().get::<Arc<ExecutionTime>>()
+            {
+                time.sleeping.send_modify(|active| {
+                    active.remove(&invocation.id().value());
+                });
+            }
+            Ok(())
+        })
+    }
+    fn observe(&self, invocation: &Invocation, _: Observation) {
+        if invocation.operation().id.as_str() == "harmos.host.v1.Time/Sleep"
+            && let Some(time) = invocation.context().get::<Arc<ExecutionTime>>()
+        {
+            time.sleeping.send_modify(|active| {
+                active.remove(&invocation.id().value());
+            });
         }
-        self.clock.wait_until(end_ns).await
     }
 }
+
+impl ExecutionTime {
+    pub fn open(source: &dyn crate::SchedulerClock) -> (Arc<Self>, Option<Controller>) {
+        let (clock, controller) = source.execution_clock();
+        (
+            Arc::new(Self {
+                clock,
+                sleeping: tokio::sync::watch::channel(BTreeSet::new()).0,
+            }),
+            controller,
+        )
+    }
+}
+
 #[async_trait]
 impl Clock for ExecutionTime {
     fn now_ns(&self) -> i64 {
-        self.clock.now_ns()
+        self.clock
+            .date()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|value| value.as_nanos() as i64)
+            .unwrap_or_else(|value| -(value.duration().as_nanos() as i64))
     }
-    async fn sleep(&self, duration_ns: i64) -> OperationsResult<()> {
-        self.advance(duration_ns).await.map_err(|error| dokime_operations::Error::Invalid(error.to_string()))
+    async fn sleep(&self, duration_ns: i64) -> Result<()> {
+        let duration = u64::try_from(duration_ns).map_err(|source| dokime_operations::Error::Invalid(format!("Sleep: {source}")))?;
+        self.clock.sleep(Duration::from_nanos(duration)).await;
+        Ok(())
+    }
+}
+
+impl StreamConsumer<Application> for Samples {
+    fn resume(&self) -> Cursor {
+        self.cursor
+    }
+    async fn drain(&mut self, batch: Batch<Application>) -> Cursor {
+        for (definition, _, publication) in batch.publications() {
+            let result = self.ingest(definition, publication.value);
+            if let Err(source) = result {
+                let scope = publication
+                    .value
+                    .context
+                    .as_ref()
+                    .and_then(|context| serde_json::from_str::<Value>(context).ok())
+                    .and_then(|context| context["scope"].as_str().map(str::to_owned));
+                if let Some(scope) = scope {
+                    self.failures.lock().expect("sample failure lock is healthy").insert(scope, source.to_string());
+                }
+                tracing::error!(%source, "Ingest Execution Samples");
+            }
+        }
+        self.cursor = batch.reaches();
+        self.cursor
+    }
+}
+
+impl SampleScope {
+    pub fn new(catalog: &Declarations, streams: &[String]) -> crate::Result<Self> {
+        let types = catalog.types.clone().ok_or_else(|| crate::Error::Invalid("Open Sample Scope: Declare Its Row Types".into()))?;
+        let pool = DescriptorPool::from_file_descriptor_set(types)
+            .map_err(|source| crate::Error::Invalid(format!("Open Sample Scope: {source}")))?;
+        let mut selected = HashMap::new();
+        for stream in streams {
+            let declaration = catalog
+                .streams
+                .iter()
+                .find(|declaration| declaration.id == *stream)
+                .ok_or_else(|| crate::Error::Invalid(format!("Open Sample Scope: Declare Stream {stream}")))?;
+            let descriptor = pool
+                .get_message_by_name(&declaration.row)
+                .ok_or_else(|| crate::Error::Invalid(format!("Open Sample Scope: Declare Row {}", declaration.row)))?;
+            selected.insert(stream.clone(), SampleRow { descriptor, codec: None, sequence: 0 });
+        }
+        Ok(Self { streams: selected })
+    }
+}
+
+impl Samples {
+    fn ingest(&mut self, definition: &Definition, publication: &PublicationRow) -> crate::Result<()> {
+        let Some(context) = &publication.context else { return Ok(()) };
+        let context: Value =
+            serde_json::from_str(context).map_err(|source| crate::Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
+        let Some(execution) = context["scope"].as_str() else { return Ok(()) };
+        let mut scopes = self.scopes.lock().map_err(|source| crate::Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
+        let scope =
+            scopes.get_mut(execution).ok_or_else(|| crate::Error::Invalid("Ingest Sample Scope: Retain Its Execution Binding".into()))?;
+        let Some(stream) = scope.streams.get_mut(definition.id()) else { return Ok(()) };
+        if stream.codec.is_none() {
+            let schema = definition.schema();
+            let view = schema.view(schema.root).map_err(|source| crate::Error::Invalid(format!("Decode Sample Schema: {source}")))?;
+            let codec =
+                JsonCodec::new(view, &Default::default()).map_err(|source| crate::Error::Invalid(format!("Decode Sample: {source}")))?;
+            stream.codec = Some(codec);
+        }
+        let value = stream
+            .codec
+            .as_ref()
+            .unwrap()
+            .decode(&publication.payload)
+            .map_err(|source| crate::Error::Invalid(format!("Decode Sample: {source}")))?;
+        let row = message(stream.descriptor.clone(), &value)?.encode_to_vec();
+        let receipt_ns = publication.published_unix_micros.unwrap_or_default().saturating_mul(1000);
+        let source_ns = context
+            .get("source_time")
+            .map(|at| at["seconds"].as_i64().unwrap_or_default().saturating_mul(1_000_000_000) + at["nanos"].as_i64().unwrap_or_default())
+            .unwrap_or(receipt_ns);
+        stream.sequence += 1;
+        self.store.sample(
+            execution,
+            Sample {
+                stream: definition.id().into(),
+                sequence: stream.sequence,
+                source_ns,
+                receipt_ns,
+                row,
+                ..Default::default()
+            },
+        )?;
+        Ok(())
     }
 }
 
@@ -212,158 +287,69 @@ impl Clock for ExecutionTime {
 
 /* === Private Functions === */
 
-/* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::ExecutionTime;
-    use crate::{ControlledClock, PlacementSettings};
-    use dokime_operations::Clock;
-    use dokime_protocol::host::plots::PlotDomain;
-    use dokime_storage::{Execution, SampleWindow, Store};
-    use harmos_protocol::{
-        model::{Declarations, StreamDeclaration},
-        plugin::{
-            InstanceGetRequest, InstanceGetResponse, InstanceInvokeRequest, InstanceInvokeResponse, InstanceSamplesRequest,
-            InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse, Sample,
-            instance_client::InstanceClient,
-            instance_samples_request::Frame,
-            instance_server::{Instance, InstanceServer},
-        },
-    };
-    use prost::Message;
-    use prost_types::{Duration as ProtoDuration, FileDescriptorSet, Timestamp};
-    use std::{num::NonZeroUsize, sync::Arc, time::Duration, vec::IntoIter};
-    use tokio::{net::TcpListener, sync::mpsc};
-    use tokio_stream::{
-        Iter,
-        wrappers::{ReceiverStream, TcpListenerStream},
-    };
-    use tonic::{Request, Response, Status, Streaming, transport::Server};
-
-    struct Producer;
-
-    #[tonic::async_trait]
-    impl Instance for Producer {
-        async fn get(&self, _: Request<InstanceGetRequest>) -> Result<Response<InstanceGetResponse>, Status> {
-            Err(Status::unimplemented("Inspect Test Producer: Only Samples Are Served"))
-        }
-        type InvokeStream = Iter<IntoIter<Result<InstanceInvokeResponse, Status>>>;
-        async fn invoke(&self, _: Request<Streaming<InstanceInvokeRequest>>) -> Result<Response<Self::InvokeStream>, Status> {
-            Err(Status::unimplemented("Invoke Test Producer: Only Samples Are Served"))
-        }
-        type SamplesStream = ReceiverStream<Result<InstanceSamplesResponse, Status>>;
-        async fn samples(&self, request: Request<Streaming<InstanceSamplesRequest>>) -> Result<Response<Self::SamplesStream>, Status> {
-            let mut input = request.into_inner();
-            let (sender, receiver) = mpsc::channel(8);
-            tokio::spawn(async move {
-                let mut sequence = 0;
-                while let Some(frame) = input.message().await.unwrap() {
-                    if !matches!(frame.frame, Some(Frame::Tick(_))) {
-                        continue;
-                    }
-                    let samples = (0..2)
-                        .map(|_| {
-                            sequence += 1;
-                            Sample {
-                                sequence,
-                                at: Some(Timestamp {
-                                    seconds: 0,
-                                    nanos: if sequence % 2 == 0 { 10 } else { 20 },
-                                }),
-                                row: PlotDomain {
-                                    min: sequence as f64,
-                                    max: sequence as f64 * 2.0,
-                                }
-                                .encode_to_vec(),
-                            }
-                        })
-                        .collect();
-                    if sender.send(Ok(InstanceSamplesResponse { samples, frame: None })).await.is_err() {
-                        break;
-                    }
-                }
-            });
-            Ok(Response::new(ReceiverStream::new(receiver)))
-        }
-        async fn stop(&self, _: Request<InstanceStopRequest>) -> Result<Response<InstanceStopResponse>, Status> {
-            Ok(Response::new(InstanceStopResponse {}))
-        }
-    }
-
-    #[tokio::test]
-    async fn tick_batches_preserve_every_sample_and_late_source_time() {
-        let root = tempfile::tempdir().unwrap();
-        let store = Store::open(root.path()).unwrap();
-        let catalog = Declarations {
-            types: Some(FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET).unwrap()),
-            streams: vec![StreamDeclaration {
-                id: "readings".into(),
-                row: "dokime.host.v1.plots.PlotDomain".into(),
-                interval: Some(ProtoDuration { seconds: 0, nanos: 1_000_000 }),
-                ..Default::default()
-            }],
-            ..Default::default()
+fn message(descriptor: MessageDescriptor, value: &Value) -> crate::Result<DynamicMessage> {
+    let mut message = DynamicMessage::new(descriptor.clone());
+    for field in descriptor.fields() {
+        let Some(value) = value.get(field.name()).filter(|value| !value.is_null()) else { continue };
+        let converted = if field.is_map() {
+            let Kind::Message(entry) = field.kind() else { unreachable!() };
+            let key = entry.get_field_by_name("key").unwrap();
+            let item = entry.get_field_by_name("value").unwrap();
+            let entries = value.as_array().ok_or_else(|| crate::Error::Invalid("Decode Sample: Expected a Map".into()))?;
+            let mut values = HashMap::new();
+            for entry in entries {
+                let key = match scalar(&key.kind(), &entry["key"])? {
+                    FieldValue::Bool(value) => MapKey::Bool(value),
+                    FieldValue::I32(value) => MapKey::I32(value),
+                    FieldValue::I64(value) => MapKey::I64(value),
+                    FieldValue::U32(value) => MapKey::U32(value),
+                    FieldValue::U64(value) => MapKey::U64(value),
+                    FieldValue::String(value) => MapKey::String(value),
+                    _ => return Err(crate::Error::Invalid("Decode Sample: Invalid Map Key".into())),
+                };
+                let value =
+                    if entry["value"].is_null() { FieldValue::default_value(&item.kind()) } else { scalar(&item.kind(), &entry["value"])? };
+                values.insert(key, value);
+            }
+            FieldValue::Map(values)
+        } else if field.is_list() {
+            let values = value.as_array().ok_or_else(|| crate::Error::Invalid("Decode Sample: Expected a Repeated Field".into()))?;
+            FieldValue::List(values.iter().map(|value| scalar(&field.kind(), value)).collect::<crate::Result<_>>()?)
+        } else {
+            scalar(&field.kind(), value)?
         };
-        store
-            .create(&Execution {
-                identifier: "execution".into(),
-                cycle: "cycle".into(),
-                origin: Some(dokime_protocol::model::Origin {
-                    kind: Some(dokime_protocol::model::origin::Kind::Import(dokime_protocol::model::Import::default())),
-                }),
-                catalog: catalog.encode_to_vec(),
-                ..Default::default()
-            })
-            .unwrap();
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let endpoint = format!("http://{}", listener.local_addr().unwrap());
-        let (stopped, shutdown) = tokio::sync::oneshot::channel();
-        let server = tokio::spawn(Server::builder().add_service(InstanceServer::new(Producer)).serve_with_incoming_shutdown(
-            TcpListenerStream::new(listener),
-            async {
-                let _ = shutdown.await;
-            },
-        ));
-        let client = InstanceClient::connect(endpoint).await.unwrap();
-        let settings = PlacementSettings {
-            connect_timeout: Duration::from_secs(30),
-            reconnect_delay: Duration::from_millis(25),
-            stop_grace: Duration::from_secs(30),
-            stream_window: NonZeroUsize::new(8).unwrap(),
-            message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-        };
-        let time = ExecutionTime::open(
-            &client,
-            &catalog,
-            &["readings".into()],
-            "execution",
-            store.clone(),
-            Arc::new(ControlledClock::new(0)),
-            &settings,
-        )
-        .await
-        .unwrap();
-        time.sleep(1_000_000).await.unwrap();
-        time.close().await.unwrap();
-        store.shutdown_samples().await.unwrap();
-        let reopened = Store::open(root.path()).unwrap();
-        let rows = reopened
-            .sample_window(SampleWindow {
-                execution: "execution",
-                streams: &["readings".into()],
-                after: &[],
-                through: u64::MAX,
-                start_ns: i64::MIN,
-                end_ns: i64::MAX,
-                latest: false,
-                limit: NonZeroUsize::new(10).unwrap(),
-            })
-            .unwrap();
-        assert_eq!(rows.iter().map(|row| row.sequence).collect::<Vec<_>>(), [1, 2, 3, 4]);
-        assert_eq!(rows.iter().map(|row| row.source_ns).collect::<Vec<_>>(), [20, 10, 20, 10]);
-        assert_eq!(rows.iter().map(|row| PlotDomain::decode(row.row.as_slice()).unwrap().min).collect::<Vec<_>>(), [1.0, 2.0, 3.0, 4.0]);
-        stopped.send(()).unwrap();
-        server.await.unwrap().unwrap();
+        message
+            .try_set_field(&field, converted)
+            .map_err(|source| crate::Error::Invalid(format!("Decode Sample Field {}: {source}", field.name())))?;
     }
+    Ok(message)
 }
+
+fn scalar(kind: &Kind, value: &Value) -> crate::Result<FieldValue> {
+    let invalid = || crate::Error::Invalid("Decode Sample: Value Does Not Match Its Declared Field".into());
+    Ok(match kind {
+        Kind::Bool => FieldValue::Bool(value.as_bool().ok_or_else(invalid)?),
+        Kind::Int32 | Kind::Sint32 | Kind::Sfixed32 => {
+            FieldValue::I32(i32::try_from(value.as_i64().ok_or_else(invalid)?).map_err(|_| invalid())?)
+        }
+        Kind::Int64 | Kind::Sint64 | Kind::Sfixed64 => FieldValue::I64(value.as_i64().ok_or_else(invalid)?),
+        Kind::Uint32 | Kind::Fixed32 => FieldValue::U32(u32::try_from(value.as_u64().ok_or_else(invalid)?).map_err(|_| invalid())?),
+        Kind::Uint64 | Kind::Fixed64 => FieldValue::U64(value.as_u64().ok_or_else(invalid)?),
+        Kind::Float => FieldValue::F32(value.as_f64().ok_or_else(invalid)? as f32),
+        Kind::Double => FieldValue::F64(value.as_f64().ok_or_else(invalid)?),
+        Kind::String => FieldValue::String(value.as_str().ok_or_else(invalid)?.into()),
+        Kind::Bytes => FieldValue::Bytes(
+            value
+                .as_array()
+                .ok_or_else(invalid)?
+                .iter()
+                .map(|value| u8::try_from(value.as_u64().ok_or_else(invalid)?).map_err(|_| invalid()))
+                .collect::<crate::Result<Vec<_>>>()?
+                .into(),
+        ),
+        Kind::Enum(_) => FieldValue::EnumNumber(i32::try_from(value.as_i64().ok_or_else(invalid)?).map_err(|_| invalid())?),
+        Kind::Message(descriptor) => FieldValue::Message(message(descriptor.clone(), value)?),
+    })
+}
+
+/* === Tests === */

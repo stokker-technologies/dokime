@@ -25,6 +25,7 @@ use std::{
 // Third Party Imports
 use prost::Message;
 use rusqlite::Transaction;
+use rusqlite::TransactionBehavior;
 use rusqlite::{Connection, OptionalExtension, params, types::ValueRef};
 use sha2::{Digest, Sha256};
 
@@ -111,7 +112,8 @@ impl Store {
         if !exists && occupied {
             return Err(Error::Incompatible(root.display().to_string()));
         }
-        let connection = Connection::open(&database)?;
+        let mut connection = Connection::open(&database)?;
+        connection.set_transaction_behavior(TransactionBehavior::Immediate);
         if exists {
             let identity: i32 = connection
                 .query_row("PRAGMA application_id", [], |row| row.get(0))
@@ -130,8 +132,6 @@ impl Store {
                     "bindings",
                     "cases",
                     "commands",
-                    "content_chunks",
-                    "content_objects",
                     "cycle_history",
                     "cycles",
                     "deletions",
@@ -181,9 +181,6 @@ impl Store {
                 CREATE TABLE attempts(execution TEXT NOT NULL REFERENCES executions(id), step TEXT NOT NULL, operation TEXT NOT NULL, attempt INTEGER NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,step,operation,attempt,position));
                 {telemetry_schema}
                 CREATE TABLE streams(execution TEXT NOT NULL REFERENCES executions(id), stream TEXT NOT NULL, closed INTEGER NOT NULL, PRIMARY KEY(execution,stream));
-                CREATE TABLE content_objects(id TEXT PRIMARY KEY, execution TEXT NOT NULL, path TEXT NOT NULL, artifact INTEGER NOT NULL, metadata BLOB NOT NULL, length INTEGER NOT NULL, sha256 TEXT NOT NULL, phase INTEGER NOT NULL);
-                CREATE TABLE content_chunks(object TEXT NOT NULL REFERENCES content_objects(id), offset INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(object,offset));
-                CREATE INDEX content_path ON content_objects(execution,path);
                 CREATE TABLE record_fields(execution TEXT NOT NULL, record TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,record,field,position));
                 CREATE INDEX record_fields_time ON record_fields(execution,record,field,source_ns,position);
                 CREATE TABLE notes(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, execution TEXT, receipt BLOB NOT NULL, payload BLOB NOT NULL);
@@ -233,6 +230,21 @@ impl Store {
             };
             connection.execute("INSERT INTO administration VALUES('evidence-read-history',?1)", [history.encode_to_vec()])?;
         }
+        if !exists {
+            let history = History {
+                store: identity.clone(),
+                epoch: uuid::Uuid::now_v7().to_string(),
+            };
+            connection.execute("INSERT INTO administration VALUES('native-storage-history',?1)", [history.encode_to_vec()])?;
+        }
+        let native_history: Option<Vec<u8>> = connection
+            .query_row("SELECT payload FROM administration WHERE id='native-storage-history'", [], |row| row.get(0))
+            .optional()?;
+        let native_history = native_history.ok_or_else(|| Error::Incompatible(root.display().to_string()))?;
+        let native_history = History::decode(native_history.as_slice())?;
+        if native_history.store != identity || uuid::Uuid::parse_str(&native_history.epoch).is_err() {
+            return Err(Error::Incompatible(root.display().to_string()));
+        }
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             database: Arc::new(database),
@@ -245,6 +257,11 @@ impl Store {
             verified: Arc::new(Mutex::new(HashMap::new())),
             changed: tokio::sync::watch::channel(0).0,
         })
+    }
+    pub(crate) fn storage_history(&self) -> Result<History> {
+        let bytes: Vec<u8> =
+            self.lock()?.query_row("SELECT payload FROM administration WHERE id='native-storage-history'", [], |row| row.get(0))?;
+        Ok(History::decode(bytes.as_slice())?)
     }
     pub(crate) fn lock(&self) -> Result<MutexGuard<'_, Connection>> {
         if self.cancelled.as_ref().is_some_and(|flag| flag.load(Ordering::Acquire)) {

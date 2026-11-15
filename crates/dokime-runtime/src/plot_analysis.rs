@@ -20,8 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{Host, Result, dispatch::Dispatch};
-use tokio_util::sync::CancellationToken;
+use crate::{Host, Result};
 
 /* === Constants === */
 
@@ -41,14 +40,14 @@ impl Host {
     pub async fn analyze(
         &self, plugin: &str, operation: &str, request: dokime_protocol::plugin::AnalysesComputeRequest,
     ) -> Result<dokime_protocol::plugin::AnalysesComputeResponse> {
-        let dispatch = Dispatch {
-            entry: self.entry(plugin)?,
-            resources: None,
-            cancellation: CancellationToken::new(),
-            settings: self.settings.placement.clone(),
-            clock: self.settings.clock.clone(),
-        };
-        dispatch.invoke(operation, request).await
+        let context = self
+            .executions
+            .inner
+            .context
+            .get()
+            .and_then(std::sync::Weak::upgrade)
+            .ok_or_else(|| crate::Error::Invalid("Analyze: Assemble the Host Context".into()))?;
+        Ok(context.host.analyze(plugin, operation, request).await?)
     }
 }
 

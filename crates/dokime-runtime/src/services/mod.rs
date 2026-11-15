@@ -12,9 +12,9 @@
 /* === Modules === */
 
 mod access_credentials;
-mod bundles;
+pub(crate) mod bundles;
 mod clock;
-mod composition;
+pub(crate) mod composition;
 mod state;
 mod status;
 
@@ -210,7 +210,6 @@ pub(crate) struct Assembly {
 }
 
 pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings) -> Result<Assembly> {
-    let clock = host.settings.clock.clone();
     let backend_id = host.store.identity().to_owned();
     let identity = HostIdentity {
         backend_id: backend_id.clone(),
@@ -224,8 +223,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         display_name: "Dokime Execution Host".into(),
     };
     let binding = Arc::new(dokime_operations::native::Binding::default());
-    let (runtime, backend_lease) =
-        Box::pin(composition::launch(clock, &host.store, root, &host.settings.placement, settings, binding.clone())).await?;
+    let (runtime, backend_lease, plugins) = Box::pin(composition::launch(host, root, settings, binding.clone())).await?;
     let status = runtime.services().configure_status(status::settings(settings, backend_id.clone()))?;
     let administration = Arc::new(Mutex::new(()));
     let catalogs = Arc::new(std::sync::RwLock::new(Vec::new()));
@@ -250,6 +248,12 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         caller: None,
     });
     host.executions.bind_context(&context)?;
+    host.executions
+        .inner
+        .runtime
+        .set(Arc::downgrade(&runtime))
+        .map_err(|_| Error::Invalid("Bind Execution Runtime: Assemble Once".into()))?;
+    host.executions.inner.library_plugins.set(plugins).map_err(|_| Error::Invalid("Bind Execution Plugins: Assemble Once".into()))?;
     binding.bind(&context)?;
     dokime_operations::host::content::validate_root(&context).await?;
     context.host.refresh_plugin_states().await?;

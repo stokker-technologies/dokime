@@ -101,9 +101,7 @@ impl Store {
         if state != 2 || seal != expected || crate::store::digest(&transaction, execution)? != seal {
             return Err(Error::Invalid("Delete Execution: Inspect Its Current Seal Before Deleting".into()));
         }
-        transaction
-            .execute("DELETE FROM content_chunks WHERE object IN (SELECT id FROM content_objects WHERE execution=?1)", [execution])?;
-        transaction.execute("DELETE FROM content_objects WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM administration WHERE substr(id,1,length(?1))=?1", [format!("execution-file/{execution}/")])?;
         transaction.execute("DELETE FROM notes WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM administration WHERE id LIKE ?1", [format!("plot-settings:{execution}/%")])?;
         let mut statement = transaction.prepare("SELECT id,payload FROM administration WHERE id LIKE 'artifact/%'")?;

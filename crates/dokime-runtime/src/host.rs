@@ -23,15 +23,16 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_protocol::host::PluginDescription;
+use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginRemote, PluginState};
 use harmos_protocol::model::Receipt;
-use harmos_protocol::plugin::InstanceGetResponse;
 use prost::Message;
 use tokio::sync::watch::Receiver;
 
 // Local Imports
-use crate::EntryState;
 use crate::ExecutionCapabilities;
-use crate::{Cycle, Error, PlacementSettings, PluginProcess, Result, SchedulerClock, plugin::Entry};
+use crate::{Cycle, Error, PlacementSettings, Result, SchedulerClock};
 use dokime_protocol::host::ExecutionControls;
 use dokime_protocol::host::ExecutionMode;
 use dokime_protocol::host::PromptsCreateRequest;
@@ -67,7 +68,7 @@ pub struct HostSettings {
 pub struct Host {
     pub(crate) store: Store,
     pub(crate) settings: HostSettings,
-    pub(crate) plugins: Arc<Mutex<HashMap<String, Arc<Entry>>>>,
+    pub(crate) plugins: Arc<Mutex<HashMap<String, PluginEntry>>>,
     pub(crate) executions: crate::execution_manager::ExecutionManager,
     pub(crate) prompts: Arc<crate::prompts::PromptManager>,
     pub(crate) reports: crate::reports::ReportManager,
@@ -112,7 +113,6 @@ impl Host {
         let executions = crate::execution_manager::ExecutionManager::new(
             store.clone(),
             settings.clone(),
-            plugins.clone(),
             prompts.clone(),
             changed.clone(),
             root_lease.clone(),
@@ -131,28 +131,118 @@ impl Host {
         })
     }
     pub async fn add_remote(&self, endpoint: &str) -> Result<String> {
-        self.admit("Add Plugin")?;
-        let entry = Entry::admit(endpoint, None, &self.settings.placement).await?;
-        self.insert(entry)
+        let description = crate::describe_plugin(endpoint, &self.settings.placement).await?;
+        let placement = PluginPlacement {
+            kind: Some(PlacementKind::Remote(PluginRemote { url: endpoint.into() })),
+        };
+        self.create_plugin(description.id, placement).await
     }
-    pub async fn add_managed(&self, executable: &Path) -> Result<String> {
-        self.admit("Add Plugin")?;
-        let process = PluginProcess::start(executable, false, &self.settings.placement).await?;
-        let endpoint = process.endpoint().to_owned();
-        let entry = Entry::admit(&endpoint, Some(process), &self.settings.placement).await?;
-        self.insert(entry)
+    pub async fn add_managed(&self, name: &str, executable: &Path) -> Result<String> {
+        let bytes = crate::services::bundles::from_executable(executable)?;
+        let context = self
+            .executions
+            .inner
+            .context
+            .get()
+            .and_then(std::sync::Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Add Plugin: Assemble the Host Context".into()))?;
+        use dokime_operations::host::files::uploads::{append, create, publish};
+        use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsPublishRequest};
+        use harmos_protocol::model::FileMetadata;
+        use sha2::{Digest, Sha256};
+        let created = create::handle(
+            &context,
+            UploadsCreateRequest {
+                request_id: uuid::Uuid::now_v7().to_string(),
+                metadata: Some(FileMetadata {
+                    media_type: "application/x-tar".into(),
+                    ..Default::default()
+                }),
+            },
+        )
+        .await?;
+        let mut upload = created.upload.ok_or_else(|| Error::Invalid("Add Plugin: Create Its Upload".into()))?;
+        let mut offset = 0;
+        for chunk in bytes.chunks(created.chunk_bytes as usize) {
+            let response = append::handle(
+                &context,
+                UploadsAppendRequest {
+                    upload: Some(upload),
+                    offset,
+                    data: chunk.to_vec(),
+                    request_id: uuid::Uuid::now_v7().to_string(),
+                },
+            )
+            .await?;
+            upload = response.upload.ok_or_else(|| Error::Invalid("Add Plugin: Retain Its Upload".into()))?;
+            offset += chunk.len() as u64;
+        }
+        let content = publish::handle(
+            &context,
+            UploadsPublishRequest {
+                upload: Some(upload),
+                length: bytes.len() as u64,
+                sha256: Sha256::digest(&bytes).to_vec(),
+                request_id: uuid::Uuid::now_v7().to_string(),
+            },
+        )
+        .await?
+        .upload
+        .ok_or_else(|| Error::Invalid("Add Plugin: Publish Its Bundle".into()))?;
+        let placement = PluginPlacement {
+            kind: Some(PlacementKind::Managed(PluginManaged {
+                sha256: content.sha256.clone(),
+                content: Some(content),
+            })),
+        };
+        self.create_plugin(name.into(), placement).await
     }
-    pub async fn add_remote_configured(&self, endpoint: &str, placement: &PlacementSettings) -> Result<String> {
+    async fn create_plugin(&self, name: String, placement: PluginPlacement) -> Result<String> {
+        use harmos_protocol::host::{PluginState, PluginValue, PluginsCreateRequest, PluginsWatchRequest};
+        use harmos_runtime::builtins::plugins::{Create, Watch};
+        use harmos_runtime::operations::StreamSettings;
         self.admit("Add Plugin")?;
-        let entry = Entry::admit(endpoint, None, placement).await?;
-        self.insert(entry)
-    }
-    pub async fn add_managed_configured(&self, executable: &Path, placement: &PlacementSettings) -> Result<String> {
-        self.admit("Add Plugin")?;
-        let process = PluginProcess::start(executable, false, placement).await?;
-        let endpoint = process.endpoint().to_owned();
-        let entry = Entry::admit(&endpoint, Some(process), placement).await?;
-        self.insert(entry)
+        let context = self
+            .executions
+            .inner
+            .context
+            .get()
+            .and_then(std::sync::Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Add Plugin: Assemble the Host Context".into()))?;
+        let mut watch = context.operations.download_protobuf::<Watch>(
+            PluginsWatchRequest { name: Some(name.clone()), at: None },
+            StreamSettings {
+                items: self.settings.placement.stream_window,
+                bytes: self.settings.placement.message_bytes,
+            },
+        )?;
+        context
+            .operations
+            .call_protobuf::<Create>(PluginsCreateRequest {
+                name: name.clone(),
+                placement: Some(placement),
+                value: Some(PluginValue { enabled: true }),
+                request_id: uuid::Uuid::now_v7().to_string(),
+            })
+            .await?;
+        let result = loop {
+            context.host.refresh_plugin_states().await?;
+            let entry = lock(&self.plugins)?.get(&name).cloned();
+            if let Some(entry) = entry {
+                if entry.state == PluginState::Ready as i32 {
+                    break Ok(name.clone());
+                }
+                if matches!(PluginState::try_from(entry.state), Ok(PluginState::Unavailable)) {
+                    break Err(Error::Invalid(format!("Add Plugin {name}: {:?}", entry.failure)));
+                }
+            }
+            if watch.next().await?.is_none() {
+                break Err(Error::Invalid(format!("Add Plugin {name}: Plugin Watch Closed")));
+            }
+        };
+        watch.request_cancel();
+        let _ = watch.join().await;
+        result
     }
     fn admit(&self, action: &str) -> Result<()> {
         if self.is_shutting_down() {
@@ -160,54 +250,66 @@ impl Host {
         }
         Ok(())
     }
-    fn insert(&self, entry: Entry) -> Result<String> {
-        self.validate_plugin_admission(&entry)?;
-        let identifier = entry.description.id.clone();
-        let mut plugins = lock(&self.plugins)?;
-        if plugins.contains_key(&identifier) {
-            return Err(Error::Invalid(format!("Remove the Existing Plugin Entry {identifier} Before Adding It Again")));
-        }
-        tracing::info!(plugin = %identifier, "Admitted Plugin Entry");
-        plugins.insert(identifier.clone(), Arc::new(entry));
-        Ok(identifier)
-    }
-    pub(crate) fn entry(&self, identifier: &str) -> Result<Arc<Entry>> {
-        lock(&self.plugins)?
-            .get(identifier)
-            .cloned()
-            .ok_or_else(|| Error::Invalid(format!("Connect the Plugin {identifier} Before Starting Its Test Cases")))
-    }
     pub fn catalog(&self, identifier: &str) -> Result<Suites> {
-        if let Some(entry) = lock(&self.plugins)?.get(identifier) {
-            return Ok(entry.suites.clone());
-        }
         let description = self.description(identifier)?;
         let catalog = description.declarations.ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Reconnect the Plugin".into()))?;
         let section = catalog
             .sections
             .iter()
             .find(|section| section.r#type == "dokime.model.v1.Suites")
-            .ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Reconnect the Plugin with Its Suites".into()))?;
-        Ok(dokime_protocol::model::Suites::decode(section.payload.as_slice())?)
+            .ok_or_else(|| Error::Invalid("Inspect Plugin Catalog: Declare Its Suites".into()))?;
+        Ok(Suites::decode(section.payload.as_slice())?)
     }
-    pub fn description(&self, identifier: &str) -> Result<InstanceGetResponse> {
-        Ok(self.entry(identifier)?.description.clone())
+    pub fn description(&self, identifier: &str) -> Result<PluginDescription> {
+        let entry = lock(&self.plugins)?
+            .get(identifier)
+            .cloned()
+            .ok_or_else(|| Error::Invalid(format!("Inspect Plugin {identifier}: Discover Its Entry")))?;
+        let description = entry.description.ok_or_else(|| Error::Invalid(format!("Inspect Plugin {identifier}: Reconnect the Plugin")))?;
+        Ok(description)
     }
-    pub fn entry_state(&self, identifier: &str) -> Result<EntryState> {
-        Ok(self.entry(identifier)?.state)
+    pub fn entry_state(&self, identifier: &str) -> Result<PluginState> {
+        let state = lock(&self.plugins)?
+            .get(identifier)
+            .map(|entry| entry.state)
+            .ok_or_else(|| Error::Invalid(format!("Read Plugin State {identifier}: Discover Its Entry")))?;
+        PluginState::try_from(state).map_err(|source| Error::Invalid(format!("Read Plugin State: {source}")))
     }
     pub async fn remove_plugin(&self, identifier: &str) -> Result<()> {
+        use harmos_protocol::host::PluginsDeleteRequest;
+        use harmos_runtime::builtins::plugins::Delete;
         if self.executions.uses_plugin(identifier)? {
-            return Err(Error::Invalid("Cancel the Plugin's Active Executions and Wait for Cleanup Before Removing It".into()));
+            return Err(Error::Invalid("Remove Plugin: Cancel Its Active Executions and Await Cleanup".into()));
         }
-        let entry = self.entry(identifier)?;
-        entry.close(&self.settings.placement).await?;
-        lock(&self.plugins)?.remove(identifier);
+        let context = self
+            .executions
+            .inner
+            .context
+            .get()
+            .and_then(std::sync::Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Remove Plugin: Assemble the Host Context".into()))?;
+        let entry = context
+            .host
+            .plugins()
+            .await?
+            .into_iter()
+            .find(|entry| entry.name == identifier)
+            .ok_or_else(|| Error::Invalid(format!("Remove Plugin {identifier}: Select Its Entry")))?;
+        context
+            .operations
+            .call_protobuf::<Delete>(PluginsDeleteRequest {
+                name: identifier.into(),
+                expected_revision: entry.revision,
+            })
+            .await?;
+        context.host.refresh_plugin_states().await?;
         Ok(())
     }
+    pub async fn detach_plugin(&self, identifier: &str) -> Result<()> {
+        self.remove_plugin(identifier).await
+    }
     pub async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, Value>) -> Result<Origin> {
-        let entry = self.entry(plugin)?;
-        crate::plugin::materialize(entry, template, parameters, &self.settings).await
+        self.executions.materialize(plugin, template, parameters).await
     }
     pub async fn start_cycle(&self, origins: Vec<Origin>) -> Result<Cycle> {
         self.executions.start_cycle(origins).await
@@ -264,8 +366,16 @@ impl Host {
         let outcomes = self.store.cycle_outcomes(cycle)?;
         Ok(OutcomeCounts::from_outcomes(&outcomes))
     }
-    pub fn plugin_entries(&self) -> Result<Vec<(String, EntryState)>> {
-        Ok(lock(&self.plugins)?.iter().map(|(name, entry)| (name.clone(), entry.state)).collect())
+    pub fn plugin_entries(&self) -> Result<Vec<(String, PluginState)>> {
+        lock(&self.plugins)?
+            .iter()
+            .map(|(name, entry)| {
+                Ok((
+                    name.clone(),
+                    PluginState::try_from(entry.state).map_err(|source| Error::Invalid(format!("Read Plugin State: {source}")))?,
+                ))
+            })
+            .collect()
     }
     pub fn streams_closed(&self, identifier: &str) -> Result<bool> {
         Ok(self.store.streams_closed(identifier)?)
@@ -301,13 +411,6 @@ impl Host {
         }
         if let Err(error) = self.reports.shutdown() {
             result = Err(error);
-        }
-        let identifiers: Vec<_> = lock(&self.plugins)?.keys().cloned().collect();
-        for identifier in identifiers {
-            if let Err(error) = self.entry(&identifier)?.close(&self.settings.placement).await {
-                result = Err(error);
-            }
-            lock(&self.plugins)?.remove(&identifier);
         }
         if let Err(error) = self.store.shutdown_samples().await {
             result = Err(error.into());

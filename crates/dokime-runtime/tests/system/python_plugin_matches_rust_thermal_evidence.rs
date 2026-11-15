@@ -60,7 +60,7 @@ fn python_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
                 let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
                 let mut python = None;
                 let entry = match placement {
-                    None => host.add_managed(&super::support::thermal_fixture()?).await?,
+                    None => host.add_managed("thermal", &super::support::thermal_fixture()?).await?,
                     Some(_) => {
                         let child = super::support::PythonPlugin::start().await?;
                         let entry = host.add_remote(&child.url).await?;

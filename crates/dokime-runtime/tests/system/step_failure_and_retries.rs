@@ -56,7 +56,7 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
             // Retry One Transient Failure and Exhaust Another Operation's Policy
             let root = super::support::tempdir()?;
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-            let entry = host.add_managed(&super::support::execution_fixture()?).await?;
+            let entry = host.add_managed("execution", &super::support::execution_fixture()?).await?;
             for failures in [1, 2] {
                 let origin = host.materialize(&entry, "execution.capture", super::support::parameters(17.0, failures, true)).await?;
                 let cycle = host.start_cycle(vec![origin]).await?;
@@ -126,7 +126,11 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                     let boundary =
                         snapshot.evidence.iter().find(|evidence| evidence.kind == "step:start" && evidence.step == "measure").unwrap();
                     assert!(
-                        snapshot.samples.iter().any(|sample| sample.source_ns == boundary.source_ns && sample.position < boundary.position)
+                        snapshot.samples.iter().any(|sample| sample.source_ns == boundary.source_ns && sample.position < boundary.position),
+                        "Boundary ({}, {}), Samples {:?}",
+                        boundary.position,
+                        boundary.source_ns,
+                        snapshot.samples.iter().map(|sample| (sample.position, sample.source_ns)).collect::<Vec<_>>()
                     );
                 }
             }

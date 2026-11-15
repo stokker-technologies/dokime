@@ -246,9 +246,7 @@ impl Template {
         self
     }
 
-    pub(crate) fn register(
-        mut self, mut plugin: HarmosPlugin, executions: Executions, plugin_id: &str,
-    ) -> Result<(TestCaseTemplate, HarmosPlugin)> {
+    pub(crate) fn register(mut self, mut plugin: HarmosPlugin, executions: Executions) -> Result<(TestCaseTemplate, HarmosPlugin)> {
         if !self.errors.is_empty() {
             return Err(Error::Invalid(self.errors.join("; ")));
         }
@@ -281,13 +279,11 @@ impl Template {
             });
             let store = executions.clone();
             let template = identifier.clone();
-            let owner = plugin_id.to_owned();
             let handler = operation::wire(
                 operation.clone(),
                 Visibility::Protected,
                 async move |transport: &HarmosContext, Wire(request): Wire<StepsExecuteRequest>| {
-                    let context =
-                        Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
+                    let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                     let present = context.test_case()?.steps.iter().any(|step| {
                         step.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.step) && step.operation == operation
                     });
@@ -310,13 +306,11 @@ impl Template {
             });
             let store = executions.clone();
             let template = identifier.clone();
-            let owner = plugin_id.to_owned();
             plugin = plugin.operation(operation::wire(
                 operation.clone(),
                 Visibility::Protected,
                 async move |transport: &HarmosContext, Wire(request): Wire<CriteriaEvaluateRequest>| {
-                    let context =
-                        Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
+                    let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                     let present = context.test_case()?.criteria.iter().any(|criterion| {
                         criterion.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.criterion)
                             && criterion.operation == operation
@@ -381,13 +375,11 @@ impl Template {
             self.definition.initialize = Some(operation.clone());
             let store = executions.clone();
             let template = identifier.clone();
-            let owner = plugin_id.to_owned();
             plugin = plugin.operation(operation::wire(
                 operation,
                 Visibility::Protected,
                 async move |transport: &HarmosContext, Wire(request): Wire<ExecutionsInitializeRequest>| {
-                    let context =
-                        Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
+                    let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                     initialize.execute(&context).await?;
                     Ok(Wire(ExecutionsInitializeResponse {}))
                 },
@@ -395,14 +387,12 @@ impl Template {
         }
         // Always Expose Cleanup So Even a Template Without a User Hook Releases Its Store.
         let template = identifier;
-        let owner = plugin_id.to_owned();
         let store = executions.clone();
         plugin = plugin.operation(operation::wire(
             self.definition.cleanup.clone().expect("SDK Cleanup Operation"),
             Visibility::Protected,
             async move |transport: &HarmosContext, Wire(request): Wire<ExecutionsCleanupRequest>| {
-                let context =
-                    Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
+                let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                 let _end = context.end(store.clone());
                 let context = context.with_termination(request.termination)?;
                 if let Some(cleanup) = &self.cleanup {

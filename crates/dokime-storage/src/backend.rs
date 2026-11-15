@@ -123,7 +123,7 @@ struct State {
 
 impl Backend {
     pub fn open(store: &crate::Store, catalog: ObjectCatalog) -> crate::Result<(StorageBackends, BackendLease)> {
-        let history = store.evidence_position(None)?.history.ok_or(crate::Error::Data("Open Storage: Restore the Root History"))?;
+        let history = store.storage_history()?;
         let history = StoreHistory {
             store: Identifier::new(history.store).map_err(|source| Error::backend("Open Root History", BackendFailure::Corrupt, source))?,
             epoch: Identifier::new(history.epoch).map_err(|source| Error::backend("Open Root History", BackendFailure::Corrupt, source))?,

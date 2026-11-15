@@ -54,6 +54,15 @@ pub async fn handle(context: &Context, request: ExecutionsListRequest) -> Result
         let mut selection = request.clone();
         selection.at = None;
         selection.page = None;
+        if selection.selection.as_ref().is_some_and(|value| value == &Default::default()) {
+            selection.selection = None;
+        }
+        if selection.filter.as_ref().is_some_and(|value| value == &Default::default()) {
+            selection.filter = None;
+        }
+        if selection.order.as_ref().is_some_and(|value| value == &Default::default()) {
+            selection.order = None;
+        }
         let key = format!("executions/{}", crate::host::views::hex(&crate::host::paging::bytes(&selection)));
         let (saved, cut) =
             crate::host::views::read(context, &key, request.at.as_ref(), async {

@@ -61,11 +61,11 @@ fn csharp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
                 let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
                 let mut remote = None;
                 let entry = match placement {
-                    None => host.add_managed(&super::support::thermal_fixture()?).await?,
+                    None => host.add_managed("thermal", &super::support::thermal_fixture()?).await?,
                     Some(managed) => {
                         let executable = super::support::language_fixture("csharp")?;
                         if managed {
-                            host.add_managed(&executable).await?
+                            host.add_managed("thermal", &executable).await?
                         } else {
                             let child = PluginProcess::start(&executable, true, &super::support::settings().placement).await?;
                             let entry = host.add_remote(child.endpoint()).await?;

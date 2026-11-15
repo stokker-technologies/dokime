@@ -16,6 +16,8 @@
 /* === Imports === */
 
 // Standard Library Imports
+use crate::streams::{Samples, Timing};
+use harmos_runtime::storage::Cursor;
 use std::path::Path;
 use std::{
     num::NonZeroUsize,
@@ -40,7 +42,7 @@ use tokio::time::Instant;
 // Local Imports
 use super::ClientSettings;
 use crate::{Result, SchedulerClock};
-use dokime_storage::{Backend, Store};
+use dokime_storage::Backend;
 use harmos_protocol::model::{StorageTransferSettings, TransferFraming};
 use harmos_runtime::storage::{
     StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
@@ -112,9 +114,13 @@ impl harmos_runtime::clock::Source for Clock {
 /* === Public Functions === */
 
 pub(super) async fn launch(
-    source: Arc<dyn SchedulerClock>, store: &Store, root: &Path, placement: &crate::PlacementSettings, settings: &ClientSettings,
-    binding: Arc<dokime_operations::native::Binding>,
-) -> Result<(Arc<Runtime<Application>>, dokime_storage::BackendLease)> {
+    host: &crate::Host, root: &Path, settings: &ClientSettings, binding: Arc<dokime_operations::native::Binding>,
+) -> Result<(Arc<Runtime<Application>>, dokime_storage::BackendLease, Manager)> {
+    let source = host.settings.clock.clone();
+    let store = &host.store;
+    let placement = &host.settings.placement;
+    let sample_scopes = host.executions.inner.sample_scopes.clone();
+    let sample_failures = host.executions.inner.sample_failures.clone();
     let backend_settings = store.storage_settings()?;
     let capacity = NonZeroUsize::new(settings.max_cases)
         .ok_or_else(|| crate::Error::Invalid("Start Storage: Supply Positive Admission Capacity".into()))?;
@@ -182,13 +188,25 @@ pub(super) async fn launch(
         },
     )
     .map_err(|source| crate::Error::ComposedStartup(Box::new(source)))?;
-    let clock = RuntimeClock::with_clock(Clock {
-        origin_ns: source.now_ns(),
-        source,
-        origin: Instant::now(),
-    });
+    let (clock, controller) = source.execution_clock();
+    let clock = if controller.is_some() {
+        RuntimeClock::real_at(clock.date())
+    } else {
+        RuntimeClock::with_clock(Clock {
+            origin_ns: source.now_ns(),
+            source,
+            origin: Instant::now(),
+        })
+    };
     let runtime = Box::pin(Runtime::<Application>::launch_with((), Some(settings.clone()), |setup| {
         setup.resource::<dokime_operations::native::Binding>(binding);
+        setup.settings().operation_middleware(Arc::new(Timing));
+        setup.settings().attach_streams(Samples {
+            store: store.clone(),
+            failures: sample_failures,
+            cursor: Cursor::ORIGIN,
+            scopes: sample_scopes,
+        });
         setup.settings().clock(clock).storage(&storage).plugins(plugins.clone());
         setup.settings().operation_settings(harmos_runtime::operations::Settings {
             preparation_bytes: Some(bytes),
@@ -202,7 +220,7 @@ pub(super) async fn launch(
     .map_err(|error| crate::Error::ComposedStartup(Box::new(error)))?;
     let runtime = Arc::new(runtime);
     plugins.start(&runtime).await.map_err(|source| crate::Error::ComposedStartup(Box::new(source)))?;
-    Ok((runtime, lease))
+    Ok((runtime, lease, plugins))
 }
 
 pub(super) fn transport(settings: &ClientSettings) -> TransportSettings {

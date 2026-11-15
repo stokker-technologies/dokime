@@ -232,9 +232,8 @@ receipts, recovery and evidence times), and `history.rs` (saved frontiers and
 idempotent sealed deletion). `Store::create_executions` admits complete origin
 lists atomically. The added tables are `cases`, `registrations`, `cycles`,
 `bindings`, `commands`, `cycle_history` and `deletions`, alongside the
-`administration` table. Root validation requires that combined v1 layout and
-refuses incompatible roots with backup and fresh-root/reset guidance; it never
-migrates or deletes existing data.
+`administration` table. Root validation requires the current v1 layout and refuses incompatible roots with
+the action to select a fresh storage root. It never migrates or deletes existing data.
 
 Materialization returns frozen origins; CreateCycle admits and starts the
 explicit origin list with `continue_automatically`, returning execution IDs.
@@ -1763,20 +1762,36 @@ Bundle creation and inspection use the library's canonical manifest and USTAR
 rules. Install, add and development commands observe Plugins.Watch and read the
 current entry until it is Ready; the desktop installer uses the same admission
 condition. Case materialization and analysis invoke the admitted library operation
-under the managed entry name. They do not reconnect a second plugin instance.
+from the selected entry's catalog. They do not reconnect a second plugin instance.
 
-Scoped execution integration remains incomplete: the library attaches publication
-scope before an execution exists and installs the global ClockAccess for each
-operation. The execution driver still requires an invocation-scoped clock and
-publication lease that preserve awaited ingestion and close settlement. Its direct
-execution path has not been replaced by a second managed launch or endpoint field.
-Legacy child Time.Get/Sleep calls now enter the composed library manager with
-the trusted execution scope. They install no product clock override. The binding
-seam is the scoped operation handle at lifecycle dispatch and the existing plugin
-activation's publication lease: both must receive that same execution scope and
-await sample ingestion before Time.Sleep settles. The pinned manager still
-replaces ClockAccess with its global clock; native entry resolution and the complete
-driver replacement remain open, together with that scoped publication binding.
+Execution admission resolves the library PluginEntry and its admitted activation.
+Each execution retains one scoped binding, one clock and its frozen stream selection.
+Lifecycle calls use the catalogued operation identity through `binding.operations()`;
+no product connection or invocation carrier remains. Child calls inherit the trusted
+execution resources, and selected Samples publications retain that same scope.
+The ingestion consumer caches each scope's row codecs, writes the Arrow samples
+before acknowledging their ingestion, and releases its caches when the binding ends.
+Binding closure settles descendant calls and accepted ingestion before streams close
+and the execution is sealed.
+The host clock owns transport deadlines and policy retry waits. Each controlled
+execution clock owns its plugin sleeps and publication cadence. Before returning
+a lifecycle call, the driver awaits quiescence at the current execution time;
+it does not abandon an in-flight sample when the plugin reply arrives.
+Native storage retains a separate stable root history epoch. Deleting product
+evidence invalidates evidence cuts without rotating that native history.
+
+Production units use independent real clocks. `ControlledClock` creates a separate
+virtual clock for each execution; awaiting the library Time.Sleep drives its due
+sample ticks and their ingestion. Operator prompts hold their execution's timeline
+while other executions can complete. Runtime retry delays remain owned by the
+library operation policy and are observed through the library invocation lifecycle.
+The library samples interval streams first at their first due interval, rather than
+inserting an extra sample at the binding's origin.
+
+`execution_isolation` and `concurrent_execution_clocks_advance_independently` exercise
+one connection shared by independently scoped runs. The latter holds one unit at
+its prompt while the other completes, then checks that both retain their own exact
+sample values and source times.
 
 For this wave, compound product objects retain their transactional Store paths.
 The operations manifest declares the workspace `harmos-runtime`
@@ -1821,6 +1836,7 @@ Native primary and state backends share the product root and history identity.
 | Execution deletion | Product Store transactions | Atomic scope deletion with a durable receipt and retained-reader guarantees. |
 | Samples | Product Arrow ingestion and registered native backend | Scoped capture must preserve source times, ordered ticks and the execution evidence frontier. |
 | Files and uploads | Library native file operations through the registered backend | No product file-transfer store or wire twin. |
+| Logical execution-file metadata and retained references | Product Store transactions | Logical paths select original native file references; replacement retains previous immutable bytes and cuts. |
 | Artifact metadata and retained file references | Product Store transactions | Atomic execution-open admission, metadata publication and the original mutation receipt; file bytes remain native. |
 | Plugin entries and settings | Library Plugins and plugins.Settings | Library-owned objects and lifecycle; no product installation record. |
 | Plugin secret bindings and plot preferences | Library native administration objects | Product declarations and authorization remain product-owned. |

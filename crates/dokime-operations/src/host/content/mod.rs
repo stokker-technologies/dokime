@@ -63,6 +63,22 @@ pub async fn validate_root(context: &Context) -> Result<()> {
 
 pub(crate) fn retained(context: &Context, file: &FileReference) -> Result<bool> {
     let store = context.host.store();
+    if let Some(execution) = file.metadata.as_ref().and_then(|metadata| metadata.scope.as_deref()) {
+        let mut after = String::new();
+        loop {
+            let entries = store.files_page(execution, &after, context.settings.page_items)?;
+            if entries.is_empty() {
+                break;
+            }
+            for entry in entries {
+                let metadata = entry.metadata.ok_or_else(|| Error::Precondition("Delete File: Restore Its Logical Path".into()))?;
+                after = metadata.relative_path;
+                if entry.file.as_ref().is_some_and(|reference| same_file(reference, file)) {
+                    return Ok(true);
+                }
+            }
+        }
+    }
     let mut after = String::new();
     loop {
         let entries = store.artifact_records_page(&after, context.settings.page_items)?;

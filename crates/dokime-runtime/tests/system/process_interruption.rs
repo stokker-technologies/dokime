@@ -21,11 +21,11 @@
 
 // Local Imports
 use dokime::Termination;
-use dokime_runtime::EntryState;
 use dokime_runtime::Host;
 use dokime_runtime::PluginProcess;
 use dokime_storage::ExecutionState;
 use dokime_storage::Store;
+use harmos_protocol::host::PluginState;
 use std::error::Error;
 use std::io::Error as IoError;
 use std::io::Write;
@@ -111,13 +111,13 @@ fn process_interruption() -> Result<(), Box<dyn Error>> {
             assert_eq!(recovered.evidence, before.evidence);
             assert_eq!(recovered.samples, before.samples);
             assert!(host.streams_closed(&execution)?);
-            assert_eq!(host.entry_state("execution")?, EntryState::Unavailable);
+            assert_eq!(host.entry_state("execution")?, PluginState::Unavailable);
             assert!(host.description("execution")?.declarations.is_some());
             assert!(!host.capabilities(&execution)?.cancel);
 
             // Reattach Without Replaying Operations or Samples
             host.add_remote(plugin.endpoint()).await?;
-            assert_eq!(host.entry_state("execution")?, EntryState::Ready);
+            assert_eq!(host.entry_state("execution")?, PluginState::Ready);
             assert_eq!(host.execution(&execution)?, recovered);
             host.shutdown().await?;
             drop(host);

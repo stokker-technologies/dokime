@@ -159,11 +159,11 @@ impl ClientHost for State {
     fn publish_report(&self, prepared: dokime_storage::Report) -> Result<dokime_storage::Report> {
         self.host.reports.publish_prepared(prepared).map_err(convert)
     }
-    async fn analyze(&self, plugin: &str, operation: &str, request: AnalysesComputeRequest) -> Result<AnalysesComputeResponse> {
-        let action = format!("{plugin}.{operation}");
+    async fn analyze(&self, _plugin: &str, operation: &str, request: AnalysesComputeRequest) -> Result<AnalysesComputeResponse> {
+        let action = operation;
         let payload = self
             .operations
-            .call_encoded(&action, request.encode_to_vec())
+            .call_encoded(action, request.encode_to_vec())
             .await
             .map_err(|source| Error::Native { action: "Compute Analysis", source })?;
         AnalysesComputeResponse::decode(payload.as_slice()).map_err(Into::into)
@@ -176,6 +176,8 @@ impl ClientHost for State {
             .call_protobuf::<List>(PluginsListRequest { at: None })
             .await
             .map_err(|source| Error::Unavailable(format!("List Plugins: {source}")))?;
+        *crate::host::lock(&self.host.plugins).map_err(convert)? =
+            reply.entries.iter().map(|entry| (entry.name.clone(), entry.clone())).collect();
         *self.catalogs.write().map_err(|source| Error::Unavailable(format!("List Plugins: {source}")))? = reply.entries.clone();
         Ok(reply.entries)
     }
@@ -232,7 +234,7 @@ impl ClientHost for State {
             .flat_map(|suite| &suite.templates)
             .find(|candidate| candidate.metadata.as_ref().is_some_and(|metadata| metadata.identifier == template))
             .ok_or_else(|| Error::NotFound(format!("Materialize {plugin}/{template}: Select a Declared Template")))?;
-        let action = format!("{plugin}.{}", definition.materialize);
+        let action = definition.materialize.clone();
         let payload = self
             .operations
             .call_encoded(
