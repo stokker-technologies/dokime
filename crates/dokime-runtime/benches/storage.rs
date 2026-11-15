@@ -13,8 +13,6 @@
 
 #[path = "storage/publication.rs"]
 mod publication;
-#[path = "storage/sample_carrier.rs"]
-mod sample_carrier;
 
 /* === Re-Exports === */
 
@@ -71,7 +69,6 @@ use std::time::Duration;
 use std::time::Instant;
 use tempfile::TempDir;
 use tokio::runtime::Builder;
-use tokio::runtime::Runtime;
 
 /* === Constants === */
 
@@ -390,12 +387,7 @@ fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
 }
 fn main() {
     if std::env::args().any(|argument| argument == "--remote") {
-        if std::env::var_os("DOKIME_BENCH_SDK").is_some() {
-            publication::serve().unwrap();
-        } else {
-            let executor = Runtime::new().unwrap();
-            executor.block_on(sample_carrier::serve(publication::samples)).unwrap();
-        }
+        publication::serve().unwrap();
         return;
     }
     let executor = Builder::new_current_thread().enable_all().build().unwrap();

@@ -18,11 +18,13 @@ import shutil
 import subprocess
 import sys
 import tomllib
+from pathlib import Path
 
 # Third Party Imports
 # Local Imports
 from dokime_tools.build import cargo, configuration, paths
 from dokime_tools.ci import transport
+from dokime_tools.package.staging import sync_output
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import archive
 
@@ -124,6 +126,28 @@ def build(profile: str, language: str = "auto") -> None:
             stderr=sys.stderr,
         )
         shutil.copy2(root / "target/reference-host/bin" / f"harmos-conformance{extension}", output / f"harmos-conformance{extension}")
+
+        # Stage the Python Fixture From the Same Locked Source as the Reference Host.
+        metadata = subprocess.run(
+            ["cargo", "metadata", "--locked", "--offline", "--format-version", "1"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+            creationflags=spawn_flags(),
+        )
+        package = next(
+            (
+                package
+                for package in json.loads(metadata.stdout)["packages"]
+                if package["name"] == "harmos" and (package.get("source") or "").endswith("#" + library["rev"])
+            ),
+            None,
+        )
+        if package is None:
+            raise ValueError("Stage Python Conformance Fixture: Resolve the Pinned Harmos Package")
+        source = Path(package["manifest_path"]).parents[2] / "sdk/python/tests/fixtures/conformance"
+        sync_output(source, output / "python/conformance")
 
     # Publish The C# Fixture With Its Runtime And Local SDK Package.
     if "csharp" in languages:

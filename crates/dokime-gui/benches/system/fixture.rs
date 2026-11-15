@@ -16,17 +16,9 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    num::NonZeroUsize,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::{num::NonZeroUsize, path::Path, sync::Arc, time::Duration};
 
 // Third Party Imports
-use harmos_protocol::plugin::Sample;
-use prost::Message;
-use prost_types::Timestamp;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
@@ -39,7 +31,6 @@ use dokime_sdk::client::PluginsCreateOptions;
 use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
 use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
-use super::sample_carrier::Producer;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Session};
 use dokime_protocol::host::CasesCreateRequest;
 use dokime_protocol::host::CyclesCreateRequest;
@@ -48,7 +39,7 @@ use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::PromptsListRequest;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
-use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, services, storage_defaults};
+use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
 use dokime_sdk as model;
 use dokime_sdk::StorageTransferSettings;
 use dokime_sdk::client::CasesCreateResponse;
@@ -98,8 +89,7 @@ pub struct Fixture {
     pub session: Session,
     pub cycle: String,
     pub execution: String,
-    plugin: Option<Producer>,
-    mode: PathBuf,
+    plugin: Option<PluginProcess>,
 }
 
 /* === Enums === */
@@ -152,7 +142,6 @@ impl Fixture {
                 cycle: saved["cycle"].as_str().unwrap().into(),
                 execution: saved["execution"].as_str().unwrap().into(),
                 plugin: None,
-                mode: root.join("bench-mode"),
             };
         }
 
@@ -164,8 +153,8 @@ impl Fixture {
             stream_window: NonZeroUsize::new(8).unwrap(),
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
-        let mode = root.join("bench-mode");
-        let plugin = Producer::start(&placement, &[("DOKIME_BENCH_MODE".into(), mode.to_str().unwrap().into())]).await.unwrap();
+        let executable = std::env::current_exe().unwrap();
+        let plugin = PluginProcess::start(&executable, true, &placement).await.unwrap();
         let options = PluginsCreateOptions {
             context: session.call_options().unwrap(),
             ..Default::default()
@@ -248,12 +237,10 @@ impl Fixture {
             cycle,
             execution,
             plugin: Some(plugin),
-            mode,
         }
     }
 
     pub async fn publish(&self, action: &str) {
-        std::fs::write(&self.mode, action).unwrap();
         // Await the Producer's Question Before Releasing Its Next Publication
         let mut changes = self.session.watch_raw("/dokime.host.v1.backend.Overview/Watch", &[]).await.unwrap();
         loop {
@@ -346,7 +333,7 @@ impl Fixture {
 
 pub fn serve() -> Result<()> {
     let stream = Stream::<Row>::new("bench.pipeline", "Pipeline Samples");
-    let observer = Observer::new(&stream, observe).every_ms(125);
+    let observer = Observer::new(&stream, observe).every_ms(1);
     let template = Template::new("bench.pipeline.capture", "Pipeline Capture")
         .initialize(async |context: &Context| {
             context.set(History::default());
@@ -472,9 +459,15 @@ async fn publish(context: &Context) -> Result<()> {
     loop {
         context.get::<History>()?.next.store(first, Ordering::SeqCst);
         context.get::<History>()?.late.store(late, Ordering::SeqCst);
-        let chunks = count.div_ceil(4096);
-        let ticks = if sequence == 0 { chunks - 1 } else { chunks };
-        context.sleep(Duration::from_millis(ticks as u64 * 125)).await?;
+        let target = sequence + count;
+        loop {
+            let published = context.get::<History>()?.published.load(Ordering::SeqCst);
+            if published >= target {
+                assert_eq!(published, target, "Publish Benchmark History: Retain the Requested Row Count");
+                break;
+            }
+            context.sleep(Duration::from_millis((target - published) as u64)).await?;
+        }
         sequence += count;
         let answer = context.host().prompts.create(format!("next-{sequence}"), "bench.next".into(), Default::default()).await?;
         late = answer.action == "late";
@@ -487,47 +480,29 @@ async fn publish(context: &Context) -> Result<()> {
 struct History {
     next: AtomicUsize,
     late: AtomicBool,
+    published: AtomicUsize,
 }
 
 async fn observe(context: &Context) -> Result<Row> {
+    if context.execution_id().is_empty() {
+        return Ok(Row {
+            timestamp: ORIGIN_S,
+            y0: 0.0,
+            y1: 0.0,
+            y2: 0.0,
+        });
+    }
     let history = context.get::<History>()?;
     let index = history.next.fetch_add(1, Ordering::SeqCst);
     let late = history.late.load(Ordering::SeqCst);
     let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * sample_ns() + if late { 4 * sample_ns() } else { 0 };
+    history.published.fetch_add(1, Ordering::SeqCst);
     Ok(Row {
         timestamp: source_ns as f64 / 1_000_000_000.0,
         y0: (index % 8) as f64,
         y1: if late { 150.0 } else { (index % 776) as f64 / 8.0 },
         y2: ((index / 8) % 8) as f64,
     })
-}
-
-pub fn samples(_stream: &str, first: u64, _at: &Timestamp) -> Vec<Sample> {
-    let first = first as usize;
-    let history_rows = rows();
-    let sample_ns = sample_ns();
-    let count = if first < history_rows { (history_rows - first).min(4096) } else { 8 };
-    let late = std::env::var_os("DOKIME_BENCH_MODE").and_then(|path| std::fs::read_to_string(path).ok()).is_some_and(|mode| mode == "late");
-    (first..first + count)
-        .map(|sequence| {
-            let index = if late { history_rows - 480 + (sequence - history_rows) % 400 } else { sequence };
-            let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * sample_ns + if late { 4 * sample_ns } else { 0 };
-            let row = Row {
-                timestamp: source_ns as f64 / 1_000_000_000.0,
-                y0: (index % 8) as f64,
-                y1: if late { 150.0 } else { (index % 776) as f64 / 8.0 },
-                y2: ((index / 8) % 8) as f64,
-            };
-            Sample {
-                sequence: sequence as u64 + 1,
-                at: Some(Timestamp {
-                    seconds: source_ns.div_euclid(1_000_000_000),
-                    nanos: source_ns.rem_euclid(1_000_000_000) as i32,
-                }),
-                row: row.encode_to_vec(),
-            }
-        })
-        .collect()
 }
 
 /* === Tests === */

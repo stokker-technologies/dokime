@@ -15,9 +15,6 @@
 
 mod fixture;
 
-#[path = "../../../dokime-runtime/benches/storage/sample_carrier.rs"]
-mod sample_carrier;
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -86,11 +83,7 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for QueryTimes {
 
 fn main() {
     if std::env::args().any(|argument| argument == "--remote") {
-        if std::env::var_os("DOKIME_BENCH_SDK").is_some() {
-            fixture::serve().unwrap();
-        } else {
-            Runtime::new().unwrap().block_on(sample_carrier::serve(fixture::samples)).unwrap();
-        }
+        fixture::serve().unwrap();
         return;
     }
     if std::env::args().any(|argument| argument == "--fixture-host") {

@@ -132,6 +132,26 @@ class DownloadManifestTests(unittest.TestCase):
 
 
 class StageTests(unittest.TestCase):
+    def test_nightly_rehearsal_stages_git_packages_and_stable_keeps_registry_gate(self) -> None:
+        settings = {"targets": ["windows-x86_64"]}
+        with (
+            mock.patch.object(run, "continuous_integration", return_value=False),
+            mock.patch.object(run, "native_target", return_value="windows-x86_64"),
+            mock.patch.object(run, "_refuse_overrides"),
+            mock.patch.object(run, "_task_defined", return_value=True),
+            mock.patch.object(run.policy, "execute", return_value=""),
+            mock.patch.object(run, "dry") as stage,
+            mock.patch.object(run.registry, "rehearse_crates", side_effect=policy.ToolError("Git Dependencies Refused")) as registry_gate,
+            mock.patch.object(run.registry, "python") as python_registry,
+        ):
+            run.rehearse(Path.cwd(), settings, channel="nightly")
+            self.assertEqual(stage.call_args.kwargs["channel"], "nightly")
+            registry_gate.assert_not_called()
+            python_registry.assert_not_called()
+            with self.assertRaises(policy.ToolError):
+                run.rehearse(Path.cwd(), settings, channel="stable")
+            registry_gate.assert_called_once_with(Path.cwd(), skip_published=False, channel="stable")
+
     def test_local_rehearsal_prepares_native_packages_without_credentials(self) -> None:
         commands: list[list[str]] = []
         settings = {"targets": ["windows-x86_64", "linux-x86_64"]}

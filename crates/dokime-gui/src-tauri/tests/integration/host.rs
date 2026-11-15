@@ -590,8 +590,17 @@ fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn
 
 #[test]
 fn failed_story_cleanup() {
+    #[derive(Debug)]
+    struct StoryFailure;
+    #[derive(Clone, PartialEq, prost::Message)]
+    struct AccessPointer {
+        #[prost(string, tag = "5")]
+        key_slot: String,
+    }
     let path = Arc::new(Mutex::new(PathBuf::new()));
     let observed = path.clone();
+    let credential = Arc::new(Mutex::new(String::new()));
+    let recorded = credential.clone();
     let failure = std::panic::catch_unwind(|| {
         dokime_gui::test_support::run(async {
             let root = dokime_gui::test_support::tempdir().unwrap();
@@ -601,9 +610,17 @@ fn failed_story_cleanup() {
                 dokime_gui::native_session::backend::Backend::new(root.path().to_owned()),
             );
             owner.select(dokime_gui::native_session::BackendSelection::OwnedLocal).await.unwrap();
-            panic!("fixture.story.failed");
+            let store = dokime_storage::Store::open(root.path()).unwrap();
+            let pointer: AccessPointer = store.administration("access").unwrap().unwrap();
+            let name = format!("{}:{}", store.identity(), pointer.key_slot);
+            assert!(!keyring::Entry::new("dokime.access", &name).unwrap().get_password().unwrap().is_empty());
+            *recorded.lock().unwrap() = name;
+            drop(store);
+            std::panic::panic_any(StoryFailure);
         })
     });
-    assert!(failure.is_err());
+    assert!(failure.unwrap_err().is::<StoryFailure>());
+    let removed = keyring::Entry::new("dokime.access", &credential.lock().unwrap()).unwrap().get_password().map(drop);
+    assert!(matches!(removed, Err(keyring::Error::NoEntry)), "Remove Failed Story Credential: {removed:?}");
     assert!(!path.lock().unwrap().exists());
 }

@@ -604,7 +604,15 @@ def tag(directory: Path, settings: dict) -> None:
         print(f"{branch}: deleted after its squash")
 
 
-def rehearse(directory: Path, settings: dict, *, target: str | None = None, profile: str = "release", stage_only: bool = False) -> None:
+def rehearse(
+    directory: Path,
+    settings: dict,
+    *,
+    target: str | None = None,
+    profile: str = "release",
+    stage_only: bool = False,
+    channel: str = "stable",
+) -> None:
     """Verify Selected Local Packages Or Every Hosted Target Without Publishing Credentials."""
     hosted = continuous_integration()
     if profile not in {"dev", "release"}:
@@ -623,12 +631,12 @@ def rehearse(directory: Path, settings: dict, *, target: str | None = None, prof
             policy.execute(directory, ["mise", "run", "build", "--", "--profile", profile])
             policy.execute(directory, ["mise", "run", "package", "--", "--profile", profile, "--target", targets[0]])
         revision = _revision(directory) if stage_only else None
-        dry(directory, settings, profile=profile, require_all=True, source_revision=revision, targets=targets)
-        if not stage_only and _task_defined(directory, "release:tag"):
-            registry.rehearse_crates(directory, skip_published=False)
-        if not stage_only and _task_defined(directory, "release:publish:python"):
+        dry(directory, settings, profile=profile, require_all=True, source_revision=revision, targets=targets, channel=channel)
+        if not stage_only and channel == "stable" and _task_defined(directory, "release:tag"):
+            registry.rehearse_crates(directory, skip_published=False, channel=channel)
+        if not stage_only and channel == "stable" and _task_defined(directory, "release:publish:python"):
             registry.python(directory, settings, dry_run=True)
-    print(f"Release {'Staging' if stage_only else 'Rehearsal'} Passed: {', '.join(targets)} ({profile} Profile)")
+    print(f"Release {'Staging' if stage_only else 'Rehearsal'} Passed: {', '.join(targets)} ({profile} Profile, {channel} Channel)")
     uncovered = sorted(set(settings.get("targets", [])) - set(targets))
     if uncovered:
         print(f"Targets Not Covered: {', '.join(uncovered)}; Use --target all With Those Packages Available to Rehearse Them")
@@ -664,25 +672,35 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--target", help="Rehearse native, one declared release target, or all targets; hosted runs require all.")
     parser.add_argument("--profile", choices=("dev", "release"), help="Local rehearsal package profile; defaults to release.")
     parser.add_argument("--stage-only", action="store_true", help="Local rehearsal staging without registry dry-runs.")
+    parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
     options = parser.parse_args(arguments)
     try:
-        run(policy.root(), options.verb, target=options.target, profile=options.profile, stage_only=options.stage_only)
+        run(
+            policy.root(),
+            options.verb,
+            target=options.target,
+            profile=options.profile,
+            stage_only=options.stage_only,
+            channel=options.channel,
+        )
     except (policy.ToolError, OSError, ValueError, KeyError, TypeError) as error:
         print(f"release: {error}", file=sys.stderr)
         return 1
     return 0
 
 
-def run(directory: Path, verb: str, *, target: str | None = None, profile: str | None = None, stage_only: bool = False) -> None:
-    if verb != "rehearse" and (target is not None or profile is not None or stage_only):
-        raise policy.ToolError("--target, --profile and --stage-only are supported only by rehearsal")
+def run(
+    directory: Path, verb: str, *, target: str | None = None, profile: str | None = None, stage_only: bool = False, channel: str = "stable"
+) -> None:
+    if verb != "rehearse" and (target is not None or profile is not None or stage_only or channel != "stable"):
+        raise policy.ToolError("Select Rehearsal: --target, --profile, --stage-only and --channel Are Supported Only by Rehearsal")
     settings = policy.policy(directory, "release")
     operations = {
         "prepare": prepare,
         "review": review,
         "dry": dry,
         "rehearse": lambda directory, settings: rehearse(
-            directory, settings, target=target, profile=profile or "release", stage_only=stage_only
+            directory, settings, target=target, profile=profile or "release", stage_only=stage_only, channel=channel
         ),
         "identity": identity,
         "crates-dry": lambda directory, settings: registry.rehearse_crates(directory, skip_published=False),

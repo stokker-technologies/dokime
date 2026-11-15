@@ -181,6 +181,7 @@ tokio-stream = { workspace = true, features = ["net"] }
 rcgen = { version = "0.14.10", features = ["x509-parser"] }
 
 # Storage
+keyring = { workspace = true }
 
 # UI
 tauri = { version = "2.12.5", features = ["test"] }

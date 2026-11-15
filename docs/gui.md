@@ -91,7 +91,8 @@ while the document is assembled.
 Plot cards publish visibility through their existing intersection observer.
 `src/plots/live-data.ts` partitions consecutive cards by plot kind into stable
 groups of at most 32. Visible groups start independently in parallel; the next
-group prefetches once a visible group has data, without competing with its first read.
+group prefetches only after every visible group has data, keeping prefetch
+behind the visible reads. A partially delivered visible group retains priority.
 Off-screen analyses cannot delay a group of ordinary traces. This is a
 per-request memory/admission bound, never a document-size limit. Each group owns
 its watch, retries and cancellation. Changing one group's viewport or dimensions

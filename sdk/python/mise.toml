@@ -61,7 +61,8 @@ run = 'uv run --no-sync --project ../../tools/python python tools/generated.py'
 
 [tasks.conformance]
 description = "Test Library Conformance"
-run = 'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/system -v'
+usage = 'flag "--profile <profile>" default="dev"'
+run = 'mise -C ../.. run test -- --language python --layer system --profile {{usage.profile}}'
 
 [tasks.example-test]
 description = "Test the Test Examples"

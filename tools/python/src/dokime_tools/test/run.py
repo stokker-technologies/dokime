@@ -103,6 +103,7 @@ def test(
 
         environment["TEST_PROFILE"] = profile
         if language == "python" and category == "system":
+            environment["HARMOS_CONFORMANCE_FIXTURE"] = str(paths.output(directory, "build", profile) / "fixtures/host/python/conformance")
             environment["HARMOS_CONFORMANCE_HOST"] = str(
                 paths.output(directory, "build", profile) / "fixtures/host" / f"harmos-conformance{'.exe' if os.name == 'nt' else ''}"
             )
@@ -180,6 +181,7 @@ def coverage(
 
         environment["TEST_PROFILE"] = profile
         if language == "python" and category in (None, "system"):
+            environment["HARMOS_CONFORMANCE_FIXTURE"] = str(paths.output(directory, "build", profile) / "fixtures/host/python/conformance")
             environment["HARMOS_CONFORMANCE_HOST"] = str(
                 paths.output(directory, "build", profile) / "fixtures/host" / f"harmos-conformance{'.exe' if os.name == 'nt' else ''}"
             )
@@ -408,9 +410,8 @@ def _lane(
     """Execute a lane command and turn its JUnit report into a lane record."""
     started = time.time()
     destination = report.location(directory, profile, key)
-    native = category == "system"
     with (
-        desktop_bench.scratch(environment, destination) if native else nullcontext(environment) as scratch_environment,
+        desktop_bench.scratch(environment, destination) as scratch_environment,
         desktop_bench.credentials(scratch_environment)
         if language == "rust" and category != "unit"
         else nullcontext(scratch_environment) as child_environment,

@@ -293,8 +293,10 @@ class PinTests(unittest.TestCase):
             patch.object(pins, "check", return_value=False) as check,
             patch.dict(os.environ, {"GITHUB_WORKFLOW_REF": "owner/repo/.github/workflows/nightly.yml@refs/heads/dev"}, clear=True),
         ):
-            registry.rehearse_crates(ROOT)
+            registry.rehearse_crates(ROOT, channel="nightly")
             self.assertTrue(check.call_args.kwargs["warn"])
+            registry.rehearse_crates(ROOT, channel="stable")
+            self.assertFalse(check.call_args.kwargs["warn"])
 
 
 class ChannelTests(unittest.TestCase):

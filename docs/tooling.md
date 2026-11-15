@@ -71,8 +71,8 @@ The generated checks compile permanent consumers under each SDK's tests/generati
 (tests/Generation for C#) and the desktop tests/generation. Select one with
 `check:generated --language rust|python|csharp|cpp|typescript`, or use its SDK's
 `test:generation`. These compiler contracts require no product runtime or host fixtures.
-C# excludes the unrepaired authored FileTransfers.cs and uses its own target/cs/generation
-output. Its normal build still exposes those consumer errors. Generated Python obeys
+C# uses its own `target/cs/generation` output; its normal SDK build also compiles
+the authored file-transfer consumer. Generated Python obeys
 ordinary lint and typing; only protoc's private `_pb2*` files use the existing exclusion,
 and the public barrels plus compiler consumer are checked explicitly.
 
@@ -84,6 +84,12 @@ wire-name allow-list covers private generated directories, canonical
 gRPC paths, architecture and execution-host definition maps, and Markdown link targets.
 
 ## Fixtures and Stories
+
+The Rust host-fixture producer stages the reference host and its Python
+conformance package from the same locked library checkout. Python system and
+coverage lanes consume that stamped package, without a machine-specific source
+path. The SDK entry point selects the matching prepared profile with
+`mise -C sdk/python run conformance -- --profile release`.
 
 ```sh
 mise run build:host-fixtures
@@ -189,6 +195,13 @@ download verification without the registry dry runs; hosted rehearsal remains
 complete and uses the release profile. Protocol archives require both owners'
 model, host and plugin definitions.
 
+`mise run release:rehearse -- --channel nightly --profile release` runs the
+credential-free Nightly rehearsal against native packages. It uses the same
+Nightly staging mode as publication, including Git dependencies and report
+assets, without registry publication dry runs. Stable remains the default and
+rejects Git dependencies. Local output names the covered target and explicitly
+lists untested targets; `--target all` requires their packages to be available.
+
 `tools/project.toml` owns package/release/test policy; `mise.toml` owns commands
 and tool pins. `.stkr/project.toml` contains only Hub source policy. Configuration
 under `tools/config/` is selected explicitly. Do not redirect another project's
@@ -251,41 +264,48 @@ deviation tile is removed. Full-decode diagnostics consume all fields of every r
 the LTTB window case uses the product query that must decode all selected rows.
 
 The following Windows x86-64 observations were measured on this workstation
-(AMD Ryzen 9 5950X) on 2026-11-14 with default storage settings and one iteration,
-in milliseconds. The nine document/median/full-decode observations were refreshed
-at `ae0cfada8`; other rows retain their earlier measurements at the storage-boundary
-checkpoint because their separately named workloads were not rerun here.
+(AMD Ryzen 9 5950X) on 2026-11-15 with default storage settings and one iteration
+per case in the bench profile, in milliseconds. The 18 storage/document cases
+completed; the runtime figures below identify the earlier carrier separately.
+The current SDK observer retains the exact-count refusal rather than publishing
+an invalid timing. Native boundaries and observations are retained under
+`target/benchmarks/storage/`.
 Old ranges are the recorded cards-and-plots measurements at `43875c422` in
 `docs/product-guide.md`; only the matching warm summary/plot workloads share them.
 They are historical multi-sample ranges, not statistical comparisons with one run.
 
 | Case | Timed Boundary | State | This Machine, ms | Comparable Old Figure, ms |
 | --- | --- | --- | ---: | --- |
-| Store Admission and Flush, 1,024 | Prepared protobuf batch, direct admission and durable flush; first file creation when absent | Open store | 11.556 | No comparable old figure |
-| Window Preview, 1,000,000 | Saved preview bins, summary and bounded points | Warm / cold | 0.407 / 1.800 | No comparable old figure |
-| Window Full Scan LTTB, 1,000,000 | Preview summary, full selected-row decode and 1,500-point LTTB payload | Warm / cold | 167.598 / 182.450 | No comparable old figure |
-| Stream Finalize, 65,536 | Close stream files and join sample workers; durable | Warm | 1.285 | No comparable old figure |
-| Minimal Archive in Memory, 16,384 | Current archive into a `Vec`; no report or output sync | Warm | 6.125 | No comparable old figure |
-| Store Ingest Admission, 1,000,000 | Generate/encode phase, ordinal and value; admit in 4,096-row batches; automatic flushes included, last tail not necessarily durable | Fresh empty store | 8,167.407 | No comparable old figure |
-| Store Ingest and Flush, 1,000,000 | Same generation/admission plus explicit durable flush; shutdown excluded | Fresh empty store | 9,182.036 | No comparable old figure |
-| Median and Plot, 1,000,000 | Five summary tiles, exact median and one plot payload | Warm / cold | 142.496 / 140.810 | 356.91–367.41 warm; no comparable old cold figure |
-| Three-Day Document, 307,200 | Five tiles and 30 plot payloads/presentation | Warm / cold | 21.405 / 22.632 | No comparable old figure |
-| Three-Day Document, 1,536,000 | Same document at original density | Warm / cold | 22.719 / 24.451 | No comparable old figure |
-| Three-Day Document, 3,072,000 | Same document at original density | Warm / cold | 25.590 / 27.169 | 39.359–43.803 warm; no comparable old cold figure |
-| Document Full Decode, 3,072,000 | All fields of all 30 streams, consuming decoded buffers; no previews/rendering | Warm | 727.202 | No comparable old figure |
-| Runtime Observer Publication and Evidence Barrier, 1,024 | Release prepared step, sample transport/admission, produced-count record barrier and captured prompt; end/shutdown excluded | Warm host, fresh execution | 63.335 | No comparable old figure |
-| Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | 80.225 | No comparable old figure |
-| Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | 16.747 | No comparable old figure |
+| Store Admission and Flush, 1,024 | Prepared protobuf batch, direct admission and durable flush; first file creation when absent | Open store | 10.820 | No comparable old figure |
+| Window Preview, 1,000,000 | Saved preview bins, summary and bounded points | Warm / cold | 0.646 / 2.196 | No comparable old figure |
+| Window Full Scan LTTB, 1,000,000 | Preview summary, full selected-row decode and 1,500-point LTTB payload | Warm / cold | 172.606 / 179.631 | No comparable old figure |
+| Stream Finalize, 65,536 | Close stream files and join sample workers; durable | Warm | 1.224 | No comparable old figure |
+| Minimal Archive in Memory, 16,384 | Current archive into a `Vec`; no report or output sync | Warm | 5.564 | No comparable old figure |
+| Store Ingest Admission, 1,000,000 | Generate/encode phase, ordinal and value; admit in 4,096-row storage batches; automatic flushes included, last tail not necessarily durable | Fresh empty store | 7,623.027 | 8,167.407 on 2026-11-14 |
+| Store Ingest and Flush, 1,000,000 | Same generation/admission plus explicit durable flush; shutdown excluded | Fresh empty store | 7,732.326 | 9,182.036 on 2026-11-14 |
+| Median and Plot, 1,000,000 | Five summary tiles, exact median and one plot payload | Warm / cold | 126.300 / 132.884 | 356.91–367.41 warm; no comparable old cold figure |
+| Three-Day Document, 307,200 | Five tiles and 30 plot payloads/presentation | Warm / cold | 25.408 / 27.227 | No comparable old figure |
+| Three-Day Document, 1,536,000 | Same document at original density | Warm / cold | 24.142 / 26.645 | No comparable old figure |
+| Three-Day Document, 3,072,000 | Same document at original density | Warm / cold | 26.693 / 29.164 | 39.359–43.803 warm; no comparable old cold figure |
+| Document Full Decode, 3,072,000 | All fields of all 30 streams, consuming decoded buffers; no previews/rendering | Warm | 526.706 | No comparable old figure |
+| Runtime Observer Publication and Evidence Barrier, 1,024 | Release prepared step, SDK observation/transport/admission, produced-count record and captured prompt; end/shutdown excluded | Warm host, fresh execution | Not Measured: 1,025 Rows Retained for 1,024 Requested | Earlier single-row carrier: 347.964; retired batched carrier was invalid |
+| Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | Not Measured With the SDK Observer | Earlier single-row carrier: 174.858 |
+| Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | Not Measured With the SDK Observer | Earlier single-row carrier: 27.696 |
 
-The runtime fixture uses a benchmark-owned producer speaking the real tick-driven
-Samples protocol, forwarding ordinary invocations to the SDK plugin. Responses
-carry 1,024 samples for runtime workloads and up to 4,096 for desktop history.
-The host uses its controlled clock, validates sequences/source timestamps and
-admits each response through its ordinary batch writer. Desktop history retains
-2,073,600 four-field rows over three days at 8 Hz. Live and late commands publish
-eight real samples; late source times are carried on Samples, not simulated by a
-display-only timestamp. Both producer processes remain owned until cleanup. No
+The runtime and desktop fixtures use the real SDK observer and its tick-driven
+Samples protocol. Each tick receives exactly one sample with that tick's
+timestamp and the next sequence. The former proxy carrier is removed.
+Runtime and desktop fixtures declare a 1 ms interval and advance the controlled
+clock through every row. The empty spectrum is scheduled daily, outside these
+short runtime captures; an idle device carrier would prevent virtual-clock
+settlement. Desktop rows retain three days of source values in their timestamp
+field, including late-source offsets. Live and late commands publish eight real
+ticks and samples. Each SDK process remains owned until cleanup. No
 product test hook or separate storage-admission path exists.
+
+Direct storage ingest measured 131,181 rows/s for admission and 129,327 rows/s
+through durable flush, compared with 122,438 and 108,908 rows/s in the previous
+guide. These storage API batches are independent of plugin protocol messages.
 
 The current host has no public flush-only operation for an active execution;
 runtime publication therefore crosses the ordinary produced-count record barrier,
@@ -303,10 +323,32 @@ sync/drain are included, so the old export figure is not comparable.
 
 No store format, durability order, budgets or data density changed. The measured
 warm three-day documents remain in tens of milliseconds, and full-row decode is
-below one second per million samples. The host's per-response batch admission
-avoids revalidating the entire pending population once per individual sample.
+below one second per million samples. Storage validates each newly admitted call
+without revalidating the entire pending population. Native benchmark scratch is
+parent-owned: after child exit, including termination, the runner removes each
+root's credentials through `dokime-host --remove-credentials` before discarding
+the root. Cleanup failures retain ownership metadata with the diagnostics.
+Existing workstation credentials outside those fresh roots are untouched.
+Windows credential teardown remains incomplete: the native backend documents
+unreliable ordering across threads. Cleanup checks absence and retains ownership
+when a key remains, but that check cannot establish cross-thread visibility.
+The desktop panic story now checks its exact access key and deliberate panic
+type; full-lane failures and post-lane native inventories remain separate proof.
 
 ### Desktop Plot Documents
+
+The final-library rehearsal at `b15faaf2` completed zero of 34 desktop cases.
+After removing batched responses, history preparation reached the producer's
+unchanged 30-second prompt deadline before the requested saved count was visible.
+The replacement SDK producer's focused runtime proof exposes an extra row at
+the controlled-sleep boundary. Current cold/warm/active first-view observations
+for both 30 and 100 plots at 3,072,000 rows remain unmeasured. The independent
+840/332/445 ms and 780/350/447 ms figures are historical comparisons, not results
+of this candidate. Prefetch admission now waits for all visible groups to finish
+loading; the controlled frontend story proves that partial visible delivery
+does not start another group. Its first-view timing impact remains unmeasured.
+The following tables are also historical, at their named
+earlier revisions; they do not establish final-library proof.
 
 These Windows x86-64 observations come from one fresh `--once` run on
 2026-11-14, run from `c61d90897` with the exact-moment implementation at

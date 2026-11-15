@@ -21,20 +21,18 @@ use std::{
     hint::black_box,
     io::{Read, Seek, Write},
     num::NonZeroUsize,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
 
 // Third Party Imports
 use criterion::{Criterion, SamplingMode};
-use harmos_protocol::plugin::Sample;
-use prost::Message;
-use prost_types::Timestamp;
-use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
 // Local Imports
-use super::sample_carrier::Producer;
 use dokime::plugin::HostOperation;
 use dokime::prelude::*;
 use dokime_protocol::builders::Plot;
@@ -42,7 +40,7 @@ use dokime_protocol::host::PromptsCreateRequest as PromptRequest;
 use dokime_protocol::host::evidence_client::EvidenceClient;
 use dokime_protocol::host::files_client::FilesClient;
 use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceSubject, FilesReadRequest, PromptsCreateResponse, evidence_subject};
-use dokime_runtime::{ControlledClock, Cycle, Host, HostSettings, PlacementSettings, RenderSettings, services};
+use dokime_runtime::{ControlledClock, Cycle, Host, HostSettings, PlacementSettings, PluginProcess, RenderSettings, services};
 use dokime_storage::storage_defaults;
 
 use dokime_protocol::model::Card;
@@ -86,9 +84,12 @@ struct Capture {
     rows: u64,
 }
 
+#[derive(Default)]
+struct Observed(AtomicU64);
+
 struct Fixture {
     host: Host,
-    root: TempDir,
+    root: std::path::PathBuf,
     cycle: Cycle,
     execution: String,
 }
@@ -101,7 +102,7 @@ struct Fixture {
 
 impl Fixture {
     async fn new(endpoint: &str, template: &str, rows: usize) -> Self {
-        let root = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap().keep();
         let settings = settings();
         let operations = dokime_runtime::services::ClientSettings {
             read_timeout: settings.placement.connect_timeout,
@@ -112,7 +113,7 @@ impl Fixture {
             message_bytes: settings.placement.message_bytes.get(),
             stream_buffer: settings.placement.stream_window.get(),
         };
-        let host = Host::open(root.path(), settings, operations).await.unwrap();
+        let host = Host::open(root.as_path(), settings, operations).await.unwrap();
         let plugin = host.add_remote("storage.benchmark", endpoint).await.unwrap();
         let parameters = HashMap::from([(
             "rows".into(),
@@ -165,27 +166,52 @@ pub fn serve() -> Result<()> {
     let stream = Stream::<Reading>::new("readings", "Readings");
     let observer = Observer::new(&stream, async |context: &Context| {
         let at = context.now().await?;
+        let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "readings")) {
+            context.get::<Observed>()?.0.fetch_add(1, Ordering::SeqCst)
+        } else {
+            0
+        };
         Ok(Reading {
             timestamp: at.to_string(),
-            value: at.nanos as f64 / 1_000_000.0,
+            value: (index % 1024) as f64,
         })
     })
     .every_ms(1);
     let template = Template::new("capture", "Capture")
         .parameters(Capture { rows: 1024 })
+        .initialize(async |context: &Context| {
+            context.set(Observed::default());
+            Ok(())
+        })
         .step(Step::new("Capture", capture))
         .stream(stream)
         .observer(observer);
     let pulse = Stream::<Pulse>::new("pulse", "Pulse");
-    let observer = Observer::new(&pulse, async |_: &Context| Ok(Pulse { value: 0.0 })).every_ms(1);
+    let observer = Observer::new(&pulse, async |context: &Context| {
+        let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "pulse")) {
+            context.get::<Observed>()?.0.fetch_add(1, Ordering::SeqCst)
+        } else {
+            0
+        };
+        Ok(Pulse { value: index as f64 })
+    })
+    .every_ms(1);
     let export = Template::new("export", "Export")
         .parameters(Capture { rows: 16384 })
+        .initialize(async |context: &Context| {
+            context.set(Observed::default());
+            Ok(())
+        })
         .step(Step::new("Capture", capture))
         .stream(pulse)
         .observer(observer);
+    // The Spectrum's First Scheduled Sample Is Outside These Short Captures.
+    let spectrum = Stream::<Pulse>::new("spectrum", "Spectrum");
+    let spectrum_observer = Observer::new(&spectrum, async |_: &Context| Ok(Pulse { value: 0.0 })).every_ms(86_400_000);
     Plugin::new("storage.benchmark", "1.0.0")
         .suite(Suite::new("storage.benchmark", "Storage Benchmark").template(template).template(export))
-        .stream(Stream::<Pulse>::new("spectrum", "Spectrum"))
+        .stream(spectrum)
+        .observer(spectrum_observer)
         .prompt(Prompt::new("continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
         .requires_host(HostOperation::PromptsCreate)
         .requires_host(HostOperation::EvidenceRecordsAppend)
@@ -206,7 +232,9 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
         "warm host, fresh execution; release ready step, tick-driven producer encoding of 1,024 samples, plugin transport and batch admission, append produced-count record (durable evidence barrier), await captured prompt; execution end and shutdown excluded",
     );
     group.bench_function("observer_publication_and_barrier_durable/1024", |b| {
-        let plugin = plugin.get_or_insert_with(|| executor.block_on(Producer::start(&settings().placement, &[])).unwrap());
+        let plugin = plugin.get_or_insert_with(|| {
+            executor.block_on(PluginProcess::start(&std::env::current_exe().unwrap(), true, &settings().placement)).unwrap()
+        });
         b.iter_custom(|iterations| {
             executor.block_on(async {
                 let mut elapsed = Duration::ZERO;
@@ -221,7 +249,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                     let completed = fixture.cycle.wait().await.unwrap();
                     assert_eq!(completed.executions[0].samples.len(), 1024, "Prepare Runtime Publication: Retain Every Sample");
                     fixture.host.shutdown().await.unwrap();
-                    services::remove_credentials(fixture.root.path()).unwrap();
+                    services::remove_credentials(fixture.root.as_path()).unwrap();
                 }
                 super::report(elapsed, iterations)
             })
@@ -232,7 +260,9 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
         "warm populated host; answer final prompt, execution cleanup, stream finalization, seal, final snapshot join and shutdown; durable; capture excluded",
     );
     group.bench_function("execution_end_and_shutdown/65536", |b| {
-        let plugin = plugin.get_or_insert_with(|| executor.block_on(Producer::start(&settings().placement, &[])).unwrap());
+        let plugin = plugin.get_or_insert_with(|| {
+            executor.block_on(PluginProcess::start(&std::env::current_exe().unwrap(), true, &settings().placement)).unwrap()
+        });
         b.iter_custom(|iterations| {
             executor.block_on(async {
                 let mut elapsed = Duration::ZERO;
@@ -245,7 +275,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                     let completed = fixture.cycle.wait().await.unwrap();
                     fixture.host.shutdown().await.unwrap();
                     elapsed += started.elapsed();
-                    services::remove_credentials(fixture.root.path()).unwrap();
+                    services::remove_credentials(fixture.root.as_path()).unwrap();
                     assert_eq!(completed.executions[0].samples.len(), 65536, "Prepare Runtime Shutdown: Retain Every Sample");
                 }
                 super::report(elapsed, iterations)
@@ -261,7 +291,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
         let (server, _, execution, evidence, files) = export.get_or_insert_with(|| {
             executor.block_on(async {
                 if plugin.is_none() {
-                    plugin = Some(Producer::start(&settings().placement, &[]).await.unwrap());
+                    plugin = Some(PluginProcess::start(&std::env::current_exe().unwrap(), true, &settings().placement).await.unwrap());
                 }
                 let plugin = plugin.as_ref().unwrap();
                 let fixture = Fixture::new(plugin.endpoint(), "export", 16384).await;
@@ -307,7 +337,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                     message_bytes: 4 * 1024 * 1024,
                     stream_buffer: 8,
                 };
-                let server = services::serve(([127, 0, 0, 1], 0).into(), root.path(), settings(), bounds).await.unwrap();
+                let server = services::serve(([127, 0, 0, 1], 0).into(), root.as_path(), settings(), bounds).await.unwrap();
                 let endpoint = format!("http://{}", server.endpoint());
                 let evidence = EvidenceClient::connect(endpoint.clone()).await.unwrap();
                 let files = FilesClient::connect(endpoint).await.unwrap();
@@ -365,37 +395,12 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
     });
     if let Some((server, root, _, _, _)) = export {
         executor.block_on(server.close()).unwrap();
-        services::remove_credentials(root.path()).unwrap();
+        services::remove_credentials(root.as_path()).unwrap();
     }
     group.finish();
     if let Some(mut plugin) = plugin {
         executor.block_on(plugin.close()).unwrap();
     }
-}
-
-pub fn samples(stream: &str, first: u64, _at: &Timestamp) -> Vec<Sample> {
-    (first..first + 1024)
-        .map(|index| {
-            let source_ns = 1_788_220_800_000_000_000 + index as i64 * 1_000_000;
-            let at = Timestamp {
-                seconds: source_ns / 1_000_000_000,
-                nanos: (source_ns % 1_000_000_000) as i32,
-            };
-            Sample {
-                sequence: index + 1,
-                at: Some(at),
-                row: if stream == "pulse" {
-                    Pulse { value: index as f64 }.encode_to_vec()
-                } else {
-                    Reading {
-                        timestamp: at.to_string(),
-                        value: (index % 1024) as f64,
-                    }
-                    .encode_to_vec()
-                },
-            }
-        })
-        .collect()
 }
 
 /* === Private Functions === */
@@ -417,7 +422,14 @@ fn settings() -> HostSettings {
 async fn capture(context: &Context) -> Result<()> {
     context.host().prompts.create("ready".into(), "continue".into(), HashMap::new()).await?;
     let rows = context.parameters::<Capture>()?.rows;
-    context.sleep(Duration::from_millis(rows.div_ceil(1024) - 1)).await?;
+    loop {
+        let observed = context.get::<Observed>()?.0.load(Ordering::SeqCst);
+        if observed >= rows {
+            assert_eq!(observed, rows, "Publish Runtime Samples: Retain the Requested Row Count");
+            break;
+        }
+        context.sleep(Duration::from_millis(rows - observed)).await?;
+    }
     context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows }).await?;
     context.host().prompts.create("captured".into(), "continue".into(), HashMap::new()).await?;
     Ok(())

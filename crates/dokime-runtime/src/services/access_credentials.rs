@@ -117,6 +117,12 @@ impl Store {
                 Ok(()) | Err(keyring::Error::NoEntry) => {}
                 Err(error) => return Err(crate::Error::Invalid(format!("Remove Root Access Credential: {error}"))),
             }
+            // Keep Cleanup Ownership Until the Native Store Confirms Absence.
+            match self.key(slot).and_then(|key| key.get_secret()).map(Zeroizing::new) {
+                Err(keyring::Error::NoEntry) => {}
+                Err(error) => return Err(crate::Error::Invalid(format!("Verify Removed Root Access Credential: {error}"))),
+                Ok(_) => return Err(crate::Error::Invalid("Remove Root Access Credential: Credential Remains in the Native Store".into())),
+            }
         }
         slots.slots.retain(|slot| retained == Some(slot.as_str()));
         if slots.slots.is_empty() {

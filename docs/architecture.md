@@ -182,6 +182,12 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    product owners after the root lease is released, while ordinary shutdown keeps
    them for restart. Owners journal credential slots before native writes, so
    interrupted publication and failed retired-key removal retain cleanup ownership.
+   Access-key cleanup checks native absence before retiring its slot journal;
+   a remaining or unreadable key preserves the root for cleanup. The Windows
+   backend's cross-thread ordering constraint remains unresolved; the check alone
+   does not establish that a key written on another thread has disappeared.
+   Native test and benchmark runners retain child scratch ownership and remove
+   root credentials after child exit, including termination, before deleting scratch.
    `credentials_leave_with_discarded_roots` proves named access and secret credentials
    are unreadable after normal and failed Windows story teardown, including without
    their publication pointers.

@@ -24,7 +24,7 @@ from typing import TypedDict, cast
 from ..build import paths
 from ..process import spawn_flags
 from . import archive
-from .desktop_bench import credentials
+from .desktop_bench import credentials, scratch
 
 # Type Checking Imports
 
@@ -76,7 +76,7 @@ def main() -> None:
     environment.pop("DOKIME_TRACE_DIR", None)
     report = directory / "target/benchmarks/storage/run.log"
     report.parent.mkdir(parents=True, exist_ok=True)
-    with credentials(environment) as child_environment:
+    with scratch(environment, report.parent) as scratch_environment, credentials(scratch_environment) as child_environment:
         written = report.open("w", encoding="utf-8")
         try:
             process = subprocess.Popen(

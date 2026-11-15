@@ -29,6 +29,7 @@ from statistics import median
 from .. import policy, temporary
 from ..ci import bootstrap
 from ..build import paths
+from ..process import spawn_flags
 from ..release import reports
 from . import policy as test_policy
 
@@ -109,6 +110,27 @@ def scratch(environment: dict[str, str] | None, reports: Path) -> Generator[dict
         try:
             yield child_environment
         finally:
+            if sys.platform == "win32":
+                for identity in root.rglob("backend-id"):
+                    directory = test_policy.root()
+                    profile = child_environment.get("TEST_PROFILE", "bench")
+                    output = paths.output(directory, "build", profile)
+                    candidates = [output / "fixtures/host/dokime-host.exe", output / "bin/dokime-host.exe"]
+                    host = next((candidate for candidate in candidates if candidate.is_file()), None)
+                    try:
+                        if host is None:
+                            raise RuntimeError("Missing Prepared Host")
+                        subprocess.run(
+                            [str(host), "--storage", str(identity.parent), "--remove-credentials"],
+                            env=child_environment,
+                            check=True,
+                            creationflags=spawn_flags(),
+                        )
+                    except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+                        reports.mkdir(parents=True, exist_ok=True)
+                        retained = reports / root.parent.name
+                        shutil.copytree(root, retained)
+                        raise RuntimeError(f"Remove Scratch Credentials: {error}; Retained Root: {retained}") from error
             if child_environment.get("DOKIME_KEEP_EVIDENCE") == "1":
                 reports.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(root, reports / root.parent.name)

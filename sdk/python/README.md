@@ -196,8 +196,15 @@ credentials before disposing of its temporary storage, including on Windows.
 Existing roots are never reset; incompatible roots require selecting a fresh root.
 See [Execution Host](../../docs/execution-host.md) for fixture build commands.
 
-For transport conformance, set `HARMOS_CONFORMANCE_HOST` to the pinned library's
-reference host and `HARMOS_CONFORMANCE_FIXTURE` to its
-`sdk/python/tests/fixtures/conformance` directory, then run
-`mise -C sdk/python run conformance`. Full platform validation belongs to hosted CI
-and Nightly; a local native run does not substitute for the other platform.
+For transport conformance, build the Python wheel and Rust host fixtures in the
+same profile. The fixture producer includes the pinned library's conformance
+package, and the runner supplies both prepared inputs:
+
+```sh
+mise run build -- --language python --profile release
+mise run build:host-fixtures -- --language rust --profile release
+mise -C sdk/python run conformance -- --profile release
+```
+
+Full platform validation belongs to hosted CI and Nightly; a local native run
+does not substitute for the other platform.

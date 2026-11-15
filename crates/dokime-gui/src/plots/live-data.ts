@@ -123,11 +123,9 @@ export function useLivePlotPayloads({
   const visibleGroups = requestGroups.map(
     (group) => typeof IntersectionObserver === "undefined" || group.some((plot) => visible[plot.plot_id] === true),
   );
-  // Visible Groups Start Together; Prefetch Follows Their First Data Without Contending With The Initial Read.
-  const shownGroups = requestGroups.filter(
-    (_, index) =>
-      visibleGroups[index] || (visibleGroups[index - 1] && requestGroups[index - 1].some((plot) => state[plot.plot_id]?.payload)),
-  );
+  // Visible Groups Finish Loading Before Prefetch Starts.
+  const visibleReady = requestGroups.every((group, index) => !visibleGroups[index] || group.every((plot) => state[plot.plot_id]?.payload));
+  const shownGroups = requestGroups.filter((_, index) => visibleGroups[index] || (visibleReady && visibleGroups[index - 1]));
   const shownPlots = shownGroups.flat();
   const shownKey = shownPlots.map((plot) => plot.plot_id).join(";");
   const summaryKey = useMemo(
