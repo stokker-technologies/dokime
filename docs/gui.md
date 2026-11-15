@@ -346,6 +346,8 @@ Document structure commits before the saved-evidence wait. Each pending binding
 uses an independent query through the existing document capture operation, with
 its own cancellation and retry lifetime. Runtime invalidation preserves in-flight
 card reads, so fast cards keep refreshing while an exact median is still loading.
+An invalidation during a card read coalesces a following read at the latest cut
+after that card settles, independently of other cards.
 A completed card remains visible when another card or transfer fails. Failed
 bindings render the existing ErrorCard with their native diagnostic and budget
 fields. Repeated sections keep a loading identity until their expansion arrives.
