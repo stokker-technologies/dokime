@@ -275,8 +275,9 @@ The following Windows x86-64 observations were measured on this workstation
 (AMD Ryzen 9 5950X) on 2026-11-15 with default storage settings and one iteration
 per case in the bench profile, in milliseconds. The 18 storage/document cases
 completed; the runtime figures below identify the earlier carrier separately.
-The current SDK observer retains the exact-count refusal rather than publishing
-an invalid timing. Native boundaries and observations are retained under
+All three runtime cases were attempted. The current SDK observer retains one
+extra row in each; each case reports its exact-count refusal without an invalid
+timing. Native boundaries and observations are retained under
 `target/benchmarks/storage/`.
 Old ranges are the recorded cards-and-plots measurements at `43875c422` in
 `docs/product-guide.md`; only the matching warm summary/plot workloads share them.
@@ -284,21 +285,21 @@ They are historical multi-sample ranges, not statistical comparisons with one ru
 
 | Case | Timed Boundary | State | This Machine, ms | Comparable Old Figure, ms |
 | --- | --- | --- | ---: | --- |
-| Store Admission and Flush, 1,024 | Prepared protobuf batch, direct admission and durable flush; first file creation when absent | Open store | 10.820 | No comparable old figure |
-| Window Preview, 1,000,000 | Saved preview bins, summary and bounded points | Warm / cold | 0.646 / 2.196 | No comparable old figure |
-| Window Full Scan LTTB, 1,000,000 | Preview summary, full selected-row decode and 1,500-point LTTB payload | Warm / cold | 172.606 / 179.631 | No comparable old figure |
-| Stream Finalize, 65,536 | Close stream files and join sample workers; durable | Warm | 1.224 | No comparable old figure |
-| Minimal Archive in Memory, 16,384 | Current archive into a `Vec`; no report or output sync | Warm | 5.564 | No comparable old figure |
-| Store Ingest Admission, 1,000,000 | Generate/encode phase, ordinal and value; admit in 4,096-row storage batches; automatic flushes included, last tail not necessarily durable | Fresh empty store | 7,623.027 | 8,167.407 on 2026-11-14 |
-| Store Ingest and Flush, 1,000,000 | Same generation/admission plus explicit durable flush; shutdown excluded | Fresh empty store | 7,732.326 | 9,182.036 on 2026-11-14 |
-| Median and Plot, 1,000,000 | Five summary tiles, exact median and one plot payload | Warm / cold | 126.300 / 132.884 | 356.91–367.41 warm; no comparable old cold figure |
-| Three-Day Document, 307,200 | Five tiles and 30 plot payloads/presentation | Warm / cold | 25.408 / 27.227 | No comparable old figure |
-| Three-Day Document, 1,536,000 | Same document at original density | Warm / cold | 24.142 / 26.645 | No comparable old figure |
-| Three-Day Document, 3,072,000 | Same document at original density | Warm / cold | 26.693 / 29.164 | 39.359–43.803 warm; no comparable old cold figure |
-| Document Full Decode, 3,072,000 | All fields of all 30 streams, consuming decoded buffers; no previews/rendering | Warm | 526.706 | No comparable old figure |
+| Store Admission and Flush, 1,024 | Prepared protobuf batch, direct admission and durable flush; first file creation when absent | Open store | 10.172 | No comparable old figure |
+| Window Preview, 1,000,000 | Saved preview bins, summary and bounded points | Warm / cold | 0.653 / 3.411 | No comparable old figure |
+| Window Full Scan LTTB, 1,000,000 | Preview summary, full selected-row decode and 1,500-point LTTB payload | Warm / cold | 171.856 / 190.483 | No comparable old figure |
+| Stream Finalize, 65,536 | Close stream files and join sample workers; durable | Warm | 1.134 | No comparable old figure |
+| Minimal Archive in Memory, 16,384 | Current archive into a `Vec`; no report or output sync | Warm | 5.929 | No comparable old figure |
+| Store Ingest Admission, 1,000,000 | Generate/encode phase, ordinal and value; admit in 4,096-row storage batches; automatic flushes included, last tail not necessarily durable | Fresh empty store | 7,832.789 | 8,167.407 on 2026-11-14 |
+| Store Ingest and Flush, 1,000,000 | Same generation/admission plus explicit durable flush; shutdown excluded | Fresh empty store | 8,323.425 | 9,182.036 on 2026-11-14 |
+| Median and Plot, 1,000,000 | Five summary tiles, exact median and one plot payload | Warm / cold | 149.882 / 129.962 | 356.91–367.41 warm; no comparable old cold figure |
+| Three-Day Document, 307,200 | Five tiles and 30 plot payloads/presentation | Warm / cold | 24.588 / 27.853 | No comparable old figure |
+| Three-Day Document, 1,536,000 | Same document at original density | Warm / cold | 35.895 / 31.670 | No comparable old figure |
+| Three-Day Document, 3,072,000 | Same document at original density | Warm / cold | 27.459 / 29.248 | 39.359–43.803 warm; no comparable old cold figure |
+| Document Full Decode, 3,072,000 | All fields of all 30 streams, consuming decoded buffers; no previews/rendering | Warm | 539.972 | No comparable old figure |
 | Runtime Observer Publication and Evidence Barrier, 1,024 | Release prepared step, SDK observation/transport/admission, produced-count record and captured prompt; end/shutdown excluded | Warm host, fresh execution | Not Measured: 1,025 Rows Retained for 1,024 Requested | Earlier single-row carrier: 347.964; retired batched carrier was invalid |
-| Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | Not Measured With the SDK Observer | Earlier single-row carrier: 174.858 |
-| Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | Not Measured With the SDK Observer | Earlier single-row carrier: 27.696 |
+| Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | Not Measured: 65,537 Rows Retained for 65,536 Requested | Earlier single-row carrier: 174.858 |
+| Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | Not Measured: 16,385 Rows Retained for 16,384 Requested | Earlier single-row carrier: 27.696 |
 
 The runtime and desktop fixtures use the real SDK observer and its tick-driven
 Samples protocol. Each tick receives exactly one sample with that tick's
@@ -314,7 +315,7 @@ field, including late-source offsets. Live and late commands publish eight real
 ticks and samples. Each SDK process remains owned until cleanup. No
 product test hook or separate storage-admission path exists.
 
-Direct storage ingest measured 131,181 rows/s for admission and 129,327 rows/s
+Direct storage ingest measured 127,668 rows/s for admission and 120,143 rows/s
 through durable flush, compared with 122,438 and 108,908 rows/s in the previous
 guide. These storage API batches are independent of plugin protocol messages.
 
@@ -364,6 +365,9 @@ That jump crosses the entire requested zoom window. This is the upstream
 sleep-registration race; it can stretch the configured three-day source span.
 The fixture retains the failure with the original window, row count and producer
 handoff. The 30-plot zoom completed.
+The retained 100-plot live/late replay uses that same gapped history; its elapsed
+values are observed redraws, not proof that the new samples entered the intended
+time-series window.
 
 The largest saved history retains all 3,072,000 rows, but the upstream clock
 race stretches its source-time span to 390,990.713 s instead of three days.
