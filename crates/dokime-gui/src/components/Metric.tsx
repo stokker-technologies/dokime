@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import { AbbreviatedValue } from "@/components/AbbreviatedValue";
 import { PathPill } from "@/components/PathPill";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -99,24 +100,12 @@ function MetricValue({
     return <PathPill value={value} />;
   }
   const compact = value.length > 10;
-  const exact = exactValue ?? value;
   return (
-    <span
+    <AbbreviatedValue
       className={`block min-w-0 max-w-full truncate ${compact ? "text-base" : ""}`}
-      data-exact-value={exact}
-      title={exact}
-      // Copying an abbreviated value copies every digit.
-      onCopy={
-        exact === value
-          ? undefined
-          : (event) => {
-              event.clipboardData.setData("text/plain", exact);
-              event.preventDefault();
-            }
-      }
-    >
-      {value}
-    </span>
+      exact={exactValue ?? value}
+      value={value}
+    />
   );
 }
 

@@ -178,7 +178,8 @@ async function execute() {
     desktop.execute(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
     const values = tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong [data-exact-value]')?.dataset.exactValue]);
-    // Tiles first render at the document's opening cut; wait for the cut that holds captured samples.
+    // The host seals before its interval telemetry flush, so tiles read a zero count until that
+    // flush's storage change refreshes the document; a view that never refreshes times out here.
     const captured = values.every(([, value]) => value && value !== '-') && /[1-9]/.test(Object.fromEntries(values).count ?? '');
     return tiles.length >= 11 && captured ? Object.fromEntries(values) : null;`),
   );

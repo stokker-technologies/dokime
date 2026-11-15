@@ -24,6 +24,7 @@ import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
 import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
 import { type CompletedDocument, mapNativeDocument } from "@/lib/api/native-documents";
+import { NativeIntegerValue } from "@/lib/api/native-values";
 import { nativeValueToJson } from "@/lib/host/values";
 import { create } from "@bufbuild/protobuf";
 import {
@@ -39,7 +40,7 @@ import {
 import { ValueSchema } from "@host/dokime/v1/scalar_pb.js";
 import { documentSummaryTile } from "@/lib/document-presentation";
 import { formatCompactDecimal } from "@/lib/format";
-import { seriesLegendColumns } from "@/lib/statistics";
+import { seriesLegendColumns, seriesLegendRows } from "@/lib/statistics";
 
 /* === Re-Exports === */
 
@@ -323,6 +324,27 @@ test("Plot Cards Without a Declared Span Stack One per Row", () => {
   const count = statistics?.querySelector('[data-document-metric="count"] strong [data-exact-value]');
   assert.ok(count?.textContent);
   assert.equal(count.textContent, count.getAttribute("data-exact-value"));
+});
+
+test("Plot Legend Statistics Abbreviate and Keep Every Digit", () => {
+  const exact = new NativeIntegerValue(1152921504606847975n, true);
+  const rows = seriesLegendRows({
+    hidden: new Set(),
+    summaries: [{ series_id: "counter", count: 4487, min: exact, max: exact, mean: exact, median: exact }],
+    traces: [{ key: "counter", label: "Counter", color: "#000000" }],
+  });
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(
+    createElement(StatsSummaryTable, { legend: { columns: seriesLegendColumns(null), rows, pending: false } }),
+  );
+  const values = [...host.querySelectorAll("tbody [data-exact-value]")].filter(
+    (cell) => cell.getAttribute("data-exact-value") === exact.decimal,
+  );
+  assert.equal(values.length, 4);
+  for (const value of values) {
+    assert.equal(value.textContent, "1.15292e+18");
+    assert.equal(value.getAttribute("title"), exact.decimal);
+  }
 });
 
 test("Long Tile Values Abbreviate from Their Exact Digits", () => {

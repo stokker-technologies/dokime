@@ -13,11 +13,12 @@ import { useMemo } from "react";
 
 /* === Local Imports === */
 
+import { AbbreviatedValue } from "@/components/AbbreviatedValue";
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import { formatUnitLabel } from "@/lib/format";
 import type { SeriesLegendColumn, SeriesLegendRow, StatsSummary, StatsSummaryRow } from "@/lib/statistics";
-import { formatStatValue, seriesLegendColumnWidth, statsSummaryCells } from "@/lib/statistics";
+import { formatSummaryValue, seriesLegendColumnWidth, statsSummaryCells } from "@/lib/statistics";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -65,7 +66,15 @@ const COLUMNS: DataTableColumns<DescribedRow> = [
   }),
   ...STATISTICS.map(([key, title]) =>
     column.accessor((row) => row.stats[key], {
-      cell: ({ row }) => formatStatValue(row.original.stats[key], row.original.unit),
+      cell: ({ row }) => {
+        const exact = formatSummaryValue(row.original.stats[key]);
+        return (
+          <>
+            <AbbreviatedValue exact={exact} />
+            {row.original.unit && exact !== "-" ? ` ${row.original.unit}` : ""}
+          </>
+        );
+      },
       header: title,
       id: key,
       meta: { align: "end", label: title, truncate: true, width: "w-32" },
@@ -110,7 +119,11 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
     }
     const read = (row: SeriesLegendRow) => (id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id]);
     return legend.accessor(read, {
-      cell: ({ getValue, row }) => <span className={cn("tabular-nums", row.original.hidden && "opacity-50")}>{getValue()}</span>,
+      // Cells keep the exact statistic for sorting, filters and the title;
+      // a long value is shown abbreviated.
+      cell: ({ getValue, row }) => (
+        <AbbreviatedValue className={cn("tabular-nums", row.original.hidden && "opacity-50")} exact={getValue()} />
+      ),
       header,
       id,
       meta: { align: "end", label: header, truncate: true, width: seriesLegendColumnWidth(id) },
@@ -192,8 +205,8 @@ function StatsSummaryGrid({ row, titled }: { row: StatsSummaryRow; titled: boole
             <dt className="truncate text-xs font-bold text-muted-foreground" title={label}>
               {label}
             </dt>
-            <dd className="mt-1 truncate text-sm font-semibold tabular-nums" title={value}>
-              {value}
+            <dd className="mt-1 truncate text-sm font-semibold tabular-nums">
+              <AbbreviatedValue exact={value} />
             </dd>
           </div>
         ))}
