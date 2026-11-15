@@ -429,7 +429,7 @@ consumer pause and publication burst. Full traversal remains separate.
 | Action, 2,073,600 Rows | 30 Plots [ms] | 100 Plots [ms] |
 | --- | ---: | ---: |
 | Late | 5,610.857 | 5,499.144 |
-| Zoom | 591.000 | Upstream Refusal |
+| Zoom | 591.000 | 651.800 at `8fb9f3f3c` |
 | Resize | 181.100 | 270.700 |
 | Navigation | 732.100 | 542.600 |
 | Stalled | 5,602.884 | 5,458.847 |
@@ -481,7 +481,7 @@ declarations retain 512 input samples. Category projection keeps native scalar
 keys; pie plots select a mean over duplicate categories. Publication durability,
 input budgets and deadlines are unchanged.
 
-Raw observations, screenshots, cleanup results and retained upstream-refusal
+Raw observations, screenshots, cleanup results and retained refusal
 evidence remain under `target/benchmarks/criterion/`; the task repair inventory
 also retains the focused-run observations.
 
