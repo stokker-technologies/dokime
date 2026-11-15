@@ -1,0 +1,145 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Captures Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.media;
+
+// === Imports === //
+
+import "dokime/model/v1/evidence.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.MediaResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Captures resource on the host; callers are checked before handler admission.
+service Captures {
+  // Create the Captures resource; admission and policy are owned by the executor.
+  rpc Create(.dokime.host.v1.media.CapturesCreateRequest) returns (.dokime.host.v1.media.CapturesCreateResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Read the Captures resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.media.CapturesGetRequest) returns (.dokime.host.v1.media.CapturesGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Observe durable changes to the Captures resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.media.CapturesWatchRequest) returns (stream .dokime.host.v1.media.CapturesWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Stop the Captures resource; admission and policy are owned by the executor.
+  rpc Stop(.dokime.host.v1.media.CapturesStopRequest) returns (.dokime.host.v1.media.CapturesStopResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Create === //
+
+// CapturesCreateRequest for Captures.Create.
+message CapturesCreateRequest {
+  .dokime.model.v1.ArtifactScope scope = 1;
+  .dokime.host.v1.media.CaptureKind kind = 2;
+  optional uint32 input = 3;
+  optional uint32 camera = 4;
+  optional uint32 display = 5;
+  .dokime.host.v1.media.RecordingAudio audio = 6;
+  optional uint32 maximum_seconds = 7;
+  string request_id = 8;
+}
+
+// CapturesCreateResponse for Captures.Create.
+message CapturesCreateResponse {
+  .dokime.host.v1.media.Capture capture = 1;
+  .harmos.model.v1.Receipt receipt = 2;
+}
+
+// === Get === //
+
+// CapturesGetRequest for Captures.Get.
+message CapturesGetRequest {
+  string name = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// CapturesGetResponse for Captures.Get.
+message CapturesGetResponse {
+  .dokime.host.v1.media.Capture capture = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Watch === //
+
+// CapturesWatchRequest for Captures.Watch.
+message CapturesWatchRequest {
+  string name = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// CapturesWatchResponse for Captures.Watch.
+message CapturesWatchResponse {
+  .dokime.host.v1.media.Capture capture = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Stop === //
+
+// CapturesStopRequest for Captures.Stop.
+message CapturesStopRequest {
+  string name = 1;
+  string request_id = 2;
+}
+
+// CapturesStopResponse for Captures.Stop.
+message CapturesStopResponse {
+  .dokime.host.v1.media.Capture capture = 1;
+  .harmos.model.v1.Receipt receipt = 2;
+}
+
+// === Resources === //
+
+// RecordingAudio value owned by this resource.
+message RecordingAudio {
+  bool microphone = 1;
+  bool system = 2;
+}
+
+// RecordingProgress value owned by this resource.
+message RecordingProgress {
+  uint64 elapsed_ms = 1;
+  uint64 size_bytes = 2;
+}
+
+// Capture value owned by this resource.
+message Capture {
+  string name = 1;
+  .dokime.host.v1.media.CaptureKind kind = 2;
+  .dokime.host.v1.media.RecordingProgress progress = 3;
+  .dokime.model.v1.ArtifactMetadata artifact = 4;
+  bool finished = 5;
+  .harmos.model.v1.Failure failure = 6;
+}
+
+// === Enums === //
+
+// CaptureKind choices.
+enum CaptureKind {
+  CAPTURE_KIND_UNSPECIFIED = 0;
+  CAPTURE_KIND_AUDIO = 1;
+  CAPTURE_KIND_CAMERA = 2;
+  CAPTURE_KIND_PHOTO = 3;
+  CAPTURE_KIND_SCREEN = 4;
+  CAPTURE_KIND_SCREENSHOT = 5;
+}

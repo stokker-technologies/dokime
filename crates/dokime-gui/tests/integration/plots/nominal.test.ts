@@ -13,9 +13,9 @@
 // Standard Library Imports
 import assert from "node:assert/strict";
 import { create } from "@bufbuild/protobuf";
-import { PlotCartesianMode, PlotStreamKind, SnapshotsWatchResponseSchema } from "@host/dokime/client/v1/plots/snapshots_pb.js";
-import { PlotKind, Reduction, XyInterval } from "@host/dokime/v1/plots_pb.js";
-import { LineStyle } from "@host/dokime/v1/plots_pb.js";
+import { PlotCartesianMode, PlotStreamKind, SnapshotsWatchResponseSchema } from "@host/model";
+import { PlotKind, Reduction, XyInterval } from "@host/model";
+import { LineStyle } from "@host/model";
 
 // Third Party Imports
 import { act, type ComponentProps, createElement } from "react";
@@ -544,8 +544,8 @@ test("A Large Document Uses Independent Bounded Watches", async () => {
 test("Viewport Prefetch Follows Visible Data Without Restarting Drawn Groups", async () => {
   vi.stubGlobal("IntersectionObserver", class {});
   const ids = Array.from({ length: 65 }, (_, index) => `plot-${index}`);
-  const view = await mountPlotView(ids, [ids[0]]);
-  assert.equal(view.streams.length, 1);
+  const view = await mountPlotView(ids, [ids[0], ids[32]]);
+  assert.equal(view.streams.length, 2);
   const initial = snapshotEnvelopes(view.plots).map((frame) => ({ ...frame, kind: "snapshot" as const }));
   await act(async () => view.streams[0].push(...initial.slice(0, 32)));
   await view.advance();
@@ -554,16 +554,24 @@ test("Viewport Prefetch Follows Visible Data Without Restarting Drawn Groups", a
     [32, 32],
   );
   const retained = view.states()[ids[0]];
-  await act(async () => useSummaryWindowStore.getState().setVisible(ids[32], true));
+  await act(async () => view.streams[1].push(initial[32]));
+  await view.advance();
   assert.equal(view.streams.length, 2);
-  await act(async () => view.streams[1].push(...initial.slice(32, 64)));
+  await act(async () => view.streams[1].push(...initial.slice(33, 64)));
   await view.advance();
   assert.deepEqual(
     refreshFixture.watch.mock.calls.map((call) => call[1].length),
     [32, 32, 1],
   );
+  await act(async () => useSummaryWindowStore.getState().setVisible(ids[64], true));
+  assert.equal(view.streams.length, 3);
   assert.equal(view.states()[ids[0]], retained);
   assert.equal(view.streams[0].cancel.mock.calls.length, 0);
+  const sibling = view.states()[ids[32]];
+  await act(async () => useSummaryWindowStore.getState().setSummaryWindow(ids[0], { from: 0, to: 1 }));
+  assert.equal(view.streams[1].cancel.mock.calls.length, 0);
+  assert.equal(view.streams[2].cancel.mock.calls.length, 0);
+  assert.equal(view.states()[ids[32]], sibling);
 });
 
 test("Refresh Failure", async () => {

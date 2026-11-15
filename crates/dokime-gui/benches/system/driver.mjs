@@ -12,11 +12,10 @@ import { setTimeout as delay } from "node:timers/promises";
 // The Harness Parses Its Own Arguments; Criterion Arguments Belong To The Rust Owner.
 process.argv = [process.execPath, fileURLToPath(import.meta.url), "--profile", "bench"];
 const { startSession, prepareNativeFixture, discardHostCredentials, terminate } = await import("../../e2e/native-fixture.mjs");
-const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const DRAW_WAIT_MS = 600000;
 const native = `${process.platform === "win32" ? "windows" : "linux"}-${process.arch === "x64" ? "x86_64" : "aarch64"}`;
 const output = resolve(process.env.CRITERION_HOME, "desktop");
-const fixtureRoot = join(root, "target/desktop-bench-fixtures");
+const fixtureRoot = join(tmpdir(), "dokime-desktop-bench-fixtures");
 await mkdir(fixtureRoot, { recursive: true });
 await mkdir(output, { recursive: true });
 const resolvedFixtureRoot = await realpath(fixtureRoot);
@@ -431,11 +430,17 @@ try {
   finished = true;
 } catch (error) {
   failure = error;
-  process.stdout.write(`Measure Desktop ${measuring ?? "Initialization"}: ${error.stack ?? error}\n`);
   await desktop?.screenshot("failure").catch(() => {});
 } finally {
   const errors = [];
-  for (const close of [closeNative, async () => cleanup?.()]) {
+  let credentialsRemoved = !cleanup;
+  for (const close of [
+    closeNative,
+    async () => {
+      await cleanup?.();
+      credentialsRemoved = true;
+    },
+  ]) {
     try {
       await close();
     } catch (error) {
@@ -450,13 +455,14 @@ try {
     }
   }
   // Reclaim Fixtures On Success And Failure After All Owned Children Stop.
-  for (const directory of keepEvidence ? [] : [work]) {
+  for (const directory of keepEvidence || !credentialsRemoved ? [] : [work]) {
     try {
       await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     } catch (error) {
       errors.push(String(error));
     }
   }
+  if (errors.length) failure ??= new Error(`Native benchmark cleanup failed: ${errors.join("; ")}`);
   await writeFile(join(output, "observations.json"), JSON.stringify({ fixture: fixture ?? null, native, results, resources }, null, 2));
   await writeFile(
     join(output, "completion.json"),
@@ -466,9 +472,11 @@ try {
       errors,
       failure: failure?.stack ?? null,
       measuring,
-      keptEvidence: keepEvidence ? [work] : [],
+      keptEvidence: keepEvidence || !credentialsRemoved ? [work] : [],
     }),
   );
-  if (errors.length) failure ??= new Error(`Native benchmark cleanup failed: ${errors.join("; ")}`);
 }
-if (failure) throw failure;
+if (failure) {
+  process.stdout.write(`error ${JSON.stringify(`Measure Desktop ${measuring ?? "Initialization"}: ${failure.message ?? failure}`)}\n`);
+  throw failure;
+}

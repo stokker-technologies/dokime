@@ -20,7 +20,9 @@
 /* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import type { PluginEntry, RuntimeSettingsFrame } from "@/lib/types/view-contracts";
+import type { RuntimeSettingsFrame } from "@/lib/types/view-contracts";
+
+import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Types === */
 
@@ -35,17 +37,17 @@ export type ProgramRow = {
 /* === Public Functions === */
 
 export function bundleSettingsPage(
-  entry: PluginEntry,
+  entry: ManagedPlugin,
   programs: RuntimeInstalledPluginRecord[],
   frame: RuntimeSettingsFrame | null,
 ): string | null {
   const owners = new Set(
     programs
-      .filter((program) => program.owner?.kind === "bundle" && program.owner.installation === entry.install_id)
+      .filter((program) => program.owner?.kind === "bundle" && program.owner.installation === entry.name)
       .map((program) => program.plugin_id),
   );
   const section = frame?.sections.find((candidate) => candidate.owner.kind === "installed_plugin" && owners.has(candidate.owner.plugin_id));
-  return section?.section_id ?? (entry.state !== "removal_pending" && entry.metadata?.owners.length ? entry.install_id : null);
+  return section?.section_id ?? entry.name;
 }
 
 /** Groups the programs into rows, one per host, bundle package or lone
@@ -53,13 +55,13 @@ export function bundleSettingsPage(
     A host row opens its own contributed page like any other plugin. */
 export function programRows(
   programs: RuntimeInstalledPluginRecord[],
-  entries: PluginEntry[],
+  entries: ManagedPlugin[],
   frame: RuntimeSettingsFrame | null,
 ): ProgramRow[] {
   const rows: ProgramRow[] = [];
   for (const program of programs) {
     const owner = program.owner;
-    if (owner?.kind === "bundle" && owner.installation && entries.some((entry) => entry.install_id === owner.installation)) continue;
+    if (owner?.kind === "bundle" && owner.installation && entries.some((entry) => entry.name === owner.installation)) continue;
     const key = owner?.kind === "host" ? "host" : owner?.kind === "bundle" ? `bundle:${owner.package}` : programKey(program);
     const settingsSection =
       frame?.sections.find((candidate) => candidate.owner.kind === "installed_plugin" && candidate.owner.plugin_id === program.plugin_id)

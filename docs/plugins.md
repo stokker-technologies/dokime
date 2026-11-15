@@ -11,10 +11,10 @@ Use the [Rust](rust-sdk.md), [Python](../sdk/python/README.md),
 CLI embeds those exact starter sources:
 
 ```sh
-dokime-next new bench --lang rust
-dokime-next new bench --lang python
-dokime-next new bench --lang csharp
-dokime-next new bench --lang cpp
+dokime new bench --lang rust
+dokime new bench --lang python
+dokime new bench --lang csharp
+dokime new bench --lang cpp
 ```
 
 Execution-local resources belong to the SDK's context/resource mechanism;
@@ -27,8 +27,8 @@ from the remaining locked context work.
 ## Bundles and Admission
 
 ```sh
-dokime-next plugin bundle --executable build/plugin --out plugin.dokime
-dokime-next plugin inspect --bundle plugin.dokime
+dokime plugin bundle --executable build/plugin --out plugin.dokime
+dokime plugin inspect --bundle plugin.dokime
 ```
 
 Bundle production describes the executable, freezes its catalog and builds a v1

@@ -22,8 +22,19 @@ use prost::Message;
 use prost_reflect::ReflectMessage;
 
 // Local Imports
-use dokime_protocol::dokime::plugin::v1::*;
-use dokime_protocol::v1::*;
+use dokime_protocol::model::Import;
+use dokime_protocol::model::ImportSource;
+use dokime_protocol::model::Metadata;
+use dokime_protocol::model::Origin;
+use dokime_protocol::model::PluginRun;
+use dokime_protocol::model::Step;
+use dokime_protocol::model::Termination;
+use dokime_protocol::model::TestCase;
+use dokime_protocol::model::origin;
+use dokime_protocol::plugin::CriteriaEvaluateRequest;
+use dokime_protocol::plugin::ExecutionsCleanupRequest;
+use dokime_protocol::plugin::ExecutionsInitializeRequest;
+use dokime_protocol::plugin::StepsExecuteRequest;
 
 /* === Constants === */
 

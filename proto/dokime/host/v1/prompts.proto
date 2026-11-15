@@ -1,0 +1,163 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Prompts Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/prompts.proto";
+import "dokime/model/v1/scalar.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Prompts resource on the host; callers are checked before handler admission.
+service Prompts {
+  // Read the Prompts resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.PromptsGetRequest) returns (.dokime.host.v1.PromptsGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // List the Prompts resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.PromptsListRequest) returns (.dokime.host.v1.PromptsListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Observe durable changes to the Prompts resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.PromptsWatchRequest) returns (stream .dokime.host.v1.PromptsWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Create the Prompts resource; admission and policy are owned by the executor.
+  rpc Create(.dokime.host.v1.PromptsCreateRequest) returns (.dokime.host.v1.PromptsCreateResponse) {
+    option (harmos.model.v1.callers) = PLUGINS;
+  }
+}
+
+// === Get === //
+
+// PromptsGetRequest for Prompts.Get.
+message PromptsGetRequest {
+  string name = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// PromptsGetResponse for Prompts.Get.
+message PromptsGetResponse {
+  .dokime.host.v1.PromptView prompt = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === List === //
+
+// PromptsListRequest for Prompts.List.
+message PromptsListRequest {
+  string parent = 1;
+  optional string cycle_id = 2;
+  optional string execution_id = 3;
+  bool pending_only = 4;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
+
+// PromptsListResponse for Prompts.List.
+message PromptsListResponse {
+  repeated .dokime.host.v1.PromptView prompts = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+// === Watch === //
+
+// PromptsWatchRequest for Prompts.Watch.
+message PromptsWatchRequest {
+  string parent = 1;
+  optional string cycle_id = 2;
+  optional string execution_id = 3;
+  bool pending_only = 4;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
+
+// PromptsWatchResponse for Prompts.Watch.
+message PromptsWatchResponse {
+  repeated .dokime.host.v1.PromptView prompts = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Create === //
+
+// PromptsCreateRequest for Prompts.Create.
+message PromptsCreateRequest {
+  string prompt = 1;
+  string prompt_type = 2;
+  map<string, .dokime.model.v1.Value> values = 3;
+
+  optional .dokime.model.v1.Prompt definition = 4;
+}
+
+// PromptsCreateResponse for Prompts.Create.
+message PromptsCreateResponse {
+  string prompt = 1;
+  string action = 2;
+  map<string, .dokime.model.v1.Value> values = 3;
+  string responder = 4;
+  .google.protobuf.Timestamp submitted_at = 5;
+  bool accepted = 6;
+}
+
+// === Resources === //
+
+// PromptInstance value owned by this resource.
+message PromptInstance {
+  string prompt_id = 1;
+  .dokime.model.v1.Prompt definition = 2;
+  .dokime.host.v1.PromptKind kind = 3;
+  .dokime.model.v1.MapValue values = 4;
+  .dokime.model.v1.EvidenceScope scope = 5;
+  .google.protobuf.Timestamp created_at = 6;
+}
+
+// PromptView value owned by this resource.
+message PromptView {
+  .dokime.host.v1.PromptInstance prompt = 1;
+  .dokime.host.v1.PromptResponse response = 2;
+  .harmos.model.v1.ReadCut observed_cursor = 3;
+}
+
+// PromptResponse value owned by this resource.
+message PromptResponse {
+  string prompt_id = 1;
+  string action = 2;
+  string responder = 3;
+  .google.protobuf.Timestamp submitted_at = 4;
+  .dokime.model.v1.MapValue values = 5;
+  bool accepted = 6;
+}
+
+// === Enums === //
+
+// PromptKind choices.
+enum PromptKind {
+  PROMPT_KIND_UNSPECIFIED = 0;
+  PROMPT_KIND_CONFIRMATION = 1;
+  PROMPT_KIND_FORM = 2;
+  PROMPT_KIND_CHOICE = 3;
+  PROMPT_KIND_STATUS = 4;
+  PROMPT_KIND_VERIFICATION = 5;
+}

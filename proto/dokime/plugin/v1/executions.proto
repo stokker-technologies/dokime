@@ -1,26 +1,55 @@
-syntax = "proto3";
-package dokime.plugin.v1;
-option csharp_namespace = "Dokime.Protocol.Plugin.V1";
-import "dokime/v1/execution.proto";
+// SPDX-License-Identifier: Apache-2.0
 
-// Shared Payloads for Independently Bound Protected Registry Operations.
-// Each plugin-authored dotted lifecycle identity retains its own handler and
-// callee-owned policy. These message families are not wire operation identities.
-// Only the host invokes a binding through harmos.plugin.v1.Instance/Invoke;
-// no lifecycle dispatch service or client binding is declared here.
+// Executions Contracts
+
+syntax = "proto3";
+
+package dokime.plugin.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/execution.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Plugins";
+
+// === Services === //
+
+// Host-only plugin operations with independent Protected lifecycle bindings.
+// Application clients never receive these methods in their resource tree.
+service Executions {
+  // Initialize the Executions resource; admission and policy are owned by the executor.
+  rpc Initialize(.dokime.plugin.v1.ExecutionsInitializeRequest) returns (.dokime.plugin.v1.ExecutionsInitializeResponse) {}
+  // Cleanup the Executions resource; admission and policy are owned by the executor.
+  rpc Cleanup(.dokime.plugin.v1.ExecutionsCleanupRequest) returns (.dokime.plugin.v1.ExecutionsCleanupResponse) {}
+}
+
+// === Initialize === //
+
+// ExecutionsInitializeRequest for Executions.Initialize.
 message ExecutionsInitializeRequest {
   string execution = 1;
-  .dokime.v1.TestCase test_case = 2;
-  .dokime.v1.Origin origin = 3;
+  .dokime.model.v1.TestCase test_case = 2;
+  .dokime.model.v1.Origin origin = 3;
 }
 
+// ExecutionsInitializeResponse for Executions.Initialize.
 message ExecutionsInitializeResponse {}
 
+// === Cleanup === //
+
+// ExecutionsCleanupRequest for Executions.Cleanup.
 message ExecutionsCleanupRequest {
   string execution = 1;
-  .dokime.v1.Termination termination = 2;
-  .dokime.v1.TestCase test_case = 3;
-  .dokime.v1.Origin origin = 4;
+  .dokime.model.v1.Termination termination = 2;
+  .dokime.model.v1.TestCase test_case = 3;
+  .dokime.model.v1.Origin origin = 4;
 }
 
+// ExecutionsCleanupResponse for Executions.Cleanup.
 message ExecutionsCleanupResponse {}
+
+// === Resources === //
+
+// === Enums === //

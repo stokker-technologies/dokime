@@ -53,7 +53,7 @@ fn desktop_runs_matrix() {
         for scenario in ["complete", "refuse", "cancel"] {
             // Drive the Canonical Frontend Client Through Real Tauri IPC
             let mut child = Process(
-                dokime_runtime_next::process::command("node")
+                dokime_runtime::process::command("node")
                     .env("DOKIME_TEST_GENERATION", fixture.session.status().generation)
                     .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/test-execution-matrix.mjs"))
                     .arg(scenario)

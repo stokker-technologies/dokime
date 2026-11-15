@@ -25,7 +25,10 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 // Local Imports
 use super::desktop::{ensure_generation_token, ensure_main_window};
 use crate::connection::{ConnectionSession, SessionLease};
-use dokime_protocol::client;
+use dokime_sdk::client::{
+    FilesUploadsAppendOptions, FilesUploadsCreateOptions, FilesUploadsDeleteOptions, FilesUploadsPublishOptions, PluginEntry,
+};
+use dokime_sdk::{FileMetadata, Upload};
 use sha2::{Digest, Sha256};
 const INSTALL_ARCHIVE_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -111,7 +114,7 @@ pub async fn desktop_plugin_install_file<R: tauri::Runtime>(
         let reading = move || harmos_runtime::filesystem::input::read(&path, INSTALL_ARCHIVE_MAX_BYTES as usize);
         let read = tauri::async_runtime::spawn_blocking(reading).await.map_err(text)?;
         let bytes = read.map_err(|error| format!("The plugin bundle could not be read: {error}"))?;
-        install(&lease, bytes, progress, None).await.map(|installed| Some(installed.install_id))
+        install(&lease, bytes, progress, None).await.map(|installed| Some(installed.name))
     })
     .await
 }
@@ -139,47 +142,79 @@ async fn pick_bundle<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<Option<Pat
     path.into_path().map(Some).map_err(text)
 }
 
-pub(super) async fn install(
+pub async fn install(
     lease: &SessionLease, bytes: Vec<u8>, progress: Channel<InstallProgress>, expected_digest: Option<&str>,
-) -> Result<client::PluginInstallation, String> {
+) -> Result<PluginEntry, String> {
     let size_bytes = bytes.len() as u64;
-    let hashing = move || {
-        let digest = Sha256::digest(&bytes);
-        (bytes, digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>())
-    };
-    let (bytes, sha256) = tauri::async_runtime::spawn_blocking(hashing).await.map_err(text)?;
+    let hashing = move || (Sha256::digest(&bytes).to_vec(), bytes);
+    let (digest, bytes) = tauri::async_runtime::spawn_blocking(hashing).await.map_err(text)?;
+    let sha256 = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
     if expected_digest.is_some_and(|expected| !expected.eq_ignore_ascii_case(&sha256)) {
-        return Err("The downloaded plugin does not match the release SHA-256".into());
+        return Err("Install Plugin: Downloaded Bundle Does Not Match Its Release SHA-256".into());
     }
-    let header = client::InstallPluginFrame {
-        frame: Some(client::InstallPluginFrameFrame {
-            kind: Some(client::install_plugin_frame_frame::Kind::Header(client::InstallPluginHeader { size_bytes, sha256 })),
-        }),
+    let session = lease.client();
+    let client = session.client();
+    let name = format!("plugin_{:032x}", rand::random::<u128>());
+    let metadata = FileMetadata {
+        id: name.clone(),
+        media_type: "application/vnd.dokime.plugin".into(),
+        expected_length: Some(size_bytes),
+        expected_sha256: Some(digest.clone()),
+        ..Default::default()
     };
-    let (sender, receiver) = tokio::sync::mpsc::channel(2);
-    sender.send(header).await.map_err(text)?;
-    let uploading = async move {
+    let options = FilesUploadsCreateOptions {
+        request_id: Some(format!("{name}/upload")),
+        context: session.call_options().map_err(text)?,
+    };
+    let created = session.execute(client.files.uploads.create_with(metadata, options)).await.map_err(text)?;
+    let mut upload: Upload = created.upload.ok_or("Install Plugin: Host Omitted Its Upload")?;
+    let mut published = false;
+    let result = async {
+        let chunk_bytes = usize::try_from(created.chunk_bytes).map_err(text)?;
+        if chunk_bytes == 0 || created.chunk_bytes >= created.message_bytes {
+            return Err("Install Plugin: Host Returned Invalid Transfer Limits".into());
+        }
         let mut offset = 0;
-        for chunk in bytes.chunks(64 * 1024) {
-            let frame = client::InstallPluginFrame {
-                frame: Some(client::InstallPluginFrameFrame {
-                    kind: Some(client::install_plugin_frame_frame::Kind::Chunk(client::InstallPluginChunk {
-                        offset,
-                        data: chunk.to_vec(),
-                    })),
-                }),
+        for chunk in bytes.chunks(chunk_bytes) {
+            let options = FilesUploadsAppendOptions {
+                request_id: Some(format!("{name}/append/{offset}")),
+                context: session.call_options().map_err(text)?,
             };
-            sender.send(frame).await.map_err(text)?;
+            let reply =
+                session.execute(client.files.uploads.append_with(upload.clone(), offset, chunk.to_vec(), options)).await.map_err(text)?;
+            upload = reply.upload.ok_or("Install Plugin: Host Omitted Upload Progress")?;
             offset += chunk.len() as u64;
+            if upload.accepted_length != offset {
+                return Err("Install Plugin: Host Accepted a Different Byte Offset".into());
+            }
             let _ = progress.send(InstallProgress::Uploading { sent: offset, total: size_bytes });
         }
+        let options = FilesUploadsPublishOptions {
+            request_id: Some(format!("{name}/publish")),
+            context: session.call_options().map_err(text)?,
+        };
+        let reply =
+            session.execute(client.files.uploads.publish_with(upload.clone(), size_bytes, digest.clone(), options)).await.map_err(text)?;
+        published = true;
+        let file = reply.upload.ok_or("Install Plugin: Host Omitted Its Published File")?;
+        if file.length != size_bytes || file.sha256 != digest {
+            return Err("Install Plugin: Published File Length or SHA-256 Changed".into());
+        }
         let _ = progress.send(InstallProgress::Installing);
-        Ok::<_, String>(())
-    };
-    let session = lease.client();
-    let installing = async { session.install_plugin(tokio_stream::wrappers::ReceiverStream::new(receiver)).await.map_err(text) };
-    let (_, installed) = lease.guard(async { tokio::try_join!(uploading, installing) }).await.map_err(|error| format!("{error:?}"))??;
-    Ok(installed)
+        session.install_plugin(&name, file).await.map_err(text)
+    }
+    .await;
+    if result.is_err() && !published {
+        let options = FilesUploadsDeleteOptions {
+            request_id: Some(format!("{name}/abandon")),
+            context: session.call_options().map_err(text)?,
+        };
+        session
+            .execute(client.files.uploads.delete_with(upload, options))
+            .await
+            .map_err(|error| format!("Abandon Plugin Upload After {result:?}: {error}"))?;
+    }
+    result
 }
 
 fn text(error: impl std::fmt::Display) -> String {

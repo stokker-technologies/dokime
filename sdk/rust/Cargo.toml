@@ -77,6 +77,10 @@ tonic = { workspace = true, features = ["codegen", "transport"] }
 
 # === Test Targets === #
 
+[[test]]
+name = "generation"
+path = "tests/generation/main.rs"
+
 # === Bench Targets === #
 
 # === Example Targets === #

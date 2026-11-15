@@ -1,0 +1,183 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Notes Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.evidence;
+
+// === Imports === //
+
+import "dokime/model/v1/evidence.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.EvidenceResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Notes resource on the host; callers are checked before handler admission.
+service Notes {
+  // Read the Notes resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.evidence.NotesGetRequest) returns (.dokime.host.v1.evidence.NotesGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Replace the complete writable value of the Notes resource; admission and policy are owned by the executor.
+  rpc Set(.dokime.host.v1.evidence.NotesSetRequest) returns (.dokime.host.v1.evidence.NotesSetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // List the Notes resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.evidence.NotesListRequest) returns (.dokime.host.v1.evidence.NotesListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Observe durable changes to the Notes resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.evidence.NotesWatchRequest) returns (stream .dokime.host.v1.evidence.NotesWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Create the Notes resource; admission and policy are owned by the executor.
+  rpc Create(.dokime.host.v1.evidence.NotesCreateRequest) returns (.dokime.host.v1.evidence.NotesCreateResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// NotesGetRequest for Notes.Get.
+message NotesGetRequest {
+  string name = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// NotesGetResponse for Notes.Get.
+message NotesGetResponse {
+  .dokime.host.v1.evidence.NoteWritable value = 1;
+  bytes revision = 2;
+  .dokime.host.v1.evidence.OperatorNote note = 3;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Set === //
+
+// NotesSetRequest for Notes.Set.
+message NotesSetRequest {
+  string name = 1;
+  .dokime.host.v1.evidence.NoteWritable value = 20;
+  bytes expected_revision = 21;
+  string request_id = 22;
+}
+
+// NotesSetResponse for Notes.Set.
+message NotesSetResponse {
+  .dokime.host.v1.evidence.NoteWritable value = 1;
+  bytes revision = 2;
+  .harmos.model.v1.Receipt receipt = 3;
+}
+
+// === List === //
+
+// NotesListRequest for Notes.List.
+message NotesListRequest {
+  .dokime.host.v1.evidence.AnnotationSelection selection = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
+
+// NotesListResponse for Notes.List.
+message NotesListResponse {
+  repeated .dokime.host.v1.evidence.OperatorNote notes = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+// === Watch === //
+
+// NotesWatchRequest for Notes.Watch.
+message NotesWatchRequest {
+  .dokime.host.v1.evidence.AnnotationSelection selection = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
+
+// NotesWatchResponse for Notes.Watch.
+message NotesWatchResponse {
+  repeated .dokime.host.v1.evidence.OperatorNote notes = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Create === //
+
+// NotesCreateRequest for Notes.Create.
+message NotesCreateRequest {
+  .dokime.host.v1.evidence.AnnotationOwner owner = 1;
+  .dokime.host.v1.evidence.NoteWritable value = 2;
+  string request_id = 3;
+}
+
+// NotesCreateResponse for Notes.Create.
+message NotesCreateResponse {
+  .dokime.host.v1.evidence.OperatorNote note = 1;
+  bytes revision = 2;
+  .harmos.model.v1.Receipt receipt = 3;
+}
+
+// === Resources === //
+
+// OperatorNote value owned by this resource.
+message OperatorNote {
+  string note_id = 1;
+  .dokime.model.v1.EvidenceScope scope = 2;
+  optional string author = 3;
+  string message = 4;
+  .google.protobuf.Timestamp created_at = 5;
+}
+
+// NoteWritable value owned by this resource.
+message NoteWritable {
+  string message = 1;
+}
+
+// AnnotationOwner value owned by this resource.
+message AnnotationOwner {
+  .dokime.host.v1.evidence.AnnotationOwnerOwner owner = 1;
+}
+
+// AnnotationOwnerOwner value owned by this resource.
+message AnnotationOwnerOwner {
+  oneof kind {
+    string cycle_id = 1;
+    .dokime.host.v1.evidence.PlannedCaseNoteOwner planned_case = 2;
+    .dokime.host.v1.evidence.ExecutionNoteOwner execution = 3;
+  }
+}
+
+// AnnotationSelection value owned by this resource.
+message AnnotationSelection {
+  .dokime.host.v1.evidence.AnnotationOwner owner = 1;
+  bool include_context = 2;
+}
+
+// ExecutionNoteOwner value owned by this resource.
+message ExecutionNoteOwner {
+  string cycle_id = 1;
+  string execution_id = 2;
+}
+
+// PlannedCaseNoteOwner value owned by this resource.
+message PlannedCaseNoteOwner {
+  string cycle_id = 1;
+  string case_id = 2;
+}
+
+// === Enums === //

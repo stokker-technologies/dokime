@@ -1,0 +1,74 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Scalar Contracts
+
+syntax = "proto3";
+
+package dokime.model.v1;
+
+// === Imports === //
+
+import "google/protobuf/timestamp.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// Value value owned by this resource.
+message Value {
+  oneof kind {
+    .dokime.model.v1.Null null = 1;
+    bool boolean = 2;
+    sint64 integer = 3;
+    uint64 unsigned_integer = 4;
+    double number = 5;
+    string text = 6;
+    bytes data = 7;
+    .dokime.model.v1.ValueList list = 8;
+    .google.protobuf.Timestamp datetime = 9;
+    .dokime.model.v1.ExactNumber exact = 10;
+  }
+}
+
+// Exact fractions and wide totals retain their sign and reduced rational value.
+// Numerator and denominator use minimal base-10 notation without a leading plus.
+// The denominator is positive and nonzero; zero has no negative sign.
+message ExactNumber {
+  bool negative = 1;
+  string numerator = 2;
+  string denominator = 3;
+}
+
+// Null value owned by this resource.
+message Null {}
+
+// ValueList value owned by this resource.
+message ValueList {
+  repeated .dokime.model.v1.Value values = 1;
+}
+
+// MapValue value owned by this resource.
+message MapValue {
+  map<string, .dokime.model.v1.Value> values = 1;
+}
+
+// === Enums === //
+
+// ValueType choices.
+enum ValueType {
+  VALUE_TYPE_UNSPECIFIED = 0;
+  VALUE_TYPE_BOOLEAN = 1;
+  VALUE_TYPE_INTEGER = 2;
+  VALUE_TYPE_UNSIGNED_INTEGER = 3;
+  VALUE_TYPE_NUMBER = 4;
+  VALUE_TYPE_TEXT = 5;
+  VALUE_TYPE_BYTES = 6;
+  VALUE_TYPE_LIST = 7;
+  VALUE_TYPE_DATETIME = 8;
+}

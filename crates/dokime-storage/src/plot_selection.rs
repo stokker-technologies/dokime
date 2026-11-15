@@ -27,7 +27,11 @@ use crate::{
     expressions::{self, Projection},
     scalar::{self, ScalarValue},
 };
-use dokime_protocol::v1::{self, DataExpression, FieldReference, PlotRequest};
+use dokime_protocol::host::plots::PlotRequest;
+use dokime_protocol::model::DataExpression;
+use dokime_protocol::model::FieldReference;
+
+use dokime_protocol::model::data_expression;
 
 /* === Constants === */
 
@@ -106,12 +110,12 @@ impl Store {
         {
             let label = expression.label.clone();
             let input = match expression.kind.as_mut() {
-                Some(v1::data_expression::Kind::Aggregate(a)) => {
+                Some(data_expression::Kind::Aggregate(a)) => {
                     a.input.as_deref_mut().ok_or(Error::Data("supply the plot aggregate input"))?
                 }
                 _ => expression,
             };
-            if matches!(input.kind.as_ref(),Some(v1::data_expression::Kind::Stream(r)) if r.identifier==request.stream) {
+            if matches!(input.kind.as_ref(),Some(data_expression::Kind::Stream(r)) if r.identifier==request.stream) {
                 continue;
             }
             let key = format!("__dokime_expression_{}", fields.len());
@@ -157,10 +161,10 @@ pub(crate) fn compare_groups(left: &str, right: &str) -> Ordering {
 }
 pub(crate) fn reference(expression: &DataExpression) -> Option<(&FieldReference, bool)> {
     match expression.kind.as_ref()? {
-        v1::data_expression::Kind::Stream(reference) => Some((reference, false)),
-        v1::data_expression::Kind::Record(reference) => Some((reference, true)),
-        v1::data_expression::Kind::Aggregate(aggregate) => reference(aggregate.input.as_deref()?),
-        v1::data_expression::Kind::Transform(transform) => reference(transform.input.as_deref()?),
+        data_expression::Kind::Stream(reference) => Some((reference, false)),
+        data_expression::Kind::Record(reference) => Some((reference, true)),
+        data_expression::Kind::Aggregate(aggregate) => reference(aggregate.input.as_deref()?),
+        data_expression::Kind::Transform(transform) => reference(transform.input.as_deref()?),
         _ => None,
     }
 }

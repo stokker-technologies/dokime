@@ -38,7 +38,12 @@ export function Metric({ metricId, label, value, exactValue, rawValue, detail, p
   const progress = presentation === "progress" ? progressValue(rawValue, value) : null;
 
   return (
-    <Card data-document-metric={metricId} className={cn("min-h-18 min-w-0 py-2", stateClass(state))} size="sm">
+    <Card
+      data-document-metric={metricId}
+      data-document-value-present={rawValue !== undefined && rawValue !== null}
+      className={cn("min-h-18 min-w-0 py-2", stateClass(state))}
+      size="sm"
+    >
       <CardContent className="grid min-w-0 grid-rows-[--spacing(5)_minmax(--spacing(6),auto)_--spacing(3)] gap-1 px-3">
         <span className="min-w-0 self-end truncate text-xs font-bold leading-tight text-muted-foreground" title={label}>
           {label}

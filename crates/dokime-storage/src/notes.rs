@@ -23,7 +23,14 @@ use rusqlite::{OptionalExtension, params};
 
 // Local Imports
 use crate::{Error, Execution, Result, Store};
-use dokime_protocol::v1;
+
+use dokime_protocol::host::evidence::AnnotationOwner;
+use dokime_protocol::host::evidence::NotesCreateResponse;
+use dokime_protocol::host::evidence::NotesSetRequest;
+use dokime_protocol::host::evidence::NotesSetResponse;
+use dokime_protocol::host::evidence::OperatorNote;
+use dokime_protocol::host::evidence::annotation_owner_owner;
+use dokime_protocol::model::EvidenceScope;
 
 /* === Constants === */
 
@@ -40,19 +47,20 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 impl Store {
-    pub fn note(&self, name: &str) -> Result<dokime_protocol::client::evidence::OperatorNote> {
+    pub fn note(&self, name: &str) -> Result<OperatorNote> {
         let payload: Vec<u8> = self
             .lock()?
             .query_row("SELECT payload FROM notes WHERE id=?1", [name], |row| row.get(0))
             .optional()?
             .ok_or_else(|| Error::NotFound("Get Note: Select an Existing Note".into()))?;
-        Ok(dokime_protocol::client::evidence::OperatorNote::decode(payload.as_slice())?)
+        Ok(OperatorNote::decode(payload.as_slice())?)
     }
 
-    pub fn set_note(
-        &self, request: dokime_protocol::client::evidence::NotesSetRequest, author: &str,
-    ) -> Result<dokime_protocol::client::evidence::NotesSetResponse> {
-        use harmos_protocol::v1::{History, Position, Receipt, Section};
+    pub fn set_note(&self, request: NotesSetRequest, author: &str) -> Result<NotesSetResponse> {
+        use harmos_protocol::model::History;
+        use harmos_protocol::model::Position;
+        use harmos_protocol::model::Receipt;
+        use harmos_protocol::model::Section;
         use sha2::{Digest, Sha256};
         if request.request_id.is_empty() {
             return Err(Error::Invalid("Set Note: Supply a Request ID".into()));
@@ -68,10 +76,10 @@ impl Store {
             if saved.r#type != fingerprint {
                 return Err(Error::Conflict("Set Note: Use a New Request ID for Changed Content".into()));
             }
-            return Ok(dokime_protocol::client::evidence::NotesSetResponse::decode(saved.payload.as_slice())?);
+            return Ok(NotesSetResponse::decode(saved.payload.as_slice())?);
         }
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM notes WHERE id=?1", [&request.name], |row| row.get(0))?;
-        let mut note = dokime_protocol::client::evidence::OperatorNote::decode(payload.as_slice())?;
+        let mut note = OperatorNote::decode(payload.as_slice())?;
         if note.author.as_deref() != Some(author) {
             return Err(Error::Permission("Set Note: Sign In as Its Author".into()));
         }
@@ -95,7 +103,7 @@ impl Store {
             }),
             sequence,
         };
-        let response = dokime_protocol::client::evidence::NotesSetResponse {
+        let response = NotesSetResponse {
             value: Some(value),
             revision: sequence.to_be_bytes().to_vec(),
             receipt: Some(Receipt {
@@ -126,9 +134,7 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(response)
     }
-    pub fn create_note(
-        &self, receipt: dokime_protocol::client::evidence::NotesCreateResponse,
-    ) -> Result<dokime_protocol::client::evidence::NotesCreateResponse> {
+    pub fn create_note(&self, receipt: NotesCreateResponse) -> Result<NotesCreateResponse> {
         let note = receipt.note.as_ref().ok_or_else(|| Error::Invalid("Create Note: Supply Its Body".into()))?;
         let scope = note.scope.as_ref().ok_or_else(|| Error::Invalid("Create Note: Select Its Owner".into()))?;
         let mut connection = self.lock()?;
@@ -136,7 +142,7 @@ impl Store {
         let existing: Option<Vec<u8>> =
             transaction.query_row("SELECT receipt FROM notes WHERE id=?1", [&note.note_id], |row| row.get(0)).optional()?;
         if let Some(bytes) = existing {
-            let existing = dokime_protocol::client::evidence::NotesCreateResponse::decode(bytes.as_slice())?;
+            let existing = NotesCreateResponse::decode(bytes.as_slice())?;
             if existing
                 .note
                 .as_ref()
@@ -155,14 +161,14 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(receipt)
     }
-    pub fn edit_note(&self, id: &str, author: &str, message: String) -> Result<dokime_protocol::client::evidence::OperatorNote> {
+    pub fn edit_note(&self, id: &str, author: &str, message: String) -> Result<OperatorNote> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let bytes: Vec<u8> = transaction
             .query_row("SELECT payload FROM notes WHERE id=?1", [id], |row| row.get(0))
             .optional()?
             .ok_or_else(|| Error::NotFound("Edit Note: Select an Existing Note from List Notes".into()))?;
-        let mut note = dokime_protocol::client::evidence::OperatorNote::decode(bytes.as_slice())?;
+        let mut note = OperatorNote::decode(bytes.as_slice())?;
         if note.author.as_deref() != Some(author) {
             return Err(Error::Permission("Edit Note: Sign In as Its Author".into()));
         }
@@ -173,12 +179,12 @@ impl Store {
         self.changed.send_modify(|revision| *revision += 1);
         Ok(note)
     }
-    pub fn note_owner(&self, owner: &v1::AnnotationOwner) -> Result<v1::EvidenceScope> {
+    pub fn note_owner(&self, owner: &AnnotationOwner) -> Result<EvidenceScope> {
         let kind = owner.owner.as_ref().and_then(|owner| owner.kind.as_ref());
         let (cycle, execution) = match kind {
-            Some(v1::annotation_owner_owner::Kind::CycleId(cycle)) => (cycle.as_str(), None),
-            Some(v1::annotation_owner_owner::Kind::Execution(owner)) => (owner.cycle_id.as_str(), Some(owner.execution_id.as_str())),
-            Some(v1::annotation_owner_owner::Kind::PlannedCase(_)) => {
+            Some(annotation_owner_owner::Kind::CycleId(cycle)) => (cycle.as_str(), None),
+            Some(annotation_owner_owner::Kind::Execution(owner)) => (owner.cycle_id.as_str(), Some(owner.execution_id.as_str())),
+            Some(annotation_owner_owner::Kind::PlannedCase(_)) => {
                 return Err(Error::Invalid("Notes: Select an Execution or Cycle; Planned Cases Were Replaced by Frozen Origins".into()));
             }
             None => return Err(Error::Invalid("Notes: Select an Execution or Cycle Owner".into())),
@@ -194,10 +200,10 @@ impl Store {
         let execution = Execution::decode(
             payload.ok_or_else(|| Error::Invalid("Notes: Select an Existing Execution in Its Cycle".into()))?.as_slice(),
         )?;
-        Ok(v1::EvidenceScope {
+        Ok(EvidenceScope {
             cycle_id: Some(execution.cycle),
             execution_id: owner.owner.as_ref().and_then(|owner| match owner.kind.as_ref() {
-                Some(v1::annotation_owner_owner::Kind::Execution(owner)) => Some(owner.execution_id.clone()),
+                Some(annotation_owner_owner::Kind::Execution(owner)) => Some(owner.execution_id.clone()),
                 _ => None,
             }),
             ..Default::default()
@@ -205,11 +211,11 @@ impl Store {
     }
     pub fn notes_page(
         &self, cycle: Option<&str>, execution: Option<&str>, context: bool, after: &str, limit: usize,
-    ) -> Result<Vec<dokime_protocol::client::evidence::OperatorNote>> {
+    ) -> Result<Vec<OperatorNote>> {
         let connection = self.lock()?;
         let mut query = connection.prepare("SELECT payload FROM notes WHERE id>?1 AND (?2 IS NULL OR cycle=?2) AND (?3 IS NULL OR execution=?3 OR (?4 AND execution IS NULL)) ORDER BY id LIMIT ?5")?;
         let rows = query.query_map(params![after, cycle, execution, context, limit as i64], |row| row.get::<_, Vec<u8>>(0))?;
-        rows.map(|row| Ok(dokime_protocol::client::evidence::OperatorNote::decode(row?.as_slice())?)).collect()
+        rows.map(|row| Ok(OperatorNote::decode(row?.as_slice())?)).collect()
     }
     pub fn notes_fingerprint(&self) -> Result<Vec<u8>> {
         use sha2::{Digest, Sha256};
@@ -229,7 +235,7 @@ impl Store {
 
 /* === Private Functions === */
 
-fn require_owner(connection: &rusqlite::Connection, scope: &v1::EvidenceScope) -> Result<()> {
+fn require_owner(connection: &rusqlite::Connection, scope: &EvidenceScope) -> Result<()> {
     let (count, open): (i64, i64) = connection.query_row(
         "SELECT COUNT(*),COALESCE(SUM(state=0),0) FROM executions WHERE cycle=?1 AND (?2 IS NULL OR id=?2)",
         params![scope.cycle_id, scope.execution_id],

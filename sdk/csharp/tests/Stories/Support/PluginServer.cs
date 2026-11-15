@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using Grpc.Net.Client;
+using Dokime.Plugins;
 
 namespace Stories.Support;
 
@@ -9,8 +10,14 @@ internal sealed class PluginServer : IAsyncDisposable
   private readonly Task serving;
   private readonly CancellationTokenSource stop;
   private readonly GrpcChannel channel;
-  internal string Address { get; }
-  internal Wire Wire { get; }
+  internal string Address
+  {
+    get;
+  }
+  internal Wire Wire
+  {
+    get;
+  }
 
   private PluginServer(Task serving, CancellationTokenSource stop, GrpcChannel channel, string address)
   {
@@ -21,7 +28,7 @@ internal sealed class PluginServer : IAsyncDisposable
     Wire = new Wire(channel.CreateCallInvoker());
   }
 
-  internal static async Task<PluginServer> StartAsync(Dokime.Plugin plugin)
+  internal static async Task<PluginServer> StartAsync(Plugin plugin)
   {
     // Capture the SDK's Readiness Signal, Without Polling or Scenario Delays.
     var original = Console.Out;
@@ -32,11 +39,15 @@ internal sealed class PluginServer : IAsyncDisposable
     try
     {
       var winner = await Task.WhenAny(ready.Address.Task, serving);
-      if (winner == serving) await serving;
+      if (winner == serving)
+        await serving;
       var address = "http://" + await ready.Address.Task;
       return new PluginServer(serving, stop, GrpcChannel.ForAddress(address), address);
     }
-    finally { Console.SetOut(original); }
+    finally
+    {
+      Console.SetOut(original);
+    }
   }
 
   public async ValueTask DisposeAsync()
@@ -50,7 +61,10 @@ internal sealed class PluginServer : IAsyncDisposable
   private sealed class ReadinessWriter(TextWriter original) : TextWriter
   {
     public override System.Text.Encoding Encoding => original.Encoding;
-    internal TaskCompletionSource<string> Address { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal TaskCompletionSource<string> Address
+    {
+      get;
+    } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public override void WriteLine(string? value)
     {
       if (value?.StartsWith("harmos listening ", StringComparison.Ordinal) == true)

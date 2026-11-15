@@ -104,7 +104,10 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
         ]
         print(f"Run Rust Stories: {shlex.join(command)}", flush=True)
         environment = dict(cargo.compiler_environment("test"), CARGO_BUILD_WARNINGS="deny", TEST_PROFILE="dev")
-        with desktop_bench.credentials(environment) if names else nullcontext(environment) as selected:
+        with (
+            desktop_bench.scratch(environment, destination.parent) as scratch_environment,
+            desktop_bench.credentials(scratch_environment) if names else nullcontext(scratch_environment) as selected,
+        ):
             result = subprocess.run(
                 command,
                 cwd=directory,

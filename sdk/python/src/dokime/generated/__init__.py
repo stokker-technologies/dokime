@@ -1,1 +1,0 @@
-"""Descriptor-Derived Typed Resources."""

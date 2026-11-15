@@ -1,378 +1,171 @@
 # Rust SDK
 
-The `dokime` crate at `sdk/rust` contains plugin authoring and a typed client.
-Its product dependencies stop at Dokime/Harmos protocol, SDK and derive support;
-plugins and clients compile no host. It uses Harmos at
-`81d32d3bc9ab3e2121746923712ec9508cee3ec7`.
-The module layout follows Harmos's Rust SDK: a curated `prelude`, value composition,
-context, data contracts, streams and the separate `client` namespace.
+The `dokime` package provides typed clients and plugin authoring over the pinned
+Harmos SDK. Its product dependencies contain the protocol and SDK packages;
+execution, storage and native runtime dependencies belong to the host.
 
-`dokime::v1` (`dokime.v1`) contains shared messages only. Generated host-client
-messages live at `dokime::protocol::client::v1` (`dokime.client.v1`); plugin
-lifecycle messages at `dokime::protocol::plugin::v1` (`dokime.plugin.v1`);
-plugin-to-host messages at `dokime::protocol::plugin::host::v1`
-(`dokime.plugin.host.v1`). The handler object remains `Context`.
+## Public Imports
 
-## Use the SDK
-
-Until the combined crate cutover lands, use an explicit path dependency in an
-ordinary external Cargo project:
-
-```toml
-[dependencies]
-dokime = { path = "../dokime/sdk/rust" }
-```
+Shared values and data derives live at `dokime`. Client operations and their
+options live at `dokime::client`; plugin authoring and host-call options live at
+`dokime::plugin`. Generated transport modules remain private.
 
 ```rust
-use dokime::prelude::*;
+use dokime::{Message, Result, Visibility};
+use dokime::plugin::{Context, Operation, Plugin};
 
-#[derive(dokime::Row)]
-#[harmos(package = "thermal.v1")]
-struct Temperature { celsius: f64 }
-
-#[derive(dokime::Parameters)]
-struct Parameters { limit: f64 }
-
-async fn sample(ctx: &Context) -> Result<Temperature> {
-    Ok(Temperature { celsius: ctx.parameter::<f64>("limit")? - 1.0 })
+#[derive(Message)]
+struct Ping {
+    value: String,
 }
 
 fn main() -> Result<()> {
-    let temperature = Stream::<Temperature>::new("thermal.temperature", "Temperature [°C]");
-    let observer = Observer::new(&temperature, sample).every_ms(1000);
-    let template = Template::new("thermal.cycle", "Thermal Cycle")
-        .parameters(Parameters { limit: 85.0 })
-        .stream(temperature)
-        .observer(observer);
-    let suite = Suite::new("thermal", "Thermal").template(template);
-    Plugin::new("thermal", "1.0.0").suite(suite).serve()
+    let ping = Operation::new(
+        "example.ping",
+        Visibility::Public,
+        async |_: &Context, request: Ping| Ok(request),
+    );
+    Plugin::new("example", "0.1.0").operation(ping).serve()
 }
 ```
 
-The complete runnable [thermal suite](../sdk/rust/examples/thermal.rs) declares
-its parameter defaults, steps, criterion, prompt, record and host requirements.
-`Message`, `Row`, `Record`, `Parameters` and `Settings` are field-reading protobuf
-derives. Suite, template, step, criterion, observer, operation, prompt, record and
-stream registration use owned values, with no declaration macros.
-The data derive is local to the SDK so an author needs only `dokime`.
+Private operations stay inside their plugin, Protected operations admit host
+calls, and Public operations can be discovered and bound by clients. Requirements
+describe dependencies; they do not grant access. Suite lifecycle and analysis
+adapters retain independent Protected operation identities and authored policies.
 
-Scalar, optional, repeated, nested message and byte fields use protobuf encoding.
-`#[harmos(tag = 3)]` pins a field tag; `package`, `file` and `name` set its descriptor
-identity. Explicit tags are useful for shared cross-language contracts. Parameters
-and settings are data messages; `.parameters(defaults)` and `.settings(defaults)`
-build their catalogs. Typed parameter reads retain integer signedness, check narrow
-integer ranges and reject unknown fields and nonfinite numbers. Settings catalog
-number defaults use `f64`, matching the protocol's `NumberSetting`; use `.setting(...)`
-for choices, paths, secrets or other explicit metadata. `.parameter(...)`, `.file(...)`,
-`.document(...)`, `.tag(...)` and `.parameter_group(...)` accept the generated catalog
-values directly. Document/plot builders are available as `dokime::builders`.
+## Examples and New Projects
 
-## Compose a Plugin
+The runnable projects are [client](../sdk/rust/examples/client),
+[plugin](../sdk/rust/examples/plugin) and [test](../sdk/rust/examples/test).
+The scaffold embeds these examples; there is no separate starter source tree.
+The test example defines a suite and template, asks an operator question, records
+its answer and evaluates the retained record.
 
-Step, criterion, initialize and cleanup bodies have the fixed `&Context` signature:
+The [thermal suite](../sdk/rust/examples/thermal.rs) and
+[execution fixture](../sdk/rust/examples/execution.rs) retain the shared host
+journeys. Both use public imports, execution-local resources and host-driven time.
+The thermal suite captures temperature samples and exact integer counters,
+acknowledges door records and evaluates typed statistics for the Hold step.
 
-```rust
-use dokime::prelude::*;
+## Clients
 
-struct Bench { limit: f64 }
-
-async fn initialize(ctx: &Context) -> Result<()> {
-    ctx.set(Bench { limit: ctx.parameter("limit")? });
-    Ok(())
-}
-
-async fn ramp(ctx: &Context) -> Result<()> {
-    let bench = ctx.get::<Bench>()?;
-    ctx.progress(1, 2, format!("Target {} °C", bench.limit)).await
-}
-
-async fn acceptable(ctx: &Context) -> Result<bool> {
-    let stats = ctx.statistics("thermal.temperature", "celsius", "hold").await?;
-    Ok(stats.count > 0 && stats.max <= ctx.get::<Bench>()?.limit)
-}
-```
-
-`ctx.set(value)` replaces by Rust type; `ctx.get::<T>()` returns an `Arc<T>` or a
-missing-resource error naming the type. A suite shares one store across its
-initialize, steps, observers, criteria and cleanup, isolated by execution identity.
-Use synchronization inside a resource when it needs shared mutation. A generic
-operation joins an existing local suite store when its inherited scope matches;
-otherwise its resources last for that invocation. Plugin-wide publication has its
-own unscoped store. No resource is serialized or retained by materialization.
-
-The SDK generates Protected `<template>.materialize`, optional
-`<template>.initialize`, `<template>.step.<index>`, `<template>.criterion.<index>` and
-`<template>.cleanup` operations. Step/criterion evidence identifiers are separate
-from operation identifiers; `.identifier(...)` overrides their label-derived defaults.
-`.retries(n)` declares replay safety when `n > 0` and advertises host retry policy with a 100 ms backoff when none was
-provided; it does not retry inside the plugin.
-`.policy(...)` accepts Harmos's full operation policy.
-Each lifecycle binding retains its own identity, policy and handler. Its payload
-pair comes from the plugin face: `TestCasesMaterializeRequest/Response`,
-`ExecutionsInitializeRequest/Response`, `StepsExecuteRequest/Response`,
-`CriteriaEvaluateRequest/Response` and `ExecutionsCleanupRequest/Response`.
-An execution stream also gets a no-op initialize operation when there is no author
-hook, so its case is available before the first observer tick.
-The SDK always advertises cleanup, even without an author hook, to release the
-execution store. Cleanup empties the store even while a pending observer holds its
-call Context. Contexts are borrowed for one call; resource handles provide sharing
-between calls. Cleanup releases resources after success, failure or cancellation;
-`ctx.termination()` exposes the host's termination value. Plugin Stop also clears stores.
-
-Materialize copies the resolved parameters into a `dokime.v1.TestCase` assembled
-from the registered steps, criteria and streams. `.materialize(|case, parameters| ...)`
-can customize that value synchronously without a Context or execution resources.
-It may select, repeat or reorder registered operations; each resulting evidence
-identifier must be unique. It cannot reference undeclared operations/streams or
-change the host's resolved parameter set. Duplicate identifiers fail catalog
-construction before serving. All execution calls must include the frozen case and
-matching `PluginRun` origin, and their execution must equal inherited Harmos scope.
-
-Use `Step::replay_safe()` to declare replay safety with a custom retry policy.
-
-Ordinary typed operations compose through `Operation::new(id, visibility, handler)` with
-`(&Context, Request) -> Result<Response>`. `OperationRequest` connects a message to
-its response and stable operation identifier. `.operation(...)` serves it;
-`.requires::<Request>()` declares a child-call dependency. Such calls run through
-`ctx.operation(request)` and retain Harmos cancellation and failure behavior.
-
-## Host Calls and Evidence
-
-Frequency plots bound their input independently of the display resolution and
-FFT taper. For example, this declaration uses the latest 512 finite source samples
-even when the execution retains several days of history:
+Construct `Client::from_channel(channel, settings)` with explicit client limits.
+The composed tree exposes library operations beside product operations:
 
 ```rust
-use dokime::{builders::Plot, v1::FieldReference};
-
-let spectrum = Plot::frequency_series(FieldReference::new("measurements").field("value"))
-    .input_samples(512)
-    .sample_rate_hz(8.0)
-    .message;
+let entries = client.plugins.list().await?;
+let suites = client.suites.list("thermal").await?;
+let now = client.time.get().await?;
 ```
 
-The count must fit the connected host's transform input bound. Python exposes
-`.input_samples(512)`, C++ exposes `.input_samples(512)` and C# exposes
-`.WithInputSamples(512)`. The absent declaration uses the host's bounded input.
-
-Generated Dokime messages bind through `dokime::host::Call<T>`:
+Calls take request content as arguments and own their transport context. Methods
+ending in `_with` accept options containing a `CallOptions` value for metadata and
+a deadline override. The operation owns its normal deadline and retry policy.
+A response with exactly one field returns that payload; replies with receipts,
+read cuts or other fields retain their complete typed response.
 
 ```rust
-use dokime::{host, prelude::*, v1};
+use dokime::client::{CallOptions, PluginsListOptions};
 
-async fn note(ctx: &Context) -> Result<()> {
-    ctx.operation(host::Call(dokime::protocol::plugin::host::v1::evidence::LogsAppendRequest {
-        execution: ctx.execution_id().into(),
-        severity: v1::Severity::Info as i32,
-        message: "Measurement Started".into(),
-        at: None,
-    })).await?;
-    Ok(())
-}
+let mut context = CallOptions::default();
+context.metadata.insert("authorization", token);
+let entries = client.plugins.list_with(PluginsListOptions {
+    context,
+    ..Default::default()
+}).await?;
 ```
 
-Declare `.requires_host::<dokime::protocol::plugin::host::v1::evidence::LogsAppendRequest>()` on the plugin for that call.
-`ctx.host(request)` accepts the generated request directly and returns its generated
-reply. `prompt`, `record`, `records`, `statistics`, `progress`, `log`, `secret`,
-`settings` and `typed_settings` are thin conveniences. Artifact, file capture,
-traceability, document-part, environment and effect calls use `ctx.host(...)` with
-the generated messages and their declared requirements.
-`host::Request::ID` binds each generated request to its action, such as
-`dokime.plugin.host.v1.evidence.Records/Append` or
-`dokime.plugin.host.v1.Prompts/Create`. The retained, uncomposed settings, secret
-and artifact requirements remain `dokime.settings.read`, `dokime.secrets.read`
-and product file uploads; their payloads belong to plugin-host.
-Settings declarations and prompt definitions use shared `SettingsDeclarations`
-and `PromptDefinitions` messages.
-`ctx.sleep` and `ctx.now` require `dokime::clock::TimeSleepRequest` and `dokime::clock::TimeGetRequest`;
-all waits and clock reads go to the host.
+`client.operations.list()` supplies admitted discovery contracts. `Method` binds
+a contract to typed messages and checks visibility, names, descriptors and schema
+fingerprints. Dynamic calls use `call` or `call_with`; managed calls use `start`,
+retain explicit input completion, cancellation and joining, and preserve the
+original mutation identity when retrying.
 
-`ctx.progress(...)` requires both context `executions::ProgressGetRequest` and
-`ProgressSetRequest`. It gets the revision then replaces completed, total and
-label as one value. Raw Set callers retain their request ID when resending.
-Clients observe it through `client.executions.progress.get(request)` and
-`.watch(request)`, using `dokime::protocol::client::v1::executions` wrappers. Their root is generated
-from the same descriptor table as the other SDKs and composes library services.
+Product watches return managed `Watching<T>` values. Consume `next().await?` and
+drop the watch to release observation without cancelling the execution. Retain
+issued read cuts and continuation tokens unchanged while traversing a selection.
+Dropping the client releases its channels after its watches have been dropped.
 
-`Record::<Door>::new(id, label)` names a derived record message. Pass the record
-value to `.record(...)` on Plugin and `ctx.record(&contract, value)` to publish it.
-Publication waits for the host receipt. The record type accumulator is inferred;
-it contributes record descriptors to the one `dokime.v1.RecordContracts` section.
-`Prompt::new(...).field(...).action(...)` composes a catalog prompt;
-`ctx.prompt(dokime::protocol::plugin::host::v1::PromptsCreateRequest { ... })` uses its identifier or an inline definition.
+`client.files.upload(path).await?` uses the returned upload handle and transfer
+limits, retains each mutation identity and verifies accepted offsets, length and
+SHA-256 before returning the published file reference. Failure abandons the owned
+upload and retains the cleanup failure's cause when abandonment fails.
 
-`Observer::new(&stream, handler).every_ms(...)` answers host ticks with rows stamped
-by Harmos using the tick time. `.interval_setting(...)` selects a saved cadence.
-A device-driven stream uses `.publish_on(handler)` and `Publisher::publish` or
-`publish_at`; demand closure cancels the producer. Template-owned stream names are
-included in the TestCase. `.uses_stream(id)` subscribes without declaring another
-producer; Plugin-level `.stream(...)` declares a plugin-wide stream.
+## Plugins and Execution Resources
 
-Managed placement is the default. `plugin.remote().serve()` uses the same gRPC
-service and remains available after Stop. Both honor `HARMOS_ADDRESS` and announce
-`harmos listening <address>` when ready. `into_harmos()` finishes composition for
-Harmos tooling without opening a socket; `catalog()` validates and returns its catalog.
+Compose `Plugin`, `Suite`, `Template`, `Step`, `Criterion`, `Record`, `Stream` and
+`Observer` values from `dokime::plugin`. Data derives remain at the root.
+`Context::set/get` retains typed execution resources through initialization,
+steps, observers and criteria. Cleanup empties the execution store even when the
+cleanup operation fails or is cancelled. Materialization cannot allocate execution
+resources, change resolved parameters or introduce undeclared operations.
 
-## Use the Client
-
-The client accepts a configured Tonic channel or `harmos::Client`. Callers own TLS,
-endpoint selection and wire/queue bounds. Authentication and per-call metadata
-are forwarded through Harmos; operation policy stays with the server.
+Declare host requirements with the generated `HostOperation` enum, before adding
+record descriptor types. Use `ctx.host()` for the generated plugin-admitted tree:
 
 ```rust
-use dokime::{Client, client::v1};
+use dokime::plugin::HostOperation;
 
-async fn status(client: &Client) -> Result<v1::StatusGetResponse, tonic::Status> {
-    Ok(client.status.get(tonic::Request::new(v1::StatusGetRequest {})).await?.into_inner())
-}
+let plugin = Plugin::new("example", "0.1.0")
+    .requires_host(HostOperation::TimeGet)
+    .requires_host(HostOperation::PluginsSettingsList);
 
+let now = ctx.host().time.get().await?;
+let settings = ctx.host().plugins.settings.list().await?;
 ```
 
-Follow catalog cursors until the desired contract is found. `Method` checks public
-visibility, request/reply names, descriptors and fingerprints. `.with_input::<T>()`
-and `.with_output::<T>()` bind declared streaming directions; `client.start(...)`
-returns Harmos's managed call with `send`, `finish_input`, `next`, `join` and
-cancellation. `take_input` separates concurrent input from output draining.
-No SDK transport codec, retry loop or host policy duplicates Harmos.
+`ctx.sleep` and `ctx.now` compose library Time operations. Controlled time advances
+through host waits and observer ticks; no SDK retry loop or wall-clock wait drives
+execution. Observer intervals and retry timing belong to declared settings and
+operation policies. `Operation::analysis` adapts typed analysis requests and
+responses while retaining raw sample axes and outputs.
 
-The generated client exposes top-level `suites`, `record_schemas`, `stream_schemas`,
-`prompt_definitions` and `analyses.list` registries. For example:
+Plugin settings use `SettingDeclaration`, `SettingValue` and
+`SettingsDeclarations` from the library. `.settings(defaults)` derives Boolean,
+signed integer, number and text declarations from typed data; `typed_settings`
+decodes the corresponding complete value map. Product secrets use `.secret` with
+a `SecretDeclaration`, separate from ordinary settings. A plugin reads declared
+bindings through `ctx.host().secrets.get(name)`; returned bytes are in `secret`,
+and administrative metadata remains client-only.
 
-```rust
-use dokime::protocol::client::v1 as product;
+## Frozen Evidence and Exact Values
 
-let suites = client.suites.list(tonic::Request::new(product::SuitesListRequest::default())).await?;
-```
+`FrozenSchemaCache` is caller-owned. `get` fetches descriptor pages at one issued
+cut, verifies frozen bindings and the complete digest, and reuses equal digests
+across executions. `decode` resolves captured record and stream identities against
+those frozen descriptors. Dropping the cache releases its retained sets.
 
-Execution details carry `schemas.digest` and display identities. Decode payloads
-with the execution's frozen descriptors, fetched only on a digest cache miss:
-
-```rust
-let mut schemas = dokime::client::FrozenSchemaCache::default();
-let types = schemas.get(&client, &detail).await?;
-let pool = prost_reflect::DescriptorPool::from_file_descriptor_set((*types).clone())?;
-```
-
-The caller owns the cache and releases retained descriptors by dropping it.
-`get` fetches one file per `client.executions.schemas.get` page at one returned cut and verifies
-the complete SHA-256 digest before caching. Equal digests reuse one set across
-executions, including when the host is offline. Raw callers must assemble all files
-before resolving dependencies; a page alone need not form a complete descriptor pool.
-
-Product watches return managed `Watching<T>` values; consume them with
-`next().await?` and drop them to close observation without cancelling execution.
-Retain returned read cuts and continuation positions as required by each resource.
-The new host serves generic identity/health/availability through the library Status
-resource and no longer binds product Backend or Runtime services. `HostClient`
-accepts explicit client limits and exposes the same library root through its transport.
-The new host serves
-the subset listed in [Execution Host](execution-host.md), refusing the rest by name.
-`client::HostClient::new(channel, limits)?` supplies thin service conveniences:
-
-```rust
-let client = dokime::client::HostClient::new(channel, limits)?;
-let cases = client.templates.materialize(suite_id, "thermal.cycle", parameters).await?;
-let cycle = client.cycles.start(cases).await?;
-let mut progress = cycle.watch();
-while let Some(frame) = progress.next().await? {
-    if frame.phase == "prompt" {
-        let pending = client.prompts.pending(cycle.executions[0].clone()).await?;
-        client.prompts.respond(pending.prompts[0].prompt_id.clone(), "yes", true).await?;
-    }
-}
-drop(progress);
-drop(cycle);
-client.close();
-```
-
-The generated-service client owns no runtime or native host dependency. Finish
-owned watches before closing; closing consumes the client's channel handles.
+Statistics and plot summaries carry typed `Value` fields, including exact totals
+and sums. `ExactNumber` retains sign, decimal numerator and denominator without
+floating conversion. `FromValue` extracts it losslessly; floating extraction
+refuses an exact value. Drawing coordinates, standard deviation and RMS remain
+floating point. Analysis helpers preserve source-time axes; document replies keep
+pending bindings, result summaries and card completion states.
 
 ## Focused Proof
 
-Run these tasks from the repository root:
-
 ```sh
+mise -C sdk/rust run format
 mise -C sdk/rust run sdk:build
+mise -C sdk/rust run sdk:unit
 mise -C sdk/rust run sdk:test
+mise -C sdk/rust run sdk:lint
 mise -C sdk/rust run sdk:tree
 ```
 
-The focused stories use the pinned Harmos reference runtime and an in-process
-client server; none require the Dokime execution host. Host execution and
-cross-language thermal equivalence remain separate system stories.
+The external consumer owns installed-consumer compilation, fixture binaries and
+integration stories, with a separate lock and the repository's shared target.
+The build includes the client, plugin and test example sources as consumer binaries.
+Run `sdk:prepare` only when refreshing that consumer's dependency lock.
+The unit selection covers both SDK crates and reports an empty selection when
+their invariants are covered by the integration journeys instead.
+Its stories exercise typed declarations, authentication, discovery, schema
+refusals, response bounds, managed watches and isolated execution resource
+release. Protocol conformance drivers use canonical internal messages only inside
+their test owner. They never compile plugins during a story or use fixed waits.
 
-The external consumer in `sdk/rust/tests/consumer` owns the focused test targets and
-all test-only reference-host dependencies. Its child-process fixture reuses the
-existing standalone `crates/dokime-runtime-next/src/process/` constructor by source path
-to retain the repository's console-window policy without depending on that crate.
-It compiles the SDK from its actual path and builds the sample plugin. Its standalone lock isolates SDK proof from the
-concurrent host/facade cutover; `.prepare` refreshes that consumer's dependency lock
-with `mise -C sdk/rust run sdk:prepare`. All artifacts share the repository target.
-`cargo tree` checks normal/build product edges and excludes test-only host dependencies.
-
-The thermal story admits and materializes the plugin through the pinned Harmos
-runtime, then drives scoped calls through `harmos.plugin.v1.Instance`, following the reference
-conformance protocol. Native Harmos calls accept `Scope` through `with_scope(...)`;
-unbound calls retain an empty scope. This protocol-focused story keeps its explicit
-wire driver, and SDK execution validation reads `Context::scope()`. The client
-story uses an in-process fake gRPC server for authentication, discovery, schema
-binding/refusal, unary results, managed output/final results and response bounds.
-Other focused stories cover catalog/data construction and interleaved execution
-resource isolation and deterministic resource release during a pending observer
-read. Tests never assert elapsed time or sleep on the wall clock.
-
-## Shared Cross-Language System Suite
-
-The runnable Rust suite is [thermal.rs](../sdk/rust/examples/thermal.rs), built as
-`dokime-rust-thermal` by the external consumer. Run it managed or with `--remote`.
-It runs through the new host and provides the reference evidence for every SDK:
-
-| Input or Action | Expected Evidence |
-| --- | --- |
-| Materialize `thermal.cycle` with `limit = 85.0` | Steps `ramp`, `hold`; criterion `within_limit`; stream `thermal.temperature` |
-| Initialize | Execution-local Bench resource; one acknowledged log |
-| Run `ramp` | Progress 1 of 2 |
-| Run `hold`; answer prompt `thermal.door` with accepted action `yes` | One `thermal.door` record, protobuf `thermal.v1.Door { closed: true }`; host sleep of 2.5 s; progress 2 of 2 |
-| Tick the observer while Hold waits, at 0 s, 1 s and 2 s after its start | Three `thermal.v1.Temperature { celsius: 84.0 }` samples, each carrying its tick time |
-| Evaluate `within_limit` | Statistics for `thermal.temperature.celsius` and records for `thermal.door`, both filtered to `hold`; Passed only with samples, maximum ≤ 85.0 and a closed-door record |
-| Cleanup, close and seal | Cleanup log; resources released; streams closed; host-persisted execution and report evidence |
-
-The host must register the sample's catalog requirements, serve materialization,
-freeze the returned case and complete PluginRun origin, and carry execution identity
-in Harmos Request/Publish scope. It must initialize before ticking resource-using
-observers, schedule ticks inside the hold step, acknowledge records before responding,
-serve statistics/record reads scoped to execution and step, and own retries, cancellation,
-cleanup, stream closure, evidence durability and report sealing. Its virtual clock
-must advance sleep and observer ticks deterministically. The shared pull request and Nightly driver
-compares persisted evidence across SDKs through the named stories in
-[Execution Host](execution-host.md#compare-every-sdk). Native Linux and hosted
-matrix proof remain separate from local Windows runs.
-
-## Consumer Cutover
-
-| Owner | Adoption Work |
-| --- | --- |
-| CLI | Use `dokime::client` and generated messages for remote commands; carry pairing, backend identity validation, endpoint/TLS policy and authorization into the configured channel/client. Move embedded hosting to `dokime-runtime-next`. |
-| Desktop | Use SDK typed calls and managed watches; convert presentation data at the GUI boundary. Embed runtime explicitly and keep pairing/identity handling with its current owner. |
-| Existing plugins and samples | Replace declaration macros with builder values and data derives, move shared suite state to `ctx.set/get`, declare host requirements, and serve Harmos gRPC. |
-
-These migrations belong to the host/consumer owner. The Rust SDK adds no host-enabling
-features and leaves those existing crates and plugins untouched.
-
-## Composed Client Services
-
-`dokime::Client` exposes the library client root, including `client.access.listener`,
-`client.access.pairings` and `client.access.certificates`, on its existing transport.
-Use the library request wrappers and explicit request metadata.
-
-Traceability entries use distinct context `evidence.Traceability.Get/Set`
-contracts. Get selects the execution and entry name and returns its revision;
-Set replaces the whole entry with that revision and a caller-retained request ID.
-The client root exposes `evidence.traceability.get` and `.watch`, with scoped,
-position-resolved history pages and a bounded durable change stream.
-
-`client.files.upload(path).await?` publishes a local file through Files.Uploads
-with its returned limits and verified length/SHA-256. `FrozenSchemaCache::decode`
-resolves a record or stream identity through the execution's frozen `message_name`
-binding and decodes only against its captured descriptors.
+Host-backed execution, durability, secret credential cleanup and cross-language
+journeys belong to the runtime system stories listed in
+[Execution Host](execution-host.md). Native Windows and Linux proof are separate.
+This SDK currently declares no WebAssembly feature or product target.

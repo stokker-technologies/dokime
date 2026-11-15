@@ -37,10 +37,8 @@ publish = false
 # Utilities
 
 # Serialization
-prost = { workspace = true }
 prost-build = { workspace = true, features = ["format"] }
 prost-reflect = { workspace = true }
-prost-types = { workspace = true }
 protoc-bin-vendored = { workspace = true }
 
 # Configuration

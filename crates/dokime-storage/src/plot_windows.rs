@@ -25,19 +25,22 @@ use crate::{
     Error, NumericWindow, Result, Store,
     scalar::{self, ScalarValue},
 };
-use dokime_protocol::v1::{self, Downsample, Value};
+use dokime_protocol::model::Downsample;
+use dokime_protocol::model::Value;
 
-use dokime_protocol::client::plots::NullableNumber;
-use dokime_protocol::client::plots::PlotBoxSummary;
-use dokime_protocol::client::plots::PlotColumn;
-use dokime_protocol::client::plots::PlotHistogramBin;
-use dokime_protocol::client::plots::PlotHistogramSeries;
-use dokime_protocol::client::plots::PlotHistogramStatistics;
-use dokime_protocol::client::plots::PlotSeriesSummary;
+use dokime_protocol::host::plots::NullableNumber;
+use dokime_protocol::host::plots::PlotBoxSummary;
+use dokime_protocol::host::plots::PlotColumn;
+use dokime_protocol::host::plots::PlotHistogramBin;
+use dokime_protocol::host::plots::PlotHistogramSeries;
+use dokime_protocol::host::plots::PlotHistogramStatistics;
+use dokime_protocol::host::plots::PlotSeriesSummary;
 
-use dokime_protocol::context::EvidenceStatisticsResponse;
+use dokime_protocol::host::Statistics;
 
 use prost_types::Timestamp;
+
+use dokime_protocol::model::value;
 
 /* === Constants === */
 
@@ -59,7 +62,7 @@ impl Store {
     ) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
         use arrow_array::{Float64Array, Int64Array, RecordBatch};
         use arrow_schema::{DataType, Field, Schema};
-        use harmos_storage::query::{
+        use harmos_query::{
             TableWriter,
             transform::{
                 FieldPath, Transform,
@@ -148,7 +151,7 @@ impl Store {
         self.moments(*window)?.rms()
     }
     #[tracing::instrument(name = "plot.statistics", skip_all)]
-    pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<EvidenceStatisticsResponse> {
+    pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<Statistics> {
         let moments = self.moments(*window)?;
         if moments.count == 0 {
             return Ok(Default::default());
@@ -162,7 +165,7 @@ impl Store {
             Some(total) => ScalarValue::Exact(total),
             None => ScalarValue::Float(moments.mean()? * moments.count as f64),
         };
-        Ok(EvidenceStatisticsResponse {
+        Ok(Statistics {
             count: moments.count,
             min: Some(scalar::wire(&moments.min)?),
             max: Some(scalar::wire(&moments.max)?),
@@ -175,7 +178,6 @@ impl Store {
             p99: Some(scalar::wire(&ranks[&99])?),
             first: Some(scalar::wire(&moments.first)?),
             last: Some(scalar::wire(&moments.last)?),
-            resolved_at: None,
         })
     }
     #[tracing::instrument(name = "plot.preview", skip_all)]
@@ -301,9 +303,7 @@ impl Store {
 /* === Private Functions === */
 
 fn number(value: f64) -> Value {
-    Value {
-        kind: Some(v1::value::Kind::Number(value)),
-    }
+    Value { kind: Some(value::Kind::Number(value)) }
 }
 fn instant(at_ns: i64) -> String {
     Timestamp {

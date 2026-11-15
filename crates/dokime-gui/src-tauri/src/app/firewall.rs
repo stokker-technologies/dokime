@@ -22,10 +22,12 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
 // Local Imports
+
 use crate::{
     connection::ConnectionSession,
     native_session::{BackendOwnership, DesktopSessionControl},
 };
+use dokime_sdk::client::AccessListenerGetOptions;
 
 /* === Constants === */
 
@@ -65,16 +67,10 @@ pub async fn desktop_firewall(
     }
     let session = lease.client();
     let client = session.client();
-    let listener = session
-        .execute(
-            client
-                .access
-                .listener
-                .get(session.request(dokime_sdk::client::v1::access::ListenerGetRequest {}).map_err(|error| error.to_string())?),
-        )
-        .await
-        .map_err(|error| error.to_string())?
-        .into_inner();
+    let options = AccessListenerGetOptions {
+        context: session.call_options().map_err(|error| error.to_string())?,
+    };
+    let listener = session.execute(client.access.listener.get_with(options)).await.map_err(|error| error.to_string())?;
     let address = listener.bound_endpoint.parse::<std::net::SocketAddr>().ok();
     let exposed = address.is_some_and(|address| !address.ip().to_canonical().is_loopback());
     let enabled = listener.value.as_ref().is_some_and(|value| value.enabled);
@@ -131,7 +127,7 @@ async fn run(app: AppHandle, action: &'static str, port: u16, bind_address: Stri
                 .map(std::path::PathBuf::from)
                 .ok_or("Windows system directory is unavailable")?
                 .join("System32/WindowsPowerShell/v1.0/powershell.exe");
-            dokime_runtime_next::process::command(executable)
+            dokime_runtime::process::command(executable)
                 .args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])
                 .output()
                 .map_err(|error| error.to_string())

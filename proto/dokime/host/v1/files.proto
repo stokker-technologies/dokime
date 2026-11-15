@@ -1,0 +1,145 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Files Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/files.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/file.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Files resource on the host; callers are checked before handler admission.
+service Files {
+  // Read a bounded byte range from the Files resource; plugin selectors default to and are restricted to trusted caller identity.
+  rpc Get(.dokime.host.v1.FilesGetRequest) returns (.dokime.host.v1.FilesGetResponse) {
+    option (harmos.model.v1.callers) = ALL;
+  }
+  // Read a bounded byte range from the Files resource; plugin selectors default to and are restricted to trusted caller identity.
+  rpc Read(.dokime.host.v1.FilesReadRequest) returns (.dokime.host.v1.FilesReadResponse) {
+    option (harmos.model.v1.callers) = ALL;
+  }
+  // Observe durable changes to the Files resource; plugin selectors default to and are restricted to trusted caller identity.
+  rpc Watch(.dokime.host.v1.FilesWatchRequest) returns (stream .dokime.host.v1.FilesWatchResponse) {
+    option (harmos.model.v1.callers) = ALL;
+  }
+  // Delete the Files resource; plugin selectors default to and are restricted to trusted caller identity.
+  rpc Delete(.dokime.host.v1.FilesDeleteRequest) returns (.dokime.host.v1.FilesDeleteResponse) {
+    option (harmos.model.v1.callers) = ALL;
+  }
+  // Capture files through the calling plugin's declared source.
+  rpc Capture(.dokime.host.v1.FilesCaptureRequest) returns (.dokime.host.v1.FilesCaptureResponse) {
+    option (harmos.model.v1.callers) = PLUGINS;
+  }
+}
+
+// === Get === //
+
+// FilesGetRequest for Files.Get.
+message FilesGetRequest {
+  .harmos.model.v1.FileReference file = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// FilesGetResponse for Files.Get.
+message FilesGetResponse {
+  .harmos.model.v1.FileReference file = 1;
+  uint64 chunk_bytes = 2;
+  uint64 message_bytes = 3;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Read === //
+
+// FilesReadRequest for Files.Read.
+message FilesReadRequest {
+  .harmos.model.v1.FileReference file = 1;
+  uint64 offset = 2;
+  uint64 max_bytes = 3;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// FilesReadResponse for Files.Read.
+message FilesReadResponse {
+  bytes data = 1;
+  uint64 total_length = 2;
+  bytes sha256 = 3;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Watch === //
+
+// FilesWatchRequest for Files.Watch.
+message FilesWatchRequest {
+  // Select either published content or an upload whose durable bytes are still growing.
+  oneof target {
+    .harmos.model.v1.FileReference file = 1;
+    .harmos.model.v1.Upload upload = 3;
+  }
+  uint64 offset = 2;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// FilesWatchResponse for Files.Watch.
+message FilesWatchResponse {
+  .dokime.host.v1.FileBatch data = 1;
+  .dokime.host.v1.FileCompletion completion = 2;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Delete === //
+
+// FilesDeleteRequest for Files.Delete.
+message FilesDeleteRequest {
+  .harmos.model.v1.FileReference file = 1;
+  string request_id = 2;
+}
+
+// FilesDeleteResponse for Files.Delete.
+message FilesDeleteResponse {
+  .harmos.model.v1.Receipt receipt = 1;
+}
+
+// === Capture === //
+
+// FilesCaptureRequest value owned by this resource.
+message FilesCaptureRequest {
+  .dokime.model.v1.FileSource source = 1;
+  string output = 2;
+}
+
+// FilesCaptureResponse value owned by this resource.
+message FilesCaptureResponse {
+  repeated .dokime.model.v1.CapturedArtifact artifacts = 1;
+  repeated .dokime.model.v1.CaptureGap gaps = 2;
+}
+
+// === Resources === //
+
+// FileBatch value owned by this resource.
+message FileBatch {
+  uint64 offset = 1;
+  bytes bytes = 2;
+}
+
+// FileCompletion value owned by this resource.
+message FileCompletion {
+  uint64 bytes = 1;
+}
+
+// === Enums === //

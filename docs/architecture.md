@@ -23,26 +23,35 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `81d32d3bc9ab3e2121746923712ec9508cee3ec7`, rather than
+[Cargo.toml](../Cargo.toml), `7181b5ed33c9d2be79c38d266b0a97d838b05ed6`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
+The repaired generated client/plugin surfaces compile independently of the product
+consumers. Runtime admission and application proof remain open in the
+[gRPC plugins tasks](../openspec/changes/grpc-plugins/tasks.md).
+
+Composition narrows callers before projecting either SDK surface. Shared payloads
+have one public home; versioned wire packages remain internal and the repository
+public-surface check enforces the documented allow-list. Wrong callers use the
+library wrong_caller failure (refused, code -32604, action Call). Generated-only
+compiler stories do not establish runtime admission or storage integration.
 
 Paging, SDK packaging, transfers and durable lag were amended by the owner on
 2026-11-13. The linked Operation Grammar records their complete amended contracts.
 
 ## Invariants
 
-1. **Three Faces.** The plugin protocol is served by a running plugin instance and
-   called only by its host; context is served by the host to a plugin during an
-   invocation; the client API is served by the host to clients. The host is always
-   between a plugin and anyone else; faces never replace per-operation visibility.
-   **Why:** Public exposure must not grant direct instance access or client management
-   to plugins. **Where:** [face inventory](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility),
-   [current protocol](../proto/dokime/v1), [current host](../crates/dokime-runtime-next/src/services/mod.rs).
-   **Proof:** No proof yet; task A2 must guard all three audiences and generation filters.
-   **Status:** locked direction (`operation-grammar`); separate package roots and
-   product lifecycle/client declarations are not fully landed. Records, Logs, Statistics, Prompts, Documents, Files/Captures and Backend.Environment now have separate context wrappers and no client gRPC entry methods. The host now calls the pinned library's
-   `harmos.plugin.v1.Instance` carrier.
+1. **Executors and Callers.** Protocol files are owned by the executor: model/v1
+   contains exchanged values, host/v1 contains host operations and plugin/v1
+   contains host-invoked plugin operations. Host methods require the library
+   callers option (CLIENTS, PLUGINS or ALL), independently of visibility and grants.
+   **Why:** A resource has one declaration even when both clients and plugins use
+   it, while plugin callers cannot acquire client administration. **Where:**
+   [protocol](../proto/dokime), [composition](../protocol/composition.toml) and the
+   complete [identity/caller map](execution-host.md#operation-identity-and-caller-mapping).
+   **Status:** definitions and generator projections are landed in this candidate;
+   runtime admission, consumer adoption and wrong-caller proof remain open. Plugin
+   executor methods have no callers option; their Protected bindings are host-only and generate no application client/context resource.
 
 2. **Three-Level Visibility.** Private is plugin-internal, never catalogued or on
    any wire (including host-to-plugin), has no gRPC endpoint association, and runs
@@ -57,7 +66,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    "a plugin should be able to call another operation in another plugin if exposed".
    **Where:** [visibility, enum, built-in mapping and SDK audit](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility),
    [requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-catalog-visibility-and-admission),
-   [current host admission](../crates/dokime-runtime-next/src/plugin.rs).
+   [current host admission](../crates/dokime-runtime/src/plugin.rs).
    **Today:** The pinned library implements all three levels with explicit SDK
    visibility and local Private dispatch. Product template lifecycle declarations
    and host admission now use Protected in all four languages. The additive host
@@ -73,8 +82,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    structured failures and caller-to-child cancellation. A requirement grants no access.
    **Why:** Exposure exists to permit plugin composition while preserving host policy.
    **Where:** [routing requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-visibility-and-host-mediated-plugin-invocation),
-   [current dispatcher](../crates/dokime-runtime-next/src/dispatch.rs),
-   [host-only child dispatch table](../crates/dokime-operations-next/src/lib.rs).
+   [current dispatcher](../crates/dokime-runtime/src/dispatch.rs),
+   [host-only child dispatch table](../crates/dokime-operations/src/lib.rs).
    **Proof:** No proof yet in this repository for Public peer success plus Private
    refusal; A1 is the first task. Harmos's
    `child_calls_reach_host_and_public_peer_without_start_order` in `Harmos:crates/harmos-runtime/tests/plugin_grpc/child_calls.rs`
@@ -88,7 +97,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    result after cancellation justifies a managed replacement method.
    **Why:** Observation, sample delivery and durable work have different lifetimes.
    **Where:** [streaming requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-explicit-streaming-contracts),
-   [current client protos](../proto/dokime/v1), [SDK operation](../sdk/rust/src/operation.rs).
+   [current client protos](../proto/dokime/host/v1), [SDK operation](../sdk/rust/src/operation.rs).
    **Proof:** No proof yet for the complete contract; A3 must guard generation and
    settlement. Current client Run twins remain. Unary file transfers replace
    streaming transfers, with 4 MiB default chunks and an 8 MiB default message
@@ -99,10 +108,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    Product handlers decide its meaning and whether it is required.
    **Why:** Generic routing must not acquire execution semantics or let a child widen authority.
    **Where:** [scope vocabulary](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary),
-   [product scope validation](../crates/dokime-operations-next/src/resources.rs),
+   [product scope validation](../crates/dokime-operations/src/resources.rs),
    [SDK binding](../sdk/rust/src/context.rs).
    **Proof:** No proof yet for the full cross-provider contract; A4. Product
-   `execution_isolation` in [execution_isolation.rs](../crates/dokime-runtime-next/tests/system/execution_isolation.rs)
+   `execution_isolation` in [execution_isolation.rs](../crates/dokime-runtime/tests/system/execution_isolation.rs)
    proves execution separation, not library opacity or peer inheritance.
    **Status:** locked direction (`operation-grammar`).
 
@@ -113,18 +122,20 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    streams, RecordManager capture and StateManager live state; product execution,
    prompt and report managers own their lifecycles, with capture only if recordings remain.
    **Why:** One owner must join work and settle shutdown; storage reads and pure
-   rendering need no invented manager. Cycles group execution-manager tasks and
+   rendering need no invented manager. Assembly observes native plugin changes for
+   redacted diagnostics, and waits for product watches to settle after execution
+   shutdown before detaching its gRPC listener. Cycles group execution-manager tasks and
    do not own an independent scheduler.
    **Where:** [manager ownership table](../openspec/changes/operation-grammar/design.md#ownership-and-managers),
-   [current Host](../crates/dokime-runtime-next/src/host.rs),
-   [composition State](../crates/dokime-runtime-next/src/services/state.rs),
-   [execution manager](../crates/dokime-runtime-next/src/execution_manager.rs),
-   [prompt manager](../crates/dokime-runtime-next/src/prompts.rs) and
-   [report manager](../crates/dokime-runtime-next/src/reports.rs).
+   [current Host](../crates/dokime-runtime/src/host.rs),
+   [composition State](../crates/dokime-runtime/src/services/state.rs),
+   [execution manager](../crates/dokime-runtime/src/execution_manager.rs),
+   [prompt manager](../crates/dokime-runtime/src/prompts.rs) and
+   [report manager](../crates/dokime-runtime/src/reports.rs).
    **Proof:** A5: `execution_shutdown_joins_runs_after_observer_loss`,
    `prompts_settle_answers_and_shutdown_waiters` and
    `reports_publish_atomically_and_close_admission` in
-   [manager_lifecycles.rs](../crates/dokime-runtime-next/tests/system/manager_lifecycles.rs)
+   [manager_lifecycles.rs](../crates/dokime-runtime/tests/system/manager_lifecycles.rs)
    exercise observer loss, joined cleanup, queued Cancel refusal, Stop boundaries,
    answers, shutdown and publication across restart. **Status:** landed for the
    additive host's product managers; generic library service composition remains
@@ -137,9 +148,13 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    objects, operations, authorization, settings/secrets stores, schemas, UI and archives.
    **Why:** The previous approach duplicated connection, dispatch and process launch;
    product-specific policy must not become generic machinery. HostValues uses a product resolver.
+   Evidence archives read scoped native file histories through the registered
+   backend and publish their output through native uploads. Product seals,
+   artifact metadata and transaction ownership remain in the product Store;
+   archive stream members preserve the original Arrow bytes.
    **Where:** [boundary and settings requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
-   [current composition](../crates/dokime-runtime-next/Cargo.toml),
-   [product settings](../crates/dokime-operations-next/src/settings.rs).
+   [current composition](../crates/dokime-runtime/Cargo.toml),
+   [product settings](../crates/dokime-operations/src/host/settings/get.rs).
    Build-time preference export composes declared product settings and the listener
    declaration used by Access configuration, without opening a host, storage or
    credentials. Runtime startup failures retain underlying operation causes;
@@ -155,22 +170,34 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    Backend/Runtime services and product collection machinery are removed.
    `client_collects_backend_diagnostics` proves health events, redaction and ranged
    archives; `client_reads_runtime` proves status observation and stable restart identity.
-   **Status:** Access and Status composition landed; transfers and plugin composition remain open (`operation-grammar`).
+   **Status:** Access, Status, native transfers and library plugin entries are composed.
+   Executions bind the admitted activation once per unit with a trusted scope and
+   independent clock; lifecycle dispatch uses the library operation manager. Scoped
+   sample ingestion acknowledges only after the product Arrow write and binding
+   closure precedes sealing. Product file presentation stores logical paths and
+   original native file references in the execution transaction. Retired SQL file
+   byte objects and writers are removed; incompatible development roots are preserved
+   and refused at baseline v1. Final combined validation remains a separate obligation.
    Explicit root disposal removes access and secret credentials through their
    product owners after the root lease is released, while ordinary shutdown keeps
    them for restart. Owners journal credential slots before native writes, so
    interrupted publication and failed retired-key removal retain cleanup ownership.
+   Access-key cleanup checks native absence before retiring its slot journal;
+   a remaining or unreadable key preserves the root for cleanup. Access and shared
+   secret owners submit native creation, reads and removal to one dedicated
+   process-lifetime credential thread, including root reopen and explicit discard.
+   Concurrent-host stories retain independent calling-thread absence assertions.
+   Native test and benchmark runners retain child scratch ownership and remove
+   root credentials after child exit, including termination, before deleting scratch.
    `credentials_leave_with_discarded_roots` proves named access and secret credentials
    are unreadable after normal and failed Windows story teardown, including without
    their publication pointers.
-   Plugins read Secret Storage directly by identifier, without bindings. A plugin
-   may read only identifiers it declares as `Setting.kind.secret` in its
-   `dokime.v1.SettingsDeclarations` catalog section. The context secret handler
-   checks the connected calling plugin's description before any store access;
-   undeclared reads receive the same declaration guidance whether the secret
-   exists or not. Declared but missing secrets fail. Administrative client secret
-   operations retain their separate access. `plugin_reads_only_declared_secrets`
-   exercises this admission through real plugin invocations.
+   The locked definition now composes the library PluginEntry and plugins.Settings;
+   product plugin records/settings wrappers and clock operations are deleted.
+   Product plugins.Secrets owns declared-name bindings and availability, and
+   Secrets.Get admits only a calling plugin's declared names. Administrative
+   metadata is client-only. Existing stories describe behavior to preserve during
+   this consumer migration; they do not prove the new definitions.
 
 8. **Resource Operation Grammar.** Services name resources; methods use bare verbs
    from Get/List/Watch/Set/Create/Delete/Append, with explicit domain side effects
@@ -245,10 +272,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     [Incompatible error](../crates/dokime-storage/src/error.rs),
     [current compatibility requirement](../openspec/specs/data-shape-identity/spec.md).
     **Proof:** `client_collects_backend_diagnostics` in
-    [client_collects_backend_diagnostics.rs](../crates/dokime-runtime-next/tests/system/client_collects_backend_diagnostics.rs)
+    [client_collects_backend_diagnostics.rs](../crates/dokime-runtime/tests/system/client_collects_backend_diagnostics.rs)
     refuses a populated foreign root and preserves its bytes.
     `hosts_refuse_occupied_roots_before_opening_evidence` in
-    [storage_root_admission.rs](../crates/dokime-runtime-next/tests/system/storage_root_admission.rs)
+    [storage_root_admission.rs](../crates/dokime-runtime/tests/system/storage_root_admission.rs)
     proves external-lock refusal before database creation, cloned ownership and reopening. **Status:** landed.
 
 13. **Callee-Owned Policies and Configured Limits.** Deadlines, delays and retries
@@ -259,9 +286,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     Time reads/waits use the authoritative host clock, including SDK child waits.
     **Where:** [policy requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy),
     [configured reads](../openspec/specs/query-operations/spec.md),
-    [current dispatch policy](../crates/dokime-runtime-next/src/dispatch.rs).
+    [current dispatch policy](../crates/dokime-runtime/src/dispatch.rs).
     **Proof:** No proof yet for all policy/override paths; A11. `step_failure_and_retries`
-    in [step_failure_and_retries.rs](../crates/dokime-runtime-next/tests/system/step_failure_and_retries.rs)
+    in [step_failure_and_retries.rs](../crates/dokime-runtime/tests/system/step_failure_and_retries.rs)
     proves actual attempt evidence, not complete policy parity. The execution fixture also reads invocation-scoped Environment and Time.Get from its initialize call.
     **Status:** locked direction (`operation-grammar`).
 
@@ -274,7 +301,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     **Why:** Host-free authoring, independent storage and thin shells must remain buildable.
     **Where:** [layer requirement](../openspec/changes/grpc-plugins/specs/crate-structure/spec.md),
     [workspace](../Cargo.toml), [SDK manifest](../sdk/rust/Cargo.toml),
-    [runtime manifest](../crates/dokime-runtime-next/Cargo.toml).
+    [runtime manifest](../crates/dokime-runtime/Cargo.toml).
     **Proof:** No proof yet for the complete migrated tree; A12. New crate manifests
     follow the direction; the native desktop is restored to workspace membership
     and uses the embedded execution host through its native SDK connection owner.
@@ -304,7 +331,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     **Why:** Correctness must not depend on workstation conditions or freeze editorial text.
     **Where:** [agreed test redesign](../openspec/changes/test-stories/design.md),
     [guard requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-deterministic-behavioral-proof),
-    [existing stories](../crates/dokime-runtime-next/tests/system).
+    [existing stories](../crates/dokime-runtime/tests/system).
     **Proof:** No proof yet for the complete test migration; A14. Retained stories
     still need the agreed invariant coverage. Do not add tests that quote this document.
     **Status:** locked direction (`test-stories`, `operation-grammar`).
@@ -315,12 +342,12 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     Import carries its own manifest and never invents a plugin or runnable case.
     **Why:** Durable evidence and recovery must survive the process that produced them.
     **Where:** [execution model](../crates/dokime-storage/src/execution.rs),
-    [host creation](../crates/dokime-runtime-next/src/host.rs),
+    [host creation](../crates/dokime-runtime/src/host.rs),
     [requirements](../openspec/changes/grpc-plugins/specs/host-executions/spec.md).
     **Proof:** `thermal_suite_survives_host_restart` in
-    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime-next/tests/system/thermal_suite_survives_host_restart.rs)
+    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime/tests/system/thermal_suite_survives_host_restart.rs)
     and `execution_capabilities` in
-    [execution_capabilities.rs](../crates/dokime-runtime-next/tests/system/execution_capabilities.rs).
+    [execution_capabilities.rs](../crates/dokime-runtime/tests/system/execution_capabilities.rs).
     **Status:** landed in the additive host; full import admission remains separate work.
 
 18. **Attributed Outcomes.** Evaluated, declared and not-evaluated outcomes remain
@@ -331,7 +358,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     [requirements](../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-attributed-outcomes-and-cycle-verdicts).
     **Proof:** `cycle_outcomes_keep_declared_and_unevaluated_separate` in that source
     and `execution_outcomes` in
-    [execution_outcomes.rs](../crates/dokime-runtime-next/tests/system/execution_outcomes.rs).
+    [execution_outcomes.rs](../crates/dokime-runtime/tests/system/execution_outcomes.rs).
     **Status:** landed in the additive host.
 
     Statistics replies include their resolved read position. Compare complete replies
@@ -346,11 +373,11 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     output without mutating evidence or publishing; explicit publication freezes the
     document/HTML durably and never changes the execution verdict or seal.
     **Why:** Preview, download and render failures must not become lifecycle mutations.
-    **Where:** [document rendering](../crates/dokime-runtime-next/src/documents.rs),
+    **Where:** [document rendering](../crates/dokime-runtime/src/documents.rs),
     [report storage](../crates/dokime-storage/src/report.rs),
     [requirement](../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-report-rendering-and-publication).
     **Proof:** `documents_and_reports` in
-    [documents_and_reports.rs](../crates/dokime-runtime-next/tests/system/documents_and_reports.rs)
+    [documents_and_reports.rs](../crates/dokime-runtime/tests/system/documents_and_reports.rs)
     checks page-size equivalence, failed-render nonpublication, explicit publish and restart.
     **Status:** landed in the additive host, including report-manager ownership (6), guarded by A5.
 
@@ -382,7 +409,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     never empty success. Transport loss leaves mutation outcome uncertain.
     **Why:** An operator must distinguish no data from data that could not be obtained.
     **Where:** [failure/watch requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
-    [current failure translation](../crates/dokime-runtime-next/src/dispatch.rs).
+    [current failure translation](../crates/dokime-runtime/src/dispatch.rs).
     **Proof:** No proof yet across final interfaces; A16. The current dispatcher
     collapses host child errors to a permanent host_operation_failed failure.
     **Status:** locked direction (`operation-grammar`).
@@ -394,21 +421,21 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
      the installation files and restoring a previous entry. The install operation
      waits for rollback before reporting its deadline failure.
     **Why:** Hosting convenience must not fork plugin semantics.
-    **Where:** [plugin entry](../crates/dokime-runtime-next/src/plugin.rs),
-    [process owner](../crates/dokime-runtime-next/src/process/mod.rs),
+    **Where:** [plugin entry](../crates/dokime-runtime/src/plugin.rs),
+    [process owner](../crates/dokime-runtime/src/process/mod.rs),
     [requirement](../openspec/changes/grpc-plugins/specs/host-executions/spec.md#requirement-managed-and-remote-plugins).
     **Proof:** `thermal_suite_survives_host_restart` in
-    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime-next/tests/system/thermal_suite_survives_host_restart.rs)
+    [thermal_suite_survives_host_restart.rs](../crates/dokime-runtime/tests/system/thermal_suite_survives_host_restart.rs)
     runs the same suite through both placements. **Status:** landed in the additive host.
 
 24. **Cancellation Preserves Cleanup and Evidence.** Interrupt the active invocation
     while still running required cleanup, closing sample streams and sealing attributed
     evidence; do not confuse cancelling observation with cancelling admitted work.
     **Why:** Operator cancellation must not leave physical resources or evidence unfinished.
-    **Where:** [execution sequencing](../crates/dokime-runtime-next/src/execution.rs),
+    **Where:** [execution sequencing](../crates/dokime-runtime/src/execution.rs),
     [cancellation requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-execution-stop-and-cancel).
     **Proof:** `cancelling_a_thermal_step_runs_cleanup` in
-    [cancelling_a_thermal_step_runs_cleanup.rs](../crates/dokime-runtime-next/tests/system/cancelling_a_thermal_step_runs_cleanup.rs)
+    [cancelling_a_thermal_step_runs_cleanup.rs](../crates/dokime-runtime/tests/system/cancelling_a_thermal_step_runs_cleanup.rs)
     guards active cancellation/cleanup. Full observer-abandonment semantics have
     **No proof yet**; A17. **Status:** locked direction (`operation-grammar`) for
     the complete invariant; active cleanup is landed in the additive host.
@@ -452,7 +479,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
 Product Files and Files.Uploads own client transfers and scoped plugin-host unary
 transfers over the existing content store. They reuse library file/session/receipt
 vocabulary and return per-call transfer limits. Published artifact, execution-file,
-report, evidence-archive and appearance references use Files.Read. Replay receipts
+report, evidence-archive and appearance references use Files.Read. Files.Watch
+selects exactly one published file or upload; upload watches follow durable bytes
+before publication and retain the selected writer identity. Replay receipts
 and writer generations survive restart. The development storage baseline remains
 v1; the added upload/request tables make older layouts explicitly incompatible,
 without migration or automatic reset. Library in-process storage composition is
@@ -462,11 +491,10 @@ document even when the caller uses the default selector. Each layout section has
 a matching section-identity frame before structure completion; its identity and
 the structure counters describe the same frozen document.
 
-Product discovery remains blocked by the pinned library's lack of an external
-service method-registration API; see the exact boundary in
-[Execution Host](execution-host.md#product-file-resources). Native library operations
-continue to advertise their actual bindings. Plugin-host Watch also needs a child
-stream carrier; ordinary invocation children have one response.
+The final library supplies composed registration and effective caller restrictions.
+The product runtime still must adopt that registration; an old pin's missing API
+is not a blocker at this revision. Plugin-host streams use the library's managed
+child-watch contract rather than inventing a unary streaming twin.
 
 ## Arrow File Storage
 
@@ -536,9 +564,9 @@ still refuses. Numeric frame expressions denote source-time seconds; returned
 frame instants are canonical timestamps, including for playback.
 Frame reduction retains typed source-time keys and formats only the bounded
 returned instants; walking a long history does not allocate timestamp text per row.
-`ordered_merge.rs` contains one as-of merge over two ordered
-Arrow batch iterators, with no product/storage types in its signature. Expression
-binding uses it for stream-to-stream and record-to-stream alignment, record-based
+`expressions.rs` uses `harmos_query::merge::TimeMergeReader` over retained,
+projected table readers at one cut. Its AtOrBefore plan supplies the shared
+time alignment for stream-to-stream and record-to-stream expressions, record-based
 ranges and grouping, values at records, and paired record intervals. Intervals pair
 the previous record at the current record's time before alignment to later samples.
 Exact integer rank selection spills projected order keys to an ephemeral query
@@ -548,10 +576,13 @@ interpolation retain their integer or rational type through evidence statistics,
 plot summaries and document values. Record/expression percentiles use the same
 spill-backed rank selector as stream percentiles, rather than the library's
 floating percentile accumulator. Category reducers likewise accumulate typed
-values; plot columns retain exact totals separately from drawing coordinates. `dokime.v1.Value.exact` uses the library's
-`harmos.storage.v1.ExactNumber` for fractions and totals outside the 64-bit range;
-ordinary integral results retain signed or unsigned integer values. The desktop
-formats these values without converting them to JavaScript numbers. Document
+values; plot columns retain exact totals separately from drawing coordinates.
+`dokime.model.v1.Value.exact` uses the product model's
+`dokime.model.v1.ExactNumber` for fractions and totals outside the 64-bit range;
+ordinary integral results retain signed or unsigned integer values. The final
+library has no storage wire model; the product preserves the former ExactNumber
+fields (negative = 1, numerator = 2, denominator = 3) at its model boundary.
+The desktop formats these values without converting them to JavaScript numbers. Document
 structure carries pending bindings; result bindings, summary groups, tiles and
 card completion follow the evidence cut. Literal table rows also settle at card
 completion, with their declared counts still enforced. Integer
@@ -559,30 +590,224 @@ variance uses bounded exact sums of squares, so small spreads above f64 integer
 precision survive. Standard deviation, RMS and chart coordinates remain floating
 point; these drawing coordinates never replace the exact statistic or its label.
 
-`Backend::for_execution` implements the pinned `StorageBackend` lifecycle, retained
-snapshots and native Arrow scans for an execution history. Native schema identities
-name its declared streams at baseline v1 and scan columns use `_storage.*`/`values.*`.
-Retained tokens bind their original cursor; changing that cursor or schema version
-is refused. Generic
-schema/object/record/sample ports refuse because this pin's `PayloadEncoding`
-contains only `PostcardV1`, while current evidence freezes protobuf descriptors.
-The generic file ports also refuse: current product File resources own a separate
-file history and writer/publication positions, whose mapping belongs to 0.H.5.
-No alternate row encoding or duplicate file owner is installed to conceal those
-boundaries. The backend is implemented here but is not registered by the host yet.
+`Backend::open(&store)` returns the library's `StorageBackends` pair, sharing the
+root's durable history. `backend.rs` and `backend/**` implement the native primary
+and recovery contracts. Their catalog is `storage.sqlite3`; native sample batches
+live in compressed `storage.arrow/<id>.arrow` files. SQLite retains replay digests
+and column bounds, with no native sample payload or Arrow-column blobs. Each file
+is synced before its catalog transaction commits; startup collects uncataloged
+owned files after a failed transaction. Native row reads reconstruct Postcard
+values from those Arrow columns, preserving optional messages and repeated values.
+Native storage and the existing descriptor-driven evidence store remain distinct
+until operations/runtime callers complete their native-port adoption. Product
+protobuf values and descriptors must be mapped explicitly at those callers.
 
 Execution archives copy finalized stream files unchanged under
 `telemetry/<stream>.arrow`; `manifest.json` records paths, sizes and SHA-256, and
 `evidence.pb` retains the sealed execution, records, reports and content. Cycle ZIPs
 contain those execution ZIPs and a manifest. Sealed deletion records stream tombstones
-in its transaction; startup completes pending physical deletion. Retained native
-backend snapshots prevent deletion until their readers release the files.
+in its transaction; startup completes pending physical deletion. Native file
+deletion fences new readers while existing snapshots retain their original bytes;
+releasing the final older reader permits physical reclamation.
 
 The baseline remains v1. A root with the rebuilt `samples`, `sample_fields` and
 `sample_batches` inventory is refused with an action to select a fresh root; no
 existing root is migrated, reset or deleted. Diagnostics copy stream files too.
 
+## Final Library Assembly and Storage Contract
+
+This definition preserves invariant 7, **Library Machinery and Product Policy**:
+"Compose library services directly, without redeclaring or forwarding them."
+Invariant 11, **Distinct Storage Guarantees**, still separates accepted live rows,
+durable cuts, projection frontiers and atomic conditional mutations. The physical
+SQLite catalog and compressed Arrow file backend remain product-owned in
+`crates/dokime-storage`; the library owns its interfaces, native operations,
+StorageManager/StateManager and query engine. Its in-memory backend is test support.
+
+The exact [operation/message/caller map](execution-host.md#operation-identity-and-caller-mapping)
+is canonical.
+The definition replaces these ownership paths:
+
+| Former Owner | Final Definition Owner |
+| --- | --- |
+| dokime.client.v1 and dokime.plugin.host.v1 | dokime.host.v1 and its nested resource packages |
+| dokime.v1 shared grab-bag values | dokime.model.v1 for exchanged values; otherwise the owning host/plugin resource |
+| Product Plugin/Plugins and plugin-settings wrappers | harmos.host.v1.Plugins and harmos.host.v1.plugins.Settings |
+| Product clock operation declarations | harmos.host.v1.Time |
+| AnalysisRequest/AnalysisResponse | dokime.plugin.v1.AnalysesComputeRequest/AnalysesComputeResponse |
+| Product generic ordered merge | harmos-query/src/merge.rs; consumer deletion is still open |
+
+Both assembly and SDK generation read `protocol/composition.toml`. It composes
+harmos.model.v1, harmos.host.v1 and harmos.plugin.v1, including nested resources,
+and narrows Operations.List/Get to CLIENTS. List is host-wide browsing; Get is
+arbitrary contract retrieval. Plugins receive their admitted requirements through
+the host, so neither discovery operation is needed by them. Invocations remains
+available for admitted peer/child calls; Time and own-entry plugins.Settings.List
+remain shared. Narrowing never widens an upstream caller set.
+
+The runtime consumer must apply this shape before listeners or plugins start:
+
+```rust
+let backends = Backend::open(&store)?;
+let storage = StorageManager::with_catalog(catalog, backends, storage_settings)?;
+setup.settings().storage(&storage);
+setup.composition(include_str!("../../../protocol/composition.toml"))?;
+setup.catalog(builtins::storage_catalog(), Lane::default());
+```
+
+This is the required assembly contract, not a claim that runtime consumers already
+implement it. `primary` implements StorageBackend and `state` implements
+StateBackend with identical StoreHistory. Keep one manager per root, not one per
+execution. Product histories/scopes select executions under that root. Every data
+operation stays in-process through the library catalog, never a storage gRPC API.
+The runtime does not open the descriptor path in the composition file.
+
+At this pin the native PayloadEncoding enum still contains only PostcardV1.
+The backend consumer must encode native object/record/sample values and their
+schemas truthfully; protobuf bytes must never be relabeled as Postcard. Preserve
+the frozen protobuf definitions and map product values losslessly at the native
+port. Arrow scans supply projected batches to the library query engine directly;
+this is no permission for a duplicate durable row representation or new wire codec.
+
+
+### Backend Module Ownership
+
+| Product Modules | Required Ownership |
+| --- | --- |
+| backend.rs, store.rs, history.rs, administration.rs | Native ports, catalog transactions, stable history, original receipts and recovery-state persistence. Product plugin administration persistence is removed. |
+| ipc.rs, ipc/**, telemetry/**, streams.rs, stream_* | Physical Arrow append/projection/flush/checkpoints and catalog pruning; saved/live boundaries and compressed recovery. |
+| execution.rs, cycles.rs, plans.rs, progress.rs, traceability.rs, notes.rs, report.rs | Product objects and records reached through library native operations; no new storage interface or manager. |
+| content.rs and file/upload helpers | Native staging/publication, fences, checkpoints and resumable sessions under one content owner. Wire uses library FileReference/Upload, not native backend structs. |
+| expressions.rs, plot*.rs, document*.rs, numeric*.rs | Product expression binding and presentation; consume projected library query results and the library time merge. Preserve the parallel correctness repair. |
+| ordered_merge.rs | Delete after expressions.rs moves to TimeMergeReader; no product generic merge remains in the completed consumer migration. |
+
+### StorageBackend Method Inventory
+
+The signatures and values are owned by the pinned
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/7181b5ed33c9d2be79c38d266b0a97d838b05ed6/crates/harmos-storage/src/backend.rs).
+Every method below must be implemented for the product's native capabilities,
+except the three explicit fallback optimizations. A default unsupported result is
+not implementation of an exposed capability. `get_work` supplies native work
+counters for product diagnostics and bounded-work evidence.
+
+| Method | Product Obligation |
+| --- | --- |
+| `list_record_views` | Optional optimization; retain the shared bounded fallback. |
+| `get_record_position` | Optional optimization; retain the shared bounded fallback. |
+| `get_work` | Implement the product native capability; do not rely on unsupported default. |
+| `advance_projection` | Optional optimization; retain the shared bounded fallback. |
+| `set_object` | Implement the product native capability; do not rely on unsupported default. |
+| `delete_object_receipts` | Implement the product native capability; do not rely on unsupported default. |
+| `set_projection_definition` | Implement the product native capability; do not rely on unsupported default. |
+| `get_projection_definition` | Implement the product native capability; do not rely on unsupported default. |
+| `get_projection_status` | Implement the product native capability; do not rely on unsupported default. |
+| `set_projection_output` | Implement the product native capability; do not rely on unsupported default. |
+| `list_projection_rows` | Implement the product native capability; do not rely on unsupported default. |
+| `delete_projection_history` | Implement the product native capability; do not rely on unsupported default. |
+| `set_index_definition` | Implement the product native capability; do not rely on unsupported default. |
+| `get_index_definition` | Implement the product native capability; do not rely on unsupported default. |
+| `list_index_entries` | Implement the product native capability; do not rely on unsupported default. |
+| `capabilities` | Implement the product native capability; do not rely on unsupported default. |
+| `list_column_rows` | Implement the product native capability; do not rely on unsupported default. |
+| `get_history` | Implement; required by trait. |
+| `create_session` | Implement; required by trait. |
+| `get_saved_position` | Implement; required by trait. |
+| `delete_session` | Implement; required by trait. |
+| `append_schemas` | Implement; required by trait. |
+| `append_object_revisions` | Implement; required by trait. |
+| `append_records` | Implement; required by trait. |
+| `append_samples` | Implement; required by trait. |
+| `append_file_references` | Implement; required by trait. |
+| `create_snapshot` | Implement; required by trait. |
+| `delete_snapshot` | Implement; required by trait. |
+| `list_schemas` | Implement; required by trait. |
+| `list_object_revisions` | Implement; required by trait. |
+| `list_records` | Implement; required by trait. |
+| `list_samples` | Implement; required by trait. |
+| `list_files` | Implement; required by trait. |
+| `get_object` | Implement; required by trait. |
+| `get_file_bytes` | Implement; required by trait. |
+| `delete_object_history` | Implement; required by trait. |
+| `delete_expired_object_revisions` | Implement; required by trait. |
+| `create_file_staging` | Implement; required by trait. |
+| `append_file_bytes` | Implement; required by trait. |
+| `publish_file_production` | Implement; required by trait. |
+| `delete_file_staging` | Implement; required by trait. |
+| `create_file_production` | Implement the product native capability; do not rely on unsupported default. |
+| `set_file_writer_generation` | Implement the product native capability; do not rely on unsupported default. |
+| `set_file_production_checkpoints` | Implement the product native capability; do not rely on unsupported default. |
+| `list_file_production_checkpoints` | Implement the product native capability; do not rely on unsupported default. |
+| `get_file_production` | Implement the product native capability; do not rely on unsupported default. |
+| `get_file_production_bytes` | Implement the product native capability; do not rely on unsupported default. |
+| `delete_file_production` | Implement the product native capability; do not rely on unsupported default. |
+| `delete_file` | Implement the product native capability; do not rely on unsupported default. |
+| `append_mutation_receipts` | Implement the product native capability; do not rely on unsupported default. |
+| `list_mutation_receipts` | Implement the product native capability; do not rely on unsupported default. |
+| `list_identities` | Implement the product native capability; do not rely on unsupported default. |
+
+### StateBackend Method Inventory
+
+State is the durable recovery owner, independent of the sample/catalog writer but
+sharing its history. Recovery snapshots and entries retain their original required
+data positions; flushing through a recovery position establishes its durability.
+
+| Method | Product Obligation |
+| --- | --- |
+| `get_history` | Implement the exact pinned StateBackend contract. |
+| `create_recovery_session` | Implement the exact pinned StateBackend contract. |
+| `get_recovery_snapshot` | Implement the exact pinned StateBackend contract. |
+| `set_recovery_snapshot` | Implement the exact pinned StateBackend contract. |
+| `list_recovery_entries` | Implement the exact pinned StateBackend contract. |
+| `append_recovery_entries` | Implement the exact pinned StateBackend contract. |
+| `flush` | Implement the exact pinned StateBackend contract. |
+| `delete_recovery_session` | Implement the exact pinned StateBackend contract. |
+
+### Library Query Merge and Removals
+
+The product merge module and per-execution backend facade are removed.
+`TimeMergeReader` now supplies expression alignment with bounds from the product
+storage settings. The native backend implements every StorageBackend method;
+`advance_projection` returns `None` to use the library's bounded executor.
+Record views and record-position seeking are implemented. All eight StateBackend
+methods persist recovery entries, snapshots and their saved frontier in the same
+native catalog. Recovery flush refuses a frontier whose required primary data is
+not durable. No implemented native method reports an unsupported capability.
+
+`harmos_query::merge::TimeMergeReader::new` takes two `Box<dyn BatchReader>`, a
+native `TimeMerge` plan and a nonzero output row bound. Both readers must retain
+the same cut. `TimeMerge { source, primary_time, secondary_time, mode, work }`
+selects Range { end }, AtOrBefore or Intervals. Bind product source-time and record
+interval columns once, push catalog pruning/projection into native backend scans,
+and consume bounded batches for record ranges, values at records, grouped record
+intervals and stream-to-stream alignment. No DataFusion or general product join
+engine is introduced.
+
+The remaining consumer migration removes direct Store paths in operations/runtime, product installation
+records, settings wrappers and clock dispatch. The definition already deletes
+product plugin service/handler modules and Store::save_plugin_administration.
+Keep product schemas, report publication, expression binding, durable Arrow I/O and
+all storage fault/archive stories. The existing root is never silently reset;
+formats remain at baseline v1 and incompatible development roots require an
+explicit fresh path.
+
 ## SDK Build Ownership
+
+### Final Library Pin
+
+The definition pass pins Harmos at `7181b5ed33c9d2be79c38d266b0a97d838b05ed6`.
+Consumer repairs follow the work lists in [Execution Host](execution-host.md).
+The pin and generated contracts do not establish consumer compilation.
+
+| Consumer | Required Change at This Pin |
+| --- | --- |
+| Operations and Runtime | Use model/host/plugin identities, effective callers and direct library Plugins, plugins.Settings and Time composition. |
+| Storage | Implement the native StorageBackend and StateBackend ports; register primary/state owners at assembly; replace the product ordered merge with harmos-query. |
+| Rust | Adopt the internal wire layout and public root/client/plugin barrels; use generated argument-based calls. |
+| Python | Resolve the pinned git dependency and regenerate private wire modules and typed client/context resources. |
+| C# | Build the local NuGet feed from the same immutable revision; use its generated public namespaces and call contexts. |
+| C++ | Fetch the same immutable source archive; compose the installed library types and generated resource tree. |
+| Command-Line Tool | Rename the candidate binary to dokime and adopt generated client calls and library plugin records. |
+| Desktop | Adopt the generated executor contracts and library plugin/settings records; preserve the concurrent plot/document repair. |
 
 Each of `sdk/cpp`, `sdk/csharp` and `sdk/python` owns its mise tasks and build
 recipes. Repository host-fixture tooling calls those entry points; fixtures live
@@ -590,8 +815,8 @@ under `sdk/tests/fixtures`. C++ resolves its native graph through one pinned
 vcpkg manifest and exports `Dokime::Cpp` as an installed package. C# builds one
 solution with central dependency versions and consumes Harmos through a local
 NuGet feed. Python ships typed resource modules and generated protobuf packages.
-These build changes retain the current protocol and client call shapes; the
-next library pin must regenerate their descriptor-derived surfaces.
+The final pin regenerates descriptor-derived surfaces and private wire output.
+SDK implementation/installed-consumer proof follows the consumer work lists.
 
 The CLI embeds the authoritative SDK starters and includes the Python starter's
 host-driven tests from `sdk/tests/fixtures/python/starter`. The per-language

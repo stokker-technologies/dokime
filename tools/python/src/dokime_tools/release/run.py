@@ -67,6 +67,7 @@ VERBS = [
     "crates",
     "publish",
     "python",
+    "python-dry",
     "finalize",
     "verify",
     "guard",
@@ -201,7 +202,7 @@ def stage(
                 raise policy.ToolError(f"release download names collide across targets: {asset['name']}")
             destination = policy.inside(root / selected, asset["name"])
             shutil.copyfile(policy.inside(directory, asset["path"]), destination)
-            if destination.name.startswith(("dokime-cli-next-",)) and destination.name.endswith((".zip", ".tar.gz")):
+            if destination.name.startswith(("dokime-cli-",)) and destination.name.endswith((".zip", ".tar.gz")):
                 notices.archive(shared, destination)
             files.append(_describe(root, destination))
     for destination in layout.plugin_archives(directory, root, plugins):
@@ -218,7 +219,7 @@ def stage(
     native = _native()
     if native not in targets:
         raise policy.ToolError("protocol export requires a packaged native CLI target")
-    cli = next(item for item in packages.definitions(directory, profile, native) if item.get("command") == "dokime-next")
+    cli = next(item for item in packages.definitions(directory, profile, native) if item.get("command") == "dokime")
     with temporary.directory() as temporary_root:
         executable = temporary_root / cli["binary"]
         executable.write_bytes(packages.binary_bytes(root / native / cli["output"], cli["binary"]))
@@ -227,8 +228,12 @@ def stage(
         exported = temporary_root / "proto"
         policy.execute(directory, [str(executable), "proto", "export", "--out", str(exported)])
         sources = sorted(exported.rglob("*.proto"))
-        if not sources or not all((exported / package).is_dir() for package in ("dokime/v1", "harmos/v1")):
-            raise policy.ToolError("protocol export is missing Dokime or Harmos definitions")
+        package_roots = [f"{owner}/{audience}/v1" for owner in ("dokime", "harmos") for audience in ("model", "host", "plugin")]
+        missing = [package for package in package_roots if not (exported / package).is_dir()]
+        if not sources:
+            raise policy.ToolError("Export Release Protocol: No Protocol Definitions Were Produced")
+        if missing:
+            raise policy.ToolError(f"Export Release Protocol: Missing Definitions: {', '.join(missing)}")
         with zipfile.ZipFile(protocol, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             for source in sources:
                 archive.write(source, source.relative_to(exported).as_posix())
@@ -600,29 +605,42 @@ def tag(directory: Path, settings: dict) -> None:
         print(f"{branch}: deleted after its squash")
 
 
-def rehearse(directory: Path, settings: dict, *, target: str | None = None, profile: str = "release", stage_only: bool = False) -> None:
+def rehearse(
+    directory: Path,
+    settings: dict,
+    *,
+    target: str | None = None,
+    profile: str = "release",
+    stage_only: bool = False,
+    channel: str = "stable",
+) -> None:
     """Verify Selected Local Packages Or Every Hosted Target Without Publishing Credentials."""
     hosted = continuous_integration()
     if profile not in {"dev", "release"}:
         raise policy.ToolError("rehearsal profile must be dev or release")
     if hosted and (profile != "release" or stage_only):
         raise policy.ToolError("hosted rehearsal requires complete release-profile verification")
-    if hosted and target not in (None, "all"):
-        raise policy.ToolError("hosted rehearsal requires all declared release targets")
-    target = target or ("all" if hosted else "native")
+    target = target or "native"
     selected = native_target(settings) if target == "native" else target
     if selected != "all" and selected not in settings.get("targets", []):
         raise policy.ToolError(f"undeclared release target: {selected}")
     targets = list(settings.get("targets", [])) if selected == "all" else [selected]
     with policy.credential_free(settings, profile=profile):
         _refuse_overrides(directory)
+        if not hosted and not stage_only and targets == [native_target(settings)]:
+            policy.execute(directory, ["mise", "run", "build", "--", "--language", "python", "--profile", profile])
+            policy.execute(directory, ["mise", "run", "build", "--", "--profile", profile])
+            policy.execute(directory, ["mise", "run", "package", "--", "--profile", profile, "--target", targets[0]])
         revision = _revision(directory) if stage_only else None
-        dry(directory, settings, profile=profile, require_all=True, source_revision=revision, targets=targets)
-        if not stage_only and _task_defined(directory, "release:tag"):
-            registry.rehearse_crates(directory, skip_published=False)
-        if not stage_only and _task_defined(directory, "release:publish:python"):
+        dry(directory, settings, profile=profile, require_all=True, source_revision=revision, targets=targets, channel=channel)
+        if not stage_only and channel == "stable" and _task_defined(directory, "release:tag"):
+            registry.rehearse_crates(directory, skip_published=False, channel=channel)
+        if not stage_only and channel == "stable" and _task_defined(directory, "release:publish:python"):
             registry.python(directory, settings, dry_run=True)
-    print(f"release {'staging' if stage_only else 'rehearsal'} passed using staged {profile}-profile packages")
+    print(f"Release {'Staging' if stage_only else 'Rehearsal'} Passed: {', '.join(targets)} ({profile} Profile, {channel} Channel)")
+    uncovered = sorted(set(settings.get("targets", [])) - set(targets))
+    if uncovered:
+        print(f"Targets Not Covered: {', '.join(uncovered)}; Use --target all With Those Packages Available to Rehearse Them")
 
 
 def identity(directory: Path, settings: dict) -> None:
@@ -655,25 +673,35 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--target", help="Rehearse native, one declared release target, or all targets; hosted runs require all.")
     parser.add_argument("--profile", choices=("dev", "release"), help="Local rehearsal package profile; defaults to release.")
     parser.add_argument("--stage-only", action="store_true", help="Local rehearsal staging without registry dry-runs.")
+    parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
     options = parser.parse_args(arguments)
     try:
-        run(policy.root(), options.verb, target=options.target, profile=options.profile, stage_only=options.stage_only)
+        run(
+            policy.root(),
+            options.verb,
+            target=options.target,
+            profile=options.profile,
+            stage_only=options.stage_only,
+            channel=options.channel,
+        )
     except (policy.ToolError, OSError, ValueError, KeyError, TypeError) as error:
         print(f"release: {error}", file=sys.stderr)
         return 1
     return 0
 
 
-def run(directory: Path, verb: str, *, target: str | None = None, profile: str | None = None, stage_only: bool = False) -> None:
-    if verb != "rehearse" and (target is not None or profile is not None or stage_only):
-        raise policy.ToolError("--target, --profile and --stage-only are supported only by rehearsal")
+def run(
+    directory: Path, verb: str, *, target: str | None = None, profile: str | None = None, stage_only: bool = False, channel: str = "stable"
+) -> None:
+    if verb != "rehearse" and (target is not None or profile is not None or stage_only or channel != "stable"):
+        raise policy.ToolError("Select Rehearsal: --target, --profile, --stage-only and --channel Are Supported Only by Rehearsal")
     settings = policy.policy(directory, "release")
     operations = {
         "prepare": prepare,
         "review": review,
         "dry": dry,
         "rehearse": lambda directory, settings: rehearse(
-            directory, settings, target=target, profile=profile or "release", stage_only=stage_only
+            directory, settings, target=target, profile=profile or "release", stage_only=stage_only, channel=channel
         ),
         "identity": identity,
         "crates-dry": lambda directory, settings: registry.rehearse_crates(directory, skip_published=False),
@@ -681,6 +709,7 @@ def run(directory: Path, verb: str, *, target: str | None = None, profile: str |
         "crates": crates,
         "publish": publish,
         "python": lambda directory, settings: registry.python(directory, settings, dry_run=False),
+        "python-dry": lambda directory, settings: registry.python(directory, settings, dry_run=True),
         "finalize": finalize,
         "verify": verify,
         "guard": lambda directory, settings: registry.require_tag(directory, release_tag(directory)),

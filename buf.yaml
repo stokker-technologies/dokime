@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+    - COMMENT_SERVICE
+    - COMMENT_RPC
+    - COMMENT_MESSAGE
+  except:
+    # Resource grammar uses bare resource names.
+    - SERVICE_SUFFIX
+    # Nested resources follow the versioned executor package.
+    - PACKAGE_VERSION_SUFFIX
+    # Vendored library enums preserve their encoded vocabulary.
+    - ENUM_VALUE_PREFIX
+    - ENUM_ZERO_VALUE_SUFFIX
+    # Nested resources exchange owner-defined values in both directions. Protoc
+    # still rejects every file import cycle; packages are not dependency units.
+    - PACKAGE_NO_IMPORT_CYCLE
+  disallow_comment_ignores: true

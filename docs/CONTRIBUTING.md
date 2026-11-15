@@ -23,7 +23,7 @@ mise run check -- --language python
 mise run check -- --language typescript
 mise run check -- --repository
 mise run build:host-fixtures
-mise run test -- --package dokime-runtime-next --target system --story storage_root_admission
+mise run test -- --package dokime-runtime --target system --story storage_root_admission
 ```
 
 Use deterministic user journeys, events and controlled clocks. Tests never assert

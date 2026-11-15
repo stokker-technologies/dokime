@@ -1,27 +1,81 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Collections.Concurrent;
-using Dokime.Protocol.V1;
-using Dokime.Protocol.Plugin.V1;
+using Dokime;
+using Dokime.Plugins;
 using Google.Protobuf;
-using Harmos.Sdk;
-using Harmos.V1;
+using Harmos.Plugins;
+using Harmos;
+using ModelAnalyses = Dokime.Analyses;
+using ModelCriterion = Dokime.Criterion;
+using ModelStep = Dokime.Step;
+using ModelSuite = Dokime.Suite;
+using TransportContext = Harmos.Plugins.Context;
+using TransportPlugin = Harmos.Plugins.Plugin;
 
-namespace Dokime;
+namespace Dokime.Plugins;
 
 /// <summary>Composed suites served through the exact-revision Harmos SDK.</summary>
-public sealed class Plugin(string identifier, string version, params Suite[] suites)
+public sealed partial class Plugin(string identifier, string version, params Suite[] suites)
 {
-  private readonly Harmos.Sdk.Plugin transport = new(identifier, version);
+  private readonly TransportPlugin transport = new(identifier, version);
   private readonly ConcurrentDictionary<string, Lazy<Task<ExecutionResource>>> resources = new();
   private readonly RecordContracts records = new();
+  private readonly SecretsDeclarations secrets = new();
+  private readonly ModelAnalyses analyses = new();
   private bool built;
+
+  public Plugin Setting(string name, SettingValue defaultValue, string title = "", string description = "")
+  {
+    if (built)
+      throw new InvalidOperationException("Declare Setting: Plugin Is Already Built");
+    transport.Setting(name, defaultValue, title, description);
+    return this;
+  }
+
+  public Plugin Secret(string name, string label, bool required = true)
+  {
+    if (built)
+      throw new InvalidOperationException("Declare Secret: Plugin Is Already Built");
+    ArgumentException.ThrowIfNullOrWhiteSpace(name);
+    if (secrets.Secrets.Any(item => item.Metadata.Identifier == name))
+      throw new ArgumentException($"Declare Secret: Duplicate Name {name}");
+    secrets.Secrets.Add(new SecretDeclaration
+    {
+      Metadata = new Metadata { Identifier = name, Label = label },
+      Required = required
+    });
+    return this;
+  }
+
+  public Plugin Analysis(Analysis definition,
+      Func<Context, AnalysisSamples, MapValue, Task<IReadOnlyList<AnalysisValues>>> compute,
+      OperationPolicy? policy = null)
+  {
+    if (built)
+      throw new InvalidOperationException("Declare Analysis: Plugin Is Already Built");
+    var declaration = definition.Clone();
+    var operation = declaration.Metadata.Identifier;
+    if (analyses.Analyses_.Any(item => item.Metadata.Identifier == operation))
+      throw new ArgumentException($"Declare Analysis: Duplicate Identifier {operation}");
+    analyses.Analyses_.Add(declaration);
+    transport.Operation(new Operation<AnalysesComputeRequest, AnalysesComputeResponse>(operation, Visibility.Protected, policy),
+        async (raw, request) =>
+        {
+          var outputs = await compute(new Context(raw, new TestCase()), request.Samples, request.Parameters);
+          var response = new AnalysesComputeResponse();
+          response.Outputs.AddRange(outputs.Select(output => output.Clone()));
+          return response;
+        });
+    return this;
+  }
 
   public Plugin Record<T>(Record<T> record) where T : IMessage<T>, new()
   {
-    if (built) throw new InvalidOperationException("Plugin is already built");
+    if (built)
+      throw new InvalidOperationException("Declare Record: Plugin Is Already Built");
     if (records.Records.Any(item => item.Metadata.Identifier == record.Identifier))
-      throw new ArgumentException($"Duplicate record: {record.Identifier}");
+      throw new ArgumentException($"Declare Record: Duplicate Identifier {record.Identifier}");
     transport.Message<T>();
     records.Records.Add(new RecordContract
     {
@@ -39,15 +93,16 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
   }
 
   /// <summary>Add instrument operations or requirements before serving.</summary>
-  public Harmos.Sdk.Plugin Build()
+  public TransportPlugin Build()
   {
-    if (built) return transport;
+    if (built)
+      return transport;
     var identifiers = new HashSet<string>(StringComparer.Ordinal);
     var section = new Suites();
     foreach (var suite in suites)
     {
       Unique(identifiers, suite.Metadata.Identifier);
-      var definition = new Dokime.Protocol.V1.Suite { Metadata = suite.Metadata.Clone() };
+      var definition = new ModelSuite { Metadata = suite.Metadata.Clone() };
       foreach (var template in suite.Templates)
       {
         Unique(identifiers, template.Definition.Metadata.Identifier);
@@ -55,8 +110,14 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       }
       section.Suites_.Add(definition);
     }
-    if (suites.Length > 0) transport.Section(section);
-    if (records.Records.Count > 0) transport.Section(records);
+    if (suites.Length > 0)
+      transport.Section(section);
+    if (records.Records.Count > 0)
+      transport.Section(records);
+    if (secrets.Secrets.Count > 0)
+      transport.Section(secrets);
+    if (analyses.Analyses_.Count > 0)
+      transport.Section(analyses);
     transport.OnStop(DisposeResourcesAsync);
     built = true;
     return transport;
@@ -64,11 +125,17 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
 
   public async Task ServeAsync(string? address = null, bool remote = false, CancellationToken cancellationToken = default)
   {
-    try { await Build().ServeAsync(address, remote, cancellationToken); }
-    finally { await DisposeResourcesAsync(); }
+    try
+    {
+      await Build().ServeAsync(address, remote, cancellationToken);
+    }
+    finally
+    {
+      await DisposeResourcesAsync();
+    }
   }
 
-  private void Register(Template template, Dokime.Protocol.V1.Suite suite, HashSet<string> identifiers)
+  private void Register(Template template, ModelSuite suite, HashSet<string> identifiers)
   {
     var name = template.Definition.Metadata.Identifier;
     var definition = template.Definition.Clone();
@@ -85,9 +152,8 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     {
       Unique(local, step.Identifier);
       var operation = $"{name}.step.{index}";
-      testCase.Steps.Add(new Dokime.Protocol.V1.Step { Metadata = new Metadata { Identifier = step.Identifier, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
-      var policy = step.Retries == 0 ? null : new OperationPolicy { Retries = new RetryPolicy { TotalAttempts = checked(step.Retries + 1), Initial = new Google.Protobuf.WellKnownTypes.Duration { Nanos = 100_000_000 } } };
-      transport.Operation(new Operation<StepsExecuteRequest, StepsExecuteResponse>(operation, Visibility.Protected, policy: policy, replaySafe: step.Retries > 0), async (raw, request) =>
+      testCase.Steps.Add(new ModelStep { Metadata = new Metadata { Identifier = step.Identifier, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
+      transport.Operation(new Operation<StepsExecuteRequest, StepsExecuteResponse>(operation, Visibility.Protected, policy: step.Policy, replaySafe: step.ReplaySafe), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin, operation);
         if (!request.TestCase.Steps.Any(item => item.Metadata.Identifier == request.Step && item.Operation == operation))
@@ -101,8 +167,8 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     {
       Unique(local, criterion.Identifier);
       var operation = $"{name}.criterion.{index}";
-      testCase.Criteria.Add(new Dokime.Protocol.V1.Criterion { Metadata = new Metadata { Identifier = criterion.Identifier, Label = criterion.Label }, Operation = operation });
-      transport.Operation(new Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(operation, Visibility.Protected), async (raw, request) =>
+      testCase.Criteria.Add(new ModelCriterion { Metadata = new Metadata { Identifier = criterion.Identifier, Label = criterion.Label }, Operation = operation });
+      transport.Operation(new Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(operation, Visibility.Protected, policy: criterion.Policy), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin, operation);
         if (!request.TestCase.Criteria.Any(item => item.Metadata.Identifier == request.Criterion && item.Operation == operation))
@@ -117,7 +183,7 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       testCase.Streams.Add(stream.Identifier);
       stream.Register(transport, raw => ObserverContext(raw, name));
     }
-    transport.Operation(new Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(definition.Materialize, Visibility.Protected), (raw, request) =>
+    transport.Operation(new Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(definition.Materialize, Visibility.Protected, policy: template.MaterializePolicy), (raw, request) =>
     {
       try
       {
@@ -137,14 +203,15 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       return Task.FromResult(new TestCasesMaterializeResponse { TestCase = result });
     });
     if (definition.HasInitialize)
-      transport.Operation(new Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(definition.Initialize, Visibility.Protected), async (raw, request) =>
+      transport.Operation(new Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(definition.Initialize, Visibility.Protected, policy: template.InitializePolicy), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin, definition.Initialize);
         var context = await GetContextAsync(raw, template, request.TestCase);
-        if (template.InitializeBody is not null) await template.InitializeBody(context);
+        if (template.InitializeBody is not null)
+          await template.InitializeBody(context);
         return new ExecutionsInitializeResponse();
       });
-    transport.Operation(new Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(definition.Cleanup, Visibility.Protected), async (raw, request) =>
+    transport.Operation(new Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(definition.Cleanup, Visibility.Protected, policy: template.CleanupPolicy), async (raw, request) =>
     {
       Validate(raw, request.Execution, name, request.TestCase, request.Origin, definition.Cleanup);
       var key = $"{name}/{raw.Scope()}";
@@ -157,13 +224,14 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       }
       finally
       {
-        if (resources.TryRemove(key, out _) && owned?.Resource is { } resource) await resource.DisposeAsync();
+        if (resources.TryRemove(key, out _) && owned?.Resource is { } resource)
+          await resource.DisposeAsync();
       }
       return new ExecutionsCleanupResponse();
     });
   }
 
-  private async Task<Context> GetContextAsync(Harmos.Sdk.Context raw, Template template, TestCase testCase)
+  private async Task<Context> GetContextAsync(TransportContext raw, Template template, TestCase testCase)
   {
     var key = $"{template.Definition.Metadata.Identifier}/{raw.Scope()}";
     var pending = resources.GetOrAdd(key, _ => new Lazy<Task<ExecutionResource>>(async () =>
@@ -173,11 +241,12 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
       return new ExecutionResource(testCase.Clone(), resource);
     }));
     var owned = await pending.Value;
-    if (!owned.TestCase.Equals(testCase)) throw new ArgumentException("Execution case changed within the same scope");
+    if (!owned.TestCase.Equals(testCase))
+      throw new ArgumentException("Read Execution Resource: Frozen Case Changed Within the Same Scope");
     return new Context(raw, testCase, owned.Resource);
   }
 
-  private Context ObserverContext(Harmos.Sdk.Context raw, string template)
+  private Context ObserverContext(TransportContext raw, string template)
   {
     if (resources.TryGetValue($"{template}/{raw.Scope()}", out var pending) && pending.IsValueCreated && pending.Value.IsCompletedSuccessfully)
     {
@@ -187,10 +256,10 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     return new Context(raw, new TestCase());
   }
 
-  private void Validate(Harmos.Sdk.Context raw, string execution, string template, TestCase testCase, Origin origin, string action)
+  private void Validate(TransportContext raw, string execution, string template, TestCase testCase, Origin origin, string action)
   {
     if (string.IsNullOrWhiteSpace(execution) || raw.Scope() != execution || testCase is null ||
-        origin?.PluginRun is not { } run || run.Plugin != identifier || run.Template != template || !testCase.Equals(run.TestCase))
+        origin?.PluginRun is not { } run || string.IsNullOrWhiteSpace(run.Plugin) || run.Template != template || !testCase.Equals(run.TestCase))
       throw new ArgumentException($"{action}: Execution Scope, Origin and Frozen Case Must Agree");
   }
 
@@ -199,21 +268,28 @@ public sealed class Plugin(string identifier, string version, params Suite[] sui
     List<Exception> failures = [];
     foreach (var key in resources.Keys)
     {
-      if (!resources.TryRemove(key, out var pending)) continue;
+      if (!resources.TryRemove(key, out var pending))
+        continue;
       try
       {
         var owned = await pending.Value;
-        if (owned.Resource is { } resource) await resource.DisposeAsync();
+        if (owned.Resource is { } resource)
+          await resource.DisposeAsync();
       }
-      catch (Exception failure) { failures.Add(failure); }
+      catch (Exception failure)
+      {
+        failures.Add(failure);
+      }
     }
-    if (failures.Count > 0) throw new AggregateException(failures);
+    if (failures.Count > 0)
+      throw new AggregateException("Dispose Execution Resources: Cleanup Failed", failures);
   }
 
   private static void Unique(HashSet<string> identifiers, string identifier)
   {
     ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
-    if (!identifiers.Add(identifier)) throw new ArgumentException($"Duplicate identifier: {identifier}");
+    if (!identifiers.Add(identifier))
+      throw new ArgumentException($"Build Plugin: Duplicate Identifier {identifier}");
   }
   private sealed record ExecutionResource(TestCase TestCase, IAsyncDisposable? Resource);
 }

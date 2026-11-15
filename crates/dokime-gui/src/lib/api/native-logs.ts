@@ -8,8 +8,8 @@
  */
 
 /* Library Trace Snapshot and Watch Adapter. */
-import type { Event } from "@host/harmos/v1/status/logs_pb.js";
-import type { Position } from "@host/harmos/v1/types_pb.js";
+import type { Event } from "@host/model";
+import type { Position } from "@host/model";
 import * as rpc from "@/lib/host/client";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";

@@ -9,12 +9,13 @@
 
 /* === External Imports === */
 
-import { type QueryClient, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type Query, type QueryClient, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
 import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
+import { createRuntimeProjectionRefreshCoordinator, type RuntimeProjectionRefreshCoordinator } from "@/app/live/runtime-refresh";
 import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
 import { fetchNativeExecutionFiles } from "@/lib/api/native-content";
 import {
@@ -355,7 +356,19 @@ export async function invalidateRuntimeProjectionQueries(queryClient: QueryClien
  * their cut while completed cards can refresh at the latest durable cut.
  */
 export async function invalidateRuntimeDocuments(queryClient: QueryClient) {
-  await queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false });
+  const queries = queryClient.getQueryCache().findAll({ queryKey: [...workflowQueryKeys.all, "documents"] });
+  await Promise.all(
+    queries.map((query) => {
+      let refresh = documentRefreshes.get(query);
+      if (!refresh) {
+        refresh = createRuntimeProjectionRefreshCoordinator(() =>
+          queryClient.invalidateQueries({ predicate: (candidate) => candidate === query }, { cancelRefetch: false }),
+        );
+        documentRefreshes.set(query, refresh);
+      }
+      return refresh.request({ ensureTrailing: query.isActive() && query.state.fetchStatus === "fetching" });
+    }),
+  );
 }
 
 export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
@@ -424,6 +437,7 @@ function nativeDocumentSession(session: ReturnType<typeof useNativeSession>) {
 
 /** The documents last captured, by query: a capture whose frontiers are unchanged answers these. */
 const capturedDocuments = new Map<string, { completed?: CompletedDocument; current: CompletedDocument; mapped: DocumentViewPayload }>();
+const documentRefreshes = new WeakMap<Query, RuntimeProjectionRefreshCoordinator>();
 
 /** The most open documents remembered at once; the oldest is forgotten first. */
 const CAPTURED_DOCUMENT_LIMIT = GUI_CAPTURED_DOCUMENTS;

@@ -22,7 +22,7 @@ import { toast } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ApplicationPreferences } from "@/features/settings/ApplicationPreferences";
-import { useInstalledPluginsQuery, usePluginRestartRefresh } from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
 import { PluginList } from "@/features/settings/plugins/PluginList";
 import { bundleSettingsPage, programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
@@ -41,7 +41,7 @@ import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import type { PluginSource } from "@/lib/api/native-plugins";
 import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
-import type { PluginEntry } from "@/lib/types/view-contracts";
+import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Components === */
 
@@ -59,7 +59,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
   const enabledMutation = useSetPluginEnabledMutation();
   const [installOpen, setInstallOpen] = useState(false);
   const [uploadingFilename, setUploadingFilename] = useState<string | null>(null);
-  const [removeCandidate, setRemoveCandidate] = useState<PluginEntry | null>(null);
+  const [removeCandidate, setRemoveCandidate] = useState<ManagedPlugin | null>(null);
   const entries = pluginsQuery.data ?? [];
   const programs = programsQuery.data ?? [];
   // Every row, host included, opens its plugin's own contributed page.
@@ -75,7 +75,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
           size="icon-sm"
           variant="ghost"
           disabled={reloadMutation.isPending}
-          onClick={() => reloadMutation.mutate({ pluginId: program.plugin_id })}
+          onClick={() => reloadMutation.mutate(program.plugin_id)}
         >
           <RotateCw />
         </Button>
@@ -85,14 +85,12 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
       ? () => void navigate({ to: "/settings/plugins/$pluginId", params: { pluginId: settingsSection } })
       : undefined,
   }));
-  // Changes apply in the running backend; re-read the list until each one has.
-  usePluginRestartRefresh(entries.find((entry) => entry.restart !== undefined && entry.restart !== "idle")?.restart);
 
   /* A plugin's settings page is its contributed section. The frame keys those
      by installed plugin, and an artifact names the installation it came
      from, so the bundle reaches its own page through its programs. */
   const settingsSectionOf = useCallback(
-    (entry: PluginEntry): string | null => bundleSettingsPage(entry, programs, settings.frame),
+    (entry: ManagedPlugin): string | null => bundleSettingsPage(entry, programs, settings.frame),
     [programs, settings.frame],
   );
 
@@ -116,7 +114,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
       return;
     }
     try {
-      await removeMutation.mutateAsync(removeCandidate.install_id);
+      await removeMutation.mutateAsync(removeCandidate.name);
       setRemoveCandidate(null);
     } catch {
       // Keep explicit confirmation open with the error visible.
@@ -206,7 +204,7 @@ export function PluginsSection({ advanced = false }: { advanced?: boolean }) {
             changingEnabled={enabledMutation.isPending}
             onSetEnabled={(entry, enabled) =>
               enabledMutation.mutate(
-                { installId: entry.install_id, enabled },
+                { installId: entry.name, enabled },
                 {
                   onError: (error) => toast.error(failureOf(error, "Plugin Change Failed")),
                 },

@@ -24,6 +24,8 @@ use rusqlite::{OptionalExtension, params};
 // Local Imports
 use crate::{Error, Result, Store};
 
+use harmos_protocol::model::Receipt;
+
 /* === Constants === */
 
 /* === Macros === */
@@ -51,8 +53,11 @@ impl Store {
 
     pub fn replace_administration_value(
         &self, key: &str, expected: &[u8], request_id: &str, fingerprint: &[u8], payload: &[u8],
-    ) -> Result<(Vec<u8>, Vec<u8>, harmos_protocol::v1::Receipt)> {
-        use harmos_protocol::v1::{History, Position, Receipt, Section};
+    ) -> Result<(Vec<u8>, Vec<u8>, Receipt)> {
+        use harmos_protocol::model::History;
+        use harmos_protocol::model::Position;
+        use harmos_protocol::model::Receipt;
+        use harmos_protocol::model::Section;
         if request_id.is_empty() {
             return Err(Error::Invalid(format!("Set {key}: Supply a Request ID")));
         }
@@ -132,25 +137,6 @@ impl Store {
             "INSERT INTO administration VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
             params![key, value.encode_to_vec()],
         )?;
-        Ok(())
-    }
-    pub fn save_plugin_administration(
-        &self, entries: &dokime_protocol::client::PluginEntries, installations: &dokime_protocol::client::InstallationPage,
-        executables: &dokime_protocol::v1::MapValue,
-    ) -> Result<()> {
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction()?;
-        for (key, payload) in [
-            ("plugin-entries", entries.encode_to_vec()),
-            ("plugin-installations", installations.encode_to_vec()),
-            ("managed-executables", executables.encode_to_vec()),
-        ] {
-            transaction.execute(
-                "INSERT INTO administration VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-                params![key, payload],
-            )?;
-        }
-        transaction.commit()?;
         Ok(())
     }
     pub fn compare_administration<T: Message>(&self, key: &str, expected: Option<&T>, value: &T) -> Result<bool> {

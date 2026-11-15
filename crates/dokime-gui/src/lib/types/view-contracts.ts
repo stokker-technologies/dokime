@@ -7,7 +7,7 @@
  */
 
 import type { ValueFormat } from "./format";
-import type { Origin, ExecutionOutcome } from "@host/dokime/v1/execution_pb.js";
+import type { Origin, ExecutionOutcome } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
 
 export type Boolean = {
@@ -173,14 +173,6 @@ export type HostCardTone = "neutral" | "info" | "success" | "warning" | "danger"
 
 export type Identifier = string;
 
-export type Installation = {
-  install_id: string;
-  sha256: string;
-  installed_at: Timestamp;
-  state: PluginState;
-  last_boot: PluginLastBoot | null;
-};
-
 export type MultipleChoice = {
   id: string;
   title: string;
@@ -298,44 +290,6 @@ export type PlotSeries_Serialize = {
   format?: ValueFormat | null;
 };
 
-export type PluginEntry = {
-  metadata: PluginMetadata | null;
-  error: string | null;
-  /**  Whether this installation was admitted by this process. */
-  active?: boolean;
-  /**
-   * Whether the running backend still applies this installation: it starts,
-   * replaces or stops the bundle now, or once the executions using it finish.
-   */
-  restart?: PluginRestart;
-  boot_failed?: boolean;
-} & Installation;
-
-export type PluginIdentity = {
-  name: string;
-  version: string;
-  description: string;
-};
-
-export type PluginStartFailure = {
-  plugin_id: string;
-  plugin_name: string;
-  message: string;
-  code: string | null;
-  missing_secret: string | null;
-  consequences: string[];
-};
-
-export type PluginLastBoot = { state: "loaded"; at: Timestamp } | { state: "failed"; failure: PluginStartFailure; at: Timestamp };
-
-export type PluginMetadata = {
-  identity: PluginIdentity;
-  owners: string[];
-  size_bytes: number;
-};
-
-export type PluginState = "installed" | "disabled" | "removal_pending";
-
 export type RecordScope = {
   origin?: { kind: "default" | "initialization" | "cleanup" } | { kind: "step_attempt"; attemptId: string };
   session_id?: SessionId | null;
@@ -348,7 +302,7 @@ export type RecordScope = {
   suite_id?: SuiteId | null;
 };
 
-export type SecretAvailability = { identifier: string; available: boolean };
+export type SecretAvailability = { identifier: string; available: boolean; secret?: string };
 
 export type ResultStatus = "pending" | "passed" | "failed" | "blocked" | "cancelled";
 
@@ -382,24 +336,10 @@ export type RuntimeAppearanceFrame = {
 };
 
 export type RuntimePluginSettings = {
-  unapplied?: string[];
   settings: Settings;
   values: { [key in string]: Value };
-  /**
-   * What a plugin's discovery routes computed, for the fields nobody saved.
-   *
-   * A value here is a suggestion rather than a setting: the card shows it with
-   * a `Discovered` marker and no run uses it until it is saved.
-   */
-  discovered?: { [key in string]: Value };
   secrets: SecretAvailability[];
-  /**
-   * Whether an explicit reload is restarting or waiting for active work.
-   */
-  restart?: PluginRestart;
 };
-
-export type PluginRestart = "idle" | "restarting" | "pending";
 
 export type RuntimeSettingsCard = {
   plugin_id: Identifier;

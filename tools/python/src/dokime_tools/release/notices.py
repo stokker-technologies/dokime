@@ -63,6 +63,14 @@ SHELL_LICENSE_SOURCES = {
     ): "https://raw.githubusercontent.com/theKashey/react-remove-scroll-bar/8ca9ba5ea52de03308fe8ced94f7b159a44d28ff/LICENSE",
 }
 
+# These Published Python Wheels Omit Standalone License Files.
+PYTHON_LICENSE_SOURCES = {
+    ("grpcio-tools", "1.85.1"): (
+        "https://raw.githubusercontent.com/grpc/grpc/558b7e3b09e42e2160018732acbbf56c9094c84d/LICENSE",
+        "58c86a3f2b5cca0ebdf9ed3e7f4e6dc38e3b38796d8c3dc92064c62a4e39d0dd",
+    ),
+}
+
 # === Types === #
 
 # === Classes === #
@@ -99,11 +107,12 @@ def download(
 
 
 def python_notices(lock: dict) -> tuple[str, int]:
-    """Read License Metadata and Text from Hash-Verified Wheels Named by uv.lock."""
+    """Read Locked Wheel Notices, Using Pinned License Sources for Incomplete Wheels."""
     sections = ["Python Locked Dependency Notices (Including Build and Development Tools)"]
     count = 0
     cache_hits = 0
     downloads = 0
+    license_downloads = 0
     cache = Path(os.environ.get("UV_CACHE_DIR") or policy.execute(Path.cwd(), ["uv", "cache", "dir"], capture=True).strip())
     hashes = {wheel["hash"].removeprefix("sha256:") for package in lock["package"] for wheel in package.get("wheels", [])}
     cached = {}
@@ -153,11 +162,20 @@ def python_notices(lock: dict) -> tuple[str, int]:
                 and (".dist-info/licenses/" in name or Path(name).name.lower().startswith(("license", "licence", "copying", "notice")))
             ]
             if not files:
-                raise policy.ToolError(f"missing Python license text: {package['name']}")
+                license_source = PYTHON_LICENSE_SOURCES.get((package["name"], package["version"]))
+                if license_source is None:
+                    raise policy.ToolError(f"Collect Python License for {package['name']}: Missing License Text")
+                url, expected = license_source
+                license_data = download(url, operation=f"Collect Python License for {package['name']}")
+                actual = hashlib.sha256(license_data).hexdigest()
+                if actual != expected:
+                    raise policy.ToolError(f"Collect Python License for {package['name']}: Source Hash Mismatch ({url})")
+                sections.append(f"License Source: {url}\n\n" + license_data.decode("utf-8"))
+                license_downloads += 1
             for name in sorted(files):
                 sections.append(archive.read(name).decode("utf-8"))
         count += 1
-    print(f"Python wheels: {cache_hits} cache hits, {downloads} downloads", file=sys.stderr)
+    print(f"Python wheels: {cache_hits} cache hits, {downloads} downloads; {license_downloads} pinned license sources", file=sys.stderr)
     return "\n\n".join(sections), count
 
 

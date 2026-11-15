@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Metadata Contracts
+
+syntax = "proto3";
+
+package dokime.model.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/scalar.proto";
+import "google/protobuf/timestamp.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// Metadata value owned by this resource.
+message Metadata {
+  string identifier = 1;
+  string label = 2;
+  string description = 3;
+  repeated string tags = 4;
+  map<string, .dokime.model.v1.Value> attributes = 5;
+  .google.protobuf.Timestamp created_at = 6;
+  .google.protobuf.Timestamp updated_at = 7;
+}
+
+// === Enums === //

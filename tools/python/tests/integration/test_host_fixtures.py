@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 import io
+import json
 import subprocess
 import tempfile
 import unittest
@@ -36,7 +37,7 @@ from dokime_tools.build import desktop_fixtures, host_fixtures, paths
 class HostFixtureTests(unittest.TestCase):
     def test_desktop_bundle_failure_keeps_tool_diagnostics(self):
         diagnostic = "fixture stderr\n"
-        refusal = subprocess.CompletedProcess(["dokime-next"], 3, stderr=diagnostic)
+        refusal = subprocess.CompletedProcess(["dokime"], 3, stderr=diagnostic)
         with (
             tempfile.TemporaryDirectory() as temporary,
             patch.object(desktop_fixtures.configuration, "ROOT", Path(temporary)),
@@ -56,12 +57,26 @@ class HostFixtureTests(unittest.TestCase):
                 (root / "Cargo.toml").write_text(
                     '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n', encoding="utf-8"
                 )
+                fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
+                fixture.parent.mkdir(parents=True)
+                fixture.write_bytes(b"fixture source")
                 with (
                     patch.object(host_fixtures.configuration, "ROOT", root),
                     patch.object(host_fixtures.subprocess, "run") as run,
                     patch.object(host_fixtures.shutil, "copy2"),
                     patch.object(host_fixtures.archive, "stamp") as stamp,
                 ):
+                    run.return_value.stdout = json.dumps(
+                        {
+                            "packages": [
+                                {
+                                    "name": "harmos",
+                                    "source": "git+https://example.test/library#fixture-revision",
+                                    "manifest_path": str(root / "library/sdk/rust/Cargo.toml"),
+                                }
+                            ]
+                        }
+                    )
                     host_fixtures.build("release", language)
                     commands = [call.args[0] for call in run.call_args_list]
                     self.assertEqual(
@@ -75,6 +90,8 @@ class HostFixtureTests(unittest.TestCase):
                     if language == "csharp":
                         self.assertEqual([command[4] for command in commands], ["build", "package", "publish:system"])
                     if language == "rust":
+                        staged = paths.output(root, "build", "release") / "fixtures/host/python/conformance/__init__.py"
+                        self.assertEqual(staged.read_bytes(), fixture.read_bytes())
                         reference = next(command for command in commands if command[:2] == ["cargo", "install"])
                         self.assertEqual(reference[reference.index("--git") + 1], "https://example.test/library")
                         self.assertEqual(reference[reference.index("--rev") + 1], "fixture-revision")
@@ -85,6 +102,9 @@ class HostFixtureTests(unittest.TestCase):
             (root / "Cargo.toml").write_text(
                 '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n', encoding="utf-8"
             )
+            fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
+            fixture.parent.mkdir(parents=True)
+            fixture.write_bytes(b"fixture source")
             output = paths.output(root, "build", "dev") / "fixtures/host"
             output.mkdir(parents=True)
             (output / "fixture").write_bytes(b"fixture")
@@ -97,16 +117,32 @@ class HostFixtureTests(unittest.TestCase):
                 patch.object(host_fixtures.shutil, "which", side_effect=lambda name: name if name == "dotnet" else None),
                 patch.object(host_fixtures.archive, "stamp") as inventory,
             ):
+                run.return_value.stdout = json.dumps(
+                    {
+                        "packages": [
+                            {
+                                "name": "harmos",
+                                "source": "git+https://example.test/library#fixture-revision",
+                                "manifest_path": str(root / "library/sdk/rust/Cargo.toml"),
+                            }
+                        ]
+                    }
+                )
                 host_fixtures.build("dev")
                 self.assertEqual(
                     {call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, {"sdk/rust", "sdk/csharp", "sdk/python"}
                 )
-                self.assertEqual(inventory.call_args.args[2], ["existing", (output / "fixture").relative_to(root).as_posix()])
+                expected = [
+                    "existing",
+                    (output / "fixture").relative_to(root).as_posix(),
+                    (output / "python/conformance/__init__.py").relative_to(root).as_posix(),
+                ]
+                self.assertEqual(inventory.call_args.args[2], expected)
                 self.assertEqual(inventory.call_args.args[3], {"owner": "tests"})
                 run.reset_mock()
                 host_fixtures.build("dev", "rust")
                 self.assertEqual({call.args[0][2] for call in run.call_args_list if call.args[0][1] == "-C"}, {"sdk/rust"})
-                self.assertEqual(inventory.call_args.args[2], ["existing", (output / "fixture").relative_to(root).as_posix()])
+                self.assertEqual(inventory.call_args.args[2], expected)
 
     def test_explicit_producer_failure_is_not_skipped(self):
         with (

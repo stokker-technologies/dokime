@@ -7,9 +7,9 @@
  * ***
  */
 
-using Dokime.Protocol.V1;
+using Dokime;
 
-namespace Dokime.Authoring;
+namespace Dokime.Plugins;
 
 // Each Convenience Produces A Canonical Message And Copies Its Operands.
 public static class Plots
@@ -38,32 +38,138 @@ public static class Expressions
 
 public static class PlotOptions
 {
-  public static Plot WithX(this Plot plot, DataExpression value) { plot.X = value.Clone(); return plot; }
-  public static Plot WithY(this Plot plot, DataExpression value) { plot.Y.Add(value.Clone()); return plot; }
-  public static Plot SeriesBy(this Plot plot, DataExpression value) { plot.SeriesBy = value.Clone(); return plot; }
-  public static Plot WithLabel(this Plot plot, Metadata metadata) { plot.Metadata = metadata.Clone(); return plot; }
-  public static Plot WithUnit(this Plot plot, string unit) { plot.Unit = unit; return plot; }
-  public static Plot WithInputSamples(this Plot plot, uint count) { plot.InputSamples = count; return plot; }
-  public static Plot Reduce(this Plot plot, Reduction reduction) { plot.Reduction = reduction; return plot; }
-  public static Plot Render(this Plot plot, ContourRender render) { plot.Render = render; return plot; }
-  public static Plot Arrange(this Plot plot, BarArrangement arrangement) { plot.Arrangement = arrangement; return plot; }
-  public static Plot WithInterval(this Plot plot, XyInterval interval) { plot.Interval = interval; return plot; }
-  public static Plot WithPareto(this Plot plot, bool enabled) { plot.Pareto = enabled; return plot; }
-  public static Plot WithHole(this Plot plot, double fraction) { plot.Hole = fraction; return plot; }
-  public static Plot Row(this Plot plot, DataExpression value) { plot.Grid ??= new(); plot.Grid.Row = value.Clone(); return plot; }
-  public static Plot Column(this Plot plot, DataExpression value) { plot.Grid ??= new(); plot.Grid.Column = value.Clone(); return plot; }
-  public static Plot Frame(this Plot plot, DataExpression value) { plot.Grid ??= new(); plot.Grid.Frame = value.Clone(); return plot; }
-  public static Plot Rows(this Plot plot, System.Collections.Generic.IEnumerable<GridAxisEntry> entries) { plot.Grid ??= new(); plot.Grid.Rows.Clear(); foreach (var entry in entries) plot.Grid.Rows.Add(entry.Clone()); return plot; }
-  public static Plot Columns(this Plot plot, System.Collections.Generic.IEnumerable<GridAxisEntry> entries) { plot.Grid ??= new(); plot.Grid.Columns.Clear(); foreach (var entry in entries) plot.Grid.Columns.Add(entry.Clone()); return plot; }
-  public static Plot Highlight(this Plot plot, GridHighlight value) { plot.Grid ??= new(); plot.Grid.Highlights.Add(value.Clone()); return plot; }
-  public static Plot ReferenceLine(this Plot plot, ReferenceLine value) { plot.ReferenceLines.Add(value.Clone()); return plot; }
-  public static Plot ReferenceBand(this Plot plot, ReferenceBand value) { plot.ReferenceBands.Add(value.Clone()); return plot; }
+  public static Plot WithX(this Plot plot, DataExpression value)
+  {
+    plot.X = value.Clone();
+    return plot;
+  }
+  public static Plot WithY(this Plot plot, DataExpression value)
+  {
+    plot.Y.Add(value.Clone());
+    return plot;
+  }
+  public static Plot SeriesBy(this Plot plot, DataExpression value)
+  {
+    plot.SeriesBy = value.Clone();
+    return plot;
+  }
+  public static Plot WithLabel(this Plot plot, Metadata metadata)
+  {
+    plot.Metadata = metadata.Clone();
+    return plot;
+  }
+  public static Plot WithUnit(this Plot plot, string unit)
+  {
+    plot.Unit = unit;
+    return plot;
+  }
+  public static Plot WithInputSamples(this Plot plot, uint count)
+  {
+    plot.InputSamples = count;
+    return plot;
+  }
+  public static Plot Reduce(this Plot plot, Reduction reduction)
+  {
+    plot.Reduction = reduction;
+    return plot;
+  }
+  public static Plot Render(this Plot plot, ContourRender render)
+  {
+    plot.Render = render;
+    return plot;
+  }
+  public static Plot Arrange(this Plot plot, BarArrangement arrangement)
+  {
+    plot.Arrangement = arrangement;
+    return plot;
+  }
+  public static Plot WithInterval(this Plot plot, XyInterval interval)
+  {
+    plot.Interval = interval;
+    return plot;
+  }
+  public static Plot WithPareto(this Plot plot, bool enabled)
+  {
+    plot.Pareto = enabled;
+    return plot;
+  }
+  public static Plot WithHole(this Plot plot, double fraction)
+  {
+    plot.Hole = fraction;
+    return plot;
+  }
+  public static Plot Row(this Plot plot, DataExpression value)
+  {
+    plot.Grid ??= new();
+    plot.Grid.Row = value.Clone();
+    return plot;
+  }
+  public static Plot Column(this Plot plot, DataExpression value)
+  {
+    plot.Grid ??= new();
+    plot.Grid.Column = value.Clone();
+    return plot;
+  }
+  public static Plot Frame(this Plot plot, DataExpression value)
+  {
+    plot.Grid ??= new();
+    plot.Grid.Frame = value.Clone();
+    return plot;
+  }
+  public static Plot Rows(this Plot plot, IEnumerable<GridAxisEntry> entries)
+  {
+    plot.Grid ??= new();
+    plot.Grid.Rows.Clear();
+    foreach (var entry in entries)
+      plot.Grid.Rows.Add(entry.Clone());
+    return plot;
+  }
+  public static Plot Columns(this Plot plot, IEnumerable<GridAxisEntry> entries)
+  {
+    plot.Grid ??= new();
+    plot.Grid.Columns.Clear();
+    foreach (var entry in entries)
+      plot.Grid.Columns.Add(entry.Clone());
+    return plot;
+  }
+  public static Plot Highlight(this Plot plot, GridHighlight value)
+  {
+    plot.Grid ??= new();
+    plot.Grid.Highlights.Add(value.Clone());
+    return plot;
+  }
+  public static Plot ReferenceLine(this Plot plot, ReferenceLine value)
+  {
+    plot.ReferenceLines.Add(value.Clone());
+    return plot;
+  }
+  public static Plot ReferenceBand(this Plot plot, ReferenceBand value)
+  {
+    plot.ReferenceBands.Add(value.Clone());
+    return plot;
+  }
 }
 
 public static class Documents
 {
-  public static Document Section(this Document document, Section section) { document.Sections.Add(section.Clone()); return document; }
-  public static Section Section(this Section section, Section child) { section.Sections.Add(child.Clone()); return section; }
-  public static Section Plot(this Section section, Plot plot) { section.Cards.Add(new Card { Metadata = plot.Metadata?.Clone(), Plot = plot.Clone() }); return section; }
-  public static Section Summary(this Section section, Metadata metadata, Summary summary) { section.Cards.Add(new Card { Metadata = metadata.Clone(), Summary = summary.Clone() }); return section; }
+  public static Document Section(this Document document, Section section)
+  {
+    document.Sections.Add(section.Clone());
+    return document;
+  }
+  public static Section Section(this Section section, Section child)
+  {
+    section.Sections.Add(child.Clone());
+    return section;
+  }
+  public static Section Plot(this Section section, Plot plot)
+  {
+    section.Cards.Add(new Card { Metadata = plot.Metadata?.Clone(), Plot = plot.Clone() });
+    return section;
+  }
+  public static Section Summary(this Section section, Metadata metadata, Summary summary)
+  {
+    section.Cards.Add(new Card { Metadata = metadata.Clone(), Summary = summary.Clone() });
+    return section;
+  }
 }

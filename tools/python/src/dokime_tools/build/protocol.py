@@ -53,3 +53,5 @@ if __name__ == "__main__":
         if status:
             raise SystemExit(status)
     resource_roots.generate(options.check)
+    if not options.check:
+        subprocess.run(["mise", "-C", "sdk/python", "run", "generate"], check=True, creationflags=spawn_flags())

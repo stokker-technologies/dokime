@@ -18,6 +18,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import nullcontext
+from itertools import product
 from pathlib import Path
 from unittest.mock import patch
 
@@ -41,6 +42,56 @@ from dokime_tools.test import desktop_bench, run
 
 
 class DesktopBench(unittest.TestCase):
+    def test_killed_native_child_credentials_are_removed_before_its_scratch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            host = directory / "bin/dokime-host.exe"
+            host.parent.mkdir()
+            host.touch()
+            cleaned = []
+
+            def remove(command, **options):
+                self.assertEqual(Path(command[0]), host)
+                self.assertEqual(command[1::2], ["--storage", "--remove-credentials"])
+                root = Path(command[2])
+                self.assertTrue((root / "backend-id").is_file())
+                cleaned.append(root)
+                return subprocess.CompletedProcess(command, 0)
+
+            with (
+                patch.object(desktop_bench.sys, "platform", "win32"),
+                patch.object(desktop_bench.paths, "output", return_value=directory),
+            ):
+                for failed in (False, True):
+                    with self.subTest(failed=failed), patch.object(desktop_bench.subprocess, "run", side_effect=remove):
+                        try:
+                            with desktop_bench.scratch(dict(os.environ), directory / "reports") as environment:
+                                script = (
+                                    "import os, pathlib, sys; "
+                                    "root = pathlib.Path(os.environ['TEMP']) / 'abandoned-host'; "
+                                    "root.mkdir(); (root / 'backend-id').write_text('owned-host'); "
+                                    "print(root, flush=True); sys.stdin.read()"
+                                )
+                                with subprocess.Popen(
+                                    [sys.executable, "-c", script],
+                                    env=environment,
+                                    stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE,
+                                    text=True,
+                                    creationflags=desktop_bench.spawn_flags(),
+                                ) as child:
+                                    root = Path(child.stdout.readline().strip())
+                                    if failed:
+                                        child.kill()
+                                    child.stdin.close()
+                                    child.wait()
+                                if failed:
+                                    raise ChildProcessError("Native Child Was Killed")
+                        except ChildProcessError:
+                            self.assertTrue(failed)
+                        self.assertEqual(cleaned[-1], root)
+                        self.assertFalse(root.exists())
+
     def test_once_preserves_benchmark_selection_and_does_not_promote_baselines(self) -> None:
         with (
             patch.object(tasks.transport, "receive"),
@@ -102,7 +153,7 @@ class DesktopBench(unittest.TestCase):
                 self.assertEqual(os.environ["TAURI_CONFIG"], '{"bundle":{"active":false}}')
             self.assertEqual(live.read_bytes(), b"shipping")
 
-    def test_system_lanes_reclaim_child_scratch_and_keep_failure_reports(self) -> None:
+    def test_lanes_reclaim_child_scratch_and_keep_failure_reports(self) -> None:
         script = (
             "import json, os, pathlib, sys, tempfile; "
             "root = pathlib.Path(tempfile.gettempdir()); "
@@ -110,7 +161,7 @@ class DesktopBench(unittest.TestCase):
             "tempfile.NamedTemporaryFile(prefix='dokime-output-', delete=False).close(); "
             "report = pathlib.Path(sys.argv[1]); "
             "report.with_name('scratch.json').write_text(json.dumps({'root': str(root)})); "
-            "report.write_text('<testsuites><testsuite><testcase name=\"capture\">' + "
+            'report.write_text(\'<testsuites><testsuite><testcase file="tests/system/capture.py" name="capture">\' + '
             "('<failure/>' if sys.argv[2] == '1' else '') + '</testcase></testsuite></testsuites>'); "
             "os._exit(int(sys.argv[2]))"
         )
@@ -120,23 +171,24 @@ class DesktopBench(unittest.TestCase):
             patch.object(desktop_bench, "credentials", side_effect=lambda environment: nullcontext(environment)),
         ):
             directory = Path(temporary)
-            for language in ("rust", "python", "typescript"):
+            cases = [*product(("rust", "python", "typescript"), run.policy.CATEGORIES), ("rust", "coverage"), ("python", "coverage")]
+            for language, category in cases:
                 for failed in (False, True):
-                    key = f"system-{language}"
-                    scratch = directory / f"{language}-{int(failed)}"
+                    key = f"{category}-{language}"
+                    scratch = directory / f"{category}-{language}-{int(failed)}"
                     scratch.mkdir()
                     junit = scratch / "junit.xml"
                     lane = run._lane(
                         directory,
                         rules,
                         key,
-                        "system",
+                        category,
                         language,
                         ".",
                         "dev",
                         [sys.executable, "-c", script, str(junit), str(int(failed))],
                         directory,
-                        {**os.environ, "DOKIME_KEEP_EVIDENCE": "0"},
+                        {**os.environ, "DOKIME_KEEP_EVIDENCE": "0", run.COVERAGE_VARIABLE: "1" if category == "coverage" else "0"},
                         junit,
                         scratch,
                     )

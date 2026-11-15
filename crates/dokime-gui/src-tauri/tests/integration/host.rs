@@ -30,18 +30,38 @@ use std::{
 use futures_util::FutureExt;
 
 // Local Imports
+
+use dokime_sdk::client::StatusGetOptions;
+
+use dokime_protocol::host::CyclesCreateRequest;
+use dokime_protocol::host::CyclesGetRequest;
+use dokime_protocol::host::SuitesListRequest;
+use dokime_protocol::host::backend::OverviewWatchRequest;
+use dokime_protocol::host::evidence::TraceabilityGetRequest;
+use dokime_protocol::host::evidence::TraceabilityWatchRequest;
+use dokime_sdk::EvidenceScope;
+use dokime_sdk::EvidenceTraceabilityGetResponse;
+use dokime_sdk::Metadata;
+use dokime_sdk::client::BackendOverviewWatchResponse;
+use dokime_sdk::client::CyclesCreateResponse;
+use dokime_sdk::client::CyclesGetResponse;
+use dokime_sdk::client::EvidenceTraceabilityWatchResponse;
+use dokime_sdk::client::SuitesListResponse;
 use prost::Message;
 use tokio_stream::StreamExt;
 use tonic::Code;
 
 use dokime_gui::connection::ConnectionError;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Error, Pairing};
-use dokime_protocol::{client, v1};
-use dokime_runtime_next::{ControlledClock, HostSettings, PlacementSettings, services};
-use dokime_sdk::client::{
-    ClientSettings, StorageTransferSettings,
-    v1::{self as library, access},
+use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, services};
+use dokime_sdk::PageRequest;
+use dokime_sdk::StorageTransferSettings;
+use dokime_sdk::client::ClientSettings;
+use harmos_protocol::host::status::{
+    DiagnosticsGetRequest, DiagnosticsGetResponse, Event, TraceEventsListRequest, TraceEventsListResponse, TraceEventsWatchRequest,
+    TraceEventsWatchResponse,
 };
+use harmos_protocol::host::{StatusGetRequest, StatusGetResponse};
 
 /* === Constants === */
 
@@ -64,7 +84,7 @@ use dokime_sdk::client::{
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
-            storage: dokime_runtime_next::storage_defaults(),
+            storage: dokime_runtime::storage_defaults(),
             clock: Arc::new(ControlledClock::new(0)),
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),
@@ -115,8 +135,8 @@ fn embedded_readiness_attachment_and_restart() -> Result<(), Box<dyn StdError>> 
         assert_eq!(second.identity().status, session.identity().status);
         attached.close().await?;
         assert!(second.cancellation().is_cancelled());
-        let request = session.request(library::StatusGetRequest {})?;
-        session.execute(session.client().status.get(request)).await?;
+        let options = StatusGetOptions { context: session.call_options()? };
+        session.execute(session.client().status.get_with(options)).await?;
 
         // Closing Invalidates Every Lease Before Joining the Host
         owner.close().await?;
@@ -143,7 +163,7 @@ fn incompatible_storage_is_preserved_and_retry_uses_an_explicit_fresh_root() -> 
         std::fs::write(&evidence, original)?;
         let mut owner = Connection::new(settings())?;
         let error = owner.start(existing.path()).await.err().ok_or("Start Host: Expected Incompatible Storage Refusal")?;
-        assert!(matches!(error, Error::Host(dokime_runtime_next::Error::Storage(_))));
+        assert!(matches!(error, Error::Host(dokime_runtime::Error::Storage(_))));
         assert_eq!(std::fs::read(&evidence)?, original);
         let mut entries =
             std::fs::read_dir(existing.path())?.map(|entry| entry.map(|entry| entry.file_name())).collect::<Result<Vec<_>, _>>()?;
@@ -175,54 +195,54 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn StdE
             })
             .await
             .map_err(|error| format!("{error:?}"))?;
-        assert!(discovered.backend.unwrap().methods.iter().any(|method| method == "/harmos.v1.access.Listener/Get"));
+        assert!(discovered.backend.unwrap().methods.iter().any(|method| method == "/harmos.host.v1.access.Listener/Get"));
         active.disconnect().map_err(|error| format!("{error:?}"))?;
-        let request = client::backend::OverviewWatchRequest::default().encode_to_vec();
-        let mut watch = session.watch_raw("/dokime.client.v1.backend.Overview/Watch", &request).await?;
+        let request = OverviewWatchRequest::default().encode_to_vec();
+        let mut watch = session.watch_raw("/dokime.host.v1.backend.Overview/Watch", &request).await?;
         let opening = watch.next().await.ok_or("Watch Runtime: Missing Initial Frame")??;
-        let opening = client::backend::OverviewWatchResponse::decode(opening.as_slice())?;
+        let opening = BackendOverviewWatchResponse::decode(opening.as_slice())?;
         assert!(opening.opening);
 
         // A Mutation and Its Read Use Canonical Generated Messages on the Same SDK Root
-        let request = client::CyclesCreateRequest {
+        let request = CyclesCreateRequest {
             request_id: "desktop-native-cycle".into(),
-            metadata: Some(v1::Metadata {
+            metadata: Some(Metadata {
                 label: "Desktop Native Journey".into(),
                 ..Default::default()
             }),
             ..Default::default()
         }
         .encode_to_vec();
-        let response = session.call_raw("/dokime.client.v1.Cycles/Create", &request).await?;
-        let cycle = client::CyclesCreateResponse::decode(response.as_slice())?.cycle.ok_or("Create Cycle: Missing Value")?;
+        let response = session.call_raw("/dokime.host.v1.Cycles/Create", &request).await?;
+        let cycle = CyclesCreateResponse::decode(response.as_slice())?.cycle.ok_or("Create Cycle: Missing Value")?;
         assert!(!cycle.cycle_id.is_empty());
         loop {
             let frame = watch.next().await.ok_or("Watch Runtime: Closed Before Cycle Admission")??;
-            let frame = client::backend::OverviewWatchResponse::decode(frame.as_slice())?;
+            let frame = BackendOverviewWatchResponse::decode(frame.as_slice())?;
             if frame.overview.is_some_and(|overview| overview.cycle_summaries.len() == 1) {
                 break;
             }
         }
-        let request = client::CyclesGetRequest {
+        let request = CyclesGetRequest {
             name: cycle.cycle_id.clone(),
             ..Default::default()
         }
         .encode_to_vec();
-        let response = session.call_raw("/dokime.client.v1.Cycles/Get", &request).await?;
-        assert_eq!(client::CyclesGetResponse::decode(response.as_slice())?.cycle.unwrap().cycle_id, cycle.cycle_id);
+        let response = session.call_raw("/dokime.host.v1.Cycles/Get", &request).await?;
+        assert_eq!(CyclesGetResponse::decode(response.as_slice())?.cycle.unwrap().cycle_id, cycle.cycle_id);
 
         // Read Traceability Through Its Revisioned Resource and Retain the Scoped Cut
-        let scope = v1::EvidenceScope {
+        let scope = EvidenceScope {
             cycle_id: Some(cycle.cycle_id.clone()),
             ..Default::default()
         };
-        let request = client::evidence::TraceabilityGetRequest {
+        let request = TraceabilityGetRequest {
             scope: Some(scope.clone()),
             ..Default::default()
         }
         .encode_to_vec();
-        let response = session.call_raw("/dokime.client.v1.evidence.Traceability/Get", &request).await?;
-        let response = client::evidence::TraceabilityGetResponse::decode(response.as_slice())?;
+        let response = session.call_raw("/dokime.host.v1.evidence.Traceability/Get", &request).await?;
+        let response = EvidenceTraceabilityGetResponse::decode(response.as_slice())?;
         assert!(response.snapshots.is_empty());
         assert!(response.next_page_token.is_empty());
         let cut = response.resolved_at.ok_or("Get Traceability: Missing Read Cut")?;
@@ -230,21 +250,21 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn StdE
         assert!(cut.revisions.is_empty());
 
         // Watch Traceability on the Same Native Connection Until Owned Shutdown
-        let request = client::evidence::TraceabilityWatchRequest {
+        let request = TraceabilityWatchRequest {
             scope: Some(scope),
             at: Some(cut.clone()),
             ..Default::default()
         }
         .encode_to_vec();
-        let mut traceability = session.watch_raw("/dokime.client.v1.evidence.Traceability/Watch", &request).await?;
+        let mut traceability = session.watch_raw("/dokime.host.v1.evidence.Traceability/Watch", &request).await?;
         let opening = traceability.next().await.ok_or("Watch Traceability: Missing Opening")??;
-        let opening = client::evidence::TraceabilityWatchResponse::decode(opening.as_slice())?;
+        let opening = EvidenceTraceabilityWatchResponse::decode(opening.as_slice())?;
         assert!(opening.opening);
         assert!(opening.snapshots.is_empty());
         assert_eq!(opening.resolved_at.as_ref(), Some(&cut));
 
         // Unknown Routes Fail Explicitly and Shutdown Joins the Idle Watch
-        let error = session.call_raw("/dokime.client.v1.Unknown/Get", &[]).await.unwrap_err();
+        let error = session.call_raw("/dokime.host.v1.Unknown/Get", &[]).await.unwrap_err();
         assert!(matches!(error, Error::Rpc(status) if status.code() == Code::Unimplemented));
         owner.close().await?;
         while let Some(frame) = watch.next().await {
@@ -266,21 +286,15 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdE
         let mut owner = Connection::new(settings())?;
         let local = owner.start(root.path()).await?;
         let result = AssertUnwindSafe(async {
-            let request = local.request(access::ListenerGetRequest {})?;
-            let current = local.execute(local.client().access.listener.get(request)).await?.into_inner();
+            let current = local.execute(local.client().access.listener.get()).await?;
             let mut value = current.value.ok_or("Get Listener: Missing Settings")?;
             value.enabled = true;
             value.endpoint = "127.0.0.1:0".into();
             value.certificate_names = vec!["localhost".into(), "127.0.0.1".into()];
-            let request = local.request(access::ListenerSetRequest {
-                value: Some(value),
-                expected_revision: current.revision,
-            })?;
-            local.execute(local.client().access.listener.set(request)).await?;
+            local.execute(local.client().access.listener.set(value, current.revision)).await?;
 
             // Export and Reopen the Pairing File Without Exposing Its Credential in Debug
-            let request = local.request(access::PairingsCreateRequest { label: "Desktop Story".into() })?;
-            let created = local.execute(local.client().access.pairings.create(request)).await?.into_inner();
+            let created = local.execute(local.client().access.pairings.create("Desktop Story")).await?;
             let identity = local.identity().status.as_ref().unwrap().identity.as_ref().unwrap().host_id.clone();
             let pairing = Pairing {
                 version: 1,
@@ -304,11 +318,9 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdE
             assert!(connected.cancellation().is_cancelled());
 
             // Rotation Refuses the Old Pin; Fresh Pairing Reconnects Without Restarting the Host
-            let request = local.request(access::CertificatesCreateRequest {})?;
-            local.execute(local.client().access.certificates.create(request)).await?;
+            local.execute(local.client().access.certificates.create()).await?;
             assert!(remote.attach_remote(Pairing::read(&path)?).await.is_err());
-            let request = local.request(access::PairingsCreateRequest { label: "Rotated Desktop Story".into() })?;
-            let rotated = local.execute(local.client().access.pairings.create(request)).await?.into_inner();
+            let rotated = local.execute(local.client().access.pairings.create("Rotated Desktop Story")).await?;
             assert_ne!(rotated.pinned_certificate_pem, pairing.certificate_pem);
             let replacement = Pairing {
                 version: 1,
@@ -320,8 +332,8 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdE
             };
             remote.attach_remote(replacement).await?;
             remote.close().await?;
-            let request = local.request(library::StatusGetRequest {})?;
-            local.execute(local.client().status.get(request)).await?;
+            let options = StatusGetOptions { context: local.call_options()? };
+            local.execute(local.client().status.get_with(options)).await?;
             Ok::<_, Box<dyn StdError>>(())
         })
         .catch_unwind()
@@ -365,7 +377,7 @@ fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Bo
             let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
             let mut bytes = generation.to_le_bytes().to_vec();
             bytes.extend(dokime_gui::rpc::descriptor_digest());
-            bytes.extend(library::StatusGetRequest {}.encode_to_vec());
+            bytes.extend(StatusGetRequest {}.encode_to_vec());
             let response = tauri::test::get_ipc_response(
                 &window,
                 tauri::webview::InvokeRequest {
@@ -376,7 +388,7 @@ fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Bo
                     body: tauri::ipc::InvokeBody::Raw(bytes),
                     headers: [(
                         tauri::http::HeaderName::from_static(dokime_gui::rpc::PATH_HEADER),
-                        tauri::http::HeaderValue::from_static("/harmos.v1.Status/Get"),
+                        tauri::http::HeaderValue::from_static("/harmos.host.v1.Status/Get"),
                     )]
                     .into_iter()
                     .collect(),
@@ -388,7 +400,7 @@ fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Bo
                 return Err("IPC returned JSON instead of canonical bytes".to_owned());
             };
             assert_eq!(u64::from_le_bytes(response[..8].try_into().unwrap()), generation);
-            library::StatusGetResponse::decode(&response[8..]).map_err(|error| error.to_string())
+            StatusGetResponse::decode(&response[8..]).map_err(|error| error.to_string())
         })
         .await??;
         assert_eq!(
@@ -412,8 +424,7 @@ fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Bo
         next.execute(async { Ok(()) }).await.map_err(|error| format!("{error:?}"))?;
         let mut observer = Connection::new(settings())?;
         let session = observer.attach_local(&ready.connection.endpoint.unwrap()).await?;
-        let suites: client::SuitesListResponse =
-            session.unary("/dokime.client.v1.Suites/List", client::SuitesListRequest::default()).await?;
+        let suites: SuitesListResponse = session.unary("/dokime.host.v1.Suites/List", SuitesListRequest::default()).await?;
         assert!(suites.values.is_empty());
         observer.close().await?;
         owner.shutdown().await.map_err(|error| format!("{error:?}"))?;
@@ -446,7 +457,7 @@ fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Result<(), 
             .map_err(|error| format!("{error:?}"))?;
         assert_eq!(attached.ownership, BackendOwnership::Attached);
         second.shutdown().await.map_err(|error| format!("{error:?}"))?;
-        let status: library::StatusGetResponse = session.unary("/harmos.v1.Status/Get", library::StatusGetRequest {}).await?;
+        let status: StatusGetResponse = session.unary("/harmos.host.v1.Status/Get", StatusGetRequest {}).await?;
         assert!(status.status.and_then(|value| value.identity).is_some());
         first.close().await?;
         let third = DesktopSession::with_local_backend(ConnectionSession::default(), Backend::new(root.path().to_path_buf()));
@@ -481,7 +492,7 @@ fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<d
         assert_eq!(attached.ownership, BackendOwnership::Attached);
         assert_eq!(std::fs::read(&database)?, original);
         desktop.shutdown().await.map_err(|error| format!("{error:?}"))?;
-        let status: library::StatusGetResponse = session.unary("/harmos.v1.Status/Get", library::StatusGetRequest {}).await?;
+        let status: StatusGetResponse = session.unary("/harmos.host.v1.Status/Get", StatusGetRequest {}).await?;
         assert!(status.status.and_then(|value| value.identity).is_some());
         healthy.close().await?;
         Ok(())
@@ -491,7 +502,6 @@ fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<d
 #[test]
 fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn StdError>> {
     dokime_gui::test_support::run(async {
-        use library::status;
         use sha2::{Digest, Sha256};
         let root = dokime_gui::test_support::tempdir()?;
         let configuration = settings();
@@ -500,16 +510,16 @@ fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn
         let mut owner = Connection::new(configuration)?;
         let session = owner.attach_local(&format!("http://{}", server.endpoint())).await?;
         let journal = server.status();
-        journal.record_trace(status::Event {
+        journal.record_trace(Event {
             level: "INFO".into(),
             fields: [("execution_id".into(), "desktop-run".into())].into(),
             ..Default::default()
         })?;
-        let snapshot: status::TraceEventsListResponse = session
+        let snapshot: TraceEventsListResponse = session
             .unary(
-                "/harmos.v1.status.TraceEvents/List",
-                status::TraceEventsListRequest {
-                    page: Some(library::PageRequest {
+                "/harmos.host.v1.status.TraceEvents/List",
+                TraceEventsListRequest {
+                    page: Some(PageRequest {
                         page_size: 10,
                         max_bytes: 65536,
                         ..Default::default()
@@ -522,8 +532,8 @@ fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn
         assert_eq!(snapshot.events[0].fields.get("execution_id").unwrap(), "desktop-run");
         let mut watch = session
             .watch_raw(
-                "/harmos.v1.status.TraceEvents/Watch",
-                &status::TraceEventsWatchRequest {
+                "/harmos.host.v1.status.TraceEvents/Watch",
+                &TraceEventsWatchRequest {
                     at: snapshot.resolved_at.clone(),
                     max_bytes: 65536,
                     max_events: 10,
@@ -532,24 +542,24 @@ fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn
             )
             .await?;
         let first = watch.next().await.ok_or("Watch Trace: Missing Opening")??;
-        let first = status::TraceEventsWatchResponse::decode(first.as_slice())?;
+        let first = TraceEventsWatchResponse::decode(first.as_slice())?;
         assert_eq!(first.resolved_at, snapshot.resolved_at);
-        journal.record_trace(status::Event {
+        journal.record_trace(Event {
             level: "WARN".into(),
             ..Default::default()
         })?;
         let live = watch.next().await.ok_or("Watch Trace: Missing New Event")??;
-        let live = status::TraceEventsWatchResponse::decode(live.as_slice())?;
+        let live = TraceEventsWatchResponse::decode(live.as_slice())?;
         assert_eq!(live.events.len(), 1);
         assert!(live.resolved_at.unwrap().sequence > snapshot.resolved_at.unwrap().sequence);
         let mut name = String::new();
         let mut bytes = Vec::new();
         let mut digest = Vec::new();
         loop {
-            let part: status::DiagnosticsGetResponse = session
+            let part: DiagnosticsGetResponse = session
                 .unary(
-                    "/harmos.v1.status.Diagnostics/Get",
-                    status::DiagnosticsGetRequest {
+                    "/harmos.host.v1.status.Diagnostics/Get",
+                    DiagnosticsGetRequest {
                         name: name.clone(),
                         offset: bytes.len() as u64,
                         max_bytes: 1024,
@@ -580,8 +590,17 @@ fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn
 
 #[test]
 fn failed_story_cleanup() {
+    #[derive(Debug)]
+    struct StoryFailure;
+    #[derive(Clone, PartialEq, prost::Message)]
+    struct AccessPointer {
+        #[prost(string, tag = "5")]
+        key_slot: String,
+    }
     let path = Arc::new(Mutex::new(PathBuf::new()));
     let observed = path.clone();
+    let credential = Arc::new(Mutex::new(String::new()));
+    let recorded = credential.clone();
     let failure = std::panic::catch_unwind(|| {
         dokime_gui::test_support::run(async {
             let root = dokime_gui::test_support::tempdir().unwrap();
@@ -591,9 +610,17 @@ fn failed_story_cleanup() {
                 dokime_gui::native_session::backend::Backend::new(root.path().to_owned()),
             );
             owner.select(dokime_gui::native_session::BackendSelection::OwnedLocal).await.unwrap();
-            panic!("fixture.story.failed");
+            let store = dokime_storage::Store::open(root.path()).unwrap();
+            let pointer: AccessPointer = store.administration("access").unwrap().unwrap();
+            let name = format!("{}:{}", store.identity(), pointer.key_slot);
+            assert!(!keyring::Entry::new("dokime.access", &name).unwrap().get_password().unwrap().is_empty());
+            *recorded.lock().unwrap() = name;
+            drop(store);
+            std::panic::panic_any(StoryFailure);
         })
     });
-    assert!(failure.is_err());
+    assert!(failure.unwrap_err().is::<StoryFailure>());
+    let removed = keyring::Entry::new("dokime.access", &credential.lock().unwrap()).unwrap().get_password().map(drop);
+    assert!(matches!(removed, Err(keyring::Error::NoEntry)), "Remove Failed Story Credential: {removed:?}");
     assert!(!path.lock().unwrap().exists());
 }

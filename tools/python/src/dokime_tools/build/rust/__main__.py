@@ -27,7 +27,7 @@ from dokime_tools.package.staging import clear_output, stage_file
 # === Constants === #
 
 ROOT = configuration.ROOT
-EXECUTABLES = ("dokime-next", "dokime-host-next", "dokime-gui")
+EXECUTABLES = ("dokime", "dokime-host", "dokime-gui")
 
 # === Types === #
 
@@ -62,7 +62,7 @@ def build(profile: str) -> list[str]:
         stage_file(path, binaries / path.name)
         staged.append(binaries / path.name)
     cargo.record_target(ROOT, messages, profile)
-    return configuration.relative(staged)
+    return configuration.relative([*staged, messages, output / "product/target.txt"])
 
 
 # === Private Functions === #

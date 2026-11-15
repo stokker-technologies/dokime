@@ -12,14 +12,6 @@
 /* === Imports === */
 
 #include "dokime/context.hpp"
-#include "dokime/plugin/v1/criteria.pb.h"
-#include "dokime/plugin/v1/executions.pb.h"
-#include "dokime/plugin/v1/steps.pb.h"
-#include "dokime/plugin/v1/test_cases.pb.h"
-#include "dokime/v1/prompts.pb.h"
-#include "dokime/v1/record_contracts.pb.h"
-#include "dokime/v1/scalar.pb.h"
-#include "dokime/v1/suites.pb.h"
 
 /* === Macros === */
 
@@ -33,30 +25,30 @@
 
 /* === Public Declarations === */
 
-namespace dokime {
-v1::Metadata metadata(std::string identifier, std::string label);
+namespace dokime::plugin {
+Metadata metadata(std::string identifier, std::string label);
 
 struct Step {
-  v1::Metadata metadata;
+  Metadata metadata;
   std::function<void(Context &)> run;
   std::uint32_t retries = 0;
   bool repeatable = false;
 };
 struct Criterion {
-  v1::Metadata metadata;
+  Metadata metadata;
   std::function<bool(Context &)> evaluate;
 };
 struct Template {
-  v1::TestCaseTemplate definition;
+  TestCaseTemplate definition;
   std::vector<Step> steps;
   std::vector<Criterion> criteria;
   std::vector<std::string> streams;
   std::function<void(Context &)> initialize;
   std::function<void(Context &)> cleanup;
-  std::function<void(v1::TestCase &, const Parameters &)> materialize;
+  std::function<void(TestCase &, const Parameters &)> materialize;
 };
 struct Suite {
-  v1::Metadata metadata;
+  Metadata metadata;
   std::vector<Template> templates;
 };
 
@@ -65,7 +57,10 @@ public:
   Plugin(std::string identifier, std::string version);
   Plugin &suite(Suite suite);
   Plugin &prompt(Prompt prompt);
-  template <class T> Plugin &record(Record record) {
+  Plugin &analysis(Analysis definition,
+                   std::function<std::vector<AnalysisValues>(Context &, const AnalysisSamples &, const MapValue &)> compute,
+                   std::optional<harmos::OperationPolicy> policy = {});
+  template <class T> Plugin &record(RecordContract record) {
     if (record.metadata().identifier().empty())
       throw std::invalid_argument("Record Identifier Is Required");
     for (const auto &existing : records_.records())
@@ -83,15 +78,15 @@ public:
     native_.stream(stream);
     return *this;
   }
-  template <class T> Plugin &observer(harmos::Observer<T> observer) {
+  template <class T> Plugin &observer(harmos::plugin::Observer<T> observer) {
     native_.observer(observer);
     return *this;
   }
   template <class T> Plugin &observer(Observer<T> observer) {
     auto state = executions_;
-    harmos::Observer<T> native(observer.stream, [state, sample = std::move(observer.sample)](harmos::Context &transport) {
+    harmos::plugin::Observer<T> native(observer.stream, [state, sample = std::move(observer.sample)](harmos::plugin::Context &transport) {
       auto resources = state->open(transport.scope());
-      v1::TestCase test_case;
+      TestCase test_case;
       {
         std::lock_guard lock(resources->mutex);
         test_case = resources->test_case;
@@ -105,11 +100,11 @@ public:
     native_.observer(native);
     return *this;
   }
-  template <class Q, class R> Plugin &operation(harmos::Operation<Q, R> operation) {
+  template <class Q, class R> Plugin &operation(harmos::plugin::Operation<Q, R> operation) {
     native_.operation(operation);
     return *this;
   }
-  template <class Q, class R> Plugin &requires_operation(harmos::Operation<Q, R> operation) {
+  template <class Q, class R> Plugin &requires_operation(harmos::plugin::Operation<Q, R> operation) {
     native_.requires_operation(operation);
     return *this;
   }
@@ -122,16 +117,18 @@ public:
     return *this;
   }
   Plugin &context_operations();
-  harmos::wire::Catalog catalog() const;
+  harmos::Declarations declarations() const;
+  Plugin &requires_operation(HostOperation operation);
   void serve(std::string address = {}) const;
 
 private:
-  harmos::Plugin compose() const;
-  harmos::Plugin native_;
+  harmos::plugin::Plugin compose() const;
+  harmos::plugin::Plugin native_;
   std::string identifier_;
-  v1::Suites suites_;
-  v1::PromptDefinitions prompts_;
-  v1::RecordContracts records_;
+  dokime::Suites suites_;
+  PromptDefinitions prompts_;
+  RecordContracts records_;
+  Analyses analyses_;
   std::shared_ptr<detail::Executions> executions_;
 };
-} // namespace dokime
+} // namespace dokime::plugin

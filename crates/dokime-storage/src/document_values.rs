@@ -25,7 +25,12 @@ use crate::{
     Error, ExecutionCut, Result, Store, expressions,
     scalar::{self, ScalarValue},
 };
-use dokime_protocol::v1::{self, Aggregate, DataExpression, PlotFilter, Value};
+use dokime_protocol::model::Aggregate;
+use dokime_protocol::model::DataExpression;
+use dokime_protocol::model::PlotFilter;
+use dokime_protocol::model::Value;
+
+use dokime_protocol::model::data_expression;
 
 /* === Constants === */
 
@@ -46,7 +51,7 @@ impl Store {
         self.document_value_filtered(cut, expression, &[])
     }
     pub fn document_value_filtered(&self, cut: &ExecutionCut, expression: &DataExpression, filters: &[PlotFilter]) -> Result<Value> {
-        if let Some(v1::data_expression::Kind::Aggregate(aggregate)) = &expression.kind {
+        if let Some(data_expression::Kind::Aggregate(aggregate)) = &expression.kind {
             let value = self.reduce_expression(
                 cut,
                 aggregate.input.as_deref().ok_or(Error::Data("supply the aggregate input"))?,
@@ -68,7 +73,7 @@ impl Store {
     pub(crate) fn reduce_expression(
         &self, cut: &ExecutionCut, expression: &DataExpression, filters: &[PlotFilter], kind: Aggregate, percentile: f64,
     ) -> Result<ScalarValue> {
-        let numeric = if let Some(v1::data_expression::Kind::Stream(reference)) = &expression.kind {
+        let numeric = if let Some(data_expression::Kind::Stream(reference)) = &expression.kind {
             let codec = self.source_codec(cut, &(false, reference.identifier.clone()))?;
             let empty = codec.batch(&[])?;
             matches!(
@@ -78,7 +83,7 @@ impl Store {
         } else {
             false
         };
-        if numeric && let Some(v1::data_expression::Kind::Stream(reference)) = &expression.kind {
+        if numeric && let Some(data_expression::Kind::Stream(reference)) = &expression.kind {
             let (reader, _cancellation) = self.read_session()?;
             *reader.projection.lock().map_err(|_| Error::Data("restart after the document projection lock failed"))? =
                 Some(expressions::Projection {

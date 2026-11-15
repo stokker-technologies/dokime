@@ -12,6 +12,7 @@
 /* === Imports === */
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -99,7 +100,7 @@ async function owned() {
   const status = await invoke(local, "desktop_session_status");
   assert.equal(status.ownership, "owned_local");
   assert.equal(status.connection.phase, "connected");
-  const identity = await call(local, "harmos.v1.Status", "Get");
+  const identity = await call(local, "harmos.host.v1.Status", "Get");
   assert.ok(identity.status.identity.hostId);
   const saved = await call(local, "Cycles", "Create", {
     requestId: crypto.randomUUID(),
@@ -161,8 +162,8 @@ async function execute() {
   assert.equal(detail.outcome.evaluated.status, "RESULT_STATUS_PASSED");
   assert.ok(detail.seal);
   await until("Passed Result in WebView", async () => (await desktop.text()).includes("Passed"));
-  const records = await call(desktop, "dokime.client.v1.evidence.Records", "List", { selection: { scope: { executionId } } });
-  const samples = await call(desktop, "dokime.client.v1.evidence.Samples", "List", { scope: { executionId } });
+  const records = await call(desktop, "dokime.host.v1.evidence.Records", "List", { selection: { scope: { executionId } } });
+  const samples = await call(desktop, "dokime.host.v1.evidence.Samples", "List", { scope: { executionId } });
   assert.ok(records.records.some((record) => record.payload));
   assert.ok(samples.samples.some((sample) => sample.raw?.payload));
   await until("Captured Record Rows in the Authored Document", () =>
@@ -177,11 +178,12 @@ async function execute() {
   const values = await until("Exact Summary Tiles", () =>
     desktop.execute(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
+    if (tiles.length < 11 || tiles.some(tile => tile.dataset.documentValuePresent !== 'true')) return null;
     const values = tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong [data-exact-value]')?.dataset.exactValue]);
     // The host seals before its interval telemetry flush, so tiles read a zero count until that
     // flush's storage change refreshes the document; a view that never refreshes times out here.
     const captured = values.every(([, value]) => value && value !== '-') && /[1-9]/.test(Object.fromEntries(values).count ?? '');
-    return tiles.length >= 11 && captured ? Object.fromEntries(values) : null;`),
+    return captured ? Object.fromEntries(values) : null;`),
   );
   const base = 1152921504606847975n;
   for (const name of ["mean", "median", "min", "max", "first", "last", "p05", "p95", "p99"]) assert.equal(values[name], String(base));
@@ -281,14 +283,8 @@ async function settings() {
     assert.equal(await desktop.execute('return Boolean(document.querySelector("[data-error-boundary]"));'), false);
   }
   await desktop.goto("/settings/plugins");
-  const installed = await call(desktop, "Plugins", "ListInstallations", { pageSize: 100 });
-  const admitted = await call(desktop, "Plugins", "ListAdmittedPlugins", { pageSize: 100 });
-  const rowIds = installed.installations.map((entry) => entry.installId);
-  for (const entry of admitted.plugins) {
-    const plugin = entry.plugin;
-    if (plugin.remote) rowIds.push(JSON.stringify(["remote", null, null, null, plugin.entry]));
-    else if (plugin.managed && !rowIds.includes(plugin.entry)) rowIds.push(`bundle:${plugin.managed.bundle}`);
-  }
+  const inventory = await call(desktop, "harmos.host.v1.Plugins", "List");
+  const rowIds = inventory.entries.map((entry) => entry.name);
   assert.ok(rowIds.length > 0);
   await until("Admitted and Installed Plugin Rows", () =>
     desktop.execute(
@@ -297,7 +293,38 @@ async function settings() {
     ),
   );
   await desktop.goto("/settings/diagnostics");
-  assert.ok(/recovery|preserv|unavailable|not.*support/i.test(await desktop.text()));
+  await until("Diagnostics Download Is Available", () =>
+    desktop.execute(
+      `const button = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Download Bundle");
+       return Boolean(button && !button.disabled);`,
+    ),
+  );
+  assert.equal(
+    await desktop.execute(
+      'return [...document.querySelectorAll("button")].some(node => node.textContent.trim() === "Reset Local Storage");',
+    ),
+    false,
+  );
+  const archive = await call(desktop, "harmos.host.v1.status.Diagnostics", "Get", { maxBytes: "1024" });
+  assert.ok(BigInt(archive.totalLength) > 0n);
+  const chunks = [Buffer.from(archive.data, "base64")];
+  let length = chunks[0].length;
+  while (BigInt(length) < BigInt(archive.totalLength)) {
+    const page = await call(desktop, "harmos.host.v1.status.Diagnostics", "Get", {
+      name: archive.name,
+      offset: String(length),
+      maxBytes: "1024",
+    });
+    assert.equal(page.name, archive.name);
+    assert.equal(page.totalLength, archive.totalLength);
+    assert.equal(page.sha256, archive.sha256);
+    const data = Buffer.from(page.data, "base64");
+    assert.ok(data.length > 0 && data.length <= 1024);
+    chunks.push(data);
+    length += data.length;
+  }
+  assert.equal(BigInt(length), BigInt(archive.totalLength));
+  assert.equal(createHash("sha256").update(Buffer.concat(chunks)).digest("base64"), archive.sha256);
 }
 
 async function appearance() {
@@ -331,7 +358,7 @@ try {
       await desktop.connected();
       await sizeViewport(desktop, { width: 1600, height: 1000 });
       assert.equal((await invoke(desktop, "desktop_session_status")).ownership, "attached");
-      const identity = await call(desktop, "harmos.v1.Status", "Get");
+      const identity = await call(desktop, "harmos.host.v1.Status", "Get");
       assert.ok(identity.status.identity.hostId);
     });
     if (options.workflow === "execution") {

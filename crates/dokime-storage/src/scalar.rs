@@ -13,7 +13,7 @@
 
 /* === Re-Exports === */
 
-pub(crate) use harmos_storage::query::scalar::{Agg, ScalarValue};
+pub(crate) use harmos_query::scalar::{Agg, ScalarValue};
 
 /* === Imports === */
 
@@ -25,10 +25,13 @@ use arrow_schema::DataType;
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::v1::{self, Null, Value};
-use harmos_protocol::storage::ExactNumber as WireExactNumber;
-use harmos_storage::query::scalar::ExactNumber;
+use dokime_protocol::model::ExactNumber as WireExactNumber;
+use dokime_protocol::model::Null;
+use dokime_protocol::model::Value;
+use harmos_query::scalar::ExactNumber;
 use std::num::NonZeroU128;
+
+use dokime_protocol::model::value;
 
 /* === Constants === */
 
@@ -103,11 +106,11 @@ pub(crate) fn number(value: &ScalarValue) -> Option<f64> {
 }
 pub(crate) fn from_wire(value: &Value) -> Result<ScalarValue> {
     Ok(match value.kind.as_ref() {
-        Some(v1::value::Kind::Null(_)) => ScalarValue::Null,
-        Some(v1::value::Kind::Number(v)) if v.is_finite() => ScalarValue::Float(*v),
-        Some(v1::value::Kind::Integer(v)) => ScalarValue::Signed(*v),
-        Some(v1::value::Kind::UnsignedInteger(v)) => ScalarValue::Unsigned(*v),
-        Some(v1::value::Kind::Exact(v)) => ScalarValue::Exact(ExactNumber::new(
+        Some(value::Kind::Null(_)) => ScalarValue::Null,
+        Some(value::Kind::Number(v)) if v.is_finite() => ScalarValue::Float(*v),
+        Some(value::Kind::Integer(v)) => ScalarValue::Signed(*v),
+        Some(value::Kind::UnsignedInteger(v)) => ScalarValue::Unsigned(*v),
+        Some(value::Kind::Exact(v)) => ScalarValue::Exact(ExactNumber::new(
             v.negative,
             v.numerator.parse().map_err(|_| Error::Data("Read Exact Value: Supply an Unsigned Numerator"))?,
             v.denominator
@@ -116,29 +119,26 @@ pub(crate) fn from_wire(value: &Value) -> Result<ScalarValue> {
                 .and_then(NonZeroU128::new)
                 .ok_or(Error::Data("Read Exact Value: Supply a Positive Denominator"))?,
         )),
-        Some(v1::value::Kind::Boolean(v)) => ScalarValue::Bool(*v),
-        Some(v1::value::Kind::Text(v)) => ScalarValue::Text(v.clone()),
+        Some(value::Kind::Boolean(v)) => ScalarValue::Bool(*v),
+        Some(value::Kind::Text(v)) => ScalarValue::Text(v.clone()),
         _ => return Err(Error::Data("select a finite scalar value")),
     })
 }
 pub(crate) fn wire(value: &ScalarValue) -> Result<Value> {
     let kind = match value {
-        ScalarValue::Missing | ScalarValue::Null => v1::value::Kind::Null(Null {}),
-        ScalarValue::Float(v) if v.is_finite() => v1::value::Kind::Number(*v),
-        ScalarValue::Signed(v) => v1::value::Kind::Integer(*v),
-        ScalarValue::Unsigned(v) => v1::value::Kind::UnsignedInteger(*v),
-        ScalarValue::Bool(v) => v1::value::Kind::Boolean(*v),
-        ScalarValue::Text(v) => v1::value::Kind::Text(v.clone()),
+        ScalarValue::Missing | ScalarValue::Null => value::Kind::Null(Null {}),
+        ScalarValue::Float(v) if v.is_finite() => value::Kind::Number(*v),
+        ScalarValue::Signed(v) => value::Kind::Integer(*v),
+        ScalarValue::Unsigned(v) => value::Kind::UnsignedInteger(*v),
+        ScalarValue::Bool(v) => value::Kind::Boolean(*v),
+        ScalarValue::Text(v) => value::Kind::Text(v.clone()),
         ScalarValue::Exact(v) if v.denominator.get() == 1 && v.negative && v.numerator <= i64::MAX as u128 + 1 => {
-            v1::value::Kind::Integer(-(v.numerator as i128) as i64)
+            value::Kind::Integer(-(v.numerator as i128) as i64)
         }
         ScalarValue::Exact(v) if v.denominator.get() == 1 && !v.negative && v.numerator <= u64::MAX as u128 => {
-            v1::value::Kind::UnsignedInteger(v.numerator as u64)
+            value::Kind::UnsignedInteger(v.numerator as u64)
         }
-        ScalarValue::Exact(v) if v.denominator.get() > 1 && v.denominator.get().is_power_of_two() && v.numerator <= (1u128 << 53) => {
-            v1::value::Kind::Number(number(value).unwrap())
-        }
-        ScalarValue::Exact(v) => v1::value::Kind::Exact(WireExactNumber {
+        ScalarValue::Exact(v) => value::Kind::Exact(WireExactNumber {
             negative: v.negative,
             numerator: v.numerator.to_string(),
             denominator: v.denominator.to_string(),

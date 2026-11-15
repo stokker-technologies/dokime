@@ -15,9 +15,6 @@
 
 mod fixture;
 
-#[path = "../../../dokime-runtime-next/benches/storage/sample_carrier.rs"]
-mod sample_carrier;
-
 /* === Re-Exports === */
 
 /* === Imports === */
@@ -86,11 +83,7 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for QueryTimes {
 
 fn main() {
     if std::env::args().any(|argument| argument == "--remote") {
-        if std::env::var_os("DOKIME_BENCH_SDK").is_some() {
-            fixture::serve().unwrap();
-        } else {
-            Runtime::new().unwrap().block_on(sample_carrier::serve(fixture::samples)).unwrap();
-        }
+        fixture::serve().unwrap();
         return;
     }
     if std::env::args().any(|argument| argument == "--fixture-host") {
@@ -100,7 +93,7 @@ fn main() {
 
     // Start The Real Native Desktop Driver Once Outside Criterion's Timers.
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let mut child = dokime_runtime_next::process::command("node")
+    let mut child = dokime_runtime::process::command("node")
         .arg(directory.join("benches/system/driver.mjs"))
         .env("DOKIME_DESKTOP_BENCH_HOST", std::env::current_exe().unwrap())
         .stdin(Stdio::piped())
@@ -124,7 +117,7 @@ fn main() {
     for count in [30, 100] {
         for condition in ["cold", "warm", "live", "late", "zoom", "resize", "navigation", "stalled"] {
             println!(
-                "Boundary | Desktop {count}/{condition} | native query through visible draw or explicit refusal; {condition}; durable history; producer prompt handoff/actions included when named, without a publication durability barrier; cold reopens host and desktop before timer"
+                "Boundary | Desktop {count}/{condition} | native query through visible draw or explicit refusal; {condition}; durable history; producer control handoff/actions included when named, without a publication durability barrier; cold reopens host and desktop before timer"
             );
             group.bench_function(format!("{count}/{condition}"), |bencher| {
                 bencher.iter_custom(|iterations| {
@@ -132,6 +125,9 @@ fn main() {
                     input.flush().unwrap();
                     line.clear();
                     output.read_line(&mut line).unwrap();
+                    if let Some(error) = line.trim().strip_prefix("error ") {
+                        panic!("Measure desktop_round_trip/{count}/{condition}: {error}");
+                    }
                     let seconds = line
                         .trim()
                         .parse::<f64>()
@@ -152,7 +148,7 @@ fn main() {
         for count in [30, 100] {
             for condition in ["cold", "warm", "live"] {
                 println!(
-                    "Boundary | Desktop {rows}/{count}/{condition} | document request, bounded document pages, visible plot queries, native delivery and visible draw; three-day history; host reopen excluded; live includes producer prompt handoff and saved visibility"
+                    "Boundary | Desktop {rows}/{count}/{condition} | document request, bounded document pages, visible plot queries, native delivery and visible draw; three-day history; host reopen excluded; live includes producer control handoff and saved visibility"
                 );
                 history.bench_function(format!("{rows}/{count}/{condition}"), |bencher| {
                     bencher.iter_custom(|iterations| {
@@ -160,6 +156,9 @@ fn main() {
                         input.flush().unwrap();
                         line.clear();
                         output.read_line(&mut line).unwrap();
+                        if let Some(error) = line.trim().strip_prefix("error ") {
+                            panic!("Measure desktop_history_round_trip/{rows}/{count}/{condition}: {error}");
+                        }
                         let seconds = line.trim().parse::<f64>().unwrap_or_else(|error| {
                             panic!("Measure desktop_history_round_trip/{rows}/{count}/{condition}: raw seconds {line:?}: {error}")
                         });

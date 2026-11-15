@@ -4,7 +4,7 @@
 import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 import type { Wire } from "./canonical.js";
 import * as rpc from "../host/client";
-import { LogoVariant } from "@host/dokime/client/v1/backend_pb.js";
+import { LogoVariant } from "@host/model";
 
 import type { SessionIdentity } from "./transport.js";
 

@@ -20,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use crate::dokime::plugin::v1::{CriteriaEvaluateRequest, ExecutionsCleanupRequest, ExecutionsInitializeRequest, StepsExecuteRequest};
-use crate::v1::{Origin, PluginRun, TestCase, origin};
+use crate::model::{Origin, PluginRun, TestCase, origin};
+use crate::plugin::{CriteriaEvaluateRequest, ExecutionsCleanupRequest, ExecutionsInitializeRequest, StepsExecuteRequest};
 
 /* === Constants === */
 

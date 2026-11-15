@@ -14,7 +14,13 @@ const require = createRequire(resolve(gui, "package.json"));
 const { create, fromBinary, toBinary } = require("@bufbuild/protobuf");
 const { CodeGeneratorRequestSchema, CodeGeneratorResponseSchema, FileDescriptorSetSchema } = require("@bufbuild/protobuf/wkt");
 const set = fromBinary(FileDescriptorSetSchema, readFileSync(resolve(root, "crates/dokime-protocol/src/descriptors.bin")));
-const { values: options } = parseArgs({ options: { output: { type: "string" }, defaults: { type: "string" } } });
+const { values: options } = parseArgs({
+  options: {
+    output: { type: "string" },
+    defaults: { type: "string" },
+    "messages-only": { type: "boolean", default: false },
+  },
+});
 const output = resolve(options.output ?? resolve(root, "target/generated/typescript"));
 if (output === root || output === gui) throw new Error("Generate Messages: Output Must Be a Generated Module Directory");
 rmSync(output, { recursive: true, force: true });
@@ -129,7 +135,7 @@ function preferenceType(name) {
   models.set(typeName, `export interface ${typeName} {\n${fields.join("\n")}\n}`);
   return typeName;
 }
-preferenceType(".dokime.client.v1.ApplicationSettings");
+preferenceType(".dokime.host.v1.ApplicationSettings");
 models.set("PreferencesSnapshot", "export interface PreferencesSnapshot { revision: number[]; settings: ApplicationSettings; }");
 models.set("PreferencesUpdate", "export interface PreferencesUpdate { expected_revision: number[]; settings: ApplicationSettings; }");
 const registry = readFileSync(resolve(gui, "src-tauri/src/connection/registry.rs"), "utf8");
@@ -148,7 +154,8 @@ writeFileSync(resolve(output, "application-settings.ts"), `// Generated From Hos
 // Read Defaults Exported From the Product's Declarations.
 const { createFileRegistry } = require("@bufbuild/protobuf");
 const registryTypes = createFileRegistry(set);
-const snapshotType = registryTypes.getMessage("dokime.client.v1.SettingsGetResponse");
+if (options["messages-only"]) process.exit(0);
+const snapshotType = registryTypes.getMessage("dokime.host.v1.SettingsGetResponse");
 const defaults = fromBinary(snapshotType, readFileSync(options.defaults ?? resolve(root, "target/generated/preferences/defaults.bin")));
 function project(message, descriptor) {
   const value = {};

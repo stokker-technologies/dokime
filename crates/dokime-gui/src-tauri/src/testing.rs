@@ -17,7 +17,7 @@ pub use crate::app::organization::pack::{ResolvedPack, resolve_directory};
 
 pub use crate::app::content::{DeliveryError, DeliveryFailure, DeliveryStage};
 pub use crate::app::desktop::{ArtifactSource, Delivered, create_remote_access, move_verified_file, save_verified};
-pub use crate::app::plugins::{DroppedFiles, InstallProgress, desktop_plugin_install_file};
+pub use crate::app::plugins::{DroppedFiles, InstallProgress, desktop_plugin_install_file, install as install_plugin_bundle};
 
 pub use crate::app::media::prepare_image_preview;
 pub use crate::app::organization::testing::{inspect_css, inspect_resolved};

@@ -1,0 +1,147 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Prompts Contracts
+
+syntax = "proto3";
+
+package dokime.model.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/metadata.proto";
+import "dokime/model/v1/scalar.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// PromptDefinitions value owned by this resource.
+message PromptDefinitions {
+  repeated .dokime.model.v1.Prompt prompts = 1;
+}
+
+// Prompt value owned by this resource.
+message Prompt {
+  .dokime.model.v1.Metadata metadata = 1;
+  string message = 2;
+  repeated .dokime.model.v1.PromptField fields = 3;
+  repeated .dokime.model.v1.PromptAction actions = 4;
+  .dokime.model.v1.PromptArchetype archetype = 5;
+  repeated .dokime.model.v1.AnswerRule rules = 6;
+  .dokime.model.v1.EvidenceCondition condition = 7;
+  string owner_suite = 8;
+  string template = 9;
+  repeated .dokime.model.v1.PromptValues examples = 10;
+  .dokime.model.v1.Severity level = 11;
+}
+
+// PromptValues value owned by this resource.
+message PromptValues {
+  map<string, .dokime.model.v1.Value> values = 1;
+}
+
+// PromptField value owned by this resource.
+message PromptField {
+  .dokime.model.v1.Metadata metadata = 1;
+  .dokime.model.v1.ValueType type = 2;
+  bool required = 3;
+  bool multiple = 4;
+  .dokime.model.v1.Value default_value = 5;
+  repeated .dokime.model.v1.Value choices = 6;
+  .dokime.model.v1.PromptFieldValidation validation = 7;
+  .dokime.model.v1.PromptFieldKind kind = 8;
+}
+
+// PromptFieldValidation value owned by this resource.
+message PromptFieldValidation {
+  optional uint64 min_length = 1;
+  optional uint64 max_length = 2;
+  optional string pattern = 3;
+  .dokime.model.v1.Value minimum = 4;
+  .dokime.model.v1.Value maximum = 5;
+  optional uint64 min_items = 6;
+  optional uint64 max_items = 7;
+}
+
+// PromptAction value owned by this resource.
+message PromptAction {
+  string identifier = 1;
+  string label = 2;
+  .dokime.model.v1.PromptActionEmphasis emphasis = 3;
+  bool requires_condition = 4;
+}
+
+// AnswerRule value owned by this resource.
+message AnswerRule {
+  .dokime.model.v1.AnswerPredicate predicate = 1;
+  string message = 2;
+}
+
+// AnswerPredicate value owned by this resource.
+message AnswerPredicate {
+  oneof kind {
+    .dokime.model.v1.Value literal = 1;
+    string field = 2;
+    .dokime.model.v1.AnswerPredicate not = 3;
+    .dokime.model.v1.AnswerBinaryPredicate binary = 4;
+  }
+}
+
+// AnswerBinaryPredicate value owned by this resource.
+message AnswerBinaryPredicate {
+  .dokime.model.v1.AnswerOperator operator = 1;
+  .dokime.model.v1.AnswerPredicate left = 2;
+  .dokime.model.v1.AnswerPredicate right = 3;
+}
+
+// === Enums === //
+
+// PromptArchetype choices.
+enum PromptArchetype {
+  PROMPT_ARCHETYPE_UNSPECIFIED = 0;
+  PROMPT_ARCHETYPE_CONFIRMATION = 1;
+  PROMPT_ARCHETYPE_FORM = 2;
+  PROMPT_ARCHETYPE_CHOICE = 3;
+  PROMPT_ARCHETYPE_STATUS = 4;
+}
+
+// PromptFieldKind choices.
+enum PromptFieldKind {
+  PROMPT_FIELD_KIND_UNSPECIFIED = 0;
+  PROMPT_FIELD_KIND_TEXT = 1;
+  PROMPT_FIELD_KIND_FLOAT = 2;
+  PROMPT_FIELD_KIND_INTEGER = 3;
+  PROMPT_FIELD_KIND_CHOICE = 4;
+  PROMPT_FIELD_KIND_BOOLEAN = 5;
+}
+
+// PromptActionEmphasis choices.
+enum PromptActionEmphasis {
+  PROMPT_ACTION_EMPHASIS_UNSPECIFIED = 0;
+  PROMPT_ACTION_EMPHASIS_PRIMARY = 1;
+  PROMPT_ACTION_EMPHASIS_SECONDARY = 2;
+  PROMPT_ACTION_EMPHASIS_DANGER = 3;
+}
+
+// AnswerOperator choices.
+enum AnswerOperator {
+  ANSWER_OPERATOR_UNSPECIFIED = 0;
+  ANSWER_OPERATOR_AND = 1;
+  ANSWER_OPERATOR_OR = 2;
+  ANSWER_OPERATOR_EQ = 3;
+  ANSWER_OPERATOR_NE = 4;
+  ANSWER_OPERATOR_GT = 5;
+  ANSWER_OPERATOR_GE = 6;
+  ANSWER_OPERATOR_LT = 7;
+  ANSWER_OPERATOR_LE = 8;
+  ANSWER_OPERATOR_CONTAINS = 9;
+  ANSWER_OPERATOR_STARTS_WITH = 10;
+  ANSWER_OPERATOR_ENDS_WITH = 11;
+}

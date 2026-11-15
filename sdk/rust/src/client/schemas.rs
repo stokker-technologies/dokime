@@ -22,16 +22,16 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::v1::PageRequest;
+use crate::PageRequest;
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage};
 use prost_types::FileDescriptorSet;
 use sha2::{Digest, Sha256};
-use tonic::{Request, Status};
+use tonic::Status;
 
 // Local Imports
 use super::Client;
-use dokime_protocol::client::{ExecutionDetail, executions::SchemasGetRequest};
+use super::{ExecutionDetail, ExecutionsSchemasGetOptions};
 
 /* === Constants === */
 
@@ -83,21 +83,30 @@ impl FrozenSchemaCache {
         if let Some(types) = self.sets.get(digest) {
             return Ok(types.clone());
         }
-        let mut request = SchemasGetRequest {
-            name: detail
-                .summary
-                .as_ref()
-                .ok_or_else(|| Status::invalid_argument("Read Schemas: Supply an Execution Identity"))?
-                .execution_id
-                .clone(),
-            at: detail.resolved_at.clone(),
-            page: Some(PageRequest { page_size: 1, ..Default::default() }),
-        };
+        let name = detail
+            .summary
+            .as_ref()
+            .ok_or_else(|| Status::invalid_argument("Read Schemas: Supply an Execution Identity"))?
+            .execution_id
+            .clone();
+        let mut at = detail.resolved_at.clone();
+        let mut next_page = PageRequest { page_size: 1, ..Default::default() };
         let mut types = FileDescriptorSet::default();
         let mut tokens = HashSet::new();
         loop {
-            let page = client.executions.schemas.get(client.request(Request::new(request.clone()))).await?.into_inner();
-            if &page.digest != digest || page.resolved_at.is_none() || (request.at.is_some() && page.resolved_at != request.at) {
+            let page = client
+                .executions
+                .schemas
+                .get_with(
+                    name.clone(),
+                    ExecutionsSchemasGetOptions {
+                        at: at.clone(),
+                        page: Some(next_page.clone()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            if &page.digest != digest || page.resolved_at.is_none() || (at.is_some() && page.resolved_at != at) {
                 return Err(Status::data_loss("Read Schemas: Descriptor Digest or Read Cut Changed"));
             }
             if page.records != detail.schemas.as_ref().unwrap().records || page.streams != detail.schemas.as_ref().unwrap().streams {
@@ -110,12 +119,12 @@ impl FrozenSchemaCache {
             if !tokens.insert(page.next_page_token.clone()) {
                 return Err(Status::data_loss("Read Schemas: Repeated Descriptor Page"));
             }
-            request.at = page.resolved_at;
-            request.page = Some(PageRequest {
+            at = page.resolved_at;
+            next_page = PageRequest {
                 page_size: 1,
                 page_token: page.next_page_token,
                 ..Default::default()
-            });
+            };
         }
         if Sha256::digest(types.encode_to_vec()).as_slice() != digest {
             return Err(Status::data_loss("Read Schemas: Frozen Descriptor Digest Does Not Match"));

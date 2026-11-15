@@ -877,7 +877,7 @@ The C# starter uses mise's pinned SDK executable and re-evaluates its mutable de
 
 The Python starter declares only its consumed host operations and waits one observer interval inside Measure before evaluating that step's captured samples.
 
-The additive `dokime-cli-next` package exports `dokime-next` until cutover; it imports only the new runtime, protocol and Rust SDK among Dokime packages.
+The additive `dokime-cli` package exports `dokime` until cutover; it imports only the new runtime, protocol and Rust SDK among Dokime packages.
 Hosting uses the new listener in process with explicit endpoint and TOML settings; remote commands use the Rust SDK client half and preserve host refusals.
 All four starters are embedded from their SDK-owned sources; C++ release URL and SHA-256 come from the published sidecar or explicit paired overrides.
 The CLI owns executable-only tar packaging using the existing schema-1 manifest, native target, per-file SHA-256 and retained description.pb; no legacy registration is fabricated. The bundle also declares its exact Dokime product version in dokime.json so managed admission can validate compatibility.
@@ -919,8 +919,8 @@ Execution capabilities allow starting only untouched open PluginRun evidence, re
 Storage remains v1 with plugin descriptions, indexed sample pages and immutable report rows; a prior incompatible table shape is refused with backup/reset guidance, without migration or reset.
 The execution sample lives at `sdk/rust/examples/execution.rs`; its only supporting SDK edit is a one-line auto-discovered consumer binary entrypoint, and existing SDK sources and the shared thermal suite remain unchanged.
 
-The new host uses `dokime-storage`, `dokime-operations-next` and
-`dokime-runtime-next` until the later atomic consumer cutover renames the latter
+The new host uses `dokime-storage`, `dokime-operations` and
+`dokime-runtime` until the later atomic consumer cutover renames the latter
 crates. Only the console-free process constructor is copied from
 `dokime-domain/src/process/`; delete that old owner at cutover. No old crate is imported.
 The narrow first store commits Arrow IPC sample batches in SQLite transactions;

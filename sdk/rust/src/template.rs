@@ -24,6 +24,10 @@ use std::{
 // Third Party Imports
 
 // Local Imports
+use crate::plugin::{
+    CriteriaEvaluateRequest, CriteriaEvaluateResponse, ExecutionsCleanupRequest, ExecutionsCleanupResponse, ExecutionsInitializeRequest,
+    ExecutionsInitializeResponse, StepsExecuteRequest, StepsExecuteResponse, TestCasesMaterializeRequest, TestCasesMaterializeResponse,
+};
 use crate::{
     Context, Error, Message, Observer, Result, Stream,
     context::Executions,
@@ -31,8 +35,15 @@ use crate::{
     message::Wire,
     operation::{self, Action},
     stream::Registration,
-    v1,
 };
+use crate::{
+    Criterion as CriterionDefinition, Document, FileParameter, Metadata, Parameter, Step as StepDefinition, TestCase, TestCaseTemplate,
+    Value,
+};
+use harmos::OperationPolicy;
+use harmos::Visibility;
+use harmos::plugin::Context as HarmosContext;
+use harmos::plugin::Plugin as HarmosPlugin;
 
 /* === Constants === */
 
@@ -40,27 +51,26 @@ use crate::{
 
 /* === Type Aliases === */
 
-type Materializer = Arc<dyn Fn(v1::TestCase, &HashMap<String, v1::Value>) -> Result<v1::TestCase> + Send + Sync>;
+type Materializer = Arc<dyn Fn(TestCase, &HashMap<String, Value>) -> Result<TestCase> + Send + Sync>;
 
 /* === Structs === */
 
 pub struct Step {
-    metadata: v1::Metadata,
+    metadata: Metadata,
     handler: Action<()>,
-    policy: harmos::OperationPolicy,
+    policy: OperationPolicy,
     repeatable: bool,
     replay_safe: bool,
-    invalid_retries: bool,
 }
 
 pub struct Criterion {
-    metadata: v1::Metadata,
+    metadata: Metadata,
     handler: Action<bool>,
 }
 
 // An Inert Template. Its Materializer Never Creates Execution Resources.
 pub struct Template {
-    definition: v1::TestCaseTemplate,
+    definition: TestCaseTemplate,
     initialize: Option<Action<()>>,
     cleanup: Option<Action<()>>,
     steps: Vec<Step>,
@@ -86,10 +96,9 @@ impl Step {
         Self {
             metadata: metadata(&label),
             handler: operation::action(handler),
-            policy: harmos::OperationPolicy::default(),
+            policy: OperationPolicy::default(),
             repeatable: false,
             replay_safe: false,
-            invalid_retries: false,
         }
     }
     pub fn identifier(mut self, identifier: impl Into<String>) -> Self {
@@ -100,25 +109,12 @@ impl Step {
         self.metadata.description = description.into();
         self
     }
-    // Retrying Is Host Policy; the SDK Does Not Loop or Sleep Locally.
-    pub fn retries(mut self, retries: u32) -> Self {
-        self.invalid_retries = retries == u32::MAX;
-        self.replay_safe = retries > 0;
-        self.policy.retries = (retries > 0).then_some(harmos::RetryPolicy {
-            total_attempts: u64::from(retries) + 1,
-            initial: Some(prost_types::Duration { seconds: 0, nanos: 100_000_000 }),
-            maximum: None,
-            deterministic_jitter: false,
-        });
-        self
-    }
     pub fn replay_safe(mut self) -> Self {
         self.replay_safe = true;
         self
     }
-    pub fn policy(mut self, policy: harmos::OperationPolicy) -> Self {
+    pub fn policy(mut self, policy: OperationPolicy) -> Self {
         self.policy = policy;
-        self.invalid_retries = false;
         self
     }
     pub fn repeatable(mut self, repeatable: bool) -> Self {
@@ -155,8 +151,8 @@ impl Template {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
         let identifier = identifier.into();
         Self {
-            definition: v1::TestCaseTemplate {
-                metadata: Some(v1::Metadata {
+            definition: TestCaseTemplate {
+                metadata: Some(Metadata {
                     identifier: identifier.clone(),
                     label: label.into(),
                     description: String::new(),
@@ -219,15 +215,15 @@ impl Template {
         }
         self
     }
-    pub fn parameter(mut self, parameter: v1::Parameter) -> Self {
+    pub fn parameter(mut self, parameter: Parameter) -> Self {
         self.definition.parameters.push(parameter);
         self
     }
-    pub fn file(mut self, file: v1::FileParameter) -> Self {
+    pub fn file(mut self, file: FileParameter) -> Self {
         self.definition.files.push(file);
         self
     }
-    pub fn document(mut self, document: v1::Document) -> Self {
+    pub fn document(mut self, document: Document) -> Self {
         self.definition.documents.push(document);
         self
     }
@@ -235,7 +231,7 @@ impl Template {
         self.definition.tags.push(tag.into());
         self
     }
-    pub fn parameter_group(mut self, group: v1::Metadata) -> Self {
+    pub fn parameter_group(mut self, group: Metadata) -> Self {
         self.definition.parameter_groups.push(group);
         self
     }
@@ -244,15 +240,13 @@ impl Template {
         self
     }
     pub fn materialize(
-        mut self, materialize: impl Fn(v1::TestCase, &HashMap<String, v1::Value>) -> Result<v1::TestCase> + Send + Sync + 'static,
+        mut self, materialize: impl Fn(TestCase, &HashMap<String, Value>) -> Result<TestCase> + Send + Sync + 'static,
     ) -> Self {
         self.materialize = Some(Arc::new(materialize));
         self
     }
 
-    pub(crate) fn register(
-        mut self, mut plugin: harmos::Plugin, executions: Executions, plugin_id: &str,
-    ) -> Result<(v1::TestCaseTemplate, harmos::Plugin)> {
+    pub(crate) fn register(mut self, mut plugin: HarmosPlugin, executions: Executions) -> Result<(TestCaseTemplate, HarmosPlugin)> {
         if !self.errors.is_empty() {
             return Err(Error::Invalid(self.errors.join("; ")));
         }
@@ -272,29 +266,24 @@ impl Template {
         )?;
         validate_names(self.definition.parameter_groups.iter().map(|group| group.identifier.as_str()), "Parameter Group")?;
         validate_names(self.streams.iter().map(String::as_str), "Execution Stream")?;
-        let mut case = v1::TestCase {
+        let mut case = TestCase {
             streams: self.streams,
             ..Default::default()
         };
         for (index, step) in self.steps.into_iter().enumerate() {
-            if step.invalid_retries {
-                return Err(Error::Invalid("Step Retry Count Exceeds the Protocol's Attempt Limit".into()));
-            }
             let operation = format!("{identifier}.step.{index}");
-            case.steps.push(v1::Step {
+            case.steps.push(StepDefinition {
                 metadata: Some(step.metadata),
                 operation: operation.clone(),
                 repeatable: step.repeatable,
             });
             let store = executions.clone();
             let template = identifier.clone();
-            let owner = plugin_id.to_owned();
             let handler = operation::wire(
                 operation.clone(),
-                harmos::Visibility::Protected,
-                async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::StepsExecuteRequest>| {
-                    let context =
-                        Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
+                Visibility::Protected,
+                async move |transport: &HarmosContext, Wire(request): Wire<StepsExecuteRequest>| {
+                    let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                     let present = context.test_case()?.steps.iter().any(|step| {
                         step.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.step) && step.operation == operation
                     });
@@ -302,7 +291,7 @@ impl Template {
                         return Err(Error::Invalid("Step Does Not Match the Frozen Test Case".into()));
                     }
                     step.handler.execute(&context).await?;
-                    Ok(Wire(dokime_protocol::plugin::StepsExecuteResponse {}))
+                    Ok(Wire(StepsExecuteResponse {}))
                 },
             )
             .policy(step.policy);
@@ -311,19 +300,17 @@ impl Template {
         }
         for (index, criterion) in self.criteria.into_iter().enumerate() {
             let operation = format!("{identifier}.criterion.{index}");
-            case.criteria.push(v1::Criterion {
+            case.criteria.push(CriterionDefinition {
                 metadata: Some(criterion.metadata),
                 operation: operation.clone(),
             });
             let store = executions.clone();
             let template = identifier.clone();
-            let owner = plugin_id.to_owned();
             plugin = plugin.operation(operation::wire(
                 operation.clone(),
-                harmos::Visibility::Protected,
-                async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::CriteriaEvaluateRequest>| {
-                    let context =
-                        Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
+                Visibility::Protected,
+                async move |transport: &HarmosContext, Wire(request): Wire<CriteriaEvaluateRequest>| {
+                    let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                     let present = context.test_case()?.criteria.iter().any(|criterion| {
                         criterion.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.criterion)
                             && criterion.operation == operation
@@ -332,7 +319,7 @@ impl Template {
                         return Err(Error::Invalid("Criterion Does Not Match the Frozen Test Case".into()));
                     }
                     let passed = criterion.handler.execute(&context).await?;
-                    Ok(Wire(dokime_protocol::plugin::CriteriaEvaluateResponse { passed }))
+                    Ok(Wire(CriteriaEvaluateResponse { passed }))
                 },
             ));
         }
@@ -345,8 +332,8 @@ impl Template {
         let template = identifier.clone();
         plugin = plugin.operation(operation::wire(
             self.definition.materialize.clone(),
-            harmos::Visibility::Protected,
-            async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::TestCasesMaterializeRequest>| {
+            Visibility::Protected,
+            async move |transport: &HarmosContext, Wire(request): Wire<TestCasesMaterializeRequest>| {
                 if transport.scope().is_ok() {
                     return Err(Error::Invalid("Materialization Requires an Empty Execution Scope".into()));
                 }
@@ -380,7 +367,7 @@ impl Template {
                 {
                     return Err(Error::Invalid("Materialization References an Undeclared Operation or Stream".into()));
                 }
-                Ok(Wire(dokime_protocol::plugin::TestCasesMaterializeResponse { test_case: Some(case) }))
+                Ok(Wire(TestCasesMaterializeResponse { test_case: Some(case) }))
             },
         ));
         if let Some(initialize) = self.initialize {
@@ -388,34 +375,30 @@ impl Template {
             self.definition.initialize = Some(operation.clone());
             let store = executions.clone();
             let template = identifier.clone();
-            let owner = plugin_id.to_owned();
             plugin = plugin.operation(operation::wire(
                 operation,
-                harmos::Visibility::Protected,
-                async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::ExecutionsInitializeRequest>| {
-                    let context =
-                        Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
+                Visibility::Protected,
+                async move |transport: &HarmosContext, Wire(request): Wire<ExecutionsInitializeRequest>| {
+                    let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                     initialize.execute(&context).await?;
-                    Ok(Wire(dokime_protocol::plugin::ExecutionsInitializeResponse {}))
+                    Ok(Wire(ExecutionsInitializeResponse {}))
                 },
             ));
         }
         // Always Expose Cleanup So Even a Template Without a User Hook Releases Its Store.
         let template = identifier;
-        let owner = plugin_id.to_owned();
         let store = executions.clone();
         plugin = plugin.operation(operation::wire(
             self.definition.cleanup.clone().expect("SDK Cleanup Operation"),
-            harmos::Visibility::Protected,
-            async move |transport: &harmos::Context, Wire(request): Wire<dokime_protocol::plugin::ExecutionsCleanupRequest>| {
-                let context =
-                    Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template, &owner)?;
+            Visibility::Protected,
+            async move |transport: &HarmosContext, Wire(request): Wire<ExecutionsCleanupRequest>| {
+                let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                 let _end = context.end(store.clone());
                 let context = context.with_termination(request.termination)?;
                 if let Some(cleanup) = &self.cleanup {
                     cleanup.execute(&context).await?;
                 }
-                Ok(Wire(dokime_protocol::plugin::ExecutionsCleanupResponse {}))
+                Ok(Wire(ExecutionsCleanupResponse {}))
             },
         ));
         for register in self.registrations {
@@ -439,14 +422,14 @@ pub(crate) fn validate_names<'a>(names: impl IntoIterator<Item = &'a str>, kind:
 
 /* === Private Functions === */
 
-fn metadata(label: &str) -> v1::Metadata {
+fn metadata(label: &str) -> Metadata {
     let identifier = label
         .split(|character: char| !character.is_ascii_alphanumeric())
         .filter(|word| !word.is_empty())
         .map(str::to_lowercase)
         .collect::<Vec<_>>()
         .join("_");
-    v1::Metadata {
+    Metadata {
         identifier,
         label: label.into(),
         description: String::new(),

@@ -6,8 +6,8 @@ const harness = await openHarness();
 let progress;
 try {
   const api = await harness.loadHost("client.js");
-  const types = await harness.loadHost("dokime/v1/execution_pb.js");
-  const execution = await harness.loadHost("dokime/v1/execution_pb.js");
+  const types = await harness.loadHost("model.js");
+  const execution = await harness.loadHost("model.js");
   const scenario = process.argv[2];
   const session = { generation: process.env.DOKIME_TEST_GENERATION, isCurrent: () => true };
   // Materialize the SDK Fixture's Frozen Origin
@@ -41,7 +41,7 @@ try {
     assert.equal(detail.outcome.attribution.case, "notEvaluated");
     assert.equal(detail.outcome.attribution.value.termination, execution.Termination.CANCELLED);
   } else {
-    assert.equal(detail.outcome.attribution.case, "evaluated");
+    assert.equal(detail.outcome.attribution.case, "evaluated", JSON.stringify(detail.outcome));
     assert.equal(detail.outcome.attribution.value.status, scenario === "complete" ? types.ResultStatus.PASSED : types.ResultStatus.FAILED);
     const samples = await api.evidenceSamplesList(session, { scope: { executionId } });
     assert.ok(samples.samples.length);

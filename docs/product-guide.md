@@ -36,6 +36,20 @@ system credential slots. Secret export/import retains the bounded Base64 JSON
 format with explicit conflict choices; it is not encryption. Linux requires an
 available credential store for secret writes and TLS private-key persistence.
 
+## Operation Calls
+
+The execution-host contract separates model values, operations run by the host,
+and operations implemented by plugins. Each host operation declares client,
+plugin or shared callers independently of its visibility and grants.
+A shared operation has one request and response. Plugins inherit their trusted
+execution identity; a supplied selector cannot authorize another execution.
+
+The final library composition owns Plugins, plugin settings, Time and Invocations.
+Dokime adds `plugins.Secrets` for revision-checked declared-name bindings.
+`Secrets.Get` returns protected bytes; administrative metadata belongs only to
+clients. Typed statistics retain exact numeric values and sums independently of
+floating plotting coordinates.
+
 ## Evidence and Reports
 
 Records are acknowledged scoped host operations. Samples retain their declared
@@ -103,21 +117,20 @@ storage root; the old folder is preserved. There is no reset or migration.
 
 ## Interfaces
 
-`dokime-next` is the current command-line binary from `crates/dokime-cli-next`.
+`dokime` is the current command-line binary from `crates/dokime-cli`.
 It hosts Dokime in process, creates projects in all four SDK languages, produces
 and inspects bundles, admits plugins and controls execution/cycle workflows.
 Exact subcommands are in the [CLI section](execution-host.md#command-line-candidate).
 The CLI uses the Rust SDK's client roots. `catalog list/show` reads the top-level
 Suites resource; `operation list/show/call` discovers contracts through the library's
-CatalogEntries.List. Product identities use `dokime.client.v1`; library operations
-retain `harmos.v1`. Product operations are currently absent from host discovery,
+Operations.List. Product and library operations use their respective host executor packages. Product operations are currently absent from host discovery,
 so raw product calls remain blocked pending host registration. Typed product
 commands and library raw calls use these forms:
 
 ```sh
-dokime-next --endpoint http://127.0.0.1:7000 operation call harmos.v1.Status/Get --json '{}'
-dokime-next --endpoint http://127.0.0.1:7000 execution list --cycle CYCLE --json
-dokime-next --endpoint http://127.0.0.1:7000 execution show EXECUTION --schemas --json
+dokime --endpoint http://127.0.0.1:7000 operation call harmos.host.v1.Status/Get --json '{}'
+dokime --endpoint http://127.0.0.1:7000 execution list --cycle CYCLE --json
+dokime --endpoint http://127.0.0.1:7000 execution show EXECUTION --schemas --json
 ```
 
 Structured output follows the final response wrappers: suites are in `values`,
@@ -131,7 +144,7 @@ Frozen record/stream metadata and every descriptor page carry each identity's fu
 `plan preview/register --input-file` accepts canonical CasesCreateRequest JSON:
 `{"plan":{"selections":[{"suite_id":"SUITE","template_id":"TEMPLATE"}]},"request_id":"selection-1"}`.
 Preview forces `validate_only`; registration preserves the caller's request identity.
-`cycle append --request` reads encoded `dokime.client.v1.ExecutionsCreateRequest`
+`cycle append --request` reads the `Executions.Create` content arguments
 with `parent`, `executions` and `request_id`. Lifecycle commands and prompt answers
 accept `--request-id`; retain it to retry an unchanged mutation. Omitted identities
 are generated for a single command invocation. Whole-value metadata changes use
@@ -140,7 +153,10 @@ and a retained `request_id`; raw delivery awaits the discovery registration abov
 
 Report commands prepare with Reports.Create, read bounded product Files.Read
 ranges at the returned cut, verify length and SHA-256, and save without replacing an
-existing file. Rendering and downloading do not publish a report. Product content
+existing file. Rendering and downloading do not publish a report. Logical execution-file paths retain the original native file references in the
+execution transaction. Replacing a logical path preserves immutable prior bytes
+and returned read cuts. File uploads acknowledge accepted bytes; graceful host
+settlement persists the resumable prefix before restart. Product content
 byte delivery verifies the file length, SHA-256 and retained read cut;
 the product serves those resources over its current content store.
 
@@ -163,4 +179,4 @@ Other operation grammar and library composition slices remain locked work.
 - [Remote Access](remote/overview.md), [Tooling](tooling.md) and [Plugin Security](plugin-security.md).
 
 All SDKs provide plugin authoring and backend clients. SDK product dependencies
-stop at protocol; embedding the host uses `dokime-runtime-next`.
+stop at protocol; embedding the host uses `dokime-runtime`.

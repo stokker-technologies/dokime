@@ -9,18 +9,32 @@
 """Report Previews Read One Verified File Without Publishing It."""
 
 # === Imports === #
+
 # Standard Library Imports
 import unittest
+from collections.abc import AsyncIterator
 from hashlib import sha256
 from importlib import import_module
-from typing import Any
+from typing import Never
 
 # Third Party Imports
 import grpc
+from grpc.aio import ServicerContext
+
+from dokime._wire.host.v1.files_pb2 import (
+    FilesDeleteRequest,
+    FilesGetRequest,
+    FilesReadRequest,
+    FilesReadResponse,
+    FilesWatchRequest,
+    FilesWatchResponse,
+)
+from dokime._wire.host.v1.reports_pb2 import ReportsCreateRequest, ReportsGetRequest, ReportsPublishRequest
 
 # Local Imports
-import dokime
-from dokime.v1 import message
+from dokime.client import ReportsCreateResponse
+from dokime.connection import connect
+from dokime.transfers import download_report
 
 # Type Checking Imports
 
@@ -35,9 +49,8 @@ from dokime.v1 import message
 
 class ReportStory(unittest.IsolatedAsyncioTestCase):
     async def test_preview_reads_verified_bytes_and_refuses_changed_files(self) -> None:
-        report_rpc = import_module("dokime.client.v1.reports_pb2_grpc")
-        storage_rpc = import_module("dokime.client.v1.files_pb2_grpc")
-        storage_wire = import_module("dokime.client.v1.files_pb2")
+        report_rpc = import_module("dokime._wire.host.v1.reports_pb2_grpc")
+        storage_rpc = import_module("dokime._wire.host.v1.files_pb2_grpc")
         data = bytes(range(7))
         digest = sha256(data).digest()
         mode = ["valid"]
@@ -45,27 +58,27 @@ class ReportStory(unittest.IsolatedAsyncioTestCase):
         published = []
 
         class Reports(report_rpc.ReportsServicer):
-            async def Get(self, request: Any, context: Any) -> Any:
+            async def Get(self, request: ReportsGetRequest, context: ServicerContext) -> Never:
                 await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Get Is Outside This Fixture")
 
-            async def Create(self, request: Any, context: Any) -> Any:
-                return message("dokime.client.v1.ReportsCreateResponse", file={"length": len(data), "sha256": digest})
+            async def Create(self, request: ReportsCreateRequest, context: ServicerContext) -> ReportsCreateResponse:
+                return ReportsCreateResponse(file={"length": len(data), "sha256": digest})
 
-            async def Publish(self, request: Any, context: Any) -> Any:
+            async def Publish(self, request: ReportsPublishRequest, context: ServicerContext) -> Never:
                 published.append(request)
                 await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Publish Report: Unexpected Mutation")
 
         class Files(storage_rpc.FilesServicer):
-            async def Get(self, request: Any, context: Any) -> Any:
+            async def Get(self, request: FilesGetRequest, context: ServicerContext) -> Never:
                 await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Get Is Outside This Fixture")
 
-            def Watch(self, request: Any, context: Any) -> Any:
+            def Watch(self, request: FilesWatchRequest, context: ServicerContext) -> AsyncIterator[FilesWatchResponse]:
                 return super().Watch(request, context)
 
-            async def Delete(self, request: Any, context: Any) -> Any:
+            async def Delete(self, request: FilesDeleteRequest, context: ServicerContext) -> Never:
                 await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Delete Is Outside This Fixture")
 
-            async def Read(self, request: Any, context: Any) -> Any:
+            async def Read(self, request: FilesReadRequest, context: ServicerContext) -> FilesReadResponse:
                 offsets.append(request.offset)
                 chunk = data[request.offset : request.offset + 2]
                 reply_digest = digest
@@ -75,7 +88,7 @@ class ReportStory(unittest.IsolatedAsyncioTestCase):
                     chunk = bytes([255]) * len(chunk)
                 elif mode[0] == "gap":
                     chunk = b""
-                return storage_wire.FilesReadResponse(data=chunk, total_length=len(data), sha256=reply_digest)
+                return FilesReadResponse(data=chunk, total_length=len(data), sha256=reply_digest)
 
         server = grpc.aio.server()
         report_rpc.add_ReportsServicer_to_server(Reports(), server)
@@ -83,15 +96,15 @@ class ReportStory(unittest.IsolatedAsyncioTestCase):
         port = server.add_insecure_port("127.0.0.1:0")
         await server.start()
         self.addAsyncCleanup(server.stop, None)
-        client = await dokime.connect(f"http://127.0.0.1:{port}")
+        client = await connect(f"http://127.0.0.1:{port}")
         self.addAsyncCleanup(client.close)
 
-        self.assertEqual(await client.reports.download("execution", document="evidence"), data)
+        self.assertEqual(await download_report(client, "execution", document="evidence", max_bytes=2), data)
         self.assertEqual(offsets, [0, 2, 4, 6])
         for value in ("identity", "corrupt", "gap"):
             mode[0] = value
-            with self.assertRaises(RuntimeError):
-                await client.reports.download("execution", document="evidence")
+            with self.assertRaises(ValueError):
+                await download_report(client, "execution", document="evidence", max_bytes=2)
         self.assertEqual(published, [])
 
 

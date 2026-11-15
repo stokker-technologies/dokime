@@ -1,13 +1,13 @@
-install(TARGETS dokime_cpp dokime_protocol harmos_cpp harmos_cpp_protocol
+install(TARGETS dokime_cpp dokime_protocol
   EXPORT DokimeTargets ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(DIRECTORY include/ "${harmos_sdk}/include/" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-foreach(protocol_target IN ITEMS dokime_protocol harmos_cpp_protocol)
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+foreach(protocol_target IN ITEMS dokime_protocol)
   get_target_property(generated_sources ${protocol_target} SOURCES)
   foreach(header IN LISTS generated_sources)
     if(header MATCHES "\\.h$")
       file(RELATIVE_PATH relative "${DOKIME_GENERATED}" "${header}")
       get_filename_component(directory "${relative}" DIRECTORY)
-      install(FILES "${header}" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${directory}")
+      install(FILES "${header}" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/dokime/_wire/${directory}")
     endif()
   endforeach()
 endforeach()

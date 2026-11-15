@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Expressions Contracts
+
+syntax = "proto3";
+
+package dokime.model.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/scalar.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime";
+
+// === Services === //
+
+// === Requests and Responses === //
+
+// === Resources === //
+
+// DataExpression value owned by this resource.
+message DataExpression {
+  string label = 1;
+  oneof kind {
+    .dokime.model.v1.FieldReference stream = 2;
+    .dokime.model.v1.FieldReference record = 3;
+    string parameter = 4;
+    string dimension = 5;
+    string artifact = 6;
+    .dokime.model.v1.AggregateExpression aggregate = 7;
+    .dokime.model.v1.TransformExpression transform = 8;
+    .dokime.model.v1.Value literal = 9;
+  }
+}
+
+// FieldReference value owned by this resource.
+message FieldReference {
+  string identifier = 1;
+  string field = 2;
+}
+
+// AggregateExpression value owned by this resource.
+message AggregateExpression {
+  .dokime.model.v1.DataExpression input = 1;
+  .dokime.model.v1.Aggregate kind = 2;
+
+  double percentile = 3;
+}
+
+// TransformExpression value owned by this resource.
+message TransformExpression {
+  .dokime.model.v1.DataExpression input = 1;
+  oneof kind {
+    string detail = 2;
+    string time_between = 3;
+    bool per_case = 4;
+    double scale = 5;
+    double offset = 6;
+  }
+}
+
+// DocumentFilter value owned by this resource.
+message DocumentFilter {
+  .dokime.model.v1.DataExpression expression = 1;
+  .dokime.model.v1.FilterOperator operator = 2;
+  .dokime.model.v1.Value value = 3;
+}
+
+// === Enums === //
+
+// Aggregate choices.
+enum Aggregate {
+  AGGREGATE_UNSPECIFIED = 0;
+  AGGREGATE_COUNT = 1;
+  AGGREGATE_SUM = 2;
+  AGGREGATE_MIN = 3;
+  AGGREGATE_MAX = 4;
+  AGGREGATE_MEAN = 5;
+  AGGREGATE_STDDEV = 6;
+  AGGREGATE_MEDIAN = 7;
+  AGGREGATE_PERCENTILE = 8;
+  AGGREGATE_FIRST = 9;
+  AGGREGATE_LAST = 10;
+  AGGREGATE_RMS = 11;
+}
+
+// FilterOperator choices.
+enum FilterOperator {
+  FILTER_OPERATOR_UNSPECIFIED = 0;
+  FILTER_OPERATOR_EQ = 1;
+  FILTER_OPERATOR_NE = 2;
+  FILTER_OPERATOR_GT = 3;
+  FILTER_OPERATOR_GE = 4;
+  FILTER_OPERATOR_LT = 5;
+  FILTER_OPERATOR_LE = 6;
+  FILTER_OPERATOR_CONTAINS = 7;
+  FILTER_OPERATOR_EXISTS = 8;
+}

@@ -103,6 +103,7 @@ def test(
 
         environment["TEST_PROFILE"] = profile
         if language == "python" and category == "system":
+            environment["HARMOS_CONFORMANCE_FIXTURE"] = str(paths.output(directory, "build", profile) / "fixtures/host/python/conformance")
             environment["HARMOS_CONFORMANCE_HOST"] = str(
                 paths.output(directory, "build", profile) / "fixtures/host" / f"harmos-conformance{'.exe' if os.name == 'nt' else ''}"
             )
@@ -180,6 +181,7 @@ def coverage(
 
         environment["TEST_PROFILE"] = profile
         if language == "python" and category in (None, "system"):
+            environment["HARMOS_CONFORMANCE_FIXTURE"] = str(paths.output(directory, "build", profile) / "fixtures/host/python/conformance")
             environment["HARMOS_CONFORMANCE_HOST"] = str(
                 paths.output(directory, "build", profile) / "fixtures/host" / f"harmos-conformance{'.exe' if os.name == 'nt' else ''}"
             )
@@ -408,9 +410,8 @@ def _lane(
     """Execute a lane command and turn its JUnit report into a lane record."""
     started = time.time()
     destination = report.location(directory, profile, key)
-    native = category == "system"
     with (
-        desktop_bench.scratch(environment, destination) if native else nullcontext(environment) as scratch_environment,
+        desktop_bench.scratch(environment, destination) as scratch_environment,
         desktop_bench.credentials(scratch_environment)
         if language == "rust" and category != "unit"
         else nullcontext(scratch_environment) as child_environment,
@@ -491,6 +492,11 @@ def _console() -> dict:
 
 
 def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | None, *, timeout_s: float | None = None) -> int:
+    from .job import own_children
+
+    own_children()
+    if os.name == "nt":
+        command = [sys.executable, "-m", "dokime_tools.test.job", "--", *command]
     try:
         with subprocess.Popen(
             list(command), cwd=cwd, env=environment, start_new_session=os.name != "nt" and timeout_s is not None, **_console()
@@ -521,6 +527,11 @@ def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | No
 
 def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str], *, output: Path | None = None) -> tuple[int, int | None]:
     """Exit status and peak resident bytes of one process and the children it waited for."""
+    from .job import own_children
+
+    own_children()
+    if os.name == "nt":
+        command = [sys.executable, "-m", "dokime_tools.test.job", "--", *command]
     try:
         console = _console()
         if output is not None:

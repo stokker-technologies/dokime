@@ -14,10 +14,10 @@
 /* === Re-Exports === */
 
 pub use crate::client::{Client, ClientSettings, Method};
-pub use crate::{
-    Context, Criterion, Error, Message, Observer, Operation, OperationPolicy, OperationRequest, Parameters, Plugin, Prompt, Publisher,
-    Record, Result, Row, Settings, Step, Stream, Suite, Template, Visibility,
+pub use crate::plugin::{
+    Context, Criterion, HostOperation, Observer, Operation, Plugin, Prompt, Publisher, Record, Step, Stream, Suite, Template,
 };
+pub use crate::{Error, Message, OperationPolicy, OperationRequest, Parameters, Result, Row, Settings, Visibility};
 
 /* === Imports === */
 

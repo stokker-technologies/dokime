@@ -172,6 +172,8 @@ def auditable(profile: str, command: list[str]) -> int:
             raise policy.ToolError("the pinned cargo-auditable tool is missing")
         if environment.get("RUSTC_WORKSPACE_WRAPPER"):
             raise policy.ToolError("cargo-auditable requires ownership of RUSTC_WORKSPACE_WRAPPER")
+        # Preserve Cargo's Subcommand Environment for Compiler-Cache Detection.
+        environment.setdefault("CARGO", shutil.which("cargo") or "cargo")
         environment["RUSTC_WORKSPACE_WRAPPER"] = executable
         # cargo-auditable 0.7.7 Uses This Protocol for Its Rustc Wrapper.
         environment["CARGO_AUDITABLE_ORIG_ARGS"] = json.dumps({"offline": False, "locked": True, "frozen": False, "config": []})

@@ -14,6 +14,7 @@
 import hashlib
 import io
 import json
+import os
 import tarfile
 import tempfile
 import unittest
@@ -131,6 +132,61 @@ class DownloadManifestTests(unittest.TestCase):
 
 
 class StageTests(unittest.TestCase):
+    def test_nightly_rehearsal_stages_git_packages_and_stable_keeps_registry_gate(self) -> None:
+        settings = {"targets": ["windows-x86_64"]}
+        with (
+            mock.patch.object(run, "continuous_integration", return_value=False),
+            mock.patch.object(run, "native_target", return_value="windows-x86_64"),
+            mock.patch.object(run, "_refuse_overrides"),
+            mock.patch.object(run, "_task_defined", return_value=True),
+            mock.patch.object(run.policy, "execute", return_value=""),
+            mock.patch.object(run, "dry") as stage,
+            mock.patch.object(run.registry, "rehearse_crates", side_effect=policy.ToolError("Git Dependencies Refused")) as registry_gate,
+            mock.patch.object(run.registry, "python") as python_registry,
+        ):
+            run.rehearse(Path.cwd(), settings, channel="nightly")
+            self.assertEqual(stage.call_args.kwargs["channel"], "nightly")
+            registry_gate.assert_not_called()
+            python_registry.assert_not_called()
+            with self.assertRaises(policy.ToolError):
+                run.rehearse(Path.cwd(), settings, channel="stable")
+            registry_gate.assert_called_once_with(Path.cwd(), skip_published=False, channel="stable")
+
+    def test_local_rehearsal_prepares_native_packages_without_credentials(self) -> None:
+        commands: list[list[str]] = []
+        settings = {"targets": ["windows-x86_64", "linux-x86_64"]}
+
+        def execute(directory: Path, arguments: list[str]) -> str:
+            self.assertNotIn("GH_TOKEN", os.environ)
+            self.assertEqual(os.environ["RELEASE_PROFILE"], "dev")
+            commands.append(arguments)
+            return ""
+
+        def verify_packages(*args: object, **kwargs: object) -> None:
+            self.assertEqual(
+                commands,
+                [
+                    ["mise", "run", "build", "--", "--language", "python", "--profile", "dev"],
+                    ["mise", "run", "build", "--", "--profile", "dev"],
+                    ["mise", "run", "package", "--", "--profile", "dev", "--target", "windows-x86_64"],
+                ],
+            )
+            self.assertNotIn("GH_TOKEN", os.environ)
+
+        with (
+            mock.patch.dict(os.environ, {"GH_TOKEN": "rehearsal-secret"}),
+            mock.patch.object(run, "continuous_integration", return_value=False),
+            mock.patch.object(run, "native_target", return_value="windows-x86_64"),
+            mock.patch.object(run, "_refuse_overrides"),
+            mock.patch.object(run, "_task_defined", return_value=False),
+            mock.patch.object(run.policy, "execute", side_effect=execute),
+            mock.patch.object(run, "dry", side_effect=verify_packages) as verify,
+        ):
+            run.rehearse(Path.cwd(), settings, profile="dev")
+            verify.assert_called_once()
+            self.assertEqual(verify.call_args.kwargs["targets"], ["windows-x86_64"])
+            self.assertEqual(os.environ["GH_TOKEN"], "rehearsal-secret")
+
     def test_stage_requires_packaged_notices(self):
         for missing_archive in (True, False):
             with self.subTest(missing_archive=missing_archive), tempfile.TemporaryDirectory() as directory:
@@ -193,10 +249,14 @@ class StageTests(unittest.TestCase):
                     shell_inventory.write_text('{"components": []}')
                     return shell_inventory
 
-                def export(_, command):
+                protocol_sources = {
+                    f"{owner}/{audience}/v1/service.proto" for owner in ("dokime", "harmos") for audience in ("model", "host", "plugin")
+                }
+
+                def export(_: Path, command: list[str], protocol_sources: set[str] = protocol_sources) -> None:
                     self.assertTrue(Path(command[0]).is_file())
                     exported = Path(command[-1])
-                    for name in ("dokime/v1/execution.proto", "harmos/v1/plugin.proto"):
+                    for name in protocol_sources:
                         path = exported / name
                         path.parent.mkdir(parents=True)
                         path.write_text('syntax = "proto3";')
@@ -211,7 +271,7 @@ class StageTests(unittest.TestCase):
                     {"name": installer.name, "path": "input/" + installer.name, "target": "windows-x86_64"},
                 ]
                 settings = {**SETTINGS, "targets": ["windows-x86_64"]}
-                config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime-next"}]}}
+                config = {"package": {"executables": [{"name": "dokime-cli", "command": "dokime"}]}}
                 with (
                     mock.patch.object(run.sbom, "shell", side_effect=shell),
                     mock.patch.object(run.sbom, "workspace", return_value=[]),
@@ -221,7 +281,7 @@ class StageTests(unittest.TestCase):
                     mock.patch.object(run, "_native", return_value="windows-x86_64"),
                     mock.patch.object(run.packages, "verify"),
                     mock.patch.object(
-                        run.packages, "definitions", return_value=[{"command": "dokime-next", "binary": binary, "output": "cli.zip"}]
+                        run.packages, "definitions", return_value=[{"command": "dokime", "binary": binary, "output": "cli.zip"}]
                     ),
                     mock.patch.object(run.packages, "binary_bytes", return_value=b"cli"),
                     mock.patch.object(run.policy, "execute", side_effect=export),
@@ -263,14 +323,14 @@ class StageTests(unittest.TestCase):
                     self.assertIn("artifacts/" + installer.name + ".cdx.json", archive.namelist())
                     self.assertIn("crates/any/dokime-shell.cdx.json", archive.namelist())
                 with zipfile.ZipFile(staged / run.SHARED / "dokime-proto-0.1.3.zip") as archive:
-                    self.assertEqual(set(archive.namelist()), {"dokime/v1/execution.proto", "harmos/v1/plugin.proto"})
+                    self.assertEqual(set(archive.namelist()), protocol_sources)
                 inventory = {item["name"]: item for item in layout.uploads(root, staged=True)}
                 run._checksums(staged / run.SHARED / run.SUMS, inventory)
 
 
 class PythonPackagingTests(unittest.TestCase):
-    def fixture(self, root):
-        proto = root / "proto/dokime/v1/service.proto"
+    def fixture(self, root: Path) -> Path:
+        proto = root / "proto/dokime/host/v1/service.proto"
         proto.parent.mkdir(parents=True)
         proto.write_bytes(b'syntax = "proto3";')
         output = root / "target/build/dev/any/python"
@@ -280,12 +340,13 @@ class PythonPackagingTests(unittest.TestCase):
             archive.writestr("dokime_sdk-0.1.3.dist-info/METADATA", "Name: dokime-sdk\nVersion: 0.1.3\n")
             archive.writestr("dokime_sdk-0.1.3.dist-info/WHEEL", "Root-Is-Purelib: true\nTag: py3-none-any\n")
             archive.writestr(
-                "dokime/v1/sources.json", json.dumps({"dokime/v1/service.proto": hashlib.sha256(proto.read_bytes()).hexdigest()})
+                "dokime/_wire/sources.json", json.dumps({"dokime/host/v1/service.proto": hashlib.sha256(proto.read_bytes()).hexdigest()})
             )
-            for name in ("surface.pb", "service_pb2.py", "service_pb2.pyi", "service_pb2_grpc.py"):
-                archive.writestr("dokime/v1/" + name, b"generated")
+            archive.writestr("dokime/_wire/surface.pb", b"generated")
+            for name in ("service_pb2.py", "service_pb2.pyi", "service_pb2_grpc.py"):
+                archive.writestr("dokime/_wire/host/v1/" + name, b"generated")
         with tarfile.open(output / "dokime_sdk-0.1.3.tar.gz", "w:gz") as archive:
-            member = tarfile.TarInfo("dokime_sdk-0.1.3/proto/dokime/v1/service.proto")
+            member = tarfile.TarInfo("dokime_sdk-0.1.3/proto/dokime/host/v1/service.proto")
             member.size = len(proto.read_bytes())
             archive.addfile(member, io.BytesIO(proto.read_bytes()))
         return output
@@ -317,9 +378,9 @@ class PythonPackagingTests(unittest.TestCase):
                 if invalid == "native":
                     contents["dokime/native.pyd"] = b"native"
                 elif invalid == "missing":
-                    del contents["dokime/v1/service_pb2_grpc.py"]
+                    del contents["dokime/_wire/host/v1/service_pb2_grpc.py"]
                 elif invalid == "stale":
-                    (root / "proto/dokime/v1/service.proto").write_bytes(b"changed")
+                    (root / "proto/dokime/host/v1/service.proto").write_bytes(b"changed")
                 elif invalid == "identity":
                     contents["dokime_sdk-0.1.3.dist-info/METADATA"] = b"Name: other\nVersion: 0.1.3\n"
                 elif invalid == "tag":
@@ -350,12 +411,15 @@ class PythonPackagingTests(unittest.TestCase):
             destination = root / "target/package/dev/any/python"
             destination.parent.mkdir(parents=True)
             source.rename(destination)
+            (root / "sdk/python").mkdir(parents=True)
+            (root / "sdk/python/pyproject.toml").write_text('[project]\nname = "dokime-sdk"\n', encoding="utf-8")
             settings = {**SETTINGS, "targets": ["linux-x86_64", "windows-x86_64"]}
             for dry_run in (True, False):
                 with (
                     self.subTest(dry_run=dry_run),
                     mock.patch.object(registry.policy, "profile", return_value="dev"),
                     mock.patch.object(registry.policy, "config", return_value={"version": {"value": "0.1.3"}}),
+                    mock.patch.object(registry, "pypi_digests", return_value={}),
                     mock.patch.object(registry.policy, "execute") as execute,
                 ):
                     registry.python(root, settings, dry_run=dry_run)

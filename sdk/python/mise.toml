@@ -15,8 +15,10 @@ run = 'uv sync --locked --all-groups --project ../../tools/python'
 [tasks.format]
 description = "Format the Python SDK"
 run = [
-  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 --fix . ../tests/fixtures/python',
-  'uv run --no-sync --project ../../tools/python ruff format . ../tests/fixtures/python',
+  'uv run --no-sync --project ../../tools/python ruff check --select I,F401 --fix .',
+  'uv run --no-sync --project ../../tools/python ruff format .',
+  'uv run --no-sync --project ../../tools/python ruff check --config ruff.toml --select I,F401 --fix ../tests/fixtures/python',
+  'uv run --no-sync --project ../../tools/python ruff format --config ruff.toml ../tests/fixtures/python',
 ]
 
 [tasks.check]
@@ -24,7 +26,10 @@ description = "Check the Python SDK"
 run = [
   'uv run --no-sync --project ../../tools/python ruff format --check .',
   'uv run --no-sync --project ../../tools/python ruff check .',
+  'uv run --no-sync --project ../../tools/python ruff format --check --config ruff.toml ../tests/fixtures/python',
+  'uv run --no-sync --project ../../tools/python ruff check --config ruff.toml ../tests/fixtures/python',
   'uv run --no-sync --project ../../tools/python ty check --project .',
+  'uv run --no-sync --project ../../tools/python ty check --project . --no-force-exclude --extra-search-path ../tests/fixtures/python/starter --extra-search-path examples/test ../tests/fixtures/python/starter/host.py ../tests/fixtures/python/starter/test_capture.py',
 ]
 
 [tasks.build]
@@ -56,13 +61,22 @@ run = 'uv run --no-sync --project ../../tools/python python tools/generated.py'
 
 [tasks.conformance]
 description = "Test Library Conformance"
-run = 'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/system -v'
+usage = 'flag "--profile <profile>" default="dev"'
+run = 'mise -C ../.. run test -- --language python --layer system --profile {{usage.profile}}'
 
-[tasks.starter]
-description = "Test the Starter"
-dir = "examples/starter"
+[tasks.example-test]
+description = "Test the Test Examples"
+dir = "examples/test"
 run = 'uv run --no-sync --project ../../../../tools/python python -m unittest discover -s ../../../tests/fixtures/python/starter -v'
 
 [tasks.generate]
 description = "Generate Typed Python Protocol Packages"
-run = 'uv run --locked --group generate python tools/generate.py'
+run = 'uv run --no-sync --project ../../tools/python python tools/generate.py'
+
+[tasks.unit]
+description = "Test Python SDK Units"
+run = 'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v'
+
+[tasks."test:generation"]
+description = "Compile the Generated Client and Plugin Surfaces"
+run = "mise -C ../.. run check:generated -- --language python"

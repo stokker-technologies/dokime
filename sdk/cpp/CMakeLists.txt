@@ -13,3 +13,8 @@ if(DOKIME_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
 endif()
+
+add_executable(dokime-example-client examples/client/main.cpp)
+target_link_libraries(dokime-example-client PRIVATE Dokime::Cpp)
+add_executable(dokime-example-plugin examples/plugin/main.cpp)
+target_link_libraries(dokime-example-plugin PRIVATE Dokime::Cpp)

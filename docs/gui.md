@@ -34,31 +34,38 @@ also consume canonical messages. The connection reads the product process epoch
 from its client and validates readiness against that execution epoch; library status history is a separate resource identity. Listener values in the
 preferences view come from Access; application preference saves never write that
 separately revisioned resource. Missing host logo content is reported independently
-of native installer appearance. Native plugin installation, pairing export, firewall
+of native installer appearance. Native plugin upload and library entry creation, pairing export, firewall
 registration and verified artifact/report delivery also use the SDK connection.
 The provider owns connect/read/watch/mutation timeouts; a call may explicitly
 override its deadline. Replacing a generation cancels and joins its watches.
 Reloading the WebView adopts and verifies the native owner's current connection,
 including an imported remote profile, before considering launch arguments.
-Execution progress uses `dokime.client.v1.executions.Progress/Watch` with its named
+Execution progress uses `executions.Progress.Watch` with its named
 resource, opaque revision, pinned position and terminal flag. Its adapter projects
 the served label and counts; elapsed time, ETA and a step identifier stay absent
 because this contract does not supply them. The operation grammar table in
 `docs/execution-host.md` records the package and resource boundaries.
 
 The running checkpoint/history, plugin inventory/settings and diagnostics adapters
-use canonical host messages. SDK and binary adapter stories prove their boundaries;
-the WebView drives the same adapters. Native method availability comes from the
-SDK operation catalog. Access/Status advertise their RPC bindings; the host's product
-catalog currently omits those bindings, so storage source changes remain disabled
-with a visible reason and a Host Request.
+use the composed client surface. A plugin entry's library name is the only identity
+used by inventory, settings navigation and revision-checked Set/Delete/Restart.
+The views display current activation state and failure; installation timestamps,
+last-boot outcomes, discovered settings and pending/applied-field facts are absent
+because the library entry and settings contracts do not supply them. Settings retain
+their declared flag, integer, number, text or duration type. Integer fields use decimal
+text rather than a floating-point input. Secret declarations and bindings come from
+product `plugins.Secrets`; secret bytes remain in Secret Storage.
+Native method availability comes from the SDK operation catalog. Access/Status
+advertise their RPC bindings; the host's product catalog currently omits those
+bindings, so storage source changes remain disabled with a visible reason and a
+Host Request.
 Product Files and Files.Uploads serve uploads and verified artifact/report delivery.
 Uploads.Create/Get/Resume and Files.Get return the chunk and message limits. A default execution document
 read must return the selected document identity in its header; an empty selector
 is not a valid header identity. The desktop rejects that response before accepting
 source cards or the evidence cut. Frozen record schemas must also retain each
 record alias's protobuf message binding; descriptors alone do not provide it.
-Desktop system startup uses `dokime-next server --endpoint ... --storage ...`
+Desktop system startup uses `dokime server --endpoint ... --storage ...`
   and admits the prepared Rust SDK fixture with `plugin add`. The WebView RPC
 helper uses canonical host schemas and the descriptor fence, including numeric
 enums and fully qualified library service paths. System drivers now use the SDK
@@ -84,7 +91,8 @@ while the document is assembled.
 Plot cards publish visibility through their existing intersection observer.
 `src/plots/live-data.ts` partitions consecutive cards by plot kind into stable
 groups of at most 32. Visible groups start independently in parallel; the next
-group prefetches once a visible group has data, without competing with its first read.
+group prefetches only after every visible group has data, keeping prefetch
+behind the visible reads. A partially delivered visible group retains priority.
 Off-screen analyses cannot delay a group of ordinary traces. This is a
 per-request memory/admission bound, never a document-size limit. Each group owns
 its watch, retries and cancellation. Changing one group's viewport or dimensions
@@ -102,6 +110,8 @@ Numeric categories are unwrapped deliberately; integer category keys retain thei
 exact decimal spelling. An error or empty card fails traversal with its identifier
 and displayed message. The benchmark times traversal inside the WebView and
 records the driver round trip separately from drawing.
+The benchmark awaits its library plugin entry's Ready state through Watch before
+planning the capture, so admission cannot race declaration availability.
 Evidence statistics, plot legends and summary tiles retain integer and exact
 rational values. Large values are formatted from their decimal representation;
 chart coordinates use floating point. Dispersion and RMS retain their approximate
@@ -119,8 +129,13 @@ Native stories retain their disposable roots outside the test runtime. After
 owned tasks stop, including on assertion failure, the host fixture removes each
 root's credentials through `--remove-credentials` before temporary files are
 deleted. WebView and benchmark cleanup uses the same host operation. A cleanup
-failure preserves the root and fails the story. Tests Build enables `testing`;
+failure preserves the root and fails the story. The benchmark also retains its
+fixture root when credential cleanup fails and records it in `completion.json`.
+Tests Build enables `testing`;
 focused native desktop commands must also pass `--features testing`.
+That test build selects the controlled clock for owned native hosts. WebView
+journeys start their shared server with `--controlled-clock` and await observed
+conditions for execution progress and evidence.
 The native preference exporter uses a disposable host with the same credential
 removal operation, preserving any earlier generator or user storage roots.
 
@@ -142,7 +157,7 @@ removal operation, preserving any earlier generator or user storage roots.
 | Evidence, Telemetry and Plots | `native-evidence.ts` now decodes captured bytes against each execution's digest-verified frozen descriptors, preserves exact scalar values and evidence origins, and follows returned read cuts and page tokens. `native-plots.ts` now builds recursive canonical expressions and numeric plot options, and projects native columnar frames and analysis results. The thermal story proves its Watch and saved query. `native-checkpoints.ts` uses canonical checkpoint identities, artifacts and file windows, and decodes saved records against the execution's digest-cached descriptor registry. |
 | Documents and Reports | `native-documents.ts` preserves frame order, identity, completion and card commits. The host supplies structure before the evidence cut; unary page assembly retains strict validation. Verified published report export remains available: both native owners save the same sealed HTML and reopen its frozen evidence in the owned browser. |
 | History | `native-checkpoints.ts` uses canonical historical outcomes, immutable evidence and numeric browse selections. Notes and health use canonical owners and retained read cuts. The Execution WebView visits History and reopens the saved execution after a full page reload; retained reads refuse unavailable cuts explicitly. |
-| Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use canonical catalogs, card oneofs, numeric states, map values, placement and bounded installation paging. The WebView displays the admitted thermal plugin; native stories verify file installation, large bundle transfer and foreign-target refusal. Unserved boot/restart/applied-field facts stay absent. Release lookup remains disabled for the missing host target. |
+| Plugin Settings and Inventory | `native-settings.ts`, `native-storage-settings.ts` and `native-plugins.ts` use composed catalogs, card oneofs, numeric states, typed setting values and library placement. The library returns one retained plugin inventory; the product does not reconstruct installation pages. The WebView displays library plugin entries; native stories cover bundle upload, entry creation, large bundle transfer and foreign-target refusal. Unserved boot/restart/applied-field facts stay absent. Release lookup remains disabled for the missing host target. |
 | Remote Access | The Connections WebView proves native pairing export/import, independent profiles, shared execution and evidence, revocation, identity refusal, occupied storage and certificate rotation/recovery. `native-remote.ts` owns the listener's opaque revision. Application preference saves never absorb listener edits. TLS and pairing authentication are host requirements, shown as fixed controls. |
 | Status, Health and Diagnostics | Status bar identity uses `Status.Get`. Trace delivery pages one retained snapshot before watching its issued position; expired positions and gaps trigger replay. Diagnostics reads bounded stable `Status.Diagnostics.Get` ranges, verifies size and digest and saves the host's TAR archive. A native story proves trace snapshot/Watch and verified diagnostics ranges. |
 | Dependency Removal | Native paths/distribution identity, local build facts, installed appearance and logging have desktop owners. Filesystem publication uses Harmos runtime. Native stories, WebView drivers and the SDK stream benchmark use only the current host. Facade-specific negotiation/transcoding contracts and their unused dependencies are removed. |
@@ -169,7 +184,7 @@ dependencies to precede their consumers. Missing and cyclic imports refuse decod
 | `artifact_upload_open`, `artifact_upload_write`, `artifact_upload_finish`, `artifact_upload_cancel` | Files.Uploads, then `content.Artifacts.Create` |
 | `desktop_artifact_deliver` | Product metadata/reference reads, then product `Files.Read` |
 | `desktop_media_prepare`, `desktop_media_release` | `content.Artifacts.Get` / `content.ExecutionFiles.Get` followed by `Files.Read` plus native preview cache |
-| `desktop_plugin_install_file` | `Plugins.Install` |
+| `desktop_plugin_install_file` | `Files.Uploads.Create/Append/Publish`, then library `Plugins.Create` |
 | `desktop_plugin_release_check`, `desktop_plugin_release_install` | Missing typed host build target; both commands refuse before fetching or installing release candidates. Verified bundle file installation remains available. |
 | `desktop_save_document`, `desktop_pick_secret_archive`, `desktop_save_diagnostics_bundle` | Native pickers and verified local file publication |
 | `desktop_parameters_read`, `desktop_parameters_write` | Native remembered parameter selections |
@@ -181,14 +196,19 @@ dependencies to precede their consumers. Missing and cyclic imports refuse decod
 | `desktop://remote-imported`, `desktop://remote-import-failed` | Native pairing import outcome |
 | `desktop://stopping` | Native orderly shutdown |
 | Tauri RPC stream channel | `executions.Progress.Watch`, `Backend.Overview.Watch`, `evidence.Records.Watch`, `evidence.Samples.Watch`, `plots.Snapshots.Watch`, `Status.Logs.Watch`, `Status.TraceEvents.Watch`; a gap requires a fresh snapshot and Watch position |
-| Tauri install-progress channel | `Plugins.Install` transfer progress |
+| Tauri install-progress channel | Native file upload and library `Plugins.Create` progress |
 
 ### Data Operations
 
-Product calls use `dokime.client.v1`; shared vocabulary remains in `dokime.v1`.
-The native dispatch and frontend protobuf modules come from the checked-in product
-and pinned library descriptors through `tools/host-bindings.mjs`. Generated modules
-are rebuilt by their generators, never edited by hand.
+The desktop consumes one client surface composed from the product and pinned
+library descriptors through `tools/host-bindings.mjs`. The generator selects host
+operations with the CLIENTS or ALL audience after applying the composition's
+narrowing. Plugin executor services and PLUGINS-only methods are absent from native
+dispatch and frontend client generation. The frontend imports values, schemas and
+enums through `@host/model`, and calls through `@/lib/host/client`; wire package
+paths stay inside generated implementation. Single-field response wrappers project
+their payload, including watches, while multi-field responses retain their read cuts.
+Generated modules are rebuilt by their generators, never edited by hand.
 
 | Resource | Desktop Contract |
 | --- | --- |
@@ -203,10 +223,10 @@ are rebuilt by their generators, never edited by hand.
 | `Evidence.Notes` | Create owns its identity; edits use the matching Get revision and replace the whole writable value. |
 | `Documents` | Get assembles ordered frame pages at one fixed cut without weakening structure, evidence or completion validation. |
 | `Plots.Snapshots`, `Plots.Settings` | Bounded snapshots and Watch updates; plot edits use the matching Get revision. |
-| `Plugins` | Retained managed/remote installation calls remain until library composition; settings use `Plugins.Settings.Get/Set`. |
+| `Plugins`, `plugins.Settings`, `plugins.Secrets` | Library entries own managed/remote/guest placement, enablement, revision, activation and current failure. Library settings use List/Set; the product separately owns declared secret bindings with List/Set/Delete. |
 | `Settings`, `Secrets`, `Storage.Sources` | Whole writable values with matching Get revisions. Secret import/export retain explicit generation checks and reviewed choices. |
-| `content.Artifacts`, `content.ExecutionFiles`, `Evidence.Archive`, `Reports` | Product-owned metadata and immutable references; bytes use product `Files.Read`. Uploads use library file production before artifact attachment. |
-| Library `Status`, `Access`, `Storage`, `Invocations` | Direct library contracts on the same native connection. Missing host capabilities retain disabled controls and their visible reason. |
+| `content.Artifacts`, `content.ExecutionFiles`, `Evidence.Archive`, `Reports` | Product-owned metadata and immutable references; bytes use product `Files.Read`. Uploads use product Files.Uploads before artifact attachment. |
+| Library `Status`, `Access`, `Operations`, `Invocations`, `Time` | Direct library contracts on the same native connection. Missing host capabilities retain disabled controls and their visible reason. |
 
 Report creation renders a preview without publication. Publish names the prepared
 file and its digest revision. Native delivery checks bounded contiguous ranges,
@@ -233,7 +253,7 @@ application directories, logs, settings and WebView profile;
 a distribution does not create a second root under the compiled default identifier.
 
 The local host keeps an exclusive `local.lock` lease on its storage folder.
-`dokime_runtime_next::Error::OccupiedRoot` reaches the connection screen as
+`dokime_runtime::Error::OccupiedRoot` reaches the connection screen as
 `DesktopSessionError::BackendRunning { root, message }`. Close the other owner
 before retrying, or attach to its host. An attached connection keeps its client
 preferences when an occupied local root cannot supply them.
@@ -327,6 +347,8 @@ Document structure commits before the saved-evidence wait. Each pending binding
 uses an independent query through the existing document capture operation, with
 its own cancellation and retry lifetime. Runtime invalidation preserves in-flight
 card reads, so fast cards keep refreshing while an exact median is still loading.
+An invalidation during a card read coalesces a following read at the latest cut
+after that card settles, independently of other cards.
 A completed card remains visible when another card or transfer fails. Failed
 bindings render the existing ErrorCard with their native diagnostic and budget
 fields. Repeated sections keep a loading identity until their expansion arrives.
@@ -586,20 +608,17 @@ from Inspect. Frozen HTML retains its original media and download links under
 
 ## Canonical Bindings and Transport
 
-- `mise run check:typescript:generated` regenerates the bindings and GUI types
-  from the current sources and type-checks them; it never restores staged build
-  output. `mise run check:typescript` owns formatting and lint.
-- Rust `dokime-operations` declarations own operation contracts and
-  `dokime-protocol` owns their messages; do not maintain parallel domain DTOs or a second codec.
-- `mise run prepare:bindings` regenerates tracked Python and TypeScript clients
-  together. The `prepare:generated` prerequisite checks those tracked clients,
-  generates frontend protobuf modules from the checked-in product descriptor. Native
-  preference/default export and full generated client drift checks return with
-  the desktop host switch, under the combined restoration task.
-  The server build-script export supplies application settings
-  and remains the Python generator's input; no backend process runs for generation.
-  Desktop wrappers bind the ordinary methods in the canonical contract inventory;
-  Harmos's additional managed `Run…` RPCs remain transport projections.
+- `mise run check:generated -- --language typescript` compiles the generated desktop
+  client independently of the runtime. `mise run check:typescript` owns formatting
+  and lint; `mise exec -- pnpm --dir crates/dokime-gui run typecheck` checks the
+  complete frontend and its stories.
+- `dokime-operations` owns operation handlers, and `dokime-protocol` owns the
+  canonical messages. Do not maintain parallel domain DTOs or a second codec.
+- `mise run generate:typescript` generates desktop messages and native dispatch
+  from the frozen descriptors. The `export_preferences` example exports native
+  defaults from `dokime-runtime::services::initial_preferences`; the TypeScript
+  generator projects that snapshot into application settings. Frontend test tasks
+  consume matching staged generated modules from Product outputs.
 - Calls and subscriptions in `src/lib/rpc/generated/client.ts` go through the
   seam in `src/lib/rpc/transport.ts`. The desktop binds it to `ipc.ts`, the opaque
   bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a
@@ -622,37 +641,18 @@ from Inspect. Frozen HTML retains its original media and download links under
   Client regression guards also cover ordinary and prepared upload futures.
   Native transport guards return with the desktop host switch; the SDK owns
   current remote client transport.
-- Settings › Plugins keeps installed programs' ordinary settings editable after
-  startup fails. Their declared schema comes from the verified bundle inventory.
-  Secret declarations show identifiers and availability read-only; Add In Secret
-  Storage opens the shared Add Secret dialog prefilled with the identifier.
-  Every owner in an inactive bundle remains visible. Add missing identifiers, then
-  use the page's **Reload**, which calls `Plugins.Reload` for that installation only.
-- Saving plugin settings keeps its running generation unchanged. Fields whose saved
-  values differ from its startup settings show **Applied on Reload** with a warning
-  highlight. The backend computes these marks, so reopening the view, restarting
-  the GUI or attaching another GUI preserves them. Restarting the backend starts
-  programs with saved values. Every plugin page offers **Reload**, and the plugin
-  table puts status in its own column beside direct Settings, Reload and Delete
-  actions. Reload applies saved settings and restarts all observers, including
-  plugin-activated observers. It waits as **Restart Pending** while active work
-  owns the plugin; preparation refusal keeps the running generation and marks,
-  with **Restart Refused** and its reason. A plugin that does not run starts at
-  once. A successful reload clears marks for the values it applied.
-- Install, reinstall, update, enable, disable and remove apply in the running
-  backend; no plugin action prompts to restart the application. After a successful
-  live stop, removed or replaced installations disappear with their bundles.
-  A deletion failure keeps the row with its error until startup retries.
-  `PluginInstallation.restart` drives the row badge (**Restarting…**, **Restart
-  Pending** with its reason) and, while any row is not idle, Settings › Plugins
-  re-reads the list on operation changes. A refused replacement is a
-  `removal_pending` row reported as **Refused**; the previous installation stays
-  **Active**. `startNotification` in `src/features/settings/plugins/plugin-queries.ts`
-  raises one toast per recorded failed startup or refused restart.
-  Startup notifications and plugin views keep root prose separate from collapsed
-  consequence details. Set Secret opens Secret Storage’s Add Secret dialog with
-  the identifier prefilled; notification history retains the same destination.
-  Secret Storage References lists declaring plugins, including inactive programs.
+- Settings › Plugins keeps declared settings editable while a library entry is
+  unavailable. Secret declarations show their names, binding identifiers and
+  availability. Add in Secret Storage opens the shared dialog with the declared
+  identifier prefilled; bindings remain independently editable.
+- Saving plugin settings uses the library settings revision. The page's **Reload**
+  calls `Plugins.Restart` for that entry. Inventory uses the entry name, activation,
+  enablement, current state and failure. The contract supplies no applied-field
+  marks, restart queue or installation history, so the views expose none.
+- Native file installation uploads a verified bundle before library `Plugins.Create`.
+  Enablement and removal use revision-checked library entry operations. Current
+  failures appear in the row and notification details. Secret Storage References
+  lists declaring plugins, including unavailable entries.
 - Completed executions and cycles retain their evidence and reports after plugin
   reload, reinstall or removal, even before sealing. Retry Seal and history reads
   use frozen report inputs, including plugin analysis results. In an open cycle,

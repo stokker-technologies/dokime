@@ -6,23 +6,32 @@
 #
 # ***
 
-"""A Client Adds, Lists And Removes A Remote Plugin Through Generated RPCs."""
+"""A Client Creates, Lists and Deletes a Composed Library Plugin Entry."""
 
 # === Imports === #
-# Standard Library Imports
+
+import asyncio
 import unittest
-from importlib import import_module
-from typing import Any
+from collections.abc import AsyncIterator
 
-# Third Party Imports
-import grpc
-from google.protobuf import descriptor_pool
+from grpc import StatusCode
+from grpc.aio import AioRpcError, ServicerContext, UsageError, server
+from harmos._wire.host.v1.plugins_pb2 import (
+    PluginsCreateRequest,
+    PluginsCreateResponse,
+    PluginsDeleteRequest,
+    PluginsDeleteResponse,
+    PluginsListRequest,
+    PluginsListResponse,
+)
+from harmos._wire.host.v1.plugins_pb2_grpc import PluginsServicer, add_PluginsServicer_to_server
+from harmos._wire.host.v1.status.logs_pb2 import Event, LogsWatchRequest, LogsWatchResponse
+from harmos._wire.host.v1.status.logs_pb2_grpc import LogsServicer, add_LogsServicer_to_server
+from harmos._wire.host.v1.status_pb2 import HostIdentity, HostStatus, StatusGetRequest, StatusGetResponse
+from harmos._wire.host.v1.status_pb2_grpc import StatusServicer, add_StatusServicer_to_server
+from harmos.client import PluginEntry, PluginPlacement, PluginRemote, PluginValue
 
-# Local Imports
-import dokime
-from dokime.v1 import message
-
-# Type Checking Imports
+from dokime.connection import connect
 
 # === Public Exports === #
 
@@ -34,109 +43,104 @@ from dokime.v1 import message
 
 
 class ClientStory(unittest.IsolatedAsyncioTestCase):
-    async def test_add_list_remove_and_close(self) -> None:
-        # Implement the Authoritative Services in Process.
-        descriptor = descriptor_pool.Default().FindServiceByName("dokime.client.v1.Plugins")
-        status_rpc = import_module("harmos.v1.status_pb2_grpc")
-        status_wire = import_module("harmos.v1.status_pb2")
-        logs_rpc = import_module("harmos.v1.status.logs_pb2_grpc")
-        logs_wire = import_module("harmos.v1.status.logs_pb2")
-        plugins_rpc = import_module("dokime.client.v1.plugins_pb2_grpc")
-        entries = {}
-        authorization = []
+    async def test_create_list_delete_and_close(self) -> None:
+        entries: dict[str, PluginEntry] = {}
+        authorization: list[str | bytes | None] = []
+        identities: list[str] = []
+        watching = asyncio.Event()
+        released = asyncio.Event()
 
-        class Plugins(plugins_rpc.PluginsServicer):
-            async def GetInstallation(self, request: Any, context: Any) -> Any:
-                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "GetInstallation Is Outside This Fixture")
-
-            async def Install(self, request_iterator: Any, context: Any) -> Any:
-                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Install Is Outside This Fixture")
-
-            async def ListAdmittedPlugins(self, request: Any, context: Any) -> Any:
-                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "ListAdmittedPlugins Is Outside This Fixture")
-
-            async def ListInstallations(self, request: Any, context: Any) -> Any:
-                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "ListInstallations Is Outside This Fixture")
-
-            async def Reload(self, request: Any, context: Any) -> Any:
-                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Reload Is Outside This Fixture")
-
-            async def SetEnabled(self, request: Any, context: Any) -> Any:
-                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "SetEnabled Is Outside This Fixture")
-
-            async def Add(self, request: Any, context: Any) -> Any:
-                authorization.append(dict(context.invocation_metadata()).get("authorization"))
-                if not request.url.startswith("http://"):
-                    await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Plugin URL is required")
-                entry = message("dokime.client.v1.Plugin", entry=f"entry-{len(entries)}", remote={"url": request.url}, state=3)
-                entries[entry.entry] = entry
-                return entry
-
-            async def List(self, request: Any, context: Any) -> Any:
-                return message("dokime.client.v1.PluginEntries", plugins=entries.values())
-
-            async def Remove(self, request: Any, context: Any) -> Any:
-                if entries.pop(request.entry, None) is None:
-                    await context.abort(grpc.StatusCode.NOT_FOUND, "Plugin entry is absent")
-                return message("dokime.client.v1.RemovePluginResponse")
-
-        class Status(status_rpc.StatusServicer):
-            async def Get(self, request: Any, context: Any) -> Any:
-                if dict(context.invocation_metadata()).get("authorization") != "Bearer test-key":
-                    await context.abort(grpc.StatusCode.UNAUTHENTICATED, "Read Status: Supply Credentials")
-                return status_wire.StatusGetResponse(
-                    status=status_wire.HostStatus(identity=status_wire.HostIdentity(host_id="bench"), available=True)
+        class Plugins(PluginsServicer):
+            async def Create(self, request: PluginsCreateRequest, context: ServicerContext) -> PluginsCreateResponse:
+                authorization.append(dict(context.invocation_metadata() or ()).get("authorization"))
+                if not request.placement.remote.url.startswith("http://"):
+                    await context.abort(StatusCode.INVALID_ARGUMENT, "Create Plugin: Supply a Remote URL")
+                identities.append(request.request_id)
+                entry = entries.setdefault(
+                    request.name, PluginEntry(name=request.name, placement=request.placement, value=request.value, revision=b"first")
                 )
+                return PluginsCreateResponse(entry=entry)
 
-        class Logs(logs_rpc.LogsServicer):
-            async def Watch(self, request: Any, context: Any) -> Any:
-                authorization.append(dict(context.invocation_metadata()).get("authorization"))
-                yield logs_wire.LogsWatchResponse()
-                yield logs_wire.LogsWatchResponse(events=[logs_wire.Event(message="ready")])
+            async def List(self, request: PluginsListRequest, context: ServicerContext) -> PluginsListResponse:
+                return PluginsListResponse(entries=entries.values())
 
-        # Serve The Fake Host In Process And Connect With The Public Client.
-        server = grpc.aio.server()
-        plugins_rpc.add_PluginsServicer_to_server(Plugins(), server)
-        logs_rpc.add_LogsServicer_to_server(Logs(), server)
-        status_rpc.add_StatusServicer_to_server(Status(), server)
-        port = server.add_insecure_port("127.0.0.1:0")
-        await server.start()
-        self.addAsyncCleanup(server.stop, None)
-        client = await dokime.connect(f"http://127.0.0.1:{port}", access_key="test-key", expected_backend_id="bench")
+            async def Delete(self, request: PluginsDeleteRequest, context: ServicerContext) -> PluginsDeleteResponse:
+                if entries.pop(request.name, None) is None:
+                    await context.abort(StatusCode.NOT_FOUND, "Delete Plugin: Entry Is Absent")
+                return PluginsDeleteResponse(receipt={})
+
+        class Status(StatusServicer):
+            async def Get(self, request: StatusGetRequest, context: ServicerContext) -> StatusGetResponse:
+                if dict(context.invocation_metadata() or ()).get("authorization") != "Bearer test-key":
+                    await context.abort(StatusCode.UNAUTHENTICATED, "Read Status: Supply Credentials")
+                return StatusGetResponse(status=HostStatus(identity=HostIdentity(host_id="bench"), available=True))
+
+        class Logs(LogsServicer):
+            async def Watch(self, request: LogsWatchRequest, context: ServicerContext) -> AsyncIterator[LogsWatchResponse]:
+                authorization.append(dict(context.invocation_metadata() or ()).get("authorization"))
+                yield LogsWatchResponse()
+                if request.max_events == 1:
+                    watching.set()
+                    try:
+                        await asyncio.Event().wait()
+                    finally:
+                        released.set()
+                    return
+                yield LogsWatchResponse(events=[Event(sequence=1)])
+
+        # Start the Host Fixture and Connect Through the Public Client.
+        host = server()
+        add_PluginsServicer_to_server(Plugins(), host)
+        add_StatusServicer_to_server(Status(), host)
+        add_LogsServicer_to_server(Logs(), host)
+        port = host.add_insecure_port("127.0.0.1:0")
+        await host.start()
+        self.addAsyncCleanup(host.stop, None)
+        client = await connect(f"http://127.0.0.1:{port}", access_key="test-key", expected_backend_id="bench")
         self.addAsyncCleanup(client.close)
 
-        # Refuse a Paired Identity That Does Not Match the Served Host.
+        # Refuse a Foreign Paired Host.
         with self.assertRaises(ValueError):
-            await dokime.connect(f"http://127.0.0.1:{port}", access_key="test-key", expected_backend_id="foreign")
+            await connect(f"http://127.0.0.1:{port}", access_key="test-key", expected_backend_id="foreign")
 
-        # Add a Remote Entry and List Its Canonical Placement Through Generated Stubs.
-        entry = await client.plugins.add("http://127.0.0.1:7001")
-        self.assertEqual((entry.remote.url, entry.state), ("http://127.0.0.1:7001", 3))
-        self.assertEqual(authorization, ["Bearer test-key"])
-        listed = await client.stubs["dokime.client.v1.Plugins"].List(message("dokime.client.v1.ListPlugins"))
-        self.assertEqual(listed.plugins, [entry])
-        self.assertEqual((await client.plugins.list()).plugins, [entry])
+        # Create Idempotently and Read the Canonical Library Entry.
+        placement = PluginPlacement(remote=PluginRemote(url="http://127.0.0.1:7001"))
+        created = await client.plugins.create("example", placement, PluginValue(), request_id="create-example")
+        repeated = await client.plugins.create("example", placement, PluginValue(), request_id="create-example")
+        self.assertEqual(created.entry, repeated.entry)
+        self.assertEqual(list((await client.plugins.list()).entries), [created.entry])
+        self.assertEqual(identities, ["create-example", "create-example"])
+        self.assertEqual(authorization, ["Bearer test-key", "Bearer test-key"])
 
-        # Drain the Library Watch Through the Composed Root and Retain Credentials.
-        frames = [item async for item in client.status.logs.watch(logs_wire.LogsWatchRequest(max_events=8, max_bytes=4096))]
-        self.assertEqual(list(frames[0].events), [])
-        self.assertEqual(frames[1].events[0].message, "ready")
+        # Drain a Library Watch Through the Same Authenticated Connection.
+        frames = [frame async for frame in client.status.logs.watch(max_events=8, max_bytes=4096)]
+        self.assertEqual(len(frames), 2)
+        self.assertEqual(frames[1].events[0].sequence, 1)
         self.assertEqual(authorization[-1], "Bearer test-key")
 
-        # Preserve Server Refusals And Validate The Input Descriptor.
-        with self.assertRaises(grpc.aio.AioRpcError) as failed:
-            await client.call(message("dokime.client.v1.AddRemotePlugin", url="invalid"), method=descriptor.methods_by_name["Add"])
-        self.assertEqual(failed.exception.code(), grpc.StatusCode.INVALID_ARGUMENT)
-        with self.assertRaises(TypeError):
-            client.call(message("dokime.client.v1.RemovePlugin"), method=descriptor.methods_by_name["Add"])
+        # Preserve Transport Refusals with Their Causes.
+        with self.assertRaises(AioRpcError) as failed:
+            await client.plugins.create("invalid", PluginPlacement(remote=PluginRemote(url="invalid")), PluginValue())
+        self.assertEqual(failed.exception.code(), StatusCode.INVALID_ARGUMENT)
+        self.assertIsInstance(failed.exception.__cause__, AioRpcError)
 
-        # Remove The Entry And Observe Its Absence Before Closing.
-        await client.plugins.remove(entry.entry)
-        self.assertEqual((await client.plugins.list()).plugins, [])
+        # Delete the Entry and Close the Owned Connection Twice.
+        await client.plugins.delete(created.entry.name, created.entry.revision)
+        self.assertEqual(list((await client.plugins.list()).entries), [])
+
+        # Closing the Connection Cancels an Active Watch and Releases Its Handler.
+        watch = client.status.logs.watch(max_events=1, max_bytes=4096)
+        await anext(watch)
+        pending = asyncio.create_task(anext(watch))
+        await watching.wait()
         await client.close()
+        with self.assertRaises(asyncio.CancelledError):
+            await pending
+        await watch.aclose()
+        await released.wait()
         await client.close()
-        with self.assertRaises(RuntimeError):
-            client.call(message("dokime.client.v1.ListPlugins"))
+        with self.assertRaises(UsageError):
+            await client.plugins.list()
 
 
 # === Public Functions === #

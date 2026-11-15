@@ -20,34 +20,34 @@
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { pluginStartFailure } from "@/features/settings/plugins/plugin-queries";
 import { ErrorCard } from "@/components/ErrorCard";
-import { failureOf } from "@/lib/notification-details";
+
 import { RotateCw, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 /* === Local Imports === */
 
 import { Badge } from "@/components/ui/badge";
-import { FailureConsequences } from "@/components/FailureConsequences";
+
 import { Button } from "@/components/ui/button";
 import { useReloadPluginMutation } from "@/features/settings/plugins/plugin-queries";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
-import { formatArtifactSize } from "@/lib/artifact-tree";
-import type { PluginEntry } from "@/lib/types/view-contracts";
+import { PluginState } from "@host/model";
+import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
 /* === Types === */
 
 type PluginListProps = {
   actions?: ReactNode;
-  entries: PluginEntry[];
+  entries: ManagedPlugin[];
   builtInRows?: PluginTableRow[];
-  onRemove: (entry: PluginEntry) => void;
+  onRemove: (entry: ManagedPlugin) => void;
   /** Opens the plugin's own settings page; null when it contributes none. */
-  onOpenSettings: (entry: PluginEntry) => void;
+  onOpenSettings: (entry: ManagedPlugin) => void;
   removingId: string | null;
-  onSetEnabled: (entry: PluginEntry, enabled: boolean) => void;
+  onSetEnabled: (entry: ManagedPlugin, enabled: boolean) => void;
   changingEnabled: boolean;
   /** The settings section a plugin contributed, or null. */
-  settingsSectionOf: (entry: PluginEntry) => string | null;
+  settingsSectionOf: (entry: ManagedPlugin) => string | null;
 };
 
 type StatusPresentation = {
@@ -73,37 +73,22 @@ export function PluginList({
   const generation = useNativeSessionOptional()?.identity.generation ?? "";
   const rows = entries.map((entry): PluginTableRow => {
     const status = statusPresentation(entry);
-    const removalPending = entry.state === "removal_pending";
+
     const configurable = settingsSectionOf(entry) !== null;
-    const name = entry.metadata?.identity.name ?? entry.install_id;
-    const switchable = entry.state === "installed" || entry.state === "disabled";
+    const name = entry.description?.id || entry.name;
+    const switchable = entry.value !== undefined;
 
     return {
-      alert: status.reason ? (
-        <div>
-          {entry.restart === "pending" ? (
-            <p className="text-sm text-muted-foreground">{status.reason}</p>
-          ) : (
-            <ErrorCard
-              failure={
-                entry.last_boot?.state === "failed"
-                  ? pluginStartFailure(entry, generation)
-                  : failureOf({ message: status.reason }, "Plugin Unavailable", [generation, entry.install_id, status.reason].join(":"))
-              }
-            />
-          )}
-          {entry.last_boot?.state === "failed" ? <FailureConsequences items={entry.last_boot.failure.consequences} /> : null}
-        </div>
-      ) : null,
+      alert: status.reason ? <ErrorCard failure={pluginStartFailure(entry, generation)} /> : null,
       badge: <Badge variant={status.variant}>{status.label}</Badge>,
       enabled: switchable
         ? {
-            checked: entry.state !== "disabled",
+            checked: entry.value?.enabled ?? false,
             disabled: changingEnabled,
             onChange: (next) => onSetEnabled(entry, next),
           }
         : undefined,
-      key: entry.install_id,
+      key: entry.name,
       name,
       onOpenSettings: configurable ? () => onOpenSettings(entry) : undefined,
       source: entrySource(entry),
@@ -114,8 +99,8 @@ export function PluginList({
             title="Reload"
             size="icon-sm"
             variant="ghost"
-            disabled={entry.state !== "installed" || (entry.restart !== undefined && entry.restart !== "idle") || reload.isPending}
-            onClick={() => reload.mutate({ installId: entry.install_id })}
+            disabled={!entry.value?.enabled || entry.state === PluginState.STOPPING || reload.isPending}
+            onClick={() => reload.mutate(entry.name)}
           >
             <RotateCw />
           </Button>
@@ -124,7 +109,7 @@ export function PluginList({
             title="Delete"
             size="icon-sm"
             variant="ghost"
-            disabled={(removalPending && entry.active) || removingId === entry.install_id}
+            disabled={removingId === entry.name}
             onClick={() => onRemove(entry)}
           >
             <Trash2 />
@@ -143,41 +128,28 @@ export function PluginList({
  * The running backend applies every change live: an installation shows what it
  * is doing now, and a refused change names what keeps running.
  */
-export function statusPresentation(entry: PluginEntry): StatusPresentation {
-  const failure = entry.last_boot?.state === "failed" ? entry.last_boot.failure.message : null;
-  if (entry.error) {
-    return {
-      label: entry.active ? "Active · Bundle Unavailable" : "Unavailable",
-      reason: entry.error,
-      variant: "destructive",
-    };
+export function statusPresentation(entry: ManagedPlugin): StatusPresentation {
+  if (entry.failure) return { label: "Unavailable", reason: entry.failure.message, variant: "destructive" };
+  if (!entry.value?.enabled) return { label: "Disabled", reason: null, variant: "outline" };
+  switch (entry.state) {
+    case PluginState.READY:
+      return { label: "Active", reason: null, variant: "success" };
+    case PluginState.CONNECTING:
+      return { label: "Connecting…", reason: null, variant: "outline" };
+    case PluginState.STOPPING:
+      return { label: "Stopping…", reason: null, variant: "outline" };
+    case PluginState.STOPPED:
+      return { label: "Stopped", reason: null, variant: "outline" };
+    default:
+      return { label: "Unavailable", reason: null, variant: "warning" };
   }
-  if (entry.restart === "restarting") return { label: "Restarting…", reason: null, variant: "outline" };
-  if (entry.restart === "pending") {
-    return {
-      label: entry.active ? "Active · Restart Pending" : "Restart Pending",
-      reason: "Applies after execution cleanup and plugin streams finish. Report publication and sealing do not delay it.",
-      variant: "warning",
-    };
-  }
-  if (entry.state === "removal_pending") {
-    return entry.boot_failed
-      ? { label: "Refused", reason: failure, variant: "destructive" }
-      : { label: "Removed", reason: null, variant: "outline" };
-  }
-  if (entry.active && failure) return { label: "Active · Restart Refused", reason: failure, variant: "warning" };
-  if (entry.active) return { label: "Active", reason: null, variant: "success" };
-  if (entry.boot_failed) return { label: "Failed", reason: failure, variant: "destructive" };
-  if (entry.state === "installed") return { label: "Not Running", reason: null, variant: "outline" };
-  return { label: "Disabled", reason: null, variant: "outline" };
 }
 
 /* === Private Functions === */
 
-/** The bundle's version and size, as the row's one muted column. */
-function entrySource(entry: PluginEntry): string {
-  if (!entry.metadata) {
-    return "Bundle Unavailable";
-  }
-  return `Installed Bundle · v${entry.metadata.identity.version} · ${formatArtifactSize(entry.metadata.size_bytes)}`;
+function entrySource(entry: ManagedPlugin): string {
+  const placement = entry.placement?.kind;
+  const source = placement?.case === "remote" ? placement.value.url : placement?.case === "managed" ? "Managed Bundle" : "Host Guest";
+  const version = entry.description?.version;
+  return version ? `${source} · v${version}` : source;
 }

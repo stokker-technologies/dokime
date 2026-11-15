@@ -22,10 +22,15 @@ use prost::Message;
 use rusqlite::{Connection, OptionalExtension, params};
 
 // Local Imports
-use crate::{Error, Execution, Result, Store};
-use dokime_protocol::client::ExecutionsDeleteResponse;
-use dokime_protocol::v1::{CyclePhase, CycleStatus, CycleSummary, ResultStatus, ResultSummary};
-use harmos_protocol::v1::History;
+use crate::{Error, Execution, Result, Store, StoredArtifact};
+use dokime_protocol::host::CyclePhase;
+use dokime_protocol::host::CycleStatus;
+use dokime_protocol::host::CycleSummary;
+use dokime_protocol::host::ExecutionsDeleteResponse;
+use dokime_protocol::host::ResultStatus;
+use dokime_protocol::host::ResultSummary;
+use harmos_protocol::model::History;
+use rusqlite::Result as SqlResult;
 
 /* === Constants === */
 
@@ -96,12 +101,21 @@ impl Store {
         if state != 2 || seal != expected || crate::store::digest(&transaction, execution)? != seal {
             return Err(Error::Invalid("Delete Execution: Inspect Its Current Seal Before Deleting".into()));
         }
-        transaction
-            .execute("DELETE FROM content_chunks WHERE object IN (SELECT id FROM content_objects WHERE execution=?1)", [execution])?;
-        transaction.execute("DELETE FROM file_uploads WHERE id IN (SELECT id FROM content_objects WHERE execution=?1)", [execution])?;
-        transaction.execute("DELETE FROM content_objects WHERE execution=?1", [execution])?;
+        transaction.execute("DELETE FROM administration WHERE substr(id,1,length(?1))=?1", [format!("execution-file/{execution}/")])?;
         transaction.execute("DELETE FROM notes WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM administration WHERE id LIKE ?1", [format!("plot-settings:{execution}/%")])?;
+        let mut statement = transaction.prepare("SELECT id,payload FROM administration WHERE id LIKE 'artifact/%'")?;
+        let artifacts =
+            statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?.collect::<SqlResult<Vec<_>>>()?;
+        drop(statement);
+        for (key, payload) in artifacts {
+            let artifact = StoredArtifact::decode(payload.as_slice())?;
+            if artifact.artifact.as_ref().and_then(|artifact| artifact.scope.as_ref()).and_then(|scope| scope.execution_id.as_deref())
+                == Some(execution)
+            {
+                transaction.execute("DELETE FROM administration WHERE id=?1", [key])?;
+            }
+        }
         transaction.execute("DELETE FROM record_fields WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM reports WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM read_positions WHERE execution=?1", [execution])?;

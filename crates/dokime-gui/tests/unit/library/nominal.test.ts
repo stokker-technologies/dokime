@@ -17,9 +17,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { SuiteSchema } from "@host/dokime/v1/suites_pb.js";
+import { SuiteSchema } from "@host/model";
 
-import { ValueType } from "@host/dokime/v1/scalar_pb.js";
+import { ValueType } from "@host/model";
 
 // Local Imports
 import { type EditorParameterRow, editorProblems, editorRow } from "@/components/parameter-editor/model";

@@ -20,7 +20,9 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::{prelude::*, v1};
+use dokime::Suites;
+use dokime::ValueType;
+use dokime::prelude::*;
 
 /* === Constants === */
 
@@ -61,7 +63,7 @@ struct Payload {
 /* === Tests === */
 
 #[test]
-fn compose_typed_data_and_refuse_invalid_catalogs_at_startup() -> Result<()> {
+fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()> {
     // Define Parameters from Data and Compose a Suite by Value.
     let template = Template::new("data.case", "Data Case").parameters(Inputs {
         limit: 70.0,
@@ -69,17 +71,17 @@ fn compose_typed_data_and_refuse_invalid_catalogs_at_startup() -> Result<()> {
         serial: None,
     });
     let echo = Operation::new("data.echo", Visibility::Public, async |_: &Context, request: Payload| Ok(request));
-    let catalog = Plugin::new("data", "1.0.0")
+    let declarations = Plugin::new("data", "1.0.0")
         .operation(echo)
         .settings(Saved { enabled: true })
         .suite(Suite::new("data", "Data").template(template))
-        .catalog()?;
-    let section = catalog.sections.iter().find(|section| section.r#type == "dokime.v1.Suites").expect("Suites Section");
+        .declarations()?;
+    let section = declarations.sections.iter().find(|section| section.r#type == "dokime.model.v1.Suites").expect("Suites Section");
     let suites =
-        <v1::Suites as dokime::encoding::Message>::decode(section.payload.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
+        <Suites as dokime::encoding::Message>::decode(section.payload.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
     let parameters = &suites.suites[0].templates[0].parameters;
-    assert_eq!(parameters[1].element_type, v1::ValueType::UnsignedInteger as i32);
-    assert_eq!(parameters[1].r#type, v1::ValueType::List as i32);
+    assert_eq!(parameters[1].element_type, ValueType::UnsignedInteger as i32);
+    assert_eq!(parameters[1].r#type, ValueType::List as i32);
 
     // Preserve Signed Data and Bytes Through the Public Data Derive.
     let payload = Payload { signed: -9, bytes: vec![0, 255] };
@@ -87,24 +89,63 @@ fn compose_typed_data_and_refuse_invalid_catalogs_at_startup() -> Result<()> {
     let decoded = <Payload as dokime::encoding::Message>::decode(bytes.as_slice()).map_err(|error| Error::Invalid(error.to_string()))?;
     assert_eq!(decoded.signed, -9);
     assert_eq!(decoded.bytes, [0, 255]);
-    assert!(catalog.sections.iter().any(|section| section.r#type == "dokime.v1.SettingsDeclarations"));
+    assert!(declarations.sections.iter().any(|section| section.r#type == "harmos.model.v1.SettingsDeclarations"));
+
+    // Bind an Analysis Under Its Independent Host-Only Identity.
+    let declarations = Plugin::new("analysis", "1.0.0")
+        .analysis(
+            dokime::Analysis {
+                metadata: Some(dokime::Metadata {
+                    identifier: "analysis.echo".into(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            async |_: &Context, request: dokime::plugin::AnalysesComputeRequest| {
+                let samples = request.samples.ok_or_else(|| Error::Invalid("Compute Analysis: Missing Samples".into()))?;
+                Ok(dokime::plugin::AnalysesComputeResponse {
+                    outputs: vec![dokime::AnalysisValues {
+                        axis: samples.axis,
+                        values: samples.values,
+                        ..Default::default()
+                    }],
+                })
+            },
+        )
+        .declarations()?;
+    let operation = declarations.operations.iter().find(|operation| operation.id == "analysis.echo").expect("Analysis Binding");
+    assert_eq!(operation.visibility, Visibility::Protected as i32);
+    assert!(operation.request.ends_with(".AnalysesComputeRequest"));
+    assert!(operation.response.ends_with(".AnalysesComputeResponse"));
+
+    // Retain Integer Precision and Rational Values Without Floating Conversion.
+    let exact = dokime::ExactNumber {
+        negative: true,
+        numerator: "1152921504606847975".into(),
+        denominator: "3".into(),
+    };
+    let value = dokime::Value {
+        kind: Some(dokime::value::Kind::Exact(exact.clone())),
+    };
+    assert_eq!(<dokime::ExactNumber as dokime::FromValue>::from_value(&value)?, exact);
+    assert!(<f64 as dokime::FromValue>::from_value(&value).is_err());
 
     // Reject Duplicate Step Identifiers Before Serving Any Request.
     let template = Template::new("data.duplicate", "Duplicate")
         .step(Step::new("Same", async |_: &Context| Ok(())))
         .step(Step::new("Same", async |_: &Context| Ok(())));
-    assert!(Plugin::new("data", "1.0.0").suite(Suite::new("data", "Data").template(template)).catalog().is_err());
+    assert!(Plugin::new("data", "1.0.0").suite(Suite::new("data", "Data").template(template)).declarations().is_err());
 
     // Reject Duplicate Templates Across Suites and Nonfinite Defaults.
     let plugin = Plugin::new("data", "1.0.0")
         .suite(Suite::new("first", "First").template(Template::new("data.case", "Case")))
         .suite(Suite::new("second", "Second").template(Template::new("data.case", "Case")));
-    assert!(plugin.catalog().is_err());
+    assert!(plugin.declarations().is_err());
     let template = Template::new("data.invalid", "Invalid").parameters(Inputs {
         limit: f64::NAN,
         channels: Vec::new(),
         serial: None,
     });
-    assert!(Plugin::new("data", "1.0.0").suite(Suite::new("data", "Data").template(template)).catalog().is_err());
+    assert!(Plugin::new("data", "1.0.0").suite(Suite::new("data", "Data").template(template)).declarations().is_err());
     Ok(())
 }

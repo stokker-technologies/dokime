@@ -78,6 +78,9 @@ pub enum Error {
     #[error("Evaluate Stored Evidence: {0}")]
     Query(#[from] harmos_storage::Error),
 
+    #[error("Evaluate Stored Evidence: {0}")]
+    Engine(#[from] harmos_query::Error),
+
     #[error("Read Stream Summary: Restore a Valid Backup: {0}")]
     Json(#[from] serde_json::Error),
 

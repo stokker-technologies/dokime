@@ -15,7 +15,7 @@
 
 use super::{BackendDiagnostics, DesktopSessionError as Error};
 use crate::connection::host::{self, Connection, Error as HostError};
-use dokime_runtime_next::Error as RuntimeError;
+use dokime_runtime::Error as RuntimeError;
 use std::path::PathBuf;
 
 /* === Constants === */

@@ -23,10 +23,10 @@ generated = ["target/generated/typescript", "crates/dokime-gui/src/lib/rpc/gener
 roots = ["crates/dokime-gui"]
 
 [[package.executables]]
-command = "dokime-next"
+command = "dokime"
 installers = ["mise"]
-name = "dokime-cli-next"
-package = "dokime-cli-next"
+name = "dokime-cli"
+package = "dokime-cli"
 release = true
 verify = ["--version"]
 

@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Overview Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.backend;
+
+// === Imports === //
+
+import "dokime/host/v1/cycles.proto";
+import "dokime/model/v1/metadata.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/position.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.BackendResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Overview resource on the host; callers are checked before handler admission.
+service Overview {
+  // Read the Overview resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.backend.OverviewGetRequest) returns (.dokime.host.v1.backend.OverviewGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Observe durable changes to the Overview resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.backend.OverviewWatchRequest) returns (stream .dokime.host.v1.backend.OverviewWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// OverviewGetRequest for Overview.Get.
+message OverviewGetRequest {
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// OverviewGetResponse for Overview.Get.
+message OverviewGetResponse {
+  .dokime.host.v1.backend.RuntimeShellSnapshot overview = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Watch === //
+
+// OverviewWatchRequest for Overview.Watch.
+message OverviewWatchRequest {
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// OverviewWatchResponse for Overview.Watch.
+message OverviewWatchResponse {
+  .dokime.host.v1.backend.RuntimeShellSnapshot overview = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Resources === //
+
+// EvidenceCounts value owned by this resource.
+message EvidenceCounts {
+  uint64 records = 1;
+  uint64 telemetry = 2;
+  uint64 prompts = 3;
+  uint64 artifacts = 4;
+  uint64 health = 5;
+  uint64 traceability = 6;
+  uint64 notes = 7;
+}
+
+// RuntimeShellSnapshot value owned by this resource.
+message RuntimeShellSnapshot {
+  string session_id = 1;
+  uint64 revision = 2;
+  bool shutting_down = 3;
+  .dokime.model.v1.Metadata hub_metadata = 4;
+  uint64 test_suite_count = 5;
+  repeated .dokime.host.v1.CycleSummary cycle_summaries = 6;
+  .dokime.host.v1.backend.EvidenceCounts evidence_counts = 7;
+  .harmos.model.v1.ReadCut observed_cursor = 8;
+  optional string next_after_cycle_id = 9;
+}
+
+// === Enums === //

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Bundle Any Native harmos.v1 Executable Without Compiling
+// Bundle Any Native Plugin Executable Without Compiling
 
 /* === Modules === */
 
@@ -16,18 +16,24 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{io::Read, path::Path};
+use std::{
+    collections::BTreeMap,
+    env::consts::{ARCH, OS},
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 // Third Party Imports
-use sha2::Digest;
+use harmos_runtime::bundle::{Bundle as PluginBundle, Identity, Limits, Manifest};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use tar::{Builder, EntryType, Header};
 
 // Local Imports
+use crate::Result;
 
 /* === Constants === */
-
-const ARCHIVE_BYTES: u64 = 272 * 1024 * 1024;
-const FILE_BYTES: u64 = 128 * 1024 * 1024;
-const MANIFEST_BYTES: u64 = 16 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -43,54 +49,84 @@ const MANIFEST_BYTES: u64 = 16 * 1024 * 1024;
 
 /* === Public Functions === */
 
-pub fn inspect(path: &Path) -> crate::Result<serde_json::Value> {
-    let bytes = read(path, ARCHIVE_BYTES)?;
-    let mut archive = tar::Archive::new(bytes.as_slice());
-    let mut contents = std::collections::BTreeMap::new();
-    for entry in archive.entries()? {
-        let entry = entry?;
-        if !entry.header().entry_type().is_file() || contents.len() >= 4096 {
-            return Err("Inspect Bundle: Supply a Bounded Archive of Regular Files".into());
-        }
-        let path = entry.path()?.into_owned();
-        if path.components().any(|part| !matches!(part, std::path::Component::Normal(_)))
-            || path.to_str().is_none_or(|value| value.contains('\\'))
-        {
-            return Err("Inspect Bundle: Invalid Archive Path".into());
-        }
-        let limit = if path == Path::new("manifest.json") { MANIFEST_BYTES } else { FILE_BYTES };
-        if entry.size() > limit {
-            return Err("Inspect Bundle: File Exceeds the Byte Bound".into());
-        }
-        let mut value = Vec::new();
-        entry.take(limit + 1).read_to_end(&mut value)?;
-        if value.len() as u64 > limit || contents.insert(path, value).is_some() {
-            return Err("Inspect Bundle: Duplicate or Oversized File".into());
+pub fn native_target() -> &'static str {
+    match (ARCH, OS) {
+        ("x86_64", "windows") => "x86_64-pc-windows-msvc",
+        ("aarch64", "windows") => "aarch64-pc-windows-msvc",
+        ("x86_64", "linux") => "x86_64-unknown-linux-gnu",
+        ("aarch64", "linux") => "aarch64-unknown-linux-gnu",
+        ("aarch64", "macos") => "aarch64-apple-darwin",
+        ("x86_64", "macos") => "x86_64-apple-darwin",
+        _ => "unsupported",
+    }
+}
+
+pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, description: Option<&[u8]>) -> Result<Vec<u8>> {
+    let limits = Limits::default();
+    if native_target() == "unsupported" {
+        return Err("Create Plugin Bundle: Select a Supported Native Target".into());
+    }
+    let name = executable.file_name().and_then(|name| name.to_str()).ok_or("Create Plugin Bundle: Supply a UTF-8 Executable Filename")?;
+    let entrypoint = format!("bin/{name}");
+    if assets.len() + 2 + usize::from(description.is_some()) > limits.files {
+        return Err("Create Plugin Bundle: Reduce Its File Inventory".into());
+    }
+    let mut contents = BTreeMap::from([(entrypoint.clone(), read(executable, limits.file_bytes as u64)?)]);
+    let mut total = contents.values().map(Vec::len).sum::<usize>();
+    for asset in assets {
+        let name = asset.file_name().and_then(|name| name.to_str()).ok_or("Create Plugin Bundle: Supply a UTF-8 Asset Filename")?;
+        let remaining = limits.total_file_bytes.saturating_sub(total);
+        let bytes = read(asset, limits.file_bytes.min(remaining) as u64)?;
+        total += bytes.len();
+        if contents.insert(format!("bin/{name}"), bytes).is_some() {
+            return Err("Create Plugin Bundle: Give Each Asset a Distinct Filename".into());
         }
     }
-    let bytes = contents.remove(Path::new("manifest.json")).ok_or("Inspect Bundle: Missing manifest.json")?;
-    let manifest: serde_json::Value = serde_json::from_slice(&bytes)?;
-    if manifest["schema"] != 1 {
-        return Err("Inspect Bundle: Unsupported Manifest Schema".into());
+    contents.insert(
+        "dokime.json".into(),
+        serde_json::to_vec(&serde_json::json!({"schema":1,"requires_dokime":format!("={}",env!("CARGO_PKG_VERSION"))}))?,
+    );
+    if let Some(description) = description {
+        contents.insert("description.pb".into(), description.to_vec());
     }
-    let files = manifest["files"].as_array().ok_or("Inspect Bundle: Missing File Inventory")?;
-    for file in files {
-        let path = file["path"].as_str().ok_or("Inspect Bundle: Missing File Path")?;
-        let bytes = contents.remove(Path::new(path)).ok_or("Inspect Bundle: Missing or Duplicate Inventory File")?;
-        if file["size"].as_u64() != Some(bytes.len() as u64) || file["sha256"].as_str() != Some(digest(&bytes).as_str()) {
-            return Err("Inspect Bundle: File Size or SHA-256 Does Not Match".into());
-        }
+    if contents.len() > limits.files || contents.values().map(Vec::len).sum::<usize>() > limits.total_file_bytes {
+        return Err("Create Plugin Bundle: Reduce Its Files to the Bundle Bounds".into());
     }
-    if !contents.is_empty() {
-        return Err("Inspect Bundle: Unlisted Archive File".into());
+    let files = contents.iter().map(|(path, bytes)| {
+        let mut value = serde_json::json!({"path":path,"size":bytes.len(),"sha256":Sha256::digest(bytes).iter().map(|byte|format!("{byte:02x}")).collect::<String>()});
+        if path == &entrypoint { value["executable"] = serde_json::json!({"facility":"sidecar","target":native_target(),"registrations":[]}); }
+        value
+    }).collect::<Vec<_>>();
+    let manifest: Manifest = serde_json::from_value(serde_json::json!({"schema":1,"identity":identity,"files":files}))?;
+    let mut archive = Builder::new(Vec::new());
+    let manifest = serde_json::to_vec(&manifest)?;
+    for (path, bytes) in std::iter::once(("manifest.json".to_owned(), manifest)).chain(contents) {
+        let mut header = Header::new_ustar();
+        header.set_entry_type(EntryType::Regular);
+        header.set_uid(0);
+        header.set_gid(0);
+        header.set_mtime(0);
+        header.set_size(bytes.len() as u64);
+        header.set_mode(if path == entrypoint { 0o755 } else { 0o644 });
+        header.set_cksum();
+        archive.append_data(&mut header, path, bytes.as_slice())?;
     }
-    Ok(manifest)
+    let bytes = archive.into_inner()?;
+    PluginBundle::inspect(&bytes, limits)?;
+    Ok(bytes)
+}
+
+pub fn inspect(path: &Path) -> Result<Value> {
+    let limits = Limits::default();
+    let bytes = read(path, limits.archive_bytes as u64)?;
+    let bundle = PluginBundle::inspect(&bytes, limits)?;
+    Ok(serde_json::to_value(bundle.manifest())?)
 }
 
 /* === Private Functions === */
 
-fn read(path: &Path, limit: u64) -> crate::Result<Vec<u8>> {
-    let file = std::fs::File::open(path)?;
+fn read(path: &Path, limit: u64) -> Result<Vec<u8>> {
+    let file = File::open(path)?;
     if file.metadata()?.len() > limit {
         return Err("Read Plugin Input: File Exceeds the Byte Bound".into());
     }
@@ -102,8 +138,106 @@ fn read(path: &Path, limit: u64) -> crate::Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn digest(bytes: &[u8]) -> String {
-    sha2::Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::inspect;
+    use harmos_runtime::bundle::Manifest;
+    use serde_json::Value;
+    use sha2::{Digest, Sha256};
+    use std::error::Error;
+    use std::fs::OpenOptions;
+    use std::io::ErrorKind;
+    use std::io::Write;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use tar::{Builder, EntryType, Header};
+
+    fn digest(bytes: &[u8]) -> String {
+        Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    struct Bundle(PathBuf);
+
+    impl Bundle {
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for Bundle {
+        fn drop(&mut self) {
+            std::fs::remove_file(&self.0).expect("Remove Owned Bundle Fixture");
+        }
+    }
+
+    fn bundle(files: &[(&str, &[u8])], manifest: &Value) -> Result<Bundle, Box<dyn Error + Send + Sync>> {
+        let (fixture, mut file) = loop {
+            let next = NEXT.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!("dokime-bundle-{}-{next}.tar", std::process::id()));
+            match OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(file) => break (Bundle(path), file),
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error.into()),
+            }
+        };
+        let mut archive = Builder::new(&mut file);
+        let manifest: Manifest = serde_json::from_value(manifest.clone())?;
+        let bytes = serde_json::to_vec(&manifest)?;
+        for (name, bytes) in std::iter::once(("manifest.json", bytes.as_slice())).chain(files.iter().copied()) {
+            let mut header = Header::new_ustar();
+            header.set_entry_type(EntryType::Regular);
+            header.set_uid(0);
+            header.set_gid(0);
+            header.set_mtime(0);
+            header.set_size(bytes.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            archive.append_data(&mut header, name, bytes)?;
+        }
+        archive.finish()?;
+        drop(archive);
+        file.flush()?;
+        drop(file);
+        Ok(fixture)
+    }
+
+    #[test]
+    fn inspect_bundle_preserves_inventory_and_refuses_tampered_content() -> Result<(), Box<dyn Error + Send + Sync>> {
+        // Inspect the Declared Content Without Extracting It
+        let bytes = b"plugin executable";
+        let manifest = serde_json::json!({"schema": 1, "identity": {"name": "example", "version": "1.0.0", "description": "", "package": {"authors": [], "license": null, "repository": null, "homepage": null, "documentation": null, "keywords": [], "categories": []}},
+            "files": [{"path": "bin/plugin", "size": bytes.len(), "sha256": digest(bytes)}]});
+        let file = bundle(&[("bin/plugin", bytes)], &manifest)?;
+        assert_eq!(inspect(file.path())?, manifest);
+
+        // Refuse Different Bytes at the Same Declared Path
+        let file = bundle(&[("bin/plugin", b"changed executable")], &manifest)?;
+        assert!(inspect(file.path()).is_err());
+
+        // Refuse an Unlisted File While Preserving the Input Archive
+        let file = bundle(&[("bin/plugin", bytes), ("extra", b"unlisted")], &manifest)?;
+        let before = std::fs::read(file.path())?;
+        assert!(inspect(file.path()).is_err());
+        assert_eq!(std::fs::read(file.path())?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn inspect_bundle_refuses_duplicate_members_and_missing_inventory() -> Result<(), Box<dyn Error + Send + Sync>> {
+        // Refuse Ambiguous Duplicate Archive Members
+        let bytes = b"plugin executable";
+        let manifest = serde_json::json!({"schema": 1, "identity": {"name": "example", "version": "1.0.0", "description": ""},
+            "files": [{"path": "bin/plugin", "size": bytes.len(), "sha256": digest(bytes)}]});
+        let file = bundle(&[("bin/plugin", bytes), ("bin/plugin", bytes)], &manifest)?;
+        assert!(inspect(file.path()).is_err());
+
+        // Refuse an Inventory That Names Absent Content
+        let file = bundle(&[], &manifest)?;
+        assert!(inspect(file.path()).is_err());
+        Ok(())
+    }
+}

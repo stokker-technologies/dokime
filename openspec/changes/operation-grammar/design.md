@@ -18,8 +18,8 @@ See proposal.md for the decision register and motivation.
 
 The read-only product and library research reports supplied for this change are
 inputs, not contracts. Current product protocols are in `proto/dokime/v1/`;
-the new host and handlers are in `crates/dokime-runtime-next/` and
-`crates/dokime-operations-next/`. The old loop is removed; the desktop native package remains outside workspace
+the new host and handlers are in `crates/dokime-runtime/` and
+`crates/dokime-operations/`. The old loop is removed; the desktop native package remains outside workspace
 membership until its independent host switch merges. `grpc-plugins/design.md`
 owns that combined restoration. The owner authorizes implementation under the combined grpc-plugins marker.
 
@@ -481,7 +481,7 @@ Split decision (2026-11-13): cycles belong to the execution manager because they
 only group its execution tasks; the additive host has no live recordings, so no
 capture manager is introduced (existing Media refusals remain).
 
-Split `crates/dokime-runtime-next/src/host.rs::Host/Inner` and
+Split `crates/dokime-runtime/src/host.rs::Host/Inner` and
 `services/state.rs::State` along those owners. Composition assembles handles;
 it is not another orchestration owner. Every service method stays thin: one
 operation file performs the work by calling its manager or storage. Delete the
@@ -1155,8 +1155,8 @@ checkout named by its report:
   131/262. PublishExecutionReport is present. Remove 264 twin-envelope messages;
   the final payload-message total remains unknown; neither subtraction nor the
   332 scoped method messages establishes it.
-- `crates/dokime-runtime-next/src/services/mod.rs`: 13 registered client services,
-  not complete serving of all 23. `dokime-operations-next/src/lib.rs` declares and
+- `crates/dokime-runtime/src/services/mod.rs`: 13 registered client services,
+  not complete serving of all 23. `dokime-operations/src/lib.rs` declares and
   dispatches exactly log, progress, record, records, statistics, prompt and library
   Sleep. The 17 context bindings are real requirements, not obsolete methods.
 - `crates/dokime-gui/src/lib/rpc/generated/client.ts`: 129 distinct canonical
@@ -1186,7 +1186,7 @@ checkout named by its report:
 
 The new host must serve every host operation plugins already declare: settings,
 secrets, artifact upload, traceability, document parts, file copy/capture, effect
-prepare/confirm, environment and clock-now. Nine host declarations/dispatches exist in crates/dokime-operations-next/src/lib.rs;
+prepare/confirm, environment and clock-now. Nine host declarations/dispatches exist in crates/dokime-operations/src/lib.rs;
 that implementation still lacks the remaining SDK-required capabilities. Do not hide these gaps by deleting SDK requirements. The desktop
 must move from its older generated contracts to the canonical new host, including
 plugin entry/remove shapes and published-report support, once in the combined

@@ -21,7 +21,15 @@ use std::{future::Future, pin::Pin, sync::Arc};
 // Third Party Imports
 
 // Local Imports
+use crate::message::Wire;
+use crate::plugin::AnalysesComputeRequest;
+use crate::plugin::AnalysesComputeResponse;
 use crate::{Context, Message, Result, context::Executions};
+use harmos::Error as HarmosError;
+use harmos::OperationPolicy;
+use harmos::Visibility;
+use harmos::plugin::Context as HarmosContext;
+use harmos::plugin::Operation as HarmosOperation;
 
 /* === Constants === */
 
@@ -36,8 +44,8 @@ pub(crate) type Action<T> = Arc<dyn Handler<T>>;
 
 // An Ordinary Plugin Operation Composed by Value.
 pub struct Operation {
-    register: Box<dyn FnOnce(Executions) -> harmos::Operation + Send>,
-    configure: Vec<Box<dyn FnOnce(harmos::Operation) -> harmos::Operation + Send>>,
+    register: Box<dyn FnOnce(Executions) -> HarmosOperation + Send>,
+    configure: Vec<Box<dyn FnOnce(HarmosOperation) -> HarmosOperation + Send>>,
 }
 
 struct Function<H>(H);
@@ -53,7 +61,7 @@ pub(crate) trait Handler<T>: Send + Sync {
 /* === Implementations === */
 
 impl Operation {
-    pub fn new<Q, R, H>(identifier: impl Into<String>, visibility: harmos::Visibility, handler: H) -> Self
+    pub fn new<Q, R, H>(identifier: impl Into<String>, visibility: Visibility, handler: H) -> Self
     where
         Q: Message,
         R: Message,
@@ -62,7 +70,7 @@ impl Operation {
         let identifier = identifier.into();
         Self {
             register: Box::new(move |executions| {
-                wire(identifier, visibility, async move |transport: &harmos::Context, request| {
+                wire(identifier, visibility, async move |transport: &HarmosContext, request| {
                     let context = Context::invocation(transport, &executions)?;
                     handler(&context, request).await
                 })
@@ -70,17 +78,36 @@ impl Operation {
             configure: Vec::new(),
         }
     }
+    pub fn analysis<H>(identifier: impl Into<String>, handler: H) -> Self
+    where
+        H: for<'a> AsyncFn(&'a Context, AnalysesComputeRequest) -> Result<AnalysesComputeResponse> + Send + Sync + 'static,
+    {
+        let identifier = identifier.into();
+        Self {
+            register: Box::new(move |executions| {
+                wire(
+                    identifier,
+                    Visibility::Protected,
+                    async move |transport: &HarmosContext, Wire(request): Wire<AnalysesComputeRequest>| {
+                        let context = Context::invocation(transport, &executions)?;
+                        Ok(Wire(handler(&context, request).await?))
+                    },
+                )
+            }),
+            configure: Vec::new(),
+        }
+    }
     pub fn replay_safe(self) -> Self {
         self.configure(|operation| operation.replay_safe())
     }
-    pub fn policy(self, policy: harmos::OperationPolicy) -> Self {
+    pub fn policy(self, policy: OperationPolicy) -> Self {
         self.configure(move |operation| operation.policy(policy))
     }
     pub fn description(self, description: impl Into<String>) -> Self {
         let description = description.into();
         self.configure(move |operation| operation.description(description))
     }
-    fn configure(mut self, configure: impl FnOnce(harmos::Operation) -> harmos::Operation + Send + 'static) -> Self {
+    fn configure(mut self, configure: impl FnOnce(HarmosOperation) -> HarmosOperation + Send + 'static) -> Self {
         self.configure.push(Box::new(configure));
         self
     }
@@ -113,14 +140,14 @@ where
     Arc::new(Function(handler))
 }
 
-pub(crate) fn wire<Q, R, H>(identifier: impl Into<String>, visibility: harmos::Visibility, handler: H) -> harmos::Operation
+pub(crate) fn wire<Q, R, H>(identifier: impl Into<String>, visibility: Visibility, handler: H) -> HarmosOperation
 where
     Q: Message,
     R: Message,
-    H: for<'a> AsyncFn(&'a harmos::Context, Q) -> Result<R> + Send + Sync + 'static,
+    H: for<'a> AsyncFn(&'a HarmosContext, Q) -> Result<R> + Send + Sync + 'static,
 {
-    harmos::Operation::new(identifier, async move |context: &harmos::Context, request| {
-        handler(context, request).await.map_err(harmos::Error::from)
+    HarmosOperation::new(identifier, async move |context: &HarmosContext, request| {
+        handler(context, request).await.map_err(HarmosError::from)
     })
     .visibility(visibility)
 }

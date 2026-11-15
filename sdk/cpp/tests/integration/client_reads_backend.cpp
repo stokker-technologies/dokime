@@ -12,11 +12,45 @@
 #include "../support/backend.hpp"
 #include "../support/check.hpp"
 #include "dokime/client.hpp"
+#include "dokime/host/v1/evidence.grpc.pb.h"
+#include "dokime/host/v1/executions/schemas.grpc.pb.h"
+#include "dokime/host/v1/plots/snapshots.grpc.pb.h"
 #include "harmos/harmos.hpp"
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
 #include <google/protobuf/empty.pb.h>
 #include <google/protobuf/wrappers.pb.h>
+
+using dokime::Client;
+using dokime::client::ExecutionDetail;
+using dokime::client::FrozenSchemaCache;
+using dokime::client::StatusGetOptions;
+using dokime::client::StatusLogsWatchOptions;
+using WireEvidence = dokime::host::v1::Evidence;
+using WireSnapshots = dokime::host::v1::plots::Snapshots;
+using dokime::EvidenceScope;
+using dokime::client::PlotsPlotRequest;
+using dokime::host::v1::EvidenceStatisticsRequest;
+using dokime::host::v1::EvidenceStatisticsResponse;
+using dokime::host::v1::plots::SnapshotsListRequest;
+using dokime::host::v1::plots::SnapshotsListResponse;
+using WireSchemas = dokime::host::v1::executions::Schemas;
+using dokime::host::v1::executions::SchemasGetRequest;
+using dokime::host::v1::executions::SchemasGetResponse;
+using google::protobuf::BoolValue;
+using google::protobuf::Empty;
+using google::protobuf::FileDescriptorSet;
+using grpc::ClientContext;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
+using grpc::Status;
+using grpc::StatusCode;
+using harmos::client::PLUGIN_STATE_CONNECTING;
+using harmos::client::PluginPlacement;
+using harmos::client::PluginValue;
+
+using std::make_shared;
+using std::runtime_error;
 
 /* === Macros === */
 
@@ -26,18 +60,47 @@
 
 /* === Classes === */
 
-class Schemas : public dokime::client::v1::executions::Schemas::Service {
+class Evidence final : public WireEvidence::Service {
+  Status Statistics(ServerContext *, const EvidenceStatisticsRequest *request, EvidenceStatisticsResponse *reply) override {
+    if (request->scope().execution_id() != "execution" || request->stream() != "measurements")
+      return {StatusCode::INVALID_ARGUMENT, "Read Statistics: Select Execution Measurements"};
+    auto *statistics = reply->mutable_statistics();
+    statistics->set_count(2);
+    statistics->mutable_sum()->mutable_exact()->set_numerator("36893488147419103229");
+    statistics->mutable_sum()->mutable_exact()->set_denominator("1");
+    statistics->mutable_mean()->mutable_exact()->set_numerator("36893488147419103229");
+    statistics->mutable_mean()->mutable_exact()->set_denominator("2");
+    statistics->mutable_max()->set_unsigned_integer(18446744073709551615ULL);
+    return Status::OK;
+  }
+};
+
+class Snapshots final : public WireSnapshots::Service {
+  Status List(ServerContext *, const SnapshotsListRequest *request, SnapshotsListResponse *reply) override {
+    if (request->requests_size() != 1 || request->requests(0).stream() != "measurements")
+      return {StatusCode::INVALID_ARGUMENT, "Read Snapshots: Select Measurements"};
+    auto *payload = reply->add_envelopes()->mutable_payload();
+    auto *total = payload->mutable_frame()->add_series()->add_totals()->mutable_exact();
+    total->set_numerator("36893488147419103229");
+    total->set_denominator("1");
+    auto *mean = payload->add_summaries()->mutable_mean()->mutable_exact();
+    mean->set_numerator("36893488147419103229");
+    mean->set_denominator("2");
+    return Status::OK;
+  }
+};
+
+class Schemas : public WireSchemas::Service {
 public:
-  google::protobuf::FileDescriptorSet types;
+  FileDescriptorSet types;
   std::atomic<int> calls = 0;
   Schemas() {
-    google::protobuf::BoolValue::descriptor()->file()->CopyTo(types.add_file());
-    google::protobuf::Empty::descriptor()->file()->CopyTo(types.add_file());
+    BoolValue::descriptor()->file()->CopyTo(types.add_file());
+    Empty::descriptor()->file()->CopyTo(types.add_file());
   }
-  grpc::Status Get(grpc::ServerContext *context, const dokime::client::v1::executions::SchemasGetRequest *request,
-                   dokime::client::v1::executions::SchemasGetResponse *reply) override {
+  Status Get(ServerContext *context, const SchemasGetRequest *request, SchemasGetResponse *reply) override {
     if (!context->client_metadata().contains("authorization"))
-      return {grpc::StatusCode::UNAUTHENTICATED, "Get Schemas: Supply Credentials"};
+      return {StatusCode::UNAUTHENTICATED, "Get Schemas: Supply Credentials"};
     ++calls;
     auto cut = reply->mutable_resolved_at();
     cut->mutable_history()->set_store("schemas");
@@ -45,11 +108,11 @@ public:
     cut->set_sequence(1);
     const bool first = request->page().page_token().empty();
     if (!first && (request->at().SerializeAsString() != cut->SerializeAsString() || request->page().page_token() != "second"))
-      return {grpc::StatusCode::INVALID_ARGUMENT, "Get Schemas: Continue the Same Read Cut"};
-    reply->set_digest(harmos::detail::sha256(types.SerializeAsString()));
+      return {StatusCode::INVALID_ARGUMENT, "Get Schemas: Continue the Same Read Cut"};
+    reply->set_digest(harmos::plugin::detail::sha256(types.SerializeAsString()));
     *reply->mutable_types()->add_file() = types.file(first ? 0 : 1);
     reply->set_next_page_token(first ? "second" : "");
-    return grpc::Status::OK;
+    return Status::OK;
   }
 };
 
@@ -68,89 +131,102 @@ TEST_CASE("Client Reads the Backend") {
   Suites suites;
   Logs log_service;
   Schemas schema_service;
-  grpc::ServerBuilder builder;
+  Evidence evidence_service;
+  Snapshots snapshot_service;
+  ServerBuilder builder;
   builder.RegisterService(&backend);
   builder.RegisterService(&plugins);
   builder.RegisterService(&suites);
   builder.RegisterService(&log_service);
   builder.RegisterService(&schema_service);
+  builder.RegisterService(&evidence_service);
+  builder.RegisterService(&snapshot_service);
   auto server = builder.BuildAndStart();
   check(bool(server), "Fake Backend Did Not Start");
   auto channel = server->InProcessChannel({});
-  dokime::Client client(channel);
+  Client client(channel);
 
   // Pair and Read Its Identity Through the Generated Stub.
-  grpc::ClientContext authenticated;
-  authenticated.AddMetadata("authorization", "Bearer test");
-  auto identity = client.status.get(authenticated, {});
+  StatusGetOptions authenticated;
+  authenticated.context = make_shared<ClientContext>();
+  authenticated.context->AddMetadata("authorization", "Bearer test");
+  auto identity = client.status.get(authenticated);
   check(identity.status().identity().host_id() == "bench", "Backend Identity Was Lost");
 
   // Watch Evidence Until the Backend Closes the Stream.
-  grpc::ClientContext watching;
-  watching.AddMetadata("authorization", "Bearer test");
-  auto logs = client.status.logs.watch(watching, {});
-  harmos::v1::status::LogsWatchResponse frame;
-  check(logs->Read(&frame) && frame.events(0).target() == "execution", "Log Was Lost");
-  check(!logs->Read(&frame) && logs->Finish().ok(), "Log Stream Did Not Finish");
+  StatusLogsWatchOptions watching;
+  watching.context = make_shared<ClientContext>();
+  watching.context->AddMetadata("authorization", "Bearer test");
+  auto logs = client.status.logs.watch(1024 * 1024, 1024, watching);
+  const auto frame = logs.next();
+  check(frame && frame->events(0).target() == "execution", "Log Was Lost");
+  check(!logs.next(), "Log Stream Did Not Finish");
 
-  // Read Without Pairing and Retain the Backend's Actionable Failure.
-  grpc::ClientContext unpaired;
+  // Read Without Pairing and Retain the Backend Refusal.
   bool refused = false;
   try {
-    client.status.get(unpaired, {});
-  } catch (const std::runtime_error &) {
+    client.status.get();
+  } catch (const runtime_error &) {
     refused = true;
   }
-  grpc::ClientContext checking_refusal;
-  harmos::v1::StatusGetResponse refused_response;
-  auto status_stub = client.stub<harmos::v1::Status>();
-  auto failure = status_stub->Get(&checking_refusal, {}, &refused_response);
-  check(refused && failure.error_code() == grpc::StatusCode::UNAUTHENTICATED, "Authentication Failure Was Hidden");
+  check(refused, "Authentication Failure Was Hidden");
 
   // Read a Product Registry Through Its Top-Level Client Root.
-  grpc::ClientContext reading_suite;
-  dokime::client::v1::SuitesGetRequest suite_request;
-  suite_request.set_name("sample");
-  auto suite = client.suites.get(reading_suite, suite_request);
-  check(suite.value().metadata().identifier() == suite_request.name(), "Suite Registry Read Was Lost");
+  auto suite = client.suites.get("sample", "", 0);
+  check(suite.value().metadata().identifier() == "sample", "Suite Registry Read Was Lost");
 
   // Retain a Product Resource Failure Through the Root.
-  grpc::ClientContext missing_suite;
   refused = false;
   try {
-    client.suites.get(missing_suite, {});
-  } catch (const std::runtime_error &) {
+    client.suites.get("", "", 0);
+  } catch (const runtime_error &) {
     refused = true;
   }
   check(refused, "Missing Suite Became an Empty Success");
 
-  // Add a Remote Entry and Read Its Canonical Placement Through Generated Stubs.
-  auto plugin_stub = client.stub<dokime::client::v1::Plugins>();
-  dokime::client::v1::AddRemotePlugin request;
-  request.set_url("http://127.0.0.1:7001");
-  grpc::ClientContext adding;
-  auto added = client.unary(*plugin_stub, &dokime::client::v1::Plugins::Stub::Add, request, adding);
-  grpc::ClientContext listing;
-  auto listed = client.unary(*plugin_stub, &dokime::client::v1::Plugins::Stub::List, dokime::client::v1::ListPlugins{}, listing);
-  check(listed.plugins_size() == 1 && listed.plugins(0).entry() == added.entry(), "Plugin Entry Was Lost");
-  check(listed.plugins(0).remote().url() == request.url(), "Remote Placement Was Lost");
-  check(listed.plugins(0).state() == dokime::client::v1::PLUGIN_STATE_CONNECTING, "Plugin State Was Lost");
+  // Create a Remote Entry and Read Its Canonical Library Placement.
+  PluginPlacement placement;
+  placement.mutable_remote()->set_url("http://127.0.0.1:7001");
+  PluginValue value;
+  value.set_enabled(true);
+  auto added = client.plugins.create("sample", placement, value);
+  auto listed = client.plugins.list();
+  check(listed.entries_size() == 1 && listed.entries(0).name() == added.entry().name(), "Plugin Entry Was Lost");
+  check(listed.entries(0).placement().remote().url() == placement.remote().url(), "Remote Placement Was Lost");
+  check(listed.entries(0).state() == PLUGIN_STATE_CONNECTING, "Plugin State Was Lost");
 
   // Retain the Generated Method's Server Refusal.
-  grpc::ClientContext invalid;
   refused = false;
   try {
-    client.unary(*plugin_stub, &dokime::client::v1::Plugins::Stub::Add, dokime::client::v1::AddRemotePlugin{}, invalid);
-  } catch (const dokime::RpcError &error) {
-    refused = error.status().error_code() == grpc::StatusCode::INVALID_ARGUMENT;
+    client.plugins.create("invalid", {}, value);
+  } catch (const runtime_error &) {
+    refused = true;
   }
   check(refused, "Plugin Refusal Was Hidden");
+  // Read Exact Statistics and Plot Values Through the Generated Client.
+  EvidenceScope scope;
+  scope.set_execution_id("execution");
+  const auto measured = client.evidence.statistics(scope, "measurements", {}, {}, {}, "", "");
+  const auto &statistics = measured.statistics();
+  check(statistics.has_sum() && statistics.sum().has_exact() && statistics.sum().exact().numerator() == "36893488147419103229",
+        "Statistics Sum Was Coerced");
+  check(statistics.mean().has_exact() && statistics.mean().exact().denominator() == "2", "Statistics Mean Was Coerced");
+  check(statistics.max().unsigned_integer() == 18446744073709551615ULL && !statistics.has_min(), "Typed Statistics Presence Was Lost");
+  PlotsPlotRequest plot_request;
+  plot_request.set_stream("measurements");
+  const auto plots = client.plots.snapshots.list({plot_request});
+  const auto &payload = plots.envelopes(0).payload();
+  check(payload.frame().series(0).totals(0).exact().numerator() == statistics.sum().exact().numerator(), "Category Total Was Coerced");
+  check(payload.summaries(0).mean().has_exact() && payload.summaries(0).mean().exact().denominator() == "2" &&
+            !payload.summaries(0).has_std(),
+        "Typed Plot Summary Presence Was Lost");
+
   // Fetch Complete Descriptor Pages, Then Reuse Them for Another Execution.
-  dokime::FrozenSchemaCache schemas;
-  dokime::client::v1::ExecutionDetail detail;
+  FrozenSchemaCache schemas;
+  ExecutionDetail detail;
   detail.mutable_summary()->set_execution_id("first");
-  detail.mutable_schemas()->set_digest(harmos::detail::sha256(schema_service.types.SerializeAsString()));
-  const auto configure = [](grpc::ClientContext &context) { context.AddMetadata("authorization", "Bearer test"); };
+  detail.mutable_schemas()->set_digest(harmos::plugin::detail::sha256(schema_service.types.SerializeAsString()));
+  const auto configure = [](ClientContext &context) { context.AddMetadata("authorization", "Bearer test"); };
   const auto types = schemas.get(client, detail, configure);
   check(types->file_size() == 2 && types->file(0).name() == "google/protobuf/wrappers.proto" &&
             types->file(1).name() == "google/protobuf/empty.proto",

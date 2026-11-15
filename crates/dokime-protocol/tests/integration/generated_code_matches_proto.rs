@@ -16,13 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{fs, path::Path};
+use std::fs;
+use std::path::Path;
 
 // Third Party Imports
 
 // Local Imports
 use dokime_protocol::builders::Plot as PlotBuilder;
-use dokime_protocol::v1::PlotKind;
+use dokime_protocol::model::PlotKind;
+use dokime_protocol::model::Step;
+use dokime_protocol::model::TestCase;
+use dokime_protocol::plugin::{StepsExecuteRequest, StepsExecuteResponse};
 use harmos_protocol::plugin::InstanceGetResponse;
 use prost_reflect::ReflectMessage;
 use prost_types::Duration;
@@ -135,7 +139,7 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn typed_plot_builders_produce_canonical_document_messages() {
-    use dokime_protocol::v1::*;
+    use dokime_protocol::model::*;
     use prost::Message;
     let scan = FieldReference::new("scan");
     let surface = PlotBuilder::contour(scan.field("temperature").scale(1.0))
@@ -189,71 +193,65 @@ fn typed_plot_builders_produce_canonical_document_messages() {
 }
 
 #[test]
-fn descriptors_separate_faces_and_use_resource_wrappers() {
-    // Discover the Complete Product Service Surface.
+fn descriptors_separate_executors_and_admit_declared_callers() {
+    use harmos_protocol::model::Callers;
+    use harmos_protocol::schema::method_callers;
+
+    // Discover Real Services on Both Executors and Keep Values Service-Free.
     let pool = dokime_protocol::descriptor_pool();
-    let mut methods = Vec::new();
+    let mut host_methods = Vec::new();
+    let mut plugin_methods = Vec::new();
     for service in pool.services().filter(|service| service.package_name().starts_with("dokime.")) {
-        assert!(service.package_name().starts_with("dokime.client.v1") || service.package_name().starts_with("dokime.plugin.host.v1"));
+        let host = service.package_name().starts_with("dokime.host.v1");
+        let plugin = service.package_name() == "dokime.plugin.v1";
+        assert!(host || plugin);
         assert_eq!(service.parent_file().services().count(), 1);
         assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", heck::AsSnakeCase(service.name())));
         for method in service.methods() {
-            assert!(!method.name().starts_with("Run"));
-            if matches!(service.full_name(), "dokime.client.v1.Plugins" | "dokime.client.v1.Content") {
-                continue;
-            }
             assert_eq!(method.input().name(), format!("{}{}Request", service.name(), method.name()));
             assert_eq!(method.output().name(), format!("{}{}Response", service.name(), method.name()));
             assert!(!method.is_client_streaming());
             assert_eq!(method.is_server_streaming(), method.name() == "Watch");
-            if matches!(
-                method.name(),
-                "Get"
-                    | "List"
-                    | "Read"
-                    | "Watch"
-                    | "Parameters"
-                    | "Steps"
-                    | "Schema"
-                    | "Analyses"
-                    | "Appearance"
-                    | "Statistics"
-                    | "Archive"
-            ) {
+            if plugin {
+                assert!(method_callers(&method).is_err());
+                plugin_methods.push(method);
+                continue;
+            }
+            let callers = method_callers(&method).unwrap();
+            assert!(matches!(callers, Callers::Clients | Callers::Plugins | Callers::All));
+            if matches!(method.name(), "Get" | "List" | "Read" | "Watch" | "Statistics" | "Archive") {
                 assert!(method.input().get_field_by_name("at").unwrap().supports_presence());
                 assert!(method.output().get_field_by_name("resolved_at").is_some());
             }
             if method.name() == "Set" {
-                let get = service.methods().find(|candidate| candidate.name() == "Get").unwrap();
-                assert_eq!(
-                    get.output().get_field_by_name("value").unwrap().kind(),
-                    method.input().get_field_by_name("value").unwrap().kind()
-                );
-                assert!(get.output().get_field_by_name("revision").is_some());
                 assert!(method.input().get_field_by_name("expected_revision").is_some());
                 assert!(method.input().get_field_by_name("request_id").is_some());
                 assert!(method.output().get_field_by_name("receipt").is_some());
+                if let Some(get) = service.methods().find(|candidate| candidate.name() == "Get") {
+                    assert_eq!(
+                        get.output().get_field_by_name("value").unwrap().kind(),
+                        method.input().get_field_by_name("value").unwrap().kind()
+                    );
+                    assert!(get.output().get_field_by_name("revision").is_some());
+                }
             }
-            methods.push(method);
+            host_methods.push(method);
         }
     }
-    assert!(!methods.is_empty());
-    // Plugin and Context Payloads Are Carried, Never Independent RPC Services.
-    for message in
-        pool.all_messages().filter(|message| message.package_name() == "dokime.v1" || message.package_name().starts_with("dokime.plugin."))
-    {
-        if message.package_name() == "dokime.v1" || message.package_name() == "dokime.plugin.v1" {
-            assert_eq!(message.parent_file().services().count(), 0);
-        }
+    assert!(!host_methods.is_empty());
+    assert!(!plugin_methods.is_empty());
+    for file in pool.files().filter(|file| file.package_name() == "dokime.model.v1") {
+        assert_eq!(file.services().count(), 0);
     }
 }
 
 #[test]
 fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
-    use dokime_protocol::client::*;
-    use dokime_protocol::v1::*;
+    use dokime_protocol::host::*;
+    use dokime_protocol::model::*;
     use prost::Message;
-    use prost_reflect::{DynamicMessage, ReflectMessage};
+    use prost_reflect::DynamicMessage;
+    use prost_reflect::ReflectMessage;
 
     // Reflect Plan Admission Against the Final Resource Service.
     let request = CasesCreateRequest {
@@ -276,7 +274,7 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
         request_id: "plan-request".into(),
         ..Default::default()
     };
-    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.client.v1.Cases").unwrap();
+    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.host.v1.Cases").unwrap();
     let method = service.methods().find(|method| method.name() == "Create").unwrap();
     assert_eq!(method.input(), request.descriptor());
     let reflected = DynamicMessage::decode(method.input(), request.encode_to_vec().as_slice()).unwrap();
@@ -317,7 +315,7 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
         }),
         ..Default::default()
     };
-    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.client.v1.Executions").unwrap();
+    let service = dokime_protocol::descriptor_pool().get_service_by_name("dokime.host.v1.Executions").unwrap();
     let method = service.methods().find(|method| method.name() == "Get").unwrap();
     let reflected = DynamicMessage::decode(method.output(), response.encode_to_vec().as_slice()).unwrap();
     let decoded = reflected.transcode_to::<ExecutionsGetResponse>().unwrap();
@@ -328,17 +326,20 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
 #[test]
 fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
     use ReflectMessage;
-    use dokime_protocol::{plugin, v1};
-    use harmos_protocol::v1::{Catalog, OperationContract, OperationPolicy, Visibility};
+
+    use harmos_protocol::model::Declarations;
+    use harmos_protocol::model::OperationContract;
+    use harmos_protocol::model::OperationPolicy;
+    use harmos_protocol::model::Visibility;
     use prost::Message;
 
     // Independent Dotted Bindings Share One Typed Step Payload Family.
-    let mut catalog = Catalog::default();
+    let mut catalog = Declarations::default();
     for (id, seconds) in [("measurement.sample.step.0", 2), ("measurement.sample.step.1", 9)] {
         catalog.operations.push(OperationContract {
             id: id.into(),
-            request: plugin::StepsExecuteRequest::default().descriptor().full_name().into(),
-            response: plugin::StepsExecuteResponse::default().descriptor().full_name().into(),
+            request: StepsExecuteRequest::default().descriptor().full_name().into(),
+            response: StepsExecuteResponse::default().descriptor().full_name().into(),
             visibility: Visibility::Protected as i32,
             policy: Some(OperationPolicy {
                 timeout: Some(Duration { seconds, nanos: 0 }),
@@ -347,18 +348,18 @@ fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
             ..Default::default()
         });
     }
-    let case = v1::TestCase {
+    let case = TestCase {
         steps: catalog
             .operations
             .iter()
-            .map(|operation| v1::Step {
+            .map(|operation| Step {
                 operation: operation.id.clone(),
                 ..Default::default()
             })
             .collect(),
         ..Default::default()
     };
-    let restored = Catalog::decode(catalog.encode_to_vec().as_slice()).unwrap();
+    let restored = Declarations::decode(catalog.encode_to_vec().as_slice()).unwrap();
     assert_eq!(restored, catalog);
     assert_ne!(restored.operations[0].id, restored.operations[1].id);
     assert_ne!(restored.operations[0].policy, restored.operations[1].policy);

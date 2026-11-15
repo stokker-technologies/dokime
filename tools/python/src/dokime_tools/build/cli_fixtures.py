@@ -46,7 +46,7 @@ def build(profile: str, language: str = "rust") -> None:
 
     # Build the CLI Through the Project Task.
     subprocess.run(
-        ["mise", "run", "build", "--", "--package", "dokime-cli-next"],
+        ["mise", "run", "build", "--", "--package", "dokime-cli"],
         cwd=root,
         check=True,
         creationflags=spawn_flags(),
@@ -54,7 +54,7 @@ def build(profile: str, language: str = "rust") -> None:
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
-    cli = root / "target/debug" / f"dokime-next{extension}"
+    cli = root / "target/debug" / f"dokime{extension}"
     output = paths.output(root, "build", profile) / "fixtures/cli"
     output.mkdir(parents=True, exist_ok=True)
     # A Freshly Generated Project Has No Tool Lock; Resolve Its Declared Tools Unlocked.
@@ -65,6 +65,7 @@ def build(profile: str, language: str = "rust") -> None:
     if language == "rust":
         with tempfile.TemporaryDirectory(prefix="dokime-cli-") as scratch:
             project = Path(scratch) / "rust"
+            example = project / "test"
 
             # Generate the User's Rust Project With the Real Command-Line Tool.
             subprocess.run(
@@ -77,7 +78,7 @@ def build(profile: str, language: str = "rust") -> None:
                 stderr=sys.stderr,
             )
             subprocess.run(
-                ["mise", "trust", str(project / "mise.toml")],
+                ["mise", "trust", str(example / "mise.toml")],
                 cwd=root,
                 check=True,
                 creationflags=spawn_flags(),
@@ -89,7 +90,7 @@ def build(profile: str, language: str = "rust") -> None:
             # Build the Generated Source Against the SDK Candidate.
             sdk = (root / "sdk/rust").as_posix()
             result = subprocess.run(
-                ["mise", "-C", str(project), "run", "build", "--", "--config", f"patch.crates-io.dokime.path='{sdk}'"],
+                ["mise", "-C", str(example), "run", "build", "--", "--config", f"patch.crates-io.dokime.path='{sdk}'"],
                 cwd=root,
                 env=environment,
                 check=False,
@@ -101,10 +102,11 @@ def build(profile: str, language: str = "rust") -> None:
             print(result.stderr, flush=True)
             result.check_returncode()
             shutil.copytree(project, output / "rust", dirs_exist_ok=True)
-        shutil.copy2(root / "target/debug" / f"dokime-starter{extension}", output / f"dokime-starter{extension}")
+        shutil.copy2(root / "target/debug" / f"dokime-example-test{extension}", output / f"dokime-example-test{extension}")
     else:
         with tempfile.TemporaryDirectory(prefix="dokime-cli-") as scratch:
             project = Path(scratch) / language
+            example = project / ("Test" if language == "csharp" else "test")
             arguments = [str(cli), "new", str(project), "--lang", language]
             if language == "cpp":
                 sdk = root / "target/cp/tests/dokime-cpp.tar.gz"
@@ -122,7 +124,7 @@ def build(profile: str, language: str = "rust") -> None:
                 stderr=sys.stderr,
             )
             subprocess.run(
-                ["mise", "trust", str(project / "mise.toml")],
+                ["mise", "trust", str(example / "mise.toml")],
                 cwd=root,
                 check=True,
                 creationflags=spawn_flags(),
@@ -132,13 +134,11 @@ def build(profile: str, language: str = "rust") -> None:
             )
             if language == "python":
                 wheel = next((paths.output(root, "build", profile, "any") / "python").glob("*.whl"))
-                with (project / "pyproject.toml").open("a", encoding="utf-8") as manifest:
+                with (example / "pyproject.toml").open("a", encoding="utf-8") as manifest:
                     manifest.write(f"\n[tool.uv.sources]\ndokime-sdk = {{ path = {json.dumps(wheel.as_posix())} }}\n")
-                environment["DOKIME_TEST_HOST"] = str(
-                    paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host-next{extension}"
-                )
+                environment["DOKIME_TEST_HOST"] = str(paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host{extension}")
                 subprocess.run(
-                    ["mise", "-C", str(project), "run", "build"],
+                    ["mise", "-C", str(example), "run", "build"],
                     cwd=root,
                     env=environment,
                     check=True,
@@ -148,7 +148,7 @@ def build(profile: str, language: str = "rust") -> None:
                     stderr=sys.stderr,
                 )
                 subprocess.run(
-                    ["mise", "-C", str(project), "run", "test"],
+                    ["mise", "-C", str(example), "run", "test"],
                     cwd=root,
                     env=environment,
                     check=True,
@@ -159,7 +159,7 @@ def build(profile: str, language: str = "rust") -> None:
                 )
             elif language == "csharp":
                 subprocess.run(
-                    ["mise", "-C", "sdk/csharp", "run", "build:starter", "--", "--project", str(project / "Starter.csproj")],
+                    ["mise", "-C", "sdk/csharp", "run", "build:starter", "--", "--project", str(example / "Test.csproj")],
                     cwd=root,
                     env=environment,
                     check=True,
@@ -168,7 +168,7 @@ def build(profile: str, language: str = "rust") -> None:
                     stdout=sys.stdout,
                     stderr=sys.stderr,
                 )
-                environment["DOKIME_STARTER"] = str(project / f"bin/Release/net10.0/dokime-starter{extension}")
+                environment["DOKIME_STARTER"] = str(example / f"bin/Release/net10.0/dokime-example-test{extension}")
                 subprocess.run(
                     ["mise", "-C", "sdk/csharp", "run", "test:starter"],
                     cwd=root,
@@ -179,10 +179,10 @@ def build(profile: str, language: str = "rust") -> None:
                     stdout=sys.stdout,
                     stderr=sys.stderr,
                 )
-                shutil.copytree(project / "bin/Release/net10.0", output / "csharp", dirs_exist_ok=True)
+                shutil.copytree(example / "bin/Release/net10.0", output / "csharp", dirs_exist_ok=True)
             else:
                 subprocess.run(
-                    ["mise", "-C", "sdk/cpp", "run", "consumer", "--", "--source", str(project)],
+                    ["mise", "-C", "sdk/cpp", "run", "consumer", "--", "--source", str(example)],
                     cwd=root,
                     env=environment,
                     check=True,

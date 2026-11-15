@@ -11,14 +11,21 @@
 
 /* === Modules === */
 
+#[rustfmt::skip]
+mod exports;
+mod wire {
+    pub(crate) use dokime_protocol::{host, model, plugin};
+}
+
 pub mod client;
 mod context;
 mod data;
 mod error;
-pub mod host;
+#[rustfmt::skip]
+mod host;
 mod message;
 mod operation;
-mod plugin;
+pub mod plugin;
 pub mod prelude;
 mod prompt;
 mod record;
@@ -29,20 +36,16 @@ mod template;
 /* === Re-Exports === */
 
 pub use client::{Client, ClientSettings};
-pub use context::Context;
+use context::Context;
 pub use data::FromValue;
 pub use dokime_derive::{Message, Parameters, Record, Row, Settings};
-pub use dokime_protocol::{builders, dokime as protocol, v1};
 pub use error::{Error, Result};
-pub use harmos::clock;
-pub use harmos::{Classification, Failure, OperationPolicy, OperationRequest, Publisher, Visibility};
-pub use operation::Operation;
-pub use plugin::{CatalogTypes, Plugin};
-pub use prompt::Prompt;
-pub use record::Record;
-pub use stream::{Observer, Stream};
-pub use suite::Suite;
-pub use template::{Criterion, Step, Template};
+pub use exports::*;
+pub use harmos::OperationRequest;
+
+use plugin::Plugin;
+use record::Record;
+use stream::{Observer, Stream};
 
 /* === Imports === */
 
@@ -52,6 +55,7 @@ pub use template::{Criterion, Step, Template};
 extern crate self as dokime;
 
 // Local Imports
+use harmos::Message as HarmosMessage;
 
 /* === Constants === */
 
@@ -66,11 +70,11 @@ extern crate self as dokime;
 /* === Traits === */
 
 // Protobuf Data with the Harmos Descriptor Contract.
-pub trait Message: harmos::Message {}
+pub trait Message: HarmosMessage {}
 
 /* === Implementations === */
 
-impl<T: harmos::Message> Message for T {}
+impl<T: HarmosMessage> Message for T {}
 
 /* === Public Functions === */
 

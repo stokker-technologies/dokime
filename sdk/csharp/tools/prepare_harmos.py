@@ -39,15 +39,15 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision = "81d32d3bc9ab3e2121746923712ec9508cee3ec7"
-root = Path(__file__).resolve().parents[1]
-feed = root / "../../target/cs/feed"
+revision: str = "7181b5ed33c9d2be79c38d266b0a97d838b05ed6"
+root: Path = Path(__file__).resolve().parents[1]
+feed: Path = root / "../../target/cs/feed"
 feed.mkdir(parents=True, exist_ok=True)
-output = (root / "../../target/cs/h").resolve()
+output: Path = (root / "../../target/cs/h").resolve()
 output.mkdir(parents=True, exist_ok=True)
-source = os.environ.get("HARMOS_SOURCE")
+source: str | None = os.environ.get("HARMOS_SOURCE")
 if source:
-    archive = subprocess.check_output(
+    archive: bytes = subprocess.check_output(
         [
             "git",
             "-C",
@@ -55,32 +55,48 @@ if source:
             "archive",
             "--format=zip",
             revision,
-            "sdk/csharp/Harmos",
+            "sdk/csharp/src/Harmos",
+            "sdk/csharp/tests/Harmos.Conformance",
             "sdk/csharp/Directory.Build.props",
+            "sdk/tests/fixtures/conformance/proto",
             "proto",
         ]
     )
-    with zipfile.ZipFile(io.BytesIO(archive)) as files:
+    files = zipfile.ZipFile(io.BytesIO(archive))
+    try:
         files.extractall(output)
+    finally:
+        files.close()
 else:
-    url = f"https://github.com/stokker-technologies/harmos/archive/{revision}.tar.gz"
-    with urllib.request.urlopen(url) as response:
+    url: str = f"https://github.com/stokker-technologies/harmos/archive/{revision}.tar.gz"
+    response = urllib.request.urlopen(url)
+    try:
         archive = response.read()
-    with tarfile.open(fileobj=io.BytesIO(archive)) as files:
-        for member in files.getmembers():
+    finally:
+        response.close()
+    members = tarfile.open(fileobj=io.BytesIO(archive))
+    try:
+        for member in members.getmembers():
             relative = Path(*Path(member.name).parts[1:])
             if (
-                relative.as_posix().startswith(("sdk/csharp/Harmos/", "proto/"))
+                relative.as_posix().startswith(
+                    ("sdk/csharp/src/Harmos/", "sdk/csharp/tests/Harmos.Conformance/", "sdk/tests/fixtures/conformance/proto/", "proto/")
+                )
                 or relative.as_posix() == "sdk/csharp/Directory.Build.props"
             ):
                 member.name = str(relative)
-                files.extract(member, output, filter="data")
+                members.extract(member, output, filter="data")
+    finally:
+        members.close()
 
 shutil.copyfile(root / "tools/Harmos.csproj", output / "Harmos.csproj")
 subprocess.run(
     [
         sys.argv[1],
         "pack",
+        "-p:RestorePackagesWithLockFile=true",
+        f"-p:NuGetLockFilePath={root / 'tools/Harmos.packages.lock.json'}",
+        "-p:RestoreLockedMode=" + ("false" if "--refresh-lock" in sys.argv else "true"),
         str(output / "Harmos.csproj"),
         "--configuration",
         "Release",
@@ -92,5 +108,10 @@ subprocess.run(
     check=True,
 )
 
-# Invalidate Only This SDK's Mutable Local Feed Cache.
-shutil.rmtree(output.parent / "packages/harmos", ignore_errors=True)
+# Explicit Lock Refresh Retires Only This SDK's Owned Library Package Caches.
+if "--refresh-lock" in sys.argv:
+    for relative in ("packages/harmos", "generation/packages/harmos"):
+        cache = (output.parent / relative).resolve()
+        if not cache.is_relative_to(output.parent):
+            raise ValueError("Refresh Library Feed: Cache Must Remain Under the SDK Output")
+        shutil.rmtree(cache, ignore_errors=True)

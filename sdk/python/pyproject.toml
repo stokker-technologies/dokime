@@ -19,7 +19,7 @@ license = "Apache-2.0"
 dependencies = [
   "grpcio>=1.85.1,<2",
   "protobuf>=7.35.1,<8",
-  "harmos-sdk @ git+https://github.com/stokker-technologies/harmos@81d32d3bc9ab3e2121746923712ec9508cee3ec7#subdirectory=sdk/python",
+  "harmos-sdk @ git+https://github.com/stokker-technologies/harmos@7181b5ed33c9d2be79c38d266b0a97d838b05ed6#subdirectory=sdk/python",
 ]
 
 [dependency-groups]
@@ -48,7 +48,7 @@ python-version = "3.13"
 python = "../../.venv"
 
 [tool.ty.src]
-include = ["src/dokime", "tests", "examples"]
+include = ["src/dokime", "tests", "examples", "tools", "hatch_build.py"]
 # protoc Owns Generated Bindings; Descriptor and Stub Stories Verify Their Contract.
 exclude = ["**/*_pb2*"]
 
@@ -65,3 +65,7 @@ source_pkgs = ["dokime"]
 
 [tool.coverage.paths]
 dokime = ["src/dokime", "*/site-packages/dokime"]
+
+[tool.ruff.lint]
+# Every SDK and Tooling Function Has an Explicit Typed Signature.
+extend-select = ["ANN"]

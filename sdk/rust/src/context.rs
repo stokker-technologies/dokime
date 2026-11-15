@@ -26,7 +26,19 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use crate::{Error, Message, OperationRequest, Result, data, host, message::Wire, v1};
+use crate::EvidenceRecordsListResponse;
+use crate::EvidenceStatisticsResponse;
+use crate::OperationPolicy;
+use crate::Record;
+use crate::plugin::EvidenceRecordsAppendResponse;
+use crate::wire::host::EvidenceStatisticsRequest;
+use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
+use crate::{Error, Message, OperationRequest, Result, data, host, host::Call};
+use crate::{ExecutionProgressValue, PageRequest, Severity};
+use crate::{Origin, Termination, TestCase, origin};
+use harmos::plugin::Context as HarmosContext;
+use harmos::plugin::Watching as HarmosWatching;
+use uuid::Uuid;
 
 /* === Constants === */
 
@@ -40,15 +52,16 @@ pub(crate) type Executions = Arc<Mutex<HashMap<String, Arc<Execution>>>>;
 /* === Structs === */
 
 // One operation's host channel and the resources shared by its execution.
+#[derive(Clone)]
 pub struct Context {
-    transport: harmos::Context,
+    transport: HarmosContext,
     execution: Arc<Execution>,
-    termination: Option<v1::Termination>,
+    termination: Option<Termination>,
 }
 
 pub(crate) struct Execution {
-    pub test_case: OnceLock<v1::TestCase>,
-    pub origin: OnceLock<v1::Origin>,
+    pub test_case: OnceLock<TestCase>,
+    pub origin: OnceLock<Origin>,
     resources: Resources,
 }
 
@@ -57,6 +70,15 @@ pub(crate) struct EndExecution {
     executions: Executions,
     scope: String,
     execution: Arc<Execution>,
+}
+
+pub(crate) struct Watching<T: prost_reflect::ReflectMessage + Default + 'static> {
+    incoming: HarmosWatching<Call<T>>,
+}
+impl<T: prost_reflect::ReflectMessage + Default + 'static> Watching<T> {
+    pub(crate) async fn next(&mut self) -> Result<Option<T>> {
+        Ok(self.incoming.next().await?.map(|value| value.0))
+    }
 }
 
 /* === Enums === */
@@ -75,19 +97,19 @@ impl Execution {
 
 impl Context {
     pub(crate) fn execution(
-        transport: &harmos::Context, executions: &Executions, identifier: &str, test_case: Option<v1::TestCase>,
-        origin: Option<v1::Origin>, template: &str, plugin: &str,
+        transport: &HarmosContext, executions: &Executions, identifier: &str, test_case: Option<TestCase>, origin: Option<Origin>,
+        template: &str,
     ) -> Result<Self> {
         if identifier.is_empty() || transport.scope()? != identifier {
             return Err(Error::Invalid("Execution Must Match the Inherited Harmos Scope".into()));
         }
         let test_case = test_case.ok_or_else(|| Error::Invalid("Execution Call Requires Its Test Case".into()))?;
         let origin = origin.ok_or_else(|| Error::Invalid("Execution Call Requires Its Origin".into()))?;
-        let Some(v1::origin::Kind::PluginRun(run)) = origin.kind.as_ref() else {
+        let Some(origin::Kind::PluginRun(run)) = origin.kind.as_ref() else {
             return Err(Error::Invalid("Plugin Operations Require a PluginRun Origin".into()));
         };
-        if run.template != template || run.plugin != plugin || run.test_case.as_ref() != Some(&test_case) {
-            return Err(Error::Invalid("Execution Origin Does Not Match the Plugin, Template and Test Case".into()));
+        if run.template != template || run.plugin.is_empty() || run.test_case.as_ref() != Some(&test_case) {
+            return Err(Error::Invalid("Execution Origin Requires an Entry and Matching Template and Test Case".into()));
         }
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.entry(identifier.into()).or_insert_with(|| {
@@ -111,7 +133,7 @@ impl Context {
         })
     }
 
-    pub(crate) fn invocation(transport: &harmos::Context, executions: &Executions) -> Result<Self> {
+    pub(crate) fn invocation(transport: &HarmosContext, executions: &Executions) -> Result<Self> {
         let executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.get(transport.scope().unwrap_or_default()).cloned().unwrap_or_else(|| {
             Arc::new(Execution {
@@ -127,7 +149,7 @@ impl Context {
         })
     }
 
-    pub(crate) fn publication(transport: &harmos::Context, executions: &Executions) -> Result<Self> {
+    pub(crate) fn publication(transport: &HarmosContext, executions: &Executions) -> Result<Self> {
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         if transport.scope().is_err() {
             executions.entry(String::new()).or_insert_with(|| {
@@ -151,20 +173,20 @@ impl Context {
     pub fn execution_id(&self) -> &str {
         self.transport.scope().unwrap_or_default()
     }
-    pub fn termination(&self) -> Option<v1::Termination> {
+    pub fn termination(&self) -> Option<Termination> {
         self.termination
     }
     pub(crate) fn with_termination(mut self, termination: i32) -> Result<Self> {
-        self.termination = Some(v1::Termination::try_from(termination).map_err(|_| Error::Invalid("Invalid Cleanup Termination".into()))?);
+        self.termination = Some(Termination::try_from(termination).map_err(|_| Error::Invalid("Invalid Cleanup Termination".into()))?);
         Ok(self)
     }
     pub fn attempt(&self) -> u32 {
         self.transport.attempt
     }
-    pub fn test_case(&self) -> Result<&v1::TestCase> {
+    pub fn test_case(&self) -> Result<&TestCase> {
         self.execution.test_case.get().ok_or_else(|| Error::Invalid("This Call Has No Test Case".into()))
     }
-    pub fn origin(&self) -> Result<&v1::Origin> {
+    pub fn origin(&self) -> Result<&Origin> {
         self.execution.origin.get().ok_or_else(|| Error::Invalid("This Call Has No Execution Origin".into()))
     }
 
@@ -201,95 +223,90 @@ impl Context {
         self.transport.call(request).await.map_err(Error::from)
     }
 
-    // Route a generated Dokime request without copying its fields into a parallel model.
-    pub async fn host<Q: host::Request>(&self, request: Q) -> Result<Q::Response> {
-        Ok(self.operation(Wire(request)).await?.0)
+    pub(crate) async fn call_with<Q: host::Request>(&self, request: Q, policy: Option<OperationPolicy>) -> Result<Q::Response> {
+        Ok(self.transport.call_with(Call(request), policy).await?.0)
+    }
+    pub(crate) async fn watch<Q: host::Request>(
+        &self, request: Q, max_item_bytes: std::num::NonZeroUsize,
+    ) -> Result<Watching<Q::Response>> {
+        Ok(Watching {
+            incoming: self.transport.watch(Call(request), max_item_bytes).await?,
+        })
     }
 
     pub async fn sleep(&self, duration: Duration) -> Result<()> {
-        self.transport.sleep(duration).await.map_err(Error::from)
+        self.host().time.sleep(duration.try_into().map_err(|error| Error::Invalid(format!("Sleep: Invalid Duration: {error}")))?).await?;
+        Ok(())
     }
     pub async fn now(&self) -> Result<prost_types::Timestamp> {
-        self.transport.now().await.map_err(Error::from)
+        self.host().time.get().await
     }
     pub async fn cancelled(&self) -> String {
         self.transport.cancelled().await
     }
 
-    pub async fn prompt(
-        &self, question: dokime_protocol::context::PromptsCreateRequest,
-    ) -> Result<dokime_protocol::context::PromptsCreateResponse> {
-        self.host(question).await
-    }
-    pub async fn settings(&self) -> Result<dokime_protocol::context::SavedSettings> {
-        self.host(dokime_protocol::context::ReadSettings {}).await
-    }
     pub async fn typed_settings<T: Message>(&self) -> Result<T> {
-        data::decode(&self.settings().await?.values)
-    }
-    pub async fn secret(&self, identifier: impl Into<String>) -> Result<dokime_protocol::context::Secret> {
-        self.host(dokime_protocol::context::ReadSecret { identifier: identifier.into() }).await
+        let response = self.host().plugins.settings.list().await?;
+        crate::data::decode_settings(response.value.ok_or_else(|| Error::Invalid("Read Settings: Missing Values".into()))?)
     }
 
-    pub async fn record<T: Message>(
-        &self, record: &crate::Record<T>, value: T,
-    ) -> Result<dokime_protocol::context::evidence::RecordsAppendResponse> {
-        self.host(dokime_protocol::context::evidence::RecordsAppendRequest {
-            execution: self.execution_id().into(),
-            kind: record.identifier().into(),
-            payload: value.encode_to_vec(),
-            source_at: None,
-            request_id: uuid::Uuid::now_v7().to_string(),
-        })
+    pub async fn record<T: Message>(&self, record: &Record<T>, value: T) -> Result<EvidenceRecordsAppendResponse> {
+        self.call_with(
+            RecordsAppendRequest {
+                execution: self.execution_id().into(),
+                kind: record.identifier().into(),
+                payload: value.encode_to_vec(),
+                source_at: None,
+                request_id: Uuid::now_v7().to_string(),
+            },
+            None,
+        )
         .await
     }
-
     pub async fn records(
-        &self, kind: impl Into<String>, step: impl Into<String>, limit: u32,
-    ) -> Result<dokime_protocol::context::evidence::RecordsListResponse> {
-        self.host(dokime_protocol::context::evidence::RecordsListRequest {
-            execution: self.execution_id().into(),
-            kind: kind.into(),
-            step: step.into(),
-            page: Some(harmos_protocol::v1::PageRequest { page_size: limit, ..Default::default() }),
-            at: None,
-        })
+        &self, record_type: impl Into<String>, step: impl Into<String>, limit: u32,
+    ) -> Result<EvidenceRecordsListResponse> {
+        self.call_with(
+            RecordsListRequest {
+                record_type: record_type.into(),
+                step: step.into(),
+                page: Some(PageRequest { page_size: limit, ..Default::default() }),
+                ..Default::default()
+            },
+            None,
+        )
         .await
     }
-
     pub async fn statistics(
         &self, stream: impl Into<String>, field: impl Into<String>, step: impl Into<String>,
-    ) -> Result<dokime_protocol::context::EvidenceStatisticsResponse> {
-        self.host(dokime_protocol::context::EvidenceStatisticsRequest {
-            execution: self.execution_id().into(),
-            stream: stream.into(),
-            field: field.into(),
-            step: step.into(),
-            at: None,
-        })
+    ) -> Result<EvidenceStatisticsResponse> {
+        self.call_with(
+            EvidenceStatisticsRequest {
+                stream: stream.into(),
+                field: field.into(),
+                step: step.into(),
+                ..Default::default()
+            },
+            None,
+        )
         .await
     }
-
     pub async fn progress(&self, completed: u64, total: u64, label: impl Into<String>) -> Result<()> {
-        let current = self.host(dokime_protocol::context::executions::ProgressGetRequest { name: self.execution_id().into() }).await?;
-        self.host(dokime_protocol::context::executions::ProgressSetRequest {
-            name: self.execution_id().into(),
-            value: Some(v1::ExecutionProgressValue { completed, total, label: label.into() }),
-            expected_revision: current.revision,
-            request_id: uuid::Uuid::now_v7().to_string(),
-        })
-        .await?;
+        let current = self.host().executions.progress.get().await?;
+        self.host().executions.progress.set(ExecutionProgressValue { completed, total, label: label.into() }, current.revision).await?;
         Ok(())
     }
-
-    pub async fn log(&self, severity: v1::Severity, message: impl Into<String>) -> Result<()> {
-        self.host(dokime_protocol::context::evidence::LogsAppendRequest {
-            execution: self.execution_id().into(),
-            severity: severity as i32,
-            message: message.into(),
-            at: None,
-            request_id: uuid::Uuid::now_v7().to_string(),
-        })
+    pub async fn log(&self, severity: Severity, message: impl Into<String>) -> Result<()> {
+        self.call_with(
+            LogsAppendRequest {
+                execution: self.execution_id().into(),
+                severity: severity as i32,
+                message: message.into(),
+                at: None,
+                request_id: Uuid::now_v7().to_string(),
+            },
+            None,
+        )
         .await?;
         Ok(())
     }

@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use prost::Message;
 
 // Local Imports
-use dokime_runtime_next::services::initial_preferences;
+use dokime_runtime::services::initial_preferences;
 
 /* === Constants === */
 

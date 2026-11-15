@@ -110,6 +110,7 @@ test("Card Queries Refresh Independently", async () => {
     }
     if (input.cardIds?.[0] === "slow") {
       slowReads++;
+      if (slowReads > 1) return { card: card("slow", 4) };
       (signal as AbortSignal).addEventListener("abort", () => {
         cancelled++;
       });
@@ -162,7 +163,8 @@ test("Card Queries Refresh Independently", async () => {
       slow.resolve({ card: card("slow", 3) });
       await refresh;
     });
-    assert.equal(values().get("slow")?.rows[0]?.cells.value, "3");
+    assert.equal(values().get("slow")?.rows[0]?.cells.value, "4");
+    assert.equal(slowReads, 2);
     assert.equal(values().get("fast")?.rows[0]?.cells.value, "2");
     assert.equal(values().get("large")?.failure?.reason, "materialized_bytes");
   } finally {

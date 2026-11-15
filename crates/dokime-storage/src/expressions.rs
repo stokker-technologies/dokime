@@ -24,9 +24,16 @@ use std::{
 
 // Third Party Imports
 use arrow_array::{Array, ArrayRef, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray, StructArray, UInt64Array};
-use arrow_schema::{ArrowError, DataType, Field, Schema};
+use arrow_schema::SchemaRef;
+use arrow_schema::{DataType, Field, Schema};
 use arrow_select::filter::filter_record_batch;
-use harmos_storage::query::{
+use harmos_domain::Identifier;
+use harmos_domain::model::storage::query::{Source as QuerySource, StreamSelection, TimeMerge, TimeMergeMode};
+use harmos_domain::model::storage::{PayloadEncoding, ReadLimits, SchemaKey, StorageCursor, StoreHistory};
+use harmos_query::TableReader;
+use harmos_query::batches::{BatchPage, BatchReader, QueryFuture};
+use harmos_query::merge::TimeMergeReader;
+use harmos_query::{
     Accumulator, Table, TableWriter,
     transform::{
         FieldPath, FieldPathExecution, Transform,
@@ -36,15 +43,27 @@ use harmos_storage::query::{
 use prost::Message;
 use prost_reflect::DescriptorPool;
 use rusqlite::params;
+use std::num::NonZeroU32;
+use std::task::{Context, Poll, Waker};
 
 // Local Imports
 use crate::{
-    BatchSelection, Error, ExecutionCut, NumericWindow, Result, Sample, Store, ordered_merge,
+    BatchSelection, Error, ExecutionCut, NumericWindow, Result, Sample, Store,
     scalar::{self, Agg, ScalarValue},
     telemetry::codec::Codec,
 };
-use dokime_protocol::v1::{Aggregate, DataExpression, FieldReference, FilterOperator, PlotFilter, RecordContracts};
-use dokime_protocol::{context::evidence::RecordsAppendRequest, v1};
+use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::model::Aggregate;
+use dokime_protocol::model::DataExpression;
+use dokime_protocol::model::FieldReference;
+use dokime_protocol::model::FilterOperator;
+use dokime_protocol::model::PlotFilter;
+use dokime_protocol::model::RecordContracts;
+
+use dokime_protocol::model::data_expression;
+use dokime_protocol::model::origin;
+use dokime_protocol::model::transform_expression;
+use harmos_protocol::model::Declarations;
 
 /* === Constants === */
 
@@ -73,6 +92,12 @@ pub(crate) struct Evaluation<'a> {
     attached: BTreeMap<Source, String>,
     intervals: BTreeMap<(String, String), String>,
     aggregates: RefCell<BTreeMap<Vec<u8>, ScalarValue>>,
+}
+
+struct RetainedTable {
+    table: Table,
+    reader: TableReader,
+    at: StorageCursor,
 }
 
 /* === Enums === */
@@ -175,7 +200,7 @@ impl Store {
                 &fields.into_iter().collect::<Vec<_>>(),
             )?;
             let name = format!("_joined{}", evaluation.attached.len());
-            base = align(&base, &right, &name)?;
+            base = align(self, cut, &base, &right, &name)?;
             evaluation.attached.insert(other, name);
         }
         for (current, previous) in intervals {
@@ -199,7 +224,7 @@ impl Store {
                 },
                 &[],
             )?;
-            let paired = align(&current_table, &previous_table, "_previous")?;
+            let paired = align(self, cut, &current_table, &previous_table, "_previous")?;
             let value_fields = arrow_schema::Fields::from(vec![Field::new("elapsed", DataType::Float64, true)]);
             let schema = Arc::new(Schema::new(vec![
                 current_table.schema().field(0).clone(),
@@ -228,7 +253,7 @@ impl Store {
                 output.push(&RecordBatch::try_new(schema.clone(), vec![batch.column(0).clone(), Arc::new(values)])?, &mut || Ok(()))?;
             }
             let name = format!("_interval{}", evaluation.intervals.len());
-            base = align(&base, &output.finish()?, &name)?;
+            base = align(self, cut, &base, &output.finish()?, &name)?;
             evaluation.intervals.insert((current, previous), name);
         }
         let mut reader = base.reader()?;
@@ -279,12 +304,12 @@ impl Store {
             )?;
             return Ok(codec.as_ref().clone());
         }
-        let catalog = harmos_protocol::v1::Catalog::decode(cut.execution.catalog.as_slice())?;
+        let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
         let message = if source.0 {
             let contracts = catalog
                 .sections
                 .iter()
-                .filter(|s| s.r#type == "dokime.v1.RecordContracts")
+                .filter(|s| s.r#type == "dokime.model.v1.RecordContracts")
                 .map(|s| RecordContracts::decode(s.payload.as_slice()))
                 .collect::<std::result::Result<Vec<_>, _>>()?;
             contracts
@@ -376,13 +401,13 @@ impl Evaluation<'_> {
         if depth > 32 {
             return Err(Error::Data("simplify expression nesting"));
         }
-        use v1::data_expression::Kind;
+        use dokime_protocol::model::data_expression::Kind;
         Ok(match expression.kind.as_ref() {
             Some(Kind::Stream(reference)) => self.field(reference, false, batch, row)?,
             Some(Kind::Record(reference)) => self.field(reference, true, batch, row)?,
             Some(Kind::Literal(value)) => scalar::from_wire(value)?,
             Some(Kind::Parameter(key) | Kind::Dimension(key)) => {
-                let Some(v1::origin::Kind::PluginRun(run)) = self.cut.execution.origin.as_ref().and_then(|o| o.kind.as_ref()) else {
+                let Some(origin::Kind::PluginRun(run)) = self.cut.execution.origin.as_ref().and_then(|o| o.kind.as_ref()) else {
                     return Err(Error::Data("select parameters from a PluginRun origin"));
                 };
                 scalar::from_wire(
@@ -392,7 +417,7 @@ impl Evaluation<'_> {
             Some(Kind::Transform(transform)) => {
                 let input = transform.input.as_deref().ok_or(Error::Data("supply the transform input"))?;
                 match transform.kind.as_ref() {
-                    Some(v1::transform_expression::Kind::Detail(field)) => {
+                    Some(transform_expression::Kind::Detail(field)) => {
                         let mut input = input.clone();
                         let reference = match input.kind.as_mut() {
                             Some(Kind::Stream(r) | Kind::Record(r)) => r,
@@ -401,14 +426,14 @@ impl Evaluation<'_> {
                         reference.field = if reference.field.is_empty() { field.clone() } else { format!("{}.{}", reference.field, field) };
                         self.value(&input, batch, row, depth + 1)?
                     }
-                    Some(v1::transform_expression::Kind::Scale(factor)) => ScalarValue::Float(
+                    Some(transform_expression::Kind::Scale(factor)) => ScalarValue::Float(
                         scalar::number(&self.value(input, batch, row, depth + 1)?).ok_or(Error::Data("scale a numeric value"))? * factor,
                     ),
-                    Some(v1::transform_expression::Kind::Offset(offset)) => ScalarValue::Float(
+                    Some(transform_expression::Kind::Offset(offset)) => ScalarValue::Float(
                         scalar::number(&self.value(input, batch, row, depth + 1)?).ok_or(Error::Data("offset a numeric value"))? + offset,
                     ),
-                    Some(v1::transform_expression::Kind::PerCase(true)) => self.value(input, batch, row, depth + 1)?,
-                    Some(v1::transform_expression::Kind::TimeBetween(previous)) => {
+                    Some(transform_expression::Kind::PerCase(true)) => self.value(input, batch, row, depth + 1)?,
+                    Some(transform_expression::Kind::TimeBetween(previous)) => {
                         let Some(Kind::Record(current)) = input.kind.as_ref() else {
                             return Err(Error::Data("select record occurrences for time between"));
                         };
@@ -503,65 +528,97 @@ impl<'a> From<NumericWindow<'a>> for BatchSelection<'a> {
     }
 }
 
+impl BatchReader for RetainedTable {
+    fn schema(&self) -> SchemaRef {
+        self.table.schema()
+    }
+    fn at(&self) -> &StorageCursor {
+        &self.at
+    }
+    fn next(&mut self) -> QueryFuture<'_, BatchPage> {
+        Box::pin(async move {
+            let batch = self.reader.next(&mut || Ok(()))?;
+            let complete = batch.is_none();
+            let batch = batch.unwrap_or_else(|| RecordBatch::new_empty(self.table.schema()));
+            Ok(BatchPage { batch, complete })
+        })
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
 
-fn align(base: &Table, right: &Table, name: &str) -> Result<Table> {
+fn align(store: &Store, cut: &ExecutionCut, base: &Table, right: &Table, name: &str) -> Result<Table> {
+    let settings = store.storage_settings()?;
+    let history = StoreHistory {
+        store: Identifier::new(store.identity()).map_err(|error| Error::Invalid(error.to_string()))?,
+        epoch: Identifier::new(&cut.execution.identifier).map_err(|error| Error::Invalid(error.to_string()))?,
+    };
+    let at = StorageCursor { history, sequence: cut.frontier };
+    let left = RetainedTable {
+        table: base.clone(),
+        reader: base.reader()?,
+        at: at.clone(),
+    };
+    let right_input = RetainedTable {
+        table: right.clone(),
+        reader: right.reader()?,
+        at,
+    };
+    let schema = SchemaKey {
+        id: Identifier::new(name).map_err(|error| Error::Invalid(error.to_string()))?,
+        version: NonZeroU32::MIN,
+        payload_encoding: PayloadEncoding::PostcardV1,
+    };
+    let plan = TimeMerge {
+        source: QuerySource::Stream(StreamSelection {
+            schema,
+            scope: None,
+            item: None,
+            stream: None,
+            source_start: None,
+            source_end: None,
+            after: 0,
+        }),
+        primary_time: FieldPath::from("_storage.source_ns"),
+        secondary_time: FieldPath::from("_storage.source_ns"),
+        mode: TimeMergeMode::AtOrBefore,
+        work: ReadLimits {
+            rows: settings.flush_rows,
+            bytes: settings.query_bytes,
+        },
+    };
+    let mut merged = TimeMergeReader::new(Box::new(left), Box::new(right_input), plan, settings.flush_rows)?;
     let mut fields = base.schema().fields().to_vec();
     fields.push(Arc::new(Field::new(name, DataType::Struct(right.schema().fields().clone()), true)));
-    let mut output = TableWriter::new(Arc::new(Schema::new(fields)))?;
-    let mut left_reader = base.reader()?;
-    let mut right_reader = right.reader()?;
-    let mut left_done = false;
-    let mut right_done = false;
-    let left = std::iter::from_fn(|| {
-        if left_done {
-            return None;
+    let output_schema = Arc::new(Schema::new(fields));
+    let mut output = TableWriter::new(output_schema.clone())?;
+    loop {
+        store.check_read()?;
+        // Both Retained Table Readers Complete Their File Read Within One Poll.
+        let mut next = merged.next();
+        let mut context = Context::from_waker(Waker::noop());
+        let page = match next.as_mut().poll(&mut context) {
+            Poll::Ready(page) => page?,
+            Poll::Pending => return Err(Error::Data("Merge Retained Tables: The Local Reader Must Complete Its Read")),
+        };
+        let left = page.batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("merged primary is not a struct"))?;
+        let mut columns = left.columns().to_vec();
+        columns.push(page.batch.column(1).clone());
+        let joined = RecordBatch::try_new(output_schema.clone(), columns)?;
+        output.push(&joined, &mut || Ok(()))?;
+        if page.complete {
+            break;
         }
-        match left_reader.next(&mut || Ok(())) {
-            Ok(Some(b)) => Some(Ok(b)),
-            Ok(None) => {
-                left_done = true;
-                None
-            }
-            Err(e) => {
-                left_done = true;
-                Some(Err(ArrowError::ExternalError(Box::new(e))))
-            }
-        }
-    });
-    let right_input = std::iter::from_fn(|| {
-        if right_done {
-            return None;
-        }
-        match right_reader.next(&mut || Ok(())) {
-            Ok(Some(b)) => Some(Ok(b)),
-            Ok(None) => {
-                right_done = true;
-                None
-            }
-            Err(e) => {
-                right_done = true;
-                Some(Err(ArrowError::ExternalError(Box::new(e))))
-            }
-        }
-    });
-    ordered_merge::as_of(left, right_input, right.schema(), |batch, aligned| {
-        let mut fields = batch.schema().fields().to_vec();
-        fields.push(Arc::new(Field::new(name, aligned.data_type().clone(), true)));
-        let mut columns = batch.columns().to_vec();
-        columns.push(Arc::new(aligned));
-        let joined = RecordBatch::try_new(Arc::new(Schema::new(fields)), columns)?;
-        output.push(&joined, &mut || Ok(())).map_err(|e| ArrowError::ExternalError(Box::new(e)))
-    })?;
+    }
     Ok(output.finish()?)
 }
 fn collect_intervals(expression: &DataExpression, pairs: &mut BTreeSet<(String, String)>) {
     match expression.kind.as_ref() {
-        Some(v1::data_expression::Kind::Transform(t)) => {
+        Some(data_expression::Kind::Transform(t)) => {
             if let Some(input) = t.input.as_deref() {
-                if let (Some(v1::transform_expression::Kind::TimeBetween(previous)), Some(v1::data_expression::Kind::Record(current))) =
+                if let (Some(transform_expression::Kind::TimeBetween(previous)), Some(data_expression::Kind::Record(current))) =
                     (&t.kind, &input.kind)
                 {
                     pairs.insert((current.identifier.clone(), previous.clone()));
@@ -569,7 +626,7 @@ fn collect_intervals(expression: &DataExpression, pairs: &mut BTreeSet<(String, 
                 collect_intervals(input, pairs);
             }
         }
-        Some(v1::data_expression::Kind::Aggregate(a)) => {
+        Some(data_expression::Kind::Aggregate(a)) => {
             if let Some(input) = a.input.as_deref() {
                 collect_intervals(input, pairs);
             }
@@ -583,7 +640,7 @@ pub(crate) fn reference(source: &str, field: &str, record: bool) -> DataExpressi
         field: field.into(),
     };
     DataExpression {
-        kind: Some(if record { v1::data_expression::Kind::Record(reference) } else { v1::data_expression::Kind::Stream(reference) }),
+        kind: Some(if record { data_expression::Kind::Record(reference) } else { data_expression::Kind::Stream(reference) }),
         ..Default::default()
     }
 }
@@ -591,7 +648,7 @@ fn collect(expression: &DataExpression, sources: &mut BTreeMap<Source, BTreeSet<
     if depth > 32 {
         return Err(Error::Data("simplify expression nesting"));
     }
-    use v1::data_expression::Kind;
+    use dokime_protocol::model::data_expression::Kind;
     match expression.kind.as_ref() {
         Some(Kind::Stream(r)) => {
             sources.entry((false, r.identifier.clone())).or_default().insert(r.field.clone());
@@ -600,7 +657,7 @@ fn collect(expression: &DataExpression, sources: &mut BTreeMap<Source, BTreeSet<
             sources.entry((true, r.identifier.clone())).or_default().insert(r.field.clone());
         }
         Some(Kind::Transform(t)) => {
-            if let Some(v1::transform_expression::Kind::TimeBetween(previous)) = &t.kind {
+            if let Some(transform_expression::Kind::TimeBetween(previous)) = &t.kind {
                 sources.entry((true, previous.clone())).or_default();
             }
             if let Some(input) = t.input.as_deref() {

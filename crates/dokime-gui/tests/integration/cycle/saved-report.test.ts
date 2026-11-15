@@ -27,17 +27,15 @@ import { type CompletedDocument, mapNativeDocument } from "@/lib/api/native-docu
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { nativeValueToJson } from "@/lib/host/values";
 import { create } from "@bufbuild/protobuf";
-import {
-  DocumentBindingSchema,
-  DocumentCardKind,
-  DocumentCardSchema,
-  DocumentHeaderSchema,
-  DocumentLayoutNodeSchema,
-  DocumentSectionIdentitySchema,
-  DocumentSummaryGroupSchema,
-  DocumentSummaryTileSchema,
-} from "@host/dokime/client/v1/documents_pb.js";
-import { ValueSchema } from "@host/dokime/v1/scalar_pb.js";
+import { DocumentBindingSchema } from "@host/model";
+import { DocumentCardKind } from "@host/model";
+import { DocumentCardSchema } from "@host/model";
+import { DocumentHeaderSchema } from "@host/model";
+import { DocumentLayoutNodeSchema } from "@host/model";
+import { DocumentSectionIdentitySchema } from "@host/model";
+import { DocumentSummaryGroupSchema } from "@host/model";
+import { DocumentSummaryTileSchema } from "@host/model";
+import { ValueSchema } from "@host/model";
 import { documentSummaryTile } from "@/lib/document-presentation";
 import { formatCompactDecimal } from "@/lib/format";
 import { seriesLegendColumns, seriesLegendRows } from "@/lib/statistics";

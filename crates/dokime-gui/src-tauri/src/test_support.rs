@@ -126,7 +126,7 @@ fn remove_credentials(root: &Path) -> std::io::Result<()> {
     let mut pending = vec![root.to_owned()];
     while let Some(directory) = pending.pop() {
         if directory.join("backend-id").is_file() {
-            dokime_runtime_next::services::remove_credentials(&directory)
+            dokime_runtime::services::remove_credentials(&directory)
                 .map_err(|error| std::io::Error::other(format!("Remove Credentials at {}: {error}", directory.display())))?;
         }
         for entry in std::fs::read_dir(directory)? {

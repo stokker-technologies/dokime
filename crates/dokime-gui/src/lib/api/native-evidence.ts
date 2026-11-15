@@ -16,12 +16,12 @@ import { FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
 import { reflect, isReflectMessage, isReflectList, isReflectMap, type ReflectMessage } from "@bufbuild/protobuf/reflect";
 import { executionSchemas, recordMessage } from "@/lib/host/schemas";
 import { required, cutKey } from "@/lib/rpc/canonical";
-import { Severity } from "@host/dokime/v1/evidence_pb.js";
-import { LogsAppendRequestSchema } from "@host/dokime/plugin/host/v1/evidence/logs_pb.js";
+import { Severity } from "@host/model";
+import { LogsAppendRequestSchema } from "@host/model";
 
 /* === Local Imports === */
 
-import { nativeEvidenceScope, recordScopeFromNative } from "@/lib/host/values";
+import { nativeEvidenceScope, nativeRecordScope, recordScopeFromNative } from "@/lib/host/values";
 import { fallbackRecordDisplay } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
@@ -66,6 +66,7 @@ export async function fetchNativeRecordTail(session: SessionIdentity, scope: Rec
   const tokens = new Set<string>();
   for (let index = 0; index < 4096; index++) {
     const reply = await rpc.evidenceRecordsList(session, {
+      scope: nativeRecordScope(scope),
       selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
       at,
       page: { pageSize: RECORD_TAIL, pageToken },
@@ -114,6 +115,7 @@ export async function openNativeRecordStream(
   after?: Cursor | null,
 ): Promise<NativeStream<{ records: HubRecord[]; cursor: Cursor | null }>> {
   const reader = await rpc.evidenceRecordsWatch(session, {
+    scope: nativeRecordScope(scope),
     selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
     at: after ?? undefined,
   });
@@ -165,7 +167,7 @@ function mapNativeRecord(record: CapturedRecord, details: JsonObject): HubRecord
   const timestamp = timestampIso(record.timestamp);
   if (!timestamp) throw new Error(`Native record ${record.recordId} has no valid timestamp.`);
   const level =
-    record.severity === Severity.ERROR
+    record.severity === Severity.FAILURE
       ? "error"
       : record.severity === Severity.WARNING
         ? "warning"

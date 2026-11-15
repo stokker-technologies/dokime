@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Settings Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.plots;
+
+// === Imports === //
+
+import "dokime/host/v1/documents.proto";
+import "dokime/model/v1/plots.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.PlotsResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Settings resource on the host; callers are checked before handler admission.
+service Settings {
+  // Read the Settings resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.plots.SettingsGetRequest) returns (.dokime.host.v1.plots.SettingsGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Replace the complete writable value of the Settings resource; admission and policy are owned by the executor.
+  rpc Set(.dokime.host.v1.plots.SettingsSetRequest) returns (.dokime.host.v1.plots.SettingsSetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// SettingsGetRequest for Settings.Get.
+message SettingsGetRequest {
+  .dokime.host.v1.DocumentScope scope = 1;
+  string document_id = 2;
+  string plot_id = 3;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// SettingsGetResponse for Settings.Get.
+message SettingsGetResponse {
+  .dokime.host.v1.plots.PlotSettingsValue value = 1;
+  bytes revision = 2;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Set === //
+
+// SettingsSetRequest for Settings.Set.
+message SettingsSetRequest {
+  .dokime.host.v1.DocumentScope scope = 1;
+  string document_id = 2;
+  string plot_id = 3;
+  .dokime.host.v1.plots.PlotSettingsValue value = 20;
+  bytes expected_revision = 21;
+  string request_id = 22;
+}
+
+// SettingsSetResponse for Settings.Set.
+message SettingsSetResponse {
+  .dokime.host.v1.plots.PlotSettingsValue value = 1;
+  bytes revision = 2;
+  .harmos.model.v1.Receipt receipt = 3;
+}
+
+// === Resources === //
+
+// PlotSettingsValue value owned by this resource.
+message PlotSettingsValue {
+  optional uint32 display_points = 1;
+  .dokime.model.v1.Downsample downsample = 2;
+}
+
+// === Enums === //

@@ -1,0 +1,284 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Cycles Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/execution.proto";
+import "dokime/model/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Cycles resource on the host; callers are checked before handler admission.
+service Cycles {
+  // Read the Cycles resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.CyclesGetRequest) returns (.dokime.host.v1.CyclesGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Replace the complete writable value of the Cycles resource; admission and policy are owned by the executor.
+  rpc Set(.dokime.host.v1.CyclesSetRequest) returns (.dokime.host.v1.CyclesSetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // List the Cycles resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.CyclesListRequest) returns (.dokime.host.v1.CyclesListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Observe durable changes to the Cycles resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.CyclesWatchRequest) returns (stream .dokime.host.v1.CyclesWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Create the Cycles resource; admission and policy are owned by the executor.
+  rpc Create(.dokime.host.v1.CyclesCreateRequest) returns (.dokime.host.v1.CyclesCreateResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Seal the Cycles resource; admission and policy are owned by the executor.
+  rpc Seal(.dokime.host.v1.CyclesSealRequest) returns (.dokime.host.v1.CyclesSealResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// CyclesGetRequest for Cycles.Get.
+message CyclesGetRequest {
+  string name = 1;
+  optional .harmos.model.v1.Position at = 90;
+}
+
+// CyclesGetResponse for Cycles.Get.
+message CyclesGetResponse {
+  .dokime.host.v1.CycleWritable value = 1;
+  bytes revision = 2;
+  .dokime.host.v1.CycleSummary cycle = 3;
+  .harmos.model.v1.Position resolved_at = 90;
+}
+
+// === Set === //
+
+// CyclesSetRequest for Cycles.Set.
+message CyclesSetRequest {
+  string name = 1;
+  .dokime.host.v1.CycleWritable value = 20;
+  bytes expected_revision = 21;
+  string request_id = 22;
+}
+
+// CyclesSetResponse for Cycles.Set.
+message CyclesSetResponse {
+  .dokime.host.v1.CycleWritable value = 1;
+  bytes revision = 2;
+  .harmos.model.v1.Receipt receipt = 3;
+}
+
+// === List === //
+
+// CyclesListRequest for Cycles.List.
+message CyclesListRequest {
+  .dokime.host.v1.CycleSelection selection = 1;
+  .dokime.host.v1.CycleFilter filter = 2;
+  .dokime.host.v1.CycleOrder order = 3;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
+
+// CyclesListResponse for Cycles.List.
+message CyclesListResponse {
+  repeated .dokime.host.v1.CycleSummary cycles = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+// === Watch === //
+
+// CyclesWatchRequest for Cycles.Watch.
+message CyclesWatchRequest {
+  .dokime.host.v1.CycleSelection selection = 1;
+  .dokime.host.v1.CycleFilter filter = 2;
+  .dokime.host.v1.CycleOrder order = 3;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
+
+// CyclesWatchResponse for Cycles.Watch.
+message CyclesWatchResponse {
+  repeated .dokime.host.v1.CycleSummary cycles = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Create === //
+
+// CyclesCreateRequest for Cycles.Create.
+message CyclesCreateRequest {
+  repeated .dokime.model.v1.Origin origins = 1;
+  .dokime.model.v1.Metadata metadata = 2;
+  bool continue_automatically = 3;
+  string source_cycle = 4;
+  string request_id = 5;
+}
+
+// CyclesCreateResponse for Cycles.Create.
+message CyclesCreateResponse {
+  .dokime.host.v1.CycleSummary cycle = 1;
+  repeated .dokime.host.v1.RerunCaseNotice skipped = 2;
+  repeated .dokime.host.v1.RerunCaseNotice dropped_parameters = 4;
+  .harmos.model.v1.Receipt receipt = 3;
+}
+
+// === Seal === //
+
+// CyclesSealRequest for Cycles.Seal.
+message CyclesSealRequest {
+  string name = 1;
+  string request_id = 2;
+}
+
+// CyclesSealResponse for Cycles.Seal.
+message CyclesSealResponse {
+  bytes seal = 1;
+  .harmos.model.v1.Receipt receipt = 2;
+}
+
+// === Resources === //
+
+// CycleFilter value owned by this resource.
+message CycleFilter {
+  string text = 1;
+  repeated .dokime.host.v1.CycleStatus statuses = 2;
+  .google.protobuf.Timestamp created_after = 3;
+  .google.protobuf.Timestamp created_before = 4;
+  optional .dokime.host.v1.ArchiveScope archive = 5;
+}
+
+// CycleOrder value owned by this resource.
+message CycleOrder {
+  .dokime.host.v1.CycleOrderKey key = 1;
+  bool descending = 2;
+}
+
+// CycleSelection value owned by this resource.
+message CycleSelection {
+  repeated string cycle_ids = 1;
+  repeated .dokime.host.v1.CyclePhase phases = 2;
+  .dokime.model.v1.Window created_at = 3;
+  optional .dokime.host.v1.ArchiveScope archive = 4;
+  repeated .dokime.host.v1.CycleStatus statuses = 5;
+}
+
+// RerunCaseNotice value owned by this resource.
+message RerunCaseNotice {
+  string case_id = 1;
+  string suite_id = 2;
+  string reason = 3;
+}
+
+// CycleWritable value owned by this resource.
+message CycleWritable {
+  string label = 1;
+  bool paused = 2;
+  bool archived = 3;
+  bool continue_automatically = 4;
+}
+
+// CycleSummary value owned by this resource.
+message CycleSummary {
+  string cycle_id = 1;
+  .dokime.model.v1.Metadata metadata = 2;
+  .dokime.host.v1.CyclePhase phase = 3;
+  .dokime.host.v1.CycleStatus status = 4;
+  uint64 case_count = 5;
+  uint64 execution_count = 6;
+  bool continue_automatically = 7;
+  .harmos.model.v1.ReadCut observed_cursor = 8;
+  .google.protobuf.Timestamp created_at = 9;
+  .google.protobuf.Timestamp started_at = 10;
+  .google.protobuf.Timestamp updated_at = 11;
+  .dokime.host.v1.ResultSummary result = 12;
+  bool archived = 13;
+  bool sealed = 14;
+  uint64 running_count = 15;
+  uint64 queued_count = 16;
+  optional string seal_failure = 17;
+  optional string rerun_of = 18;
+}
+
+// ResultSummary value owned by this resource.
+message ResultSummary {
+  .dokime.host.v1.ResultStatus status = 1;
+  uint32 passed = 2;
+  uint32 failed = 3;
+  uint32 blocked = 4;
+  uint32 skipped = 5;
+  uint32 declared = 6;
+  uint32 not_evaluated = 7;
+}
+
+// === Enums === //
+
+// CycleOrderKey choices.
+enum CycleOrderKey {
+  CYCLE_ORDER_KEY_UNSPECIFIED = 0;
+  CYCLE_ORDER_KEY_UPDATED_AT = 1;
+  CYCLE_ORDER_KEY_CREATED_AT = 2;
+  CYCLE_ORDER_KEY_LABEL = 3;
+}
+
+// ArchiveScope choices.
+enum ArchiveScope {
+  ARCHIVE_SCOPE_UNSPECIFIED = 0;
+  ARCHIVE_SCOPE_UNARCHIVED = 1;
+  ARCHIVE_SCOPE_ARCHIVED = 2;
+  ARCHIVE_SCOPE_ALL = 3;
+}
+
+// CyclePhase choices.
+enum CyclePhase {
+  CYCLE_PHASE_UNSPECIFIED = 0;
+  CYCLE_PHASE_ACTIVE = 1;
+  CYCLE_PHASE_SEALING = 2;
+  CYCLE_PHASE_SEALED = 3;
+  CYCLE_PHASE_SEAL_FAILED = 4;
+}
+
+// CycleStatus choices.
+enum CycleStatus {
+  CYCLE_STATUS_UNSPECIFIED = 0;
+  CYCLE_STATUS_READY = 1;
+  CYCLE_STATUS_RUNNING = 2;
+  CYCLE_STATUS_PAUSED = 3;
+  CYCLE_STATUS_STOPPING = 4;
+  CYCLE_STATUS_COMPLETED = 5;
+  CYCLE_STATUS_FAILED = 6;
+  CYCLE_STATUS_BLOCKED = 7;
+  CYCLE_STATUS_STOPPED = 8;
+}
+
+// ResultStatus choices.
+enum ResultStatus {
+  RESULT_STATUS_UNSPECIFIED = 0;
+  RESULT_STATUS_PENDING = 1;
+  RESULT_STATUS_PASSED = 2;
+  RESULT_STATUS_FAILED = 3;
+  RESULT_STATUS_BLOCKED = 4;
+  RESULT_STATUS_CANCELLED = 5;
+}

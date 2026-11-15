@@ -45,7 +45,7 @@ public:
     frame.mutable_request()->set_invocation(std::to_string(++invocation_));
     frame.mutable_request()->set_attempt(1);
     frame.mutable_request()->set_scope(std::move(scope));
-    frame.mutable_request()->set_payload(harmos::detail::encode(request));
+    frame.mutable_request()->set_payload(harmos::plugin::detail::encode(request));
     call->Write(frame);
     call->WritesDone();
     harmos::plugin::v1::InstanceInvokeResponse output;
@@ -59,7 +59,7 @@ public:
     auto status = call->Finish();
     if (!status.ok())
       throw harmos::TransportError(status.error_code(), status.error_message());
-    return harmos::decode<R>(payload);
+    return harmos::plugin::decode<R>(payload);
   }
   void stop() {
     grpc::ClientContext context;

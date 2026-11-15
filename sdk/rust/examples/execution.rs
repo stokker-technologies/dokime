@@ -21,14 +21,12 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::clock::{TimeGetRequest, TimeSleepRequest};
+use dokime::RetryPolicy;
 use dokime::encoding::Message as EncodingMessage;
-use dokime::protocol::plugin::host::v1::{
-    BackendEnvironmentRequest, EvidenceStatisticsRequest, PromptsCreateRequest,
-    evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest},
-};
-use dokime::v1::{Document, FieldReference, Section, Severity, value::Kind};
-use dokime::{Classification, builders::Plot, prelude::*};
+use dokime::plugin::HostEvidenceStatisticsOptions;
+use dokime::{Classification, Plot, PlotKind, prelude::*};
+use dokime::{Document, FieldReference, Section, Severity, value::Kind};
+use prost_types::Duration as ProtoDuration;
 
 /* === Constants === */
 
@@ -39,13 +37,13 @@ use dokime::{Classification, builders::Plot, prelude::*};
 /* === Structs === */
 
 #[derive(dokime::Row)]
-#[harmos(package = "execution.v1")]
+#[harmos(package = "execution")]
 struct Reading {
     value: f64,
 }
 
 #[derive(dokime::Parameters)]
-#[harmos(package = "execution.v1")]
+#[harmos(package = "execution")]
 struct Parameters {
     value: f64,
     fail_attempts: u32,
@@ -53,7 +51,7 @@ struct Parameters {
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "execution.v1")]
+#[harmos(package = "execution")]
 struct Attempt {
     value: f64,
     attempt: u32,
@@ -78,8 +76,12 @@ struct Bench {
 fn main() -> Result<()> {
     let reading = Stream::<Reading>::new("execution.reading", "Reading");
     let observer = Observer::new(&reading, read).every_ms(1000);
-    let document = Document::new("Execution Report")
-        .section(Section::new("Measurements").plot(Plot::time_series(FieldReference::new("execution.reading").field("value"))));
+    let plot = Plot {
+        kind: PlotKind::TimeSeries as i32,
+        y: vec![FieldReference::new("execution.reading").field("value")],
+        ..Default::default()
+    };
+    let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot));
     let revision = std::env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
     let revised = revision != "1";
     let template = Template::new("execution.capture", "Execution Capture")
@@ -91,7 +93,20 @@ fn main() -> Result<()> {
         })
         .initialize(initialize)
         .step(Step::new("Baseline", baseline).identifier("baseline"))
-        .step(Step::new("Measure", measure).identifier("measure").retries(1))
+        .step(
+            Step::new("Measure", measure)
+                .identifier("measure")
+                .policy(OperationPolicy {
+                    retries: Some(RetryPolicy {
+                        total_attempts: 2,
+                        initial: Some(ProtoDuration { seconds: 0, nanos: 100_000_000 }),
+                        maximum: None,
+                        deterministic_jitter: false,
+                    }),
+                    ..Default::default()
+                })
+                .replay_safe(),
+        )
         .step(Step::new("Tail", baseline).identifier("tail"))
         .criterion(Criterion::new("Own Measurements", own_measurements).identifier("own_measurements"))
         .materialize(move |mut case, parameters| {
@@ -112,23 +127,23 @@ fn main() -> Result<()> {
         .observer(observer);
     let plugin = Plugin::new("execution", "1.0.0")
         .suite(Suite::new("execution", "Execution").template(template))
-        .record(Record::<Attempt>::new("execution.attempt", "Attempt"))
         .prompt(Prompt::new("execution.continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
-        .requires_host::<PromptsCreateRequest>()
-        .requires_host::<RecordsAppendRequest>()
-        .requires_host::<RecordsListRequest>()
-        .requires_host::<EvidenceStatisticsRequest>()
-        .requires_host::<LogsAppendRequest>()
-        .requires_host::<BackendEnvironmentRequest>()
-        .requires::<TimeGetRequest>()
-        .requires::<TimeSleepRequest>();
+        .requires_host(HostOperation::PromptsCreate)
+        .requires_host(HostOperation::EvidenceRecordsAppend)
+        .requires_host(HostOperation::EvidenceRecordsList)
+        .requires_host(HostOperation::EvidenceStatistics)
+        .requires_host(HostOperation::EvidenceLogsAppend)
+        .requires_host(HostOperation::BackendEnvironment)
+        .requires_host(HostOperation::TimeGet)
+        .requires_host(HostOperation::TimeSleep)
+        .record(Record::<Attempt>::new("execution.attempt", "Attempt"));
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }
 
 async fn initialize(ctx: &Context) -> Result<()> {
     // Resolve Host Facts Through the Active Invocation.
-    let environment = ctx.host(BackendEnvironmentRequest { at: None }).await?;
+    let environment = ctx.host().backend.environment().await?;
     if environment.backend_pid == 0 || environment.in_step {
         return Err(Error::Invalid("Initialize: Read the Host Environment Outside a Step".into()));
     }
@@ -148,22 +163,12 @@ async fn baseline(ctx: &Context) -> Result<()> {
 
 async fn measure(ctx: &Context) -> Result<()> {
     if ctx.attempt() == 1 {
-        ctx.prompt(PromptsCreateRequest {
-            prompt: "continue".into(),
-            prompt_type: "execution.continue".into(),
-            ..Default::default()
-        })
-        .await?;
+        ctx.host().prompts.create("continue".into(), "execution.continue".into(), Default::default()).await?;
     }
     let bench = ctx.get::<Bench>()?;
-    let refused = ctx
-        .host(LogsAppendRequest {
-            execution: "missing-execution".into(),
-            message: "out-of-scope".into(),
-            ..Default::default()
-        })
-        .await;
-    let scope_refused = refused.is_err_and(|error| error.to_string().contains("dokime.plugin.host.v1.evidence.Logs/Append"));
+    let refused =
+        ctx.host().evidence.logs.append("missing-execution".into(), Severity::Info, "out-of-scope".into(), ctx.now().await?).await;
+    let scope_refused = refused.is_err_and(|error| error.to_string().contains("Append"));
     ctx.record(
         &Record::<Attempt>::new("execution.attempt", "Attempt"),
         Attempt {
@@ -187,20 +192,24 @@ async fn read(ctx: &Context) -> Result<Reading> {
 async fn own_measurements(ctx: &Context) -> Result<bool> {
     let stats = ctx.statistics("execution.reading", "", "measure").await?;
     let repeated = ctx
-        .host(EvidenceStatisticsRequest {
-            execution: ctx.execution_id().into(),
-            stream: "execution.reading".into(),
-            field: "value".into(),
-            step: "measure".into(),
-            at: stats.resolved_at.clone(),
-        })
+        .host()
+        .evidence
+        .statistics_with(
+            "execution.reading".into(),
+            "value".into(),
+            HostEvidenceStatisticsOptions {
+                step: Some("measure".into()),
+                at: stats.resolved_at.clone(),
+                ..Default::default()
+            },
+        )
         .await?;
     let mut latest = ctx.statistics("execution.reading", "value", "measure").await?;
-    let advanced = latest
-        .resolved_at
-        .as_ref()
-        .zip(stats.resolved_at.as_ref())
-        .is_some_and(|(latest, first)| latest.history == first.history && latest.sequence > first.sequence);
+    let advanced = latest.resolved_at.as_ref().zip(stats.resolved_at.as_ref()).is_some_and(|(latest, first)| {
+        latest.positions.iter().any(|current| {
+            first.positions.iter().any(|previous| current.history == previous.history && current.sequence > previous.sequence)
+        })
+    });
     latest.resolved_at = stats.resolved_at.clone();
     let records = ctx.records("execution.attempt", "measure", 1).await?;
     let attempt = records
@@ -211,9 +220,10 @@ async fn own_measurements(ctx: &Context) -> Result<bool> {
     Ok(stats == repeated
         && stats == latest
         && advanced
-        && stats.count > 0
-        && stats.min.as_ref().and_then(|value| value.kind.as_ref()) == Some(&Kind::Number(ctx.get::<Bench>()?.value))
-        && stats.max == stats.min
+        && stats.statistics.as_ref().is_some_and(|statistics| statistics.count > 0)
+        && stats.statistics.as_ref().and_then(|statistics| statistics.min.as_ref()).and_then(|value| value.kind.as_ref())
+            == Some(&Kind::Number(ctx.get::<Bench>()?.value))
+        && stats.statistics.as_ref().map(|statistics| &statistics.max) == stats.statistics.as_ref().map(|statistics| &statistics.min)
         && attempt.is_some_and(|record| record.scope_refused))
 }
 

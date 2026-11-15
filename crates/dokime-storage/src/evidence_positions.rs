@@ -18,7 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::v1::{History, Position};
+use harmos_protocol::model::History;
+use harmos_protocol::model::Position;
 use prost::Message;
 
 // Local Imports

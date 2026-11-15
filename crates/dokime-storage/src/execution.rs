@@ -21,9 +21,12 @@
 use prost::Message;
 
 // Local Imports
-use crate::Result;
-use dokime_protocol::context::evidence::LogsAppendRequest;
-use dokime_protocol::v1::{ExecutionOutcome, ExecutionProgressValue, Origin, Termination};
+use crate::{Result, StoredArtifact, StoredExecutionFile};
+use dokime_protocol::host::ExecutionOutcome;
+use dokime_protocol::host::evidence::LogsAppendRequest;
+use dokime_protocol::model::ExecutionProgressValue;
+use dokime_protocol::model::Origin;
+use dokime_protocol::model::Termination;
 
 /* === Constants === */
 
@@ -33,7 +36,7 @@ use dokime_protocol::v1::{ExecutionOutcome, ExecutionProgressValue, Origin, Term
 
 /* === Structs === */
 
-// Internal Durable Shape. Public Operation Shapes Remain dokime.v1 Messages.
+// Internal Durable Shape. Public Operation Shapes Use the Host and Model Packages.
 #[derive(Clone, PartialEq, Message)]
 pub struct Execution {
     #[prost(string, tag = "1")]
@@ -126,11 +129,11 @@ pub struct ExecutionArchive {
     #[prost(bytes = "vec", repeated, tag = "5")]
     pub reports: Vec<Vec<u8>>,
 
-    #[prost(message, repeated, tag = "7")]
-    pub content: Vec<crate::ArchivedContent>,
+    #[prost(message, repeated, tag = "9")]
+    pub artifacts: Vec<StoredArtifact>,
 
-    #[prost(message, repeated, tag = "8")]
-    pub content_chunks: Vec<crate::ArchivedContentChunk>,
+    #[prost(message, repeated, tag = "10")]
+    pub files: Vec<StoredExecutionFile>,
 }
 
 /* === Enums === */
@@ -154,7 +157,7 @@ impl ExecutionSnapshot {
         self.evidence
             .iter()
             .filter(|entry| entry.kind == "log")
-            .map(|entry| dokime_protocol::context::evidence::LogsAppendRequest::decode(entry.payload.as_slice()).map_err(Into::into))
+            .map(|entry| LogsAppendRequest::decode(entry.payload.as_slice()).map_err(Into::into))
             .collect()
     }
     pub fn progress(&self) -> Result<Vec<ExecutionProgressValue>> {

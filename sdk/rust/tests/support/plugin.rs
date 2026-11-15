@@ -19,7 +19,7 @@
 use std::{path::PathBuf, process::Stdio};
 
 // Third Party Imports
-use harmos_protocol::{plugin::instance_client::InstanceClient, v1 as h};
+use harmos_protocol::plugin::instance_client::InstanceClient;
 use prost::Message;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -31,6 +31,24 @@ use tonic::{Streaming, transport::Channel};
 
 // Local Imports
 use super::TestResult;
+use harmos_protocol::model::Failure;
+use harmos_protocol::plugin::ChildRequest;
+use harmos_protocol::plugin::ChildResponse;
+use harmos_protocol::plugin::InstanceGetRequest;
+use harmos_protocol::plugin::InstanceGetResponse;
+use harmos_protocol::plugin::InstanceInvokeRequest;
+use harmos_protocol::plugin::InstanceInvokeResponse;
+use harmos_protocol::plugin::InstanceSamplesRequest;
+use harmos_protocol::plugin::InstanceSamplesResponse;
+use harmos_protocol::plugin::InstanceStopRequest;
+use harmos_protocol::plugin::Request;
+use harmos_protocol::plugin::Response;
+use harmos_protocol::plugin::SamplesSelection;
+use harmos_protocol::plugin::child_response;
+use harmos_protocol::plugin::instance_invoke_request::Frame as InstanceInvokeRequestFrame;
+use harmos_protocol::plugin::instance_invoke_response::Frame as InstanceInvokeResponseFrame;
+use harmos_protocol::plugin::instance_samples_request::Frame as InstanceSamplesRequestFrame;
+use harmos_protocol::plugin::response;
 
 /* === Constants === */
 
@@ -48,8 +66,8 @@ pub struct Process {
 }
 
 pub struct Invocation {
-    send: mpsc::Sender<harmos_protocol::plugin::InstanceInvokeRequest>,
-    output: Streaming<harmos_protocol::plugin::InstanceInvokeResponse>,
+    send: mpsc::Sender<InstanceInvokeRequest>,
+    output: Streaming<InstanceInvokeResponse>,
 }
 
 /* === Enums === */
@@ -83,10 +101,10 @@ impl Process {
         let drain = tokio::spawn(async move { while lines.next_line().await.ok().flatten().is_some() {} });
         Ok(Self { client, address, child, drain })
     }
-    pub async fn describe(&mut self) -> TestResult<harmos_protocol::plugin::InstanceGetResponse> {
+    pub async fn describe(&mut self) -> TestResult<InstanceGetResponse> {
         Ok(self
             .client
-            .get(harmos_protocol::plugin::InstanceGetRequest {
+            .get(InstanceGetRequest {
                 revision: 1,
                 host: "sdk_story".into(),
                 host_version: "1.0.0".into(),
@@ -96,8 +114,8 @@ impl Process {
     }
     pub async fn invoke<Q: Message>(&mut self, operation: &str, scope: &str, request: Q) -> TestResult<Invocation> {
         let (send, receive) = mpsc::channel(8);
-        send.send(harmos_protocol::plugin::InstanceInvokeRequest {
-            frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Request(h::Request {
+        send.send(InstanceInvokeRequest {
+            frame: Some(InstanceInvokeRequestFrame::Request(Request {
                 operation: operation.into(),
                 payload: request.encode_to_vec(),
                 invocation: format!("{scope}:{operation}"),
@@ -111,13 +129,10 @@ impl Process {
     }
     pub async fn publish(
         &mut self, stream: &str, scope: &str,
-    ) -> TestResult<(
-        mpsc::Sender<harmos_protocol::plugin::InstanceSamplesRequest>,
-        Streaming<harmos_protocol::plugin::InstanceSamplesResponse>,
-    )> {
+    ) -> TestResult<(mpsc::Sender<InstanceSamplesRequest>, Streaming<InstanceSamplesResponse>)> {
         let (send, receive) = mpsc::channel(8);
-        send.send(harmos_protocol::plugin::InstanceSamplesRequest {
-            frame: Some(harmos_protocol::plugin::instance_samples_request::Frame::Open(h::SamplesSelection {
+        send.send(InstanceSamplesRequest {
+            frame: Some(InstanceSamplesRequestFrame::Open(SamplesSelection {
                 stream: stream.into(),
                 scope: scope.into(),
             })),
@@ -127,7 +142,7 @@ impl Process {
         Ok((send, samples))
     }
     pub async fn stop(mut self, remote: bool) -> TestResult<()> {
-        self.client.stop(harmos_protocol::plugin::InstanceStopRequest { reason: "Story Complete".into() }).await?;
+        self.client.stop(InstanceStopRequest { reason: "Story Complete".into() }).await?;
         if remote {
             self.child.kill().await?;
         }
@@ -141,18 +156,18 @@ impl Process {
 }
 
 impl Invocation {
-    pub async fn child(&mut self) -> TestResult<h::ChildRequest> {
+    pub async fn child(&mut self) -> TestResult<ChildRequest> {
         match self.output.message().await?.and_then(|frame| frame.frame) {
-            Some(harmos_protocol::plugin::instance_invoke_response::Frame::Child(request)) => Ok(request),
+            Some(InstanceInvokeResponseFrame::Child(request)) => Ok(request),
             other => Err(format!("Expected Host Call, Got {other:?}").into()),
         }
     }
     pub async fn reply<R: Message>(&self, call: u64, response: R) -> TestResult<()> {
         self.send
-            .send(harmos_protocol::plugin::InstanceInvokeRequest {
-                frame: Some(harmos_protocol::plugin::instance_invoke_request::Frame::Child(h::ChildResponse {
+            .send(InstanceInvokeRequest {
+                frame: Some(InstanceInvokeRequestFrame::Child(ChildResponse {
                     call,
-                    result: Some(h::child_response::Result::Payload(response.encode_to_vec())),
+                    result: Some(child_response::Result::Payload(response.encode_to_vec())),
                 })),
             })
             .await?;
@@ -160,8 +175,8 @@ impl Invocation {
     }
     pub async fn finish<R: Message + Default>(mut self) -> TestResult<R> {
         let frame = self.output.message().await?.and_then(|frame| frame.frame);
-        let Some(harmos_protocol::plugin::instance_invoke_response::Frame::Response(h::Response {
-            result: Some(h::response::Result::Payload(payload)),
+        let Some(InstanceInvokeResponseFrame::Response(Response {
+            result: Some(response::Result::Payload(payload)),
         })) = frame
         else {
             return Err(format!("Expected Successful Result, Got {frame:?}").into());
@@ -172,10 +187,10 @@ impl Invocation {
         }
         Ok(response)
     }
-    pub async fn failure(mut self) -> TestResult<h::Failure> {
+    pub async fn failure(mut self) -> TestResult<Failure> {
         let frame = self.output.message().await?.and_then(|frame| frame.frame);
-        let Some(harmos_protocol::plugin::instance_invoke_response::Frame::Response(h::Response {
-            result: Some(h::response::Result::Failure(failure)),
+        let Some(InstanceInvokeResponseFrame::Response(Response {
+            result: Some(response::Result::Failure(failure)),
         })) = frame
         else {
             return Err(format!("Expected Failure, Got {frame:?}").into());

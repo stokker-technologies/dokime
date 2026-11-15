@@ -15,9 +15,12 @@
 
 /* === Imports === */
 
+use dokime_protocol::host::SettingsSetRequest;
+use dokime_sdk::client::RemoteListenerSettings;
+use dokime_sdk::client::{SettingsGetOptions, SettingsGetResponse, SettingsSetOptions};
+
 use crate::connection::{ConnectionSession, host::Session};
 use crate::native_session::DesktopSessionControl;
-use dokime_protocol::client;
 use prost::Message;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
@@ -58,8 +61,11 @@ pub async fn desktop_settings_read(
     owner: State<'_, DesktopSessionControl>, connection: State<'_, ConnectionSession>, scope: SettingsScope,
 ) -> Result<tauri::ipc::Response, SettingsCommandError> {
     let client = client(&owner, &connection, scope).await?;
-    let snapshot: client::SettingsGetResponse =
-        client.unary("/dokime.client.v1.Settings/Get", client::SettingsGetRequest::default()).await.map_err(command_error)?;
+    let options = SettingsGetOptions {
+        context: client.call_options().map_err(command_error)?,
+        ..Default::default()
+    };
+    let snapshot = client.execute(client.client().settings.get_with(options)).await.map_err(command_error)?;
     let snapshot = with_listener(&client, snapshot).await?;
     Ok(tauri::ipc::Response::new(snapshot.encode_to_vec()))
 }
@@ -74,10 +80,13 @@ pub async fn desktop_settings_update(
             message: "Save Preferences: The Request Exceeds the Desktop Frame Limit".into(),
         });
     }
-    let update = client::SettingsSetRequest::decode(update.as_slice())
-        .map_err(|error| SettingsCommandError::Validation { message: error.to_string() })?;
-    let current: client::SettingsGetResponse =
-        client.unary("/dokime.client.v1.Settings/Get", client::SettingsGetRequest::default()).await.map_err(command_error)?;
+    let update =
+        SettingsSetRequest::decode(update.as_slice()).map_err(|error| SettingsCommandError::Validation { message: error.to_string() })?;
+    let options = SettingsGetOptions {
+        context: client.call_options().map_err(command_error)?,
+        ..Default::default()
+    };
+    let current = client.execute(client.client().settings.get_with(options)).await.map_err(command_error)?;
     let previous = current.value.as_ref().ok_or_else(|| SettingsCommandError::Validation {
         message: "Read Preferences: Host Omitted Settings".into(),
     })?;
@@ -103,10 +112,17 @@ pub async fn desktop_settings_update(
             message: "Save Preferences: Change Only Fields Owned by the Selected Scope".into(),
         });
     }
-    let saved: client::SettingsSetResponse = client.unary("/dokime.client.v1.Settings/Set", update).await.map_err(command_error)?;
+    let value = update.value.ok_or_else(|| SettingsCommandError::Validation {
+        message: "Save Preferences: Request Omitted Its Value".into(),
+    })?;
+    let options = SettingsSetOptions {
+        request_id: Some(update.request_id),
+        context: client.call_options().map_err(command_error)?,
+    };
+    let saved = client.execute(client.client().settings.set_with(value, update.expected_revision, options)).await.map_err(command_error)?;
     let saved = with_listener(
         &client,
-        client::SettingsGetResponse {
+        SettingsGetResponse {
             value: saved.value,
             revision: saved.revision,
             resolved_at: None,
@@ -139,19 +155,19 @@ async fn client(
 }
 
 // Access Owns Listener State; Application Preferences Only Project Its Current Value.
-async fn with_listener(
-    client: &Session, mut snapshot: client::SettingsGetResponse,
-) -> Result<client::SettingsGetResponse, SettingsCommandError> {
-    use dokime_sdk::client::v1::access;
-    let listener: access::ListenerGetResponse =
-        client.unary("/harmos.v1.access.Listener/Get", access::ListenerGetRequest {}).await.map_err(command_error)?;
+async fn with_listener(client: &Session, mut snapshot: SettingsGetResponse) -> Result<SettingsGetResponse, SettingsCommandError> {
+    use dokime_sdk::client::AccessListenerGetOptions;
+    let options = AccessListenerGetOptions {
+        context: client.call_options().map_err(command_error)?,
+    };
+    let listener = client.execute(client.client().access.listener.get_with(options)).await.map_err(command_error)?;
     let value = listener.value.ok_or_else(|| SettingsCommandError::Validation {
         message: "Read Preferences: Host Omitted Its Listener Value".into(),
     })?;
     let settings = snapshot.value.as_mut().ok_or_else(|| SettingsCommandError::Validation {
         message: "Read Preferences: Host Omitted Application Settings".into(),
     })?;
-    settings.listener = Some(client::RemoteListenerSettings {
+    settings.listener = Some(RemoteListenerSettings {
         enabled: value.enabled,
         address: value.endpoint,
         certificate_names: value.certificate_names,

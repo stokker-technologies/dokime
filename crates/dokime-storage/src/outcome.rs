@@ -20,7 +20,10 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::v1::{self, execution_outcome::Attribution};
+use dokime_protocol::host::execution_outcome::Attribution;
+
+use dokime_protocol::host::ExecutionOutcome;
+use dokime_protocol::host::ResultStatus;
 
 /* === Constants === */
 
@@ -35,7 +38,7 @@ pub struct OutcomeCounts {
     pub evaluated: u64,
     pub not_evaluated: u64,
     pub declared: u64,
-    pub verdict: Option<v1::ResultStatus>,
+    pub verdict: Option<ResultStatus>,
 }
 
 /* === Enums === */
@@ -45,15 +48,15 @@ pub struct OutcomeCounts {
 /* === Implementations === */
 
 impl OutcomeCounts {
-    pub fn from_outcomes<'a>(outcomes: impl IntoIterator<Item = &'a v1::ExecutionOutcome>) -> Self {
+    pub fn from_outcomes<'a>(outcomes: impl IntoIterator<Item = &'a ExecutionOutcome>) -> Self {
         let mut counts = Self::default();
         for outcome in outcomes {
             match outcome.attribution.as_ref() {
                 Some(Attribution::Evaluated(evaluated)) => {
                     counts.evaluated += 1;
-                    let status = v1::ResultStatus::try_from(evaluated.status).unwrap_or(v1::ResultStatus::Blocked);
+                    let status = ResultStatus::try_from(evaluated.status).unwrap_or(ResultStatus::Blocked);
                     counts.verdict = Some(match counts.verdict {
-                        Some(previous) if previous != v1::ResultStatus::Passed => previous,
+                        Some(previous) if previous != ResultStatus::Passed => previous,
                         _ => status,
                     });
                 }
@@ -85,6 +88,8 @@ mod tests {
 
     // Local Imports
     use super::*;
+    use dokime_protocol::host::{DeclaredOutcome, EvaluatedOutcome, UnevaluatedOutcome};
+    use dokime_protocol::model::Termination;
 
     /* === Constants === */
 
@@ -108,28 +113,28 @@ mod tests {
 
     #[test]
     fn cycle_outcomes_keep_declared_and_unevaluated_separate() {
-        let declared = v1::ExecutionOutcome {
-            attribution: Some(Attribution::Declared(v1::DeclaredOutcome {
-                status: v1::ResultStatus::Passed as i32,
+        let declared = ExecutionOutcome {
+            attribution: Some(Attribution::Declared(DeclaredOutcome {
+                status: ResultStatus::Passed as i32,
                 importer: "thermal.importer".into(),
                 reason: String::new(),
             })),
         };
-        let unevaluated = v1::ExecutionOutcome {
-            attribution: Some(Attribution::NotEvaluated(v1::UnevaluatedOutcome {
-                termination: v1::Termination::Cancelled as i32,
+        let unevaluated = ExecutionOutcome {
+            attribution: Some(Attribution::NotEvaluated(UnevaluatedOutcome {
+                termination: Termination::Cancelled as i32,
                 reason: String::new(),
             })),
         };
-        let passed = v1::ExecutionOutcome {
-            attribution: Some(Attribution::Evaluated(v1::EvaluatedOutcome {
-                status: v1::ResultStatus::Passed as i32,
+        let passed = ExecutionOutcome {
+            attribution: Some(Attribution::Evaluated(EvaluatedOutcome {
+                status: ResultStatus::Passed as i32,
                 reason: String::new(),
             })),
         };
-        let failed = v1::ExecutionOutcome {
-            attribution: Some(Attribution::Evaluated(v1::EvaluatedOutcome {
-                status: v1::ResultStatus::Failed as i32,
+        let failed = ExecutionOutcome {
+            attribution: Some(Attribution::Evaluated(EvaluatedOutcome {
+                status: ResultStatus::Failed as i32,
                 reason: String::new(),
             })),
         };
@@ -149,7 +154,7 @@ mod tests {
                 declared: 1,
                 not_evaluated: 1,
                 evaluated: 2,
-                verdict: Some(v1::ResultStatus::Failed)
+                verdict: Some(ResultStatus::Failed)
             },
         );
     }

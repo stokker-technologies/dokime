@@ -24,7 +24,6 @@ use std::{
 
 // Third Party Imports
 use heck::{ToSnakeCase, ToUpperCamelCase};
-use prost::Message;
 
 // Local Imports
 
@@ -45,10 +44,12 @@ use prost::Message;
 /* === Public Functions === */
 
 pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn std::error::Error>> {
-    // Archived Tests Consume the Transferred Compiler, Not the Producer's Registry.
-    let (compiler, includes) = if let Ok(profile) = std::env::var("TEST_PROFILE") {
+    // Prepared Tests Prefer Their Transferred Compiler; Source-Focused Tests Use the Pinned Package.
+    let vendor = std::env::var("TEST_PROFILE").ok().map(|profile| {
         let target = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
-        let vendor = root.join("target/build").join(profile).join(target).join("fixtures/inputs/vendor");
+        root.join("target/build").join(profile).join(target).join("fixtures/inputs/vendor")
+    });
+    let (compiler, includes) = if let Some(vendor) = vendor.filter(|path| path.is_dir()) {
         let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
             ("linux", "x86_64") => "linux-x86_64",
             ("linux", "aarch64") => "linux-aarch_64",
@@ -83,7 +84,7 @@ pub fn compiler(root: &Path) -> Result<(PathBuf, PathBuf), Box<dyn std::error::E
 pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let proto = root.join("proto");
     let (compiler, includes) = self::compiler(root)?;
-    let mut pending = vec![proto.join("dokime")];
+    let mut pending = vec![proto.join("dokime"), proto.join("harmos")];
     let mut inputs = Vec::new();
     while let Some(parent) = pending.pop() {
         for entry in fs::read_dir(parent)? {
@@ -99,22 +100,17 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
     let mut config = prost_build::Config::new();
     config.include_file("modules.rs");
     config.protoc_executable(&compiler);
-    config.extern_path(".harmos.v1", "::harmos_protocol::v1");
+    config.skip_source_info();
+    config.extern_path(".harmos.model.v1", "::harmos_protocol::model");
+    config.extern_path(".harmos.host.v1", "::harmos_protocol::host");
     config.extern_path(".harmos.plugin.v1", "::harmos_protocol::plugin");
-    config.extern_path(".harmos.context.v1", "::harmos_protocol::context");
-    config.extern_path(".harmos.storage.v1", "::harmos_protocol::storage");
     config.file_descriptor_set_path(output.join("descriptors.bin"));
     tonic_prost_build::configure().build_client(true).build_server(true).out_dir(output).compile_with_config(
         config,
         &inputs,
         &[proto.clone(), includes.clone()],
     )?;
-    let mut descriptors = prost_types::FileDescriptorSet::decode(fs::read(output.join("descriptors.bin"))?.as_slice())?;
-    for file in &mut descriptors.file {
-        file.source_code_info = None;
-    }
-    let descriptors = descriptors.encode_to_vec();
-    fs::write(output.join("descriptors.bin"), &descriptors)?;
+    let descriptors = fs::read(output.join("descriptors.bin"))?;
     let pool = prost_reflect::DescriptorPool::decode(descriptors.as_slice())?;
     let packages =
         pool.files().map(|file| file.package_name().to_owned()).filter(|package| package.starts_with("dokime.")).collect::<BTreeSet<_>>();
@@ -127,7 +123,8 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
             modules.push_str("}\n");
         }
         for part in &parts[shared..] {
-            modules.push_str(&format!("pub mod {part} {{\n"));
+            let visibility = if *part == "dokime" { "pub(crate)" } else { "pub" };
+            modules.push_str(&format!("{visibility} mod {part} {{\n"));
         }
         modules.push_str(&format!("include!(\"{package}.rs\");\n"));
         parents = parts;

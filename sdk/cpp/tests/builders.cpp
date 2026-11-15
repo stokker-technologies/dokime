@@ -9,6 +9,13 @@
 
 #include "dokime/plots.hpp"
 #include <catch2/catch_test_macros.hpp>
+using dokime::CONTOUR_RENDER_BANDS;
+using dokime::Document;
+using dokime::Metadata;
+using dokime::REDUCTION_MAX;
+using dokime::REDUCTION_MEAN;
+using dokime::ReferenceBand;
+using dokime::Section;
 
 TEST_CASE("Documents Preserve Composed Plot Operands") {
   using namespace dokime::authoring;
@@ -16,25 +23,25 @@ TEST_CASE("Documents Preserve Composed Plot Operands") {
   auto surface = contour(input.scale(2).offset(-1))
                      .x(field("scan", "position_x"))
                      .y(field("scan", "position_y"))
-                     .reduce(dokime::v1::REDUCTION_MEAN)
-                     .render(dokime::v1::CONTOUR_RENDER_BANDS);
-  dokime::v1::Metadata metadata;
+                     .reduce(REDUCTION_MEAN)
+                     .render(CONTOUR_RENDER_BANDS);
+  Metadata metadata;
   metadata.set_identifier("temperature.map");
   metadata.set_label("Temperature Map");
   surface.label(metadata);
-  dokime::v1::ReferenceBand band;
+  ReferenceBand band;
   band.mutable_center()->set_parameter("target");
   band.mutable_tolerance()->set_parameter("tolerance");
   surface.reference_band(band);
-  dokime::v1::Section target;
+  Section target;
   target.mutable_metadata()->set_identifier("map");
   target.mutable_metadata()->set_label("Map");
   plot(target, surface);
-  dokime::v1::Document document;
+  Document document;
   document.mutable_metadata()->set_identifier("scan");
   document.mutable_metadata()->set_label("Scan");
   section(document, target);
-  dokime::v1::Document decoded;
+  Document decoded;
   REQUIRE(decoded.ParseFromString(document.SerializeAsString()));
   surface.message.clear_y();
   input.message.mutable_stream()->set_field("changed");
@@ -46,7 +53,7 @@ TEST_CASE("Documents Preserve Composed Plot Operands") {
                         .row(field("scan", "row"))
                         .column(field("scan", "column"))
                         .frame(field("scan", "timestamp"))
-                        .reduce(dokime::v1::REDUCTION_MAX);
+                        .reduce(REDUCTION_MAX);
   REQUIRE(grid.message.grid().frame().stream().field() == "timestamp");
-  REQUIRE(grid.message.reduction() == dokime::v1::REDUCTION_MAX);
+  REQUIRE(grid.message.reduction() == REDUCTION_MAX);
 }

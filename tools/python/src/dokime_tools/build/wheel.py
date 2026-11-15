@@ -97,15 +97,15 @@ def verify(root: Path, output: Path, version: str) -> list[Path]:
         if any(name.lower().endswith((".so", ".pyd", ".dll", ".dylib", ".a", ".lib")) for name in names):
             raise policy.ToolError("Python wheel contains a native extension")
         sources = sorted((root / "proto").rglob("*.proto"))
-        manifest = json.loads(archive.read("dokime/v1/sources.json"))
+        manifest = json.loads(archive.read("dokime/_wire/sources.json"))
         expected = {path.relative_to(root / "proto").as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
         if not expected or manifest != expected:
             raise policy.ToolError("Python wheel protocol sources differ from proto/")
-        required = {"dokime/v1/surface.pb"}
+        required = {"dokime/_wire/surface.pb"}
         for path in sources:
             if path.relative_to(root / "proto").parts[0] != "dokime":
                 continue
-            stem = path.relative_to(root / "proto").with_suffix("").as_posix()
+            stem = path.relative_to(root / "proto").with_suffix("").as_posix().replace("dokime/", "dokime/_wire/", 1)
             required.update(stem + suffix for suffix in ("_pb2.py", "_pb2.pyi", "_pb2_grpc.py"))
         if not required.issubset(names):
             raise policy.ToolError("Python wheel is missing generated protocol modules")

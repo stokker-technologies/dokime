@@ -199,7 +199,7 @@ def main(arguments: list[str] | None = None) -> int:
                 nightly.verify(policy.root())
                 return 0
             return run.main(["verify"])
-        args = ["rehearse", "--profile", options.profile]
+        args = ["rehearse", "--profile", options.profile, "--channel", options.channel]
         if options.target:
             args += ["--target", options.target]
         if options.stage_only:

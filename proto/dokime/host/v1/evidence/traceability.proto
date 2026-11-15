@@ -1,0 +1,115 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Traceability Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.evidence;
+
+// === Imports === //
+
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/metadata.proto";
+import "dokime/model/v1/traceability.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.EvidenceResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Traceability resource on the host; callers are checked before handler admission.
+service Traceability {
+  // Read the Traceability resource; plugin selectors default to and are restricted to trusted caller identity.
+  rpc Get(.dokime.host.v1.evidence.TraceabilityGetRequest) returns (.dokime.host.v1.evidence.TraceabilityGetResponse) {
+    option (harmos.model.v1.callers) = ALL;
+  }
+  // Observe durable changes to the Traceability resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.evidence.TraceabilityWatchRequest) returns (stream .dokime.host.v1.evidence.TraceabilityWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Replace the complete writable value of the Traceability resource; admission and policy are owned by the executor.
+  rpc Set(.dokime.host.v1.evidence.TraceabilitySetRequest) returns (.dokime.host.v1.evidence.TraceabilitySetResponse) {
+    option (harmos.model.v1.callers) = PLUGINS;
+  }
+}
+
+// === Get === //
+
+// TraceabilityGetRequest for Traceability.Get.
+// Clients supply scope. For a plugin, omitted scope resolves to its execution; an entry selects its independently revisioned value as well as the scoped snapshots.
+message TraceabilityGetRequest {
+  optional .dokime.model.v1.EvidenceScope scope = 1;
+  optional .harmos.model.v1.PageRequest page = 2;
+  optional .harmos.model.v1.ReadCut at = 3;
+
+  optional string entry = 5;
+}
+
+// TraceabilityGetResponse for Traceability.Get.
+message TraceabilityGetResponse {
+  repeated .dokime.host.v1.evidence.TraceabilitySnapshot snapshots = 1;
+  .harmos.model.v1.ReadCut resolved_at = 2;
+  string next_page_token = 3;
+
+  .dokime.model.v1.TraceabilityEntry value = 4;
+  bytes revision = 5;
+}
+
+// === Watch === //
+
+// TraceabilityWatchRequest for Traceability.Watch.
+message TraceabilityWatchRequest {
+  .dokime.model.v1.EvidenceScope scope = 1;
+  optional .harmos.model.v1.PageRequest page = 2;
+  optional .harmos.model.v1.ReadCut at = 3;
+}
+
+// TraceabilityWatchResponse for Traceability.Watch.
+message TraceabilityWatchResponse {
+  repeated .dokime.host.v1.evidence.TraceabilitySnapshot snapshots = 1;
+  .harmos.model.v1.ReadCut resolved_at = 2;
+  bool opening = 3;
+}
+
+// === Set === //
+
+// TraceabilitySetRequest for Traceability.Set.
+message TraceabilitySetRequest {
+  optional string name = 1;
+  .dokime.model.v1.TraceabilityEntry value = 2;
+  bytes expected_revision = 3;
+  string request_id = 4;
+  string entry = 5;
+}
+
+// TraceabilitySetResponse for Traceability.Set.
+message TraceabilitySetResponse {
+  .dokime.model.v1.TraceabilityEntry value = 1;
+  bytes revision = 2;
+  .harmos.model.v1.Receipt receipt = 3;
+}
+
+// === Resources === //
+
+// TraceabilitySnapshot value owned by this resource.
+message TraceabilitySnapshot {
+  bytes revision = 6;
+  .harmos.model.v1.Position resolved_at = 7;
+  string traceability_id = 1;
+  .dokime.model.v1.EvidenceScope scope = 2;
+  .google.protobuf.Timestamp created_at = 3;
+  repeated .dokime.model.v1.TraceabilityEntry entries = 4;
+  .dokime.model.v1.Metadata metadata = 5;
+}
+
+// === Enums === //

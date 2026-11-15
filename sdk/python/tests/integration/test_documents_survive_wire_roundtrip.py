@@ -16,12 +16,11 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 # Third Party Imports
-import dokime
-
 # Local Imports
-from dokime import plot
-from dokime.v1 import message, message_type
-from dokime.values import decode, encode
+from dokime import GridAxisEntry, Value, plot
+from dokime.authoring import Stream
+from dokime.documents import Document, Section, Summary
+from dokime.values import Scalar, decode, encode
 
 # Type Checking Imports
 
@@ -37,7 +36,7 @@ from dokime.values import decode, encode
 class DocumentStory(unittest.TestCase):
     def test_compose_serialize_and_reopen(self) -> None:
         # Build A Contour And Playback Grid From A Declared Stream.
-        samples = dokime.Stream("example.samples")
+        samples = Stream("example.samples")
         reading = samples.field("temperature").scale(2.0)
         contour = (
             plot.contour(reading)
@@ -52,15 +51,15 @@ class DocumentStory(unittest.TestCase):
             .row(samples.field("row"))
             .column(samples.field("column"))
             .frame(samples.field("frame"))
-            .rows([message("GridAxisEntry", key="sensor", label="Sensor")])
-            .columns([message("GridAxisEntry", key="site", label="Site")])
+            .rows([GridAxisEntry(key="sensor", label="Sensor")])
+            .columns([GridAxisEntry(key="site", label="Site")])
         )
-        document = dokime.Document("Evidence").section(
-            dokime.Section("Measurements").plot(contour).plot(grid).summary(dokime.Summary().tile("Maximum", reading.max()))
+        document = Document("Evidence").section(
+            Section("Measurements").plot(contour).plot(grid).summary(Summary().tile("Maximum", reading.max()))
         )
 
         # Reopen The Same Wire Format The Host Consumes.
-        reopened = message_type("Document").FromString(document.message.SerializeToString())
+        reopened = type(document.message).FromString(document.message.SerializeToString())
         surface, playback, summary = reopened.sections[0].cards
         self.assertEqual(surface.plot.z.transform.input.stream.identifier, "example.samples")
         self.assertEqual(surface.plot.z.transform.scale, 2.0)
@@ -70,12 +69,12 @@ class DocumentStory(unittest.TestCase):
         self.assertFalse(reading.message.HasField("aggregate"))
 
         # Preserve Parameter Precision, Explicit Null And Source Datetimes.
-        values = [None, True, -(2**63), 2**64 - 1, 1.25, "reading", b"\x00\xff", [1, None], datetime(2026, 1, 2, tzinfo=UTC)]
+        values: list[Scalar] = [None, True, -(2**63), 2**64 - 1, 1.25, "reading", b"\x00\xff", [1, None], datetime(2026, 1, 2, tzinfo=UTC)]
         self.assertEqual([decode(encode(value)) for value in values], values)
         with self.assertRaises(ValueError):
             encode(datetime(2026, 1, 2))
         with self.assertRaises(ValueError):
-            decode(message("Value"))
+            decode(Value())
         with self.assertRaises(TypeError):
             plot.xy(reading).reduce(cast(Any, "mean"))
 

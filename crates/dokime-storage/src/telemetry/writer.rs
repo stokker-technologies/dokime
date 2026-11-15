@@ -27,7 +27,7 @@ use tokio::time::Instant;
 // Local Imports
 use super::{Pending, Telemetry, catalog, codec::Codec};
 use crate::{Error, Execution, Result, Sample, Store, ipc};
-use harmos_protocol::v1::Catalog;
+use harmos_protocol::model::Declarations;
 
 /* === Constants === */
 
@@ -51,7 +51,7 @@ impl Telemetry {
         }
         let bytes: Vec<u8> = connection.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
         let definition = Execution::decode(bytes.as_slice())?;
-        let frozen = Catalog::decode(definition.catalog.as_slice())?;
+        let frozen = Declarations::decode(definition.catalog.as_slice())?;
         let declaration =
             frozen.streams.iter().find(|entry| entry.id == stream).ok_or(Error::Data("declare the stream in the frozen catalog"))?;
         let pool = DescriptorPool::from_file_descriptor_set(frozen.types.ok_or(Error::Data("include frozen stream descriptors"))?)

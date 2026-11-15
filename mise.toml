@@ -38,6 +38,7 @@ taplo = "0.10.0"
 
 # Protocols and Code Generation
 protoc = "36.2"
+"aqua:bufbuild/buf" = "1.75.0"
 
 # Release and Signing
 "aqua:EmbarkStudios/cargo-deny" = "0.20.2"
@@ -90,7 +91,7 @@ python -c "raise SystemExit('Check Protocol: Add --protocol; Native Client Drift
 
 [tasks.format]
 description = "Format Every Language"
-run = "{{vars.tools}} dokime_tools.ci.tasks format"
+run = ["buf format --write", "{{vars.tools}} dokime_tools.ci.tasks format"]
 
 [tasks.lint]
 description = "Lint Every Language"
@@ -216,7 +217,15 @@ run = [
 [tasks."check:repository"]
 hide = true
 description = "Check Repository Configuration"
-run = [{ task = "format:toml --check" }, "{{vars.tools}} dokime_tools.ci.mise", "shellcheck --version", "actionlint"]
+run = [
+  { task = "format:toml --check" },
+  "buf format --diff --exit-code",
+  "buf lint",
+  "{{vars.tools}} dokime_tools.build.protocol_callers",
+  "{{vars.tools}} dokime_tools.ci.mise",
+  "shellcheck --version",
+  "actionlint",
+]
 
 [tasks."check:rust"]
 hide = true
@@ -426,7 +435,7 @@ run = [
 hide = true
 description = "Measure Prepared Arrow Storage Benchmarks"
 usage = 'flag "--select <select>"; flag "--once"'
-run = "{{vars.tools}} dokime_tools.test.storage_bench{% if usage.select %} --select {{usage.select}}{% endif %}{% if usage.once %} --once{% endif %}"
+run = '''{{vars.tools}} dokime_tools.test.storage_bench{% if usage.select %} --select "{{usage.select}}"{% endif %}{% if usage.once %} --once{% endif %}'''
 
 [tasks."bench:rust:system"]
 hide = true
@@ -440,7 +449,7 @@ flag "--once"
 '''
 run = [
   "{{vars.tools}} dokime_tools.prepare.generated --profile bench",
-  "{{vars.tools}} dokime_tools.test.run bench --category system --language rust{% if usage.binary %} --binary {{usage.binary}}{% endif %}{% if usage.refresh_baseline %} --refresh-baseline{% endif %}{% if usage.select or usage.once %} --{% endif %}{% if usage.once %} --test{% endif %}{% if usage.select %} {{usage.select}}{% endif %}",
+  '''{{vars.tools}} dokime_tools.test.run bench --category system --language rust{% if usage.binary %} --binary {{usage.binary}}{% endif %}{% if usage.refresh_baseline %} --refresh-baseline{% endif %}{% if usage.select or usage.once %} --{% endif %}{% if usage.once %} --test{% endif %}{% if usage.select %} "{{usage.select}}"{% endif %}''',
 ]
 
 [tasks."test:typescript"]
@@ -596,6 +605,7 @@ run = [
   "{{vars.tools}} dokime_tools.release.version check",
   "{{vars.tools}} dokime_tools.release.run dry",
   "{{vars.tools}} dokime_tools.release.run crates-dry",
+  "{{vars.tools}} dokime_tools.release.run python-dry",
 ]
 
 [tasks."release:publish:finalize"]
@@ -605,5 +615,39 @@ run = "{{vars.tools}} dokime_tools.release.run finalize"
 
 [tasks."release:publish:python"]
 hide = true
-description = "Publish the Pure Python SDK"
+description = "Publish the Pure Python SDK to Its Registry"
 run = "{{vars.tools}} dokime_tools.release.run python"
+
+[tasks."release:publish:python:dry"]
+hide = true
+description = "Dry-Run the Pure Python SDK Publication"
+run = "{{vars.tools}} dokime_tools.release.run python-dry"
+
+[tasks."prepare:locks"]
+description = "Refresh Dependency Locks After a Library Pin Change"
+run = [
+  "cargo update --package harmos",
+  "cargo update --manifest-path sdk/rust/tests/consumer/Cargo.toml --package harmos",
+  "cargo fetch --locked",
+  "cargo fetch --manifest-path sdk/rust/tests/consumer/Cargo.toml --locked",
+  "uv lock",
+  "uv lock --project sdk/python",
+]
+
+[tasks."check:locks"]
+description = "Check Immutable Dependency Locks"
+run = [
+  "cargo metadata --locked --offline --format-version 1",
+  "cargo metadata --manifest-path sdk/rust/tests/consumer/Cargo.toml --locked --offline --format-version 1",
+  "uv lock --check",
+  "uv lock --check --project sdk/python",
+]
+
+[tasks."check:generated"]
+description = "Compile Generated SDK Barrels Without Product Consumers"
+usage = 'flag "--language <language>"'
+run = "{{vars.tools}} dokime_tools.build.generation{% if usage.language %} --language {{usage.language}}{% endif %}"
+
+[tasks."generate:typescript"]
+description = "Generate Desktop Messages from Frozen Definitions"
+run = ["{{vars.tools}} dokime_tools.prepare.generated --generate", "mise -C crates/dokime-gui run generate:host"]

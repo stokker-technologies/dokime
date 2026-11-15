@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Sources Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.storage;
+
+// === Imports === //
+
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.StorageResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Sources resource on the host; callers are checked before handler admission.
+service Sources {
+  // Read the Sources resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.storage.SourcesGetRequest) returns (.dokime.host.v1.storage.SourcesGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Replace the complete writable value of the Sources resource; admission and policy are owned by the executor.
+  rpc Set(.dokime.host.v1.storage.SourcesSetRequest) returns (.dokime.host.v1.storage.SourcesSetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// SourcesGetRequest for Sources.Get.
+message SourcesGetRequest {
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// SourcesGetResponse for Sources.Get.
+message SourcesGetResponse {
+  .dokime.host.v1.storage.StorageSources value = 1;
+  bytes revision = 2;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Set === //
+
+// SourcesSetRequest for Sources.Set.
+message SourcesSetRequest {
+  .dokime.host.v1.storage.StorageSources value = 20;
+  bytes expected_revision = 21;
+  string request_id = 22;
+}
+
+// SourcesSetResponse for Sources.Set.
+message SourcesSetResponse {
+  .dokime.host.v1.storage.StorageSources value = 1;
+  bytes revision = 2;
+  .harmos.model.v1.Receipt receipt = 3;
+}
+
+// === Resources === //
+
+// StorageSource value owned by this resource.
+message StorageSource {
+  string identifier = 1;
+  string adapter = 2;
+  int64 priority = 3;
+  bool enabled = 4;
+}
+
+// StorageSources value owned by this resource.
+message StorageSources {
+  repeated .dokime.host.v1.storage.StorageSource sources = 1;
+}
+
+// === Enums === //

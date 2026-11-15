@@ -282,14 +282,14 @@ jobs:
           runner: ubuntu-latest
           minutes: 120
           work: Rust / System
-          command: test -- --language rust --layer system --select "not package(dokime-runtime-next)"
+          command: test -- --language rust --layer system --select "not package(dokime-runtime)"
           bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
           archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: windows
           runner: windows-latest
           minutes: 120
           work: Rust / System
-          command: test -- --language rust --layer system --select "not package(dokime-runtime-next)"
+          command: test -- --language rust --layer system --select "not package(dokime-runtime)"
           bootstrap: '[]'
           archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
         - platform: unix
@@ -326,7 +326,7 @@ jobs:
       platform: ${{ matrix.platform }}
       runner: ${{ matrix.runner }}
       work: Rust / System / Execution Host
-      command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence)
+      command: test -- --artifact tests --package dokime-runtime --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence)
         or test(cpp_plugin_matches_rust_thermal_evidence))"
       bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
       archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-any.tar.zst"]'
@@ -352,7 +352,7 @@ jobs:
       platform: ${{ matrix.platform }}
       runner: ${{ matrix.runner }}
       work: Rust / System / Execution Host / SDK Equivalence
-      command: test -- --artifact tests --package dokime-runtime-next --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)
+      command: test -- --artifact tests --package dokime-runtime --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)
         or test(cpp_plugin_matches_rust_thermal_evidence)"
       bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
       archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-rust-{profile}-{platform}.tar.zst", "target/ci/build-host-python-{profile}-{platform}.tar.zst",
@@ -450,7 +450,7 @@ jobs:
     - build_host_fixtures
     env:
       CI_TRANSPORT: 'true'
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       CI_PROFILE: release
       CI_PLATFORM: ${{ matrix.platform }}
       CI_CACHE_PROFILE: test

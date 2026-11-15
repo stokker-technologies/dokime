@@ -22,11 +22,9 @@ mod error;
 mod evidence_positions;
 mod execution;
 mod expressions;
-mod file_uploads;
 mod history;
 mod ipc;
 mod notes;
-mod ordered_merge;
 mod outcome;
 mod plans;
 mod plot_kinds;
@@ -42,8 +40,8 @@ mod telemetry;
 
 /* === Re-Exports === */
 
-pub use backend::Backend;
-pub use content::{ArchivedContent, ArchivedContentChunk, CONTENT_CHUNK_BYTES, ContentEntry};
+pub use backend::{Backend, BackendLease};
+pub use content::{ArchivedNativeFile, CONTENT_CHUNK_BYTES, StoredArtifact, StoredExecutionFile};
 pub use content_name::{validate_artifact_name, validate_execution_path};
 pub use error::Error;
 pub use execution::{Evidence, Execution, ExecutionArchive, ExecutionSnapshot, ExecutionState, Sample};

@@ -1,0 +1,123 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Reports Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/metadata.proto";
+import "google/protobuf/timestamp.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/file.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Reports resource on the host; callers are checked before handler admission.
+service Reports {
+  // Read the Reports resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.ReportsGetRequest) returns (.dokime.host.v1.ReportsGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Create the Reports resource; admission and policy are owned by the executor.
+  rpc Create(.dokime.host.v1.ReportsCreateRequest) returns (.dokime.host.v1.ReportsCreateResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Publish the Reports resource; admission and policy are owned by the executor.
+  rpc Publish(.dokime.host.v1.ReportsPublishRequest) returns (.dokime.host.v1.ReportsPublishResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// ReportsGetRequest for Reports.Get.
+message ReportsGetRequest {
+  .dokime.host.v1.ReportSubject subject = 1;
+  string name = 2;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// ReportsGetResponse for Reports.Get.
+message ReportsGetResponse {
+  .dokime.host.v1.ReportMetadata report = 1;
+  .harmos.model.v1.FileReference file = 2;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Create === //
+
+// ReportsCreateRequest for Reports.Create.
+message ReportsCreateRequest {
+  .dokime.host.v1.ReportSubject subject = 1;
+  string document_id = 2;
+  optional .harmos.model.v1.ReadCut at = 3;
+  string request_id = 4;
+}
+
+// ReportsCreateResponse for Reports.Create.
+message ReportsCreateResponse {
+  .dokime.host.v1.ReportMetadata report = 1;
+  .harmos.model.v1.FileReference file = 2;
+  .harmos.model.v1.ReadCut resolved_at = 3;
+  .harmos.model.v1.Receipt receipt = 4;
+}
+
+// === Publish === //
+
+// ReportsPublishRequest for Reports.Publish.
+message ReportsPublishRequest {
+  string name = 1;
+  .dokime.host.v1.ReportSubject subject = 2;
+  bytes expected_revision = 3;
+  string request_id = 4;
+}
+
+// ReportsPublishResponse for Reports.Publish.
+message ReportsPublishResponse {
+  .dokime.host.v1.ReportMetadata report = 1;
+  bytes seal = 2;
+  .harmos.model.v1.Receipt receipt = 3;
+}
+
+// === Resources === //
+
+// ReportMetadata value owned by this resource.
+message ReportMetadata {
+  string test_cycle_id = 1;
+  optional string test_execution_id = 2;
+  string identifier = 3;
+  .dokime.model.v1.Metadata metadata = 4;
+  .google.protobuf.Timestamp generated_at = 5;
+  .dokime.host.v1.ReportOrigin origin = 6;
+  repeated string warnings = 7;
+}
+
+// ReportSubject value owned by this resource.
+message ReportSubject {
+  oneof kind {
+    string execution = 1;
+    string cycle = 2;
+  }
+}
+
+// === Enums === //
+
+// ReportOrigin choices.
+enum ReportOrigin {
+  REPORT_ORIGIN_UNSPECIFIED = 0;
+  REPORT_ORIGIN_SEALED = 1;
+  REPORT_ORIGIN_CURRENT = 2;
+}

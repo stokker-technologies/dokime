@@ -1,21 +1,44 @@
-syntax = "proto3";
-package dokime.plugin.v1;
-option csharp_namespace = "Dokime.Protocol.Plugin.V1";
-import "dokime/v1/execution.proto";
+// SPDX-License-Identifier: Apache-2.0
 
-// Shared Payloads for Independently Bound Protected Registry Operations.
-// Each plugin-authored dotted lifecycle identity retains its own handler and
-// callee-owned policy. These message families are not wire operation identities.
-// Only the host invokes a binding through harmos.plugin.v1.Instance/Invoke;
-// no lifecycle dispatch service or client binding is declared here.
-message CriteriaEvaluateRequest {
-  string execution = 1;
-  // Metadata.identifier of the criterion.
-  string criterion = 2;
-  .dokime.v1.TestCase test_case = 3;
-  .dokime.v1.Origin origin = 4;
+// Criteria Contracts
+
+syntax = "proto3";
+
+package dokime.plugin.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/execution.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Plugins";
+
+// === Services === //
+
+// Host-only plugin operations with independent Protected lifecycle bindings.
+// Application clients never receive these methods in their resource tree.
+service Criteria {
+  // Evaluate the Criteria resource; admission and policy are owned by the executor.
+  rpc Evaluate(.dokime.plugin.v1.CriteriaEvaluateRequest) returns (.dokime.plugin.v1.CriteriaEvaluateResponse) {}
 }
 
+// === Evaluate === //
+
+// CriteriaEvaluateRequest for Criteria.Evaluate.
+message CriteriaEvaluateRequest {
+  string execution = 1;
+
+  string criterion = 2;
+  .dokime.model.v1.TestCase test_case = 3;
+  .dokime.model.v1.Origin origin = 4;
+}
+
+// CriteriaEvaluateResponse for Criteria.Evaluate.
 message CriteriaEvaluateResponse {
   bool passed = 1;
 }
+
+// === Resources === //
+
+// === Enums === //

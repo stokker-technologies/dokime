@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- This Exported Consumer Builds Independently of the SDK Workspace. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>dokime-example-plugin</AssemblyName>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Dokime" Version="[0.1.0-dev]" />
+  </ItemGroup>
+</Project>

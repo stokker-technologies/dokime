@@ -3,3 +3,5 @@ package thermal.v1;
 option csharp_namespace = "ThermalStory";
 message Temperature { double celsius = 1; }
 message Door { bool closed = 1; }
+
+message Counter { uint64 value = 1; }

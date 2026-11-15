@@ -17,9 +17,19 @@
 use std::path::Path;
 
 // Local Imports
+
+use dokime_sdk::client::PluginPlacement;
+use dokime_sdk::client::PluginRemote;
+use dokime_sdk::client::PluginValue;
+use dokime_sdk::client::PluginsCreateOptions;
+use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
+
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::native_session::{BackendSelection, DesktopSession, backend::Backend};
-use dokime_protocol::{client, v1};
+use dokime_sdk::Import;
+use dokime_sdk::Origin;
+use dokime_sdk::origin::Kind as OriginKind;
 
 /* === Constants === */
 
@@ -55,8 +65,8 @@ impl Fixture {
             .create(&dokime_storage::Execution {
                 identifier: "desktop-content".into(),
                 cycle: "desktop-cycle".into(),
-                origin: Some(v1::Origin {
-                    kind: Some(v1::origin::Kind::Import(v1::Import::default())),
+                origin: Some(Origin {
+                    kind: Some(OriginKind::Import(Import::default())),
                 }),
                 ..Default::default()
             })
@@ -78,25 +88,49 @@ impl Fixture {
         self.owner.local_client().await.unwrap()
     }
 
-    pub async fn thermal(&self) -> dokime_runtime_next::PluginProcess {
+    pub async fn thermal(&self) -> dokime_runtime::PluginProcess {
         // Use the Shared SDK Fixture Produced Before This Story
         let executable = std::env::var_os("DOKIME_THERMAL_PLUGIN")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| dokime_gui::test_support::fixture("dokime-rust-thermal"));
-        let placement = dokime_runtime_next::PlacementSettings {
+        let placement = dokime_runtime::PlacementSettings {
             connect_timeout: std::time::Duration::from_secs(30),
             reconnect_delay: std::time::Duration::from_millis(25),
             stop_grace: std::time::Duration::from_secs(30),
             stream_window: std::num::NonZeroUsize::new(8).unwrap(),
             message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
-        let plugin = dokime_runtime_next::PluginProcess::start(&executable, true, &placement).await.unwrap();
-        let _: client::Plugin = self
-            .client()
-            .await
-            .unary("/dokime.client.v1.Plugins/Add", client::AddRemotePlugin { url: plugin.endpoint().into() })
+        let plugin = dokime_runtime::PluginProcess::start(&executable, true, &placement).await.unwrap();
+        let session = self.client().await;
+        let options = PluginsCreateOptions {
+            context: session.call_options().unwrap(),
+            ..Default::default()
+        };
+        let placement = PluginPlacement {
+            kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+        };
+        let admitted = session
+            .execute(session.client().plugins.create_with("desktop_thermal", placement, PluginValue { enabled: true }, options))
             .await
             .unwrap();
+        let mut entry = admitted.entry.unwrap();
+        let options = PluginsWatchOptions {
+            name: Some(entry.name.clone()),
+            context: session.call_options().unwrap(),
+            ..Default::default()
+        };
+        let mut watching = session.execute(session.client().plugins.watch_with(options)).await.unwrap();
+        while entry.state != PluginState::Ready as i32 {
+            assert!(entry.failure.is_none(), "Admit Desktop Fixture: {:?}", entry.failure);
+            assert_ne!(entry.state, PluginState::Stopped as i32);
+            session.execute(watching.next()).await.unwrap().expect("Admit Desktop Fixture: Watch Closed");
+            let options = PluginsGetOptions {
+                context: session.call_options().unwrap(),
+                ..Default::default()
+            };
+            entry = session.execute(session.client().plugins.get_with(entry.name, options)).await.unwrap().entry.unwrap();
+        }
+        drop(watching);
         plugin
     }
 

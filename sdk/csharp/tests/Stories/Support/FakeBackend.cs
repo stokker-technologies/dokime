@@ -1,137 +1,195 @@
 // SPDX-License-Identifier: Apache-2.0
 
-using Dokime.Protocol.Client.V1;
-using Dokime.Protocol.Client.V1.ExecutionsResources;
+using System.Security.Cryptography;
+using Dokime;
+using Dokime.Clients;
+using Dokime.Clients.ExecutionsResources;
+using Dokime.Clients.PlotsResources;
+using ExactNumber = Dokime.ExactNumber;
+using Value = Dokime.Value;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
-using System.Security.Cryptography;
-using Dokime.Protocol.V1;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Harmos;
+using Harmos.Clients;
+using Metadata = Grpc.Core.Metadata;
+using Status = Grpc.Core.Status;
 
 namespace Stories.Support;
 
-public class FakeBackend : Harmos.V1.Status.StatusBase
+internal sealed class FakeBackend : CallInvoker
 {
-  public override Task<Harmos.V1.StatusGetResponse> Get(Harmos.V1.StatusGetRequest request, ServerCallContext context)
+  private readonly Dictionary<string, PluginEntry> entries = [];
+  internal FileDescriptorSet Types
   {
-    if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
-      throw new RpcException(new Status(StatusCode.Unauthenticated, "Read Status: Supply Credentials"));
-    return Task.FromResult(new Harmos.V1.StatusGetResponse
-    {
-      Status = new Harmos.V1.HostStatus
-      {
-        Identity = new Harmos.V1.HostIdentity { HostId = "bench", ApplicationVersion = "1.0.0" },
-        Available = true
-      }
-    });
-  }
-
-  internal static async Task<(WebApplication App, HttpMessageHandler Handler)> StartAsync()
+    get;
+  } = new()
   {
-    var builder = WebApplication.CreateSlimBuilder();
-    builder.Logging.ClearProviders();
-    builder.WebHost.UseTestServer();
-    builder.Services.AddGrpc();
-    builder.Services.AddSingleton<FakePlugins>();
-    builder.Services.AddSingleton<FakeSchemas>();
-    var app = builder.Build();
-    app.MapGrpcService<FakeBackend>();
-    app.MapGrpcService<FakeLogs>();
-    app.MapGrpcService<FakePlugins>();
-    app.MapGrpcService<FakeCases>();
-    app.MapGrpcService<FakeSchemas>();
-    await app.StartAsync();
-    var handler = app.GetTestServer().CreateHandler();
-    return (app, handler);
-  }
-}
-
-public sealed class FakeLogs : Harmos.V1.StatusResources.Logs.LogsBase
-{
-  public override async Task Watch(Harmos.V1.StatusResources.LogsWatchRequest request,
-      IServerStreamWriter<Harmos.V1.StatusResources.LogsWatchResponse> response, ServerCallContext context)
-  {
-    if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
-      throw new RpcException(new Status(StatusCode.Unauthenticated, "Watch Logs: Supply Credentials"));
-    await response.WriteAsync(new Harmos.V1.StatusResources.LogsWatchResponse());
-    var batch = new Harmos.V1.StatusResources.LogsWatchResponse();
-    batch.Events.Add(new Harmos.V1.StatusResources.Event { Level = "INFO", Message = "ready" });
-    batch.Events.Add(new Harmos.V1.StatusResources.Event { Level = "ERROR", Message = "fixture failure" });
-    await response.WriteAsync(batch);
-  }
-}
-
-public sealed class FakePlugins : Plugins.PluginsBase
-{
-  private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dokime.Protocol.Client.V1.Plugin> entries = new();
-
-  public override Task<Dokime.Protocol.Client.V1.Plugin> Add(AddRemotePlugin request, ServerCallContext context)
-  {
-    if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var url) || url.Scheme != "http")
-      throw new RpcException(new Status(StatusCode.InvalidArgument, "Plugin URL is required"));
-    var plugin = new Dokime.Protocol.Client.V1.Plugin
-    {
-      Entry = Guid.NewGuid().ToString(),
-      Remote = new RemotePlugin { Url = request.Url },
-      State = PluginState.Connecting
-    };
-    entries[plugin.Entry] = plugin;
-    return Task.FromResult(plugin.Clone());
-  }
-
-  public override Task<PluginEntries> List(ListPlugins request, ServerCallContext context)
-  {
-    var reply = new PluginEntries();
-    reply.Plugins.AddRange(entries.Values.OrderBy(entry => entry.Entry).Select(entry => entry.Clone()));
-    return Task.FromResult(reply);
-  }
-}
-
-public sealed class FakeCases : Dokime.Protocol.Client.V1.Cases.CasesBase
-{
-  public override Task<Dokime.Protocol.Client.V1.CasesGetResponse> Get(Dokime.Protocol.Client.V1.CasesGetRequest request, ServerCallContext context)
-  {
-    if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
-      throw new RpcException(new Status(StatusCode.Unauthenticated, "Get Case: Supply Credentials"));
-    if (string.IsNullOrWhiteSpace(request.Name))
-      throw new RpcException(new Status(StatusCode.InvalidArgument, "Get Case: Supply a Name"));
-    return Task.FromResult(new Dokime.Protocol.Client.V1.CasesGetResponse
-    {
-      Value = new CaseDetail { Summary = new CaseSummary { CaseId = request.Name, Status = CaseStatus.Planned } },
-      ResolvedAt = request.At?.Clone()
-    });
-  }
-}
-
-public sealed class FakeSchemas : Schemas.SchemasBase
-{
-  public FileDescriptorSet Types { get; } = new()
-  {
-    File = { Google.Protobuf.WellKnownTypes.BoolValue.Descriptor.File.ToProto(), Google.Protobuf.WellKnownTypes.Empty.Descriptor.File.ToProto() }
+    File = { BoolValue.Descriptor.File.ToProto(), Empty.Descriptor.File.ToProto() }
   };
-  public int Calls { get; private set; }
-  public ByteString Digest => ByteString.CopyFrom(SHA256.HashData(Types.ToByteArray()));
-
-  public override Task<SchemasGetResponse> Get(SchemasGetRequest request, ServerCallContext context)
+  internal int SchemaCalls
   {
-    if (context.RequestHeaders.GetValue("authorization") != "Bearer test-token")
-      throw new RpcException(new Status(StatusCode.Unauthenticated, "Get Schemas: Supply Credentials"));
-    Calls++;
-    var cut = new Harmos.V1.Position { History = new Harmos.V1.History { Store = "schemas", Epoch = request.Name }, Sequence = 1 };
-    var first = request.Page?.PageToken.Length == 0;
-    if (!first && (!cut.Equals(request.At) || request.Page?.PageToken != "second"))
-      throw new RpcException(new Status(StatusCode.InvalidArgument, "Get Schemas: Continue the Same Read Cut"));
-    return Task.FromResult(new SchemasGetResponse
-    {
-      Digest = Digest,
-      Types_ = new FileDescriptorSet { File = { Types.File[first ? 0 : 1].Clone() } },
-      ResolvedAt = cut,
-      NextPageToken = first ? "second" : ""
-    });
+    get;
+    private set;
   }
+  internal ByteString Digest => ByteString.CopyFrom(SHA256.HashData(Types.ToByteArray()));
+  internal CallOptions Options
+  {
+    get;
+    private set;
+  }
+
+  private static T Field<T>(IMessage request, string name)
+      => (T)request.Descriptor.FindFieldByName(name).Accessor.GetValue(request);
+
+  private IMessage Reply(string method, IMessage request, CallOptions options)
+  {
+    Options = options;
+    if (options.Headers?.GetValue("authorization") != "Bearer test-token")
+      throw new RpcException(new Status(StatusCode.Unauthenticated, $"Call {method}: Supply Credentials"));
+    if (method == "/harmos.host.v1.Status/Get")
+      return new StatusGetResponse
+      {
+        Status = new HostStatus { Identity = new HostIdentity { HostId = "bench", ApplicationVersion = "1.0.0" }, Available = true }
+      };
+    if (method == "/dokime.host.v1.Cases/Get")
+    {
+      var name = Field<string>(request, "name");
+      if (string.IsNullOrWhiteSpace(name))
+        throw new RpcException(new Status(StatusCode.InvalidArgument, "Get Case: Supply a Name"));
+      return new CasesGetResponse
+      {
+        Value = new CaseDetail { Summary = new CaseSummary { CaseId = name, Status = CaseStatus.Planned } },
+        ResolvedAt = Field<ReadCut?>(request, "at")?.Clone()
+      };
+    }
+    if (method == "/harmos.host.v1.Plugins/Create")
+    {
+      var placement = Field<PluginPlacement>(request, "placement");
+      if (!Uri.TryCreate(placement.Remote?.Url, UriKind.Absolute, out var url) || url.Scheme != "http")
+        throw new RpcException(new Status(StatusCode.InvalidArgument, "Create Plugin: Supply a Valid URL"));
+      var name = Field<string>(request, "name");
+      var entry = new PluginEntry { Name = name, Placement = placement.Clone(), State = PluginState.Connecting };
+      entries.Add(name, entry);
+      return new PluginsCreateResponse { Entry = entry.Clone(), Receipt = new Receipt() };
+    }
+    if (method == "/harmos.host.v1.Plugins/List")
+    {
+      var response = new PluginsListResponse();
+      response.Entries.AddRange(entries.Values.OrderBy(entry => entry.Name).Select(entry => entry.Clone()));
+      return response;
+    }
+    if (method == "/dokime.host.v1.Evidence/Statistics")
+    {
+      var scope = Field<EvidenceScope>(request, "scope");
+      if (scope.ExecutionId != "first" || Field<string>(request, "field") != "counter")
+        throw new RpcException(new Status(StatusCode.InvalidArgument, "Read Statistics: Select the Counter Execution"));
+      return new EvidenceStatisticsResponse
+      {
+        Statistics = new Statistics
+        {
+          Count = 2,
+          Sum = new Value { UnsignedInteger = 18_446_744_073_709_551_615 },
+          Mean = new Value { Exact = new ExactNumber { Numerator = "18446744073709551615", Denominator = "2" } }
+        }
+      };
+    }
+    if (method == "/dokime.host.v1.plots.Snapshots/List")
+      return new SnapshotsListResponse
+      {
+        Envelopes = { new PlotEnvelope { Payload = new PlotPayload { Frame = new PlotFrame
+        {
+          Series = { new PlotColumn
+          {
+            Y = { new NullableNumber { Value = 9_007_199_254_740_992 } },
+            Totals = { new Value { UnsignedInteger = 9_007_199_254_740_993 } }
+          } }
+        } } } }
+      };
+    if (method == "/dokime.host.v1.Documents/Get")
+      return new DocumentsGetResponse
+      {
+        Frames =
+        {
+          new DocumentFrame { Frame = new DocumentFrameFrame { Binding = new DocumentBinding
+          {
+            SourceId = "counter",
+            Result = new DocumentBindingResult { Summary = new DocumentSummary { GroupCount = 1 } }
+          } } },
+          new DocumentFrame { Frame = new DocumentFrameFrame { SummaryTile = new DocumentSummaryTile
+          {
+            CardId = "counter",
+            Value = new Value { Exact = new ExactNumber { Numerator = "18446744073709551615", Denominator = "2" } },
+            State = DocumentSummaryState.Critical
+          } } },
+          new DocumentFrame { Frame = new DocumentFrameFrame { CardComplete = "counter" } }
+        }
+      };
+    if (method == "/dokime.host.v1.executions.Schemas/Get")
+    {
+      SchemaCalls++;
+      var cut = new Position { History = new History { Store = "schemas", Epoch = Field<string>(request, "name") }, Sequence = 1 };
+      var page = Field<PageRequest?>(request, "page");
+      var first = page?.PageToken.Length == 0;
+      if (!first && (!cut.Equals(Field<Position?>(request, "at")) || page?.PageToken != "second"))
+        throw new RpcException(new Status(StatusCode.InvalidArgument, "Get Schemas: Continue the Same Read Cut"));
+      return new SchemasGetResponse
+      {
+        Digest = Digest,
+        Types_ = new FileDescriptorSet { File = { Types.File[first ? 0 : 1].Clone() } },
+        ResolvedAt = cut,
+        NextPageToken = first ? "second" : ""
+      };
+    }
+    throw new RpcException(new Status(StatusCode.Unimplemented, $"Call {method}: Unsupported Fixture Operation"));
+  }
+
+  public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method,
+      string? host, CallOptions options, TRequest request)
+  {
+    Task<TResponse> response;
+    try
+    {
+      var reply = Reply(method.FullName, (IMessage)request, options);
+      response = Task.FromResult(method.ResponseMarshaller.Deserializer(reply.ToByteArray()));
+    }
+    catch (RpcException error)
+    {
+      response = Task.FromException<TResponse>(error);
+    }
+    return new(response, Task.FromResult(new Metadata()), () => Status.DefaultSuccess, () => new Metadata(), () => { });
+  }
+
+  public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method,
+      string? host, CallOptions options, TRequest request)
+  {
+    Options = options;
+    var opening = new LogsWatchResponse();
+    var batch = new LogsWatchResponse
+    {
+      Events = { new Event { Level = "INFO", Message = "ready" }, new Event { Level = "ERROR", Message = "fixture failure" } }
+    };
+    var reader = new Reader<TResponse>([(TResponse)(object)opening, (TResponse)(object)batch]);
+    return new(reader, Task.FromResult(new Metadata()), () => Status.DefaultSuccess, () => new Metadata(), () => { });
+  }
+
+  private sealed class Reader<T>(IReadOnlyList<T> values) : IAsyncStreamReader<T>
+  {
+    private int index = -1;
+    public T Current => values[index];
+    public Task<bool> MoveNext(CancellationToken cancellationToken)
+    {
+      cancellationToken.ThrowIfCancellationRequested();
+      index++;
+      return Task.FromResult(index < values.Count);
+    }
+  }
+
+  public override TResponse BlockingUnaryCall<TRequest, TResponse>(Method<TRequest, TResponse> method,
+      string? host, CallOptions options, TRequest request) => throw new NotSupportedException();
+  public override AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method,
+      string? host, CallOptions options) => throw new NotSupportedException();
+  public override AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(Method<TRequest, TResponse> method,
+      string? host, CallOptions options) => throw new NotSupportedException();
 }

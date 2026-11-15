@@ -103,7 +103,7 @@ affected contracts rather than introduce parallel rules.
 
 Future implementation first moves declarations into `proto/dokime/plugin/v1/`,
 `proto/dokime/context/v1/` and client `proto/dokime/v1/`, then spans protocol generation,
-`crates/dokime-operations-next/`, `crates/dokime-runtime-next/`,
+`crates/dokime-operations/`, `crates/dokime-runtime/`,
 `crates/dokime-storage/`, all four SDKs, CLI/client, and desktop/native bridge.
 Callers must regenerate, adopt the new IDs/fingerprints and wrappers, retain
 `resolved_at` across pages, inspect durability receipts, use upload sessions

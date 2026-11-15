@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Thin Plot Builders Over Canonical dokime.v1 Messages."""
+"""Plot Builders Over Canonical Model Values."""
 
 # === Imports === #
 
@@ -17,9 +17,15 @@ from typing import Self, cast
 
 # Third Party Imports
 # Local Imports
-from .v1 import enum_value, message
-from .v1 import expressions_pb2 as expressions
-from .v1 import plots_pb2 as wire
+from dokime import Aggregate as AggregateValue
+from dokime import AxisScale as AxisScaleValue
+from dokime import BarArrangement as BarArrangementValue
+from dokime import ContourRender as ContourRenderValue
+from dokime import DataExpression, FieldReference, GridAxisEntry, GridHighlight, PlotKind, ReferenceBand, ReferenceLine, TransformExpression
+from dokime import Plot as PlotValue
+from dokime import PlotStyle as PlotStyleValue
+from dokime import Reduction as ReductionValue
+from dokime import XyInterval as XyIntervalValue
 
 # Type Checking Imports
 
@@ -56,88 +62,88 @@ __all__ = [
 
 
 class Reduction(IntEnum):
-    MEAN = enum_value("Reduction", "REDUCTION_MEAN")
-    MIN = enum_value("Reduction", "REDUCTION_MIN")
-    MAX = enum_value("Reduction", "REDUCTION_MAX")
+    MEAN = ReductionValue.Value("REDUCTION_MEAN")
+    MIN = ReductionValue.Value("REDUCTION_MIN")
+    MAX = ReductionValue.Value("REDUCTION_MAX")
 
 
 class ContourRender(IntEnum):
-    CELLS = enum_value("ContourRender", "CONTOUR_RENDER_CELLS")
-    BANDS = enum_value("ContourRender", "CONTOUR_RENDER_BANDS")
+    CELLS = ContourRenderValue.Value("CONTOUR_RENDER_CELLS")
+    BANDS = ContourRenderValue.Value("CONTOUR_RENDER_BANDS")
 
 
 class BarArrangement(IntEnum):
-    GROUPED = enum_value("BarArrangement", "BAR_ARRANGEMENT_GROUPED")
-    STACKED = enum_value("BarArrangement", "BAR_ARRANGEMENT_STACKED")
+    GROUPED = BarArrangementValue.Value("BAR_ARRANGEMENT_GROUPED")
+    STACKED = BarArrangementValue.Value("BAR_ARRANGEMENT_STACKED")
 
 
 class XyInterval(IntEnum):
-    SIGMA = enum_value("XyInterval", "XY_INTERVAL_SIGMA")
+    SIGMA = XyIntervalValue.Value("XY_INTERVAL_SIGMA")
 
 
 class PlotStyle(IntEnum):
-    LINE = enum_value("PlotStyle", "PLOT_STYLE_LINE")
-    POINTS = enum_value("PlotStyle", "PLOT_STYLE_POINTS")
-    LINE_POINTS = enum_value("PlotStyle", "PLOT_STYLE_LINE_POINTS")
-    STEP = enum_value("PlotStyle", "PLOT_STYLE_STEP")
+    LINE = PlotStyleValue.Value("PLOT_STYLE_LINE")
+    POINTS = PlotStyleValue.Value("PLOT_STYLE_POINTS")
+    LINE_POINTS = PlotStyleValue.Value("PLOT_STYLE_LINE_POINTS")
+    STEP = PlotStyleValue.Value("PLOT_STYLE_STEP")
 
 
 class AxisScale(IntEnum):
-    LINEAR = enum_value("AxisScale", "AXIS_SCALE_LINEAR")
-    LOG = enum_value("AxisScale", "AXIS_SCALE_LOG")
+    LINEAR = AxisScaleValue.Value("AXIS_SCALE_LINEAR")
+    LOG = AxisScaleValue.Value("AXIS_SCALE_LOG")
 
 
 class Aggregate(IntEnum):
-    COUNT = enum_value("Aggregate", "AGGREGATE_COUNT")
-    SUM = enum_value("Aggregate", "AGGREGATE_SUM")
-    MIN = enum_value("Aggregate", "AGGREGATE_MIN")
-    MAX = enum_value("Aggregate", "AGGREGATE_MAX")
-    MEAN = enum_value("Aggregate", "AGGREGATE_MEAN")
-    STDDEV = enum_value("Aggregate", "AGGREGATE_STDDEV")
-    MEDIAN = enum_value("Aggregate", "AGGREGATE_MEDIAN")
-    PERCENTILE = enum_value("Aggregate", "AGGREGATE_PERCENTILE")
-    RMS = enum_value("Aggregate", "AGGREGATE_RMS")
+    COUNT = AggregateValue.Value("AGGREGATE_COUNT")
+    SUM = AggregateValue.Value("AGGREGATE_SUM")
+    MIN = AggregateValue.Value("AGGREGATE_MIN")
+    MAX = AggregateValue.Value("AGGREGATE_MAX")
+    MEAN = AggregateValue.Value("AGGREGATE_MEAN")
+    STDDEV = AggregateValue.Value("AGGREGATE_STDDEV")
+    MEDIAN = AggregateValue.Value("AGGREGATE_MEDIAN")
+    PERCENTILE = AggregateValue.Value("AGGREGATE_PERCENTILE")
+    RMS = AggregateValue.Value("AGGREGATE_RMS")
 
 
 class Expression:
-    def __init__(self, value: expressions.DataExpression) -> None:
-        if value.DESCRIPTOR.full_name != "dokime.v1.DataExpression":
-            raise TypeError("expected a dokime.v1.DataExpression")
+    def __init__(self, value: DataExpression) -> None:
+        if not isinstance(value, DataExpression):
+            raise TypeError("Expected a DataExpression")
         self.message = value
 
     def label(self, label: str) -> Self:
-        value = message("DataExpression")
+        value = DataExpression()
         value.CopyFrom(self.message)
         value.label = label
         return type(self)(value)
 
     def scale(self, factor: float) -> Self:
-        return self._transform(expressions.TransformExpression(scale=factor))
+        return self._transform(TransformExpression(scale=factor))
 
     def offset(self, value: float) -> Self:
-        return self._transform(expressions.TransformExpression(offset=value))
+        return self._transform(TransformExpression(offset=value))
 
     def detail(self, name: str) -> Self:
-        return self._transform(expressions.TransformExpression(detail=name))
+        return self._transform(TransformExpression(detail=name))
 
     def time_between(self, record: str) -> Self:
-        return self._transform(expressions.TransformExpression(time_between=record))
+        return self._transform(TransformExpression(time_between=record))
 
     def per_case(self) -> Self:
-        return self._transform(expressions.TransformExpression(per_case=True))
+        return self._transform(TransformExpression(per_case=True))
 
     def aggregate(self, kind: Aggregate, *, percentile: float = 0.0) -> Self:
-        value = message("DataExpression", label=self.message.label)
+        value = DataExpression(label=self.message.label)
         value.aggregate.input.CopyFrom(self.message)
-        value.aggregate.kind = _enum(kind, Aggregate)
+        value.aggregate.kind = cast(AggregateValue, _enum(kind, Aggregate))
         value.aggregate.percentile = percentile
         return type(self)(value)
 
     def percentile(self, rank: float) -> Self:
         return self.aggregate(Aggregate.PERCENTILE, percentile=rank)
 
-    def _transform(self, transform: expressions.TransformExpression) -> Self:
-        value = message("DataExpression", label=self.message.label)
+    def _transform(self, transform: TransformExpression) -> Self:
+        value = DataExpression(label=self.message.label)
         value.transform.CopyFrom(transform)
         value.transform.input.CopyFrom(self.message)
         return type(self)(value)
@@ -168,9 +174,9 @@ class Expression:
 
 
 class Plot:
-    def __init__(self, value: wire.Plot) -> None:
-        if value.DESCRIPTOR.full_name != "dokime.v1.Plot":
-            raise TypeError("expected a dokime.v1.Plot")
+    def __init__(self, value: PlotValue) -> None:
+        if not isinstance(value, PlotValue):
+            raise TypeError("Expected a Plot")
         self.message = value
 
     def x(self, value: Expression) -> Self:
@@ -203,31 +209,31 @@ class Plot:
         return self
 
     def reduce(self, reduction: Reduction) -> Self:
-        self.message.reduction = cast("wire.Reduction.ValueType", _enum(reduction, Reduction))
+        self.message.reduction = cast(ReductionValue, _enum(reduction, Reduction))
         return self
 
     def render(self, render: ContourRender) -> Self:
-        self.message.render = cast("wire.ContourRender.ValueType", _enum(render, ContourRender))
+        self.message.render = cast(ContourRenderValue, _enum(render, ContourRender))
         return self
 
     def arrangement(self, arrangement: BarArrangement) -> Self:
-        self.message.arrangement = cast("wire.BarArrangement.ValueType", _enum(arrangement, BarArrangement))
+        self.message.arrangement = cast(BarArrangementValue, _enum(arrangement, BarArrangement))
         return self
 
     def interval(self, interval: XyInterval) -> Self:
-        self.message.interval = cast("wire.XyInterval.ValueType", _enum(interval, XyInterval))
+        self.message.interval = cast(XyIntervalValue, _enum(interval, XyInterval))
         return self
 
     def style(self, style: PlotStyle) -> Self:
-        self.message.style = cast("wire.PlotStyle.ValueType", _enum(style, PlotStyle))
+        self.message.style = cast(PlotStyleValue, _enum(style, PlotStyle))
         return self
 
     def x_scale(self, scale: AxisScale) -> Self:
-        self.message.x_scale = cast("wire.AxisScale.ValueType", _enum(scale, AxisScale))
+        self.message.x_scale = cast(AxisScaleValue, _enum(scale, AxisScale))
         return self
 
     def y_scale(self, scale: AxisScale) -> Self:
-        self.message.y_scale = cast("wire.AxisScale.ValueType", _enum(scale, AxisScale))
+        self.message.y_scale = cast(AxisScaleValue, _enum(scale, AxisScale))
         return self
 
     def pareto(self, enabled: bool) -> Self:
@@ -268,19 +274,19 @@ class Plot:
         self.message.grid.frame.CopyFrom(_expression(value))
         return self
 
-    def rows(self, entries: Iterable[wire.GridAxisEntry]) -> Self:
+    def rows(self, entries: Iterable[GridAxisEntry]) -> Self:
         del self.message.grid.rows[:]
         self.message.grid.rows.extend(entries)
         return self
 
-    def columns(self, entries: Iterable[wire.GridAxisEntry]) -> Self:
+    def columns(self, entries: Iterable[GridAxisEntry]) -> Self:
         del self.message.grid.columns[:]
         self.message.grid.columns.extend(entries)
         return self
 
-    def highlight(self, highlight: wire.GridHighlight) -> Self:
-        if highlight.DESCRIPTOR.full_name != "dokime.v1.GridHighlight":
-            raise TypeError("expected a dokime.v1.GridHighlight")
+    def highlight(self, highlight: GridHighlight) -> Self:
+        if not isinstance(highlight, GridHighlight):
+            raise TypeError("Expected a GridHighlight")
         self.message.grid.highlights.add().CopyFrom(highlight)
         return self
 
@@ -288,15 +294,15 @@ class Plot:
         self.message.grid.summary_label = label
         return self
 
-    def reference_line(self, line: wire.ReferenceLine) -> Self:
-        if getattr(getattr(line, "DESCRIPTOR", None), "full_name", None) != "dokime.v1.ReferenceLine":
-            raise TypeError("expected a dokime.v1.ReferenceLine message")
+    def reference_line(self, line: ReferenceLine) -> Self:
+        if not isinstance(line, ReferenceLine):
+            raise TypeError("Expected a ReferenceLine message")
         self.message.reference_lines.add().CopyFrom(line)
         return self
 
-    def reference_band(self, band: wire.ReferenceBand) -> Self:
-        if getattr(getattr(band, "DESCRIPTOR", None), "full_name", None) != "dokime.v1.ReferenceBand":
-            raise TypeError("expected a dokime.v1.ReferenceBand message")
+    def reference_band(self, band: ReferenceBand) -> Self:
+        if not isinstance(band, ReferenceBand):
+            raise TypeError("Expected a ReferenceBand message")
         self.message.reference_bands.add().CopyFrom(band)
         return self
 
@@ -305,7 +311,7 @@ class Plot:
 
 
 def field(stream: str, name: str) -> Expression:
-    return Expression(message("DataExpression", stream=message("FieldReference", identifier=stream, field=name)))
+    return Expression(DataExpression(stream=FieldReference(identifier=stream, field=name)))
 
 
 def time_series(value: Expression, *, label: str | None = None) -> Plot:
@@ -362,7 +368,7 @@ def box_plot(value: Expression, *, label: str | None = None) -> Plot:
 
 
 def _new_plot(kind: str, value: Expression) -> Plot:
-    result = message("Plot", kind=enum_value("PlotKind", f"PLOT_KIND_{kind}"))
+    result = PlotValue(kind=cast(PlotKind, PlotKind.Value(f"PLOT_KIND_{kind}")))
     if kind == "CONTOUR":
         result.z.CopyFrom(_expression(value))
     elif kind == "HISTOGRAM":
@@ -372,7 +378,7 @@ def _new_plot(kind: str, value: Expression) -> Plot:
     return Plot(result)
 
 
-def _expression(value: Expression) -> expressions.DataExpression:
+def _expression(value: Expression) -> DataExpression:
     if not isinstance(value, Expression):
         raise TypeError("plot bindings require a field expression, not text")
     return value.message

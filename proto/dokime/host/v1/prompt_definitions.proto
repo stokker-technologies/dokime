@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// PromptDefinitions Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/prompts.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the PromptDefinitions resource on the host; callers are checked before handler admission.
+service PromptDefinitions {
+  // Read the PromptDefinitions resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.PromptDefinitionsGetRequest) returns (.dokime.host.v1.PromptDefinitionsGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // List the PromptDefinitions resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.PromptDefinitionsListRequest) returns (.dokime.host.v1.PromptDefinitionsListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// PromptDefinitionsGetRequest for PromptDefinitions.Get.
+message PromptDefinitionsGetRequest {
+  string name = 1;
+  string parent = 2;
+  uint32 schema_version = 3;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// PromptDefinitionsGetResponse for PromptDefinitions.Get.
+message PromptDefinitionsGetResponse {
+  .dokime.model.v1.Prompt value = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === List === //
+
+// PromptDefinitionsListRequest for PromptDefinitions.List.
+message PromptDefinitionsListRequest {
+  string parent = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// PromptDefinitionsListResponse for PromptDefinitions.List.
+message PromptDefinitionsListResponse {
+  repeated .dokime.model.v1.Prompt values = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Resources === //
+
+// === Enums === //

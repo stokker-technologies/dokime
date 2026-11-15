@@ -148,6 +148,10 @@ def main() -> None:
             if options.source
             else sorted([*sdk.rglob("*.cpp"), *sdk.rglob("*.hpp"), *ROOT.glob("sdk/tests/fixtures/cpp/**/*.cpp")])
         )
+        if not options.check:
+            sources = [path for path in sources if not path.read_text(encoding="utf-8").startswith("// @generated")]
+        if not sources:
+            raise RuntimeError("Format C++ SDK: Select a Handwritten SDK Source")
         command = [formatter or "clang-format", "-style={BasedOnStyle: LLVM, ColumnLimit: 140}"]
         command += ["--dry-run", "--Werror"] if options.check else ["-i"]
         command += [str(path) for path in sources]
@@ -172,6 +176,9 @@ def main() -> None:
     elif options.action == "clean":
         command = ["cmake", "--build", "--preset", options.preset, "--target", "clean"]
     elif options.action == "test":
+        pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
+        if pending.strip() != "ninja: no work to do.":
+            raise RuntimeError(f"Test C++ SDK: Build This Preset Before Running Its Stories\n{pending.strip()}")
         command = ["ctest", "--preset", options.preset, "--output-junit", str(directory / "junit.xml")]
         if options.exact:
             command += ["-R", "^" + re.escape(options.exact) + "$"]
@@ -180,6 +187,9 @@ def main() -> None:
         if options.repeat:
             command += ["--repeat", f"until-fail:{options.repeat}"]
     elif options.action == "consumer":
+        pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
+        if pending.strip() != "ninja: no work to do.":
+            raise RuntimeError(f"Build Installed Consumer: Build This Preset Before Installing Its Package\n{pending.strip()}")
         prefix = directory / "installed"
         subprocess.run(["cmake", "--install", str(directory), "--prefix", str(prefix)], env=child, check=True)
         consumer = ROOT / "target/cp/consumer"
@@ -190,7 +200,7 @@ def main() -> None:
                 "--preset",
                 "release",
                 "-S",
-                str(options.source or sdk / "starter"),
+                str(options.source or sdk / "examples/test"),
                 "-B",
                 str(consumer),
                 "-G",
@@ -201,7 +211,7 @@ def main() -> None:
                 "-DVCPKG_MANIFEST_INSTALL=OFF",
                 "-DCMAKE_BUILD_TYPE=Debug",
             ],
-            cwd=options.source or sdk / "starter",
+            cwd=options.source or sdk / "examples/test",
             env=child,
             check=True,
         )
@@ -215,17 +225,26 @@ def main() -> None:
             str(directory / "tests" / ("dokime-conformance.exe" if os.name == "nt" else "dokime-conformance")),
         ]
     else:
+        pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
+        if pending.strip() != "ninja: no work to do.":
+            raise RuntimeError(f"Package C++ SDK: Build This Preset Before Installing Its Package\n{pending.strip()}")
         prefix = directory / "installed"
         subprocess.run(["cmake", "--install", str(directory), "--prefix", str(prefix)], env=child, check=True)
-        with tarfile.open(directory / "dokime-cpp.tar.gz", "w:gz") as archive:
+        archive = tarfile.TarFile.gzopen(directory / "dokime-cpp.tar.gz", "w")
+        try:
             archive.add(prefix, arcname="dokime-cpp")
+        finally:
+            archive.close()
         return
     log = directory / f"{options.action}.log"
     if log.exists():
         attempt = len(list(directory.glob(f"{options.action}-*.log"))) + 1
         shutil.copyfile(log, directory / f"{options.action}-{attempt}.log")
-    with log.open("w", encoding="utf-8") as output:
+    output = log.open("w", encoding="utf-8")
+    try:
         result = subprocess.run(command, cwd=sdk, env=child, stdout=output, stderr=subprocess.STDOUT, check=False)
+    finally:
+        output.close()
     print(log.read_text(encoding="utf-8", errors="replace"))
     result.check_returncode()
 

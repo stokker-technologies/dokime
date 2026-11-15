@@ -6,8 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <!-- The Local Feed Is Rebuilt; Its Consumer Locks Are Build Outputs. -->
-    <NuGetLockFilePath>$(RepoRoot)target/cs/locks/$(MSBuildProjectName).lock.json</NuGetLockFilePath>
+    <!-- Immutable Library Feed Revisions and Their Consumers Have Tracked Locks. -->
+    <NuGetLockFilePath>$(MSBuildProjectDirectory)/packages.lock.json</NuGetLockFilePath>
     <UseArtifactsOutput>true</UseArtifactsOutput>
     <ArtifactsPath>$(RepoRoot)target/cs</ArtifactsPath>
     <RestorePackagesPath>$(ArtifactsPath)/packages</RestorePackagesPath>

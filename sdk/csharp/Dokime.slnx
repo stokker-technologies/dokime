@@ -2,5 +2,6 @@
   <Project Path="src/Dokime/Dokime.csproj" />
   <Project Path="tests/Builders/Builders.csproj" />
   <Project Path="tests/Stories/Stories.csproj" />
+  <Project Path="tests/Generation/Generation.csproj" />
   <Project Path="../tests/fixtures/csharp/Conformance/Conformance.csproj" />
 </Solution>

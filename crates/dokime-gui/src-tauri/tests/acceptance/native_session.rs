@@ -196,11 +196,11 @@ fn unsupported_reset_preserves_live_host() {
         assert_eq!(fs::read(store.join("operator-evidence")).unwrap(), b"preserved");
         assert!(!root.path().join("backup.zip").exists());
         let client = owner.local_client().await.unwrap();
-        let _: dokime_protocol::client::CyclesListResponse = client
+        let _: dokime_protocol::host::CyclesListResponse = client
             .unary(
-                "/dokime.client.v1.Cycles/List",
-                dokime_protocol::client::CyclesListRequest {
-                    page: Some(dokime_sdk::client::v1::PageRequest { page_size: 1, ..Default::default() }),
+                "/dokime.host.v1.Cycles/List",
+                dokime_protocol::host::CyclesListRequest {
+                    page: Some(dokime_sdk::PageRequest { page_size: 1, ..Default::default() }),
                     ..Default::default()
                 },
             )

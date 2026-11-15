@@ -1,0 +1,69 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// StreamSchemas Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/host/v1/record_schemas.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the StreamSchemas resource on the host; callers are checked before handler admission.
+service StreamSchemas {
+  // Read the StreamSchemas resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.StreamSchemasGetRequest) returns (.dokime.host.v1.StreamSchemasGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // List the StreamSchemas resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.StreamSchemasListRequest) returns (.dokime.host.v1.StreamSchemasListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// StreamSchemasGetRequest for StreamSchemas.Get.
+message StreamSchemasGetRequest {
+  string name = 1;
+  string parent = 2;
+  uint32 schema_version = 3;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// StreamSchemasGetResponse for StreamSchemas.Get.
+message StreamSchemasGetResponse {
+  .dokime.host.v1.TelemetrySchema value = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === List === //
+
+// StreamSchemasListRequest for StreamSchemas.List.
+message StreamSchemasListRequest {
+  string parent = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// StreamSchemasListResponse for StreamSchemas.List.
+message StreamSchemasListResponse {
+  repeated .dokime.host.v1.TelemetrySchema values = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Resources === //
+
+// === Enums === //

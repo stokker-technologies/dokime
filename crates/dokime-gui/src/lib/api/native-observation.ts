@@ -14,9 +14,9 @@
 import { defaultBrand } from "@/lib/brand";
 import { required, type Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import { CycleStatus } from "@host/dokime/v1/cycles_pb.js";
-import { ResultStatus } from "@host/dokime/v1/execution_pb.js";
-import type { EvidenceScope as HostEvidenceScope } from "@host/dokime/v1/evidence_pb.js";
+import { CycleStatus } from "@host/model";
+import { ResultStatus } from "@host/model";
+import type { EvidenceScope as HostEvidenceScope } from "@host/model";
 import { nativeValueToJson, nativeEvidenceScope, recordScopeFromNative } from "@/lib/host/values";
 export type RuntimeStateFrame = Wire<
   Awaited<ReturnType<typeof rpc.backendOverviewWatch>> extends NativeStream<infer Frame> ? Frame : never

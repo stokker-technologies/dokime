@@ -20,7 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use crate::{Template, v1};
+use crate::plugin::Template;
+use crate::{Metadata, Suite as SuiteDefinition};
 
 /* === Constants === */
 
@@ -31,7 +32,7 @@ use crate::{Template, v1};
 /* === Structs === */
 
 pub struct Suite {
-    pub(crate) definition: v1::Suite,
+    pub(crate) definition: SuiteDefinition,
     pub(crate) templates: Vec<Template>,
 }
 
@@ -44,8 +45,8 @@ pub struct Suite {
 impl Suite {
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
         Self {
-            definition: v1::Suite {
-                metadata: Some(v1::Metadata {
+            definition: SuiteDefinition {
+                metadata: Some(Metadata {
                     identifier: identifier.into(),
                     label: label.into(),
                     description: String::new(),
@@ -68,7 +69,7 @@ impl Suite {
         self.definition.metadata.as_mut().expect("Suite Metadata").description = description.into();
         self
     }
-    pub fn parameter_group(mut self, group: v1::Metadata) -> Self {
+    pub fn parameter_group(mut self, group: Metadata) -> Self {
         self.definition.parameter_groups.push(group);
         self
     }

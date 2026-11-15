@@ -1,186 +1,218 @@
 # C++ SDK
 
-`sdk/cpp` is a C++20 source SDK. `Dokime::Cpp` provides plugin composition on
-Harmos revision `81d32d3bc9ab3e2121746923712ec9508cee3ec7`, generated Dokime
-messages and service stubs, a channel-owning client, and the plot/document builders.
-Only `.proto` files are authoritative; CMake runs the build's own `protoc` and
-`grpc_cpp_plugin`, so generated sources never need to be committed.
+`sdk/cpp` is a C++20 SDK. `Dokime::Cpp` composes the product's descriptor-derived
+client tree, plugin authoring, document builders and public payload barrels with
+Harmos revision `7181b5ed33c9d2be79c38d266b0a97d838b05ed6`.
+CMake consumes the pinned library archive's own targets and installable package;
+protobuf and gRPC use the same vcpkg graph for both SDKs.
 
-## Authoring
+Request aliases include their resource owner, reserved operation words gain an
+underscore, and library policy/operation/watch types retain their owner.
+Artifacts.Create is shared by both callers and plugin AnalysisSamples is public.
 
-The [starter](../sdk/cpp/starter/main.cpp) is the single C++ scaffold source.
-Compose `Suite`, `Template`, `Step` and `Criterion` values and pass them by value.
-The template's generated materialize operation copies its steps, criteria,
-streams and resolved parameters. An optional materialize callback modifies that
-case without execution state or host calls. Generated operation identifiers are
-Protected; a step's retries become its operation's total attempts.
+## Public Surface
 
-```cpp
-dokime::Template value;
-*value.definition.mutable_metadata() = dokime::metadata("sample.check", "Check");
-value.steps.push_back({dokime::metadata("measure", "Measure"), [](dokime::Context& ctx) {
-    ctx.set(std::make_shared<double>(42));
-}});
-value.criteria.push_back({dokime::metadata("valid", "Valid"), [](dokime::Context& ctx) {
-    return *ctx.get<double>() == 42;
-}});
-dokime::Plugin plugin("sample", "0.1.0");
-plugin.suite({dokime::metadata("sample", "Sample"), {std::move(value)}});
-plugin.serve();
-```
+Include `dokime/dokime.hpp` for the complete SDK, `dokime/client.hpp` for clients,
+or `dokime/plugin.hpp` for plugin authoring. `dokime/messages.hpp` supplies shared
+values at the root and boundary-specific values under `dokime::client` and
+`dokime::plugin`. Authoring `Suite`, `Template`, `Step`, `Criterion`, `Context` and
+`Plugin` live in `dokime::plugin`; root `Suite`, `Step` and `Criterion` are model
+values. Document and plot builders remain in `dokime::authoring`.
 
-Execution calls require matching execution scope, template and frozen PluginRun
-case. Resources are shared pointers indexed by C++ type, created on the first
-execution operation, visible to subsequent operations and observers, and released
-after cleanup even when cleanup throws. Resource contents must provide their own
-synchronization when steps and observers access them concurrently. Replacing a
-resource releases its previous ownership. Failed initialization releases its
-resources; process exit releases every remaining resource.
-
-`Stream<Row>` is a Harmos stream; `Observer<Row>` composes a stream, a
-`Context&` sampling function and a protobuf duration. The host sends ticks; the SDK
-creates no sampling thread or wall-clock timer. Device producers use
-`Stream::publish_on` and Harmos `Publisher<Row>`. Observer callbacks may run before
-initialize, so they must tolerate unavailable execution resources if the host
-opens their stream early.
-
-`Prompt` and `Record` are generated shared declaration values. `record<Row>`
-includes the row descriptor through an empty typed Harmos section alongside
-`RecordContracts`.
-The host must ignore unknown typed sections. `context_operations()` declares the
-standard context requirements; explicit `requires_operation` declares narrower
-custom dependencies. Context methods include prompt, settings, secrets, record
-publication and reads, statistics, progress, logs, artifact file references,
-traceability, document parts, and host-clock sleep/now. File capture and effects remain ordinary
-typed `ctx.operation` calls. These calls inherit the execution scope. They add no
-deadline or retry policy. Operation and transport failures retain Harmos's types.
-
-## Managed and Remote Placement
-
-The starter produces `dokime-plugin.exe` on Windows and `dokime-plugin` on Linux.
-With no arguments, Harmos binds `HARMOS_ADDRESS` supplied by the host, or an
-ephemeral loopback endpoint, and announces `harmos listening ADDRESS` on stdout.
-Stop performs managed shutdown and exits. `--address HOST:PORT` explicitly chooses
-remote placement; Stop leaves the remote server running. Bundle the executable
-with `dokime plugin bundle --executable PATH --out sample.dokime` once that CLI
-flow is integrated.
+Generated protobuf headers are installed in internal directories. Public
+handwritten headers and examples name only public SDK types; application code
+uses the resource tree instead of obtaining service stubs.
 
 ## Client
 
 ```cpp
-auto client = dokime::Client::connect("127.0.0.1:7000");
-// For each generated service, use client.stub<Service>() to obtain its NewStub.
-// Use generated unary/streaming methods with grpc::ClientContext for metadata,
-// cancellation and explicit deadline overrides. Client::unary throws RpcError,
-// retaining the complete grpc::Status, on a non-OK unary result.
+#include <dokime/client.hpp>
+
+using dokime::Client;
+using dokime::client::StatusGetOptions;
+using grpc::ClientContext;
+
+// Connect to the Host.
+auto client = Client::connect("127.0.0.1:7000");
+
+// Read Through the Composed Resources.
+auto status = client.status.get();
+auto plugins = client.plugins.list();
+
+// Override This Call's Metadata and Deadline Through Its Owned Context.
+StatusGetOptions options;
+options.context = std::make_shared<ClientContext>();
+options.context->AddMetadata("authorization", "Bearer credential");
+auto authenticated = client.status.get(options);
 ```
 
-Pass a credentialed channel or credentials to `connect` for authenticated TLS
-connections. Client/channel/stub ownership uses RAII; no global connection is
-created. Generated streaming APIs remain directly available.
+Request content is passed as arguments. Empty requests require no placeholder;
+optional request fields and transport overrides belong to the generated operation
+options. Each call owns its context unless the caller supplies a shared context.
+A streaming result owns that context for its lifetime and exposes `next()` and
+`cancel()`. Operation policies supply deadlines and retries; a caller may set a
+deadline on one context without changing the operation policy. Unary responses
+with exactly one field return that payload; other replies retain their typed
+fields and presence.
 
-CMake generates client services under `dokime::client::v1`, shared messages under
-`dokime::v1`, plugin messages under `dokime::plugin::v1`, and host-call messages
-under `dokime::plugin::host::v1`. The handler object remains `context`.
-Lifecycle bindings retain independent Protected dotted identities and policies.
-Artifact publication attaches a library file reference through
-`dokime.plugin.host.v1.content.Artifacts/Create`.
-The composed descriptor-derived hierarchy exposes `client.executions.progress.get(context, request)` and
-`.watch(context, request)` with caller-owned gRPC contexts. Plugin progress uses
-separate context Get/Set declarations and whole-value revision checks; declare
-both when selecting requirements. Clients have no progress Set.
-`dokime/client.hpp` exposes every generated service header. Registry resources are
-top-level: `client.suites`, `client.record_schemas`, `client.stream_schemas`,
-`client.prompt_definitions` and `client.analyses.list`.
-Use `client.stub<dokime::client::v1::Plugins>()` for plugin Add/List and the other plugin
-operations. The in-process client story uses the generated Backend and Plugins
-services for authentication refusal, identity, complete log stream envelopes,
-plugin Add/List and typed server errors. It defines no substitute protocol.
-Real-host execution remains separate integration proof.
+A channel supplied to `Client` may carry TLS credentials and pinned trust. The
+composed client includes library `access`, `status`, `plugins`, `invocations` and
+`time`, alongside product `executions`, `files` and evidence resources.
+`client.plugins.settings.list()` uses the library settings resource, while
+`client.plugins.secrets.list()` uses the product's binding metadata resource.
+Discovery reflects the product's narrowed callers.
 
-Execution details retain `schemas().digest()` and display identities. Fetch frozen
-descriptors only on a digest cache miss:
+`dokime::client::upload(client, path, configure)` reads a file in the limits
+returned by the upload owner, uses the current fenced Upload after every append,
+verifies the published length and SHA-256, and abandons failed production. It
+returns a library FileReference. `configure` optionally configures each call's
+owned context.
+
+Execution details retain frozen schema digests and display identities:
 
 ```cpp
-dokime::FrozenSchemaCache schemas;
+using dokime::client::FrozenSchemaCache;
+
+FrozenSchemaCache schemas;
 auto types = schemas.get(client, detail);
 ```
 
-The caller owns the cache lifetime and synchronizes access when sharing it between
-threads. `get` fetches one file per `executions.schemas.get` page at one cut and
-verifies the complete SHA-256 digest before retaining an immutable shared set.
-Equal digests reuse it across executions. An optional context configuration callback
-forwards metadata, cancellation setup and deadline overrides to every page;
-operation policies supply deadlines otherwise. Assemble all files before resolving
-descriptor dependencies when using raw calls.
+The cache fetches bounded descriptor pages at one issued cut, verifies the
+complete SHA-256 digest and reuses an immutable set for equal digests across
+executions. The caller owns the cache lifetime and synchronization. An optional
+context callback configures every page's metadata or deadline override.
+
+## Plugin Authoring
+
+The runnable examples are the scaffold sources:
+
+- [Client](../sdk/cpp/examples/client/main.cpp) reads the composed client resources.
+- [Plugin](../sdk/cpp/examples/plugin/main.cpp) serves a plugin in either placement.
+- [Test](../sdk/cpp/examples/test/main.cpp) declares a suite and template with
+  execution resources, a step and a criterion.
+
+```cpp
+#include <dokime/plugin.hpp>
+
+using dokime::plugin::Context;
+using dokime::plugin::Plugin;
+using dokime::plugin::Template;
+using dokime::plugin::metadata;
+
+Template value;
+*value.definition.mutable_metadata() = metadata("sample.check", "Check");
+value.steps.push_back({metadata("measure", "Measure"), [](Context& context) {
+    context.set(std::make_shared<double>(42));
+}});
+value.criteria.push_back({metadata("valid", "Valid"), [](Context& context) {
+    return *context.get<double>() == 42;
+}});
+
+Plugin plugin("sample", "0.1.0");
+plugin.suite({metadata("sample", "Sample"), {std::move(value)}});
+plugin.serve();
+```
+
+Lifecycle bindings retain independent Protected identities and policies. The
+materializer copies frozen steps, criteria, streams and resolved parameters;
+an optional callback changes the materialized case without execution state or
+host calls. Calls require matching scope, template, plugin identity and frozen
+origin. Cleanup releases execution resources even when its callback throws;
+failed initialization and process shutdown release their resources too.
+
+`plugin.analysis(definition, compute, policy)` publishes an Analysis and binds its
+identifier to a Protected compute operation. The callback receives `Context&`,
+`const AnalysisSamples&` and `const MapValue&`, and returns
+`std::vector<AnalysisValues>`. Samples retain raw source-time axes, values and
+units. The test example scales values with a declared gain parameter while
+preserving the input axis; its managed and remote stories invoke that binding.
+
+`context.host()` returns the generated plugin-callable resource tree, including
+`evidence`, `executions.progress`, `files`, `plugins.settings`, `secrets` and `time`.
+Declare a generated dependency with
+`plugin.requires_operation(dokime::plugin::HostOperation::EvidenceStatistics)`.
+`context_operations()` declares the standard context dependencies.
+Custom operations use the library's typed Operation and explicit visibility;
+`context.call(operation, request, policy).get()` retains the library's failure,
+policy and cancellation behavior. Client-only administration is absent from the
+plugin tree after composition narrowing.
+
+Use `plugin.section(SecretsDeclarations)` to publish declared secret names;
+reading a secret uses the scoped host resource. The library owns plugin settings
+and time. There is no second product plugin record or clock declaration.
+
+`Stream<Row>` composes the library stream; `Observer<Row>` combines a stream,
+`Context&` sampling function and protobuf duration. Host ticks drive sampling,
+with no SDK sampling thread or wall-clock timer. Observers may run before
+initialization, so they must tolerate unavailable execution resources. Shared
+resource contents own their synchronization.
+
+With no arguments the examples use the host-provided endpoint, or an ephemeral
+loopback endpoint, and announce readiness. Stop exits a managed process;
+`--address HOST:PORT` selects remote placement, whose server survives Stop.
+Media capture, FTP capture and the effects journal remain unsupported host work.
+
+## Numeric and Document Values
+
+The public Value retains signed integers, unsigned integers, floating numbers
+and ExactNumber fractions as distinct variants. ExactNumber preserves its sign,
+base-10 numerator and positive denominator without conversion through double.
+Statistics, including sum, and plot summaries retain typed fields and presence.
+Category totals remain Value entries separate from drawing coordinates.
+Document replies preserve the host's typed layout and completion states.
+Plugin analysis callbacks use the public AnalysisSamples export and preserve raw
+axes and values independently of plot drawing coordinates.
 
 ## Setup, Build, Test and Package
 
-Install mise, Git, Python, and a native C++20 compiler (MSVC on Windows;
-GCC or Clang, `pkg-config`, curl, zip, unzip and tar on Linux). Then run:
+Install mise, Git, Python and a C++20 compiler. Windows uses MSVC; Linux uses GCC
+or Clang with `pkg-config`, curl, zip, unzip and tar. Run:
 
 ```sh
 mise -C sdk/cpp install cmake ninja pipx:clang-format
 mise -C sdk/cpp run prepare
-mise -C sdk/cpp run format
-mise -C sdk/cpp run check
-mise -C sdk/cpp run build
-mise -C sdk/cpp run test
-mise -C sdk/cpp run package
-mise -C sdk/cpp run consumer
+mise -C sdk/cpp run generate
+mise -C sdk/cpp run format -- --preset tests
+mise -C sdk/cpp run check -- --preset tests
+mise -C sdk/cpp run build -- --preset tests
+mise -C sdk/cpp run test -- --preset tests
+mise -C sdk/cpp run package -- --preset tests
+mise -C sdk/cpp run consumer -- --preset tests
 ```
 
-The repository owns its build tooling; Harmos tooling is never invoked. The
-manifest baseline `ef7dbf94b9198bc58f45951adcf1f041fcbc5ea0` selects gRPC
-1.71.0#1, protobuf 5.29.3 and Catch2 3.8.1. This avoids the gRPC 1.76 fused-filter
-code that fails under newer MSVC with `MapResult` / `RaceAsyncCompletion::Run`
-([upstream compiler issue](https://github.com/grpc/grpc/issues/41970)).
-Local MSVC compilation and hosted Windows Nightly are separate compiler proofs;
-only Nightly can validate its current Visual Studio image. No gRPC source patch
-or project compiler-cache setting is used.
+`generate` renders the six descriptor-derived C++ files in temporary storage and
+compares them byte for byte, without changing the frozen outputs. The formatter
+covers handwritten files in this SDK and its shared C++ fixtures. `check` configures CMake and checks C++
+formatting and Python lint, format and types. `build` is the compiler owner;
+`test`, `package` and `consumer` refuse when Ninja reports pending producer work,
+so a failed build cannot silently reuse older executables or libraries.
+CMake lists protocol inputs explicitly, as the pinned library does; adding a
+protocol file also updates `sdk/cpp/cmake/Library.cmake`. This keeps the Ninja
+freshness check independent of forced glob regeneration.
 
-`CMakePresets.json` provides `development`, `tests` (the default) and `release`.
-Pass `-- --preset release` to build, test and package that configuration.
-`target/cp/` keeps native and generated paths short on Windows; vcpkg's immutable
-tool checkout is prepared in the mise cache and dependency installs live in
-`target/cp/v`. `check` configures the graph; `build` compiles; `test` consumes
-those outputs. Catch2 3 runs the document, authoring and backend stories, while
-the plugin journey awaits readiness and exercises managed and remote placement.
+Presets are `development`, `tests` (default) and `release`. Native/generated
+outputs live under `target/cp/<preset>`; vcpkg dependencies use `target/cp/v`.
+The pinned manifest baseline selects gRPC 1.71.0#1, protobuf 5.29.3 and Catch2
+3.8.1. Windows and Linux remain independent required compiler proof.
 
-`package` installs and exports a relocatable CMake package to
-`target/cp/tests/installed` and archives it as `target/cp/tests/dokime-cpp.tar.gz`.
-The archive contains headers, static SDK libraries and CMake targets. Consumers
-provide the manifest's matching native dependencies and configure with the
-installed prefix in `CMAKE_PREFIX_PATH`:
+`package` installs SDK headers, libraries and CMake exports and produces
+`target/cp/<preset>/dokime-cpp.tar.gz`. Consumers supply the matching native
+dependencies and set the installed prefix in `CMAKE_PREFIX_PATH`:
 
 ```cmake
 find_package(Dokime CONFIG REQUIRED)
 target_link_libraries(my_plugin PRIVATE Dokime::Cpp)
 ```
 
-`consumer` builds `sdk/cpp/starter` through this installed package, with no
-SDK source-tree access. `consumer -- --source /path/to/generated-project` builds
-a project produced by `dokime-next new` against the same package. Generated
-projects accept the installed archive URL and SHA-256 through their CMake preset;
-set `VCPKG_ROOT` to the pinned vcpkg checkout for standalone builds.
-The current Harmos pin predates its own installable
-package, so the dependency recipe compiles its unmodified source and exports
-those targets together with Dokime. The next library pin replaces that recipe
-with the upstream package and regenerates client roots and protocol bindings.
+`consumer` builds the test example against the installed package.
+`consumer -- --source PATH` selects another example or a generated project.
+The examples' presets accept the installed SDK archive URL and SHA-256; their
+builds use the pinned vcpkg graph and public headers only. The command-line tool
+owns embedding the plugin and test examples in new projects.
 
-## Shared System Story
-
-[`main.cpp`](../sdk/tests/fixtures/cpp/thermal/main.cpp) implements the shared
-`thermal.cycle` suite. CMake generates its Temperature and Door payload types
-from `sdk/tests/fixtures/cpp/thermal/thermal.proto` and builds `dokime-system-suite` through the
-SDK `build` task. The `cpp_plugin_matches_rust_thermal_evidence` host story runs
-the executable in remote and managed placements, compares the frozen case and
-all ordered evidence/sample fields with Rust, and reopens the sealed evidence.
-See [Execution Host](execution-host.md) for prerequisites and focused runs.
-
-## Composed Client Services
-
-`dokime::Client` exposes the library `access`, `status` and `storage` resource
-roots over its channel, such as `client.access.listener.get(context, request)`.
-Caller-owned gRPC contexts supply authentication metadata, cancellation and
-explicit deadline overrides for unary and streaming calls.
+The focused SDK stories retain backend authentication, streamed logs, library
+plugin administration, frozen schema caching, authoring contracts and both
+managed and remote execution. The library's conformance example is consumed
+from its pinned archive. The separate shared thermal fixture and real-host
+stories require the repaired core and their owner-managed fixture sources;
+see [Execution Host](execution-host.md) for those prerequisites.

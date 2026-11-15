@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Schemas Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.executions;
+
+// === Imports === //
+
+import "dokime/host/v1/record_schemas.proto";
+import "google/protobuf/descriptor.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.ExecutionsResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Schemas resource on the host; callers are checked before handler admission.
+service Schemas {
+  // Read the Schemas resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.executions.SchemasGetRequest) returns (.dokime.host.v1.executions.SchemasGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// SchemasGetRequest for Schemas.Get.
+message SchemasGetRequest {
+  string name = 1;
+  optional .harmos.model.v1.Position at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
+
+// SchemasGetResponse for Schemas.Get.
+message SchemasGetResponse {
+  bytes digest = 1;
+  .google.protobuf.FileDescriptorSet types = 2;
+
+  repeated .dokime.host.v1.RecordSchema records = 3;
+  repeated .dokime.host.v1.TelemetrySchema streams = 4;
+  .harmos.model.v1.Position resolved_at = 90;
+  string next_page_token = 91;
+}
+
+// === Resources === //
+
+// === Enums === //

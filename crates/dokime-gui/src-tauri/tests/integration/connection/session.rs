@@ -14,9 +14,12 @@
 /* === Imports === */
 
 // Local Imports
+
 use crate::support::server::{Fixture, attach};
 use dokime_gui::connection::{ConnectionError, ConnectionPhase, ConnectionSession};
 use dokime_gui::native_session::BackendSelection;
+use dokime_sdk::client::StatusGetResponse;
+use harmos_protocol::host::StatusGetRequest;
 
 /* === Constants === */
 
@@ -60,8 +63,7 @@ fn switching_cancels_work() {
 
         // An Attached Session Does Not Own Host Shutdown
         let client = fixture.client().await;
-        let _: dokime_sdk::client::v1::StatusGetResponse =
-            client.unary("/harmos.v1.Status/Get", dokime_sdk::client::v1::StatusGetRequest {}).await.unwrap();
+        let _: StatusGetResponse = client.unary("/harmos.host.v1.Status/Get", StatusGetRequest {}).await.unwrap();
         fixture.close().await;
     })
 }

@@ -11,10 +11,10 @@
 
 /* === External Imports === */
 
-import type { Parameter, ParameterExpression } from "@host/dokime/v1/parameters_pb.js";
-import type { Suite, TestCaseTemplate } from "@host/dokime/v1/suites_pb.js";
+import type { Parameter, ParameterExpression } from "@host/model";
+import type { Suite, TestCaseTemplate } from "@host/model";
 import { required } from "@/lib/rpc/canonical";
-import { ValueType } from "@host/dokime/v1/scalar_pb.js";
+import { ValueType } from "@host/model";
 
 /* === Local Imports === */
 

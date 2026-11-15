@@ -400,18 +400,18 @@ mod tests {
 
     #[test]
     fn paths_name_one_method() {
-        for valid in ["/dokime.client.v1.plots.Snapshots/Watch", "/a/b"] {
+        for valid in ["/dokime.host.v1.plots.Snapshots/Watch", "/a/b"] {
             assert_eq!(path(&headers(&[(PATH_HEADER, valid)])).unwrap(), valid);
         }
         for invalid in [
             "",
             "/",
-            "dokime.client.v1.plots.Snapshots/Watch",
-            "/dokime.client.v1.plots.Snapshots/",
+            "dokime.host.v1.plots.Snapshots/Watch",
+            "/dokime.host.v1.plots.Snapshots/",
             "//Watch",
-            "/dokime.client.v1.plots.Snapshots/Watch/extra",
-            "/dokime.client.v1.plots.Snapshots/Wa.tch",
-            "/dokime client v1/Watch",
+            "/dokime.host.v1.plots.Snapshots/Watch/extra",
+            "/dokime.host.v1.plots.Snapshots/Wa.tch",
+            "/invalid package/Watch",
         ] {
             assert!(path(&headers(&[(PATH_HEADER, invalid)])).is_err(), "{invalid}");
         }

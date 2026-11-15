@@ -11,7 +11,10 @@
 
 /* === External Imports === */
 
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { useAutosave } from "@/features/settings/settings-autosave";
+import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 
 /* === Local Imports === */
 
@@ -33,12 +36,13 @@ import { useBrand } from "@/lib/brand";
 type InstalledPluginDetailProps = {
   detail: InstalledPluginDetailModel;
   /** Resolves when the write landed; each settings row states its own outcome. */
+  onSaveBinding: (name: string, identifier: string, secret: string) => Promise<void>;
   onSaveSettings: (pluginId: string, values: SettingValues) => Promise<void>;
 };
 
 /* === Components === */
 
-export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPluginDetailProps) {
+export function InstalledPluginDetail({ detail, onSaveSettings, onSaveBinding }: InstalledPluginDetailProps) {
   const brand = useBrand();
   const [adding, setAdding] = useState<string | null>(null);
   const registration =
@@ -55,11 +59,6 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
         <SettingsRow label="Status" error={detail.error}>
           <InstalledPluginRuntimeBadge runtime={detail.runtime} />
           <InstalledPluginStatusBadge status={detail.status} />
-          {detail.restart === "pending" ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              Restart pending: applies after execution cleanup and plugin streams finish. Report publication and sealing do not delay it.
-            </p>
-          ) : null}
         </SettingsRow>
         <SettingsRow label="Registration">
           <span className="min-w-0 text-sm">{registration}</span>
@@ -71,23 +70,23 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
             onSubmit={(values) => onSaveSettings(detail.plugin_id, values)}
             schema={detail.settings}
             values={detail.values}
-            unapplied={detail.unapplied}
-            discovered={detail.discovered ?? {}}
           />
         </div>
       </SettingsCard>
       {detail.settings.contributions?.some((entry) => entry.kind === "secret") ? (
         <SettingsCard
           title="Required Secrets"
-          description="Identifiers are read from Secret Storage when this plugin starts. Add missing secrets, then reload the plugin."
+          description="Bind each declared name to an identifier in Secret Storage, then restart the plugin."
         >
           {detail.settings.contributions
             .filter((entry) => entry.kind === "secret")
             .map((secret) => {
-              const available = detail.secrets.find((entry) => entry.identifier === secret.id)?.available ?? false;
+              const binding = detail.secrets.find((entry) => entry.identifier === secret.id);
+              const available = binding?.available ?? false;
               return (
                 <SettingsRow key={secret.id} label={secret.title} description={secret.description}>
-                  <code>{secret.id}</code>
+                  <code className="text-xs">{secret.id}</code>
+                  <SecretBinding value={binding?.secret ?? ""} onSave={(value) => onSaveBinding(detail.plugin_id, secret.id, value)} />
                   <span>
                     {secret.required ? "Required" : "Optional"} · {available ? "Available" : "Missing"}
                   </span>
@@ -103,5 +102,27 @@ export function InstalledPluginDetail({ detail, onSaveSettings }: InstalledPlugi
       ) : null}
       {adding !== null ? <AddSecretDialog identifier={adding} onClose={() => setAdding(null)} /> : null}
     </>
+  );
+}
+
+function SecretBinding({ value, onSave }: { value: string; onSave: (value: string) => Promise<void> }) {
+  const id = useId();
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const autosave = useAutosave(onSave);
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        id={id}
+        aria-label="Secret Storage Identifier"
+        value={draft}
+        onChange={(event) => {
+          const next = event.target.value;
+          setDraft(next);
+          autosave.change(next);
+        }}
+      />
+      <SettingsFieldStatus state={autosave.state} onRetry={autosave.retry} />
+    </div>
   );
 }

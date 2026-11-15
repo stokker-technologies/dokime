@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Evidence Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/evidence.proto";
+import "dokime/model/v1/scalar.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/file.proto";
+import "harmos/model/v1/position.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Evidence resource on the host; callers are checked before handler admission.
+service Evidence {
+  // Compute bounded statistics for the Evidence resource; plugin selectors default to and are restricted to trusted caller identity.
+  rpc Statistics(.dokime.host.v1.EvidenceStatisticsRequest) returns (.dokime.host.v1.EvidenceStatisticsResponse) {
+    option (harmos.model.v1.callers) = ALL;
+  }
+  // Resolve a fixed archive of the Evidence resource; admission and policy are owned by the executor.
+  rpc Archive(.dokime.host.v1.EvidenceArchiveRequest) returns (.dokime.host.v1.EvidenceArchiveResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Statistics === //
+
+// EvidenceStatisticsRequest for Evidence.Statistics.
+// Clients supply scope; a plugin may omit it and may select only its own execution. The returned Statistics includes every former plugin statistic.
+message EvidenceStatisticsRequest {
+  optional .dokime.model.v1.EvidenceScope scope = 1;
+  string stream = 2;
+  repeated uint32 versions = 3;
+  .dokime.model.v1.Window between = 4;
+  repeated .dokime.host.v1.Output outputs = 5;
+  string field = 6;
+  string step = 7;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// EvidenceStatisticsResponse for Evidence.Statistics.
+message EvidenceStatisticsResponse {
+  .dokime.host.v1.Statistics statistics = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Archive === //
+
+// EvidenceArchiveRequest for Evidence.Archive.
+message EvidenceArchiveRequest {
+  .dokime.host.v1.EvidenceSubject subject = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// EvidenceArchiveResponse for Evidence.Archive.
+message EvidenceArchiveResponse {
+  .harmos.model.v1.FileReference file = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === Resources === //
+
+// Statistics value owned by this resource.
+message Statistics {
+  uint64 count = 1;
+  .dokime.model.v1.Value min = 2;
+  .dokime.model.v1.Value max = 3;
+  .dokime.model.v1.Value mean = 4;
+  double stddev = 5;
+  .dokime.model.v1.Value median = 6;
+  .dokime.model.v1.Value p05 = 7;
+  .dokime.model.v1.Value p95 = 8;
+  .dokime.model.v1.Value p99 = 9;
+  .dokime.model.v1.Value first = 10;
+  .dokime.model.v1.Value last = 11;
+  .dokime.model.v1.Value sum = 13;
+}
+
+// EvidenceSubject value owned by this resource.
+message EvidenceSubject {
+  oneof kind {
+    string execution = 1;
+    string cycle = 2;
+  }
+}
+
+// Output value owned by this resource.
+message Output {
+  oneof kind {
+    .dokime.model.v1.Null log = 1;
+    string artifact = 2;
+  }
+}
+
+// === Enums === //

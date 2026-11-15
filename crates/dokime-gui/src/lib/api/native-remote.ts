@@ -44,7 +44,7 @@ export async function updateNativeListener(
 }
 export async function regenerateNativeCertificate(session: SessionIdentity): Promise<ListenerStatus> {
   const certificate = await rpc.accessCertificatesCreate(session, {});
-  return { ...(await readNativeListener(session)), certificatePem: certificate.certificatePem };
+  return { ...(await readNativeListener(session)), certificatePem: certificate };
 }
 
 export async function withNativeListener(session: SessionIdentity, snapshot: PreferencesSnapshot): Promise<ScopedPreferencesSnapshot> {

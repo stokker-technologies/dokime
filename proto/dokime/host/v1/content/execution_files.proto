@@ -1,0 +1,122 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// ExecutionFiles Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.content;
+
+// === Imports === //
+
+import "google/protobuf/timestamp.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/failure.proto";
+import "harmos/model/v1/file.proto";
+import "harmos/model/v1/page.proto";
+import "harmos/model/v1/position.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.ContentResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the ExecutionFiles resource on the host; callers are checked before handler admission.
+service ExecutionFiles {
+  // Read the ExecutionFiles resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.content.ExecutionFilesGetRequest) returns (.dokime.host.v1.content.ExecutionFilesGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // List the ExecutionFiles resource; admission and policy are owned by the executor.
+  rpc List(.dokime.host.v1.content.ExecutionFilesListRequest) returns (.dokime.host.v1.content.ExecutionFilesListResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Observe durable changes to the ExecutionFiles resource; admission and policy are owned by the executor.
+  rpc Watch(.dokime.host.v1.content.ExecutionFilesWatchRequest) returns (stream .dokime.host.v1.content.ExecutionFilesWatchResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// ExecutionFilesGetRequest for ExecutionFiles.Get.
+message ExecutionFilesGetRequest {
+  string parent = 1;
+  string name = 2;
+  optional .harmos.model.v1.ReadCut at = 90;
+}
+
+// ExecutionFilesGetResponse for ExecutionFiles.Get.
+message ExecutionFilesGetResponse {
+  .dokime.host.v1.content.ExecutionFileMetadata metadata = 1;
+  .harmos.model.v1.FileReference file = 2;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+}
+
+// === List === //
+
+// ExecutionFilesListRequest for ExecutionFiles.List.
+message ExecutionFilesListRequest {
+  string parent = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
+
+// ExecutionFilesListResponse for ExecutionFiles.List.
+message ExecutionFilesListResponse {
+  repeated .dokime.host.v1.content.ExecutionFileMetadata files = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  string next_page_token = 91;
+}
+
+// === Watch === //
+
+// ExecutionFilesWatchRequest for ExecutionFiles.Watch.
+message ExecutionFilesWatchRequest {
+  string parent = 1;
+  optional .harmos.model.v1.ReadCut at = 90;
+  optional .harmos.model.v1.PageRequest page = 91;
+}
+
+// ExecutionFilesWatchResponse for ExecutionFiles.Watch.
+message ExecutionFilesWatchResponse {
+  repeated .dokime.host.v1.content.ExecutionFileMetadata files = 1;
+  .harmos.model.v1.ReadCut resolved_at = 90;
+  bool opening = 91;
+  .harmos.model.v1.Failure resync_required = 92;
+}
+
+// === Resources === //
+
+// ExecutionFileMetadata value owned by this resource.
+message ExecutionFileMetadata {
+  string relative_path = 1;
+  optional string content_type = 2;
+  .dokime.host.v1.content.ExecutionFileKind kind = 3;
+  .dokime.host.v1.content.ExecutionFileState state = 4;
+  uint64 size_bytes = 5;
+  .google.protobuf.Timestamp created_at = 6;
+}
+
+// === Enums === //
+
+// ExecutionFileKind choices.
+enum ExecutionFileKind {
+  EXECUTION_FILE_KIND_UNSPECIFIED = 0;
+  EXECUTION_FILE_KIND_TEXT = 1;
+  EXECUTION_FILE_KIND_BINARY = 2;
+  EXECUTION_FILE_KIND_MEDIA = 3;
+  EXECUTION_FILE_KIND_UNKNOWN = 4;
+}
+
+// ExecutionFileState choices.
+enum ExecutionFileState {
+  EXECUTION_FILE_STATE_UNSPECIFIED = 0;
+  EXECUTION_FILE_STATE_STREAMING = 1;
+  EXECUTION_FILE_STATE_FINALIZED = 2;
+  EXECUTION_FILE_STATE_INTERRUPTED = 3;
+}

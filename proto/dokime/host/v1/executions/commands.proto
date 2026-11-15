@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Commands Contracts
+
+syntax = "proto3";
+
+package dokime.host.v1.executions;
+
+// === Imports === //
+
+import "google/protobuf/timestamp.proto";
+import "harmos/model/v1/callers.proto";
+import "harmos/model/v1/position.proto";
+import "harmos/model/v1/receipt.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Clients.ExecutionsResources";
+
+// Reads select the latest durable boundary without flushing accepted writes.
+// Issued cuts, pages and watches retain their selection; missing cuts and gaps refuse.
+// Mutation request identities replay the original receipt for the same normalized input.
+
+// === Services === //
+
+// Owns the Commands resource on the host; callers are checked before handler admission.
+service Commands {
+  // Read the Commands resource; admission and policy are owned by the executor.
+  rpc Get(.dokime.host.v1.executions.CommandsGetRequest) returns (.dokime.host.v1.executions.CommandsGetResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+  // Create the Commands resource; admission and policy are owned by the executor.
+  rpc Create(.dokime.host.v1.executions.CommandsCreateRequest) returns (.dokime.host.v1.executions.CommandsCreateResponse) {
+    option (harmos.model.v1.callers) = CLIENTS;
+  }
+}
+
+// === Get === //
+
+// CommandsGetRequest for Commands.Get.
+message CommandsGetRequest {
+  string name = 1;
+  string parent = 2;
+  optional .harmos.model.v1.Position at = 90;
+}
+
+// CommandsGetResponse for Commands.Get.
+message CommandsGetResponse {
+  .dokime.host.v1.executions.ExecutionCommandReceipt command = 1;
+  .harmos.model.v1.Position resolved_at = 90;
+}
+
+// === Create === //
+
+// CommandsCreateRequest for Commands.Create.
+message CommandsCreateRequest {
+  string parent = 1;
+  string request_id = 2;
+  string command_id = 3;
+  .dokime.host.v1.executions.ExecutionCommandAction action = 4;
+  optional string step_id = 5;
+}
+
+// CommandsCreateResponse for Commands.Create.
+message CommandsCreateResponse {
+  .dokime.host.v1.executions.ExecutionCommandReceipt command = 1;
+  .harmos.model.v1.Receipt receipt = 2;
+}
+
+// === Resources === //
+
+// ExecutionCommandReceipt value owned by this resource.
+message ExecutionCommandReceipt {
+  string request_id = 1;
+  string command_id = 2;
+  string execution_id = 3;
+  .dokime.host.v1.executions.ExecutionCommandAction action = 4;
+  optional string step_id = 5;
+  .dokime.host.v1.executions.ExecutionCommandPhase phase = 6;
+  optional string attempt_id = 7;
+  .google.protobuf.Timestamp accepted_at = 8;
+  .google.protobuf.Timestamp updated_at = 9;
+  optional string detail = 10;
+}
+
+// === Enums === //
+
+// ExecutionCommandAction choices.
+enum ExecutionCommandAction {
+  EXECUTION_COMMAND_ACTION_UNSPECIFIED = 0;
+  EXECUTION_COMMAND_ACTION_NEXT = 1;
+  EXECUTION_COMMAND_ACTION_RUN_STEP = 2;
+  EXECUTION_COMMAND_ACTION_FINISH = 3;
+}
+
+// ExecutionCommandPhase choices.
+enum ExecutionCommandPhase {
+  EXECUTION_COMMAND_PHASE_UNSPECIFIED = 0;
+  EXECUTION_COMMAND_PHASE_ACCEPTED = 1;
+  EXECUTION_COMMAND_PHASE_DISPATCHING = 2;
+  EXECUTION_COMMAND_PHASE_RUNNING = 3;
+  EXECUTION_COMMAND_PHASE_COMPLETED = 4;
+  EXECUTION_COMMAND_PHASE_REFUSED = 5;
+  EXECUTION_COMMAND_PHASE_FAILED = 6;
+  EXECUTION_COMMAND_PHASE_INTERRUPTED = 7;
+}

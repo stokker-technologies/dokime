@@ -30,18 +30,32 @@ use std::{future::Future, path::Path, sync::Arc, time::Duration};
 use prost::Message;
 use prost_reflect::ReflectMessage;
 use tokio::sync::mpsc::Receiver;
-use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Status, transport::Endpoint};
 
 // Local Imports
+
+use dokime_sdk::StorageTransferSettings;
+use dokime_sdk::client::BackendOverviewGetOptions;
+use dokime_sdk::client::OperationsListOptions;
+use dokime_sdk::client::StatusGetOptions;
+use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+
 use super::ConnectionTarget;
-use dokime_protocol::client;
-use dokime_protocol::client::InstallPluginFrame;
-use dokime_protocol::client::PluginInstallation;
-use dokime_runtime_next::{HostSettings, services};
-use dokime_sdk::client::v1::StatusGetResponse;
+use dokime_sdk::FileReference;
+use dokime_sdk::client::{CallOptions, PluginEntry, PluginsCreateOptions};
+use dokime_sdk::client::{PluginManaged, PluginPlacement, PluginState, PluginValue, PluginsGetOptions, PluginsWatchOptions};
+
+use dokime_runtime::{HostSettings, services};
+
+#[cfg(feature = "testing")]
+use dokime_runtime::ControlledClock;
+
+#[cfg(not(feature = "testing"))]
+use dokime_runtime::services::WallClock;
+
+use dokime_sdk::client::StatusGetResponse;
 use dokime_sdk::{Client, client::ClientSettings};
 
 /* === Constants === */
@@ -65,10 +79,9 @@ pub struct ConnectionSettings {
 #[derive(Clone)]
 pub struct Session {
     client: Box<Client>,
-    channel: tonic::transport::Channel,
     pairing: Option<Arc<Pairing>>,
     endpoint: String,
-    identity: dokime_sdk::client::v1::StatusGetResponse,
+    identity: StatusGetResponse,
     product_epoch: String,
     methods: Vec<String>,
     cancellation: CancellationToken,
@@ -76,7 +89,6 @@ pub struct Session {
     stream_buffer: usize,
     read_timeout: Duration,
     watch_timeout: Duration,
-    mutation_timeout: Duration,
 }
 
 /// The Desktop Owns Only The Host It Embeds, Never An Attached Host.
@@ -100,7 +112,7 @@ pub enum Error {
     Rpc(#[from] Status),
 
     #[error("Start Local Host: {0}")]
-    Host(#[from] dokime_runtime_next::Error),
+    Host(#[from] dokime_runtime::Error),
 
     #[error("Connect to Host: the host identity changed; import its current pairing")]
     IdentityChanged,
@@ -165,57 +177,56 @@ impl Session {
         R::decode(bytes.as_slice()).map_err(|error| Status::data_loss(error.to_string()).into())
     }
 
-    pub async fn install_plugin(
-        &self, items: impl Stream<Item = InstallPluginFrame> + Send + 'static,
-    ) -> Result<PluginInstallation, Error> {
-        use tokio_stream::StreamExt;
-        let opening = client::PluginsInstallInput {
-            value: Some(client::plugins_install_input::Value::Request(client::PluginsInstallRequest {})),
+    pub async fn install_plugin(&self, name: &str, file: FileReference) -> Result<PluginEntry, Error> {
+        let sha256 = file.sha256.clone();
+        let placement = PluginPlacement {
+            kind: Some(PluginPlacementKind::Managed(PluginManaged { content: Some(file), sha256 })),
         };
-        let items = tokio_stream::once(opening).chain(items.map(|item| client::PluginsInstallInput {
-            value: Some(client::plugins_install_input::Value::Item(item)),
-        }));
-        let mut request = self.request(items)?;
-        request.set_timeout(self.mutation_timeout);
-        let mut client = client::plugins_client::PluginsClient::new(self.channel.clone());
-        Ok(self.execute(client.install(request)).await?.into_inner())
+        let options = PluginsCreateOptions {
+            request_id: Some(format!("desktop-install-{name}")),
+            context: self.call_options()?,
+        };
+        let reply = self.execute(self.client.plugins.create_with(name, placement, PluginValue { enabled: true }, options)).await?;
+        let mut entry = reply.entry.ok_or_else(|| Status::data_loss("Install Plugin: Host Omitted Its Entry"))?;
+        let options = PluginsWatchOptions {
+            name: Some(entry.name.clone()),
+            context: self.call_options()?,
+            ..Default::default()
+        };
+        let mut watch = self.execute(self.client.plugins.watch_with(options)).await?;
+        while entry.state != PluginState::Ready as i32 {
+            if matches!(PluginState::try_from(entry.state), Ok(PluginState::Unavailable | PluginState::Stopped)) {
+                return Err(Status::failed_precondition(format!(
+                    "Install Plugin {}: {}",
+                    entry.name,
+                    entry.failure.map_or_else(|| "Activation Stopped".into(), |failure| failure.message)
+                ))
+                .into());
+            }
+            self.execute(watch.next()).await?.ok_or_else(|| Status::unavailable("Install Plugin: Plugin Watch Closed Before Readiness"))?;
+            let options = PluginsGetOptions {
+                context: self.call_options()?,
+                ..Default::default()
+            };
+            entry = self
+                .execute(self.client.plugins.get_with(entry.name, options))
+                .await?
+                .entry
+                .ok_or_else(|| Status::not_found("Install Plugin: Plugin Entry Was Removed"))?;
+        }
+        Ok(entry)
+    }
+
+    pub fn call_options(&self) -> Result<CallOptions, Error> {
+        let mut options = CallOptions::default();
+        if let Some(pairing) = &self.pairing {
+            options.metadata.insert("authorization", pairing.authorization()?);
+        }
+        Ok(options)
     }
 
     pub(crate) async fn input_raw(&self, path: &str, receiver: Receiver<Vec<u8>>) -> Result<Vec<u8>, Error> {
         operations::input(self, path, receiver).await
-    }
-
-    async fn input<Q, R>(&self, path: &'static str, mut receiver: Receiver<Vec<u8>>) -> Result<Vec<u8>, Error>
-    where
-        Q: Message + Default + Send + Sync + 'static,
-        R: Message + Default + Send + Sync + 'static,
-    {
-        let (sender, input) = tokio::sync::mpsc::channel(self.stream_buffer);
-        let feed = async move {
-            while let Some(bytes) = receiver.recv().await {
-                let value = Q::decode(bytes.as_slice()).map_err(|error| Status::invalid_argument(format!("{path}: {error}")))?;
-                sender.send(value).await.map_err(|_| Status::cancelled(format!("{path}: Host Closed Input")))?;
-            }
-            Ok::<_, Error>(())
-        };
-        let consume = async {
-            let mut client = tonic::client::Grpc::new(self.channel.clone())
-                .max_encoding_message_size(crate::rpc::protocol::FRAME_BYTES as usize)
-                .max_decoding_message_size(crate::rpc::protocol::FRAME_BYTES as usize);
-            client.ready().await.map_err(|error| Status::unavailable(format!("{path}: {error}")))?;
-            let mut request = self.request(tokio_stream::wrappers::ReceiverStream::new(input))?;
-            request.set_timeout(self.mutation_timeout);
-            let reply: tonic::Response<R> = self
-                .execute(client.client_streaming(
-                    request,
-                    path.parse().expect("Generated Input Path"),
-                    tonic_prost::ProstCodec::<Q, R>::default(),
-                ))
-                .await?;
-            Ok::<_, Error>(reply.into_inner().encode_to_vec())
-        };
-        let (_, response) = tokio::try_join!(feed, consume)?;
-        Ok(response)
     }
 
     pub(crate) fn read_timeout(&self) -> Duration {
@@ -361,13 +372,9 @@ impl Session {
             )?;
         }
         let channel = transport.connect().await?;
-        let mut client = Client::from_channel(channel.clone(), settings.client)?;
-        if let Some(pairing) = &pairing {
-            client = client.authorization(pairing.authorization()?);
-        }
+        let client = Client::from_channel(channel.clone(), settings.client)?;
         let mut session = Self {
             client: Box::new(client),
-            channel,
             pairing,
             endpoint: endpoint.to_owned(),
             identity: Default::default(),
@@ -378,10 +385,9 @@ impl Session {
             stream_buffer: settings.client.input_items.get(),
             read_timeout: settings.services.read_timeout,
             watch_timeout: settings.services.watch_timeout,
-            mutation_timeout: settings.services.mutation_timeout,
         };
-        let request = session.request(dokime_sdk::client::v1::StatusGetRequest {})?;
-        let reply = session.client.status.get(request).await?.into_inner();
+        let options = StatusGetOptions { context: session.call_options()? };
+        let reply = session.client.status.get_with(options).await?;
         let identity = reply.status.as_ref().and_then(|status| status.identity.as_ref()).ok_or(Error::IncompleteIdentity)?;
         let history = reply.resolved_at.as_ref().and_then(|position| position.history.as_ref()).ok_or(Error::IncompleteIdentity)?;
         if identity.host_id.is_empty() || history.store.is_empty() || history.epoch.is_empty() {
@@ -393,21 +399,17 @@ impl Session {
             return Err(Error::IdentityChanged);
         }
         session.identity = reply;
-        let overview: client::backend::OverviewGetResponse =
-            session.unary("/dokime.client.v1.backend.Overview/Get", client::backend::OverviewGetRequest::default()).await?;
+        let options = BackendOverviewGetOptions {
+            context: session.call_options()?,
+            ..Default::default()
+        };
+        let overview = session.client.backend.overview.get_with(options).await?;
         session.product_epoch = overview.overview.filter(|value| !value.session_id.is_empty()).ok_or(Error::IncompleteIdentity)?.session_id;
         let mut methods = std::collections::BTreeSet::new();
-        let catalog: dokime_sdk::client::v1::CatalogEntriesListResponse = session
-            .unary(
-                "/harmos.v1.CatalogEntries/List",
-                dokime_sdk::client::v1::CatalogEntriesListRequest {
-                    kind: dokime_sdk::client::v1::CatalogKind::Operations as i32,
-                    ..Default::default()
-                },
-            )
-            .await?;
+        let options = OperationsListOptions { context: session.call_options()? };
+        let catalog = session.client.operations.list_with(options).await?;
         let mut retained_bytes = 0usize;
-        for operation in catalog.operations.into_iter().filter(|operation| operation.grpc_available) {
+        for operation in catalog.into_iter().filter(|operation| operation.grpc_available) {
             if let Some(grpc) = operation.contract.and_then(|contract| contract.grpc) {
                 let path = format!("/{}.{}/{}", grpc.package, grpc.service, grpc.method);
                 retained_bytes = retained_bytes.saturating_add(path.len());
@@ -505,14 +507,21 @@ impl Drop for Connection {
 /* === Public Functions === */
 
 pub(crate) fn desktop_settings() -> ConnectionSettings {
-    use dokime_runtime_next::{HostSettings, PlacementSettings};
+    use dokime_runtime::{HostSettings, PlacementSettings};
     use std::num::NonZeroUsize;
     let message_bytes = NonZeroUsize::new(crate::rpc::protocol::FRAME_BYTES as usize).expect("desktop frame bound");
     let stream_buffer = NonZeroUsize::new(8).expect("desktop stream buffer");
+
+    #[cfg(feature = "testing")]
+    let clock = Arc::new(ControlledClock::new(0));
+
+    #[cfg(not(feature = "testing"))]
+    let clock = Arc::new(WallClock);
+
     ConnectionSettings {
         host: HostSettings {
-            storage: dokime_runtime_next::storage_defaults(),
-            clock: Arc::new(services::WallClock),
+            storage: dokime_runtime::storage_defaults(),
+            clock,
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),
                 reconnect_delay: Duration::from_millis(25),
@@ -531,7 +540,7 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
             stream_buffer: stream_buffer.get(),
         },
         client: ClientSettings {
-            transfer: dokime_sdk::client::StorageTransferSettings { chunk_bytes: Some(64 * 1024) },
+            transfer: StorageTransferSettings { chunk_bytes: Some(64 * 1024) },
             retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).expect("desktop retained bytes"),
             message_bytes,
             input_items: stream_buffer,

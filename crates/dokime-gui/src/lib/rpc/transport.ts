@@ -34,6 +34,20 @@ export interface NativeClientStream<I extends DescMessage, O extends DescMessage
 }
 
 /* === Public Functions === */
+/** Project a Single-Payload Watch While Keeping Its Owned Cancellation. */
+export function projectStream<T, U>(stream: NativeStream<T>, project: (value: T) => U): NativeStream<U> {
+  return {
+    cancel: () => stream.cancel(),
+    async *[Symbol.asyncIterator]() {
+      try {
+        for await (const value of stream) yield project(value);
+      } finally {
+        await stream.cancel();
+      }
+    },
+  };
+}
+
 export function unary<I extends DescMessage, O extends DescMessage>(
   path: string,
   input: I,

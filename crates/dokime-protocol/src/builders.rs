@@ -13,7 +13,7 @@
 
 /* === Re-Exports === */
 
-pub use crate::v1::{AxisScale, BarArrangement, ContourRender, GridAxisEntry, GridHighlight, PlotStyle, Reduction, XyInterval};
+pub use crate::model::{AxisScale, BarArrangement, ContourRender, GridAxisEntry, GridHighlight, PlotStyle, Reduction, XyInterval};
 
 /* === Imports === */
 
@@ -22,7 +22,7 @@ pub use crate::v1::{AxisScale, BarArrangement, ContourRender, GridAxisEntry, Gri
 // Third Party Imports
 
 // Local Imports
-use crate::v1::{self, *};
+use crate::model::{self, *};
 
 /* === Constants === */
 
@@ -34,7 +34,7 @@ use crate::v1::{self, *};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Plot {
-    pub message: v1::Plot,
+    pub message: model::Plot,
 }
 
 /* === Enums === */
@@ -43,18 +43,18 @@ pub struct Plot {
 
 /* === Implementations === */
 
-impl From<v1::Plot> for Plot {
-    fn from(message: v1::Plot) -> Self {
+impl From<model::Plot> for Plot {
+    fn from(message: model::Plot) -> Self {
         Self { message }
     }
 }
-impl From<Plot> for v1::Plot {
+impl From<Plot> for model::Plot {
     fn from(plot: Plot) -> Self {
         plot.message
     }
 }
 impl std::ops::Deref for Plot {
-    type Target = v1::Plot;
+    type Target = model::Plot;
     fn deref(&self) -> &Self::Target {
         &self.message
     }
@@ -156,70 +156,70 @@ impl DataExpression {
 
 impl Plot {
     pub fn time_series(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::TimeSeries as i32,
             y: vec![value],
             ..Default::default()
         })
     }
     pub fn frequency_series(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::FrequencySeries as i32,
             y: vec![value],
             ..Default::default()
         })
     }
     pub fn xy(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::Xy as i32,
             y: vec![value],
             ..Default::default()
         })
     }
     pub fn trajectory(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::Trajectory as i32,
             y: vec![value],
             ..Default::default()
         })
     }
     pub fn contour(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::Contour as i32,
             z: Some(value),
             ..Default::default()
         })
     }
     pub fn grid_chart(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::GridChart as i32,
             y: vec![value],
             ..Default::default()
         })
     }
     pub fn bar(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::Bar as i32,
             y: vec![value],
             ..Default::default()
         })
     }
     pub fn pie(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::Pie as i32,
             y: vec![value],
             ..Default::default()
         })
     }
     pub fn histogram(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::Histogram as i32,
             x: Some(value),
             ..Default::default()
         })
     }
     pub fn box_plot(value: DataExpression) -> Self {
-        Self::from(v1::Plot {
+        Self::from(model::Plot {
             kind: PlotKind::BoxPlot as i32,
             y: vec![value],
             ..Default::default()
@@ -380,7 +380,7 @@ impl Section {
         self.cards.push(card);
         self
     }
-    pub fn plot(self, plot: impl Into<v1::Plot>) -> Self {
+    pub fn plot(self, plot: impl Into<model::Plot>) -> Self {
         let mut plot = plot.into();
         if plot.metadata.as_ref().is_none_or(|metadata| metadata.label.is_empty()) {
             let label =

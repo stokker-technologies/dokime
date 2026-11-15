@@ -495,7 +495,6 @@ test("Plugin Numeric Settings Preserve Incomplete Edits", async () => {
       contributions: [{ kind: "number", id: "budget", title: "Budget", description: "", default: 1000, min: 1000, max: 10000, step: 1 }],
     },
     values: { budget: 1000 },
-    discovered: {},
     onSubmit: save,
   };
   await act(async () => root.render(createElement(InstalledPluginSettingsForm, props)));

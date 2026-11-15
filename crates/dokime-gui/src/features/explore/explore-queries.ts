@@ -9,8 +9,8 @@
 
 /* === External Imports === */
 
-import { ArchiveScope } from "@host/dokime/v1/cycles_pb.js";
-import { ExecutionOrderKey } from "@host/dokime/client/v1/executions_pb.js";
+import { ArchiveScope } from "@host/model";
+import { ExecutionOrderKey } from "@host/model";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNativeSession } from "@/app/native-session/context";

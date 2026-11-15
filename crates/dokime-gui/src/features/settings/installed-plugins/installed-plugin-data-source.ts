@@ -12,47 +12,16 @@
 /* === Local Imports === */
 
 import type { InstalledPluginDetail } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import type { PluginRestart } from "@/lib/types/view-contracts";
-import { listNativeAdmittedPlugins, listNativePlugins } from "@/lib/api/native-plugins";
+import { listNativeAdmittedPlugins } from "@/lib/api/native-plugins";
 import { getNativePluginSettings } from "@/lib/api/native-settings";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-
-/* === Constants === */
-
-/** A restart the saved settings or the installation asked for outranks the admitted status. */
-const RESTART_STATUS: Record<PluginRestart, string | null> = {
-  idle: null,
-  restarting: "restarting",
-  pending: "restart_pending",
-};
 
 /* === Public Functions === */
 
 export async function getInstalledPluginDetail(session: SessionIdentity, pluginId: string): Promise<InstalledPluginDetail | null> {
   const plugins = await listNativeAdmittedPlugins(session);
-  let plugin = plugins.find((candidate) => candidate.plugin_id === pluginId);
-  if (!plugin) {
-    const installations = await listNativePlugins(session);
-    const entry = installations.find((candidate) => candidate.state !== "removal_pending" && candidate.metadata?.owners.includes(pluginId));
-    if (entry?.metadata) {
-      plugin = {
-        plugin_id: pluginId,
-        owner: { kind: "bundle", package: entry.metadata.identity.name, installation: entry.install_id, path: null },
-        label:
-          entry.last_boot?.state === "failed" && entry.last_boot.failure.plugin_id === pluginId
-            ? entry.last_boot.failure.plugin_name
-            : pluginId,
-        version: entry.metadata.identity.version,
-        enabled: entry.state === "installed",
-        runtime: "code",
-        status:
-          (entry.restart ? RESTART_STATUS[entry.restart] : null) ??
-          (entry.boot_failed ? "failed" : entry.state === "disabled" ? "disabled" : "not_running"),
-        error: entry.error,
-      };
-    }
-  }
+  const plugin = plugins.find((candidate) => candidate.plugin_id === pluginId);
   if (!plugin) return null;
   const config = await getNativePluginSettings(session, pluginId);
-  return { ...plugin, ...config, status: (config.restart ? RESTART_STATUS[config.restart] : null) ?? plugin.status };
+  return { ...plugin, ...config };
 }

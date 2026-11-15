@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: Apache-2.0
+
+// Analyses Contracts
+
+syntax = "proto3";
+
+package dokime.plugin.v1;
+
+// === Imports === //
+
+import "dokime/model/v1/analyses.proto";
+import "dokime/model/v1/scalar.proto";
+
+// === Options === //
+
+option csharp_namespace = "Dokime.Plugins";
+
+// === Services === //
+
+// Host-only plugin operations with independent Protected lifecycle bindings.
+// Application clients never receive these methods in their resource tree.
+service Analyses {
+  // Compute the Analyses resource; admission and policy are owned by the executor.
+  rpc Compute(.dokime.plugin.v1.AnalysesComputeRequest) returns (.dokime.plugin.v1.AnalysesComputeResponse) {}
+}
+
+// === Compute === //
+
+// AnalysesComputeRequest for Analyses.Compute.
+message AnalysesComputeRequest {
+  .dokime.plugin.v1.AnalysisSamples samples = 1;
+  .dokime.model.v1.MapValue parameters = 2;
+}
+
+// AnalysesComputeResponse for Analyses.Compute.
+message AnalysesComputeResponse {
+  repeated .dokime.model.v1.AnalysisValues outputs = 1;
+}
+
+// === Resources === //
+
+// AnalysisSamples value owned by this resource.
+message AnalysisSamples {
+  repeated double axis = 1;
+  repeated double values = 2;
+  string axis_unit = 3;
+  string unit = 4;
+}
+
+// === Enums === //

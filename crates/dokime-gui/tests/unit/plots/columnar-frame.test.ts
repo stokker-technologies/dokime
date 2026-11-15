@@ -21,8 +21,8 @@ import { test } from "vitest";
 import { create } from "@bufbuild/protobuf";
 
 // Local Imports
-import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@host/dokime/client/v1/plots/snapshots_pb.js";
-import { PlotStreamKind, PlotCartesianMode } from "@host/dokime/client/v1/plots/snapshots_pb.js";
+import { SnapshotsWatchResponseSchema as WatchFrameSchema } from "@host/model";
+import { PlotStreamKind, PlotCartesianMode } from "@host/model";
 import { mapNativePlotWatchPage } from "@/lib/api/native-plots";
 import { jsonToNativeValue } from "@/lib/host/values";
 
