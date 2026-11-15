@@ -51,6 +51,7 @@ mod documents_and_reports;
 mod execution_capabilities;
 mod execution_isolation;
 mod execution_outcomes;
+mod failed_worker_settles_its_samples;
 mod manager_lifecycles;
 #[cfg(target_os = "windows")]
 mod owned_processes;

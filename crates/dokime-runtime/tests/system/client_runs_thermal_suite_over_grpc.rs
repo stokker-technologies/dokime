@@ -247,6 +247,13 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
         assert_eq!(raw.iter().map(|sample| sample.timestamp.unwrap().seconds).collect::<Vec<_>>(), vec![1, 2]);
         assert!(raw.iter().all(|sample| !sample.payload.is_empty()));
         assert!(raw.iter().all(|sample| sample.values.as_ref().unwrap().values["celsius"].kind == Some(ValueKind::Number(84.0))));
+        // Ingestion Settles Before the Seal: the First Statistics Read Counts Every Sample.
+        let sealed = EvidenceScope {
+            execution_id: Some(execution_id.clone()),
+            ..Default::default()
+        };
+        let statistics = client.evidence.statistics(sealed, "thermal.temperature", "celsius").await?.statistics.unwrap();
+        assert_eq!(statistics.count, raw.len() as u64);
 
         // Prepared Report Metadata Identifies Its Exact Frozen Bytes Without Publishing.
         let reports = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?

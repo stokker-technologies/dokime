@@ -81,6 +81,13 @@ pub enum Error {
 
     #[error("Host Worker Failed; Restart the Host and Inspect Interrupted Evidence: {0}")]
     Join(#[from] tokio::task::JoinError),
+
+    #[error("{run}; Then {close}")]
+    Unsettled {
+        #[source]
+        run: Box<Error>,
+        close: Box<Error>,
+    },
 }
 
 /* === Traits === */

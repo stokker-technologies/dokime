@@ -22,7 +22,12 @@ import { CycleSummarySchema } from "@host/model";
 import { Termination } from "@host/model";
 
 // Local Imports
-import { createExecutionFileRefresh, createRuntimeProjectionRefreshCoordinator, createThrottledRefresh } from "@/app/live/runtime-refresh";
+import {
+  createExecutionFileRefresh,
+  createRuntimeProjectionRefreshCoordinator,
+  createThrottledRefresh,
+  settledOf,
+} from "@/app/live/runtime-refresh";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { mapNativeExecutionSummary, projectExecutionStatus } from "@/lib/api/native-planning";
 import { invalidateWorkflowDocuments, workflowQueryKeys } from "@/features/cycle/server-state";
@@ -94,6 +99,32 @@ test("Document Refresh Is Demand Driven and Bounded", () => {
     assert.equal(refresh.mock.calls.length, 1);
     coordinator.request();
     coordinator.dispose();
+    vi.advanceTimersByTime(5_000);
+    assert.equal(refresh.mock.calls.length, 1);
+  } finally {
+    coordinator.dispose();
+    vi.useRealTimers();
+  }
+});
+
+test("A Settled Run Refreshes Its Documents at Once", () => {
+  vi.useFakeTimers();
+  const refresh = vi.fn();
+  const coordinator = createThrottledRefresh(refresh, 5_000);
+  const frame = (running: bigint, passed: number, telemetry: bigint, sealed: boolean) =>
+    ({
+      overview: {
+        cycleSummaries: [create(CycleSummarySchema, { cycleId: "cycle", runningCount: running, result: { passed }, sealed })],
+        evidenceCounts: { telemetry },
+      },
+    }) as unknown as RuntimeStateFrame;
+  try {
+    assert.equal(settledOf(frame(2n, 0, 10n, false)), settledOf(frame(1n, 1, 20n, false)));
+    assert.notEqual(settledOf(frame(1n, 1, 20n, false)), settledOf(frame(0n, 2, 20n, false)));
+    assert.notEqual(settledOf(frame(0n, 2, 20n, false)), settledOf(frame(0n, 2, 20n, true)));
+    coordinator.request();
+    coordinator.now();
+    assert.equal(refresh.mock.calls.length, 1);
     vi.advanceTimersByTime(5_000);
     assert.equal(refresh.mock.calls.length, 1);
   } finally {

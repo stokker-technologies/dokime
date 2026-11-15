@@ -223,8 +223,8 @@ async function exactBench() {
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
     if (tiles.length < 11 || tiles.some(tile => tile.dataset.documentValuePresent !== 'true')) return null;
     const values = tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong [data-exact-value]')?.dataset.exactValue]);
-    // The host seals before its interval telemetry flush, so tiles read a zero count until that
-    // flush's storage change refreshes the document; a view that never refreshes times out here.
+    // Sealed evidence is complete; the view shows it once the settled run's document refresh lands,
+    // until then tiles may hold a capture taken before the samples were saved.
     const captured = values.every(([, value]) => value && value !== '-') && /[1-9]/.test(Object.fromEntries(values).count ?? '');
     return captured ? Object.fromEntries(values) : null;`),
   );

@@ -52,8 +52,11 @@ compile a plugin themselves. Both placements use the unchanged shared thermal
 suite at `sdk/rust/examples/thermal.rs`.
 
 The host requires explicit `HostSettings`: placement bounds and a
-`SchedulerClock`. `ControlledClock` advances only through requested waits;
-observers tick and commit samples before a plugin's host sleep settles.
+`SchedulerClock`. `ControlledClock` advances only through requested waits.
+Observer ticks due before a plugin's host sleep ends have committed their samples
+when the sleep settles. A tick due at the same controlled instant fires together
+with the sleep and settles independently, so a step that needs that tick's
+observer state awaits the tick's callback after its sleep.
 Prompt arrival and cancellation use events, with no wall-clock sleeps.
 
 ## Serve Client gRPC
@@ -68,8 +71,13 @@ buffer capacity.
 The public `process::command` constructor starts owned child processes without
 opening Windows console windows. On Windows, `Host::open` assigns the host process
 to a kill-on-close job before any plugin starts, so every descendant, including
-managed plugins the library spawns, ends when the host is killed. Unix child
-termination belongs to the library.
+managed plugins the library spawns, ends when the host is killed. The desktop runs
+its host in-process, so the job also owns the desktop's children. What the user
+keeps leaves it: `process::open` starts the shell launcher outside the job for
+files and links the desktop opens, and the updater's pre-exit hook calls
+`process::detach_later_children` so the installer it starts next outlives the
+exiting desktop while running plugins still end with it. Unix child termination
+belongs to the library.
 
 The `dokime-host` binary accepts `--endpoint HOST:PORT --storage PATH`.
 It announces its bound HTTP URL on stdout, and stdin EOF requests graceful close.
@@ -554,7 +562,12 @@ their axis. Step queries use the evidence positions at the step's time boundarie
 including equal-time events without admitting evidence from another step.
 
 SQLite commits each Arrow IPC batch and its position atomically with FULL
-synchronous durability. Streams close before evidence closes. A seal hashes the
+synchronous durability. Streams close before evidence closes, and only after the
+run's plugin binding has drained every accepted sample. A run that panics or is
+dropped hands its binding to a host task that drains it before releasing the
+run's sample scope; the failed worker's settlement waits for that release before
+it closes and seals the evidence. When a run fails and its binding close fails
+too, the run's error is reported first with the close error attached. A seal hashes the
 frozen execution and ordered evidence bytes, and reopened reads verify it.
 Writes after close are refused. Open plugin-run executions are recovered as
 interrupted and sealed; import origins are never run-recovery targets.
