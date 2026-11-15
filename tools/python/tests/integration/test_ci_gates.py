@@ -65,17 +65,87 @@ class ReleaseTagTests(unittest.TestCase):
                 self.assertEqual(entry(arguments), 0)
                 self.assertEqual(extract.call_args_list, [call(ROOT, archive) for archive in archives])
 
-    def test_publication_includes_python_registry_once(self):
-        for arguments, stages in (([], ["assets", "python", "finalize"]), (["--stage", "python"], ["python"])):
+    def test_shared_publication_never_selects_pypi(self):
+        cases = (
+            ([], ["release:publish:assets", "release:publish:finalize"], True),
+            (["--stage", "assets"], ["release:publish:assets"], True),
+            (["--registry", "pypi"], ["release:publish:python"], True),
+            (["--registry", "pypi", "--dry"], ["release:publish:python:dry"], False),
+        )
+        for arguments, selected, guarded in cases:
             with (
                 self.subTest(arguments=arguments),
                 patch.dict(os.environ, {}, clear=True),
-                patch.object(workflow, "publication_guard"),
+                patch.object(workflow, "publication_guard") as guard,
                 patch.object(tasks.subprocess, "run", return_value=Mock(returncode=0)) as execute,
             ):
-                self.assertEqual(tasks.main(["publish", *arguments]), 0)
-                commands = [call.args[0] for call in execute.call_args_list]
-                self.assertEqual(commands, [["mise", "run", f"release:publish:{stage}", "--"] for stage in stages])
+                self.assertEqual(tasks.main(["publish", "--channel", "stable", *arguments]), 0)
+                self.assertEqual([call.args[0] for call in execute.call_args_list], [["mise", "run", task, "--"] for task in selected])
+                self.assertEqual(guard.called, guarded)
+        for arguments in (["--channel", "nightly"], ["--stage", "assets"], ["--stage", "python"]):
+            with (
+                self.subTest(refused=arguments),
+                patch.object(tasks.subprocess, "run") as execute,
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
+                tasks.main(["publish", "--registry", "pypi", *arguments])
+            execute.assert_not_called()
+
+    def test_pypi_reruns_skip_matching_files_and_refuse_mismatches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "sdk/python").mkdir(parents=True)
+            (root / "sdk/python/pyproject.toml").write_text('[project]\nname = "dokime-sdk"\n', encoding="utf-8")
+            wheel = root / "dokime_sdk-1.0.0-py3-none-any.whl"
+            source = root / "dokime_sdk-1.0.0.tar.gz"
+            wheel.write_bytes(b"wheel")
+            source.write_bytes(b"source")
+            digest = hashlib.sha256(b"wheel").hexdigest()
+            settings = {"provider": "github"}
+            with (
+                patch.object(registry.wheel, "distributions", return_value=[wheel, source]),
+                patch.object(registry.policy, "config", return_value={"version": {"value": "1.0.0"}}),
+                patch.object(registry.policy, "execute") as execute,
+            ):
+                with patch.object(registry, "pypi_digests", return_value={wheel.name: digest}):
+                    registry.python(root, settings, dry_run=False)
+                self.assertEqual(
+                    execute.call_args.args[1],
+                    ["uv", "publish", "--trusted-publishing", "always", "--check-url", "https://pypi.org/simple/", source.name],
+                )
+                execute.reset_mock()
+                with patch.object(
+                    registry, "pypi_digests", return_value={wheel.name: digest, source.name: hashlib.sha256(b"source").hexdigest()}
+                ):
+                    registry.python(root, settings, dry_run=False)
+                execute.assert_not_called()
+                with (
+                    patch.object(registry, "pypi_digests", return_value={wheel.name: "0" * 64}),
+                    self.assertRaisesRegex(policy.ToolError, "different SHA-256"),
+                ):
+                    registry.python(root, settings, dry_run=False)
+                execute.assert_not_called()
+                registry.python(root, settings, dry_run=True)
+                self.assertEqual(
+                    execute.call_args.args[1], ["uv", "publish", "--dry-run", "--trusted-publishing", "never", wheel.name, source.name]
+                )
+
+    def test_first_pypi_release_and_lookup_failure(self):
+        def refused(code):
+            error = policy.ToolError("PyPI project read failed")
+            error.__cause__ = urllib.error.HTTPError("https://pypi.org/pypi/dokime-sdk/json", code, "refused", {}, None)
+            self.addCleanup(error.__cause__.close)
+            return error
+
+        with patch.object(registry.notices, "download", side_effect=refused(404)):
+            self.assertEqual(registry.pypi_digests("dokime-sdk"), {})
+        with patch.object(registry.notices, "download", side_effect=refused(403)), self.assertRaises(policy.ToolError):
+            registry.pypi_digests("dokime-sdk")
+        document = {"releases": {"1.0.0": [{"filename": "dokime_sdk-1.0.0.tar.gz", "digests": {"sha256": "a" * 64}}]}}
+        with patch.object(registry.notices, "download", return_value=json.dumps(document).encode()) as download:
+            self.assertEqual(registry.pypi_digests("dokime-sdk"), {"dokime_sdk-1.0.0.tar.gz": "a" * 64})
+        self.assertEqual(download.call_args.args[0], "https://pypi.org/pypi/dokime-sdk/json")
 
     def setUp(self):
         self.action = runpy.run_path(str(ROOT / "tools/python/src/dokime_tools/ci/review.py"))

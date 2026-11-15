@@ -101,6 +101,29 @@ owns provider selection, signing and verification; the native bundler invokes it
 before creating updater signatures. Do not sign untrusted pull-request
 code with release credentials.
 
+### PyPI Publication
+
+The Python SDK publishes as `dokime-sdk` through PyPI Trusted Publishing.
+[PyPI does not support reusable publishing workflows](https://docs.pypi.org/trusted-publishers/troubleshooting/#reusable-workflows-on-github),
+so only the direct `Release / Publish PyPI` job in `release.yml` uploads, after the
+shared publisher succeeds; verification waits for both. The shared publisher in
+`publish.yml` never selects PyPI, and Nightly never uploads to PyPI. Register the
+Trusted Publisher with project `dokime-sdk`, owner `stokker-technologies`,
+repository `dokime`, workflow `release.yml` and environment `release`.
+
+```sh
+mise run release:publish -- --channel stable --registry pypi
+mise run release:publish -- --channel stable --registry pypi --dry
+```
+
+The job consumes the validated review's `package-release-python-any` archive. A
+failed job fails the release without rolling back earlier publications; rerun it.
+A rerun skips files PyPI already holds with the same SHA-256, refuses before any
+upload when a file exists with a different SHA-256, and uploads the rest with
+`--check-url`. `--registry` requires the stable channel and no `--stage`. Stable
+dry publication and rehearsal validate the wheel and source distribution with
+`uv publish --dry-run --trusted-publishing never`, without credentials.
+
 ## Windows Installation Scope
 
 The existing installer manifest remains valid. Organization deployment recipes
