@@ -347,8 +347,8 @@ existing independent query path. Actual output and expansion limits report the
 budget, limit, amount reached and affected card.
 
 Each section lays its cards on a 12-column grid. A card takes its placement's
-declared column span; a placement without one fills the row, so plot cards stack
-one per row at full width. Nested sections always fill their row.
+column span; an absent or zero span fills the row. Nested sections always fill
+their row.
 
 A summary tile shows a value of up to twelve characters whole. A longer value
 shows six significant digits, abbreviated from its exact decimal by
