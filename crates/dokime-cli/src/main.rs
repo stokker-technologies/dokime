@@ -13,6 +13,7 @@
 
 mod cli;
 mod commands;
+mod environment;
 mod error;
 mod output;
 mod settings;
