@@ -2,7 +2,7 @@
 
 `sdk/cpp` is a C++20 SDK. `Dokime::Cpp` composes the product's descriptor-derived
 client tree, plugin authoring, document builders and public payload barrels with
-Harmos revision `299b7ce492e3a82bc4ddf61dc60c2161b6824110`.
+Harmos revision `b15faaf202a005cf5077b3938557980f7f49fa37`.
 CMake consumes the pinned library archive's own targets and installable package;
 protobuf and gRPC use the same vcpkg graph for both SDKs.
 
