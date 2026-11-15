@@ -435,7 +435,14 @@ try {
   await desktop?.screenshot("failure").catch(() => {});
 } finally {
   const errors = [];
-  for (const close of [closeNative, async () => cleanup?.()]) {
+  let credentialsRemoved = !cleanup;
+  for (const close of [
+    closeNative,
+    async () => {
+      await cleanup?.();
+      credentialsRemoved = true;
+    },
+  ]) {
     try {
       await close();
     } catch (error) {
@@ -450,7 +457,7 @@ try {
     }
   }
   // Reclaim Fixtures On Success And Failure After All Owned Children Stop.
-  for (const directory of keepEvidence ? [] : [work]) {
+  for (const directory of keepEvidence || !credentialsRemoved ? [] : [work]) {
     try {
       await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     } catch (error) {
@@ -466,7 +473,7 @@ try {
       errors,
       failure: failure?.stack ?? null,
       measuring,
-      keptEvidence: keepEvidence ? [work] : [],
+      keptEvidence: keepEvidence || !credentialsRemoved ? [work] : [],
     }),
   );
   if (errors.length) failure ??= new Error(`Native benchmark cleanup failed: ${errors.join("; ")}`);

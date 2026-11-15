@@ -128,7 +128,9 @@ Native stories retain their disposable roots outside the test runtime. After
 owned tasks stop, including on assertion failure, the host fixture removes each
 root's credentials through `--remove-credentials` before temporary files are
 deleted. WebView and benchmark cleanup uses the same host operation. A cleanup
-failure preserves the root and fails the story. Tests Build enables `testing`;
+failure preserves the root and fails the story. The benchmark also retains its
+fixture root when credential cleanup fails and records it in `completion.json`.
+Tests Build enables `testing`;
 focused native desktop commands must also pass `--features testing`.
 The native preference exporter uses a disposable host with the same credential
 removal operation, preserving any earlier generator or user storage roots.
