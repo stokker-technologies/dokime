@@ -93,7 +93,7 @@ impl<T: prost_reflect::ReflectMessage + Default + 'static> Watching<T> {
 
 #[derive(Clone)]
 enum Transport {
-    Harmos(HarmosContext),
+    Harmos(Box<HarmosContext>),
     Local(Arc<Local>),
 }
 
@@ -152,7 +152,7 @@ impl Context {
         execution.test_case.get_or_init(|| test_case);
         execution.origin.get_or_init(|| origin);
         Ok(Self {
-            transport: Transport::Harmos(transport.clone()),
+            transport: Transport::Harmos(Box::new(transport.clone())),
             execution: execution.clone(),
             termination: None,
         })
@@ -168,7 +168,7 @@ impl Context {
             })
         });
         Ok(Self {
-            transport: Transport::Harmos(transport.clone()),
+            transport: Transport::Harmos(Box::new(transport.clone())),
             execution,
             termination: None,
         })
@@ -189,7 +189,7 @@ impl Context {
             Error::Invalid(format!("Start Execution {} Before Requesting Its Samples", transport.scope().unwrap_or_default()))
         })?;
         Ok(Self {
-            transport: Transport::Harmos(transport.clone()),
+            transport: Transport::Harmos(Box::new(transport.clone())),
             execution: execution.clone(),
             termination: None,
         })
