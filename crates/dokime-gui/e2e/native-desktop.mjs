@@ -179,7 +179,11 @@ async function execute() {
     desktop.execute(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
     if (tiles.length < 11 || tiles.some(tile => tile.dataset.documentValuePresent !== 'true')) return null;
-    return Object.fromEntries(tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong')?.textContent]));`),
+    const values = tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong [data-exact-value]')?.dataset.exactValue]);
+    // The host seals before its interval telemetry flush, so tiles read a zero count until that
+    // flush's storage change refreshes the document; a view that never refreshes times out here.
+    const captured = values.every(([, value]) => value && value !== '-') && /[1-9]/.test(Object.fromEntries(values).count ?? '');
+    return captured ? Object.fromEntries(values) : null;`),
   );
   const base = 1152921504606847975n;
   for (const name of ["mean", "median", "min", "max", "first", "last", "p05", "p95", "p99"]) assert.equal(values[name], String(base));

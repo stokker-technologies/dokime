@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import { AbbreviatedValue } from "@/components/AbbreviatedValue";
 import { PathPill } from "@/components/PathPill";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -23,6 +24,8 @@ type MetricProps = {
   metricId?: string;
   label: string;
   value: string;
+  /** The complete value when `value` abbreviates it; shown on hover and copied. */
+  exactValue?: string;
   rawValue?: unknown;
   detail?: string;
   presentation?: "value" | "progress" | "badge";
@@ -31,7 +34,7 @@ type MetricProps = {
 
 /* === Components === */
 
-export function Metric({ metricId, label, value, rawValue, detail, presentation = "value", state = null }: MetricProps) {
+export function Metric({ metricId, label, value, exactValue, rawValue, detail, presentation = "value", state = null }: MetricProps) {
   const progress = presentation === "progress" ? progressValue(rawValue, value) : null;
 
   return (
@@ -47,7 +50,7 @@ export function Metric({ metricId, label, value, rawValue, detail, presentation 
         </span>
         {progress === null ? (
           <strong className="min-w-0 text-lg leading-tight">
-            <MetricValue forceBadge={presentation === "badge"} state={state} value={value} />
+            <MetricValue exactValue={exactValue} forceBadge={presentation === "badge"} state={state} value={value} />
           </strong>
         ) : (
           <ProgressValue percent={progress} state={state} />
@@ -71,7 +74,17 @@ function ProgressValue({ percent, state }: { percent: number; state?: MetricStat
   );
 }
 
-function MetricValue({ forceBadge = false, state, value }: { forceBadge?: boolean; state?: MetricState | null; value: string }) {
+function MetricValue({
+  exactValue,
+  forceBadge = false,
+  state,
+  value,
+}: {
+  exactValue?: string;
+  forceBadge?: boolean;
+  state?: MetricState | null;
+  value: string;
+}) {
   const normalized = value.trim().toLowerCase();
   const status = stateVariant(state) ?? statusVariant(normalized);
   if (status) {
@@ -93,9 +106,11 @@ function MetricValue({ forceBadge = false, state, value }: { forceBadge?: boolea
   }
   const compact = value.length > 10;
   return (
-    <span className={`block min-w-0 max-w-full truncate ${compact ? "text-base" : ""}`} title={value}>
-      {value}
-    </span>
+    <AbbreviatedValue
+      className={`block min-w-0 max-w-full truncate ${compact ? "text-base" : ""}`}
+      exact={exactValue ?? value}
+      value={value}
+    />
   );
 }
 

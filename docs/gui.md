@@ -368,6 +368,16 @@ reject estimated definition-size-times-row work. Plots retain their
 existing independent query path. Actual output and expansion limits report the
 budget, limit, amount reached and affected card.
 
+Each section lays its cards on a 12-column grid. A card takes its placement's
+column span; an absent or zero span fills the row. Nested sections always fill
+their row.
+
+A summary tile shows a value of up to twelve characters whole. A longer value
+shows six significant digits, abbreviated from its exact decimal by
+`formatCompactDecimal` in `src/lib/format.ts`; the tile's title, its
+`data-exact-value` and a copy keep every digit. The label carries the unit in
+square brackets, so the value does not repeat it.
+
 Saved HTML uses the same card query evaluator at its frozen evidence cut.
 It includes all repeated-section pages and complete authored tables, rather than
 only the page currently displayed in the GUI. A failed data binding retains its

@@ -17,6 +17,7 @@ export type OverviewMetric = {
   metricId?: string;
   label: string;
   value: string;
+  exactValue?: string;
   rawValue?: unknown;
   detail?: string;
   presentation?: "value" | "progress" | "badge";

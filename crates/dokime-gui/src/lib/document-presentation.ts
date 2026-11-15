@@ -19,7 +19,7 @@
 
 // Local Imports
 
-import { formatUnitLabel } from "@/lib/format";
+import { COMPACT_DECIMAL_CHARACTERS, formatCompactDecimal, formatUnitLabel } from "@/lib/format";
 import type { DocumentCardLayout, TelemetrySummaryTilePayload_Serialize } from "./document-contracts";
 import { formatRecordValue } from "./record-display";
 import type {
@@ -250,12 +250,14 @@ export function documentSummaryTile(tile: SummaryTile): DocumentViewMetric {
       detail: unavailable,
     };
   }
+  const { formatted, exact } = summaryValue(tile.value, tile.format, tile.unit);
   return {
     metric_id: tile.metadata.identifier,
     label: formatUnitLabel(tile.metadata.label, tile.unit),
     value: tile.value,
     unit: tile.unit ?? null,
-    formatted: summaryValue(tile.value, tile.format, tile.unit),
+    formatted,
+    exact,
     presentation: tile.presentation ?? "value",
     state: tile.state ?? null,
     aggregation: tile.stat === "latest" ? "last" : null,
@@ -302,17 +304,29 @@ function documentValue(value: unknown): string {
   return formatRecordValue(value, null);
 }
 
-function summaryValue(value: unknown, format: SummaryTile["format"], unit?: string | null): string {
+/**
+ * A tile's shown text and its complete value. A value too long for the tile is
+ * abbreviated from its exact decimal; `exact` keeps every digit for the title
+ * and copy. The label carries the unit in square brackets, so the value does not.
+ */
+function summaryValue(value: unknown, format: SummaryTile["format"], unit?: string | null): { formatted: string; exact: string } {
   value = numericValue(value) ?? value;
   const rendered = documentValue(value);
   const number = typeof value === "number" && Number.isFinite(value) ? value : null;
-  const integer = isRecord(value) && (value.__dokime_native_integer__ === true || value.__dokime_native_exact__ === true);
-  if (number === null && !integer) return rendered;
-  if (format === "percent") {
-    return `${number !== null ? number.toFixed(Math.abs(number) >= 10 ? 0 : 1) : rendered}%`;
+  const decimal =
+    isRecord(value) &&
+    (value.__dokime_native_integer__ === true || value.__dokime_native_exact__ === true) &&
+    typeof value.decimal === "string"
+      ? value.decimal
+      : null;
+  if (number === null && decimal === null) return { formatted: rendered, exact: rendered };
+  if (format === "percent" && number !== null) {
+    const percent = `${number.toFixed(Math.abs(number) >= 10 ? 0 : 1)}%`;
+    return { formatted: percent, exact: percent };
   }
-  if (format === "duration") return `${rendered}${unit ?? "s"}`;
-  return `${rendered}${unit ? ` ${unit}` : ""}`;
+  const shown = rendered.length <= COMPACT_DECIMAL_CHARACTERS ? rendered : formatCompactDecimal(decimal ?? String(number));
+  const suffix = format === "percent" ? "%" : format === "duration" ? (unit ?? "s") : "";
+  return { formatted: `${shown}${suffix}`, exact: `${rendered}${suffix}` };
 }
 
 /* === Entry Point === */
