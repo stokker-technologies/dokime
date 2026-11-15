@@ -25,6 +25,7 @@ from dokime import (
     Window,
 )
 from dokime.client import (
+    PLUGIN_STATE_READY,
     RESULT_STATUS_PASSED,
     Client,
     EvidenceBucketRequest,
@@ -98,6 +99,16 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
         entry = (
             await client.plugins.create("thermal", placement, PluginValue(enabled=True))
         ).entry
+        changes = client.plugins.watch(name=entry.name)
+        try:
+            while entry.state != PLUGIN_STATE_READY:
+                if entry.HasField("failure"):
+                    raise RuntimeError(f"Await Thermal Plugin Ready: {entry.failure}")
+                if await anext(changes, None) is None:
+                    raise RuntimeError("Await Thermal Plugin Ready: Watch Closed")
+                entry = (await client.plugins.get(entry.name)).entry
+        finally:
+            await changes.aclose()
         assert (await client.plugins.list()).entries == [entry]
         suites = await client.suites.list("")
         suite_id = suites.values[0].metadata.identifier

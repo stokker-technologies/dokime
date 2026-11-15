@@ -199,7 +199,8 @@ fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
         assert!(terminal);
 
         // Reattach the Plugin Without Replaying or Changing Recovered Evidence
-        plugins.restart("execution", plugins.get("execution").await?.entry.unwrap().revision).await?;
+        let restarted = plugins.restart("execution", plugins.get("execution").await?.entry.unwrap().revision).await?;
+        super::support::plugin_state(&plugins, restarted, PluginState::Ready).await?;
         assert_eq!(
             Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                 .plugins

@@ -65,6 +65,7 @@ fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn Err
             settings.clock = Arc::new(ControlledClock::new(0));
             let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
             let entry = host.add_managed(&super::support::thermal_fixture()?).await?;
+            let cleanup = host.catalog(&entry)?.suites[0].templates[0].cleanup.clone().unwrap();
             let origin = host
                 .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
                 .await?;
@@ -84,8 +85,7 @@ fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn Err
                 assert_eq!(snapshot.state, ExecutionState::Sealed);
                 assert_eq!(snapshot.execution.termination, Termination::Cancelled as i32);
                 assert!(host.streams_closed(execution)?);
-                assert!(snapshot.evidence.iter().any(|row| row.kind == "log"
-                    && row.operation == host.catalog(&entry).unwrap().suites[0].templates[0].cleanup.clone().unwrap()));
+                assert!(snapshot.evidence.iter().any(|row| row.kind == "log" && row.operation == cleanup));
                 assert!(!host.capabilities(execution)?.cancel);
                 assert!(host.next_prompt(execution).await.is_err());
                 saved.push(snapshot);

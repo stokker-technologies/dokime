@@ -129,7 +129,8 @@ fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Result<()
             let placement = PluginPlacement {
                 kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
-            client.plugins.create("secret_reader", placement.clone(), PluginValue { enabled: true }).await?;
+            let created = client.plugins.create("secret_reader", placement.clone(), PluginValue { enabled: true }).await?;
+            support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
             let options = PluginsSecretsListOptions {
                 name: Some("secret_reader".into()),
                 ..Default::default()
@@ -182,7 +183,8 @@ fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Result<()
                     .await
                     .is_err()
             );
-            client.plugins.create("secret_reader", placement, PluginValue { enabled: true }).await?;
+            let created = client.plugins.create("secret_reader", placement, PluginValue { enabled: true }).await?;
+            support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
             loop {
                 let current = client
                     .plugins
