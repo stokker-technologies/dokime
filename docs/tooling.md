@@ -303,8 +303,10 @@ They are historical multi-sample ranges, not statistical comparisons with one ru
 The runtime and desktop fixtures use the real SDK observer and its tick-driven
 Samples protocol. Each tick receives exactly one sample with that tick's
 timestamp and the next sequence. The former proxy carrier is removed.
-Runtime and desktop fixtures declare a 1 ms interval and advance the controlled
-clock through every row. The empty spectrum is scheduled daily, outside these
+Runtime fixtures declare a 1 ms interval. Desktop fixtures declare an exact
+duration setting for their density and advance the controlled clock through
+three days of canonical sample times as well as payload timestamp values.
+Zoom windows therefore select actual retained samples. The empty spectrum is scheduled daily, outside these
 short runtime captures; an idle device carrier would prevent virtual-clock
 settlement. Desktop rows retain three days of source values in their timestamp
 field, including late-source offsets. Live and late commands publish eight real

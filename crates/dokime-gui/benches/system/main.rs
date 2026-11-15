@@ -125,6 +125,9 @@ fn main() {
                     input.flush().unwrap();
                     line.clear();
                     output.read_line(&mut line).unwrap();
+                    if let Some(error) = line.trim().strip_prefix("error ") {
+                        panic!("Measure desktop_round_trip/{count}/{condition}: {error}");
+                    }
                     let seconds = line
                         .trim()
                         .parse::<f64>()
@@ -153,6 +156,9 @@ fn main() {
                         input.flush().unwrap();
                         line.clear();
                         output.read_line(&mut line).unwrap();
+                        if let Some(error) = line.trim().strip_prefix("error ") {
+                            panic!("Measure desktop_history_round_trip/{rows}/{count}/{condition}: {error}");
+                        }
                         let seconds = line.trim().parse::<f64>().unwrap_or_else(|error| {
                             panic!("Measure desktop_history_round_trip/{rows}/{count}/{condition}: raw seconds {line:?}: {error}")
                         });

@@ -430,7 +430,6 @@ try {
   finished = true;
 } catch (error) {
   failure = error;
-  process.stdout.write(`Measure Desktop ${measuring ?? "Initialization"}: ${error.stack ?? error}\n`);
   await desktop?.screenshot("failure").catch(() => {});
 } finally {
   const errors = [];
@@ -463,6 +462,7 @@ try {
       errors.push(String(error));
     }
   }
+  if (errors.length) failure ??= new Error(`Native benchmark cleanup failed: ${errors.join("; ")}`);
   await writeFile(join(output, "observations.json"), JSON.stringify({ fixture: fixture ?? null, native, results, resources }, null, 2));
   await writeFile(
     join(output, "completion.json"),
@@ -475,6 +475,8 @@ try {
       keptEvidence: keepEvidence || !credentialsRemoved ? [work] : [],
     }),
   );
-  if (errors.length) failure ??= new Error(`Native benchmark cleanup failed: ${errors.join("; ")}`);
 }
-if (failure) throw failure;
+if (failure) {
+  process.stdout.write(`error ${JSON.stringify(`Measure Desktop ${measuring ?? "Initialization"}: ${failure.message ?? failure}`)}\n`);
+  throw failure;
+}

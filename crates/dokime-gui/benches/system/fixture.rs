@@ -324,7 +324,7 @@ impl Fixture {
 
 pub fn serve() -> Result<()> {
     let stream = Stream::<Row>::new("bench.pipeline", "Pipeline Samples");
-    let observer = Observer::new(&stream, observe).every_ms(1);
+    let observer = Observer::new(&stream, observe).interval_setting("sample_interval");
     let template = Template::new("bench.pipeline.capture", "Pipeline Capture")
         .initialize(async |context: &Context| {
             context.set(History::default());
@@ -342,6 +342,17 @@ pub fn serve() -> Result<()> {
         .document(document(30))
         .document(document(100));
     Plugin::new("desktop.benchmark", "1.0.0")
+        .setting(model::SettingDeclaration {
+            name: "sample_interval".into(),
+            title: "Sample Interval".into(),
+            description: "Canonical sample cadence for the three-day history".into(),
+            default: Some(model::SettingValue {
+                value: Some(model::setting_value::Value::Duration(prost_types::Duration {
+                    seconds: sample_ns() / 1_000_000_000,
+                    nanos: (sample_ns() % 1_000_000_000) as i32,
+                })),
+            }),
+        })
         .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
         .requires_host(HostOperation::TimeSleep)
         .remote()
@@ -461,7 +472,7 @@ async fn publish(context: &Context) -> Result<()> {
                 assert_eq!(published, target, "Publish Benchmark History: Retain the Requested Row Count");
                 break;
             }
-            context.sleep(Duration::from_millis((target - published) as u64)).await?;
+            context.sleep(Duration::from_nanos((target - published) as u64 * sample_ns() as u64)).await?;
         }
         sequence += count;
         let control = context.get::<PublicationControl>()?;
