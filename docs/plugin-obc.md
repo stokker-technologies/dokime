@@ -62,6 +62,10 @@ JSON summaries as execution artifacts; start-up optionally attaches
 - Waiting for a unit connection record: the host has no record listeners.
 - The feature-gated ingest benchmark templates: step-pushed samples have no SDK
   equivalent; the Bench suite carries the scale workloads instead.
+- The status, connection-list and readiness operations and the process system
+  observer: they served the removed settings status card, connection listener and
+  host telemetry; procedures now read their bench directly.
+- The Warning level on inspection prompts: the SDK prompt builder sets no level.
 
 ## Source Layout
 
