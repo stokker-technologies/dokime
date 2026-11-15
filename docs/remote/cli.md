@@ -14,6 +14,13 @@ storage root. Keep its terminal open until the host is stopped:
 dokime --endpoint 127.0.0.1:7000 server --storage ./bench-data
 ```
 
+The host reads `RUST_LOG` for its diagnostic log directives. To keep them in a
+file, copy [the example](../examples/.env.example) and select it explicitly with
+`server --env-file host.env` (or `dokime-host --env-file host.env`). Nothing
+searches for a `.env` file implicitly, process variables take precedence, and any
+other variable name, malformed line or invalid directive is refused before the
+storage root is opened.
+
 From another local terminal, export a pairing through that bootstrap listener:
 
 ```sh
@@ -139,6 +146,24 @@ the file, and refuse existing destinations. Rendering or downloading does not
 publish a report. Files.Get returns the file metadata and its transfer limits;
 Files.Read returns a bounded chunk and its retained cut.
 Failed downloads leave no final output and preserve existing destinations.
+
+Download a self-contained evidence ZIP through the Evidence.Archive operation that
+the desktop's Export Evidence uses, with the same verified, atomic and
+refuse-existing download:
+
+```sh
+dokime --remote operator.dokime-remote execution export EXECUTION --out execution.zip
+dokime --remote operator.dokime-remote cycle export CYCLE --out cycle.zip
+```
+
+An execution ZIP holds its `manifest.json`, `evidence.pb` and finalized stream
+files; a cycle ZIP holds `executions/<EXECUTION>.zip` members and its manifest.
+
+Scripts that must not capture standard output read confirmed identities from
+`--id-file PATH`. `cycle create` and `cycle rerun` write the cycle UUID,
+`cycle append` writes each appended execution UUID and `execution prompt next`
+writes the prompt UUID, one per line. The file is created or truncated before
+connecting and written only after the host confirms the identities.
 
 Losing a wait or connection leaves admitted work running. Reconnect to the same
 backend, inspect the returned identities and controls, and reuse the same request

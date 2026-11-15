@@ -153,7 +153,14 @@ and a retained `request_id`; raw delivery awaits the discovery registration abov
 
 Report commands prepare with Reports.Create, read bounded product Files.Read
 ranges at the returned cut, verify length and SHA-256, and save without replacing an
-existing file. Rendering and downloading do not publish a report. Logical execution-file paths retain the original native file references in the
+existing file. Rendering and downloading do not publish a report. `execution export`
+and `cycle export` download the self-contained evidence ZIP from Evidence.Archive,
+the operation behind the desktop's Export Evidence, with the same verified,
+refuse-existing download. Scripts read confirmed UUIDs from `--id-file PATH` on
+`cycle create`, `cycle rerun`, `cycle append` and `execution prompt next`; see
+[Remote CLI Workflows](remote/cli.md#read-reports-and-recover).
+`server --env-file PATH` selects an explicit environment file; nothing searches
+for `.env`. Logical execution-file paths retain the original native file references in the
 execution transaction. Replacing a logical path preserves immutable prior bytes
 and returned read cuts. File uploads acknowledge accepted bytes; graceful host
 settlement persists the resumable prefix before restart. Product content

@@ -47,6 +47,9 @@ pub(crate) struct Args {
 
     #[arg(long)]
     json: bool,
+
+    #[command(flatten)]
+    id_file: crate::commands::id_file::Args,
 }
 
 /* === Enums === */
@@ -64,6 +67,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     let cases = CasesCreateResponse::decode(std::fs::read(args.cases)?.as_slice())?;
     let origins =
         cases.cases.into_iter().map(|case| case.origin.ok_or("Start Cycle: Case Has No Frozen Origin")).collect::<Result<Vec<_>, _>>()?;
+    let id_file = args.id_file.open()?;
     let client = settings.sdk(endpoint).await?;
     let options = CyclesCreateOptions {
         context: settings.context()?,
@@ -71,6 +75,9 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     };
     let metadata = Metadata { label: args.label, ..Default::default() };
     let value = client.cycles.create_with(origins, metadata, true, "", options).await?;
+    if let Some(file) = id_file {
+        file.write(value.cycle.iter().map(|cycle| &cycle.cycle_id))?;
+    }
     crate::output::print(&value, args.json)
 }
 

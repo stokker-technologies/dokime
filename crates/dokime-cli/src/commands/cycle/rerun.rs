@@ -40,6 +40,9 @@ pub(crate) struct Args {
 
     #[arg(long)]
     json: bool,
+
+    #[command(flatten)]
+    id_file: crate::commands::id_file::Args,
 }
 
 /* === Enums === */
@@ -51,6 +54,7 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
+    let id_file = args.id_file.open()?;
     let client = settings.sdk(endpoint).await?;
     let options = CyclesCreateOptions {
         context: settings.context()?,
@@ -62,6 +66,9 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         ..Default::default()
     });
     let value = client.cycles.create_with(Vec::new(), metadata, true, args.cycle, options).await?;
+    if let Some(file) = id_file {
+        file.write(value.cycle.iter().map(|cycle| &cycle.cycle_id))?;
+    }
     crate::output::print(&value, args.json)
 }
 
