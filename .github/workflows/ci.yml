@@ -280,7 +280,7 @@ jobs:
         name: package-${{ env.PROFILE }}-rust-unix
         path: target/ci
         github-token: ${{ github.token }}
-    - run: mise run release:rehearse -- --profile ${{ env.PROFILE }}
+    - run: mise run release:rehearse -- --profile ${{ env.PROFILE }} --target all
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
         != 'true' && steps.setup.outputs.cargo_downloads-path != ''
