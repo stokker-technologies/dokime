@@ -109,6 +109,29 @@ impl HostProcess {
     }
 }
 
+#[cfg(windows)]
+impl Drop for HostProcess {
+    fn drop(&mut self) {
+        if self.child.try_wait().is_ok_and(|status| status.is_some()) {
+            return;
+        }
+        let Some(identifier) = self.child.id() else { return };
+        // Failure and Unwind Must Retire the Managed Children Before the Host.
+        let result = dokime_runtime::process::command("taskkill.exe").args(["/PID", &identifier.to_string(), "/T", "/F"]).output();
+        let failure = match result {
+            Ok(output) if output.status.success() || self.child.try_wait().is_ok_and(|status| status.is_some()) => return,
+            Ok(output) => format!("{}: {}", output.status, String::from_utf8_lossy(&output.stderr)),
+            Err(source) => source.to_string(),
+        };
+        let message = format!("Stop Story Host Process Tree {identifier}: {failure}");
+        if std::thread::panicking() {
+            eprintln!("{message}");
+        } else {
+            panic!("{message}");
+        }
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
