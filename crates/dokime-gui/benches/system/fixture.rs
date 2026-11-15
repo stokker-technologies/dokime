@@ -43,6 +43,7 @@ use super::sample_carrier::Producer;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Session};
 use dokime_protocol::host::CasesCreateRequest;
 use dokime_protocol::host::CyclesCreateRequest;
+use dokime_protocol::host::ExecutionsGetRequest;
 use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::PromptsListRequest;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
@@ -52,6 +53,7 @@ use dokime_sdk as model;
 use dokime_sdk::StorageTransferSettings;
 use dokime_sdk::client::CasesCreateResponse;
 use dokime_sdk::client::CyclesCreateResponse;
+use dokime_sdk::client::ExecutionsGetResponse;
 use dokime_sdk::client::ExecutionsListResponse;
 use dokime_sdk::client::PlotsSnapshotsWatchResponse;
 use dokime_sdk::client::PromptsAnswersCreateResponse;
@@ -318,7 +320,18 @@ impl Fixture {
                 return;
             }
         }
-        panic!("Benchmark History Must Become Visible Before Drawing");
+        let detail: ExecutionsGetResponse = self
+            .session
+            .unary(
+                "/dokime.host.v1.Executions/Get",
+                ExecutionsGetRequest {
+                    name: self.execution.clone(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        panic!("Prepare Benchmark History: Watch Closed Before History Became Visible: {:?}", detail.execution);
     }
 
     pub async fn close(mut self) {
