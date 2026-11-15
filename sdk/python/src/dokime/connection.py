@@ -14,7 +14,7 @@
 # Standard Library Imports
 import json
 import os
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import TypedDict
 from urllib.parse import urlsplit
@@ -85,7 +85,7 @@ class _StreamMetadata(UnaryStreamClientInterceptor):
         continuation: Callable[[ClientCallDetails, Q], Awaitable[UnaryStreamCall[Q, R]]],
         client_call_details: ClientCallDetails,
         request: Q,
-    ) -> UnaryStreamCall[Q, R]:
+    ) -> AsyncIterator[R] | UnaryStreamCall[Q, R]:
         details = ClientCallDetails(
             client_call_details.method,
             client_call_details.timeout,

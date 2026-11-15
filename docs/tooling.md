@@ -5,6 +5,14 @@ installs the root `.venv/` and frontend dependencies. `prepare --without-fronten
 prepares SDK-only jobs without requiring Node or pnpm. Build, test and checks use
 project tasks; compiler caches belong to the workstation.
 
+Preparation synchronizes the `sdk-tooling` dependency group as part of
+`--all-groups`: authored SDK build hooks and generators are type-checked with
+their Hatchling, gRPC generator and mypy dependencies and pinned gRPC stubs.
+Frontend generation resolves locked Cargo metadata online because a native
+build does not populate dependencies for every platform in that metadata.
+Product Build generates preferences, both TypeScript message roots and icons
+before type checking, then builds the live and embedded report assets.
+
 ## Focused Development
 
 ```sh

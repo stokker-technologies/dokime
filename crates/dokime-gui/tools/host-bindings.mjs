@@ -63,12 +63,12 @@ function clientMethods(descriptors) {
 
 function generate() {
   const descriptors = fromBinary(FileDescriptorSetSchema, readFileSync(descriptor));
-  const metadata = spawnSync("cargo", ["metadata", "--locked", "--offline", "--format-version", "1"], {
+  const metadata = spawnSync("cargo", ["metadata", "--locked", "--format-version", "1"], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (metadata.status !== 0) throw new Error(metadata.stderr);
+  if (metadata.status !== 0) throw new Error(`Resolve Locked Host Dependencies: ${metadata.stderr || "Cargo Metadata Failed"}`);
   const library = JSON.parse(metadata.stdout).packages.find(
     (entry) => entry.name === "harmos-protocol" && entry.source?.startsWith("git+"),
   );
@@ -142,12 +142,12 @@ function generateFrontend() {
   // Read the Product and Its Exact Pinned Library Contracts
   const productBytes = readFileSync(descriptor);
   const product = fromBinary(FileDescriptorSetSchema, productBytes);
-  const metadata = spawnSync("cargo", ["metadata", "--locked", "--offline", "--format-version", "1"], {
+  const metadata = spawnSync("cargo", ["metadata", "--locked", "--format-version", "1"], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (metadata.status !== 0) throw new Error(metadata.stderr || "Read the Locked Host Dependency Graph");
+  if (metadata.status !== 0) throw new Error(`Resolve Locked Host Dependencies: ${metadata.stderr || "Cargo Metadata Failed"}`);
   const library = JSON.parse(metadata.stdout).packages.find(
     (entry) => entry.name === "harmos-protocol" && entry.source?.startsWith("git+"),
   );

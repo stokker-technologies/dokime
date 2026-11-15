@@ -450,7 +450,7 @@ jobs:
     - build_host_fixtures
     env:
       CI_TRANSPORT: 'true'
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
+      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:anchore/syft,aqua:koalaman/shellcheck,aqua:nextest-rs/nextest/cargo-nextest,aqua:taiki-e/cargo-llvm-cov,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:bnjbvr/cargo-machete,github:rust-secure-code/cargo-auditable,go,go:github.com/rhysd/actionlint/cmd/actionlint,node,pnpm,powershell,protoc,python,rust,sccache,taplo,uv
       CI_PROFILE: release
       CI_PLATFORM: ${{ matrix.platform }}
       CI_CACHE_PROFILE: test

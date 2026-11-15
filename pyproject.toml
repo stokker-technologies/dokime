@@ -25,6 +25,15 @@ test = [
   "pytest-xdist==3.8.0",
 ]
 dev = ["dokime-tools", "ruff==0.17.0", "ty==0.0.86"]
+# SDK Authored Build Hooks and Generators Are Included in the Python Type Check.
+sdk-tooling = [
+  "hatchling==1.33.0",
+  "grpcio-tools==1.85.1",
+  "mypy-protobuf==5.1.0",
+  "mypy==2.4.1",
+  "types-protobuf==7.35.1.20260906",
+  "types-grpcio==1.85.0.20261028",
+]
 
 [tool.uv]
 package = false

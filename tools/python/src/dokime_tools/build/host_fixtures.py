@@ -129,7 +129,7 @@ def build(profile: str, language: str = "auto") -> None:
 
         # Stage the Python Fixture From the Same Locked Source as the Reference Host.
         metadata = subprocess.run(
-            ["cargo", "metadata", "--locked", "--offline", "--format-version", "1"],
+            ["cargo", "metadata", "--locked", "--format-version", "1"],
             cwd=root,
             capture_output=True,
             text=True,

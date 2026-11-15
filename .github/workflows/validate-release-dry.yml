@@ -84,7 +84,7 @@ jobs:
         path: ${{ steps.setup.outputs.sccache-path }}
         key: ${{ steps.setup.outputs.sccache-cache-primary-key }}
     env:
-      MISE_ENABLE_TOOLS: aqua:anchore/syft,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,minisign,node,pnpm,powershell,protoc,python,rust,sccache,uv
+      MISE_ENABLE_TOOLS: aqua:bufbuild/buf,aqua:anchore/syft,git-cliff,github:CycloneDX/cyclonedx-rust-cargo,github:EmbarkStudios/cargo-about,github:rust-secure-code/cargo-auditable,go,minisign,node,pnpm,powershell,protoc,python,rust,sccache,uv
       COMPILER_CACHE_BACKEND: disk
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       SCCACHE_CACHE_SIZE: 8G
