@@ -234,6 +234,10 @@ async fn pinned_native_arrow_pages_keep_their_saved_cut() -> StoryResult {
         work: limits(),
     };
     let cancel = Cancellation::default();
+    let version = scan.source.schema.version;
+    scan.source.schema.version = version.checked_add(1).unwrap();
+    assert!(backend.list_column_rows(&snapshot, &scan, &cancel).await.is_err(), "Refuse a Schema Version the Cut Does Not Hold");
+    scan.source.schema.version = version;
     let mut changed = snapshot.clone();
     changed.at.sequence += 1;
     assert!(backend.list_column_rows(&changed, &scan, &cancel).await.is_err());
