@@ -75,6 +75,23 @@ def build(profile: str) -> None:
     print(result.stderr, end="", file=sys.stderr, flush=True)
     result.check_returncode()
 
+    # Bundle the OBC Charger Plugin Exactly as the Product Build Packages It
+    executable = paths.output(root, "build", profile) / "fixtures/host" / f"plugin-obc{extension}"
+    bundle = output / "plugin-obc.dokime"
+    bundle.unlink(missing_ok=True)
+    result = subprocess.run(
+        [str(cli), "plugin", "bundle", "--executable", str(executable), "--out", str(bundle)],
+        cwd=root,
+        check=False,
+        text=True,
+        creationflags=spawn_flags(),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=subprocess.PIPE,
+    )
+    print(result.stderr, end="", file=sys.stderr, flush=True)
+    result.check_returncode()
+
     # Extend the Tests Fixture Inventory Without Replacing Product Bytes
     stamp = paths.output(root, "build", profile) / "fixtures/stamp.json"
     record = json.loads(stamp.read_text(encoding="utf-8")) if stamp.is_file() else {"files": {}, "metadata": {}}

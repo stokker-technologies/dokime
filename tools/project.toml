@@ -15,7 +15,7 @@ roots = ["tools/python", "sdk/python"]
 
 [languages.rust]
 exclude = ["crates/dokime-gui/node_modules"]
-roots = ["crates", "sdk/rust"]
+roots = ["crates", "plugins", "sdk/rust"]
 
 [languages.typescript]
 exclude = ["crates/dokime-gui/node_modules", "crates/dokime-gui/src-tauri", "crates/dokime-gui/src/routeTree.gen.ts"]
@@ -104,6 +104,16 @@ kind = "installer"
 path = "target/package/{profile}/{target}/rust/latest.json"
 signed_only = true
 target = "windows-x86_64"
+
+[[release.plugins]]
+kind = "sidecar"
+package = "plugin-obc"
+path = "target/package/{profile}/{target}/rust/{package}.dokime"
+requires_dokime = ">=0.1.5"
+
+[release.plugins.targets]
+linux-x86_64 = "x86_64-unknown-linux-gnu"
+windows-x86_64 = "x86_64-pc-windows-msvc"
 
 [version]
 files = [

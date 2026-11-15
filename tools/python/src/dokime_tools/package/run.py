@@ -114,6 +114,13 @@ def assemble(directory: Path, language: str, profile: str, target: str, staging:
             destination = staging / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(original, destination)
+    if language == "rust":
+        # Shipped Plugin Bundles Travel Beside the Executables the Product Build Staged
+        extension = policy.config(directory).get("release", {}).get("plugin_extension")
+        for plugin in policy.config(directory).get("release", {}).get("plugins", []):
+            if plugin.get("kind") == "sidecar" and target in plugin.get("targets", {}):
+                name = f"{plugin['package']}.{extension}"
+                shutil.copy2(regular(build, "bin/" + name), staging / name)
     for item in definitions(directory, profile, target):
         if item["language"] != language:
             continue

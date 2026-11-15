@@ -52,6 +52,9 @@ class ProductCompilerRecordTests(unittest.TestCase):
             (web / "dist").mkdir(parents=True)
 
             def compile_product(*args, **kwargs):
+                # The Plugin Bundle Follows a Successful Compile; It Writes No Compiler Record.
+                if args[0][1:3] == ["plugin", "bundle"]:
+                    return
                 kwargs["stdout"].write("replacement build")
                 self.assertEqual(messages.read_text(encoding="utf-8"), "previous successful build")
                 if fail:
@@ -77,7 +80,7 @@ class ProductCompilerRecordTests(unittest.TestCase):
                 exported = product.build("dev")
                 self.assertEqual(messages.read_text(encoding="utf-8"), "replacement build")
                 self.assertFalse(pending.exists())
-                self.assertEqual(set(exported), {"product/compiler.json", "product/target.txt"})
+                self.assertEqual(set(exported), {"bin/plugin-obc.dokime", "product/compiler.json", "product/target.txt"})
 
 
 class CompilerEnvironmentTests(unittest.TestCase):

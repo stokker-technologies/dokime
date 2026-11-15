@@ -48,6 +48,7 @@ const backendBinary = process.env.DOKIME_E2E_CLI ?? join(built, `fixtures/deskto
 const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(built, `bin/dokime-gui${executableSuffix}`);
 const cliBinary = backendBinary;
 const pluginExecutable = join(built, `fixtures/host/dokime-rust-thermal${executableSuffix}`);
+const obcExecutable = join(built, `fixtures/host/plugin-obc${executableSuffix}`);
 const credentialHost =
   process.env.DOKIME_HOST_FIXTURE ?? join(built, `${profile === "bench" ? "bin/" : "fixtures/host/"}dokime-host${executableSuffix}`);
 const windows = process.platform === "win32";
@@ -166,9 +167,9 @@ async function startBackendMeasured(
   endpoint,
   label = "backend",
   launchPlugin = true,
-  { dataRoot = join(work, "data"), environment = {} } = {},
+  { dataRoot = join(work, "data"), environment = {}, plugins = [pluginExecutable] } = {},
 ) {
-  for (const path of [backendBinary, cliBinary, credentialHost, ...(launchPlugin ? [pluginExecutable] : [])]) {
+  for (const path of [backendBinary, cliBinary, credentialHost, ...(launchPlugin ? plugins : [])]) {
     if (!existsSync(path)) throw new Error(`Missing backend artifact at ${path}. Use the same candidate's prepared artifacts.`);
   }
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
@@ -189,7 +190,7 @@ async function startBackendMeasured(
   child.on("error", (error) => {
     child.startupError = error;
   });
-  backend = { child, endpoint: `http://127.0.0.1:${port}`, log, root: dataRoot };
+  backend = { child, endpoint: `http://127.0.0.1:${port}`, log, root: dataRoot, plugins: [] };
   const readyStarted = Date.now();
   const readiness = { attempts: 0, ready: false };
   try {
@@ -208,15 +209,15 @@ async function startBackendMeasured(
   } finally {
     await writeFile(join(evidence, `${label}-readiness.json`), JSON.stringify({ ...readiness, elapsedMs: Date.now() - readyStarted }));
   }
-  if (launchPlugin) {
-    const plugin = spawn(pluginExecutable, ["--remote"], {
+  for (const executable of launchPlugin ? plugins : []) {
+    const plugin = spawn(executable, ["--remote"], {
       cwd: work,
       env: { ...process.env, ...scratchEnvironment, HARMOS_ADDRESS: "127.0.0.1:0" },
       windowsHide: true,
       detached: !windows,
       stdio: ["ignore", "pipe", "inherit"],
     });
-    backend.plugin = plugin;
+    backend.plugins.push(plugin);
     const lines = createInterface({ input: plugin.stdout });
     const announced = await Promise.race([
       once(lines, "line").then(([line]) => line),
@@ -1358,7 +1359,7 @@ async function stopBackendMeasured() {
     timer.abort();
   }
   await owned.log.close();
-  await terminate(owned.plugin);
+  for (const plugin of owned.plugins) await terminate(plugin);
   await discardHostCredentials(owned.root);
   backend = undefined;
 }
@@ -1815,6 +1816,8 @@ async function prepareNativeFixture(root, output) {
 }
 
 export {
+  obcExecutable,
+  pluginExecutable,
   chooseNativeFile,
   startBackend,
   startSession,

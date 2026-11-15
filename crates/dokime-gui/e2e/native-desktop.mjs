@@ -22,7 +22,9 @@ import { parseArgs } from "node:util";
 import {
   answerPendingPrompts,
   chooseNativeFile,
+  obcExecutable,
   openNativeReport,
+  pluginExecutable,
   prepareNativeFixture,
   setDensity,
   sizeViewport,
@@ -175,6 +177,47 @@ async function execute() {
       plot?.scrollIntoView({block: 'center'});
       return Boolean(plot?.querySelector('.plot-card canvas'));`),
   );
+}
+
+async function exactBench() {
+  // Run the OBC Bench Template, Whose Meter Register Exceeds Every Float's Integer Precision.
+  const plan = await call(desktop, "Cases", "Create", {
+    requestId: crypto.randomUUID(),
+    plan: { selections: [{ suiteId: "obc.bench", templateId: "obc.bench.module_array" }] },
+    validateOnly: false,
+  });
+  const bench = await call(desktop, "Cycles", "Create", {
+    requestId: crypto.randomUUID(),
+    metadata: { label: "Desktop Bench Journey" },
+    continueAutomatically: false,
+  }).then((reply) => reply.cycle);
+  const benchExecution = crypto.randomUUID();
+  await call(desktop, "Executions", "Create", {
+    requestId: crypto.randomUUID(),
+    parent: bench.cycleId,
+    executions: [{ executionId: benchExecution, caseId: plan.cases[0].caseId }],
+  });
+  await desktop.goto(`/cycles/${bench.cycleId}?executionId=${benchExecution}`, { reload: true });
+  await until("Registered Bench Execution Row", () =>
+    desktop.find("css selector", `li[data-execution-id="${benchExecution}"] button[data-tree-actions]`),
+  );
+  await desktop.clickCss(`li[data-execution-id="${benchExecution}"] button[data-tree-actions]`);
+  await desktop.clickNamed("menuitem", "Start Execution");
+  const prompt = await until("Bench Confirmation Prompt", async () => {
+    const pending = await call(desktop, "Prompts", "List", { pendingOnly: true, executionId: benchExecution });
+    return pending.prompts[0]?.prompt.promptId;
+  });
+  await call(desktop, "dokime.host.v1.prompts.Answers", "Create", {
+    requestId: crypto.randomUUID(),
+    parent: prompt,
+    action: "yes",
+    accepted: true,
+  });
+  const detail = await until("Sealed Bench Execution", async () => {
+    const current = await call(desktop, "Executions", "Get", { name: benchExecution }).then((reply) => reply.execution);
+    return current.summary.state === "EXECUTION_STATE_SEALED" ? current : null;
+  });
+  assert.equal(detail.outcome.evaluated.status, "RESULT_STATUS_PASSED");
   const values = await until("Exact Summary Tiles", () =>
     desktop.execute(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
@@ -241,8 +284,7 @@ async function reportsAndHistory() {
 }
 
 async function cancellation() {
-  const suites = await call(desktop, "Suites", "List", {});
-  const suite = await call(desktop, "Suites", "Get", { name: suites.values[0].metadata.identifier }).then((reply) => reply.value);
+  const suite = await call(desktop, "Suites", "Get", { name: "thermal" }).then((reply) => reply.value);
   const plan = await call(desktop, "Cases", "Create", {
     requestId: crypto.randomUUID(),
     plan: { selections: [{ suiteId: suite.metadata.identifier, templateId: suite.templates[0].metadata.identifier }] },
@@ -351,7 +393,7 @@ try {
   process.stdout.write(`Evidence: ${evidence}\n`);
   await story("Owned Startup and Restart", owned, true);
   if (options.workflow !== "ownership") {
-    const backend = await startBackend(work, evidence);
+    const backend = await startBackend(work, evidence, undefined, "backend", true, { plugins: [pluginExecutable, obcExecutable] });
     desktop = await startSession(join(work, "attached"), backend.endpoint, evidence);
     sessions.push(desktop);
     await story("Attach to Host", async () => {
@@ -364,6 +406,7 @@ try {
     if (options.workflow === "execution") {
       await story("Catalog and Registered Cases", library, true);
       await story("Execution Progress Prompts and Evidence", execute);
+      await story("Exact Bench Statistics", exactBench);
       await story("Documents Reports and History", reportsAndHistory);
       await story("Execution Cancellation", cancellation);
     }

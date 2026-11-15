@@ -47,6 +47,7 @@ The [thermal suite](../sdk/rust/examples/thermal.rs) and
 journeys. Both use public imports, execution-local resources and host-driven time.
 The thermal suite captures temperature samples and exact integer counters,
 acknowledges door records and evaluates typed statistics for the Hold step.
+Scale and exactness documents live in the [OBC plugin](plugin-obc.md) Bench suite.
 
 ## Clients
 
