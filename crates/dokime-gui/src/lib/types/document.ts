@@ -72,6 +72,8 @@ export type DocumentViewMetric = {
   value?: unknown;
   unit?: string | null;
   formatted: string;
+  /** The complete value when `formatted` abbreviates it, for its title and copy. */
+  exact?: string | null;
   presentation: MetricPresentation;
   state?: MetricState | null;
   aggregation?: DocumentStatistic | null;

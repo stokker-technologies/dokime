@@ -25,6 +25,12 @@ export type TimeFormatOrigin = {
 
 /* === Constants === */
 
+/** The longest value a summary tile shows whole; longer ones are abbreviated. */
+export const COMPACT_DECIMAL_CHARACTERS = 12;
+
+/** The significant digits an abbreviated tile value keeps. */
+const COMPACT_SIGNIFICANT_DIGITS = 6;
+
 const TITLE_SMALL_WORDS = new Set([
   "a",
   "an",
@@ -246,7 +252,67 @@ export function defaultPlotNumber(value: number, increment?: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits });
 }
 
+/**
+ * Abbreviates an exact decimal for a narrow summary tile. Integers, terminating
+ * decimals and rationals (`1/3`) of up to {@link COMPACT_DECIMAL_CHARACTERS}
+ * characters stay whole. Longer values keep six significant digits: fixed
+ * notation from 1e-4 up to 1e6, exponential notation as plot axes print it
+ * otherwise. The digits come from the decimal text through integer arithmetic,
+ * never a floating-point conversion; text that is not a decimal is unchanged.
+ */
+export function formatCompactDecimal(decimal: string): string {
+  if (decimal.length <= COMPACT_DECIMAL_CHARACTERS) return decimal;
+  const parsed = parseDecimal(decimal);
+  if (!parsed) return decimal;
+  const { negative, numerator, denominator } = parsed;
+  if (numerator === 0n) return "0";
+  // The digit counts place the magnitude within one decade of 10^exponent.
+  let exponent = numerator.toString().length - denominator.toString().length;
+  if (!atLeastPower(numerator, denominator, exponent)) exponent -= 1;
+  const shift = COMPACT_SIGNIFICANT_DIGITS - 1 - exponent;
+  const scaledNumerator = shift >= 0 ? numerator * 10n ** BigInt(shift) : numerator;
+  const scaledDenominator = shift >= 0 ? denominator : denominator * 10n ** BigInt(-shift);
+  let mantissa = (2n * scaledNumerator + scaledDenominator) / (2n * scaledDenominator);
+  if (mantissa === 10n ** BigInt(COMPACT_SIGNIFICANT_DIGITS)) {
+    mantissa /= 10n;
+    exponent += 1;
+  }
+  const digits = mantissa.toString();
+  const sign = negative ? "-" : "";
+  if (exponent >= -4 && exponent < 6) {
+    const whole = exponent >= 0 ? digits.slice(0, exponent + 1) : "0";
+    const fraction = (exponent >= 0 ? digits.slice(exponent + 1) : "0".repeat(-exponent - 1) + digits).replace(/0+$/, "");
+    return `${sign}${whole}${fraction ? `.${fraction}` : ""}`;
+  }
+  const fraction = digits.slice(1).replace(/0+$/, "");
+  return `${sign}${digits[0]}${fraction ? `.${fraction}` : ""}e${exponent < 0 ? "-" : "+"}${Math.abs(exponent)}`;
+}
+
 /* === Private Functions === */
+
+/** An integer, decimal, exponential or rational text as one exact fraction. */
+function parseDecimal(text: string): { negative: boolean; numerator: bigint; denominator: bigint } | null {
+  const rational = /^(-?)(\d+)\/(\d+)$/.exec(text);
+  if (rational) {
+    const denominator = BigInt(rational[3]);
+    return denominator === 0n ? null : { negative: rational[1] === "-", numerator: BigInt(rational[2]), denominator };
+  }
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(text);
+  if (!match) return null;
+  const fraction = match[3] ?? "";
+  const power = Number(match[4] ?? 0) - fraction.length;
+  const digits = BigInt(`${match[2]}${fraction}`);
+  return {
+    negative: match[1] === "-",
+    numerator: power >= 0 ? digits * 10n ** BigInt(power) : digits,
+    denominator: power >= 0 ? 1n : 10n ** BigInt(-power),
+  };
+}
+
+/** Is numerator / denominator at least 10^exponent? */
+function atLeastPower(numerator: bigint, denominator: bigint, exponent: number): boolean {
+  return exponent >= 0 ? numerator >= denominator * 10n ** BigInt(exponent) : numerator * 10n ** BigInt(-exponent) >= denominator;
+}
 
 /** Three significant digits, without trailing zeros. */
 function significant(value: number): number {

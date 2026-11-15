@@ -277,9 +277,11 @@ function DocumentSectionBlock({
   children: ReactNode;
   section: DocumentViewSection;
 }) {
+  // A section nested in a parent's card grid fills the row: only cards take a
+  // declared column span.
   if (chrome === "card") {
     return (
-      <Card data-section-id={section.metadata.identifier}>
+      <Card className="col-span-full" data-section-id={section.metadata.identifier}>
         <CardHeader className="border-b px-4 py-3">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <CardTitle className="text-base">{section.metadata.label}</CardTitle>
@@ -297,7 +299,7 @@ function DocumentSectionBlock({
   if (chrome === "grouped") {
     return (
       <section
-        className="grid min-w-0 gap-4 rounded-lg border border-border/70 border-l-4 border-l-primary/70 bg-muted/15 px-4 py-3"
+        className="col-span-full grid min-w-0 gap-4 rounded-lg border border-border/70 border-l-4 border-l-primary/70 bg-muted/15 px-4 py-3"
         data-section-id={section.metadata.identifier}
       >
         <header className="grid min-w-0 gap-1 border-b border-border/60 pb-2">
@@ -315,7 +317,7 @@ function DocumentSectionBlock({
   }
 
   return (
-    <section className="grid min-w-0 gap-3" data-section-id={section.metadata.identifier}>
+    <section className="col-span-full grid min-w-0 gap-3" data-section-id={section.metadata.identifier}>
       <header className="grid min-w-0 gap-1">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>

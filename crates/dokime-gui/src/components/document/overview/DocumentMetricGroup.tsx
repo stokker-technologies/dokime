@@ -62,6 +62,7 @@ export function DocumentMetricGroup({
           <Metric
             metricId={metric.metricId}
             detail={metric.detail}
+            exactValue={metric.exactValue}
             key={metric.label}
             label={metric.label}
             rawValue={metric.rawValue}
