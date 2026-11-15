@@ -1,6 +1,6 @@
 # Use Python Remotely
 
-Install the pure `dokime` wheel with Python 3.13 or newer. It provides remote
+Install the pure `dokime-sdk` wheel with Python 3.13 or newer. It provides remote
 Harmos plugin serving, typed Dokime catalogs, composed documents and generated
 async client stubs. See the [SDK guide](../../sdk/python/README.md).
 
@@ -30,12 +30,11 @@ checks the evaluated outcome and plugin cleanup.
 ## Connect a Client
 
 ```python
-import dokime
+from dokime.connection import connect
 
-client = await dokime.connect("http://127.0.0.1:8765")
+client = await connect("http://127.0.0.1:8765")
 try:
-    # Generated stubs are keyed by fully qualified service name.
-    print(client.stubs.keys())
+    print((await client.plugins.list()).entries)
 finally:
     await client.close()
 ```
@@ -47,13 +46,43 @@ refuses the pairing connection when that definition is absent.
 
 ## Query Retained Evidence
 
-Repository `proto/dokime/v1` currently contains messages but no client service
-definitions. Host operations, template expansion, cycle start/watch, and finite
-evidence clients need those authoritative definitions before a real-host client
-journey can run. The native `DokimeClient`, backend launcher, replay readers and
-dataframe adapters have been removed. Their examples are superseded by the
-generated client surface, not retained as compatibility APIs.
+`dokime.evidence` finds retained executions and reads their saved evidence at one
+fixed cut. These reads never start, stop, seal or follow an execution.
 
-The [host query contract](../query-api.md) still describes finite reads and
-continuations. The [SDK validation guide](../../sdk/python/README.md#validate)
-records the exact host capabilities needed to run and seal the shared suite.
+```python
+from dokime.connection import connect
+from dokime.evidence import executions
+
+client = await connect("lab.pair")
+try:
+    async for execution in executions(client, template="thermal.cycle", status="sealed"):
+        telemetry = execution.telemetry("thermal.temperature", fields=["celsius"])
+        frame = await telemetry.to_polars(max_rows=10_000)
+        print(execution.id, frame, telemetry.snapshot)
+        await execution.export(f"{execution.id}.zip")
+        await execution.cycle.export(f"{execution.detail.cycle_id}.zip")
+finally:
+    await client.close()
+```
+
+`status` selects `open`, `closed` or `sealed`; `template` and `cycle` select by
+identifier. `execution(client, identifier)` and `cycle(client, identifier)` return
+one handle. `telemetry(stream, fields=..., between=Window(...), at=..., page_size=...)`
+pages at the cut returned by its first page; `snapshot` exposes that cut for a later
+consistent read. `collect`, `to_polars` and `to_pandas` default to 100,000 rows and
+raise rather than return a partial result when the selection holds more.
+
+Install `dokime-sdk[polars]` or `dokime-sdk[pandas]` for the dataframe helpers;
+`pages` and `collect` need neither. Frames hold `sequence`, a nanosecond UTC
+`timestamp` and one column per field, typed from the wire value: unsigned and
+signed integers stay exact as `UInt64`/`Int64`, and exact fractions or mixed kinds
+keep their Python values. `TelemetryRow.timestamp_ns` keeps the exact source time.
+
+`export(path)` downloads the host's evidence archive, verifies its length and
+SHA-256 and publishes the ZIP atomically. An existing destination is refused
+unless `overwrite=True`; a failed download leaves no partial file. Execution
+archives hold `manifest.json`, `evidence.pb` and the unchanged telemetry files;
+cycle archives hold each execution's archive and a manifest.
+
+The [host query contract](../query-api.md) describes finite reads and
+continuations.

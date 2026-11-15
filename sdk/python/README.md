@@ -16,6 +16,8 @@ mise -C sdk/python run install
 
 Consumers install the built wheel with `uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl`.
 The wheel depends on `grpcio`, `protobuf` and the pinned Harmos SDK. Building it needs no Rust compiler.
+The `polars` and `pandas` extras add the optional dataframe helpers, for example
+`uv add "dokime-sdk[polars] @ file:///path/to/dokime_sdk-0.1.5-py3-none-any.whl"`.
 
 ## Connect a Client
 
@@ -156,6 +158,15 @@ Use `upload_file` in `dokime.transfers` for unified Files uploads and
 `download_report(client, execution, max_bytes=...)` for verified report previews.
 Uploads honor returned chunk/message bounds and preserve mutation identities;
 report downloads verify file length and digest and never publish a report.
+
+## Query and Export Evidence
+
+`dokime.evidence` lists retained executions with `executions(client, template=...,
+status=...)`, reads one stream at a fixed cut with `execution.telemetry(...)` and
+converts it with `collect`, `to_polars` or `to_pandas`. `execution.export(path)` and
+`execution.cycle.export(path)` download verified evidence archives atomically and
+refuse existing destinations unless `overwrite=True`. See
+[Use Python Remotely](../../docs/remote/python.md#query-retained-evidence).
 
 ## Build and Verify
 
