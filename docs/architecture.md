@@ -183,6 +183,11 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    product owners after the root lease is released, while ordinary shutdown keeps
    them for restart. Owners journal credential slots before native writes, so
    interrupted publication and failed retired-key removal retain cleanup ownership.
+   Opening a root claims its backend identity for that folder in the native store
+   (`services/root_claim.rs`). A folder copy carries `backend-id` and catalogs but
+   not the claim: while the original exists, the copy refuses to open with
+   credential records and refuses credential removal, so it can never delete the
+   original's accounts. A moved root reclaims; removal releases the claim.
    Access-key cleanup checks native absence before retiring its slot journal;
    a remaining or unreadable key preserves the root for cleanup. Access and shared
    secret owners submit native creation, reads and removal to one dedicated

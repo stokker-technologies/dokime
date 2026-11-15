@@ -312,7 +312,8 @@ in a disposable scratch directory, then opens and closes a scratch host.
 `--storage PATH` (or configured `storage`) additionally diagnoses an existing root
 from a bounded copy of its SQLite files under the root lease. Stop the host first.
 The original root is never opened for recovery or changed; missing roots are not
-created. `retained_bytes` bounds the database copy. Incompatible roots produce a
+created. The copy forgets its credential catalogs before opening, so it never reads
+or removes the original's native credentials. `retained_bytes` bounds the database copy. Incompatible roots produce a
 failed report and backup/fresh-root or explicit-reset guidance.
 
 Export access with `dokime --endpoint URL access pairing export --label Operator

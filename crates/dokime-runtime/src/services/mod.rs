@@ -14,10 +14,13 @@
 mod access_credentials;
 mod clock;
 pub(crate) mod composition;
+mod root_claim;
 mod state;
 mod status;
 
 /* === Re-Exports === */
+
+pub use root_claim::detach_credentials;
 
 pub use clock::WallClock;
 pub use dokime_operations::host::ClientSettings;
@@ -189,8 +192,11 @@ pub fn remove_credentials(root: &Path) -> Result<()> {
     }
     let host_id = std::fs::read_to_string(root.join("backend-id"))?;
     let storage = Store::open(root)?;
+    // A Copied Folder Carries the Identity and Catalogs, Never the Native Owner Claim.
+    root_claim::require_owner(root, &storage)?;
     dokime_operations::host::remove_root_secrets(&storage)?;
-    access_credentials::Store::new(storage, host_id).remove()?;
+    access_credentials::Store::new(storage, host_id.clone()).remove()?;
+    root_claim::release(root, &host_id)?;
     Ok(())
 }
 
@@ -269,6 +275,7 @@ pub(crate) struct Assembly {
 }
 
 pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings) -> Result<Assembly> {
+    root_claim::claim(root, &host.store)?;
     let backend_id = host.store.identity().to_owned();
     let identity = HostIdentity {
         backend_id: backend_id.clone(),
@@ -396,7 +403,7 @@ async fn observe_plugins(
                 status.record_trace(observation).map_err(|source| status::failure("Record Plugin Trace", source))?;
             }
             context.host.refresh_plugin_states().await?;
-                    context.host.signal_change();
+            context.host.signal_change();
             if matches!(event.event, Some(Event::ResyncRequired(_))) {
                 watch.request_cancel();
                 match watch.join().await {

@@ -221,3 +221,89 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
         .await?
     }))
 }
+
+fn copy_folder(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for entry in std::fs::read_dir(from)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            copy_folder(&entry.path(), &to.join(entry.file_name()))?;
+        } else {
+            std::fs::copy(entry.path(), to.join(entry.file_name()))?;
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn copied_roots_never_remove_the_original_credentials() -> Result<(), Box<dyn Error>> {
+    super::support::run(Box::pin(async {
+        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+            // The Original Root Publishes an Access Key and a Stored Secret
+            let root = super::support::tempdir()?;
+            let server = dokime_runtime::services::serve(
+                "127.0.0.1:0".parse()?,
+                root.path(),
+                super::support::settings(),
+                super::support::service_settings(),
+            )
+            .await?;
+            let secrets = Client::from_channel(
+                Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?,
+                super::support::client_settings(),
+            )?
+            .secrets
+            .clone();
+            let initial = secrets.list().await?;
+            let value = uuid::Uuid::now_v7().to_string();
+            let request = SecretsSetOptions {
+                request_id: Some("credential".into()),
+                ..Default::default()
+            };
+            let writable = SecretWritable {
+                metadata: Some(Metadata {
+                    identifier: "story.copy".into(),
+                    label: "Story Copy".into(),
+                    ..Default::default()
+                }),
+                value: Some(value.clone()),
+            };
+            secrets.set_with("story.copy", writable, initial.generation.to_be_bytes().to_vec(), request).await?;
+            server.close().await?;
+            let store = Store::open(root.path())?;
+            let host_id = store.identity().to_owned();
+            let access: AccessPointer = store.administration("access")?.ok_or("Read Access Credential: Missing Publication")?;
+            let access = keyring::Entry::new("dokime.access", &format!("{host_id}:{}", access.key_slot))?;
+            let pointer: SecretPointer = store.administration("secrets")?.ok_or("Read Secret Credential: Missing Publication")?;
+            let slot = &pointer.entries.first().ok_or("Read Secret Credential: Missing Slot")?.slot;
+            let secret = keyring::Entry::new("dokime.shared-secrets", &format!("{host_id}:{slot}"))?;
+            drop(store);
+
+            // A Full Folder Copy Carries the Identity and Catalogs but Cannot Remove or Use Them
+            let copy = super::support::tempdir()?;
+            copy_folder(root.path(), copy.path())?;
+            assert_eq!(std::fs::read_to_string(copy.path().join("backend-id"))?, host_id);
+            assert!(dokime_runtime::services::remove_credentials(copy.path()).is_err());
+            let opened = dokime_runtime::services::serve(
+                "127.0.0.1:0".parse()?,
+                copy.path(),
+                super::support::settings(),
+                super::support::service_settings(),
+            )
+            .await;
+            assert!(opened.is_err());
+            assert!(!access.get_password()?.is_empty());
+            assert_eq!(secret.get_password()?, value);
+
+            // The Copy Forgets Its Catalogs; the Original Still Owns and Removes Its Credentials
+            dokime_runtime::services::detach_credentials(copy.path())?;
+            drop(copy);
+            assert_eq!(secret.get_password()?, value);
+            dokime_runtime::services::remove_credentials(root.path())?;
+            assert!(matches!(access.get_password(), Err(keyring::Error::NoEntry)));
+            assert!(matches!(secret.get_password(), Err(keyring::Error::NoEntry)));
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
