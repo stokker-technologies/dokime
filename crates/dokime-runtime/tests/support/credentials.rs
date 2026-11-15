@@ -20,7 +20,13 @@
 use std::fs::OpenOptions;
 #[cfg(target_os = "linux")]
 use std::process::{Child, Command as ProcessCommand};
-use std::{error::Error, ffi::OsString, io::Result as IoResult, path::Path};
+use std::{
+    error::Error,
+    ffi::OsString,
+    io::Result as IoResult,
+    path::Path,
+    sync::{Arc, Mutex},
+};
 use tempfile::TempDir;
 
 // Third Party Imports
@@ -30,6 +36,10 @@ use tempfile::TempDir;
 /* === Constants === */
 
 /* === Macros === */
+
+tokio::task_local! {
+    static ROOTS: Arc<Mutex<Vec<TempDir>>>;
+}
 
 /* === Type Aliases === */
 
@@ -62,8 +72,13 @@ impl Root {
 impl Drop for Root {
     fn drop(&mut self) {
         #[cfg(windows)]
-        if let Err(error) = remove_credentials(self.path()) {
-            let retained = self.0.take().unwrap().keep();
+        if let Err(error) = remove_credentials(self.path(), false) {
+            let root = self.0.take().unwrap();
+            let mut root = Some(root);
+            if ROOTS.try_with(|roots| roots.lock().unwrap().push(root.take().unwrap())).is_ok() {
+                return;
+            }
+            let retained = root.unwrap().keep();
             if std::thread::panicking() {
                 eprintln!("Remove Story Credentials: {error}; Retained Root: {}", retained.display());
             } else {
@@ -188,6 +203,38 @@ impl Drop for CredentialStore {
 
 /* === Public Functions === */
 
+pub fn run<T>(story: impl std::future::Future<Output = T>) -> T {
+    let roots = Arc::new(Mutex::new(Vec::new()));
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.block_on(ROOTS.scope(roots.clone(), story))));
+    drop(runtime);
+    #[cfg(windows)]
+    let mut failures = Vec::<String>::new();
+    #[cfg(not(windows))]
+    let failures = Vec::<String>::new();
+    for root in std::mem::take(&mut *roots.lock().unwrap()) {
+        #[cfg(windows)]
+        if let Err(error) = remove_credentials(root.path(), true) {
+            let retained = root.keep();
+            failures.push(format!("{error}; Retained Root: {}", retained.display()));
+        }
+        #[cfg(not(windows))]
+        drop(root);
+    }
+    if !failures.is_empty() {
+        let message = format!("Remove Story Credentials After Runtime Teardown: {}", failures.join("; "));
+        if result.is_err() {
+            eprintln!("{message}");
+        } else {
+            panic!("{message}");
+        }
+    }
+    match result {
+        Ok(value) => value,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
+}
+
 pub fn tempdir() -> IoResult<Root> {
     tempfile::tempdir().map(|root| Root(Some(root)))
 }
@@ -195,18 +242,22 @@ pub fn tempdir() -> IoResult<Root> {
 /* === Private Functions === */
 
 #[cfg(windows)]
-fn remove_credentials(root: &Path) -> Result<(), Box<dyn Error>> {
+fn remove_credentials(root: &Path, runtime_closed: bool) -> Result<(), Box<dyn Error>> {
     if root.join("backend-id").is_file() {
-        // A Dropped Child Has Been Killed; Await Release Before Discarding Its Root.
+        // Runtime-Owned Work Must Release the Root Before Credential Disposal.
         let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.join("local.lock"))?;
-        lease.lock()?;
+        if runtime_closed {
+            lease.lock()?;
+        } else {
+            lease.try_lock()?;
+        }
         drop(lease);
         dokime_runtime::services::remove_credentials(root)?;
     }
     for entry in std::fs::read_dir(root)? {
         let entry = entry?;
         if entry.file_type()?.is_dir() {
-            remove_credentials(&entry.path())?;
+            remove_credentials(&entry.path(), runtime_closed)?;
         }
     }
     Ok(())

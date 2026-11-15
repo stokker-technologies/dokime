@@ -83,16 +83,15 @@ pub(super) struct HostProcess {
 
 impl HostProcess {
     pub(super) async fn start_with_environment(root: &Path, environment: &[(&str, OsString)]) -> Result<Self, Box<dyn Error>> {
-        let mut child = Command::from(dokime_runtime::process::command(super::support::host_fixture()?))
-            .envs(environment.iter().cloned())
-            .args(["--endpoint", "127.0.0.1:0", "--storage"])
-            .arg(root)
-            .arg("--controlled-clock")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .kill_on_drop(true)
-            .spawn()?;
+        Self::start_with_clock(root, environment, true).await
+    }
+    pub(super) async fn start_with_clock(root: &Path, environment: &[(&str, OsString)], controlled: bool) -> Result<Self, Box<dyn Error>> {
+        let mut command = Command::from(dokime_runtime::process::command(super::support::host_fixture()?));
+        command.envs(environment.iter().cloned()).args(["--endpoint", "127.0.0.1:0", "--storage"]).arg(root);
+        if controlled {
+            command.arg("--controlled-clock");
+        }
+        let mut child = command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit()).kill_on_drop(true).spawn()?;
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
         let url = lines.next_line().await?.ok_or("Host Exited Before Announcing Its Listener")?;
         assert!(url.starts_with("http://127.0.0.1:"));
@@ -116,9 +115,10 @@ impl HostProcess {
 
 /* === Tests === */
 
-#[tokio::test]
-async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
-    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+#[test]
+fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
+    super::support::run(async {
+        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start a Real Host Process and the Shared Thermal Plugin
         let root = super::support::tempdir()?;
         let credential_root = super::support::tempdir()?;
@@ -147,6 +147,7 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             .await?
             .entry
             .unwrap();
+        let entry = super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
         assert_eq!(client.plugins.list().await?.entries, vec![entry]);
         let suites = client.suites.list(String::new()).await?;
         let suite_id = suites.values[0].metadata.as_ref().unwrap().identifier.clone();
@@ -339,4 +340,5 @@ async fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
         plugin.close().await?;
         Ok(())
     }).await?
+    })
 }

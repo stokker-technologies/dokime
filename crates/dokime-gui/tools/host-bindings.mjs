@@ -122,10 +122,14 @@ ${watches.sort().join("\n")}
 }
 
 pub(super) async fn input(${inputs.length ? "session" : "_session"}: &Session, path: &str, ${inputs.length ? "receiver" : "_receiver"}: tokio::sync::mpsc::Receiver<Vec<u8>>) -> Result<Vec<u8>, Error> {
-    match path {
+${
+  inputs.length
+    ? `    match path {
 ${inputs.sort().join("\n")}
         _ => Err(tonic::Status::unimplemented(format!("Upload {path}: This Host Contract Has No Input Operation")).into()),
-    }
+    }`
+    : `    Err(tonic::Status::unimplemented(format!("Upload {path}: This Host Contract Has No Input Operation")).into())`
+}
 }
 `;
   if (!existsSync(output) || readFileSync(output, "utf8") !== content) writeGenerated(output, content);

@@ -19,7 +19,7 @@ pub mod thermal;
 
 /* === Re-Exports === */
 
-pub use credentials::{CredentialStore, tempdir};
+pub use credentials::{CredentialStore, run, tempdir};
 pub use settings::{SYSTEM_HANG_GUARD, settings};
 
 /* === Imports === */
@@ -109,6 +109,27 @@ impl PythonPlugin {
 }
 
 /* === Public Functions === */
+
+pub async fn plugin_state(
+    plugins: &dokime::client::Plugins, mut entry: harmos_protocol::host::PluginEntry, expected: harmos_protocol::host::PluginState,
+) -> Result<harmos_protocol::host::PluginEntry, Box<dyn Error>> {
+    let mut watching = plugins
+        .watch_with(dokime::client::PluginsWatchOptions {
+            name: Some(entry.name.clone()),
+            ..Default::default()
+        })
+        .await?;
+    loop {
+        if entry.state == expected as i32 {
+            return Ok(entry);
+        }
+        if entry.failure.is_some() && expected == harmos_protocol::host::PluginState::Ready {
+            return Err(format!("Await Plugin {} Ready: {:?}", entry.name, entry.failure).into());
+        }
+        watching.next().await?.ok_or("Await Plugin State: Watch Closed Before the Requested Condition")?;
+        entry = plugins.get(entry.name).await?.entry.ok_or("Await Plugin State: Entry Removed")?;
+    }
+}
 
 pub async fn materialize(
     client: &Client, suite: impl Into<String>, template: impl Into<String>, parameters: HashMap<String, Vec<Value>>,

@@ -113,249 +113,257 @@ async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadRes
 
 /* === Tests === */
 
-#[tokio::test]
-async fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Result<(), Box<dyn StdError>> {
-    use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
-    time::timeout(support::SYSTEM_HANG_GUARD, async {
-        // Create One Declared Binding Through the Library Entry
-        let root = support::tempdir()?;
-        let credential_root = support::tempdir()?;
-        let credentials = support::CredentialStore::start(credential_root.path()).await?;
-        let mut plugin = PluginProcess::start(&support::secrets_fixture()?, true, &support::settings().placement).await?;
-        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = Client::from_channel(channel, support::client_settings())?;
-        let placement = PluginPlacement {
-            kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
-        };
-        client.plugins.create("secret_reader", placement.clone(), PluginValue { enabled: true }).await?;
-        let options = PluginsSecretsListOptions {
-            name: Some("secret_reader".into()),
-            ..Default::default()
-        };
-        let before = client
-            .plugins
-            .secrets
-            .list_with(PluginsSecretsListOptions {
-                name: options.name.clone(),
+#[test]
+fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Result<(), Box<dyn StdError>> {
+    super::support::run(async {
+        use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Create One Declared Binding Through the Library Entry
+            let root = support::tempdir()?;
+            let credential_root = support::tempdir()?;
+            let credentials = support::CredentialStore::start(credential_root.path()).await?;
+            let mut plugin = PluginProcess::start(&support::secrets_fixture()?, true, &support::settings().placement).await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, support::client_settings())?;
+            let placement = PluginPlacement {
+                kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+            };
+            client.plugins.create("secret_reader", placement.clone(), PluginValue { enabled: true }).await?;
+            let options = PluginsSecretsListOptions {
+                name: Some("secret_reader".into()),
                 ..Default::default()
-            })
-            .await?;
-        let binding = PluginsSecretBindingValue {
-            identifier: "secrets.owned".into(),
-            secret: "unavailable.secret".into(),
-        };
-        let saved = client.plugins.secrets.set("secret_reader", vec![binding], before.revision).await?;
-        assert_eq!(saved.bindings[0].secret, "unavailable.secret");
-        assert!(!saved.bindings[0].available);
-        process.close().await?;
-
-        // Startup Retains the Current Declared Map With Its Revision
-        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = Client::from_channel(channel, support::client_settings())?;
-        let reopened = client
-            .plugins
-            .secrets
-            .list_with(PluginsSecretsListOptions {
-                name: options.name.clone(),
-                ..Default::default()
-            })
-            .await?;
-        assert_eq!(reopened.bindings, saved.bindings);
-        assert_eq!(reopened.revision, saved.revision);
-
-        // Entry Deletion Removes Its Bindings Before the Same Identity Is Reused
-        let mut changes = client.backend.overview.watch().await?;
-        changes.next().await?.ok_or("Observe Plugin Secrets: Missing Opening")?;
-        let entry = client.plugins.get("secret_reader").await?.entry.unwrap();
-        client.plugins.delete(entry.name, entry.revision).await?;
-        assert!(
-            client
-                .plugins
-                .secrets
-                .list_with(PluginsSecretsListOptions {
-                    name: options.name.clone(),
-                    ..Default::default()
-                })
-                .await
-                .is_err()
-        );
-        client.plugins.create("secret_reader", placement, PluginValue { enabled: true }).await?;
-        loop {
-            let current = client
-                .plugins
-                .secrets
-                .list_with(PluginsSecretsListOptions {
-                    name: options.name.clone(),
-                    ..Default::default()
-                })
-                .await?;
-            if current.bindings.iter().all(|binding| binding.secret.is_empty()) {
-                assert!(current.bindings.iter().all(|binding| !binding.available));
-                break;
-            }
-            changes.next().await?.ok_or("Observe Plugin Secrets: Closed Before Binding Cleanup")?;
-        }
-        drop(changes);
-        process.close().await?;
-        plugin.close().await?;
-        Ok::<(), Box<dyn StdError>>(())
-    })
-    .await?
-}
-
-#[tokio::test]
-async fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
-    time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-        // Connect Two Plugins with Different Secret Declarations
-        let root = super::support::tempdir()?;
-        let credential_root = super::support::tempdir()?;
-        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
-        let settings = super::support::settings();
-        let executable = super::support::secrets_fixture()?;
-        let mut reader = PluginProcess::start(&executable, true, &settings.placement).await?;
-        let mut owner = PluginProcess::start_with_environment(
-            &executable,
-            true,
-            &settings.placement,
-            &[("DOKIME_SECRET_FIXTURE_OWNER".into(), "1".into())],
-        )
-        .await?;
-        let process =
-            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
-        let reader_entry = client
-            .plugins
-            .create(
-                "secret_reader",
-                PluginPlacement {
-                    kind: Some(PluginPlacementKind::Remote(PluginRemote { url: reader.endpoint().into() })),
-                },
-                PluginValue { enabled: true },
-            )
-            .await?
-            .entry
-            .unwrap();
-        assert_eq!(reader_entry.state, PluginState::Ready as i32, "{reader_entry:?}");
-        let owner_entry = client
-            .plugins
-            .create(
-                "secret_owner",
-                PluginPlacement {
-                    kind: Some(PluginPlacementKind::Remote(PluginRemote { url: owner.endpoint().into() })),
-                },
-                PluginValue { enabled: true },
-            )
-            .await?
-            .entry
-            .unwrap();
-        assert_eq!(owner_entry.state, PluginState::Ready as i32, "{owner_entry:?}");
-        let secrets = Client::from_channel(channel, super::support::client_settings())?.secrets.clone();
-
-        // Administrative Writes and Reads Need No Plugin Declaration
-        for identifier in ["secrets.owned", "secrets.other", "secrets.text"] {
-            let initial = secrets.list().await?;
-            secrets
-                .set_with(
-                    identifier,
-                    SecretWritable {
-                        metadata: Some(Metadata {
-                            identifier: identifier.into(),
-                            label: "Fixture Secret".into(),
-                            ..Default::default()
-                        }),
-                        value: Some("fixture-secret-value".into()),
-                    },
-                    initial.generation.to_be_bytes().to_vec(),
-                    SecretsSetOptions {
-                        request_id: Some(format!("save-{identifier}")),
-                        ..Default::default()
-                    },
-                )
-                .await?;
-            let actual = secrets.get(identifier).await?;
-            assert_eq!(actual.value.unwrap().value.as_deref(), Some("fixture-secret-value"));
-        }
-
-        // Bind Each Declared Name Without Exposing Credential Values
-        for (name, identifier) in [("secret_reader", "secrets.owned"), ("secret_owner", "secrets.other")] {
+            };
             let before = client
                 .plugins
                 .secrets
                 .list_with(PluginsSecretsListOptions {
-                    name: Some(name.into()),
+                    name: options.name.clone(),
                     ..Default::default()
                 })
                 .await?;
-            assert_eq!(before.bindings.len(), 1);
-            assert_eq!(before.bindings[0].declaration.as_ref().unwrap().metadata.as_ref().unwrap().identifier, identifier);
-            let bindings = vec![PluginsSecretBindingValue {
-                identifier: identifier.into(),
-                secret: identifier.into(),
-            }];
-            let saved = client.plugins.secrets.set(name, bindings, before.revision).await?;
-            assert!(saved.bindings[0].available);
-        }
+            let binding = PluginsSecretBindingValue {
+                identifier: "secrets.owned".into(),
+                secret: "unavailable.secret".into(),
+            };
+            let saved = client.plugins.secrets.set("secret_reader", vec![binding], before.revision).await?;
+            assert_eq!(saved.bindings[0].secret, "unavailable.secret");
+            assert!(!saved.bindings[0].available);
+            process.close().await?;
 
-        // Each Plugin Can Read Its Own Declared Secret
-        let own = read(&client, "secret_reader", "secrets.owned").await?;
-        assert_eq!(own.value, "fixture-secret-value");
-        assert!(own.refusal.is_empty());
-        let other = read(&client, "secret_owner", "secrets.other").await?;
-        assert_eq!(other, own);
-
-        // Another Plugin's Declaration Does Not Grant Access
-        let existing = read(&client, "secret_reader", "secrets.other").await?;
-        assert!(existing.value.is_empty());
-        assert!(!existing.refusal.is_empty());
-
-        // The Same Identifier Has the Same Refusal After Administrative Deletion
-        let initial = secrets.list().await?;
-        let deleted = secrets
-            .delete_with(
-                vec!["secrets.other".into()],
-                initial.generation.to_be_bytes().to_vec(),
-                SecretsDeleteOptions {
-                    request_id: Some("remove-other".into()),
+            // Startup Retains the Current Declared Map With Its Revision
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, support::client_settings())?;
+            let reopened = client
+                .plugins
+                .secrets
+                .list_with(PluginsSecretsListOptions {
+                    name: options.name.clone(),
                     ..Default::default()
-                },
-            )
-            .await?;
-        assert!(!deleted.cleanup_pending);
-        let absent = read(&client, "secret_reader", "secrets.other").await?;
-        assert_eq!(absent, existing);
+                })
+                .await?;
+            assert_eq!(reopened.bindings, saved.bindings);
+            assert_eq!(reopened.revision, saved.revision);
 
-        // A Declared but Missing Secret Retains Its Store Failure
-        let missing = read(&client, "secret_owner", "secrets.other").await?;
-        assert!(missing.value.is_empty());
-        assert!(!missing.refusal.is_empty());
-
-        // A Text Setting Is Not a Secret Declaration
-        let text = read(&client, "secret_reader", "secrets.text").await?;
-        assert!(text.value.is_empty());
-        assert!(!text.refusal.is_empty());
-
-        // Remove Every Credential Created by This Story
-        let initial = secrets.list().await?;
-        let deleted = secrets
-            .delete_with(
-                vec!["secrets.owned".into(), "secrets.text".into()],
-                initial.generation.to_be_bytes().to_vec(),
-                SecretsDeleteOptions {
-                    request_id: Some("cleanup".into()),
-                    ..Default::default()
-                },
-            )
-            .await?;
-        assert!(!deleted.cleanup_pending);
-        assert!(secrets.list().await?.entries.is_empty());
-
-        process.close().await?;
-        reader.close().await?;
-        owner.close().await?;
-        Ok::<(), Box<dyn StdError>>(())
+            // Entry Deletion Removes Its Bindings Before the Same Identity Is Reused
+            let mut changes = client.backend.overview.watch().await?;
+            changes.next().await?.ok_or("Observe Plugin Secrets: Missing Opening")?;
+            let entry = client.plugins.get("secret_reader").await?.entry.unwrap();
+            client.plugins.delete(entry.name, entry.revision).await?;
+            assert!(
+                client
+                    .plugins
+                    .secrets
+                    .list_with(PluginsSecretsListOptions {
+                        name: options.name.clone(),
+                        ..Default::default()
+                    })
+                    .await
+                    .is_err()
+            );
+            client.plugins.create("secret_reader", placement, PluginValue { enabled: true }).await?;
+            loop {
+                let current = client
+                    .plugins
+                    .secrets
+                    .list_with(PluginsSecretsListOptions {
+                        name: options.name.clone(),
+                        ..Default::default()
+                    })
+                    .await?;
+                if current.bindings.iter().all(|binding| binding.secret.is_empty()) {
+                    assert!(current.bindings.iter().all(|binding| !binding.available));
+                    break;
+                }
+                changes.next().await?.ok_or("Observe Plugin Secrets: Closed Before Binding Cleanup")?;
+            }
+            drop(changes);
+            process.close().await?;
+            plugin.close().await?;
+            Ok::<(), Box<dyn StdError>>(())
+        })
+        .await?
     })
-    .await?
+}
+
+#[test]
+fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
+    super::support::run(async {
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+            // Connect Two Plugins with Different Secret Declarations
+            let root = super::support::tempdir()?;
+            let credential_root = super::support::tempdir()?;
+            let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+            let settings = super::support::settings();
+            let executable = super::support::secrets_fixture()?;
+            let mut reader = PluginProcess::start(&executable, true, &settings.placement).await?;
+            let mut owner = PluginProcess::start_with_environment(
+                &executable,
+                true,
+                &settings.placement,
+                &[("DOKIME_SECRET_FIXTURE_OWNER".into(), "1".into())],
+            )
+            .await?;
+            let process =
+                super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment)
+                    .await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
+            let reader_entry = client
+                .plugins
+                .create(
+                    "secret_reader",
+                    PluginPlacement {
+                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: reader.endpoint().into() })),
+                    },
+                    PluginValue { enabled: true },
+                )
+                .await?
+                .entry
+                .unwrap();
+            let reader_entry =
+                super::support::plugin_state(&client.plugins, reader_entry, harmos_protocol::host::PluginState::Ready).await?;
+            assert_eq!(reader_entry.state, PluginState::Ready as i32, "{reader_entry:?}");
+            let owner_entry = client
+                .plugins
+                .create(
+                    "secret_owner",
+                    PluginPlacement {
+                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: owner.endpoint().into() })),
+                    },
+                    PluginValue { enabled: true },
+                )
+                .await?
+                .entry
+                .unwrap();
+            let owner_entry = super::support::plugin_state(&client.plugins, owner_entry, harmos_protocol::host::PluginState::Ready).await?;
+            assert_eq!(owner_entry.state, PluginState::Ready as i32, "{owner_entry:?}");
+            let secrets = Client::from_channel(channel, super::support::client_settings())?.secrets.clone();
+
+            // Administrative Writes and Reads Need No Plugin Declaration
+            for identifier in ["secrets.owned", "secrets.other", "secrets.text"] {
+                let initial = secrets.list().await?;
+                secrets
+                    .set_with(
+                        identifier,
+                        SecretWritable {
+                            metadata: Some(Metadata {
+                                identifier: identifier.into(),
+                                label: "Fixture Secret".into(),
+                                ..Default::default()
+                            }),
+                            value: Some("fixture-secret-value".into()),
+                        },
+                        initial.generation.to_be_bytes().to_vec(),
+                        SecretsSetOptions {
+                            request_id: Some(format!("save-{identifier}")),
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+                let actual = secrets.get(identifier).await?;
+                assert_eq!(actual.value.unwrap().value.as_deref(), Some("fixture-secret-value"));
+            }
+
+            // Bind Each Declared Name Without Exposing Credential Values
+            for (name, identifier) in [("secret_reader", "secrets.owned"), ("secret_owner", "secrets.other")] {
+                let before = client
+                    .plugins
+                    .secrets
+                    .list_with(PluginsSecretsListOptions {
+                        name: Some(name.into()),
+                        ..Default::default()
+                    })
+                    .await?;
+                assert_eq!(before.bindings.len(), 1);
+                assert_eq!(before.bindings[0].declaration.as_ref().unwrap().metadata.as_ref().unwrap().identifier, identifier);
+                let bindings = vec![PluginsSecretBindingValue {
+                    identifier: identifier.into(),
+                    secret: identifier.into(),
+                }];
+                let saved = client.plugins.secrets.set(name, bindings, before.revision).await?;
+                assert!(saved.bindings[0].available);
+            }
+
+            // Each Plugin Can Read Its Own Declared Secret
+            let own = read(&client, "secret_reader", "secrets.owned").await?;
+            assert_eq!(own.value, "fixture-secret-value");
+            assert!(own.refusal.is_empty());
+            let other = read(&client, "secret_owner", "secrets.other").await?;
+            assert_eq!(other, own);
+
+            // Another Plugin's Declaration Does Not Grant Access
+            let existing = read(&client, "secret_reader", "secrets.other").await?;
+            assert!(existing.value.is_empty());
+            assert!(!existing.refusal.is_empty());
+
+            // The Same Identifier Has the Same Refusal After Administrative Deletion
+            let initial = secrets.list().await?;
+            let deleted = secrets
+                .delete_with(
+                    vec!["secrets.other".into()],
+                    initial.generation.to_be_bytes().to_vec(),
+                    SecretsDeleteOptions {
+                        request_id: Some("remove-other".into()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert!(!deleted.cleanup_pending);
+            let absent = read(&client, "secret_reader", "secrets.other").await?;
+            assert_eq!(absent, existing);
+
+            // A Declared but Missing Secret Retains Its Store Failure
+            let missing = read(&client, "secret_owner", "secrets.other").await?;
+            assert!(missing.value.is_empty());
+            assert!(!missing.refusal.is_empty());
+
+            // A Text Setting Is Not a Secret Declaration
+            let text = read(&client, "secret_reader", "secrets.text").await?;
+            assert!(text.value.is_empty());
+            assert!(!text.refusal.is_empty());
+
+            // Remove Every Credential Created by This Story
+            let initial = secrets.list().await?;
+            let deleted = secrets
+                .delete_with(
+                    vec!["secrets.owned".into(), "secrets.text".into()],
+                    initial.generation.to_be_bytes().to_vec(),
+                    SecretsDeleteOptions {
+                        request_id: Some("cleanup".into()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert!(!deleted.cleanup_pending);
+            assert!(secrets.list().await?.entries.is_empty());
+
+            process.close().await?;
+            reader.close().await?;
+            owner.close().await?;
+            Ok::<(), Box<dyn StdError>>(())
+        })
+        .await?
+    })
 }

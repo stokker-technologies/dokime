@@ -58,6 +58,11 @@ pub struct ContentEntry {
     pub artifact: bool,
 }
 
+pub struct ArchivedNativeFile {
+    pub reference: harmos_protocol::model::FileReference,
+    pub path: tempfile::TempPath,
+}
+
 #[derive(Clone, PartialEq, Message)]
 pub struct StoredArtifact {
     #[prost(message, optional, tag = "1")]
@@ -392,6 +397,12 @@ impl Store {
         Ok(statement.query_map(params![execution, after, limit as i64], entry)?.collect::<std::result::Result<_, _>>()?)
     }
     pub fn write_cycle_archive(&self, cycle: &str, page: NonZeroUsize, output: &mut impl Write) -> Result<()> {
+        self.write_cycle_archive_with_files(cycle, page, output, &mut std::collections::HashMap::new())
+    }
+    pub fn write_cycle_archive_with_files(
+        &self, cycle: &str, page: NonZeroUsize, output: &mut impl Write,
+        files: &mut std::collections::HashMap<String, Vec<ArchivedNativeFile>>,
+    ) -> Result<()> {
         use std::io::{Read, Seek};
         use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
@@ -406,7 +417,7 @@ impl Store {
             for id in ids {
                 after = id.clone();
                 let mut execution = tempfile::tempfile()?;
-                self.write_execution_archive(&id, &mut execution)?;
+                self.write_execution_archive_with_files(&id, &mut execution, files.remove(&id).unwrap_or_default())?;
                 let size = execution.stream_position()?;
                 execution.rewind()?;
                 let member = format!("executions/{id}.zip");
@@ -434,6 +445,11 @@ impl Store {
         Ok(())
     }
     pub fn write_execution_archive(&self, execution: &str, output: &mut impl Write) -> Result<()> {
+        self.write_execution_archive_with_files(execution, output, Vec::new())
+    }
+    pub fn write_execution_archive_with_files(
+        &self, execution: &str, output: &mut impl Write, files: Vec<ArchivedNativeFile>,
+    ) -> Result<()> {
         use std::io::{Read, Seek};
         use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
         let mut metadata = tempfile::tempfile()?;
@@ -476,8 +492,44 @@ impl Store {
             let digest = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             manifest.push(serde_json::json!({"path":member,"size":size,"sha256":digest}));
         }
+        let mut native = Vec::new();
+        for file in files {
+            let reference = file.reference;
+            let metadata = reference.metadata.as_ref().ok_or(Error::Data("Export Native File: Restore Its Metadata"))?;
+            if metadata.scope.as_deref() != Some(execution) {
+                return Err(Error::Data("Export Native File: Select the Execution's Own File Reference"));
+            }
+            let identity = Sha256::digest(reference.encode_to_vec());
+            let identity = identity.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+            let member = format!("files/{identity}");
+            let mut input = std::fs::File::open(&file.path)?;
+            archive.start_file(&member, options)?;
+            let mut hash = Sha256::new();
+            let mut size = 0u64;
+            let mut buffer = [0u8; CONTENT_CHUNK_BYTES];
+            loop {
+                let length = input.read(&mut buffer)?;
+                if length == 0 {
+                    break;
+                }
+                size += length as u64;
+                hash.update(&buffer[..length]);
+                archive.write_all(&buffer[..length])?;
+            }
+            let digest = hash.finalize();
+            if size != reference.length || digest.as_slice() != reference.sha256 {
+                return Err(Error::Data("Export Native File: Restore Bytes Matching Its Retained Reference"));
+            }
+            let reference_member = format!("files/{identity}.pb");
+            archive.start_file(&reference_member, options)?;
+            archive.write_all(&reference.encode_to_vec())?;
+            native.push(serde_json::json!({
+                "path": member, "reference": reference_member, "size": size,
+                "sha256": digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+            }));
+        }
         archive.start_file("manifest.json", options)?;
-        serde_json::to_writer(&mut archive, &serde_json::json!({"version":1,"execution":execution,"telemetry":manifest}))?;
+        serde_json::to_writer(&mut archive, &serde_json::json!({"version":1,"execution":execution,"telemetry":manifest,"files":native}))?;
         archive.finish()?;
         Ok(())
     }
@@ -526,6 +578,16 @@ impl Store {
             }
         }
         write_field(output, 4, &seal)?;
+        let mut query = connection.prepare("SELECT payload FROM administration WHERE id LIKE 'artifact/%' ORDER BY id")?;
+        for row in query.query_map([], |row| row.get::<_, Vec<u8>>(0))? {
+            let payload = row?;
+            let artifact = StoredArtifact::decode(payload.as_slice())?;
+            if artifact.request.as_ref().and_then(|request| request.scope.as_ref()).and_then(|scope| scope.execution_id.as_deref())
+                == Some(execution)
+            {
+                write_field(output, 9, &payload)?;
+            }
+        }
         let mut query = connection.prepare("SELECT payload FROM reports WHERE execution=?1 ORDER BY id")?;
         for row in query.query_map([execution], |row| row.get::<_, Vec<u8>>(0))? {
             write_field(output, 5, &row?)?;

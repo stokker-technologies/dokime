@@ -312,244 +312,258 @@ fn direct_admission_refuses_each_wrong_caller_direction() {
     }
 }
 
-#[tokio::test]
-async fn clients_cannot_call_plugin_operations_over_typed_or_encoded_grpc() -> Result<(), Box<dyn Error>> {
-    use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
-    use dokime_protocol::host::evidence::{LogsAppendRequest, logs_client::LogsClient};
-    use harmos_protocol::model::{Classification, Failure};
-    tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
-        let root = support::tempdir()?;
-        let credential_root = support::tempdir()?;
-        let credentials = support::CredentialStore::start(credential_root.path()).await?;
-        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = Client::from_channel(channel.clone(), support::client_settings())?;
-        let operation = "dokime.host.v1.evidence.Logs/Append";
-        let contract = dokime_operations::declarations()?.iter().find(|contract| contract.id == operation).unwrap();
-        let request = LogsAppendRequest::default();
-        let typed = LogsClient::new(channel).append(request.clone()).await.unwrap_err();
-        let encoded = client.invocations.create(operation, contract.fingerprint.clone(), request.encode_to_vec()).await.unwrap_err();
-        for status in [typed, encoded] {
-            assert_eq!(status.code(), Code::PermissionDenied, "{status}");
-            let failure = Failure::decode(status.details())?;
-            assert_eq!(failure.classification, Classification::Refused as i32);
-            assert_eq!(failure.code, "-32604");
-            assert_eq!(failure.action, "Call");
-        }
-        process.close().await?;
-        Ok::<(), Box<dyn Error>>(())
+#[test]
+fn clients_cannot_call_plugin_operations_over_typed_or_encoded_grpc() -> Result<(), Box<dyn Error>> {
+    super::support::run(async {
+        use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
+        use dokime_protocol::host::evidence::{LogsAppendRequest, logs_client::LogsClient};
+        use harmos_protocol::model::{Classification, Failure};
+        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+            let root = support::tempdir()?;
+            let credential_root = support::tempdir()?;
+            let credentials = support::CredentialStore::start(credential_root.path()).await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel.clone(), support::client_settings())?;
+            let operation = "dokime.host.v1.evidence.Logs/Append";
+            let contract = dokime_operations::declarations()?.iter().find(|contract| contract.id == operation).unwrap();
+            let request = LogsAppendRequest::default();
+            let typed = LogsClient::new(channel).append(request.clone()).await.unwrap_err();
+            let encoded = client.invocations.create(operation, contract.fingerprint.clone(), request.encode_to_vec()).await.unwrap_err();
+            for status in [typed, encoded] {
+                assert_eq!(status.code(), Code::PermissionDenied, "{status}");
+                let failure = Failure::decode(status.details())?;
+                assert_eq!(failure.classification, Classification::Refused as i32);
+                assert_eq!(failure.code, "-32604");
+                assert_eq!(failure.action, "Call");
+            }
+            process.close().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
     })
-    .await?
 }
 
-#[tokio::test]
-async fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dyn Error>> {
-    use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
-    use dokime::client::{ExecutionOutcome, PluginPlacement, PluginRemote, PluginValue};
-    use dokime::origin::Kind as OriginKind;
-    use dokime::{Import, Metadata, Origin, Suite, Suites, Termination, TestCaseTemplate};
-    use dokime_protocol::plugin::{StepsExecuteRequest, StepsExecuteResponse, TestCasesMaterializeRequest, TestCasesMaterializeResponse};
-    use dokime_storage::{Execution, Store};
-    use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
-    use harmos_protocol::model::{Declarations, OperationContract, OperationPolicy, Requirement, Section, StreamDeclaration, Visibility};
-    use harmos_protocol::plugin::{InstanceGetResponse, instance_server::InstanceServer};
-    use prost_reflect::ReflectMessage;
-    use prost_types::FileDescriptorSet;
-    use std::sync::{Arc, Mutex};
-    tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
-        // Freeze the Plugin's Lifecycle Contracts and Product Contributions
-        let root = support::tempdir()?;
-        let credential_root = support::tempdir()?;
-        let credentials = support::CredentialStore::start(credential_root.path()).await?;
-        let store = Store::open(root.path())?;
-        store.create(&Execution {
-            identifier: "foreign-execution".into(),
-            cycle: "foreign-cycle".into(),
-            origin: Some(Origin {
-                kind: Some(OriginKind::Import(Import::default())),
-            }),
-            ..Default::default()
-        })?;
-        store.close_streams("foreign-execution")?;
-        store.close("foreign-execution", Termination::Completed, ExecutionOutcome::default())?;
-        store.seal("foreign-execution")?;
-        let types = FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?;
-        let mut operations = Vec::new();
-        for (id, request, response) in [
-            (
-                "scope_fixture.materialize",
-                TestCasesMaterializeRequest::default().descriptor(),
-                TestCasesMaterializeResponse::default().descriptor(),
-            ),
-            ("scope_fixture.capture", StepsExecuteRequest::default().descriptor(), StepsExecuteResponse::default().descriptor()),
-        ] {
-            operations.push(OperationContract {
-                id: id.into(),
-                request: request.full_name().into(),
-                response: response.full_name().into(),
-                fingerprint: harmos_protocol::schema::fingerprint(id, &types, request.full_name(), response.full_name())?,
-                visibility: Visibility::Protected as i32,
-                policy: Some(OperationPolicy {
-                    timeout: Some(Duration::try_from(support::settings().placement.connect_timeout)?),
-                    ..Default::default()
+#[test]
+fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dyn Error>> {
+    super::support::run(async {
+        use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
+        use dokime::client::{ExecutionOutcome, PluginPlacement, PluginRemote, PluginValue};
+        use dokime::origin::Kind as OriginKind;
+        use dokime::{Import, Metadata, Origin, Suite, Suites, Termination, TestCaseTemplate};
+        use dokime_protocol::plugin::{
+            StepsExecuteRequest, StepsExecuteResponse, TestCasesMaterializeRequest, TestCasesMaterializeResponse,
+        };
+        use dokime_storage::{Execution, Store};
+        use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+        use harmos_protocol::model::{
+            Declarations, OperationContract, OperationPolicy, Requirement, Section, StreamDeclaration, Visibility,
+        };
+        use harmos_protocol::plugin::{InstanceGetResponse, instance_server::InstanceServer};
+        use prost_reflect::ReflectMessage;
+        use prost_types::FileDescriptorSet;
+        use std::sync::{Arc, Mutex};
+        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Freeze the Plugin's Lifecycle Contracts and Product Contributions
+            let root = support::tempdir()?;
+            let credential_root = support::tempdir()?;
+            let credentials = support::CredentialStore::start(credential_root.path()).await?;
+            let store = Store::open(root.path())?;
+            store.create(&Execution {
+                identifier: "foreign-execution".into(),
+                cycle: "foreign-cycle".into(),
+                origin: Some(Origin {
+                    kind: Some(OriginKind::Import(Import::default())),
                 }),
                 ..Default::default()
-            });
-        }
-        let suites = Suites {
-            suites: vec![Suite {
-                metadata: Some(Metadata {
-                    identifier: "scope_fixture".into(),
-                    ..Default::default()
-                }),
-                templates: vec![TestCaseTemplate {
-                    metadata: Some(Metadata {
-                        identifier: "scope_fixture.capture".into(),
+            })?;
+            store.close_streams("foreign-execution")?;
+            store.close("foreign-execution", Termination::Completed, ExecutionOutcome::default())?;
+            store.seal("foreign-execution")?;
+            let types = FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?;
+            let mut operations = Vec::new();
+            for (id, request, response) in [
+                (
+                    "scope_fixture.materialize",
+                    TestCasesMaterializeRequest::default().descriptor(),
+                    TestCasesMaterializeResponse::default().descriptor(),
+                ),
+                ("scope_fixture.capture", StepsExecuteRequest::default().descriptor(), StepsExecuteResponse::default().descriptor()),
+            ] {
+                operations.push(OperationContract {
+                    id: id.into(),
+                    request: request.full_name().into(),
+                    response: response.full_name().into(),
+                    fingerprint: harmos_protocol::schema::fingerprint(id, &types, request.full_name(), response.full_name())?,
+                    visibility: Visibility::Protected as i32,
+                    policy: Some(OperationPolicy {
+                        timeout: Some(Duration::try_from(support::settings().placement.connect_timeout)?),
                         ..Default::default()
                     }),
-                    materialize: "scope_fixture.materialize".into(),
+                    ..Default::default()
+                });
+            }
+            let suites = Suites {
+                suites: vec![Suite {
+                    metadata: Some(Metadata {
+                        identifier: "scope_fixture".into(),
+                        ..Default::default()
+                    }),
+                    templates: vec![TestCaseTemplate {
+                        metadata: Some(Metadata {
+                            identifier: "scope_fixture.capture".into(),
+                            ..Default::default()
+                        }),
+                        materialize: "scope_fixture.materialize".into(),
+                        ..Default::default()
+                    }],
                     ..Default::default()
                 }],
-                ..Default::default()
-            }],
-        };
-        let requires = dokime_operations::declarations()?
-            .iter()
-            .filter(|contract| {
-                matches!(
-                    contract.id.as_str(),
-                    "dokime.host.v1.content.Artifacts/Create"
-                        | "dokime.host.v1.Evidence/Statistics"
-                        | "dokime.host.v1.evidence.Records/List"
-                        | "dokime.host.v1.evidence.Traceability/Get"
-                        | "dokime.host.v1.executions.Progress/Get"
-                )
-            })
-            .map(|contract| Requirement {
-                id: contract.id.clone(),
-                fingerprint: contract.fingerprint.clone(),
-            })
-            .collect();
-        let mut catalog = Declarations {
-            operations,
-            requires,
-            types: Some(types),
-            streams: vec![StreamDeclaration {
-                id: "probe.samples".into(),
-                row: "harmos.model.v1.Position".into(),
-                ..Default::default()
-            }],
-            sections: vec![Section {
-                r#type: "dokime.model.v1.Suites".into(),
-                payload: suites.encode_to_vec(),
-            }],
-            ..Default::default()
-        };
-        catalog.digest = harmos_protocol::schema::declarations_digest(&catalog);
-        let file = Arc::new(Mutex::new(None));
-        let observations = Arc::new(Mutex::new(Vec::new()));
-        let provider = ScopeProbe {
-            description: InstanceGetResponse {
-                id: "scope_fixture".into(),
-                version: "0.1.0".into(),
-                message_bytes: support::settings().placement.message_bytes.get() as u64,
-                revision: 1,
-                declarations: Some(catalog),
-                started_at: Some(Timestamp::default()),
-                ..Default::default()
-            },
-            store,
-            file: file.clone(),
-            observations: observations.clone(),
-        };
-        let listener = TcpListener::bind("127.0.0.1:0").await?;
-        let url = format!("http://{}", listener.local_addr()?);
-        let (stop, stopped) = tokio::sync::oneshot::channel();
-        let provider = tokio::spawn(async move {
-            Server::builder()
-                .add_service(InstanceServer::new(provider))
-                .serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener), async {
-                    let _ = stopped.await;
+            };
+            let requires = dokime_operations::declarations()?
+                .iter()
+                .filter(|contract| {
+                    matches!(
+                        contract.id.as_str(),
+                        "dokime.host.v1.content.Artifacts/Create"
+                            | "dokime.host.v1.Evidence/Statistics"
+                            | "dokime.host.v1.evidence.Records/List"
+                            | "dokime.host.v1.evidence.Traceability/Get"
+                            | "dokime.host.v1.executions.Progress/Get"
+                    )
                 })
-                .await
-        });
-
-        // Admit the Plugin and Run Its Scope Probes on the Real Child Carrier
-        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-        let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client = Client::from_channel(channel, support::client_settings())?;
-        client
-            .plugins
-            .create(
-                "scope_fixture",
-                PluginPlacement {
-                    kind: Some(PlacementKind::Remote(PluginRemote { url })),
+                .map(|contract| Requirement {
+                    id: contract.id.clone(),
+                    fingerprint: contract.fingerprint.clone(),
+                })
+                .collect();
+            let mut catalog = Declarations {
+                operations,
+                requires,
+                types: Some(types),
+                streams: vec![StreamDeclaration {
+                    id: "probe.samples".into(),
+                    row: "harmos.model.v1.Position".into(),
+                    ..Default::default()
+                }],
+                sections: vec![Section {
+                    r#type: "dokime.model.v1.Suites".into(),
+                    payload: suites.encode_to_vec(),
+                }],
+                ..Default::default()
+            };
+            catalog.digest = harmos_protocol::schema::declarations_digest(&catalog);
+            let file = Arc::new(Mutex::new(None));
+            let observations = Arc::new(Mutex::new(Vec::new()));
+            let provider = ScopeProbe {
+                description: InstanceGetResponse {
+                    id: "scope_fixture".into(),
+                    version: "0.1.0".into(),
+                    message_bytes: support::settings().placement.message_bytes.get() as u64,
+                    revision: 1,
+                    declarations: Some(catalog),
+                    started_at: Some(Timestamp::default()),
+                    ..Default::default()
                 },
-                PluginValue { enabled: true },
-            )
-            .await?;
-        *file.lock().unwrap() = Some(support::bundles::upload(&client, vec![1, 2, 3]).await?);
-        let cases = support::materialize(&client, "scope_fixture", "scope_fixture.capture", Default::default()).await?;
-        let executions = support::admit(&client, cases).await?;
-        let mut watch = client.executions.progress.watch(executions[0].clone()).await?;
-        while watch.next().await?.is_some() {}
-        let results = observations.lock().unwrap().clone();
-        assert_eq!(results.len(), 18, "{results:?}");
-        for (operation, expected_refusal, refused) in results {
-            assert_eq!(refused, expected_refusal, "{operation}: Expected Refusal {expected_refusal}");
-        }
-        process.close().await?;
-        stop.send(()).map_err(|_| "Stop Scope Probe: Listener Already Closed")?;
-        provider.await??;
-        Ok::<(), Box<dyn Error>>(())
+                store,
+                file: file.clone(),
+                observations: observations.clone(),
+            };
+            let listener = TcpListener::bind("127.0.0.1:0").await?;
+            let url = format!("http://{}", listener.local_addr()?);
+            let (stop, stopped) = tokio::sync::oneshot::channel();
+            let provider = tokio::spawn(async move {
+                Server::builder()
+                    .add_service(InstanceServer::new(provider))
+                    .serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener), async {
+                        let _ = stopped.await;
+                    })
+                    .await
+            });
+
+            // Admit the Plugin and Run Its Scope Probes on the Real Child Carrier
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, support::client_settings())?;
+            let created = client
+                .plugins
+                .create(
+                    "scope_fixture",
+                    PluginPlacement {
+                        kind: Some(PlacementKind::Remote(PluginRemote { url })),
+                    },
+                    PluginValue { enabled: true },
+                )
+                .await?;
+            support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
+            *file.lock().unwrap() = Some(support::bundles::upload(&client, vec![1, 2, 3]).await?);
+            let cases = support::materialize(&client, "scope_fixture", "scope_fixture.capture", Default::default()).await?;
+            let executions = support::admit(&client, cases).await?;
+            let mut watch = client.executions.progress.watch(executions[0].clone()).await?;
+            while watch.next().await?.is_some() {}
+            let results = observations.lock().unwrap().clone();
+            assert_eq!(results.len(), 18, "{results:?}");
+            for (operation, expected_refusal, refused) in results {
+                assert_eq!(refused, expected_refusal, "{operation}: Expected Refusal {expected_refusal}");
+            }
+            process.close().await?;
+            stop.send(()).map_err(|_| "Stop Scope Probe: Listener Already Closed")?;
+            provider.await??;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
     })
-    .await?
 }
 
-#[tokio::test]
-async fn execution_isolation() -> Result<(), Box<dyn Error>> {
-    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-        // Start Three Executions Before Releasing Any Measurement
-        let root = super::support::tempdir()?;
-        let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-        let entry = host.add_managed(&super::support::execution_fixture()?).await?;
-        let first = host.materialize(&entry, "execution.capture", super::support::parameters(11.0, 0, true)).await?;
-        let second = host.materialize(&entry, "execution.capture", super::support::parameters(22.0, 0, true)).await?;
-        let third = host.materialize(&entry, "execution.capture", super::support::parameters(33.0, 0, true)).await?;
-        let cycle = host.start_cycle(vec![first, second]).await?;
-        let other = host.start_cycle(vec![third]).await?;
-        let executions = [&cycle.executions[0], &cycle.executions[1], &other.executions[0]];
-        let mut prompts = Vec::new();
-        for execution in executions {
-            prompts.push(host.next_prompt(execution).await?);
-        }
-        assert_ne!(cycle.identifier, other.identifier);
-        for (execution, prompt) in executions.into_iter().zip(prompts) {
-            super::support::answer(&host, execution, prompt)?;
-        }
-
-        // Inspect Isolated Evidence and Execution Resources After Cleanup
-        let mut snapshots = cycle.wait().await?.executions;
-        snapshots.extend(other.wait().await?.executions);
-        for (snapshot, value) in snapshots.iter().zip([11.0, 22.0, 33.0]) {
-            assert_eq!(snapshot.execution.termination, Termination::Completed as i32);
-            assert!(matches!(snapshot.execution.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
-                        Some(ExecutionOutcomeAttribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32));
-            assert_eq!(snapshot.logs()?.iter().map(|log| log.message.parse::<f64>()).collect::<Result<Vec<_>, _>>()?, vec![value, value]);
-            assert!(!snapshot.samples.is_empty());
-            for sample in &snapshot.samples {
-                assert_eq!(super::support::Reading::decode(sample.row.as_slice())?.value, value);
+#[test]
+fn execution_isolation() -> Result<(), Box<dyn Error>> {
+    super::support::run(async {
+        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+            // Start Three Executions Before Releasing Any Measurement
+            let root = super::support::tempdir()?;
+            let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
+            let entry = host.add_managed(&super::support::execution_fixture()?).await?;
+            let first = host.materialize(&entry, "execution.capture", super::support::parameters(11.0, 0, true)).await?;
+            let second = host.materialize(&entry, "execution.capture", super::support::parameters(22.0, 0, true)).await?;
+            let third = host.materialize(&entry, "execution.capture", super::support::parameters(33.0, 0, true)).await?;
+            let cycle = host.start_cycle(vec![first, second]).await?;
+            let other = host.start_cycle(vec![third]).await?;
+            let executions = [&cycle.executions[0], &cycle.executions[1], &other.executions[0]];
+            let mut prompts = Vec::new();
+            for execution in executions {
+                prompts.push(host.next_prompt(execution).await?);
             }
-            let records = snapshot.records("execution.attempt");
-            assert_eq!(records.len(), 1);
-            let record = RecordsAppendRequest::decode(records[0].payload.as_slice())?;
-            let attempt = super::support::Attempt::decode(record.payload.as_slice())?;
-            assert_eq!(attempt.value, value);
-            assert!(attempt.scope_refused);
-            assert!(host.cancel(&snapshot.execution.identifier).is_err());
-        }
-        host.shutdown().await?;
-        Ok::<(), Box<dyn Error>>(())
+            assert_ne!(cycle.identifier, other.identifier);
+            for (execution, prompt) in executions.into_iter().zip(prompts) {
+                super::support::answer(&host, execution, prompt)?;
+            }
+
+            // Inspect Isolated Evidence and Execution Resources After Cleanup
+            let mut snapshots = cycle.wait().await?.executions;
+            snapshots.extend(other.wait().await?.executions);
+            for (snapshot, value) in snapshots.iter().zip([11.0, 22.0, 33.0]) {
+                assert_eq!(snapshot.execution.termination, Termination::Completed as i32);
+                assert!(matches!(snapshot.execution.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
+                        Some(ExecutionOutcomeAttribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32));
+                assert_eq!(
+                    snapshot.logs()?.iter().map(|log| log.message.parse::<f64>()).collect::<Result<Vec<_>, _>>()?,
+                    vec![value, value]
+                );
+                assert!(!snapshot.samples.is_empty());
+                for sample in &snapshot.samples {
+                    assert_eq!(super::support::Reading::decode(sample.row.as_slice())?.value, value);
+                }
+                let records = snapshot.records("execution.attempt");
+                assert_eq!(records.len(), 1);
+                let record = RecordsAppendRequest::decode(records[0].payload.as_slice())?;
+                let attempt = super::support::Attempt::decode(record.payload.as_slice())?;
+                assert_eq!(attempt.value, value);
+                assert!(attempt.scope_refused);
+                assert!(host.cancel(&snapshot.execution.identifier).is_err());
+            }
+            host.shutdown().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
     })
-    .await?
 }

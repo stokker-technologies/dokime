@@ -75,9 +75,10 @@ use tonic::transport::Endpoint;
 
 /* === Tests === */
 
-#[tokio::test]
-async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
-    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+#[test]
+fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
+    super::support::run(async {
+        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Create a Mutable Cycle and Register Its Cases Without Running
         let root = super::support::tempdir()?;
         let credential_root = super::support::tempdir()?;
@@ -87,7 +88,7 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
-        client
+        let entry = client
             .plugins
             .create(
                 "thermal",
@@ -99,6 +100,7 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .await?
             .entry
             .unwrap();
+        super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
         let execution = Client::from_channel(channel.clone(), super::support::client_settings())?.executions.clone();
         let cycle = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
             .cycles
@@ -569,4 +571,5 @@ async fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
         plugin.close().await?;
         Ok::<_, Box<dyn Error>>(())
     }).await?
+    })
 }

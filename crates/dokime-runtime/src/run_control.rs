@@ -81,6 +81,8 @@ impl RunControl {
     ) -> Result<Option<(usize, Option<dokime_protocol::host::executions::ExecutionCommandReceipt>)>> {
         loop {
             let changed = self.changed.notified();
+            tokio::pin!(changed);
+            changed.as_mut().enable();
             {
                 let mut state = lock(&self.state)?;
                 if state.stopping || cancellation.is_cancelled() {

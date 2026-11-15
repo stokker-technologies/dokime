@@ -74,11 +74,23 @@ impl PromptManager {
     ) -> Result<dokime_protocol::host::PromptsCreateRequest> {
         loop {
             let changed = self.changed.notified();
+            tokio::pin!(changed);
+            changed.as_mut().enable();
             if let Some(pending) = lock(&self.pending)?.get(execution) {
                 return Ok(pending.question.clone());
             }
             if self.closed.load(std::sync::atomic::Ordering::Acquire) || !executions.is_active(execution)? {
-                return Err(Error::Invalid(format!("Wait for Execution Prompt {execution}: Start an Active Run")));
+                let outcome = executions.inner.store.cut(execution)?.execution.outcome;
+                let reason = outcome
+                    .and_then(|outcome| outcome.attribution)
+                    .map(|outcome| match outcome {
+                        dokime_protocol::host::execution_outcome::Attribution::Evaluated(value) => value.reason,
+                        dokime_protocol::host::execution_outcome::Attribution::NotEvaluated(value) => value.reason,
+                        dokime_protocol::host::execution_outcome::Attribution::Declared(value) => value.reason,
+                    })
+                    .filter(|reason| !reason.is_empty())
+                    .unwrap_or_else(|| "Start an Active Run".into());
+                return Err(Error::Invalid(format!("Wait for Execution Prompt {execution}: {reason}")));
             }
             changed.await;
         }

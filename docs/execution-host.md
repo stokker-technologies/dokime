@@ -94,6 +94,10 @@ temporary storage, including during failure unwinding. Explicit root disposal us
 `services::remove_credentials(root)` after stopping the host; it retains evidence
 and refuses an occupied root. The host executable exposes the same operation as
 `--storage PATH --remove-credentials`. Ordinary shutdown preserves credentials for restart.
+Runtime stories own their Tokio runtime through `tests/support/credentials.rs::run`.
+An occupied temporary root is retained until runtime teardown has cancelled its
+detached work; credential removal and root disposal then run outside that runtime.
+This prevents cleanup from blocking the runtime that must release the root lease.
 
 Plugins, Catalog, Settings, Secrets, Appearance and evidence Health
 serve every declared method, including their Run transports. Plugin installation
@@ -554,10 +558,18 @@ cancelling a staged upload publishes nothing. Plugin artifact calls are unary
 and preserve sequence, exact retry, prefix replacement and terminal abort.
 File names select retained content identities, never arbitrary filesystem paths.
 A resumed follow requires the original identity and committed offset.
-Evidence downloads use v1 protobuf `ExecutionArchive` bytes defined in
-`crates/dokime-storage/src/execution.rs`; cycle archives repeat that message at
-field 1. Content metadata and bounded chunks travel in fields 7 and 8 of each
-execution archive. The shape stays at v1 under the development storage policy.
+Evidence downloads are ZIP archives. `evidence.pb` contains the v1 protobuf
+`ExecutionArchive` defined in `crates/dokime-storage/src/execution.rs`, including
+product artifact metadata and its original native references in field 9.
+`telemetry/<stream>.arrow` retains each finalized Arrow file unchanged.
+Native file histories are selected through the registered backend at a retained
+snapshot; `files/<reference-digest>` contains the unchanged bytes and the adjacent
+`.pb` member retains the original file reference, including its history.
+`manifest.json` records member paths, lengths and SHA-256 digests. Cycle ZIPs
+contain `executions/<id>.zip` members and their own manifest. The final archive
+is published through native uploads and read through `Files.Get/Read/Watch`.
+The shape stays at v1 under the development storage policy. Archive import and
+the older execution-file presentation fixtures remain open consumer work.
 Notes support create/edit/list and Run envelopes, durable idempotent creation,
 selection-bound paging and closed-owner refusal. The loopback listener uses one
 local client principal; the separate Access listener authenticates paired callers.
@@ -1756,6 +1768,13 @@ scope before an execution exists and installs the global ClockAccess for each
 operation. The execution driver still requires an invocation-scoped clock and
 publication lease that preserve awaited ingestion and close settlement. Its direct
 execution path has not been replaced by a second managed launch or endpoint field.
+Legacy child Time.Get/Sleep calls now enter the composed library manager with
+the trusted execution scope. They install no product clock override. The binding
+seam is the scoped operation handle at lifecycle dispatch and the existing plugin
+activation's publication lease: both must receive that same execution scope and
+await sample ingestion before Time.Sleep settles. The pinned manager still
+replaces ClockAccess with its global clock; native entry resolution and the complete
+driver replacement remain open, together with that scoped publication binding.
 
 For this wave, compound product objects retain their transactional Store paths.
 The operations manifest declares the workspace `harmos-runtime`

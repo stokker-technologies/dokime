@@ -58,163 +58,167 @@ use tonic::transport::Endpoint;
 
 /* === Tests === */
 
-#[tokio::test]
-async fn execution_outcomes() -> Result<(), Box<dyn Error>> {
-    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-        // Materialize an Evaluated and a Criterion-Free Execution
-        let root = super::support::tempdir()?;
-        let credential_root = super::support::tempdir()?;
-        let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
-        let settings = super::support::settings();
-        let executable = super::support::execution_fixture()?;
-        let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
-        let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
-        let entry = host.add_remote(plugin.endpoint()).await?;
-        let stale = host.materialize(&entry, "execution.capture", super::support::parameters(8.0, 0, true)).await?;
-        let unevaluated = host.materialize(&entry, "execution.capture", super::support::parameters(9.0, 0, false)).await?;
-        let cycle = host.start_cycle(vec![stale.clone(), unevaluated]).await?;
-        let cycle_identifier = cycle.identifier.clone();
-        for execution in &cycle.executions {
-            let prompt = host.next_prompt(execution).await?;
-            super::support::answer(&host, execution, prompt)?;
-        }
-        let result = cycle.wait().await?;
-        assert_eq!(
-            result.counts,
-            OutcomeCounts {
-                evaluated: 1,
-                not_evaluated: 1,
-                declared: 0,
-                verdict: Some(ResultStatus::Passed)
+#[test]
+fn execution_outcomes() -> Result<(), Box<dyn Error>> {
+    super::support::run(async {
+        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+            // Materialize an Evaluated and a Criterion-Free Execution
+            let root = super::support::tempdir()?;
+            let credential_root = super::support::tempdir()?;
+            let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+            let settings = super::support::settings();
+            let executable = super::support::execution_fixture()?;
+            let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
+            let mut plugin = PluginProcess::start(&executable, true, &settings.placement).await?;
+            let entry = host.add_remote(plugin.endpoint()).await?;
+            let stale = host.materialize(&entry, "execution.capture", super::support::parameters(8.0, 0, true)).await?;
+            let unevaluated = host.materialize(&entry, "execution.capture", super::support::parameters(9.0, 0, false)).await?;
+            let cycle = host.start_cycle(vec![stale.clone(), unevaluated]).await?;
+            let cycle_identifier = cycle.identifier.clone();
+            for execution in &cycle.executions {
+                let prompt = host.next_prompt(execution).await?;
+                super::support::answer(&host, execution, prompt)?;
             }
-        );
-        assert!(matches!(
-            result.executions[1].execution.outcome.as_ref().unwrap().attribution,
-            Some(ExecutionOutcomeAttribution::NotEvaluated(_))
-        ));
+            let result = cycle.wait().await?;
+            assert_eq!(
+                result.counts,
+                OutcomeCounts {
+                    evaluated: 1,
+                    not_evaluated: 1,
+                    declared: 0,
+                    verdict: Some(ResultStatus::Passed)
+                }
+            );
+            assert!(matches!(
+                result.executions[1].execution.outcome.as_ref().unwrap().attribution,
+                Some(ExecutionOutcomeAttribution::NotEvaluated(_))
+            ));
 
-        // Count Declared Outcomes Without Letting Them Set the Cycle Verdict
-        let declared = ExecutionOutcome {
-            attribution: Some(ExecutionOutcomeAttribution::Declared(DeclaredOutcome {
-                status: ResultStatus::Failed as i32,
-                importer: "sample.importer".into(),
-                ..Default::default()
-            })),
-        };
-        let store = Store::open(root.path())?;
-        store.create(&Execution {
-            identifier: "declared".into(),
-            cycle: cycle_identifier.clone(),
-            origin: Some(Origin {
-                kind: Some(OriginKind::Import(Import {
+            // Count Declared Outcomes Without Letting Them Set the Cycle Verdict
+            let declared = ExecutionOutcome {
+                attribution: Some(ExecutionOutcomeAttribution::Declared(DeclaredOutcome {
+                    status: ResultStatus::Failed as i32,
                     importer: "sample.importer".into(),
                     ..Default::default()
                 })),
-            }),
-            ..Default::default()
-        })?;
-        store.close("declared", Termination::Completed, declared.clone())?;
-        store.seal("declared")?;
-        let mut outcomes = result.executions.iter().map(|snapshot| snapshot.execution.outcome.as_ref().unwrap()).collect::<Vec<_>>();
-        outcomes.push(&declared);
-        assert_eq!(
-            OutcomeCounts::from_outcomes(outcomes),
-            OutcomeCounts {
-                evaluated: 1,
-                not_evaluated: 1,
-                declared: 1,
-                verdict: Some(ResultStatus::Passed)
-            }
-        );
-        assert_eq!(
-            host.cycle_counts(&cycle_identifier)?,
-            OutcomeCounts {
-                evaluated: 1,
-                not_evaluated: 1,
-                declared: 1,
-                verdict: Some(ResultStatus::Passed)
-            }
-        );
-        drop(store);
-        assert_eq!(OutcomeCounts::from_outcomes([&declared]).verdict, None);
-        assert_eq!(OutcomeCounts::from_outcomes([result.executions[1].execution.outcome.as_ref().unwrap()]).verdict, None);
-        assert_eq!(OutcomeCounts::from_outcomes([]).verdict, None);
+            };
+            let store = Store::open(root.path())?;
+            store.create(&Execution {
+                identifier: "declared".into(),
+                cycle: cycle_identifier.clone(),
+                origin: Some(Origin {
+                    kind: Some(OriginKind::Import(Import {
+                        importer: "sample.importer".into(),
+                        ..Default::default()
+                    })),
+                }),
+                ..Default::default()
+            })?;
+            store.close("declared", Termination::Completed, declared.clone())?;
+            store.seal("declared")?;
+            let mut outcomes = result.executions.iter().map(|snapshot| snapshot.execution.outcome.as_ref().unwrap()).collect::<Vec<_>>();
+            outcomes.push(&declared);
+            assert_eq!(
+                OutcomeCounts::from_outcomes(outcomes),
+                OutcomeCounts {
+                    evaluated: 1,
+                    not_evaluated: 1,
+                    declared: 1,
+                    verdict: Some(ResultStatus::Passed)
+                }
+            );
+            assert_eq!(
+                host.cycle_counts(&cycle_identifier)?,
+                OutcomeCounts {
+                    evaluated: 1,
+                    not_evaluated: 1,
+                    declared: 1,
+                    verdict: Some(ResultStatus::Passed)
+                }
+            );
+            drop(store);
+            assert_eq!(OutcomeCounts::from_outcomes([&declared]).verdict, None);
+            assert_eq!(OutcomeCounts::from_outcomes([result.executions[1].execution.outcome.as_ref().unwrap()]).verdict, None);
+            assert_eq!(OutcomeCounts::from_outcomes([]).verdict, None);
 
-        // Replace the Catalog and Rematerialize Instead of Reusing the Stale Case
-        host.remove_plugin(&entry).await?;
-        plugin.close().await?;
-        let mut revised = PluginProcess::start_with_environment(
-            &executable,
-            true,
-            &settings.placement,
-            &[("DOKIME_EXECUTION_REVISION".into(), "2".into())],
-        )
-        .await?;
-        let entry = host.add_remote(revised.endpoint()).await?;
-        let cycle = host.start_cycle(vec![stale.clone()]).await?;
-        let prompt = host.next_prompt(&cycle.executions[0]).await?;
-        super::support::answer(&host, &cycle.executions[0], prompt)?;
-        let result = cycle.wait().await?;
-        let Some(OriginKind::PluginRun(current)) = result.executions[0].execution.origin.as_ref().unwrap().kind.as_ref() else {
-            panic!("PluginRun")
-        };
-        let Some(OriginKind::PluginRun(previous)) = stale.kind.as_ref() else { panic!("PluginRun") };
-        assert_ne!(current.digest, previous.digest);
-        assert_eq!(current.digest, host.description(&entry)?.declarations.unwrap().digest);
-        assert_eq!(current.test_case.as_ref().unwrap().steps.len(), 2);
-        assert_eq!(previous.test_case.as_ref().unwrap().steps.len(), 3);
-        assert!(!result.executions[0].evidence.iter().any(|evidence| evidence.step == "tail"));
-
-        // Refuse a Failed Rematerialization Without Creating Execution Evidence
-        let before = host.executions()?;
-        let mut invalid = stale;
-        let Some(OriginKind::PluginRun(run)) = invalid.kind.as_mut() else { unreachable!() };
-        run.test_case.as_mut().unwrap().parameters = super::support::parameters(8.0, u32::MAX, true);
-        assert!(host.start_cycle(vec![invalid]).await.is_err());
-        assert_eq!(host.executions()?, before);
-        host.shutdown().await?;
-
-        // Read Mixed Attributions and Counts Through the Client Services Once the Root Is Released
-        let process =
-            super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-
-        let page = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
-            .executions
-            .clone()
-            .list(
-                String::new(),
-                ExecutionSelection {
-                    cycle_ids: vec![cycle_identifier.clone()],
-                    ..Default::default()
-                },
-                Default::default(),
-                Default::default(),
+            // Replace the Catalog and Rematerialize Instead of Reusing the Stale Case
+            host.remove_plugin(&entry).await?;
+            plugin.close().await?;
+            let mut revised = PluginProcess::start_with_environment(
+                &executable,
+                true,
+                &settings.placement,
+                &[("DOKIME_EXECUTION_REVISION".into(), "2".into())],
             )
             .await?;
-        let counts = page.outcome_counts.unwrap();
-        assert_eq!((counts.evaluated_count, counts.not_evaluated_count, counts.declared_count), (1, 1, 1));
-        assert_eq!(counts.result_status, Some(ResultStatus::Passed as i32));
-        assert!(page.executions.iter().any(|row| matches!(
-            row.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
-            Some(ExecutionOutcomeAttribution::Declared(_))
-        )));
+            let entry = host.add_remote(revised.endpoint()).await?;
+            let cycle = host.start_cycle(vec![stale.clone()]).await?;
+            let prompt = host.next_prompt(&cycle.executions[0]).await?;
+            super::support::answer(&host, &cycle.executions[0], prompt)?;
+            let result = cycle.wait().await?;
+            let Some(OriginKind::PluginRun(current)) = result.executions[0].execution.origin.as_ref().unwrap().kind.as_ref() else {
+                panic!("PluginRun")
+            };
+            let Some(OriginKind::PluginRun(previous)) = stale.kind.as_ref() else { panic!("PluginRun") };
+            assert_ne!(current.digest, previous.digest);
+            assert_eq!(current.digest, host.description(&entry)?.declarations.unwrap().digest);
+            assert_eq!(current.test_case.as_ref().unwrap().steps.len(), 2);
+            assert_eq!(previous.test_case.as_ref().unwrap().steps.len(), 3);
+            assert!(!result.executions[0].evidence.iter().any(|evidence| evidence.step == "tail"));
 
-        for row in &page.executions {
-            let detail =
+            // Refuse a Failed Rematerialization Without Creating Execution Evidence
+            let before = host.executions()?;
+            let mut invalid = stale;
+            let Some(OriginKind::PluginRun(run)) = invalid.kind.as_mut() else { unreachable!() };
+            run.test_case.as_mut().unwrap().parameters = super::support::parameters(8.0, u32::MAX, true);
+            assert!(host.start_cycle(vec![invalid]).await.is_err());
+            assert_eq!(host.executions()?, before);
+            host.shutdown().await?;
+
+            // Read Mixed Attributions and Counts Through the Client Services Once the Root Is Released
+            let process =
+                super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &credentials.environment)
+                    .await?;
+
+            let page =
                 Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                     .executions
                     .clone()
-                    .get(row.summary.as_ref().unwrap().execution_id.clone())
-                    .await?
-                    .execution
-                    .unwrap();
-            assert_eq!(detail.cycle_counts.as_ref(), Some(&counts));
-            assert_eq!(detail.summary.as_ref(), row.summary.as_ref());
-            assert!(detail.controls.as_ref().unwrap().can_inspect);
-        }
-        process.close().await?;
-        revised.close().await?;
-        Ok::<(), Box<dyn Error>>(())
+                    .list(
+                        String::new(),
+                        ExecutionSelection {
+                            cycle_ids: vec![cycle_identifier.clone()],
+                            ..Default::default()
+                        },
+                        Default::default(),
+                        Default::default(),
+                    )
+                    .await?;
+            let counts = page.outcome_counts.unwrap();
+            assert_eq!((counts.evaluated_count, counts.not_evaluated_count, counts.declared_count), (1, 1, 1));
+            assert_eq!(counts.result_status, Some(ResultStatus::Passed as i32));
+            assert!(page.executions.iter().any(|row| matches!(
+                row.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
+                Some(ExecutionOutcomeAttribution::Declared(_))
+            )));
+
+            for row in &page.executions {
+                let detail =
+                    Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+                        .executions
+                        .clone()
+                        .get(row.summary.as_ref().unwrap().execution_id.clone())
+                        .await?
+                        .execution
+                        .unwrap();
+                assert_eq!(detail.cycle_counts.as_ref(), Some(&counts));
+                assert_eq!(detail.summary.as_ref(), row.summary.as_ref());
+                assert!(detail.controls.as_ref().unwrap().can_inspect);
+            }
+            process.close().await?;
+            revised.close().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
     })
-    .await?
 }

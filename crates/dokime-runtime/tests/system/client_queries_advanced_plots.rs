@@ -187,9 +187,10 @@ impl Instance for AnalysisProvider {
 
 /* === Tests === */
 
-#[tokio::test]
-async fn client_queries_advanced_plots() -> Result<(), Box<dyn StdError>> {
-    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD,async {
+#[test]
+fn client_queries_advanced_plots() -> Result<(), Box<dyn StdError>> {
+    super::support::run(async {
+        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD,async {
         // Retain Correlated Streams and Numeric Group Labels
         let root=super::support::tempdir()?;
         let credential_root = super::support::tempdir()?;
@@ -263,7 +264,8 @@ async fn client_queries_advanced_plots() -> Result<(), Box<dyn StdError>> {
 }).await});
         let channel=Endpoint::from_shared(process.url.clone())?.connect().await?;
         let client=Client::from_channel(channel, super::support::client_settings())?;
-        client.plugins.create("analysis_fixture", PluginPlacement { kind: Some(PluginPlacementKind::Remote(PluginRemote { url: endpoint })) }, PluginValue { enabled: true }).await?.entry.unwrap();
+        let entry = client.plugins.create("analysis_fixture", PluginPlacement { kind: Some(PluginPlacementKind::Remote(PluginRemote { url: endpoint })) }, PluginValue { enabled: true }).await?.entry.unwrap();
+        super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
         assert_eq!(Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?.analyses.clone().list().await?.definitions.len(),1);
         let analysis_request=PlotsPlotRequest {stream:"cells".into(),scope:scope.clone(),plot_type:PlotKind::TimeSeries as i32,y_keys:vec!["max".into()],viewport:Some(PlotsPlotWindow {from:0.0,to:15.0}),analysis:Some(AnalysisSelection {id:"analysis.scale".into(),version:1,parameters:None}),max_points:Some(5),..Default::default()};
         let reply=Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?.plots.snapshots.clone().list(vec![analysis_request.clone()]).await?;
@@ -331,4 +333,5 @@ malformed.analysis.as_mut().unwrap().parameters=Some(MapValue {values:HashMap::f
 provider_task.await??;
         Ok::<_,Box<dyn StdError>>(())
     }).await?
+    })
 }

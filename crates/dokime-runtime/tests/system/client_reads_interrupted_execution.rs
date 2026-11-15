@@ -58,9 +58,10 @@ use tonic::transport::Endpoint;
 
 /* === Tests === */
 
-#[tokio::test]
-async fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
-    tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+#[test]
+fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
+    super::support::run(async {
+        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start an Execution in the Real Host and Wait for Its Prompt
         let root = super::support::tempdir()?;
         let credential_root = super::support::tempdir()?;
@@ -81,6 +82,7 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
             .await?
             .entry
             .unwrap();
+        let entry = super::support::plugin_state(&plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
         let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
         let parameters = super::support::parameters(19.0, 0, true).into_iter().map(|(key, value)| (key, vec![value])).collect();
         let planned = super::support::materialize(&client, "execution", "execution.capture", parameters).await?;
@@ -223,4 +225,5 @@ async fn client_reads_interrupted_execution() -> Result<(), Box<dyn Error>> {
         Ok::<(), Box<dyn Error>>(())
     })
     .await?
+    })
 }

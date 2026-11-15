@@ -146,6 +146,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    objects, operations, authorization, settings/secrets stores, schemas, UI and archives.
    **Why:** The previous approach duplicated connection, dispatch and process launch;
    product-specific policy must not become generic machinery. HostValues uses a product resolver.
+   Evidence archives read scoped native file histories through the registered
+   backend and publish their output through native uploads. Product seals,
+   artifact metadata and transaction ownership remain in the product Store;
+   archive stream members preserve the original Arrow bytes.
    **Where:** [boundary and settings requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
    [current composition](../crates/dokime-runtime/Cargo.toml),
    [product settings](../crates/dokime-operations/src/host/settings/get.rs).

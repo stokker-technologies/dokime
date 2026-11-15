@@ -213,6 +213,16 @@ pub async fn dispatch(resources: &Resources, request: &harmos_protocol::plugin::
         }
         host::effects::get::ID => Ok(host::effects::get::handle(&context, EffectsGetRequest::decode(payload)?).await?.encode_to_vec()),
         host::effects::set::ID => Ok(host::effects::set::handle(&context, EffectsSetRequest::decode(payload)?).await?.encode_to_vec()),
+        "harmos.host.v1.Time/Get" | "harmos.host.v1.Time/Sleep" => {
+            let operations = context.operations.with_scope(resources.execution.clone()).map_err(|source| Error::Native {
+                action: "Bind Execution Time Scope",
+                source,
+            })?;
+            operations
+                .call_encoded(&request.operation, request.payload.clone())
+                .await
+                .map_err(|source| Error::Native { action: "Call Library Time", source })
+        }
         _ => Err(Error::Invalid(format!("{}: Connect the Requested Operation Provider", request.operation))),
     }
 }

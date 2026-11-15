@@ -41,7 +41,7 @@ mod telemetry;
 /* === Re-Exports === */
 
 pub use backend::{Backend, BackendLease};
-pub use content::{ArchivedContent, ArchivedContentChunk, CONTENT_CHUNK_BYTES, ContentEntry, StoredArtifact};
+pub use content::{ArchivedContent, ArchivedContentChunk, ArchivedNativeFile, CONTENT_CHUNK_BYTES, ContentEntry, StoredArtifact};
 pub use content_name::{validate_artifact_name, validate_execution_path};
 pub use error::Error;
 pub use execution::{Evidence, Execution, ExecutionArchive, ExecutionSnapshot, ExecutionState, Sample};

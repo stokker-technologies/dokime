@@ -156,8 +156,5 @@ pub(super) async fn watch(session: &Session, path: &str, payload: &[u8]) -> Resu
 }
 
 pub(super) async fn input(_session: &Session, path: &str, _receiver: tokio::sync::mpsc::Receiver<Vec<u8>>) -> Result<Vec<u8>, Error> {
-    match path {
-
-        _ => Err(tonic::Status::unimplemented(format!("Upload {path}: This Host Contract Has No Input Operation")).into()),
-    }
+    Err(tonic::Status::unimplemented(format!("Upload {path}: This Host Contract Has No Input Operation")).into())
 }
