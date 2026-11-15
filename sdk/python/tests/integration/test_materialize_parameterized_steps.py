@@ -14,18 +14,19 @@
 import runpy
 import unittest
 from pathlib import Path
+from typing import Self
 from uuid import uuid4
 
 from google.protobuf.wrappers_pb2 import Int32Value
 from harmos import CLASSIFICATION_TRANSIENT, VISIBILITY_PRIVATE, FailureValue
-from harmos.client import PluginPlacement, PluginRemote, PluginValue
+from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
 from harmos.plugin import Context as InvocationContext
 from harmos.plugin import Operation, operation
 
 # Third Party Imports
 from dokime import Failure, Metadata, Parameter
 from dokime.authoring import Case, criterion, materialize, step, suite
-from dokime.client import ExecutionBinding, RegisteredSelection, SelectionPlan
+from dokime.client import EXECUTION_MODE_AUTOMATIC, ExecutionBinding, RegisteredSelection, SelectionPlan
 from dokime.plugin import Context, Plugin
 from dokime.values import Scalar, encode
 
@@ -44,7 +45,7 @@ from dokime.values import Scalar, encode
 class MaterializationStory(unittest.IsolatedAsyncioTestCase):
     async def test_materialize_retry_and_cleanup(self) -> None:
         # Compose A Parameter-Dependent Template With Execution-Owned State.
-        instances = []
+        instances: list[tuple[list[int], list[tuple[int, int]]]] = []
         reading = Operation("example.reading.square", Int32Value, Int32Value, VISIBILITY_PRIVATE)
 
         class Operations:
@@ -65,12 +66,12 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         )
         class Channels:
             def __init__(self) -> None:
-                self.channels = []
-                self.attempts = []
-                instances.append(self)
+                self.channels: list[int] = []
+                self.attempts: list[tuple[int, int]] = []
+                instances.append((self.channels, self.attempts))
 
             @materialize
-            def cases(cls, case: Case, parameters: dict[str, Scalar]) -> None:
+            def cases(cls: type[Self], case: Case, parameters: dict[str, Scalar]) -> None:
                 channels = parameters["channels"]
                 if not isinstance(channels, list):
                     raise TypeError("Materialize Channels: Supply a List")
@@ -107,7 +108,17 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         endpoint = await plugin.start("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
         self.addAsyncCleanup(host.close)
-        await host.client.plugins.create("channels", PluginPlacement(remote=PluginRemote(url=endpoint.url)), PluginValue())
+        await host.client.plugins.create("channels", PluginPlacement(remote=PluginRemote(url=endpoint.url)), PluginValue(enabled=True))
+        watching = host.client.plugins.watch(name="channels")
+        try:
+            async for _ in watching:
+                entry = (await host.client.plugins.get("channels")).entry
+                if entry.HasField("failure"):
+                    raise RuntimeError(f"Activate Channels: {entry.failure}")
+                if entry.state == PLUGIN_STATE_READY:
+                    break
+        finally:
+            await watching.aclose()
         suites = (await host.client.suites.list("channels")).values
         plan = SelectionPlan(
             selections=[
@@ -129,12 +140,13 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         identifiers = []
         for _ in range(2):
             registered = await host.client.cases.create(plan, False)
-            cycle = (await host.client.cycles.create([], Metadata(), True, "")).cycle
+            cycle = (await host.client.cycles.create([], Metadata(label="Channel Measurements"), True, "")).cycle
             identifier = str(uuid4())
             identifiers.append(identifier)
             await host.client.executions.create(
                 cycle.cycle_id, [ExecutionBinding(execution_id=identifier, case_id=registered.cases[0].case_id)]
             )
+            await host.client.executions.start(identifier, EXECUTION_MODE_AUTOMATIC)
             finished = False
             async for progress in host.client.executions.progress.watch(identifier):
                 finished = progress.finished
@@ -146,11 +158,15 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 execution,
             )
         self.assertEqual(len(set(identifiers)), 2)
-        self.assertEqual([item.channels for item in instances], [[4, 16], [4, 16]])
-        self.assertEqual([item.attempts for item in instances], [[(2, 1), (2, 2), (4, 1)]] * 2)
+        self.assertEqual([item[0] for item in instances], [[4, 16], [4, 16]])
+        self.assertEqual([item[1] for item in instances], [[(2, 1), (2, 2), (4, 1)]] * 2)
         self.assertFalse(endpoint.plugin._sessions)
-        with self.assertRaises(ValueError):
+        try:
             Plugin("duplicate", "1.0.0", suites=[Channels, Channels]).declarations()
+        except ValueError:
+            pass
+        else:
+            self.fail("Duplicate Suite Was Admitted")
 
 
 # === Public Functions === #
