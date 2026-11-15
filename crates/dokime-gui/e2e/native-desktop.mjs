@@ -184,14 +184,25 @@ async function exactBench() {
   const plan = await call(desktop, "Cases", "Create", {
     requestId: crypto.randomUUID(),
     plan: { selections: [{ suiteId: "obc.bench", templateId: "obc.bench.module_array" }] },
-    validateOnly: true,
+    validateOnly: false,
   });
   const bench = await call(desktop, "Cycles", "Create", {
     requestId: crypto.randomUUID(),
-    origins: plan.cases.map((item) => item.origin),
-    continueAutomatically: true,
+    metadata: { label: "Desktop Bench Journey" },
+    continueAutomatically: false,
   }).then((reply) => reply.cycle);
-  const benchExecution = (await call(desktop, "Executions", "List", { parent: bench.cycleId })).executions[0].summary.executionId;
+  const benchExecution = crypto.randomUUID();
+  await call(desktop, "Executions", "Create", {
+    requestId: crypto.randomUUID(),
+    parent: bench.cycleId,
+    executions: [{ executionId: benchExecution, caseId: plan.cases[0].caseId }],
+  });
+  await desktop.goto(`/cycles/${bench.cycleId}?executionId=${benchExecution}`, { reload: true });
+  await until("Registered Bench Execution Row", () =>
+    desktop.find("css selector", `li[data-execution-id="${benchExecution}"] button[data-tree-actions]`),
+  );
+  await desktop.clickCss(`li[data-execution-id="${benchExecution}"] button[data-tree-actions]`);
+  await desktop.clickNamed("menuitem", "Start Execution");
   const prompt = await until("Bench Confirmation Prompt", async () => {
     const pending = await call(desktop, "Prompts", "List", { pendingOnly: true, executionId: benchExecution });
     return pending.prompts[0]?.prompt.promptId;
@@ -207,7 +218,6 @@ async function exactBench() {
     return current.summary.state === "EXECUTION_STATE_SEALED" ? current : null;
   });
   assert.equal(detail.outcome.evaluated.status, "RESULT_STATUS_PASSED");
-  await desktop.goto(`/cycles/${bench.cycleId}?executionId=${benchExecution}`, { reload: true });
   const values = await until("Exact Summary Tiles", () =>
     desktop.execute(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
