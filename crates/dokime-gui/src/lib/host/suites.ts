@@ -114,8 +114,21 @@ function mapTemplate(template: Wire<TestCaseTemplate>, suite: string): SuiteTemp
         metadata: metadataJson(file.metadata),
       };
     }),
-    // Steps Belong to the Materialized Case, Not the Template Definition.
-    steps: [],
+    // The Declared Procedure; a Materialized Case Can Still Reshape Its Steps.
+    steps: template.steps.map((step, index) => {
+      const identifier = step.metadata?.identifier;
+      if (!identifier) throw new Error("Read Template Step: Missing Step Identity");
+      return {
+        step_id: identifier,
+        method_name: identifier,
+        label: step.metadata?.label || null,
+        description: step.metadata?.description || null,
+        order: index,
+        timeout_s: null,
+        required: true,
+        metadata: metadataJson(step.metadata),
+      };
+    }),
     metadata: metadataJson(template.metadata),
   };
 }

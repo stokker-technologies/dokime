@@ -25,32 +25,33 @@ namespace Dokime;
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
             "Chxkb2tpbWUvbW9kZWwvdjEvc3VpdGVzLnByb3RvEg9kb2tpbWUubW9kZWwu",
-            "djEaH2Rva2ltZS9tb2RlbC92MS9kb2N1bWVudHMucHJvdG8aHmRva2ltZS9t",
-            "b2RlbC92MS9tZXRhZGF0YS5wcm90bxogZG9raW1lL21vZGVsL3YxL3BhcmFt",
-            "ZXRlcnMucHJvdG8iOAoGU3VpdGVzEi4KBnN1aXRlcxgBIAMoCzIWLmRva2lt",
-            "ZS5tb2RlbC52MS5TdWl0ZVIGc3VpdGVzItkBCgVTdWl0ZRI1CghtZXRhZGF0",
-            "YRgBIAEoCzIZLmRva2ltZS5tb2RlbC52MS5NZXRhZGF0YVIIbWV0YWRhdGES",
-            "PwoJdGVtcGxhdGVzGAIgAygLMiEuZG9raW1lLm1vZGVsLnYxLlRlc3RDYXNl",
-            "VGVtcGxhdGVSCXRlbXBsYXRlcxISCgR0YWdzGAMgAygJUgR0YWdzEkQKEHBh",
-            "cmFtZXRlcl9ncm91cHMYBCADKAsyGS5kb2tpbWUubW9kZWwudjEuTWV0YWRh",
-            "dGFSD3BhcmFtZXRlckdyb3VwcyLPAwoQVGVzdENhc2VUZW1wbGF0ZRI1Cght",
-            "ZXRhZGF0YRgBIAEoCzIZLmRva2ltZS5tb2RlbC52MS5NZXRhZGF0YVIIbWV0",
-            "YWRhdGESOgoKcGFyYW1ldGVycxgCIAMoCzIaLmRva2ltZS5tb2RlbC52MS5Q",
-            "YXJhbWV0ZXJSCnBhcmFtZXRlcnMSNAoFZmlsZXMYAyADKAsyHi5kb2tpbWUu",
-            "bW9kZWwudjEuRmlsZVBhcmFtZXRlclIFZmlsZXMSNwoJZG9jdW1lbnRzGAQg",
-            "AygLMhkuZG9raW1lLm1vZGVsLnYxLkRvY3VtZW50Uglkb2N1bWVudHMSEgoE",
-            "dGFncxgFIAMoCVIEdGFncxIgCgttYXRlcmlhbGl6ZRgGIAEoCVILbWF0ZXJp",
-            "YWxpemUSIwoKaW5pdGlhbGl6ZRgHIAEoCUgAUgppbml0aWFsaXpliAEBEh0K",
-            "B2NsZWFudXAYCCABKAlIAVIHY2xlYW51cIgBARJEChBwYXJhbWV0ZXJfZ3Jv",
-            "dXBzGAkgAygLMhkuZG9raW1lLm1vZGVsLnYxLk1ldGFkYXRhUg9wYXJhbWV0",
-            "ZXJHcm91cHNCDQoLX2luaXRpYWxpemVCCgoIX2NsZWFudXBCCaoCBkRva2lt",
-            "ZWIGcHJvdG8z"));
+            "djEaH2Rva2ltZS9tb2RlbC92MS9kb2N1bWVudHMucHJvdG8aH2Rva2ltZS9t",
+            "b2RlbC92MS9leGVjdXRpb24ucHJvdG8aHmRva2ltZS9tb2RlbC92MS9tZXRh",
+            "ZGF0YS5wcm90bxogZG9raW1lL21vZGVsL3YxL3BhcmFtZXRlcnMucHJvdG8i",
+            "OAoGU3VpdGVzEi4KBnN1aXRlcxgBIAMoCzIWLmRva2ltZS5tb2RlbC52MS5T",
+            "dWl0ZVIGc3VpdGVzItkBCgVTdWl0ZRI1CghtZXRhZGF0YRgBIAEoCzIZLmRv",
+            "a2ltZS5tb2RlbC52MS5NZXRhZGF0YVIIbWV0YWRhdGESPwoJdGVtcGxhdGVz",
+            "GAIgAygLMiEuZG9raW1lLm1vZGVsLnYxLlRlc3RDYXNlVGVtcGxhdGVSCXRl",
+            "bXBsYXRlcxISCgR0YWdzGAMgAygJUgR0YWdzEkQKEHBhcmFtZXRlcl9ncm91",
+            "cHMYBCADKAsyGS5kb2tpbWUubW9kZWwudjEuTWV0YWRhdGFSD3BhcmFtZXRl",
+            "ckdyb3VwcyL8AwoQVGVzdENhc2VUZW1wbGF0ZRI1CghtZXRhZGF0YRgBIAEo",
+            "CzIZLmRva2ltZS5tb2RlbC52MS5NZXRhZGF0YVIIbWV0YWRhdGESOgoKcGFy",
+            "YW1ldGVycxgCIAMoCzIaLmRva2ltZS5tb2RlbC52MS5QYXJhbWV0ZXJSCnBh",
+            "cmFtZXRlcnMSNAoFZmlsZXMYAyADKAsyHi5kb2tpbWUubW9kZWwudjEuRmls",
+            "ZVBhcmFtZXRlclIFZmlsZXMSNwoJZG9jdW1lbnRzGAQgAygLMhkuZG9raW1l",
+            "Lm1vZGVsLnYxLkRvY3VtZW50Uglkb2N1bWVudHMSEgoEdGFncxgFIAMoCVIE",
+            "dGFncxIgCgttYXRlcmlhbGl6ZRgGIAEoCVILbWF0ZXJpYWxpemUSIwoKaW5p",
+            "dGlhbGl6ZRgHIAEoCUgAUgppbml0aWFsaXpliAEBEh0KB2NsZWFudXAYCCAB",
+            "KAlIAVIHY2xlYW51cIgBARJEChBwYXJhbWV0ZXJfZ3JvdXBzGAkgAygLMhku",
+            "ZG9raW1lLm1vZGVsLnYxLk1ldGFkYXRhUg9wYXJhbWV0ZXJHcm91cHMSKwoF",
+            "c3RlcHMYCiADKAsyFS5kb2tpbWUubW9kZWwudjEuU3RlcFIFc3RlcHNCDQoL",
+            "X2luaXRpYWxpemVCCgoIX2NsZWFudXBCCaoCBkRva2ltZWIGcHJvdG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
-          new pbr::FileDescriptor[] { global::Dokime.DocumentsReflection.Descriptor, global::Dokime.MetadataReflection.Descriptor, global::Dokime.ParametersReflection.Descriptor, },
+          new pbr::FileDescriptor[] { global::Dokime.DocumentsReflection.Descriptor, global::Dokime.ExecutionReflection.Descriptor, global::Dokime.MetadataReflection.Descriptor, global::Dokime.ParametersReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Suites), global::Dokime.Suites.Parser, new[]{ "Suites_" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Suite), global::Dokime.Suite.Parser, new[]{ "Metadata", "Templates", "Tags", "ParameterGroups" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.TestCaseTemplate), global::Dokime.TestCaseTemplate.Parser, new[]{ "Metadata", "Parameters", "Files", "Documents", "Tags", "Materialize", "Initialize", "Cleanup", "ParameterGroups" }, new[]{ "Initialize", "Cleanup" }, null, null, null)
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.TestCaseTemplate), global::Dokime.TestCaseTemplate.Parser, new[]{ "Metadata", "Parameters", "Files", "Documents", "Tags", "Materialize", "Initialize", "Cleanup", "ParameterGroups", "Steps" }, new[]{ "Initialize", "Cleanup" }, null, null, null)
           }));
     }
     #endregion
@@ -573,6 +574,7 @@ namespace Dokime;
       initialize_ = other.initialize_;
       cleanup_ = other.cleanup_;
       parameterGroups_ = other.parameterGroups_.Clone();
+      steps_ = other.steps_.Clone();
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -713,6 +715,17 @@ namespace Dokime;
       get { return parameterGroups_; }
     }
 
+    /// <summary>Field number for the "steps" field.</summary>
+    public const int StepsFieldNumber = 10;
+    private static readonly pb::FieldCodec<global::Dokime.Step> _repeated_steps_codec
+        = pb::FieldCodec.ForMessage(82, global::Dokime.Step.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Step> steps_ = new pbc::RepeatedField<global::Dokime.Step>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Step> Steps {
+      get { return steps_; }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -737,6 +750,7 @@ namespace Dokime;
       if (Initialize != other.Initialize) return false;
       if (Cleanup != other.Cleanup) return false;
       if(!parameterGroups_.Equals(other.parameterGroups_)) return false;
+      if(!steps_.Equals(other.steps_)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -753,6 +767,7 @@ namespace Dokime;
       if (HasInitialize) hash ^= Initialize.GetHashCode();
       if (HasCleanup) hash ^= Cleanup.GetHashCode();
       hash ^= parameterGroups_.GetHashCode();
+      hash ^= steps_.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -792,6 +807,7 @@ namespace Dokime;
         output.WriteString(Cleanup);
       }
       parameterGroups_.WriteTo(output, _repeated_parameterGroups_codec);
+      steps_.WriteTo(output, _repeated_steps_codec);
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -823,6 +839,7 @@ namespace Dokime;
         output.WriteString(Cleanup);
       }
       parameterGroups_.WriteTo(ref output, _repeated_parameterGroups_codec);
+      steps_.WriteTo(ref output, _repeated_steps_codec);
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -850,6 +867,7 @@ namespace Dokime;
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Cleanup);
       }
       size += parameterGroups_.CalculateSize(_repeated_parameterGroups_codec);
+      size += steps_.CalculateSize(_repeated_steps_codec);
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
       }
@@ -882,6 +900,7 @@ namespace Dokime;
         Cleanup = other.Cleanup;
       }
       parameterGroups_.Add(other.parameterGroups_);
+      steps_.Add(other.steps_);
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
 
@@ -940,6 +959,10 @@ namespace Dokime;
             parameterGroups_.AddEntriesFrom(input, _repeated_parameterGroups_codec);
             break;
           }
+          case 82: {
+            steps_.AddEntriesFrom(input, _repeated_steps_codec);
+            break;
+          }
         }
       }
     #endif
@@ -996,6 +1019,10 @@ namespace Dokime;
           }
           case 74: {
             parameterGroups_.AddEntriesFrom(ref input, _repeated_parameterGroups_codec);
+            break;
+          }
+          case 82: {
+            steps_.AddEntriesFrom(ref input, _repeated_steps_codec);
             break;
           }
         }

@@ -281,6 +281,10 @@ test("Canonical Host Catalog Preserves Typed Parameters and Exclusive Ranges", (
           },
         ],
         files: [{ metadata: { identifier: "input" }, defaultValue: "sample.csv", required: true, mediaTypes: ["text/csv"] }],
+        steps: [
+          { metadata: { identifier: "energize", label: "Energize Supply" }, operation: "fixture.template.step.0" },
+          { metadata: { identifier: "inspect", label: "Inspect Charger" }, operation: "fixture.template.step.1" },
+        ],
       },
     ],
   });
@@ -299,5 +303,16 @@ test("Canonical Host Catalog Preserves Typed Parameters and Exclusive Ranges", (
   assert.deepEqual(names.values, [["first", "second"]]);
   assert.deepEqual(names.list, { element_type: "string", min_items: 2, max_items: 3 });
   assert.equal(projected.members[0].file_definitions[0].default, "sample.csv");
+  // The Declared Procedure Reaches the Library in Order Before Any Case Exists
+  const template = projected.members[0];
+  assert.deepEqual(
+    template.steps.map((step) => [step.step_id, step.label, step.order]),
+    [
+      ["energize", "Energize Supply", 0],
+      ["inspect", "Inspect Charger", 1],
+    ],
+  );
+  const procedure = renderToStaticMarkup(createElement(TemplateProcedure, { template }));
+  assert.ok(procedure.indexOf("Energize Supply") < procedure.indexOf("Inspect Charger"));
   assert.throws(() => mapHostSuite(create(SuiteSchema)));
 });

@@ -120,6 +120,12 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         finally:
             await watching.aclose()
         suites = (await host.client.suites.list("channels")).values
+        # The Catalog Declares the Procedure Before Any Case Is Materialized.
+        declared = (await host.client.suites.get(suites[0].metadata.identifier, "", 0)).value.templates[0].steps
+        self.assertEqual(
+            [(item.metadata.identifier, item.metadata.label, item.operation) for item in declared],
+            [("measure", "Measure", "example.channels.step.0")],
+        )
         plan = SelectionPlan(
             selections=[
                 RegisteredSelection(

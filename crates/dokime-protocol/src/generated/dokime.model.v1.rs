@@ -2260,6 +2260,8 @@ pub struct TestCaseTemplate {
     pub cleanup: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, repeated, tag = "9")]
     pub parameter_groups: ::prost::alloc::vec::Vec<Metadata>,
+    #[prost(message, repeated, tag = "10")]
+    pub steps: ::prost::alloc::vec::Vec<Step>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]

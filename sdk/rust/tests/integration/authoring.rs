@@ -103,6 +103,9 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
     let suites = Suites::decode(section.payload.as_slice())?;
     let template = &suites.suites[0].templates[0];
     assert_eq!(template.metadata.as_ref().ok_or("Missing Metadata")?.identifier, "thermal.cycle");
+    // The Catalog Declares the Procedure in Order Before Any Case Is Materialized.
+    let declared = template.steps.iter().map(|step| (step.metadata.as_ref().unwrap().identifier.as_str(), step.operation.as_str()));
+    assert_eq!(declared.collect::<Vec<_>>(), [("ramp", "thermal.cycle.step.0"), ("hold", "thermal.cycle.step.1")]);
     let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(declarations.types.clone().ok_or("Missing Types")?)?;
     assert!(pool.get_message_by_name("thermal.Door").is_some());
     assert_eq!(

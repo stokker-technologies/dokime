@@ -79,6 +79,11 @@ TEST_CASE("Author Materializes a Suite") {
       check(suites.ParseFromString(section.payload()), "Suite Did Not Decode");
   check(suites.suites_size() == 1 && suites.suites(0).templates(0).materialize() == "sample.measure.materialize",
         "Suite Was Not Registered");
+  // The Catalog Declares the Procedure Before Any Case Is Materialized.
+  const auto &declared = suites.suites(0).templates(0);
+  check(declared.steps_size() == 1 && declared.steps(0).metadata().identifier() == "capture" &&
+            declared.steps(0).metadata().label() == "Capture" && declared.steps(0).operation() == "sample.measure.step.0",
+        "Template Did Not Declare Its Steps");
   // Decode Published Prompt Definitions with Their Shared Declaration Type.
   PromptDefinitions prompts;
   for (const auto &section : declarations.sections())

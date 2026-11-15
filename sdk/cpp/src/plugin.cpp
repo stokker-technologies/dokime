@@ -232,6 +232,8 @@ Plugin &Plugin::suite(Suite suite) {
           state->close(request.execution());
           return ExecutionsCleanupResponse{};
         }));
+    // Declare the Procedure on the Template So Catalogs Show It Before Materialization.
+    *value.definition.mutable_steps() = test_case.steps();
     *declaration.add_templates() = move(value.definition);
   }
   *suites_.add_suites() = move(declaration);

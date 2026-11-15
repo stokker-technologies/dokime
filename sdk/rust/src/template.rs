@@ -305,6 +305,8 @@ impl Template {
             });
             criteria.push((operation, criterion));
         }
+        // Declare the Procedure on the Template So Catalogs Show It Before Materialization.
+        self.definition.steps = case.steps.clone();
         if self.initialize.is_none() && !case.streams.is_empty() {
             self.initialize = Some(operation::action(async |_: &Context| Ok(())));
         }

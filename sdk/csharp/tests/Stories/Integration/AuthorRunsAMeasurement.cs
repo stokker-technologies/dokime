@@ -59,6 +59,9 @@ public sealed class AuthorRunsAMeasurement
     var testCase = (await server.Wire.InvokeAsync<TestCasesMaterializeResponse>(description, "journey.measure.materialize", materialize)).TestCase;
     var repeated = (await server.Wire.InvokeAsync<TestCasesMaterializeResponse>(description, "journey.measure.materialize", materialize)).TestCase;
     Assert.Equal(testCase, repeated);
+    // The Catalog Declares the Procedure Before Any Case Is Materialized.
+    var catalog = Suites.Parser.ParseFrom(description.Declarations.Sections.Single(item => item.Type == Suites.Descriptor.FullName).Payload);
+    Assert.Equal(testCase.Steps, Assert.Single(Assert.Single(catalog.Suites_).Templates).Steps);
     Assert.Equal(3u, description.Declarations.Operations.Single(item => item.Id == testCase.Steps[0].Operation).Policy.Retries.TotalAttempts);
     Assert.Equal(0, instrument.Reads);
     var origin = new Origin { PluginRun = new PluginRun { Plugin = "journey", Template = materialize.Template, TestCase = testCase.Clone(), Digest = description.Declarations.Digest, StartedAt = description.StartedAt } };

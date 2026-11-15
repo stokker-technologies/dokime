@@ -21,6 +21,9 @@ Execution-local resources belong to the SDK's context/resource mechanism;
 Python keeps them on the suite instance. Initialize acquires resources and cleanup
 releases them, including after cancellation. Materialization must remain pure.
 Typed records, samples, prompts, progress and logs use scoped host calls.
+Every SDK declares a template's steps, in order, on its catalog entry
+(`TestCaseTemplate.steps`), so the desktop library shows the procedure before
+any case exists; materialization can still reshape a case's steps.
 The [Execution Host Guide](execution-host.md) distinguishes served context calls
 from the remaining locked context work.
 
