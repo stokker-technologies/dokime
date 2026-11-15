@@ -233,8 +233,18 @@ impl ExecutionManager {
         Ok(())
     }
     pub(crate) fn spawn(&self, task: impl Future<Output = ()> + Send + 'static) -> Result<()> {
+        let runtime = tokio::runtime::Handle::try_current()
+            .map_err(|_| Error::Invalid("Start Host Work: Run the Host Inside Its Tokio Runtime".into()))?;
         let mut tasks = lock(&self.inner.tasks)?;
-        tasks.push(tokio::spawn(task));
+        tasks.push(runtime.spawn(task));
+        Ok(())
+    }
+    // An Abandoned Run Stays Active Until Its Binding Drains and Its Scope Is Released.
+    pub(crate) async fn settled(&self, execution: &str) -> Result<()> {
+        let mut changes = self.inner.changed.subscribe();
+        while self.is_active(execution)? {
+            changes.changed().await.map_err(|_| Error::Invalid("Settle Execution: Keep the Host Open While Its Run Drains".into()))?;
+        }
         Ok(())
     }
     pub(crate) fn register_cycle(&self, identifier: &str) -> Result<()> {

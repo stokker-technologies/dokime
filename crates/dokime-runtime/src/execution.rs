@@ -45,6 +45,7 @@ use dokime_protocol::plugin::{
 };
 use dokime_storage::{Execution, ExecutionSnapshot, OutcomeCounts};
 use harmos_protocol::host::PluginEntry;
+use harmos_runtime::plugin::grpc::ScopedBinding;
 
 /* === Constants === */
 
@@ -66,6 +67,11 @@ pub struct CycleResult {
     pub counts: OutcomeCounts,
 }
 struct ActiveRun {
+    binding: Option<ScopedBinding>,
+    release: Option<Release>,
+}
+// Releases the Run's Scope, Failures and Prompts When Dropped.
+struct Release {
     host: ExecutionManager,
     execution: String,
 }
@@ -93,19 +99,42 @@ impl Cycle {
         self.result.await.map_err(|_| Error::Invalid("Wait for Cycle: Inspect the Failed Execution Task".into()))?
     }
 }
+impl ActiveRun {
+    // Stop Scoped Calls and Await Accepted Ingestion; the Scope Stays Until Drop.
+    async fn close(&mut self) -> Result<()> {
+        let Some(binding) = self.binding.take() else { return Ok(()) };
+        binding.close().await.map_err(|source| Error::Invalid(format!("Close Execution Binding: {source}")))
+    }
+}
 impl Drop for ActiveRun {
     fn drop(&mut self) {
-        if let Ok(mut active) = self.host.inner.active.lock() {
-            active.remove(&self.execution);
+        // A Panic or Dropped Run Hands Its Binding to a Host Task That Drains Before Release.
+        // A Task That Never Runs Still Drops Both, Which Signals Close and Releases.
+        let (Some(binding), Some(release)) = (self.binding.take(), self.release.take()) else { return };
+        let host = release.host.clone();
+        let _ = host.spawn(async move {
+            if let Err(source) = binding.close().await {
+                let execution = &release.execution;
+                tracing::error!(%execution, %source, "Close Abandoned Execution Binding; Inspect the Interrupted Evidence");
+            }
+            drop(release);
+        });
+    }
+}
+impl Drop for Release {
+    fn drop(&mut self) {
+        let (host, execution) = (&self.host, self.execution.as_str());
+        if let Ok(mut active) = host.inner.active.lock() {
+            active.remove(execution);
         }
-        if let Ok(mut scopes) = self.host.inner.sample_scopes.lock() {
-            scopes.remove(&self.execution);
+        if let Ok(mut scopes) = host.inner.sample_scopes.lock() {
+            scopes.remove(execution);
         }
-        if let Ok(mut failures) = self.host.inner.sample_failures.lock() {
-            failures.remove(&self.execution);
+        if let Ok(mut failures) = host.inner.sample_failures.lock() {
+            failures.remove(execution);
         }
-        self.host.inner.prompts.clear(&self.execution);
-        self.host.signal_change();
+        host.inner.prompts.clear(execution);
+        host.signal_change();
     }
 }
 
@@ -218,6 +247,7 @@ fn launch(
                 workers.spawn(async move {
                     let result = drive(host.clone(), execution.clone(), origin, entry).await;
                     if result.is_err() {
+                        host.settled(&execution).await?;
                         let cut = host.inner.store.cut(&execution)?;
                         if cut.state == dokime_storage::ExecutionState::Open {
                             host.inner.store.close_streams(&execution)?;
@@ -273,6 +303,10 @@ fn launch(
         // Settle Every Admitted Execution Even If a Worker Failed to Join
         let mut result = result;
         for execution in observed {
+            // A Failed Worker's Binding Drains Before Its Streams Close.
+            if let Err(error) = host.settled(&execution).await {
+                result = Err(error);
+            }
             let settled = (|| -> Result<()> {
                 let cut = host.inner.store.cut(&execution)?;
                 if cut.state == dokime_storage::ExecutionState::Open {
@@ -309,9 +343,12 @@ async fn drive(
     host: ExecutionManager, execution: String, origin: Origin, entry: PluginEntry,
 ) -> Result<(ExecutionSnapshot, Vec<RunState>)> {
     let mut states = Vec::new();
-    let _active = ActiveRun {
-        host: host.clone(),
-        execution: execution.clone(),
+    let mut active = ActiveRun {
+        binding: None,
+        release: Some(Release {
+            host: host.clone(),
+            execution: execution.clone(),
+        }),
     };
     let cancellation = lock(&host.inner.active)?.get(&execution).unwrap().cancellation.clone();
     let control = lock(&host.inner.active)?.get(&execution).unwrap().control.clone();
@@ -346,6 +383,7 @@ async fn drive(
     let binding =
         runtime.bind_grpc(&activation, &execution, time.clock.clone()).await.map_err(|source| Error::ComposedStartup(Box::new(source)))?;
     // Close the Binding on Every Exit So Accepted Samples Drain Before the Scope Is Removed.
+    let binding = &*active.binding.insert(binding);
     let prepared: Result<(Resources, Termination, Vec<bool>, Result<()>)> = async {
         let resources = Resources {
             plugin: Arc::new(entry.clone()),
@@ -366,7 +404,7 @@ async fn drive(
         let mut dispatch = Dispatch {
             time: time.clone(),
             sample_failures: host.inner.sample_failures.clone(),
-            binding: &binding,
+            binding,
             resources,
             cancellation,
             controller: controller.map(Arc::new),
@@ -505,10 +543,22 @@ async fn drive(
         Ok((dispatch.resources, termination, evaluated, result))
     }
     .await;
-    let closed = binding.close().await;
+    let closed = active.close().await;
     host.settle_captures(&execution).await;
-    let (resources, mut termination, evaluated, result) = prepared?;
-    if let Err(error) = closed.map_err(|source| Error::Invalid(format!("Close Execution Binding: {source}"))) {
+    // Keep the Run's Failure First and Attach a Failed Close.
+    let (resources, mut termination, evaluated, result) = match prepared {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            return Err(match closed {
+                Ok(()) => error,
+                Err(close) => Error::Unsettled {
+                    run: Box::new(error),
+                    close: Box::new(close),
+                },
+            });
+        }
+    };
+    if let Err(error) = closed {
         termination = Termination::Interrupted;
         resources.evidence("streams:failure", error.to_string().into_bytes(), None)?;
     }
