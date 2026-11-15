@@ -2,3 +2,5 @@ syntax = "proto3";
 package thermal.v1;
 message Temperature { double celsius = 1; }
 message Door { bool closed = 1; }
+
+message Counter { uint64 value = 1; }

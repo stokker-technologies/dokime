@@ -22,6 +22,7 @@ using std::invalid_argument;
 using std::make_shared;
 using std::move;
 using std::string;
+using thermal::v1::Counter;
 using thermal::v1::Door;
 using thermal::v1::Temperature;
 
@@ -37,7 +38,7 @@ int main(int argc, char **argv) {
     *parameter->mutable_metadata() = metadata("limit", "Limit");
     parameter->set_type(VALUE_TYPE_NUMBER);
     parameter->mutable_expression()->mutable_literal()->set_number(85);
-    value.streams = {"thermal.temperature"};
+    value.streams = {"thermal.temperature", "thermal.counter"};
     value.initialize = [](Context &ctx) {
       ctx.set(make_shared<Bench>(Bench{ctx.parameters().at("limit").number()}));
       auto host = ctx.host();
@@ -100,6 +101,16 @@ int main(int argc, char **argv) {
                                    {},
                                    {}};
     observer.interval.set_seconds(1);
+    Stream<Counter> counter("thermal.counter");
+    Observer<Counter> counter_observer{counter,
+                                       [](Context &) {
+                                         Counter sample;
+                                         sample.set_value(1152921504606847975ULL);
+                                         return sample;
+                                       },
+                                       {},
+                                       {}};
+    counter_observer.interval.set_nanos(1000000);
     RecordContract door;
     *door.mutable_metadata() = metadata("thermal.door", "Door Check");
     Prompt prompt;
@@ -116,6 +127,8 @@ int main(int argc, char **argv) {
     plugin.context_operations()
         .stream(temperature)
         .observer(move(observer))
+        .stream(counter)
+        .observer(move(counter_observer))
         .record<Door>(move(door))
         .prompt(move(prompt))
         .suite({metadata("thermal", "Thermal"), {move(value)}});

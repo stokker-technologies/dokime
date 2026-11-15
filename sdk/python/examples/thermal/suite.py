@@ -30,6 +30,7 @@ def row_type(name: str, field: str, kind: int) -> type[Message]:
 
 
 Temperature = row_type("Temperature", "celsius", descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE)
+Counter = row_type("Counter", "value", descriptor_pb2.FieldDescriptorProto.TYPE_UINT64)
 Door = row_type("Door", "closed", descriptor_pb2.FieldDescriptorProto.TYPE_BOOL)
 
 
@@ -56,6 +57,11 @@ class Thermal:
     @observer(interval_ms=1000)
     def temperature(self, ctx: Context) -> Message:
         return Temperature(celsius=self.limit - 1.0)
+
+    @stream("Exact Counter", identifier="thermal.counter", row=Counter)
+    @observer(interval_ms=1)
+    def counter(self, ctx: Context) -> Message:
+        return Counter(value=1_152_921_504_606_847_975)
 
     @criterion("Temperature Within Limit", identifier="within_limit")
     async def within_limit(self, ctx: Context) -> bool:

@@ -13,11 +13,13 @@ using ValueType = Dokime.ValueType;
 
 var door = new Record<Door>("thermal.door", "Door Check");
 var temperature = new Stream<Temperature>("thermal.temperature");
+var counter = new Stream<Counter>("thermal.counter");
 var template = new Template("thermal.cycle", "Thermal Cycle")
     .Parameter(new Parameter { Metadata = new Metadata { Identifier = "limit", Label = "Limit" }, Type = ValueType.Number, Expression = new ParameterExpression { Literal = new Value { Number = 85 } } })
     .Resource(context => Task.FromResult<IAsyncDisposable>(new Bench(context.Parameters["limit"].Number)))
     .Initialize(async context => await context.LogAsync(Severity.Info, "Initialized"))
     .Observer(new Observer<Temperature>(temperature, new Duration { Seconds = 1 }, context => Task.FromResult(new Temperature { Celsius = context.Resource<Bench>().Limit - 1 })))
+    .Observer(new Observer<Counter>(counter, new Duration { Nanos = 1_000_000 }, context => Task.FromResult(new Counter { Value = 1_152_921_504_606_847_975 })))
     .Step(new Step("ramp", "Ramp to Target", async context =>
     {
       var current = await context.Host.Executions.Progress.Get();
