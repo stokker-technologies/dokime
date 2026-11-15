@@ -126,6 +126,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
             presentation: metric.presentation,
             state: metric.state,
             value: metric.formatted,
+            exactValue: metric.exact ?? undefined,
           })),
         }))}
         storageKey={metricFlowStorageKey({
