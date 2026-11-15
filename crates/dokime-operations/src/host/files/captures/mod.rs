@@ -103,10 +103,6 @@ impl Captures {
     pub fn settings(&self) -> &CaptureSettings {
         &self.settings
     }
-    /// Captures Still Admitted for an Execution, Sealed or Not.
-    pub fn retained(&self, execution: &str) -> usize {
-        self.lock().values().filter(|entry| entry.execution == execution).count()
-    }
     /// Seals Every Running Capture of an Ending Execution, Then Forgets Them All.
     ///
     /// The execution calls this before closing its evidence, after its plugin calls settled;
@@ -131,7 +127,7 @@ impl Captures {
         let mut entries = self.lock();
         let running = entries.values().filter(|entry| entry.outcome.borrow().is_none()).count();
         if running >= self.settings.maximum_captures {
-            return Err(Error::Bound(format!("{}: Stop a Running Capture or Raise the Host's Capture Capacity", start::ID)));
+            return Err(Error::Bound("Capture Files: Stop a Running Capture or Raise the Host's Capture Capacity".into()));
         }
         let identifier = capture.identifier();
         let (outcome, _) = watch::channel(None);

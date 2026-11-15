@@ -45,10 +45,13 @@ crate::native::unary!(FilesCaptureRequest, FilesCaptureResponse, context, "dokim
 
 /* === Public Functions === */
 
-/// Copies the source once, as it is now; a cancelled reply leaves sealing running to completion.
+/// Copies the source once, as it is now; the execution owns the copy, so a cancelled reply leaves
+/// sealing running and the execution waits for it before closing its evidence.
 pub async fn handle(context: &Context, request: FilesCaptureRequest) -> Result<FilesCaptureResponse> {
+    let caller = context.caller.as_ref().ok_or_else(|| Error::Permission(format!("{ID}: Call From a Plugin Execution")))?;
     let capture = Capture::open(context, ID, request.source.as_ref(), &request.output, Mode::Copy).await?;
-    let sealed = tokio::spawn(capture.seal()).await.map_err(|error| Error::Unavailable(format!("{ID}: Retry the Copy: {error}")))??;
+    let identifier = context.captures.admit(capture)?;
+    let sealed = context.captures.stop(&caller.execution, identifier).await?;
     Ok(FilesCaptureResponse {
         artifacts: sealed.artifacts,
         gaps: sealed.gaps,
