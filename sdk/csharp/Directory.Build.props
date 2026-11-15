@@ -10,7 +10,6 @@
     <NuGetLockFilePath>$(MSBuildProjectDirectory)/packages.lock.json</NuGetLockFilePath>
     <UseArtifactsOutput>true</UseArtifactsOutput>
     <ArtifactsPath>$(RepoRoot)target/cs</ArtifactsPath>
-    <ArtifactsPath Condition="'$(DokimeGeneratedOnly)' == 'true'">$(RepoRoot)target/cs/generation</ArtifactsPath>
     <RestorePackagesPath>$(ArtifactsPath)/packages</RestorePackagesPath>
     <PackageOutputPath>$(ArtifactsPath)/feed</PackageOutputPath>
     <IsPackable>false</IsPackable>

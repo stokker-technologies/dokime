@@ -125,6 +125,6 @@ run = [
 [tasks."test:generation"]
 description = "Compile the Generated Client and Plugin Consumer"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" restore tests/Generation/Generation.csproj --configfile NuGet.Config --locked-mode -p:DokimeGeneratedOnly=true',
-  '"{{tools.dotnet.path}}/dotnet" build tests/Generation/Generation.csproj --configuration Release --no-restore -p:DokimeGeneratedOnly=true',
+  '"{{tools.dotnet.path}}/dotnet" restore tests/Generation/Generation.csproj --configfile NuGet.Config --locked-mode',
+  '"{{tools.dotnet.path}}/dotnet" build tests/Generation/Generation.csproj --configuration Release --no-restore',
 ]
