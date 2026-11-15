@@ -16,7 +16,7 @@ from uuid import uuid4
 
 # Third Party Imports
 from google.protobuf.wrappers_pb2 import BoolValue
-from harmos.client import PluginPlacement, PluginRemote, PluginValue
+from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
 
 # Local Imports
 from host import Host
@@ -49,7 +49,20 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
         endpoint = await plugin().start("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
         self.addAsyncCleanup(host.close)
-        created = await host.client.plugins.create("example", PluginPlacement(remote=PluginRemote(url=endpoint.url)), PluginValue())
+        created = await host.client.plugins.create(
+            "example", PluginPlacement(remote=PluginRemote(url=endpoint.url)), PluginValue(enabled=True)
+        )
+        entry = created.entry
+        watching = host.client.plugins.watch(name=entry.name)
+        try:
+            while entry.state != PLUGIN_STATE_READY:
+                if entry.HasField("failure"):
+                    raise RuntimeError(f"Await Example Plugin Ready: {entry.failure}")
+                if await anext(watching, None) is None:
+                    raise RuntimeError("Await Example Plugin Ready: Watch Closed")
+                entry = (await host.client.plugins.get(entry.name)).entry
+        finally:
+            await watching.aclose()
         suites = (await host.client.suites.list(created.entry.name)).values
         self.assertEqual(len(suites), 1)
         suite = (await host.client.suites.get(suites[0].metadata.identifier, created.entry.name, 1)).value
@@ -59,7 +72,7 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item.metadata.identifier for item in case.steps], ["confirm"])
 
         # Await The Operator Question And Answer With The Client Root.
-        cycle = (await host.client.cycles.create([], Metadata(), True, "")).cycle
+        cycle = (await host.client.cycles.create([], Metadata(label="Example Capture"), True, "")).cycle
         execution_id = str(uuid4())
         await host.client.executions.create(cycle.cycle_id, [ExecutionBinding(execution_id=execution_id, case_id=cases[0].case_id)])
         finished = False

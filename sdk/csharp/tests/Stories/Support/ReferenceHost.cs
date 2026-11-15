@@ -10,7 +10,7 @@ internal static class ReferenceHost
   {
     var path = Environment.GetEnvironmentVariable(name);
     if (string.IsNullOrEmpty(path) || !File.Exists(path))
-      throw new InvalidOperationException($"Missing Build Output: {name}; Run mise -C sdk/csharp run build:reference and build:tests");
+      throw new InvalidOperationException($"Missing Build Output: {name}; Run mise -C sdk/csharp run build:reference and build");
     return path;
   }
 

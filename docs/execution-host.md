@@ -108,9 +108,12 @@ portable regular-file paths, matching size/digest inventory and a compatible
 `dokime.json`. Managed entries start on restart; disabled installations stay
 disabled. Replacement retains that state and restores the previous entry when
 starting its replacement fails. Removing an entry preserves execution evidence.
-An installation deadline cancels pending startup and settles rollback before
-reporting failure: the owned child is stopped and reaped, its installation is
-removed, and a previous installation is restored when present.
+The library owns installation deadlines, startup cancellation and rollback.
+At the current pin, deleting a managed entry during startup can refuse on Windows
+with `Delete Plugin Installation: Access is denied. (os error 5)`: cancellation
+requests child termination but does not await exit before removing its files.
+The native manager must reap that child before removal; product callers do not
+retry deletion or change its deadline to conceal this refusal.
 A commit that wins cancellation is acknowledged with its durable result.
 Remote entries retain URL identity and descriptions while unavailable, and
 reload reconnects them without taking ownership of the remote process. Plugin,
