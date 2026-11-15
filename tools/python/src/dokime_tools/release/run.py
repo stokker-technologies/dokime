@@ -626,7 +626,7 @@ def rehearse(
     targets = list(settings.get("targets", [])) if selected == "all" else [selected]
     with policy.credential_free(settings, profile=profile):
         _refuse_overrides(directory)
-        if not hosted and targets == [native_target(settings)] and not stage_only:
+        if not hosted and not stage_only and targets == [native_target(settings)]:
             policy.execute(directory, ["mise", "run", "build", "--", "--language", "python", "--profile", profile])
             policy.execute(directory, ["mise", "run", "build", "--", "--profile", profile])
             policy.execute(directory, ["mise", "run", "package", "--", "--profile", profile, "--target", targets[0]])
