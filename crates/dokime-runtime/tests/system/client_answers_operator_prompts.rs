@@ -67,7 +67,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Connect the Operator to a Real Host and Plugin
             let root = super::support::tempdir()?;
@@ -310,5 +310,5 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
             Ok::<_, Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

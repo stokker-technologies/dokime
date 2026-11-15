@@ -60,7 +60,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn execution_outcomes() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Materialize an Evaluated and a Criterion-Free Execution
             let root = super::support::tempdir()?;
@@ -220,5 +220,5 @@ fn execution_outcomes() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

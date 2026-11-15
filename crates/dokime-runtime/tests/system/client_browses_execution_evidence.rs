@@ -75,7 +75,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Prepare Two Independent Imported Executions with Frozen Schemas
             let root = super::support::tempdir()?;
@@ -354,5 +354,5 @@ fn client_browses_execution_evidence() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

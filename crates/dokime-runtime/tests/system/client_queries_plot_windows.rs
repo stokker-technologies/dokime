@@ -66,7 +66,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Retain More Than Two Million Samples as Ordinary Durable Evidence
             let root = super::support::tempdir()?;
@@ -195,5 +195,5 @@ fn client_queries_plot_windows() -> Result<(), Box<dyn StdError>> {
             Ok::<(), Box<dyn StdError>>(())
         })
         .await?
-    })
+    }))
 }

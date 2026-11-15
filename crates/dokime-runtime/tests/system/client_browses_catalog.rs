@@ -51,7 +51,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_browses_catalog() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Start a Real Host and Admit the Shared Plugin
             let root = super::support::tempdir()?;
@@ -155,5 +155,5 @@ fn client_browses_catalog() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

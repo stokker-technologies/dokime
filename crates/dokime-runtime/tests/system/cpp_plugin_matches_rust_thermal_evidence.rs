@@ -52,7 +52,7 @@ use std::error::Error;
 
 #[test]
 fn cpp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Run the Rust Reference and Each SDK Placement with the Same Controlled Inputs
             let mut reference = None;
@@ -136,7 +136,7 @@ fn cpp_plugin_matches_rust_thermal_evidence() -> Result<(), Box<dyn Error>> {
             Ok(())
         })
         .await?
-    })
+    }))
 }
 
 /* === Tests === */

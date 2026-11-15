@@ -115,7 +115,7 @@ async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadRes
 
 #[test]
 fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Result<(), Box<dyn StdError>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
         time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Create One Declared Binding Through the Library Entry
@@ -204,12 +204,12 @@ fn plugin_secret_bindings_reconcile_on_restart_and_entry_deletion() -> Result<()
             Ok::<(), Box<dyn StdError>>(())
         })
         .await?
-    })
+    }))
 }
 
 #[test]
 fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Connect Two Plugins with Different Secret Declarations
             let root = super::support::tempdir()?;
@@ -365,5 +365,5 @@ fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
             Ok::<(), Box<dyn StdError>>(())
         })
         .await?
-    })
+    }))
 }

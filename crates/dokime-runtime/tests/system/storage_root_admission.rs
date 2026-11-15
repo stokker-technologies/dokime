@@ -50,7 +50,7 @@ use std::fs::OpenOptions;
 
 #[test]
 fn incompatible_content_roots_are_refused_without_resetting_evidence() -> Result<(), Box<dyn ErrorError>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         let root = super::support::tempdir()?;
         let store = Store::open(root.path())?;
         let execution = Execution {
@@ -79,12 +79,12 @@ fn incompatible_content_roots_are_refused_without_resetting_evidence() -> Result
         assert_eq!(store.cut(&identifier)?.state, ExecutionState::Open);
         assert!(store.has_incompatible_content()?);
         Ok(())
-    })
+    }))
 }
 
 #[test]
 fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn ErrorError>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         // Refuse An External Lease Before Creating The Evidence Database
         let root = super::support::tempdir()?;
         let lease = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(root.path().join("local.lock"))?;
@@ -122,5 +122,5 @@ fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn E
         let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         host.shutdown().await?;
         Ok(())
-    })
+    }))
 }

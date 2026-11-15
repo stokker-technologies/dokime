@@ -48,7 +48,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_cancels_managed_installation() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Await a Startup Event From the Owned Managed Child
             let listener = TcpListener::bind("127.0.0.1:0").await?;
@@ -87,5 +87,5 @@ fn client_cancels_managed_installation() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

@@ -61,7 +61,7 @@ use std::io::Read;
 
 #[test]
 fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Inspect and Cancel an Active Plugin Run
             let root = super::support::tempdir()?;
@@ -184,5 +184,5 @@ fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
             Ok::<(), Box<dyn StdError>>(())
         })
         .await?
-    })
+    }))
 }

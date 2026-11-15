@@ -98,6 +98,8 @@ Runtime stories own their Tokio runtime through `tests/support/credentials.rs::r
 An occupied temporary root is retained until runtime teardown has cancelled its
 detached work; credential removal and root disposal then run outside that runtime.
 This prevents cleanup from blocking the runtime that must release the root lease.
+Stories pass boxed futures through this boundary so fixture ownership does not
+multiply the stack space required by large client journeys.
 
 Plugins, Catalog, Settings, Secrets, Appearance and evidence Health
 serve every declared method, including their Run transports. Plugin installation

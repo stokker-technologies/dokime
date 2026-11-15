@@ -43,7 +43,7 @@
 
 #[test]
 fn operator_inspects_contract() -> Result<(), Box<dyn std::error::Error>> {
-    super::credentials::run(async {
+    super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             // Discover a Public Operation Before Inspecting Its Contract
             let host = super::HostProcess::start().await?;
@@ -73,5 +73,5 @@ fn operator_inspects_contract() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         })
         .await?
-    })
+    }))
 }

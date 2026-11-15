@@ -43,7 +43,7 @@
 
 #[test]
 fn operator_pairs_with_host() -> Result<(), Box<dyn std::error::Error>> {
-    super::credentials::run(async {
+    super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             // Export Access, Enabling the Host's Saved Listener Automatically
             let host = super::HostProcess::start().await?;
@@ -166,5 +166,5 @@ fn operator_pairs_with_host() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         })
         .await?
-    })
+    }))
 }

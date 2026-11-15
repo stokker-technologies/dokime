@@ -43,7 +43,7 @@
 
 #[test]
 fn operator_identifies_build() -> Result<(), Box<dyn std::error::Error>> {
-    super::credentials::run(async {
+    super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             // Identify the Client Before Connecting to the Host It Will Control
             let version: serde_json::Value = serde_json::from_str(&super::run(&["version", "--json"]).await?)?;
@@ -69,5 +69,5 @@ fn operator_identifies_build() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         })
         .await?
-    })
+    }))
 }

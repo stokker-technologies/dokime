@@ -189,7 +189,7 @@ impl Instance for AnalysisProvider {
 
 #[test]
 fn client_queries_advanced_plots() -> Result<(), Box<dyn StdError>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD,async {
         // Retain Correlated Streams and Numeric Group Labels
         let root=super::support::tempdir()?;
@@ -333,5 +333,5 @@ malformed.analysis.as_mut().unwrap().parameters=Some(MapValue {values:HashMap::f
 provider_task.await??;
         Ok::<_,Box<dyn StdError>>(())
     }).await?
-    })
+    }))
 }

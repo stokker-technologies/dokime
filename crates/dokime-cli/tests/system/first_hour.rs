@@ -43,7 +43,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 
 #[test]
 fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn std::error::Error>> {
-    super::credentials::run(async {
+    super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             // Create a Rust Project From the Embedded SDK Starter
             let directory = super::credentials::tempdir()?;
@@ -253,7 +253,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn std::err
             Ok(())
         })
         .await?
-    })
+    }))
 }
 
 /* === Tests === */

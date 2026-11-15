@@ -54,7 +54,7 @@ use std::error::Error;
 
 #[test]
 fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Prepare a Fresh Evidence Root and the Shared SDK Plugin
             let root = super::support::tempdir()?;
@@ -153,7 +153,7 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 /* === Tests === */

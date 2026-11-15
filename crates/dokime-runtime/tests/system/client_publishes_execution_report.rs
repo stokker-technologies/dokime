@@ -58,7 +58,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Prepare Sealed Evidence and Its Selected Document
             let root = super::support::tempdir()?;
@@ -197,5 +197,5 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

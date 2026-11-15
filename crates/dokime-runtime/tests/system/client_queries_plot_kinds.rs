@@ -77,7 +77,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_queries_plot_kinds() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Retain Numeric Coordinates, Categories and a Known Sampled Signal
             let root = super::support::tempdir()?;
@@ -305,12 +305,12 @@ fn client_queries_plot_kinds() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 #[test]
 fn sealed_plot_watch_returns_its_query_and_completes() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Store One Frozen Numeric Row.
             let root = super::support::tempdir()?;
@@ -393,5 +393,5 @@ fn sealed_plot_watch_returns_its_query_and_completes() -> Result<(), Box<dyn Err
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

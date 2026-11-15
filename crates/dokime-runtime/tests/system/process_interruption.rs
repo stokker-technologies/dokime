@@ -57,7 +57,7 @@ use tokio::process::Command;
 
 #[test]
 fn process_interruption() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Run the Production Host in a Separately Killable Process
             if let Some(root) = std::env::var_os("DOKIME_INTERRUPTION_CHILD") {
@@ -128,5 +128,5 @@ fn process_interruption() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

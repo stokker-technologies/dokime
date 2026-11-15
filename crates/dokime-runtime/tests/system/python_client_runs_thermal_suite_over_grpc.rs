@@ -49,7 +49,7 @@ use tokio::process::Command;
 
 #[test]
 fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Prepare the Installed Pure SDK and Launch the Real Plugin and Host
             let root = super::support::tempdir()?;
@@ -93,5 +93,5 @@ fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             Ok(())
         })
         .await?
-    })
+    }))
 }

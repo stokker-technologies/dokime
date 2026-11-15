@@ -62,7 +62,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Start the Product and Admit the Plugin Through Its Client API
             let root = support::tempdir()?;
@@ -221,5 +221,5 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

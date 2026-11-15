@@ -314,7 +314,7 @@ fn direct_admission_refuses_each_wrong_caller_direction() {
 
 #[test]
 fn clients_cannot_call_plugin_operations_over_typed_or_encoded_grpc() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
         use dokime_protocol::host::evidence::{LogsAppendRequest, logs_client::LogsClient};
         use harmos_protocol::model::{Classification, Failure};
@@ -341,12 +341,12 @@ fn clients_cannot_call_plugin_operations_over_typed_or_encoded_grpc() -> Result<
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 #[test]
 fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
         use dokime::client::{ExecutionOutcome, PluginPlacement, PluginRemote, PluginValue};
         use dokime::origin::Kind as OriginKind;
@@ -512,12 +512,12 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 #[test]
 fn execution_isolation() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Start Three Executions Before Releasing Any Measurement
             let root = super::support::tempdir()?;
@@ -565,5 +565,5 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

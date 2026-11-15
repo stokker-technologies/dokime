@@ -47,7 +47,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Create a Remote Entry Through the Composed Library Resource
             let root = support::tempdir()?;
@@ -105,5 +105,5 @@ fn client_manages_plugin_entries() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

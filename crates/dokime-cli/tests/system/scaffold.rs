@@ -41,7 +41,7 @@
 
 #[test]
 fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn std::error::Error>> {
-    super::credentials::run(async {
+    super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             let directory = super::credentials::tempdir()?;
             for (language, examples, folders) in [
@@ -106,7 +106,7 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
             Ok(())
         })
         .await?
-    })
+    }))
 }
 
 /* === Tests === */

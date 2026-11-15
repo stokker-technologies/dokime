@@ -64,7 +64,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Start the Host and Run a Real Plugin Until Its Prompt
             let root = support::tempdir()?;
@@ -321,5 +321,5 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

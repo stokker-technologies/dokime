@@ -47,7 +47,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Upload a Verified Bundle Before Creating the Library Entry
             let executable = std::fs::read(support::thermal_fixture()?)?;
@@ -116,5 +116,5 @@ fn client_installs_and_removes_managed_plugins() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

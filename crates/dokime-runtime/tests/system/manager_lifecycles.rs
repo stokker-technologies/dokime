@@ -57,7 +57,7 @@ use std::sync::Arc;
 
 #[test]
 fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Admit Two Executions on the Controlled Clock
             let root = super::support::tempdir()?;
@@ -102,12 +102,12 @@ fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn Err
             Ok::<_, Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 #[test]
 fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Refuse Cancel While the Admitted Execution Is Still Queued
             let root = super::support::tempdir()?;
@@ -151,12 +151,12 @@ fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn Error>> {
             Ok::<_, Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 #[test]
 fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Run and Seal the Evidence Before Rendering
             let root = super::support::tempdir()?;
@@ -214,5 +214,5 @@ fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn Error>
             Ok::<_, Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

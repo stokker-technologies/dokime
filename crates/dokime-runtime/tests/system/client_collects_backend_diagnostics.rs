@@ -67,7 +67,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_collects_backend_diagnostics() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Read Host Identity and Subscribe Before a Component Appears
             let root = super::support::tempdir()?;
@@ -249,5 +249,5 @@ fn client_collects_backend_diagnostics() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

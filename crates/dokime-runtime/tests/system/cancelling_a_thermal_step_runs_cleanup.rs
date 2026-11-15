@@ -49,7 +49,7 @@ use std::error::Error;
 
 #[test]
 fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Add the Shared Suite as a Managed Plugin
             let root = super::support::tempdir()?;
@@ -91,7 +91,7 @@ fn cancelling_a_thermal_step_runs_cleanup() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 /* === Tests === */

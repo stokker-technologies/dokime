@@ -71,7 +71,7 @@ fn failed_live_story_removes_its_access_credential() {
     let created = std::sync::Arc::new(std::sync::Mutex::new(None));
     let recorded = created.clone();
     let failure = std::panic::catch_unwind(move || {
-        super::support::run(async {
+        super::support::run(Box::pin(async {
             let root = super::support::tempdir().unwrap();
             let _process = super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &[]).await.unwrap();
             let store = Store::open(root.path()).unwrap();
@@ -82,7 +82,7 @@ fn failed_live_story_removes_its_access_credential() {
             assert!(!credential.get_password().unwrap().is_empty());
             *recorded.lock().unwrap() = Some((name, root.path().to_owned()));
             panic!("Simulated Failure With a Live Host");
-        })
+        }))
     });
     assert!(failure.is_err());
     let (name, root) = created.lock().unwrap().take().expect("The Story Created Its Credential Before Failing");
@@ -92,7 +92,7 @@ fn failed_live_story_removes_its_access_credential() {
 
 #[test]
 fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             for fails in [false, true] {
                 // Start Through the Product Journey and Read Its Published Credential by Name
@@ -176,5 +176,5 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

@@ -203,7 +203,7 @@ impl Drop for CredentialStore {
 
 /* === Public Functions === */
 
-pub fn run<T>(story: impl std::future::Future<Output = T>) -> T {
+pub fn run<T>(story: std::pin::Pin<Box<impl std::future::Future<Output = T>>>) -> T {
     let roots = Arc::new(Mutex::new(Vec::new()));
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runtime.block_on(ROOTS.scope(roots.clone(), story))));

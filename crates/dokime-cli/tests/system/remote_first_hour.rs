@@ -46,7 +46,7 @@ use dokime_protocol::host::{CasesCreateResponse, ExecutionsCreateRequest};
 
 #[test]
 fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::error::Error>> {
-    super::credentials::run(async {
+    super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             let mut failures = Vec::new();
             for language in ["rust", "python"] {
@@ -297,7 +297,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn std::error::Er
             Ok(())
         })
         .await?
-    })
+    }))
 }
 
 /* === Tests === */

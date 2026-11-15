@@ -82,7 +82,7 @@ impl Instance for SettingsPlugin {
 
 #[test]
 fn client_edits_settings() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Declare Typed Library Settings on a Real Plugin Carrier
             let declarations = SettingsDeclarations {
@@ -223,5 +223,5 @@ fn client_edits_settings() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

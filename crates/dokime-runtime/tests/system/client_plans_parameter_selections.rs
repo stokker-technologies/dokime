@@ -60,7 +60,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_plans_parameter_selections() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Inspect the Library and Preview Repeated Selections Without Starting
             let root = super::support::tempdir()?;
@@ -237,5 +237,5 @@ fn client_plans_parameter_selections() -> Result<(), Box<dyn Error>> {
             Ok::<_, Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

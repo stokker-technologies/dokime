@@ -54,7 +54,7 @@ fn files(root: &std::path::Path) -> std::io::Result<std::collections::BTreeMap<s
 
 #[test]
 fn operator_diagnoses_storage() -> Result<(), Box<dyn std::error::Error>> {
-    super::credentials::run(async {
+    super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             // Probe the Same Store a User Has Just Served
             let mut host = super::HostProcess::start().await?;
@@ -93,5 +93,5 @@ fn operator_diagnoses_storage() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         })
         .await?
-    })
+    }))
 }

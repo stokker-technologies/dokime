@@ -43,7 +43,7 @@
 
 #[test]
 fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
-    super::credentials::run(async {
+    super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             // Discover the Public Status Contract and Invoke Its Typed Empty Request
             let host = super::HostProcess::start().await?;
@@ -147,5 +147,5 @@ fn operator_calls_operation() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         })
         .await?
-    })
+    }))
 }

@@ -117,7 +117,7 @@ impl HostProcess {
 
 #[test]
 fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
         // Start a Real Host Process and the Shared Thermal Plugin
         let root = super::support::tempdir()?;
@@ -340,5 +340,5 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
         plugin.close().await?;
         Ok(())
     }).await?
-    })
+    }))
 }

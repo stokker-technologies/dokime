@@ -108,7 +108,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Prepare a Frozen Catalog with an Authored Document
             let root = super::support::tempdir()?;
@@ -745,5 +745,5 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             Ok::<_, Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

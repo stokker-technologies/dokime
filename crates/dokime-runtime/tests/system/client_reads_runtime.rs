@@ -72,7 +72,7 @@ impl SchedulerClock for ObservedClock {
 
 #[test]
 fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         use dokime_protocol::host::{CyclesCreateRequest, CyclesCreateResponse};
         use prost::Message;
         use tonic::Code;
@@ -131,12 +131,12 @@ fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Result<()
         }
         server.close().await?;
         Ok(())
-    })
+    }))
 }
 
 #[test]
 fn library_time_uses_the_execution_clock() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         use dokime_runtime::{ControlledClock, SchedulerClock, services};
         use prost_types::Duration;
         use std::sync::Arc;
@@ -171,12 +171,12 @@ fn library_time_uses_the_execution_clock() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 #[test]
 fn registered_backend_retains_uploaded_content_after_restart() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
         use sha2::{Digest, Sha256};
         tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
@@ -208,12 +208,12 @@ fn registered_backend_retains_uploaded_content_after_restart() -> Result<(), Box
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 #[test]
 fn client_reads_runtime() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Start a Real Host and Inspect Desktop Bootstrap Identity
             let root = super::support::tempdir()?;
@@ -255,5 +255,5 @@ fn client_reads_runtime() -> Result<(), Box<dyn Error>> {
             Ok::<(), Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }

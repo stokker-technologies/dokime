@@ -78,7 +78,7 @@ use tonic::transport::Endpoint;
 
 #[test]
 fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             use prost::Message;
             use std::io::Read;
@@ -173,12 +173,12 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
             Ok::<_, Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
 
 #[test]
 fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
-    super::support::run(async {
+    super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Prepare Registered Files and an Independent Execution
             let root = super::support::tempdir()?;
@@ -524,5 +524,5 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             Ok::<_, Box<dyn Error>>(())
         })
         .await?
-    })
+    }))
 }
