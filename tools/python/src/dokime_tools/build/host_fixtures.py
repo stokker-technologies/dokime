@@ -94,6 +94,17 @@ def build(profile: str, language: str = "auto") -> None:
         )
         shutil.copy2(root / "target/debug/examples" / f"content_fixture{extension}", output / f"content_fixture{extension}")
         shutil.copy2(root / "target/debug" / f"dokime-host{extension}", output / f"dokime-host{extension}")
+        # Build The OBC Charger Plugin The Desktop Stories And Screenshots Install.
+        subprocess.run(
+            ["mise", "run", "build", "--", "--cargo", "build", "--locked", "--package", "plugin-obc", "--bin", "plugin-obc"],
+            cwd=root,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        shutil.copy2(root / "target/debug" / f"plugin-obc{extension}", output / f"plugin-obc{extension}")
 
         # Build The Reference Host From The Same Library Revision As The Product.
         manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))

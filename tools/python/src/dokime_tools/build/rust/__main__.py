@@ -12,6 +12,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import os
 import subprocess
 import sys
 
@@ -27,7 +28,7 @@ from dokime_tools.package.staging import clear_output, stage_file
 # === Constants === #
 
 ROOT = configuration.ROOT
-EXECUTABLES = ("dokime", "dokime-host", "dokime-gui")
+EXECUTABLES = ("dokime", "dokime-host", "dokime-gui", "plugin-obc")
 
 # === Types === #
 
@@ -61,6 +62,28 @@ def build(profile: str) -> list[str]:
     for path in outputs.executables(messages, EXECUTABLES).values():
         stage_file(path, binaries / path.name)
         staged.append(binaries / path.name)
+
+    # Bundle the Shipped Plugin With the Command-Line Tool Built Beside It
+    extension = ".exe" if os.name == "nt" else ""
+    bundle = binaries / "plugin-obc.dokime"
+    subprocess.run(
+        [
+            str(binaries / f"dokime{extension}"),
+            "plugin",
+            "bundle",
+            "--executable",
+            str(binaries / f"plugin-obc{extension}"),
+            "--out",
+            str(bundle),
+        ],
+        cwd=ROOT,
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        stdin=sys.stdin,
+        stdout=sys.stderr,
+        stderr=sys.stderr,
+    )
+    staged.append(bundle)
     cargo.record_target(ROOT, messages, profile)
     return configuration.relative([*staged, messages, output / "product/target.txt"])
 
