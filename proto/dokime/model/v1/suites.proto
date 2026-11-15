@@ -9,6 +9,7 @@ package dokime.model.v1;
 // === Imports === //
 
 import "dokime/model/v1/documents.proto";
+import "dokime/model/v1/execution.proto";
 import "dokime/model/v1/metadata.proto";
 import "dokime/model/v1/parameters.proto";
 
@@ -47,6 +48,8 @@ message TestCaseTemplate {
   optional string initialize = 7;
   optional string cleanup = 8;
   repeated .dokime.model.v1.Metadata parameter_groups = 9;
+  // Declared procedure steps in order; materialization may still reshape a case.
+  repeated .dokime.model.v1.Step steps = 10;
 }
 
 // === Enums === //

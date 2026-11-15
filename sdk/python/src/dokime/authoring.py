@@ -136,6 +136,13 @@ class Template:
         )
         if "initialize" in self._methods:
             value.initialize = f"{self.identifier}.initialize"
+        # Declare the Procedure on the Template So Catalogs Show It Before Materialization.
+        for declared in self.steps:
+            entry = value.steps.add(
+                metadata={"identifier": declared.identifier or metadata(declared.label).identifier, "label": declared.label},
+                operation=self.operation(declared.handler, "step"),
+            )
+            entry.repeatable = declared.repeatable
         return value
 
     def build(self, parameters: dict[str, Scalar]) -> "Case":

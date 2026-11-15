@@ -1,4 +1,5 @@
 from dokime._wire.model.v1 import documents_pb2 as _documents_pb2
+from dokime._wire.model.v1 import execution_pb2 as _execution_pb2
 from dokime._wire.model.v1 import metadata_pb2 as _metadata_pb2
 from dokime._wire.model.v1 import parameters_pb2 as _parameters_pb2
 from google.protobuf.internal import containers as _containers
@@ -28,7 +29,7 @@ class Suite(_message.Message):
     def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., templates: _Optional[_Iterable[_Union[TestCaseTemplate, _Mapping]]] = ..., tags: _Optional[_Iterable[str]] = ..., parameter_groups: _Optional[_Iterable[_Union[_metadata_pb2.Metadata, _Mapping]]] = ...) -> None: ...
 
 class TestCaseTemplate(_message.Message):
-    __slots__ = ("metadata", "parameters", "files", "documents", "tags", "materialize", "initialize", "cleanup", "parameter_groups")
+    __slots__ = ("metadata", "parameters", "files", "documents", "tags", "materialize", "initialize", "cleanup", "parameter_groups", "steps")
     METADATA_FIELD_NUMBER: _ClassVar[int]
     PARAMETERS_FIELD_NUMBER: _ClassVar[int]
     FILES_FIELD_NUMBER: _ClassVar[int]
@@ -38,6 +39,7 @@ class TestCaseTemplate(_message.Message):
     INITIALIZE_FIELD_NUMBER: _ClassVar[int]
     CLEANUP_FIELD_NUMBER: _ClassVar[int]
     PARAMETER_GROUPS_FIELD_NUMBER: _ClassVar[int]
+    STEPS_FIELD_NUMBER: _ClassVar[int]
     metadata: _metadata_pb2.Metadata
     parameters: _containers.RepeatedCompositeFieldContainer[_parameters_pb2.Parameter]
     files: _containers.RepeatedCompositeFieldContainer[_parameters_pb2.FileParameter]
@@ -47,4 +49,5 @@ class TestCaseTemplate(_message.Message):
     initialize: str
     cleanup: str
     parameter_groups: _containers.RepeatedCompositeFieldContainer[_metadata_pb2.Metadata]
-    def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., parameters: _Optional[_Iterable[_Union[_parameters_pb2.Parameter, _Mapping]]] = ..., files: _Optional[_Iterable[_Union[_parameters_pb2.FileParameter, _Mapping]]] = ..., documents: _Optional[_Iterable[_Union[_documents_pb2.Document, _Mapping]]] = ..., tags: _Optional[_Iterable[str]] = ..., materialize: _Optional[str] = ..., initialize: _Optional[str] = ..., cleanup: _Optional[str] = ..., parameter_groups: _Optional[_Iterable[_Union[_metadata_pb2.Metadata, _Mapping]]] = ...) -> None: ...
+    steps: _containers.RepeatedCompositeFieldContainer[_execution_pb2.Step]
+    def __init__(self, metadata: _Optional[_Union[_metadata_pb2.Metadata, _Mapping]] = ..., parameters: _Optional[_Iterable[_Union[_parameters_pb2.Parameter, _Mapping]]] = ..., files: _Optional[_Iterable[_Union[_parameters_pb2.FileParameter, _Mapping]]] = ..., documents: _Optional[_Iterable[_Union[_documents_pb2.Document, _Mapping]]] = ..., tags: _Optional[_Iterable[str]] = ..., materialize: _Optional[str] = ..., initialize: _Optional[str] = ..., cleanup: _Optional[str] = ..., parameter_groups: _Optional[_Iterable[_Union[_metadata_pb2.Metadata, _Mapping]]] = ..., steps: _Optional[_Iterable[_Union[_execution_pb2.Step, _Mapping]]] = ...) -> None: ...

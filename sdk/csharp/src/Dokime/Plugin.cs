@@ -153,6 +153,8 @@ public sealed partial class Plugin(string identifier, string version, params Sui
       Unique(local, step.Identifier);
       var operation = $"{name}.step.{index}";
       testCase.Steps.Add(new ModelStep { Metadata = new Metadata { Identifier = step.Identifier, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
+      // Declare the Procedure on the Template So Catalogs Show It Before Materialization.
+      definition.Steps.Add(testCase.Steps[^1].Clone());
       transport.Operation(new Operation<StepsExecuteRequest, StepsExecuteResponse>(operation, Visibility.Protected, policy: step.Policy, replaySafe: step.ReplaySafe), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin, operation);
