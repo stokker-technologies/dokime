@@ -39,7 +39,7 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision: str = "a8cee45c84b632a7a6987d94c911e0d76b6eed10"
+revision: str = "7181b5ed33c9d2be79c38d266b0a97d838b05ed6"
 root: Path = Path(__file__).resolve().parents[1]
 feed: Path = root / "../../target/cs/feed"
 feed.mkdir(parents=True, exist_ok=True)

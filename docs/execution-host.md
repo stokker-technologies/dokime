@@ -647,7 +647,7 @@ the consumer work order below; its current adapters still use the earlier names.
 
 ## Final Library Definition Contract
 
-The repaired definitions pin Harmos at `a8cee45c84b632a7a6987d94c911e0d76b6eed10`.
+The repaired definitions pin Harmos at `7181b5ed33c9d2be79c38d266b0a97d838b05ed6`.
 It replaces definitions and generators; operations/runtime, storage and SDK consumers
 are intentionally awaiting the work lists below. These declarations do not prove
 runtime admission, end-to-end behavior or consumer compilation. The existing
@@ -738,7 +738,7 @@ carried by the merge and are not consumer work to reimplement.
 The first column is the pre-pin wire identity or hand-bound context identity.
 Library composition rows name the library operation directly, without forwarding.
 The complete library identity/type mapping is in the pinned
-[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/a8cee45c84b632a7a6987d94c911e0d76b6eed10/docs/architecture.md).
+[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/7181b5ed33c9d2be79c38d266b0a97d838b05ed6/docs/architecture.md).
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |

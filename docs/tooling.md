@@ -359,7 +359,7 @@ type; full-lane failures and post-lane native inventories remain separate proof.
 ### Desktop Plot Documents
 
 These Windows x86-64 observations were measured on 2026-11-15 with the final
-library at `a8cee45c`. The desktop fixture uses a local control connection for
+library at `7181b5ed`. The desktop fixture uses a local control connection for
 producer handoff and completion. Its observer interval matches each requested
 row density over three days, including fractional-second intervals. The SDK
 observer publishes every row through the real carrier. The producer has no
