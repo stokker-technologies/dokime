@@ -23,7 +23,7 @@ use serde_json::Value;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
-    sync::Mutex,
+    sync::{Mutex, Notify},
 };
 use tokio_stream::StreamExt;
 
@@ -466,14 +466,18 @@ async fn publish(context: &Context) -> Result<()> {
         context.get::<History>()?.next.store(first, Ordering::SeqCst);
         context.get::<History>()?.late.store(late, Ordering::SeqCst);
         let target = sequence + count;
+        let history = context.get::<History>()?;
+        let pending = target.saturating_sub(history.published.load(Ordering::SeqCst));
+        context.sleep(Duration::from_nanos(pending as u64 * sample_ns() as u64)).await?;
+        // The Last Tick Fires With the Sleep; Await Its Callback Without Advancing Time.
         loop {
-            let published = context.get::<History>()?.published.load(Ordering::SeqCst);
-            if published >= target {
-                assert_eq!(published, target, "Publish Benchmark History: Retain the Requested Row Count");
+            let published = history.changed.notified();
+            if history.published.load(Ordering::SeqCst) >= target {
                 break;
             }
-            context.sleep(Duration::from_nanos((target - published) as u64 * sample_ns() as u64)).await?;
+            published.await;
         }
+        assert_eq!(history.published.load(Ordering::SeqCst), target, "Publish Benchmark History: Retain the Requested Row Count");
         sequence += count;
         let control = context.get::<PublicationControl>()?;
         let mut control = control.0.lock().await;
@@ -499,6 +503,7 @@ struct History {
     next: AtomicUsize,
     late: AtomicBool,
     published: AtomicUsize,
+    changed: Notify,
 }
 
 async fn observe(context: &Context) -> Result<Row> {
@@ -515,6 +520,7 @@ async fn observe(context: &Context) -> Result<Row> {
     let late = history.late.load(Ordering::SeqCst);
     let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * sample_ns() + if late { 4 * sample_ns() } else { 0 };
     history.published.fetch_add(1, Ordering::SeqCst);
+    history.changed.notify_waiters();
     Ok(Row {
         timestamp: source_ns as f64 / 1_000_000_000.0,
         y0: (index % 8) as f64,
