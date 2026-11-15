@@ -24,9 +24,11 @@ use std::{
 // Third Party Imports
 use harmos_runtime::bundle::Identity;
 use prost::Message;
+use serde_json::Value;
+use tempfile::NamedTempFile;
 
 // Local Imports
-use crate::error::Error;
+use crate::{Result, error::Error, settings::Settings};
 use dokime_runtime::PluginProcess;
 
 /* === Constants === */
@@ -57,7 +59,7 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: Settings) -> Result<()> {
     // Freeze the Declared Identity and Declarations From the Native Executable
     let executable = std::fs::canonicalize(&args.executable)?;
     let mut process = PluginProcess::start(&executable, false, &settings.placement()).await?;
@@ -77,7 +79,7 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::
     let declarations = description.encode_to_vec();
     let bytes = dokime_packaging::bundle::create(&executable, &args.assets, identity, Some(&declarations))?;
     let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
-    let mut output = tempfile::NamedTempFile::new_in(parent)?;
+    let mut output = NamedTempFile::new_in(parent)?;
     output.write_all(&bytes)?;
     output.flush()?;
     output.as_file().sync_all()?;
@@ -87,7 +89,7 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: crate::
     Ok(())
 }
 
-pub(super) fn inspect(path: &Path) -> crate::Result<serde_json::Value> {
+pub(super) fn inspect(path: &Path) -> Result<Value> {
     Ok(dokime_packaging::bundle::inspect(path)?)
 }
 

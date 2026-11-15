@@ -32,18 +32,26 @@ use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};
 use harmos_runtime::services::status::Status;
 
 // Local Imports
+use crate::RenderSettings;
 use crate::{Error, Host, HostSettings, Result};
+use composition::Application;
 use dokime_operations::host::Context;
 use dokime_operations::host::HostIdentity;
 use dokime_protocol::host::RemoteListenerSettings;
 use dokime_protocol::host::SettingsGetResponse;
 use dokime_storage::Store;
+use harmos_runtime::grpc::Attached;
+use harmos_runtime::operations::OperationManager;
+use harmos_runtime::services::status::Registration;
+use harmos_runtime::{Error as RuntimeError, Refusal, Runtime as ComposedRuntime};
 use prost_types::Timestamp;
 use std::fs::OpenOptions;
 use std::fs::TryLockError;
 use std::num::NonZeroUsize;
+use std::sync::{RwLock, Weak};
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio::sync::watch::{self, Sender};
 use tokio::task::JoinHandle;
 
 /* === Constants === */
@@ -55,13 +63,13 @@ use tokio::task::JoinHandle;
 /* === Structs === */
 
 pub(crate) struct ClientWatches {
-    active: tokio::sync::watch::Sender<BTreeSet<u64>>,
+    active: Sender<BTreeSet<u64>>,
 }
 
 impl Default for ClientWatches {
     fn default() -> Self {
         Self {
-            active: tokio::sync::watch::channel(BTreeSet::new()).0,
+            active: watch::channel(BTreeSet::new()).0,
         }
     }
 }
@@ -96,12 +104,12 @@ impl Middleware for ClientWatches {
 pub struct Server {
     endpoint: SocketAddr,
     host: Host,
-    listener: Option<harmos_runtime::grpc::Attached>,
+    listener: Option<Attached>,
     status: Arc<harmos_runtime::services::status::Status>,
     status_task: Option<JoinHandle<Result<()>>>,
     plugin_task: Option<JoinHandle<Result<()>>>,
     plugin_observation: tokio_util::sync::CancellationToken,
-    _status_registration: Arc<harmos_runtime::services::status::Registration>,
+    _status_registration: Arc<Registration>,
 }
 
 /* === Enums === */
@@ -247,10 +255,10 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
 /* === Private Functions === */
 
 pub(crate) struct Assembly {
-    pub runtime: Arc<harmos_runtime::Runtime<composition::Application>>,
+    pub runtime: Arc<ComposedRuntime<Application>>,
     pub context: Arc<Context>,
     pub status: Arc<Status>,
-    pub registration: Arc<harmos_runtime::services::status::Registration>,
+    pub registration: Arc<Registration>,
     pub close_timeout: Duration,
     pub backend_lease: dokime_storage::BackendLease,
     pub client_watches: Arc<ClientWatches>,
@@ -275,14 +283,14 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         Box::pin(composition::launch(host, root, settings, binding.clone(), client_watches.clone())).await?;
     let status = runtime.services().configure_status(status::settings(settings, backend_id.clone()))?;
     let administration = Arc::new(Mutex::new(()));
-    let catalogs = Arc::new(std::sync::RwLock::new(Vec::new()));
+    let catalogs = Arc::new(RwLock::new(Vec::new()));
     let state = state::State {
         status: status.clone(),
         root: root.to_owned(),
         host: host.clone(),
         operations: runtime.operations.clone(),
         catalogs: catalogs.clone(),
-        render_settings: crate::RenderSettings {
+        render_settings: RenderSettings {
             page_size: NonZeroUsize::new(settings.page_items).unwrap(),
             display_points: NonZeroUsize::new(settings.page_items).unwrap(),
         },
@@ -328,8 +336,8 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
 }
 
 async fn observe_plugins(
-    operations: harmos_runtime::operations::OperationManager, context: std::sync::Weak<Context>, settings: ClientSettings,
-    cancellation: tokio_util::sync::CancellationToken, status: Arc<Status>,
+    operations: OperationManager, context: Weak<Context>, settings: ClientSettings, cancellation: tokio_util::sync::CancellationToken,
+    status: Arc<Status>,
 ) -> Result<()> {
     use harmos_protocol::host::{PluginsWatchRequest, plugins_watch_response::Event};
     use harmos_runtime::builtins::plugins::Watch;
@@ -348,7 +356,7 @@ async fn observe_plugins(
                 _ = cancellation.cancelled() => {
                     watch.request_cancel();
                     match watch.join().await {
-                        Ok(_) | Err(harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. })) => {}
+                        Ok(_) | Err(RuntimeError::OperationRefused(Refusal::Cancelled { .. })) => {}
                         Err(source) => return Err(source.into()),
                     }
                     return Ok(());
@@ -361,7 +369,7 @@ async fn observe_plugins(
             let Some(context) = context.upgrade() else {
                 watch.request_cancel();
                 match watch.join().await {
-                    Ok(_) | Err(harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. })) => {}
+                    Ok(_) | Err(RuntimeError::OperationRefused(Refusal::Cancelled { .. })) => {}
                     Err(source) => return Err(source.into()),
                 }
                 return Ok(());
@@ -389,7 +397,7 @@ async fn observe_plugins(
             if matches!(event.event, Some(Event::ResyncRequired(_))) {
                 watch.request_cancel();
                 match watch.join().await {
-                    Ok(_) | Err(harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. })) => {}
+                    Ok(_) | Err(RuntimeError::OperationRefused(Refusal::Cancelled { .. })) => {}
                     Err(source) => return Err(source.into()),
                 }
                 break;

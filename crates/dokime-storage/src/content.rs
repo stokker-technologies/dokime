@@ -16,16 +16,20 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::fs::File;
 use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_protocol::model::FileReference;
 use prost::Message;
 use rusqlite::Connection;
 use rusqlite::{OptionalExtension, params};
 use sha2::{Digest, Sha256};
+use tempfile::TempPath;
 
 // Local Imports
-use crate::{Error, Result, Store, store::next_position};
+use crate::{Error, Evidence, Result, Store, store::next_position};
 use dokime_protocol::host::content::ArtifactsCreateRequest;
 use dokime_protocol::host::content::ArtifactsCreateResponse;
 use dokime_protocol::host::content::ExecutionFileMetadata;
@@ -46,8 +50,8 @@ pub const CONTENT_CHUNK_BYTES: usize = 64 * 1024;
 /* === Structs === */
 
 pub struct ArchivedNativeFile {
-    pub reference: harmos_protocol::model::FileReference,
-    pub path: tempfile::TempPath,
+    pub reference: FileReference,
+    pub path: TempPath,
 }
 
 #[derive(Clone, PartialEq, Message)]
@@ -64,7 +68,7 @@ pub struct StoredExecutionFile {
     pub metadata: Option<ExecutionFileMetadata>,
 
     #[prost(message, optional, tag = "2")]
-    pub file: Option<harmos_protocol::model::FileReference>,
+    pub file: Option<FileReference>,
 }
 
 /* === Enums === */
@@ -188,9 +192,7 @@ impl Store {
             .map(|row| Ok(StoredArtifact::decode(row?.as_slice())?))
             .collect()
     }
-    pub fn attach_execution_file(
-        &self, execution: &str, mut metadata: ExecutionFileMetadata, file: harmos_protocol::model::FileReference,
-    ) -> Result<()> {
+    pub fn attach_execution_file(&self, execution: &str, mut metadata: ExecutionFileMetadata, file: FileReference) -> Result<()> {
         crate::validate_execution_path(&metadata.relative_path)?;
         let scope = file.metadata.as_ref().and_then(|metadata| metadata.scope.as_deref());
         if scope != Some(execution) {
@@ -240,11 +242,10 @@ impl Store {
             .collect()
     }
     pub fn write_cycle_archive(&self, cycle: &str, page: NonZeroUsize, output: &mut impl Write) -> Result<()> {
-        self.write_cycle_archive_with_files(cycle, page, output, &mut std::collections::HashMap::new())
+        self.write_cycle_archive_with_files(cycle, page, output, &mut HashMap::new())
     }
     pub fn write_cycle_archive_with_files(
-        &self, cycle: &str, page: NonZeroUsize, output: &mut impl Write,
-        files: &mut std::collections::HashMap<String, Vec<ArchivedNativeFile>>,
+        &self, cycle: &str, page: NonZeroUsize, output: &mut impl Write, files: &mut HashMap<String, Vec<ArchivedNativeFile>>,
     ) -> Result<()> {
         use std::io::{Read, Seek};
         use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
@@ -313,7 +314,7 @@ impl Store {
             let member = format!("telemetry/{stream}.arrow");
             crate::validate_execution_path(&member)?;
             let path = crate::telemetry::catalog::path(self.database.parent().unwrap(), &id)?;
-            let mut file = std::fs::File::open(path)?;
+            let mut file = File::open(path)?;
             if file.metadata()?.len() != size {
                 return Err(Error::Data("restore the telemetry file matching its catalog size"));
             }
@@ -345,7 +346,7 @@ impl Store {
             let identity = Sha256::digest(reference.encode_to_vec());
             let identity = identity.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             let member = format!("files/{identity}");
-            let mut input = std::fs::File::open(&file.path)?;
+            let mut input = File::open(&file.path)?;
             archive.start_file(&member, options)?;
             let mut hash = Sha256::new();
             let mut size = 0u64;
@@ -450,7 +451,7 @@ fn require_open(connection: &Connection, execution: &str) -> Result<()> {
 }
 
 fn append_reference(connection: &Connection, execution: &str, kind: &str, payload: Vec<u8>) -> Result<()> {
-    let evidence = crate::Evidence {
+    let evidence = Evidence {
         position: next_position(connection, execution)?,
         kind: kind.into(),
         payload,

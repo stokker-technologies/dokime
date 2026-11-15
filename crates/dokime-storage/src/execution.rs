@@ -21,7 +21,7 @@
 use prost::Message;
 
 // Local Imports
-use crate::Result;
+use crate::{Result, StoredArtifact, StoredExecutionFile};
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::evidence::LogsAppendRequest;
 use dokime_protocol::model::ExecutionProgressValue;
@@ -130,10 +130,10 @@ pub struct ExecutionArchive {
     pub reports: Vec<Vec<u8>>,
 
     #[prost(message, repeated, tag = "9")]
-    pub artifacts: Vec<crate::StoredArtifact>,
+    pub artifacts: Vec<StoredArtifact>,
 
     #[prost(message, repeated, tag = "10")]
-    pub files: Vec<crate::StoredExecutionFile>,
+    pub files: Vec<StoredExecutionFile>,
 }
 
 /* === Enums === */

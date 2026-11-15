@@ -22,7 +22,7 @@ use crate::host::ClientSettings;
 // Third Party Imports
 
 // Local Imports
-use crate::{Result, host::Context};
+use crate::{Error, Result, host::Context};
 
 use dokime_protocol::host::content::ExecutionFilesListRequest;
 use dokime_protocol::host::content::ExecutionFilesListResponse;
@@ -65,9 +65,7 @@ pub async fn handle(context: &Context, request: ExecutionFilesListRequest) -> Re
                 }
                 after = page.last().unwrap().metadata.as_ref().unwrap().relative_path.clone();
                 for entry in page {
-                    files.push(
-                        entry.metadata.ok_or_else(|| crate::Error::Precondition("List Execution Files: Restore Its Metadata".into()))?,
-                    );
+                    files.push(entry.metadata.ok_or_else(|| Error::Precondition("List Execution Files: Restore Its Metadata".into()))?);
                 }
             }
             Ok(ExecutionFilesListResponse { files, ..Default::default() })

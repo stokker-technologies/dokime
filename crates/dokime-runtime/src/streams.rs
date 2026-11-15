@@ -40,10 +40,12 @@ use harmos_runtime::{
 use prost::Message;
 use prost_reflect::{DescriptorPool, DynamicMessage, Kind, MapKey, MessageDescriptor, Value as FieldValue};
 use serde_json::Value;
+use tokio::sync::watch::{self, Sender};
 
 // Local Imports
 use crate::services::composition::Application;
-use dokime_operations::{Clock, Resources, Result};
+use crate::{Error, Result as HostResult, SchedulerClock};
+use dokime_operations::{Clock, Error as OperationError, Resources, Result};
 use dokime_storage::{Sample, Store};
 
 /* === Constants === */
@@ -56,7 +58,7 @@ use dokime_storage::{Sample, Store};
 
 pub(crate) struct ExecutionTime {
     pub clock: RuntimeClock,
-    pub sleeping: tokio::sync::watch::Sender<BTreeSet<u64>>,
+    pub sleeping: Sender<BTreeSet<u64>>,
 }
 
 pub(crate) struct Samples {
@@ -164,12 +166,12 @@ impl Middleware for Timing {
 }
 
 impl ExecutionTime {
-    pub fn open(source: &dyn crate::SchedulerClock) -> (Arc<Self>, Option<Controller>) {
+    pub fn open(source: &dyn SchedulerClock) -> (Arc<Self>, Option<Controller>) {
         let (clock, controller) = source.execution_clock();
         (
             Arc::new(Self {
                 clock,
-                sleeping: tokio::sync::watch::channel(BTreeSet::new()).0,
+                sleeping: watch::channel(BTreeSet::new()).0,
             }),
             controller,
         )
@@ -186,7 +188,7 @@ impl Clock for ExecutionTime {
             .unwrap_or_else(|value| -(value.duration().as_nanos() as i64))
     }
     async fn sleep(&self, duration_ns: i64) -> Result<()> {
-        let duration = u64::try_from(duration_ns).map_err(|source| dokime_operations::Error::Invalid(format!("Sleep: {source}")))?;
+        let duration = u64::try_from(duration_ns).map_err(|source| OperationError::Invalid(format!("Sleep: {source}")))?;
         self.clock.sleep(Duration::from_nanos(duration)).await;
         Ok(())
     }
@@ -218,20 +220,20 @@ impl StreamConsumer<Application> for Samples {
 }
 
 impl SampleScope {
-    pub fn new(catalog: &Declarations, streams: &[String]) -> crate::Result<Self> {
-        let types = catalog.types.clone().ok_or_else(|| crate::Error::Invalid("Open Sample Scope: Declare Its Row Types".into()))?;
-        let pool = DescriptorPool::from_file_descriptor_set(types)
-            .map_err(|source| crate::Error::Invalid(format!("Open Sample Scope: {source}")))?;
+    pub fn new(catalog: &Declarations, streams: &[String]) -> HostResult<Self> {
+        let types = catalog.types.clone().ok_or_else(|| Error::Invalid("Open Sample Scope: Declare Its Row Types".into()))?;
+        let pool =
+            DescriptorPool::from_file_descriptor_set(types).map_err(|source| Error::Invalid(format!("Open Sample Scope: {source}")))?;
         let mut selected = HashMap::new();
         for stream in streams {
             let declaration = catalog
                 .streams
                 .iter()
                 .find(|declaration| declaration.id == *stream)
-                .ok_or_else(|| crate::Error::Invalid(format!("Open Sample Scope: Declare Stream {stream}")))?;
+                .ok_or_else(|| Error::Invalid(format!("Open Sample Scope: Declare Stream {stream}")))?;
             let descriptor = pool
                 .get_message_by_name(&declaration.row)
-                .ok_or_else(|| crate::Error::Invalid(format!("Open Sample Scope: Declare Row {}", declaration.row)))?;
+                .ok_or_else(|| Error::Invalid(format!("Open Sample Scope: Declare Row {}", declaration.row)))?;
             selected.insert(stream.clone(), SampleRow { descriptor, codec: None, sequence: 0 });
         }
         Ok(Self { streams: selected })
@@ -239,20 +241,17 @@ impl SampleScope {
 }
 
 impl Samples {
-    fn ingest(&mut self, definition: &Definition, publication: &PublicationRow) -> crate::Result<()> {
+    fn ingest(&mut self, definition: &Definition, publication: &PublicationRow) -> HostResult<()> {
         let Some(context) = &publication.context else { return Ok(()) };
-        let context: Value =
-            serde_json::from_str(context).map_err(|source| crate::Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
+        let context: Value = serde_json::from_str(context).map_err(|source| Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
         let Some(execution) = context["scope"].as_str() else { return Ok(()) };
-        let mut scopes = self.scopes.lock().map_err(|source| crate::Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
-        let scope =
-            scopes.get_mut(execution).ok_or_else(|| crate::Error::Invalid("Ingest Sample Scope: Retain Its Execution Binding".into()))?;
+        let mut scopes = self.scopes.lock().map_err(|source| Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
+        let scope = scopes.get_mut(execution).ok_or_else(|| Error::Invalid("Ingest Sample Scope: Retain Its Execution Binding".into()))?;
         let Some(stream) = scope.streams.get_mut(definition.id()) else { return Ok(()) };
         if stream.codec.is_none() {
             let schema = definition.schema();
-            let view = schema.view(schema.root).map_err(|source| crate::Error::Invalid(format!("Decode Sample Schema: {source}")))?;
-            let codec =
-                JsonCodec::new(view, &Default::default()).map_err(|source| crate::Error::Invalid(format!("Decode Sample: {source}")))?;
+            let view = schema.view(schema.root).map_err(|source| Error::Invalid(format!("Decode Sample Schema: {source}")))?;
+            let codec = JsonCodec::new(view, &Default::default()).map_err(|source| Error::Invalid(format!("Decode Sample: {source}")))?;
             stream.codec = Some(codec);
         }
         let value = stream
@@ -260,7 +259,7 @@ impl Samples {
             .as_ref()
             .unwrap()
             .decode(&publication.payload)
-            .map_err(|source| crate::Error::Invalid(format!("Decode Sample: {source}")))?;
+            .map_err(|source| Error::Invalid(format!("Decode Sample: {source}")))?;
         let row = message(stream.descriptor.clone(), &value)?.encode_to_vec();
         let receipt_ns = publication.published_unix_micros.unwrap_or_default().saturating_mul(1000);
         let source_ns = context
@@ -287,7 +286,7 @@ impl Samples {
 
 /* === Private Functions === */
 
-fn message(descriptor: MessageDescriptor, value: &Value) -> crate::Result<DynamicMessage> {
+fn message(descriptor: MessageDescriptor, value: &Value) -> HostResult<DynamicMessage> {
     let mut message = DynamicMessage::new(descriptor.clone());
     for field in descriptor.fields() {
         let Some(value) = value.get(field.name()).filter(|value| !value.is_null()) else { continue };
@@ -295,7 +294,7 @@ fn message(descriptor: MessageDescriptor, value: &Value) -> crate::Result<Dynami
             let Kind::Message(entry) = field.kind() else { unreachable!() };
             let key = entry.get_field_by_name("key").unwrap();
             let item = entry.get_field_by_name("value").unwrap();
-            let entries = value.as_array().ok_or_else(|| crate::Error::Invalid("Decode Sample: Expected a Map".into()))?;
+            let entries = value.as_array().ok_or_else(|| Error::Invalid("Decode Sample: Expected a Map".into()))?;
             let mut values = HashMap::new();
             for entry in entries {
                 let key = match scalar(&key.kind(), &entry["key"])? {
@@ -305,7 +304,7 @@ fn message(descriptor: MessageDescriptor, value: &Value) -> crate::Result<Dynami
                     FieldValue::U32(value) => MapKey::U32(value),
                     FieldValue::U64(value) => MapKey::U64(value),
                     FieldValue::String(value) => MapKey::String(value),
-                    _ => return Err(crate::Error::Invalid("Decode Sample: Invalid Map Key".into())),
+                    _ => return Err(Error::Invalid("Decode Sample: Invalid Map Key".into())),
                 };
                 let value =
                     if entry["value"].is_null() { FieldValue::default_value(&item.kind()) } else { scalar(&item.kind(), &entry["value"])? };
@@ -313,20 +312,20 @@ fn message(descriptor: MessageDescriptor, value: &Value) -> crate::Result<Dynami
             }
             FieldValue::Map(values)
         } else if field.is_list() {
-            let values = value.as_array().ok_or_else(|| crate::Error::Invalid("Decode Sample: Expected a Repeated Field".into()))?;
-            FieldValue::List(values.iter().map(|value| scalar(&field.kind(), value)).collect::<crate::Result<_>>()?)
+            let values = value.as_array().ok_or_else(|| Error::Invalid("Decode Sample: Expected a Repeated Field".into()))?;
+            FieldValue::List(values.iter().map(|value| scalar(&field.kind(), value)).collect::<HostResult<_>>()?)
         } else {
             scalar(&field.kind(), value)?
         };
         message
             .try_set_field(&field, converted)
-            .map_err(|source| crate::Error::Invalid(format!("Decode Sample Field {}: {source}", field.name())))?;
+            .map_err(|source| Error::Invalid(format!("Decode Sample Field {}: {source}", field.name())))?;
     }
     Ok(message)
 }
 
-fn scalar(kind: &Kind, value: &Value) -> crate::Result<FieldValue> {
-    let invalid = || crate::Error::Invalid("Decode Sample: Value Does Not Match Its Declared Field".into());
+fn scalar(kind: &Kind, value: &Value) -> HostResult<FieldValue> {
+    let invalid = || Error::Invalid("Decode Sample: Value Does Not Match Its Declared Field".into());
     Ok(match kind {
         Kind::Bool => FieldValue::Bool(value.as_bool().ok_or_else(invalid)?),
         Kind::Int32 | Kind::Sint32 | Kind::Sfixed32 => {
@@ -344,7 +343,7 @@ fn scalar(kind: &Kind, value: &Value) -> crate::Result<FieldValue> {
                 .ok_or_else(invalid)?
                 .iter()
                 .map(|value| u8::try_from(value.as_u64().ok_or_else(invalid)?).map_err(|_| invalid()))
-                .collect::<crate::Result<Vec<_>>>()?
+                .collect::<HostResult<Vec<_>>>()?
                 .into(),
         ),
         Kind::Enum(_) => FieldValue::EnumNumber(i32::try_from(value.as_i64().ok_or_else(invalid)?).map_err(|_| invalid())?),

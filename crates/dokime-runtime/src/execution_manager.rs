@@ -18,6 +18,7 @@
 // Standard Library Imports
 use std::{
     collections::HashMap,
+    future::Future,
     sync::{
         Arc, Mutex, OnceLock, Weak,
         atomic::{AtomicBool, Ordering},
@@ -30,12 +31,27 @@ use crate::streams::SampleScope;
 use harmos_protocol::host::PluginEntry;
 use harmos_runtime::Runtime as ComposedRuntime;
 use harmos_runtime::plugin::manager::Manager as PluginManager;
-use tokio::{sync::watch, task::JoinHandle};
+use tokio::{
+    sync::{
+        Mutex as AsyncMutex,
+        watch::{self, Receiver, Sender},
+    },
+    task::JoinHandle,
+};
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use crate::{Cycle, Error, HostSettings, Result, host::lock, prompts::PromptManager};
+use crate::run_control::RunControl;
+use crate::{
+    Cycle, Error, HostSettings, Result,
+    host::{RootLease, lock},
+    prompts::PromptManager,
+};
 use dokime_operations::host::{Context, Progress};
+use dokime_protocol::host::execution_outcome::Attribution;
+use dokime_protocol::host::{CycleSummary, ExecutionMode, ExecutionOutcome, UnevaluatedOutcome};
+use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::model::{Origin, Termination, Value};
 use dokime_storage::{ExecutionState, Store};
 
 /* === Constants === */
@@ -55,22 +71,22 @@ pub(crate) struct Runtime {
     pub settings: HostSettings,
     pub prompts: Arc<PromptManager>,
     pub active: Mutex<HashMap<String, Active>>,
-    pub changed: watch::Sender<u64>,
+    pub changed: Sender<u64>,
     pub context: OnceLock<Weak<Context>>,
     pub sample_scopes: Arc<Mutex<HashMap<String, SampleScope>>>,
     pub sample_failures: Arc<Mutex<HashMap<String, String>>>,
     pub runtime: OnceLock<Weak<ComposedRuntime<Application>>>,
     pub library_plugins: OnceLock<PluginManager>,
-    admission: tokio::sync::Mutex<()>,
+    admission: AsyncMutex<()>,
     shutting_down: AtomicBool,
     tasks: Mutex<Vec<JoinHandle<()>>>,
-    progress: Mutex<HashMap<String, watch::Sender<Progress>>>,
-    _root_lease: crate::host::RootLease,
+    progress: Mutex<HashMap<String, Sender<Progress>>>,
+    _root_lease: RootLease,
 }
 pub(crate) struct Active {
     pub plugin: String,
     pub cancellation: CancellationToken,
-    pub control: Arc<crate::run_control::RunControl>,
+    pub control: Arc<RunControl>,
 }
 
 /* === Enums === */
@@ -81,28 +97,22 @@ pub(crate) struct Active {
 
 impl ExecutionManager {
     pub(crate) fn new(
-        store: Store, settings: HostSettings, prompts: Arc<PromptManager>, changed: watch::Sender<u64>, root_lease: crate::host::RootLease,
+        store: Store, settings: HostSettings, prompts: Arc<PromptManager>, changed: Sender<u64>, root_lease: RootLease,
     ) -> Result<Self> {
         // Recover Only Executions Driven by a Plugin Run
         for identifier in store.identifiers()? {
             let snapshot = store.cut(&identifier)?;
-            let is_run = snapshot
-                .execution
-                .origin
-                .as_ref()
-                .is_some_and(|origin| matches!(origin.kind, Some(dokime_protocol::model::origin::Kind::PluginRun(_))));
+            let is_run = snapshot.execution.origin.as_ref().is_some_and(|origin| matches!(origin.kind, Some(OriginKind::PluginRun(_))));
             if snapshot.state == ExecutionState::Open && is_run {
                 store.close_streams(&identifier)?;
                 store.close(
                     &identifier,
-                    dokime_protocol::model::Termination::Interrupted,
-                    dokime_protocol::host::ExecutionOutcome {
-                        attribution: Some(dokime_protocol::host::execution_outcome::Attribution::NotEvaluated(
-                            dokime_protocol::host::UnevaluatedOutcome {
-                                termination: dokime_protocol::model::Termination::Interrupted as i32,
-                                reason: "Host Restarted During Execution".into(),
-                            },
-                        )),
+                    Termination::Interrupted,
+                    ExecutionOutcome {
+                        attribution: Some(Attribution::NotEvaluated(UnevaluatedOutcome {
+                            termination: Termination::Interrupted as i32,
+                            reason: "Host Restarted During Execution".into(),
+                        })),
                     },
                 )?;
                 store.seal(&identifier)?;
@@ -129,7 +139,7 @@ impl ExecutionManager {
                 runtime: OnceLock::new(),
                 library_plugins: OnceLock::new(),
                 active: Mutex::new(HashMap::new()),
-                admission: tokio::sync::Mutex::new(()),
+                admission: AsyncMutex::new(()),
                 shutting_down: AtomicBool::new(false),
                 tasks: Mutex::new(Vec::new()),
                 progress: Mutex::new(HashMap::new()),
@@ -139,13 +149,13 @@ impl ExecutionManager {
     pub(crate) fn bind_context(&self, context: &Arc<Context>) -> Result<()> {
         self.inner.context.set(Arc::downgrade(context)).map_err(|_| Error::Invalid("Bind Host Context: Assemble the Host Only Once".into()))
     }
-    pub(crate) async fn start_cycle(&self, origins: Vec<dokime_protocol::model::Origin>) -> Result<Cycle> {
+    pub(crate) async fn start_cycle(&self, origins: Vec<Origin>) -> Result<Cycle> {
         let _admission = self.inner.admission.lock().await;
         self.admit("Start Cycle")?;
         self.reap_finished().await?;
         crate::execution::start(self.clone(), origins).await
     }
-    pub(crate) async fn start_execution_mode(&self, execution: &str, mode: dokime_protocol::host::ExecutionMode) -> Result<Cycle> {
+    pub(crate) async fn start_execution_mode(&self, execution: &str, mode: ExecutionMode) -> Result<Cycle> {
         let _admission = self.inner.admission.lock().await;
         self.admit("Start Execution")?;
         self.reap_finished().await?;
@@ -172,9 +182,7 @@ impl ExecutionManager {
             .find(|entry| entry.name == identifier)
             .ok_or_else(|| Error::Invalid(format!("Start Execution: Connect Plugin {identifier}")))
     }
-    pub(crate) async fn materialize(
-        &self, plugin: &str, template: &str, parameters: HashMap<String, dokime_protocol::model::Value>,
-    ) -> Result<dokime_protocol::model::Origin> {
+    pub(crate) async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, Value>) -> Result<Origin> {
         let context = self
             .inner
             .context
@@ -224,7 +232,7 @@ impl ExecutionManager {
         }
         Ok(())
     }
-    pub(crate) fn spawn(&self, task: impl std::future::Future<Output = ()> + Send + 'static) -> Result<()> {
+    pub(crate) fn spawn(&self, task: impl Future<Output = ()> + Send + 'static) -> Result<()> {
         let mut tasks = lock(&self.inner.tasks)?;
         tasks.push(tokio::spawn(task));
         Ok(())
@@ -232,7 +240,7 @@ impl ExecutionManager {
     pub(crate) fn register_cycle(&self, identifier: &str) -> Result<()> {
         if self.inner.store.client_cycle(identifier)?.is_none() {
             let now = self.now_ns();
-            self.inner.store.save_cycle(&dokime_protocol::host::CycleSummary {
+            self.inner.store.save_cycle(&CycleSummary {
                 cycle_id: identifier.into(),
                 continue_automatically: true,
                 created_at: Some(prost_types::Timestamp {
@@ -309,7 +317,7 @@ impl ExecutionManager {
         self.signal_change();
         Ok(())
     }
-    pub(crate) fn progress(&self, execution: &str) -> Result<watch::Receiver<Progress>> {
+    pub(crate) fn progress(&self, execution: &str) -> Result<Receiver<Progress>> {
         if let Some(sender) = lock(&self.inner.progress)?.get(execution) {
             return Ok(sender.subscribe());
         }

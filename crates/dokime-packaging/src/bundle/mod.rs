@@ -18,15 +18,20 @@
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
+    env::consts::{ARCH, OS},
+    fs::File,
     io::Read,
     path::{Path, PathBuf},
 };
 
 // Third Party Imports
 use harmos_runtime::bundle::{Bundle as PluginBundle, Identity, Limits, Manifest};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
+use tar::{Builder, EntryType, Header};
 
 // Local Imports
+use crate::Result;
 
 /* === Constants === */
 
@@ -45,7 +50,7 @@ use sha2::{Digest, Sha256};
 /* === Public Functions === */
 
 pub fn native_target() -> &'static str {
-    match (std::env::consts::ARCH, std::env::consts::OS) {
+    match (ARCH, OS) {
         ("x86_64", "windows") => "x86_64-pc-windows-msvc",
         ("aarch64", "windows") => "aarch64-pc-windows-msvc",
         ("x86_64", "linux") => "x86_64-unknown-linux-gnu",
@@ -56,7 +61,7 @@ pub fn native_target() -> &'static str {
     }
 }
 
-pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, description: Option<&[u8]>) -> crate::Result<Vec<u8>> {
+pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, description: Option<&[u8]>) -> Result<Vec<u8>> {
     let limits = Limits::default();
     if native_target() == "unsupported" {
         return Err("Create Plugin Bundle: Select a Supported Native Target".into());
@@ -93,11 +98,11 @@ pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, descrip
         value
     }).collect::<Vec<_>>();
     let manifest: Manifest = serde_json::from_value(serde_json::json!({"schema":1,"identity":identity,"files":files}))?;
-    let mut archive = tar::Builder::new(Vec::new());
+    let mut archive = Builder::new(Vec::new());
     let manifest = serde_json::to_vec(&manifest)?;
     for (path, bytes) in std::iter::once(("manifest.json".to_owned(), manifest)).chain(contents) {
-        let mut header = tar::Header::new_ustar();
-        header.set_entry_type(tar::EntryType::Regular);
+        let mut header = Header::new_ustar();
+        header.set_entry_type(EntryType::Regular);
         header.set_uid(0);
         header.set_gid(0);
         header.set_mtime(0);
@@ -111,7 +116,7 @@ pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, descrip
     Ok(bytes)
 }
 
-pub fn inspect(path: &Path) -> crate::Result<serde_json::Value> {
+pub fn inspect(path: &Path) -> Result<Value> {
     let limits = Limits::default();
     let bytes = read(path, limits.archive_bytes as u64)?;
     let bundle = PluginBundle::inspect(&bytes, limits)?;
@@ -120,8 +125,8 @@ pub fn inspect(path: &Path) -> crate::Result<serde_json::Value> {
 
 /* === Private Functions === */
 
-fn read(path: &Path, limit: u64) -> crate::Result<Vec<u8>> {
-    let file = std::fs::File::open(path)?;
+fn read(path: &Path, limit: u64) -> Result<Vec<u8>> {
+    let file = File::open(path)?;
     if file.metadata()?.len() > limit {
         return Err("Read Plugin Input: File Exceeds the Byte Bound".into());
     }
@@ -139,10 +144,15 @@ fn read(path: &Path, limit: u64) -> crate::Result<Vec<u8>> {
 mod tests {
     use super::inspect;
     use harmos_runtime::bundle::Manifest;
+    use serde_json::Value;
     use sha2::{Digest, Sha256};
+    use std::error::Error;
+    use std::fs::OpenOptions;
+    use std::io::ErrorKind;
     use std::io::Write;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
+    use tar::{Builder, EntryType, Header};
 
     fn digest(bytes: &[u8]) -> String {
         Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
@@ -164,22 +174,22 @@ mod tests {
         }
     }
 
-    fn bundle(files: &[(&str, &[u8])], manifest: &serde_json::Value) -> Result<Bundle, Box<dyn std::error::Error + Send + Sync>> {
+    fn bundle(files: &[(&str, &[u8])], manifest: &Value) -> Result<Bundle, Box<dyn Error + Send + Sync>> {
         let (fixture, mut file) = loop {
             let next = NEXT.fetch_add(1, Ordering::Relaxed);
             let path = std::env::temp_dir().join(format!("dokime-bundle-{}-{next}.tar", std::process::id()));
-            match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            match OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(file) => break (Bundle(path), file),
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(error.into()),
             }
         };
-        let mut archive = tar::Builder::new(&mut file);
+        let mut archive = Builder::new(&mut file);
         let manifest: Manifest = serde_json::from_value(manifest.clone())?;
         let bytes = serde_json::to_vec(&manifest)?;
         for (name, bytes) in std::iter::once(("manifest.json", bytes.as_slice())).chain(files.iter().copied()) {
-            let mut header = tar::Header::new_ustar();
-            header.set_entry_type(tar::EntryType::Regular);
+            let mut header = Header::new_ustar();
+            header.set_entry_type(EntryType::Regular);
             header.set_uid(0);
             header.set_gid(0);
             header.set_mtime(0);
@@ -196,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn inspect_bundle_preserves_inventory_and_refuses_tampered_content() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn inspect_bundle_preserves_inventory_and_refuses_tampered_content() -> Result<(), Box<dyn Error + Send + Sync>> {
         // Inspect the Declared Content Without Extracting It
         let bytes = b"plugin executable";
         let manifest = serde_json::json!({"schema": 1, "identity": {"name": "example", "version": "1.0.0", "description": "", "package": {"authors": [], "license": null, "repository": null, "homepage": null, "documentation": null, "keywords": [], "categories": []}},
@@ -217,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn inspect_bundle_refuses_duplicate_members_and_missing_inventory() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn inspect_bundle_refuses_duplicate_members_and_missing_inventory() -> Result<(), Box<dyn Error + Send + Sync>> {
         // Refuse Ambiguous Duplicate Archive Members
         let bytes = b"plugin executable";
         let manifest = serde_json::json!({"schema": 1, "identity": {"name": "example", "version": "1.0.0", "description": ""},
