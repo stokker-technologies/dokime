@@ -137,6 +137,9 @@ fn main() -> Result<()> {
         .observer(observer);
     let boundary_stream = Stream::<Reading>::new("execution.boundary", "Boundary Samples");
     let boundary_observer = Observer::new(&boundary_stream, async |context: &Context| {
+        if context.execution_id().is_empty() {
+            return Ok(Reading { value: 0.0 });
+        }
         let index = context.get::<Published>()?.0.fetch_add(1, Ordering::SeqCst);
         Ok(Reading { value: index as f64 })
     })
