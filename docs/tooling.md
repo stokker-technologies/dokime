@@ -357,6 +357,36 @@ stories also check native absence from the calling threads after root removal.
 The desktop panic story now checks its exact access key and deliberate panic
 type; full-lane failures and post-lane native inventories remain separate proof.
 
+### Per-Tick Observer Cost
+
+Measured on 2026-11-15 at `69c7d052e` with library `7181b5ed` (Windows x86-64,
+bench profile) by temporary timing around the controlled-clock advance, the
+product sample consumer, every storage backend call and every evidence append
+while running `runtime/observer_publication_and_barrier_durable/1024`.
+
+| Phase per Controlled Advance | Time |
+| --- | ---: |
+| Whole advance (1,023 advances, 6,858 ms) | 6.7 ms |
+| Tick admission to the plugin's `Time.Get` child call | 1.3–1.8 ms |
+| `Time.Get` child call, admission to settlement | 1.0–1.6 ms |
+| Child settlement to `samples.tick` settlement | 0.2 ms |
+| Product sample consumer (`Samples::drain`) | 0.09 ms |
+| Storage backend calls and evidence appends | none per tick |
+
+No per-tick durable commit, catalog transaction or product refresh occurs; the
+cost is the library's tick path. Each interval stream sleeps to its tick, then
+invokes `samples.tick` as a full native operation over the plugin's Samples
+stream and waits for that sample before scheduling the next tick
+(`harmos-runtime/src/plugin/grpc/publish.rs:337-357` at `7181b5ed`). An observer
+that reads the clock adds a second full child-call round trip. Library pull
+request 258 (`af8b9a0c`) changes binding teardown and clock-wait admission, not
+this per-tick path.
+
+On the real clock, the boundary fixture's 1 ms observer published 5,000 rows in
+10,614 ms (dev profile): one execution sustains about 470 samples per second, and
+tick times stretch to 10,517 ms of source time instead of 5,000 ms. A 1 ms
+observer therefore does not keep up in real time.
+
 ### Desktop Plot Documents
 
 These Windows x86-64 observations were measured on 2026-11-15 with the
