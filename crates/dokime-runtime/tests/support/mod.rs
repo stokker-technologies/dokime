@@ -190,6 +190,14 @@ pub fn thermal_fixture() -> Result<PathBuf, Box<dyn Error>> {
     }
     Ok(path)
 }
+pub fn obc_bundle() -> Result<PathBuf, Box<dyn Error>> {
+    let path = fixture_root().with_file_name("desktop").join("plugin-obc.dokime");
+    if !path.is_file() {
+        return Err("Bundle the OBC Plugin Through mise run build:desktop-fixtures".into());
+    }
+    Ok(path)
+}
+
 pub fn execution_fixture() -> Result<PathBuf, Box<dyn Error>> {
     let path = fixture_root().join(format!("dokime-rust-execution{}", EXE_SUFFIX));
     if !path.is_file() {
