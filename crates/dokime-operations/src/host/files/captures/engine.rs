@@ -122,7 +122,7 @@ impl Capture {
         let source =
             source.and_then(|source| source.kind.as_ref()).ok_or_else(|| Error::Invalid(format!("{action}: Select a File Source")))?;
         let newest = matches!(source, file_source::Kind::Newest(_));
-        let settings = context.captures.settings().clone();
+        let settings = context.captures.settings();
         let (location, rules, single) = match source {
             file_source::Kind::File(location) => {
                 let path = local(action, location)?;
@@ -211,7 +211,7 @@ impl Capture {
         Ok(CapturesStopResponse { artifacts, gaps })
     }
     async fn pass(&self, artifacts: &mut Vec<CapturedArtifact>, gaps: &mut Vec<CaptureGap>) -> Result<()> {
-        let settings = self.context.captures.settings().clone();
+        let settings = self.context.captures.settings();
         let listing = match self.source.scan(self.action).await {
             Ok(listing) => self.source.select(listing),
             Err(Error::NotFound(_)) if self.mode == Mode::Stream => Listing::new(),
@@ -397,7 +397,9 @@ fn admit_root(action: &str, root: &Path, allowed: &[PathBuf]) -> Result<PathBuf>
     })?;
     let permitted = allowed.iter().filter_map(|root| std::fs::canonicalize(root).ok()).any(|root| resolved.starts_with(root));
     if !permitted {
-        return Err(Error::Permission(format!("{action}: Allow the Source Directory in the Host's Capture Roots")));
+        return Err(Error::Permission(format!(
+            "{action}: Add the Source Directory Under Settings → Capture Folders (capture_roots on a Command-Line Host)"
+        )));
     }
     if !resolved.is_dir() {
         return Err(Error::Invalid(format!("{action}: Name a Source Directory")));

@@ -267,6 +267,19 @@ plugins, settings, identity and secret catalog. Native recovery commands refuse
 before stopping the host or touching files. Preserve the existing folder and
 choose a fresh application root explicitly; the desktop never resets it silently.
 
+## Capture Folders
+
+**Settings → Capture Folders** lists the absolute folders the built-in host lets
+plugins capture device files from. It is empty by default, which refuses every
+capture with an error that names the action and this setting. The desktop saves
+the list in `capture-folders.json` under its application root
+(`src-tauri/src/capture_folders.rs`) and starts its owned host with those roots.
+Saving applies the list to the running owned host at once through
+`services::Server::set_capture_roots`; captures opened afterwards use it, and a
+running capture keeps the roots it opened with. An attached host keeps its own
+`capture_roots` configuration. The story is
+`src-tauri/tests/system/capture_folders.rs`.
+
 ## Cycles and Saved Executions
 
 The host owns planning, execution lifecycle, frozen origins and durable evidence.

@@ -63,6 +63,9 @@ impl DesktopSessionControl {
     pub async fn local_client(&self) -> Result<crate::connection::host::Session, DesktopSessionError> {
         self.0.local_client().await
     }
+    pub async fn set_capture_folders(&self, roots: Vec<std::path::PathBuf>) {
+        self.0.set_capture_folders(roots).await;
+    }
     pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
         self.0.select(selection).await
     }

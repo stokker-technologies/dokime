@@ -376,6 +376,12 @@ impl Host {
         }
         Ok(self.store.export(execution)?)
     }
+    /// Replaces the folders plugins may capture from; captures opened afterwards use them.
+    pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {
+        if let Some(assembly) = &self.assembly {
+            assembly.context.captures.set_roots(roots);
+        }
+    }
     pub fn now_ns(&self) -> i64 {
         self.settings.clock.now_ns()
     }

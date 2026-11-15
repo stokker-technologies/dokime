@@ -22,8 +22,8 @@ pub mod stop;
 // Standard Library Imports
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, RwLock};
 
 // Third Party Imports
 use tokio::sync::watch;
@@ -56,7 +56,7 @@ pub struct CaptureSettings {
 
 /// Running Local Captures, Each Owned by the Execution That Started It.
 pub struct Captures {
-    settings: CaptureSettings,
+    settings: RwLock<CaptureSettings>,
     entries: Mutex<BTreeMap<u64, Entry>>,
     next: AtomicU64,
 }
@@ -95,13 +95,18 @@ impl Default for CaptureSettings {
 impl Captures {
     pub fn new(settings: CaptureSettings) -> Self {
         Self {
-            settings,
+            settings: RwLock::new(settings),
             entries: Mutex::new(BTreeMap::new()),
             next: AtomicU64::new(1),
         }
     }
-    pub fn settings(&self) -> &CaptureSettings {
-        &self.settings
+    /// The Current Bounds; Each New Capture Reads Them Once When It Opens.
+    pub fn settings(&self) -> CaptureSettings {
+        self.settings.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+    /// Replaces the Allowed Roots for Captures Opened From Now On; Running Captures Keep Theirs.
+    pub fn set_roots(&self, roots: Vec<PathBuf>) {
+        self.settings.write().unwrap_or_else(std::sync::PoisonError::into_inner).roots = roots;
     }
     /// Seals Every Running Capture of an Ending Execution, Then Forgets Them All.
     ///
@@ -126,7 +131,7 @@ impl Captures {
     pub(crate) fn admit(&self, capture: Capture) -> Result<u64> {
         let mut entries = self.lock();
         let running = entries.values().filter(|entry| entry.outcome.borrow().is_none()).count();
-        if running >= self.settings.maximum_captures {
+        if running >= self.settings().maximum_captures {
             return Err(Error::Bound("Capture Files: Stop a Running Capture or Raise the Host's Capture Capacity".into()));
         }
         let identifier = capture.identifier();

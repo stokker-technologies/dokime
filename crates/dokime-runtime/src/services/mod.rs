@@ -125,6 +125,10 @@ impl Server {
     pub fn status(&self) -> &Arc<Status> {
         &self.status
     }
+    /// Replaces the served host's capture folders for captures opened from now on.
+    pub fn set_capture_roots(&self, roots: Vec<std::path::PathBuf>) {
+        self.host.set_capture_roots(roots);
+    }
     pub async fn close(mut self) -> Result<()> {
         self.plugin_observation.cancel();
         if let Some(task) = self.plugin_task.take() {

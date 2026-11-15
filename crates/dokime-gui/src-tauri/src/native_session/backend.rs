@@ -30,6 +30,7 @@ use std::path::PathBuf;
 pub struct Backend {
     pub root: PathBuf,
     pub log: Option<PathBuf>,
+    pub capture_folders: Option<PathBuf>,
 }
 
 /* === Enums === */
@@ -40,11 +41,17 @@ pub struct Backend {
 
 impl Backend {
     pub fn new(root: PathBuf) -> Self {
-        Self { root, log: None }
+        Self { root, log: None, capture_folders: None }
     }
 
     pub fn with_log(mut self, log: Option<PathBuf>) -> Self {
         self.log = log;
+        self
+    }
+
+    /// Starts the host with the folders saved in this file as its capture roots.
+    pub fn with_capture_folders(mut self, file: PathBuf) -> Self {
+        self.capture_folders = Some(file);
         self
     }
 }
@@ -53,7 +60,9 @@ impl Backend {
 
 pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> Result<(Connection, String), Error> {
     on_phase("starting");
-    let mut connection = Connection::new(host::desktop_settings()).map_err(|error| failure(backend, error))?;
+    let mut settings = host::desktop_settings();
+    settings.host.capture.roots = backend.capture_folders.as_deref().map(crate::capture_folders::roots).unwrap_or_default();
+    let mut connection = Connection::new(settings).map_err(|error| failure(backend, error))?;
     let session = connection.start(&backend.root).await.map_err(|error| failure(backend, error))?;
     tracing::info!(endpoint = session.endpoint(), root = %backend.root.display(), "Execution Host Ready");
     Ok((connection, session.endpoint().to_owned()))
