@@ -66,7 +66,7 @@ def build(profile: str, language: str = "auto") -> None:
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-        for name in ("dokime-rust-thermal", "dokime-rust-execution", "dokime-rust-boundary", "dokime-rust-secrets"):
+        for name in ("dokime-rust-thermal", "dokime-rust-execution", "dokime-rust-boundary", "dokime-rust-secrets", "dokime-rust-capture"):
             shutil.copy2(root / "target/debug" / f"{name}{extension}", output / f"{name}{extension}")
 
         subprocess.run(
