@@ -122,7 +122,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    streams, RecordManager capture and StateManager live state; product execution,
    prompt and report managers own their lifecycles, with capture only if recordings remain.
    **Why:** One owner must join work and settle shutdown; storage reads and pure
-   rendering need no invented manager. Cycles group execution-manager tasks and
+   rendering need no invented manager. Assembly observes native plugin changes for
+   redacted diagnostics, and waits for product watches to settle after execution
+   shutdown before detaching its gRPC listener. Cycles group execution-manager tasks and
    do not own an independent scheduler.
    **Where:** [manager ownership table](../openspec/changes/operation-grammar/design.md#ownership-and-managers),
    [current Host](../crates/dokime-runtime/src/host.rs),

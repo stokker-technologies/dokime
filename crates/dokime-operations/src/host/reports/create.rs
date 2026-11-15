@@ -21,13 +21,14 @@
 
 // Local Imports
 use crate::host::ClientSettings;
+use crate::host::files::uploads::{append, create, delete, publish};
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::ReportsCreateResponse;
+use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
 use dokime_storage::Report;
 use harmos_protocol::model::FileMetadata;
-use harmos_protocol::model::FileReference;
 use harmos_protocol::model::OperationContract;
 use harmos_protocol::model::ReadCut;
 
@@ -62,18 +63,70 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
         let digest =
             (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
         let name = format!("prepared-report/{}", request.request_id);
-        let reference = FileReference {
-            metadata: Some(FileMetadata {
-                id: name.clone(),
-                scope: metadata.test_execution_id.clone().or(Some(metadata.test_cycle_id.clone())),
-                media_type: "text/html".into(),
-                expected_length: Some(length),
-                expected_sha256: Some(digest.clone()),
-            }),
-            length,
-            sha256: digest,
-            ..Default::default()
+        let created = create::handle(
+            context,
+            UploadsCreateRequest {
+                metadata: Some(FileMetadata {
+                    id: name.clone(),
+                    scope: metadata.test_execution_id.clone().or(Some(metadata.test_cycle_id.clone())),
+                    media_type: "text/html".into(),
+                    expected_length: Some(length),
+                    expected_sha256: Some(digest.clone()),
+                }),
+                request_id: format!("{ID}/{name}/create"),
+            },
+        )
+        .await?;
+        let upload = created.upload.ok_or_else(|| Error::Precondition("Create Report: Create Its Native Upload".into()))?;
+        let result = async {
+            let mut offset = 0;
+            while offset < length {
+                let count = (length - offset).min(created.chunk_bytes) as usize;
+                let mut data = vec![0; count];
+                crate::host::content::transfer::read_temporary(&retained, offset, &mut data)?;
+                append::handle(
+                    context,
+                    UploadsAppendRequest {
+                        upload: Some(upload.clone()),
+                        offset,
+                        data,
+                        request_id: format!("{ID}/{name}/{offset}"),
+                    },
+                )
+                .await?;
+                offset += count as u64;
+            }
+            let published = publish::handle(
+                context,
+                UploadsPublishRequest {
+                    upload: Some(upload.clone()),
+                    length,
+                    sha256: digest,
+                    request_id: format!("{ID}/{name}/publish"),
+                },
+            )
+            .await?;
+            published.upload.ok_or_else(|| Error::Precondition("Create Report: Publish Its Native File".into()))
+        }
+        .await;
+        let reference = match result {
+            Ok(reference) => reference,
+            Err(source) => {
+                if let Err(cleanup) = delete::handle(
+                    context,
+                    UploadsDeleteRequest {
+                        upload: Some(upload),
+                        request_id: uuid::Uuid::now_v7().to_string(),
+                    },
+                )
+                .await
+                {
+                    return Err(Error::Invalid(format!("Create Report: {source}; Remove Its Failed Upload: {cleanup}")));
+                }
+                return Err(source);
+            }
         };
+
         if let Some(execution) = &metadata.test_execution_id {
             use std::io::{Read, Seek};
             file.rewind().map_err(|error| Error::Invalid(format!("Create Report: {error}")))?;

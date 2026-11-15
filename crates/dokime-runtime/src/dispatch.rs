@@ -69,8 +69,10 @@ impl Dispatch<'_> {
         let action = operation;
         let mut invocation = operations.submit_encoded(action, request.encode_to_vec())?;
         let mut sleeping = self.time.sleeping.subscribe();
+        let mut advanced = false;
         let result = loop {
             let advancing = !sleeping.borrow_and_update().is_empty();
+            advanced |= advancing;
             tokio::select! {
                 biased;
                 _ = self.cancellation.cancelled() => {
@@ -88,7 +90,7 @@ impl Dispatch<'_> {
                 }, if advancing => {}
             }
         };
-        if let Some(controller) = &self.controller {
+        if advanced && let Some(controller) = &self.controller {
             controller.advance_by(std::time::Duration::ZERO).await;
         }
         if let Some(source) = self

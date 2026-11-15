@@ -115,6 +115,7 @@ impl harmos_runtime::clock::Source for Clock {
 
 pub(super) async fn launch(
     host: &crate::Host, root: &Path, settings: &ClientSettings, binding: Arc<dokime_operations::native::Binding>,
+    client_watches: Arc<super::ClientWatches>,
 ) -> Result<(Arc<Runtime<Application>>, dokime_storage::BackendLease, Manager)> {
     let source = host.settings.clock.clone();
     let store = &host.store;
@@ -201,6 +202,7 @@ pub(super) async fn launch(
     let runtime = Box::pin(Runtime::<Application>::launch_with((), Some(settings.clone()), |setup| {
         setup.resource::<dokime_operations::native::Binding>(binding);
         setup.settings().operation_middleware(Arc::new(Timing));
+        setup.settings().operation_middleware(client_watches);
         setup.settings().attach_streams(Samples {
             store: store.clone(),
             failures: sample_failures,

@@ -191,10 +191,10 @@ macro_rules! unary {
         }
     };
     (@call context, $context:ident, $request:ident) => {
-        super::handle(&$context, $request).await.map_err(failure)
+        Box::pin(super::handle(&$context, $request)).await.map_err(failure)
     };
     (@call resources, $context:ident, $request:ident) => {
-        super::handle($context.caller.as_ref().ok_or(ServingError::Catalog)?, $request).await.map_err(failure)
+        Box::pin(super::handle($context.caller.as_ref().ok_or(ServingError::Catalog)?, $request)).await.map_err(failure)
     };
 }
 

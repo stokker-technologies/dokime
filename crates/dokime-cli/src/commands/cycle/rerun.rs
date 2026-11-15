@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime::Metadata;
 use dokime::client::CyclesCreateOptions;
 
 /* === Constants === */
@@ -55,7 +56,12 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         context: settings.context()?,
         request_id: Some(settings.request_id(args.request_id)?),
     };
-    let value = client.cycles.create_with(Vec::new(), Default::default(), true, args.cycle, options).await?;
+    let source = client.cycles.get(args.cycle.clone()).await?.cycle.ok_or("Rerun Cycle: Read Its Source")?;
+    let metadata = source.metadata.unwrap_or_else(|| Metadata {
+        label: args.cycle.clone(),
+        ..Default::default()
+    });
+    let value = client.cycles.create_with(Vec::new(), metadata, true, args.cycle, options).await?;
     crate::output::print(&value, args.json)
 }
 

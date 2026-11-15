@@ -198,9 +198,8 @@ impl Host {
         self.create_plugin(name.into(), placement).await
     }
     async fn create_plugin(&self, name: String, placement: PluginPlacement) -> Result<String> {
-        use harmos_protocol::host::{PluginState, PluginValue, PluginsCreateRequest, PluginsWatchRequest};
-        use harmos_runtime::builtins::plugins::{Create, Watch};
-        use harmos_runtime::operations::StreamSettings;
+        use harmos_protocol::host::{PluginValue, PluginsCreateRequest};
+        use harmos_runtime::builtins::plugins::Create;
         self.admit("Add Plugin")?;
         let context = self
             .executions
@@ -209,13 +208,6 @@ impl Host {
             .get()
             .and_then(std::sync::Weak::upgrade)
             .ok_or_else(|| Error::Invalid("Add Plugin: Assemble the Host Context".into()))?;
-        let mut watch = context.operations.download_protobuf::<Watch>(
-            PluginsWatchRequest { name: Some(name.clone()), at: None },
-            StreamSettings {
-                items: self.settings.placement.stream_window,
-                bytes: self.settings.placement.message_bytes,
-            },
-        )?;
         context
             .operations
             .call_protobuf::<Create>(PluginsCreateRequest {
@@ -225,12 +217,33 @@ impl Host {
                 request_id: uuid::Uuid::now_v7().to_string(),
             })
             .await?;
+        self.await_plugin_ready(&name).await?;
+        Ok(name)
+    }
+    pub async fn await_plugin_ready(&self, name: &str) -> Result<()> {
+        use harmos_protocol::host::{PluginState, PluginsWatchRequest};
+        use harmos_runtime::builtins::plugins::Watch;
+        use harmos_runtime::operations::StreamSettings;
+        let context = self
+            .executions
+            .inner
+            .context
+            .get()
+            .and_then(std::sync::Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Await Plugin Ready: Assemble the Host Context".into()))?;
+        let mut watch = context.operations.download_protobuf::<Watch>(
+            PluginsWatchRequest { name: Some(name.into()), at: None },
+            StreamSettings {
+                items: self.settings.placement.stream_window,
+                bytes: self.settings.placement.message_bytes,
+            },
+        )?;
         let result = loop {
             context.host.refresh_plugin_states().await?;
-            let entry = lock(&self.plugins)?.get(&name).cloned();
+            let entry = lock(&self.plugins)?.get(name).cloned();
             if let Some(entry) = entry {
                 if entry.state == PluginState::Ready as i32 {
-                    break Ok(name.clone());
+                    break Ok(());
                 }
                 if matches!(PluginState::try_from(entry.state), Ok(PluginState::Unavailable)) {
                     break Err(Error::Invalid(format!("Add Plugin {name}: {:?}", entry.failure)));

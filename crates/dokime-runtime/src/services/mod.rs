@@ -26,7 +26,8 @@ pub use dokime_operations::host::ClientSettings;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use harmos_runtime::operations::middleware::{Enter, Invocation, Middleware, Observation};
+use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};
 
 // Third Party Imports
 use harmos_runtime::services::status::Status;
@@ -53,6 +54,45 @@ use tokio::task::JoinHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+
+pub(crate) struct ClientWatches {
+    active: tokio::sync::watch::Sender<BTreeSet<u64>>,
+}
+
+impl Default for ClientWatches {
+    fn default() -> Self {
+        Self {
+            active: tokio::sync::watch::channel(BTreeSet::new()).0,
+        }
+    }
+}
+impl ClientWatches {
+    pub async fn settle(&self) -> Result<()> {
+        let mut active = self.active.subscribe();
+        while !active.borrow_and_update().is_empty() {
+            active.changed().await.map_err(|source| Error::Invalid(format!("Settle Client Watches: {source}")))?;
+        }
+        Ok(())
+    }
+}
+impl Middleware for ClientWatches {
+    fn enter<'a>(&'a self, invocation: &'a mut Invocation) -> Enter<'a> {
+        Box::pin(async move {
+            let operation = invocation.operation().id.as_str();
+            if operation.starts_with("dokime.host.v1.") && operation.ends_with("/Watch") {
+                self.active.send_modify(|active| {
+                    active.insert(invocation.id().value());
+                });
+            }
+            Ok(())
+        })
+    }
+    fn observe(&self, invocation: &Invocation, _: Observation) {
+        self.active.send_modify(|active| {
+            active.remove(&invocation.id().value());
+        });
+    }
+}
 
 pub struct Server {
     endpoint: SocketAddr,
@@ -83,6 +123,8 @@ impl Server {
         if let Some(task) = self.plugin_task.take() {
             task.await??;
         }
+        self.host.executions.shutdown().await?;
+        self.host.assembly.as_ref().expect("assembled host").client_watches.settle().await?;
         if let Some(listener) = self.listener.take() {
             listener.detach().await?;
         }
@@ -174,8 +216,13 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     let listener = runtime.grpc().attach(transport).await?;
     let endpoint = listener.local_addr();
     let plugin_observation = tokio_util::sync::CancellationToken::new();
-    let plugin_task =
-        tokio::spawn(observe_plugins(runtime.operations.clone(), plugin_context, settings.clone(), plugin_observation.clone()));
+    let plugin_task = tokio::spawn(observe_plugins(
+        runtime.operations.clone(),
+        plugin_context,
+        settings.clone(),
+        plugin_observation.clone(),
+        status.clone(),
+    ));
     let changed_registration = registration.clone();
     let status_task = tokio::spawn(async move {
         while changes.changed().await.is_ok() {
@@ -207,6 +254,7 @@ pub(crate) struct Assembly {
     pub registration: Arc<harmos_runtime::services::status::Registration>,
     pub close_timeout: Duration,
     pub backend_lease: dokime_storage::BackendLease,
+    pub client_watches: Arc<ClientWatches>,
 }
 
 pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings) -> Result<Assembly> {
@@ -223,7 +271,9 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         display_name: "Dokime Execution Host".into(),
     };
     let binding = Arc::new(dokime_operations::native::Binding::default());
-    let (runtime, backend_lease, plugins) = Box::pin(composition::launch(host, root, settings, binding.clone())).await?;
+    let client_watches = Arc::new(ClientWatches::default());
+    let (runtime, backend_lease, plugins) =
+        Box::pin(composition::launch(host, root, settings, binding.clone(), client_watches.clone())).await?;
     let status = runtime.services().configure_status(status::settings(settings, backend_id.clone()))?;
     let administration = Arc::new(Mutex::new(()));
     let catalogs = Arc::new(std::sync::RwLock::new(Vec::new()));
@@ -274,12 +324,13 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         registration,
         close_timeout: settings.mutation_timeout,
         backend_lease,
+        client_watches,
     })
 }
 
 async fn observe_plugins(
     operations: harmos_runtime::operations::OperationManager, context: std::sync::Weak<Context>, settings: ClientSettings,
-    cancellation: tokio_util::sync::CancellationToken,
+    cancellation: tokio_util::sync::CancellationToken, status: Arc<Status>,
 ) -> Result<()> {
     use harmos_protocol::host::{PluginsWatchRequest, plugins_watch_response::Event};
     use harmos_runtime::builtins::plugins::Watch;
@@ -316,6 +367,23 @@ async fn observe_plugins(
                 }
                 return Ok(());
             };
+            if let Some(Event::Change(change)) = &event.event {
+                use harmos_protocol::host::plugin_change::Kind;
+                use harmos_protocol::host::status::Event as StatusEvent;
+                let fields = match &change.kind {
+                    Some(Kind::Entry(entry)) => [("plugin".into(), entry.name.clone()), ("state".into(), entry.state.to_string())].into(),
+                    Some(Kind::Deleted(name)) => [("plugin".into(), name.clone()), ("deleted".into(), true.to_string())].into(),
+                    None => return Err(Error::Invalid("Observe Plugins: Supply Its Change".into())),
+                };
+                let observation = StatusEvent {
+                    target: "dokime.plugins".into(),
+                    level: "INFO".into(),
+                    fields,
+                    ..Default::default()
+                };
+                status.record_log(observation.clone()).map_err(|source| status::failure("Record Plugin Log", source))?;
+                status.record_trace(observation).map_err(|source| status::failure("Record Plugin Trace", source))?;
+            }
             context.host.refresh_plugin_states().await?;
             dokime_operations::host::plugins::secrets::reconcile(&context).await?;
             context.host.signal_change();

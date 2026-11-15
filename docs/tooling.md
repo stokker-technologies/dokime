@@ -23,6 +23,8 @@ mise run check -- --repository
 
 Focused tests use nextest and compile only the selected package/target. `--exact`
 selects a test, `--story` selects a module, and `--filterset` takes a nextest expression.
+Use `--no-capture` for live output while diagnosing a focused source story; its
+configured hang guard is unchanged.
 `--artifact tests` consumes the matching prepared archive without compilation.
 An empty selection fails. Clippy runs through lint/check, never build/test.
 Focused Cargo commands and hosted producers both use `--locked`; the task adds

@@ -50,6 +50,7 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--story", help="Run One Rust Story Module in a Focused Package")
     parser.add_argument("--changed", nargs="+", help="Run Rust Tests Affected by These Repository Paths")
     parser.add_argument("--plan", action="store_true", help="Print Focused Cargo Commands Without Compiling")
+    parser.add_argument("--no-capture", action="store_true", help="Show Live Output From Focused Rust Stories")
     parser.add_argument("--no-run", action="store_true", help="Compile the Selected Rust Tests Without Running Them")
     parser.add_argument("--timings", action="store_true", help="Retain Native Cargo Build Timings")
     parser.add_argument("--check", action="store_true")
@@ -70,6 +71,8 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--once", action="store_true", help="Run Each Selected Benchmark Case Once")
     parser.add_argument("--cargo", nargs=argparse.REMAINDER, help="Run A Focused Cargo Build, Check Or Rustc With Native Arguments")
     args = parser.parse_args(arguments)
+    if args.no_capture and (args.operation != "test" or not args.package or args.artifact == "tests"):
+        parser.error("--no-capture requires a focused source Rust test")
     if args.once and args.operation != "bench":
         parser.error("--once requires bench")
     if args.once and args.refresh_baseline:
@@ -234,6 +237,8 @@ def main(arguments: list[str] | None = None) -> int:
             command += ["--lib"] if target == "lib" else ["--test", target] if target else ["--tests"]
             if args.filterset:
                 command += ["-E", args.filterset]
+            if args.no_capture:
+                command += ["--no-capture"]
             if args.no_run:
                 command += ["--no-run"]
             if args.exact:
