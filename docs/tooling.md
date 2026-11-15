@@ -329,18 +329,19 @@ parent-owned: after child exit, including termination, the runner removes each
 root's credentials through `dokime-host --remove-credentials` before discarding
 the root. Cleanup failures retain ownership metadata with the diagnostics.
 Existing workstation credentials outside those fresh roots are untouched.
-Windows credential teardown remains incomplete: the native backend documents
-unreliable ordering across threads. Cleanup checks absence and retains ownership
-when a key remains, but that check cannot establish cross-thread visibility.
+Native credential calls run on one dedicated process-lifetime owner thread.
+Cleanup checks absence and retains ownership when a key remains. Concurrent-host
+stories also check native absence from the calling threads after root removal.
 The desktop panic story now checks its exact access key and deliberate panic
 type; full-lane failures and post-lane native inventories remain separate proof.
 
 ### Desktop Plot Documents
 
-The final-library rehearsal at `b15faaf2` completed zero of 34 desktop cases.
-After removing batched responses, history preparation reached the producer's
-unchanged 30-second prompt deadline before the requested saved count was visible.
-The replacement SDK producer's focused runtime proof exposes an extra row at
+The earlier final-library rehearsal at `b15faaf2` completed zero of 34 desktop cases.
+Its producer used an unanswered operator prompt as an indefinite benchmark gate.
+The fixture now uses a local control connection for producer handoff and completion;
+operator prompt deadlines are unchanged. The SDK observer still publishes through
+the real carrier. The exact-boundary story at `a8cee45c` exposes an extra row at
 the controlled-sleep boundary. Current cold/warm/active first-view observations
 for both 30 and 100 plots at 3,072,000 rows remain unmeasured. The independent
 840/332/445 ms and 780/350/447 ms figures are historical comparisons, not results

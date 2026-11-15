@@ -117,7 +117,7 @@ fn main() {
     for count in [30, 100] {
         for condition in ["cold", "warm", "live", "late", "zoom", "resize", "navigation", "stalled"] {
             println!(
-                "Boundary | Desktop {count}/{condition} | native query through visible draw or explicit refusal; {condition}; durable history; producer prompt handoff/actions included when named, without a publication durability barrier; cold reopens host and desktop before timer"
+                "Boundary | Desktop {count}/{condition} | native query through visible draw or explicit refusal; {condition}; durable history; producer control handoff/actions included when named, without a publication durability barrier; cold reopens host and desktop before timer"
             );
             group.bench_function(format!("{count}/{condition}"), |bencher| {
                 bencher.iter_custom(|iterations| {
@@ -145,7 +145,7 @@ fn main() {
         for count in [30, 100] {
             for condition in ["cold", "warm", "live"] {
                 println!(
-                    "Boundary | Desktop {rows}/{count}/{condition} | document request, bounded document pages, visible plot queries, native delivery and visible draw; three-day history; host reopen excluded; live includes producer prompt handoff and saved visibility"
+                    "Boundary | Desktop {rows}/{count}/{condition} | document request, bounded document pages, visible plot queries, native delivery and visible draw; three-day history; host reopen excluded; live includes producer control handoff and saved visibility"
                 );
                 history.bench_function(format!("{rows}/{count}/{condition}"), |bencher| {
                     bencher.iter_custom(|iterations| {

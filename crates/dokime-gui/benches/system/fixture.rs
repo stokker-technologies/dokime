@@ -20,6 +20,11 @@ use std::{num::NonZeroUsize, path::Path, sync::Arc, time::Duration};
 
 // Third Party Imports
 use serde_json::Value;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::{TcpListener, TcpStream},
+    sync::Mutex,
+};
 use tokio_stream::StreamExt;
 
 // Local Imports
@@ -36,9 +41,7 @@ use dokime_protocol::host::CasesCreateRequest;
 use dokime_protocol::host::CyclesCreateRequest;
 use dokime_protocol::host::ExecutionsGetRequest;
 use dokime_protocol::host::ExecutionsListRequest;
-use dokime_protocol::host::PromptsListRequest;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
-use dokime_protocol::host::prompts::AnswersCreateRequest;
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
 use dokime_sdk as model;
 use dokime_sdk::StorageTransferSettings;
@@ -47,8 +50,6 @@ use dokime_sdk::client::CyclesCreateResponse;
 use dokime_sdk::client::ExecutionsGetResponse;
 use dokime_sdk::client::ExecutionsListResponse;
 use dokime_sdk::client::PlotsSnapshotsWatchResponse;
-use dokime_sdk::client::PromptsAnswersCreateResponse;
-use dokime_sdk::client::PromptsListResponse;
 use dokime_sdk::client::RegisteredSelection;
 use dokime_sdk::client::SelectionPlan;
 use dokime_sdk::client::{ClientSettings, PlotsPlotRequest};
@@ -90,7 +91,10 @@ pub struct Fixture {
     pub cycle: String,
     pub execution: String,
     plugin: Option<PluginProcess>,
+    control: Option<Mutex<BufReader<TcpStream>>>,
 }
+
+struct PublicationControl(Mutex<BufReader<TcpStream>>);
 
 /* === Enums === */
 
@@ -142,6 +146,7 @@ impl Fixture {
                 cycle: saved["cycle"].as_str().unwrap().into(),
                 execution: saved["execution"].as_str().unwrap().into(),
                 plugin: None,
+                control: None,
             };
         }
 
@@ -154,7 +159,15 @@ impl Fixture {
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
         let executable = std::env::current_exe().unwrap();
-        let plugin = PluginProcess::start(&executable, true, &placement).await.unwrap();
+        let control = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let plugin = PluginProcess::start_with_environment(
+            &executable,
+            true,
+            &placement,
+            &[("DOKIME_DESKTOP_BENCH_CONTROL".into(), control.local_addr().unwrap().to_string())],
+        )
+        .await
+        .unwrap();
         let options = PluginsCreateOptions {
             context: session.call_options().unwrap(),
             ..Default::default()
@@ -237,47 +250,25 @@ impl Fixture {
             cycle,
             execution,
             plugin: Some(plugin),
+            control: Some(Mutex::new(BufReader::new(control.accept().await.unwrap().0))),
         }
     }
 
     pub async fn publish(&self, action: &str) {
-        // Await the Producer's Question Before Releasing Its Next Publication
-        let mut changes = self.session.watch_raw("/dokime.host.v1.backend.Overview/Watch", &[]).await.unwrap();
-        loop {
-            let pending: PromptsListResponse = self
-                .session
-                .unary(
-                    "/dokime.host.v1.Prompts/List",
-                    PromptsListRequest {
-                        execution_id: Some(self.execution.clone()),
-                        pending_only: true,
-                        ..Default::default()
-                    },
-                )
-                .await
-                .unwrap();
-            if let Some(prompt) = pending.prompts.first() {
-                let _: PromptsAnswersCreateResponse = self
-                    .session
-                    .unary(
-                        "/dokime.host.v1.prompts.Answers/Create",
-                        AnswersCreateRequest {
-                            parent: prompt.prompt.as_ref().unwrap().prompt_id.clone(),
-                            request_id: format!("bench-answer-{}", prompt.prompt.as_ref().unwrap().prompt_id),
-                            action: action.into(),
-                            accepted: true,
-                            ..Default::default()
-                        },
-                    )
-                    .await
-                    .unwrap();
-                return;
-            }
-            changes.next().await.expect("Benchmark Host Watch Remains Open").unwrap();
-        }
+        // Benchmark Synchronization Is Independent of an Operator's Answer Deadline.
+        let mut control = self.control.as_ref().expect("Publish Active Benchmark History: Retain Its Producer").lock().await;
+        control.get_mut().write_all(format!("{action}\n").as_bytes()).await.unwrap();
+        let mut ready = String::new();
+        assert_ne!(control.read_line(&mut ready).await.unwrap(), 0, "Publish Benchmark History: Await Producer Completion");
+        assert!(ready.starts_with("ready "), "Publish Benchmark History: {ready}");
     }
 
     pub async fn prepared(&self) {
+        let mut control = self.control.as_ref().expect("Prepare Active Benchmark History: Retain Its Producer").lock().await;
+        let mut ready = String::new();
+        assert_ne!(control.read_line(&mut ready).await.unwrap(), 0, "Prepare Benchmark History: Await Producer Completion");
+        assert_eq!(ready.trim(), format!("ready {}", rows()), "Prepare Benchmark History: Retain Every Sample");
+        drop(control);
         // Sample Visibility, Rather Than an Elapsed Delay, Establishes Readiness
         let request = SnapshotsWatchRequest {
             requests: vec![PlotsPlotRequest {
@@ -337,6 +328,12 @@ pub fn serve() -> Result<()> {
     let template = Template::new("bench.pipeline.capture", "Pipeline Capture")
         .initialize(async |context: &Context| {
             context.set(History::default());
+            let address = std::env::var("DOKIME_DESKTOP_BENCH_CONTROL")
+                .map_err(|error| model::Error::Invalid(format!("Connect Benchmark Producer Control: {error}")))?;
+            let stream = TcpStream::connect(address)
+                .await
+                .map_err(|error| model::Error::Invalid(format!("Connect Benchmark Producer Control: {error}")))?;
+            context.set(PublicationControl(Mutex::new(BufReader::new(stream))));
             Ok(())
         })
         .step(Step::new("Capture", publish))
@@ -346,8 +343,6 @@ pub fn serve() -> Result<()> {
         .document(document(100));
     Plugin::new("desktop.benchmark", "1.0.0")
         .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
-        .prompt(Prompt::new("bench.next", "Next Publication", "Publish the Next Samples?").action("live", "Live").action("late", "Late"))
-        .requires_host(HostOperation::PromptsCreate)
         .requires_host(HostOperation::TimeSleep)
         .remote()
         .serve()
@@ -469,8 +464,20 @@ async fn publish(context: &Context) -> Result<()> {
             context.sleep(Duration::from_millis((target - published) as u64)).await?;
         }
         sequence += count;
-        let answer = context.host().prompts.create(format!("next-{sequence}"), "bench.next".into(), Default::default()).await?;
-        late = answer.action == "late";
+        let control = context.get::<PublicationControl>()?;
+        let mut control = control.0.lock().await;
+        control
+            .get_mut()
+            .write_all(format!("ready {sequence}\n").as_bytes())
+            .await
+            .map_err(|error| model::Error::Invalid(format!("Announce Benchmark Publication: {error}")))?;
+        let mut action = String::new();
+        if control.read_line(&mut action).await.map_err(|error| model::Error::Invalid(format!("Await Benchmark Publication: {error}")))?
+            == 0
+        {
+            return Err(model::Error::Invalid("Await Benchmark Publication: Control Connection Closed".into()));
+        }
+        late = action.trim() == "late";
         first = if late { rows() - 480 + (sequence - rows()) % 400 } else { sequence };
         count = 8;
     }
