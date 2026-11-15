@@ -1,0 +1,99 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package === #
+
+[package]
+name = "plugin-obc"
+description = "Demonstrates onboard charger validation on a simulated testbench."
+autotests = false
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+version = { workspace = true }
+
+# === Package Targets === #
+
+[[bin]]
+name = "plugin-obc"
+path = "src/main.rs"
+test = false
+
+# === Features === #
+
+# === Dependencies === #
+
+[dependencies]
+# Local
+dokime = { path = "../../../sdk/rust" }
+
+# Git
+
+# Error Handling
+
+# Logging
+
+# Utilities
+sha2 = { workspace = true }
+
+# Serialization
+prost-types = { workspace = true }
+serde_json = { workspace = true }
+
+# Configuration
+
+# Filesystem
+
+# Parsing
+
+# Concurrency
+
+# Async
+
+# Networking
+
+# Storage
+
+# UI
+
+# Testing
+
+# === Build Dependencies === #
+
+# === Dev Dependencies === #
+
+[dev-dependencies]
+prost = { workspace = true }
+prost-reflect = { workspace = true }
+
+# === Target Dependencies === #
+
+# === Test Targets === #
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+
+# === Bench Targets === #
+
+# === Example Targets === #
+
+# === Workspace Lints === #
+
+# === Lints === #
+
+[lints]
+workspace = true
+
+# === Profiles === #
+
+# === Patches === #
+
+# === Other === #

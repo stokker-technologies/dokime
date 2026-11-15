@@ -17,6 +17,7 @@ members = [
   "crates/dokime-operations",
   "crates/dokime-runtime",
   "crates/dokime-packaging",
+  "plugins/sidecars/obc",
   "sdk/rust",
   "tools/protocol",
 ]
@@ -29,6 +30,7 @@ default-members = [
   "sdk/rust",
   "crates/dokime-protocol",
   "crates/dokime-packaging",
+  "plugins/sidecars/obc",
 ]
 resolver = "2"
 
