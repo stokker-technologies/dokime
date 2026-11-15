@@ -1862,7 +1862,7 @@ The generated layer is now available; its compilation does not close these owner
 4. Add the handlers for `plugins.Secrets.{List,Set,Delete}` in `host/plugins/secrets/{list,set,delete}.rs`; catalog SecretsDeclarations, revision complete maps, reconcile at startup and remove bindings from the library Plugins watch.
 5. In runtime `services/{mod.rs,state.rs}` and host assembly, register the library Plugins and plugins.Settings directly and use its PluginEntry name as the only identity. Product operations under `host/plugins` and runtime `services/{plugins,plugins_settings,plugin_entries,managed_plugins}.rs` are deleted. Retain `.dokime` validation via `dokime-packaging` and supply the library's content/launch integration instead of restoring product installation records.
 6. Apply `setup.composition(...)` before listeners/plugins start; enforce effective callers for direct, encoded and child admission and discovery, with wrong-caller refusal in both directions. CLIENTS and PLUGINS are independent of Protected/Public visibility and resource grants.
-7. Route all storage through the library's native operations, including executions, cycles, plans, notes, outcomes and reports as objects/records. Remove direct Store access from the inventory below; do not add a storage gRPC service or an SDK storage twin.
+7. Route samples, files and uploads through the registered native backend. Keep executions, cycles, cases, plans, commands, progress, notes, reports and prompts in their product Store transactions, as specified in Storage Paths After This Wave. Review the direct Store inventory below against those resource owners; do not add a storage gRPC service or an SDK storage twin.
 8. Compose library Time.Get/Sleep; product operation files `time.rs` and `sleep.rs` and the settings-read operation are deleted. Adapt `clock.rs`, `services/clock.rs` and scheduler integration to the library execution clock while preserving controlled ticks, cancellation and observer/sample order.
 9. Preserve unimplemented media capture, FTP and Effects behavior. Add declarations/admission without restoring their engines or reporting empty success. Replace SDK manual context bindings with descriptor-generated service bindings.
 10. Migrate `crates/dokime-protocol/tests` and runtime/operations stories, fixtures and build selectors; repair module registration after rename, prove lifecycle bindings and wrong-caller cases, and leave full hosted validation open until every consumer has handed off.
@@ -1877,7 +1877,7 @@ Keep the backend algorithms and durability changes; do not reimplement them.
 1. In `crates/dokime-storage/src/{backend.rs,store.rs,lib.rs,history.rs}`, implement one root-scoped StorageBackend with stable history, selecting executions through product scope. Retire the per-execution Backend facade as consumers move. Add the StateBackend owner with the same history and durable recovery state.
 2. Implement every mandatory trait method in the tables below, including resumable-file fencing/checkpoints, original mutation receipts, conditional objects, schema identities and native projected Arrow reads; unsupported default methods do not establish product capability. The pin still supports only native PostcardV1: map product values/schema losslessly at the ports and retain frozen protobuf definitions, never relabel protobuf bytes as Postcard or add a duplicate durable sample representation.
 3. Preserve `ipc{,/**}.rs`, `telemetry/**`, `streams.rs`, `stream_*`, catalog/flush and snapshot pinning: one compressed Arrow representation, file sync before catalog commit, rollback/recovery/finalization and accepted-versus-durable separation. No old sample SQL tables return.
-4. Store product execution/cycle/plan/note/outcome/report values through native object/record ports with protobuf schema definitions. Remove `Store::save_plugin_administration` (deleted here) and product plugin-entries/plugin-installations/managed-executables stores; generic administration remains only for remaining product owners until migrated.
+4. Keep product execution/cycle/plan/note/outcome/report values and their compound transactions in the product Store. Remove `Store::save_plugin_administration` (deleted here) and product plugin-entries/plugin-installations/managed-executables stores; library Plugins owns those resources. Generic administration remains for product-owned metadata and retained native file references.
 5. Replace `expressions.rs`'s `ordered_merge::as_of` call with `harmos_query::merge::TimeMergeReader` over retained, projected BatchReaders; use native Query.merge/TimeMerge with Range, AtOrBefore or Intervals as appropriate. Adapt record range, value-at-record, paired intervals, grouping and stream-to-stream callers without rewriting the correctness worker's algorithms.
 6. After those callers move, delete `src/ordered_merge.rs`, `mod ordered_merge` in `lib.rs` and its now-redundant merge tests/imports. Sorting, scalar/aggregate execution, merge and downsampling belong to harmos-query, never a second product query engine.
 7. At runtime assembly, create StorageBackends { primary, state }, StorageManager::with_catalog and setup.settings().storage(&storage), then register native storage declarations. Both backend handles share the same root identity; storage is in-process only.
@@ -2133,10 +2133,12 @@ removed, not kept as compatibility modules.
 
 ### Direct Store Consumer Inventory
 
-These files still contain Store imports/access and require item 7 of the operations/
-runtime work list. A file may retain product lifecycle logic, but its persistence
-must become a library native operation call. The storage backend itself is excluded
-because physical I/O belongs there. The inventory is source inspection, not test proof.
+These files contain Store imports/access. Item 7 of the operations/runtime work
+list reviews their ownership against Storage Paths After This Wave: compound
+product objects retain Store transactions, while samples, files and uploads use
+the registered backend. This inventory does not require migrating product objects.
+The storage backend itself is excluded because physical I/O belongs there. The
+inventory is source inspection, not test proof.
 
 `crates/dokime-operations/src/` (91 files):
 

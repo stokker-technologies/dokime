@@ -12,6 +12,7 @@
 /* === Imports === */
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -287,7 +288,38 @@ async function settings() {
     ),
   );
   await desktop.goto("/settings/diagnostics");
-  assert.ok(/recovery|preserv|unavailable|not.*support/i.test(await desktop.text()));
+  await until("Diagnostics Download Is Available", () =>
+    desktop.execute(
+      `const button = [...document.querySelectorAll("button")].find(node => node.textContent.trim() === "Download Bundle");
+       return Boolean(button && !button.disabled);`,
+    ),
+  );
+  assert.equal(
+    await desktop.execute(
+      'return [...document.querySelectorAll("button")].some(node => node.textContent.trim() === "Reset Local Storage");',
+    ),
+    false,
+  );
+  const archive = await call(desktop, "harmos.host.v1.status.Diagnostics", "Get", { maxBytes: "1024" });
+  assert.ok(BigInt(archive.totalLength) > 0n);
+  const chunks = [Buffer.from(archive.data, "base64")];
+  let length = chunks[0].length;
+  while (BigInt(length) < BigInt(archive.totalLength)) {
+    const page = await call(desktop, "harmos.host.v1.status.Diagnostics", "Get", {
+      name: archive.name,
+      offset: String(length),
+      maxBytes: "1024",
+    });
+    assert.equal(page.name, archive.name);
+    assert.equal(page.totalLength, archive.totalLength);
+    assert.equal(page.sha256, archive.sha256);
+    const data = Buffer.from(page.data, "base64");
+    assert.ok(data.length > 0 && data.length <= 1024);
+    chunks.push(data);
+    length += data.length;
+  }
+  assert.equal(BigInt(length), BigInt(archive.totalLength));
+  assert.equal(createHash("sha256").update(Buffer.concat(chunks)).digest("base64"), archive.sha256);
 }
 
 async function appearance() {
