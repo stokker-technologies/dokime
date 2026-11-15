@@ -85,6 +85,8 @@ pub struct Host {
 
 impl Host {
     pub async fn open(root: &Path, settings: HostSettings, operations: crate::services::ClientSettings) -> Result<Self> {
+        // Every Host Entry Point Owns Its Descendants Before Any Plugin Starts.
+        crate::process::own_descendants()?;
         let mut host = Self::open_store(root, settings)?;
         host.assembly = Some(Arc::new(Box::pin(crate::services::assemble(&host, root, &operations)).await?));
         Ok(host)

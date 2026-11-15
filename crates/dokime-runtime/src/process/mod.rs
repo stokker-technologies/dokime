@@ -24,9 +24,9 @@ mod windows;
 /* === Re-Exports === */
 
 #[cfg(unix)]
-pub use unix::command;
+pub use unix::{command, own_descendants};
 #[cfg(target_os = "windows")]
-pub use windows::command;
+pub use windows::{command, own_descendants};
 
 /* === Imports === */
 

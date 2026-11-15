@@ -55,11 +55,18 @@ pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /* === Public Functions === */
 
-pub fn command(program: impl AsRef<OsStr>) -> Command {
+pub fn own_descendants() -> io::Result<()> {
     // The Non-Inherited Handle Closes Even When This Process Is Forcibly Killed.
-    // Descendants Inherit Membership, Including Native Managed Plugins.
-    static CHILDREN: OnceLock<OwnedHandle> = OnceLock::new();
-    CHILDREN.get_or_init(|| own_children().expect("Own Child Processes: Assign the Parent to a Kill-on-Close Job"));
+    // Descendants Inherit Membership, Including Plugins the Library Spawns.
+    static CHILDREN: OnceLock<Result<OwnedHandle, String>> = OnceLock::new();
+    match CHILDREN.get_or_init(|| own_children().map_err(|source| source.to_string())) {
+        Ok(_) => Ok(()),
+        Err(source) => Err(io::Error::other(format!("Own Child Processes: Assign the Host to a Kill-on-Close Job: {source}"))),
+    }
+}
+
+pub fn command(program: impl AsRef<OsStr>) -> Command {
+    own_descendants().expect("Own Child Processes: Assign the Host to a Kill-on-Close Job");
     #[allow(clippy::disallowed_methods, reason = "the replacement host process constructor")]
     let mut command = Command::new(program);
     command.creation_flags(CREATE_NO_WINDOW);
