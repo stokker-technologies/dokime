@@ -35,7 +35,7 @@ run = "cargo generate-lockfile --manifest-path tests/consumer/Cargo.toml"
 [tasks.format]
 description = "Format Rust SDK Sources and Manifests"
 run = [
-  "rustfmt --edition 2024 src/lib.rs derive/src/lib.rs examples/thermal.rs examples/execution.rs examples/client/src/main.rs examples/plugin/src/main.rs tests/integration/main.rs tests/consumer/src/main.rs tests/fixtures/resources.rs tests/fixtures/secrets.rs examples/test/src/main.rs",
+  "rustfmt --edition 2024 src/lib.rs derive/src/lib.rs examples/thermal.rs examples/execution.rs examples/client/src/main.rs examples/plugin/src/main.rs tests/integration/main.rs tests/consumer/src/main.rs tests/fixtures/resources.rs tests/fixtures/secrets.rs tests/fixtures/boundary.rs examples/test/src/main.rs",
   "taplo fmt --config ../../tools/config/taplo.toml --option column_width=140 Cargo.toml derive/Cargo.toml tests/consumer/Cargo.toml mise.toml examples/test/Cargo.toml examples/test/mise.toml examples/plugin/Cargo.toml examples/plugin/mise.toml examples/client/Cargo.toml examples/client/mise.toml",
   "uv run --no-sync --project ../../tools/python ruff format tools",
 ]

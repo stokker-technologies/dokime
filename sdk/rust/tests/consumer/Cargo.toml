@@ -35,6 +35,10 @@ name = "dokime-rust-execution"
 path = "../../examples/execution.rs"
 
 [[bin]]
+name = "dokime-rust-boundary"
+path = "../fixtures/boundary.rs"
+
+[[bin]]
 name = "dokime-rust-resources"
 path = "../fixtures/resources.rs"
 

@@ -66,7 +66,17 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                 let result = cycle.wait().await?;
                 let snapshot = &result.executions[0];
                 let expected = if failures == 1 { Termination::Completed } else { Termination::Failed };
-                assert_eq!(snapshot.execution.termination, expected as i32);
+                assert_eq!(
+                    snapshot.execution.termination,
+                    expected as i32,
+                    "Complete Retried Execution: {:?}",
+                    snapshot
+                        .evidence
+                        .iter()
+                        .filter(|evidence| evidence.kind.ends_with(":failure"))
+                        .map(|evidence| (&evidence.kind, String::from_utf8_lossy(&evidence.payload)))
+                        .collect::<Vec<_>>()
+                );
                 assert_eq!(snapshot.logs()?.len(), 2);
                 assert!(host.streams_closed(&snapshot.execution.identifier)?);
                 let attempts = snapshot

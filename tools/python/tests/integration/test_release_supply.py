@@ -200,6 +200,43 @@ class SupplyTests(unittest.TestCase):
                 self.assertEqual(opener.call_count, 0 if cached else 2)
                 self.assertEqual(sleep.call_count, 0 if cached else 1)
 
+    def test_python_notices_verify_versioned_upstream_license_sources(self):
+        license_data = bytes(range(32, 127)) + b"\n"
+        source_url = "https://example.invalid/source-license"
+        for version, source_data in (("1", license_data), ("1", b"changed"), ("2", license_data)):
+            with self.subTest(version=version, source_data=source_data), tempfile.TemporaryDirectory() as temporary:
+                content = io.BytesIO()
+                with zipfile.ZipFile(content, "w") as output:
+                    output.writestr("dependency.dist-info/METADATA", f"Name: dependency\nVersion: {version}\nLicense-Expression: MIT\n")
+                data = content.getvalue()
+                lock = {
+                    "package": [
+                        {
+                            "name": "dependency",
+                            "version": version,
+                            "source": {"registry": "https://pypi.org/simple"},
+                            "wheels": [{"url": "https://example.invalid/wheel", "hash": "sha256:" + hashlib.sha256(data).hexdigest()}],
+                        }
+                    ]
+                }
+                with (
+                    mock.patch.dict(os.environ, {"UV_CACHE_DIR": temporary}),
+                    mock.patch.dict(
+                        notices.PYTHON_LICENSE_SOURCES,
+                        {("dependency", "1"): (source_url, hashlib.sha256(license_data).hexdigest())},
+                        clear=True,
+                    ),
+                    mock.patch("urllib.request.urlopen", side_effect=[io.BytesIO(data), io.BytesIO(source_data)]) as opener,
+                ):
+                    if version == "1" and source_data == license_data:
+                        text, count = notices.python_notices(lock)
+                        self.assertEqual(count, 1)
+                        self.assertIn(license_data.decode("utf-8"), text)
+                    else:
+                        with self.assertRaises(policy.ToolError):
+                            notices.python_notices(lock)
+                self.assertEqual(opener.call_count, 2 if version == "1" else 1)
+
     def test_notice_download_http_status_and_retry_exhaustion(self):
         url = "https://example.invalid/license"
         for status, attempts in ((404, 1), (503, 3)):

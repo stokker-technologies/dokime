@@ -204,6 +204,13 @@ pub fn secrets_fixture() -> Result<PathBuf, Box<dyn Error>> {
     }
     Ok(path)
 }
+pub fn boundary_fixture() -> Result<PathBuf, Box<dyn Error>> {
+    let path = fixture_root().join(format!("dokime-rust-boundary{}", EXE_SUFFIX));
+    if !path.is_file() {
+        return Err("Build the Boundary Fixture Through mise run build:host-fixtures".into());
+    }
+    Ok(path)
+}
 pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> HashMap<String, Value> {
     use dokime::Value;
     use dokime_protocol::model::value::Kind;

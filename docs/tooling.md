@@ -13,6 +13,15 @@ build does not populate dependencies for every platform in that metadata.
 Product Build generates preferences, both TypeScript message roots and icons
 before type checking, then builds the live and embedded report assets.
 
+Python notices verify each locked wheel's hash and include its license files.
+For a wheel that omits its license text, the notices owner must declare an
+exact package version, immutable upstream license URL and SHA-256 digest;
+missing declarations and mismatched source bytes fail packaging.
+
+The Rust host-fixture task builds and stages separate capture and publication
+boundary plugins. Each catalog declares only its own sampled streams, so a
+capture execution never samples the boundary counter's execution resources.
+
 ## Focused Development
 
 ```sh

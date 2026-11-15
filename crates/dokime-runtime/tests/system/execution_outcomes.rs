@@ -87,7 +87,15 @@ fn execution_outcomes() -> Result<(), Box<dyn Error>> {
                     not_evaluated: 1,
                     declared: 0,
                     verdict: Some(ResultStatus::Passed)
-                }
+                },
+                "Evaluate Execution Outcomes: {:?}",
+                result
+                    .executions
+                    .iter()
+                    .flat_map(|snapshot| &snapshot.evidence)
+                    .filter(|evidence| evidence.kind.ends_with(":failure"))
+                    .map(|evidence| (&evidence.kind, String::from_utf8_lossy(&evidence.payload)))
+                    .collect::<Vec<_>>()
             );
             assert!(matches!(
                 result.executions[1].execution.outcome.as_ref().unwrap().attribution,

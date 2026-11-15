@@ -608,7 +608,17 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
             let mut snapshots = cycle.wait().await?.executions;
             snapshots.extend(other.wait().await?.executions);
             for (snapshot, value) in snapshots.iter().zip([11.0, 22.0, 33.0]) {
-                assert_eq!(snapshot.execution.termination, Termination::Completed as i32);
+                assert_eq!(
+                    snapshot.execution.termination,
+                    Termination::Completed as i32,
+                    "Complete Isolated Execution: {:?}",
+                    snapshot
+                        .evidence
+                        .iter()
+                        .filter(|evidence| evidence.kind.ends_with(":failure"))
+                        .map(|evidence| (&evidence.kind, String::from_utf8_lossy(&evidence.payload)))
+                        .collect::<Vec<_>>()
+                );
                 assert!(matches!(snapshot.execution.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
                         Some(ExecutionOutcomeAttribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32));
                 assert_eq!(
@@ -656,7 +666,17 @@ fn concurrent_execution_clocks_advance_independently() -> Result<(), Box<dyn Err
             super::support::answer(&host, &right_id, right_prompt)?;
             let right = right.wait().await?.executions.remove(0);
             assert_eq!(host.execution(&left_id)?.samples, held);
-            assert_eq!(right.execution.termination, Termination::Completed as i32);
+            assert_eq!(
+                right.execution.termination,
+                Termination::Completed as i32,
+                "Complete Independent Execution Clock: {:?}",
+                right
+                    .evidence
+                    .iter()
+                    .filter(|evidence| evidence.kind.ends_with(":failure"))
+                    .map(|evidence| (&evidence.kind, String::from_utf8_lossy(&evidence.payload)))
+                    .collect::<Vec<_>>()
+            );
 
             // Advance Left Through Its Own Sleep and Retain Separate Evidence
             super::support::answer(&host, &left_id, left_prompt)?;

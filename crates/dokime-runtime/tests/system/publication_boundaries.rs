@@ -50,7 +50,7 @@ fn publication_boundaries() -> Result<(), Box<dyn Error>> {
     support::run(Box::pin(async {
         let root = support::tempdir()?;
         let host = Host::open(root.path(), support::settings(), support::service_settings()).await?;
-        let entry = host.add_managed("boundary", &support::execution_fixture()?, &[]).await?;
+        let entry = host.add_managed("boundary", &support::boundary_fixture()?, &[]).await?;
         let mut retained = Vec::new();
         for rows in [1023, 1024, 1025] {
             let origin = host
