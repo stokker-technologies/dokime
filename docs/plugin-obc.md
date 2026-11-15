@@ -35,7 +35,7 @@ The start-up document covers the ten plot kinds. Its Signal Maps section
 `obc.charger.startup.sequence.maps` pairs a sparse input-power contour (mean
 reduction, filled bands) with the Electrical Trajectory and the Channel Survey
 grid: the bench scans eight heatsink sensors on four power modules every sweep,
-so the grid plays back module temperatures as the charger warms. Phase Breakdown
+so the grid plays back each sensor's rise above ambient as the charger warms. Phase Breakdown
 shows pie/donut and Pareto options, and Distributions includes the frequency
 series. The screenshot journey in `crates/dokime-gui/e2e/screenshots.mjs` seeks,
 replays and pauses these controls.

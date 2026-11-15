@@ -50,14 +50,14 @@ pub struct Measurement {
     pub phase: String,
 }
 
-/// One Point of the Bench's Thermal Channel Survey Across Power Modules and Sensors.
+/// One Point of the Bench's Thermal Channel Survey: a Heatsink Sensor's Rise Above Ambient.
 #[derive(dokime::Row)]
 #[harmos(package = "obc")]
 pub struct Survey {
     pub sweep: f64,
     pub module: f64,
     pub sensor: f64,
-    pub temperature_c: f64,
+    pub rise_k: f64,
 }
 
 /* === Enums === */

@@ -158,8 +158,8 @@ pub fn document() -> Document {
     let mut trajectory = plot("obc.charger.startup.sequence.trajectory", "Electrical Trajectory", PlotKind::Trajectory, "A");
     trajectory.x = Some(field(SAMPLES, "voltage_v"));
     trajectory.y = vec![field(SAMPLES, "current_a")];
-    let mut grid = plot("obc.charger.startup.sequence.channel_survey", "Channel Survey", PlotKind::GridChart, "°C");
-    grid.y = vec![field(SURVEY, "temperature_c")];
+    let mut grid = plot("obc.charger.startup.sequence.channel_survey", "Channel Survey", PlotKind::GridChart, "K");
+    grid.y = vec![field(SURVEY, "rise_k")];
     grid.reduction = Some(Reduction::Mean as i32);
     grid.grid = Some(GridChart {
         row: Some(field(SURVEY, "module")),
@@ -167,7 +167,7 @@ pub fn document() -> Document {
         frame: Some(field(SURVEY, "sweep")),
         rows: ["A", "B", "C", "D"].iter().enumerate().map(|(index, name)| axis(index, format!("Module {name}"))).collect(),
         columns: (0..8).map(|index| axis(index, format!("Sensor {}", index + 1))).collect(),
-        summary_label: "Temperature".into(),
+        summary_label: "Total Rise".into(),
         ..Default::default()
     });
     let maps = Section::new("Signal Maps")
@@ -178,8 +178,10 @@ pub fn document() -> Document {
 
     let mut voltages = plot("obc.charger.startup.sequence.voltage_distribution", "Voltage Distribution", PlotKind::Histogram, "V");
     voltages.x = Some(field(SAMPLES, "voltage_v"));
+    voltages.y = vec![field(SAMPLES, "voltage_v")];
     let mut currents = plot("obc.charger.startup.sequence.current_distribution", "Current Distribution", PlotKind::Histogram, "A");
     currents.x = Some(field(SAMPLES, "current_a"));
+    currents.y = vec![field(SAMPLES, "current_a")];
     let mut by_phase = plot("obc.charger.startup.sequence.voltage_by_phase", "Voltage by Phase", PlotKind::BoxPlot, "V");
     by_phase.series_by = Some(field(SAMPLES, "phase"));
     by_phase.y = vec![field(SAMPLES, "voltage_v")];

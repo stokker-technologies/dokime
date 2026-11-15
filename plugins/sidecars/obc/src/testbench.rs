@@ -46,7 +46,7 @@ const SURVEY_POINTS: u64 = 32;
 /// One Execution's Bench. Observers Sample It on Host Ticks; Steps Drive It.
 pub struct Testbench {
     state: Mutex<State>,
-    tick: Duration,
+    tick: Mutex<Duration>,
     published: Notify,
 }
 
@@ -74,24 +74,30 @@ impl Testbench {
     ///
     /// `step_s` is the model time one sample advances; `None` follows the host clock.
     pub async fn open(ctx: &Context, supply: Supply, step_s: Option<f64>) -> Result<()> {
-        let tick = settings::sample_interval(ctx).await?;
-        let step_s = step_s.unwrap_or(tick.as_secs_f64());
-        if !step_s.is_finite() || step_s <= 0.0 {
+        if step_s.is_some_and(|step_s| !step_s.is_finite() || step_s <= 0.0) {
             return Err(Error::Invalid("Open Testbench: Choose a Positive Sample Interval".into()));
         }
+        // Observers May Tick Before the Settings Read Returns, So the Bench Exists First
+        let tick = Duration::from_millis(1);
         ctx.set(Self {
             state: Mutex::new(State {
                 charger: Charger::new(supply)?,
                 index: 0,
-                step_s,
+                step_s: step_s.unwrap_or(tick.as_secs_f64()),
                 origin_s: 0.0,
                 label: "idle",
                 sequence: None,
                 survey: 0,
             }),
-            tick,
+            tick: Mutex::new(tick),
             published: Notify::new(),
         });
+        let tick = settings::sample_interval(ctx).await?;
+        let bench = ctx.get::<Self>()?;
+        *bench.tick.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = tick;
+        if step_s.is_none() {
+            bench.state().step_s = tick.as_secs_f64();
+        }
         Ok(())
     }
 
@@ -116,7 +122,8 @@ impl Testbench {
             return Ok(());
         }
         let target = self.state().index + samples;
-        let total = self.tick.checked_mul(u32::try_from(samples).map_err(|_| Error::Invalid("Wait: Too Many Samples".into()))?);
+        let tick = *self.tick.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let total = tick.checked_mul(u32::try_from(samples).map_err(|_| Error::Invalid("Wait: Too Many Samples".into()))?);
         ctx.sleep(total.ok_or_else(|| Error::Invalid("Wait: Duration Overflow".into()))?).await?;
         // The Last Tick Fires With the Sleep; Await Its Sample Without Advancing Time
         loop {
@@ -190,7 +197,7 @@ pub async fn survey(ctx: &Context, stream: &str) -> Result<Survey> {
         sweep,
         module,
         sensor,
-        temperature_c: 25.0 + module * 1.5 + sensor * 0.4 + 12.0 * load * (1.0 - (-sweep / 20.0).exp()),
+        rise_k: module * 1.5 + sensor * 0.4 + 12.0 * load * (1.0 - (-sweep / 20.0).exp()),
     })
 }
 

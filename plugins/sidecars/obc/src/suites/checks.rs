@@ -17,7 +17,6 @@
 
 // Standard Library Imports
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
 
 // Third Party Imports
 use tokio::sync::Notify;
@@ -57,7 +56,6 @@ pub struct Pulse {
 /// The Pulse Counter and the Host Time One Sample Takes.
 struct Pulses {
     produced: AtomicU64,
-    tick: Duration,
     published: Notify,
 }
 
@@ -120,10 +118,8 @@ pub fn pulse_value(index: u64) -> f64 {
 /* === Private Functions === */
 
 async fn initialize(ctx: &Context) -> Result<()> {
-    let tick = settings::sample_interval(ctx).await?;
     ctx.set(Pulses {
         produced: AtomicU64::new(0),
-        tick,
         published: Notify::new(),
     });
     Ok(())
@@ -143,7 +139,7 @@ async fn stream(ctx: &Context) -> Result<()> {
     let pulses = ctx.get::<Pulses>()?;
     let produced = pulses.produced.load(Ordering::Acquire);
     let pending = u32::try_from(wanted.saturating_sub(produced)).map_err(|_| Error::Invalid("Stream Pulse: Too Many Samples".into()))?;
-    ctx.sleep(pulses.tick * pending).await?;
+    ctx.sleep(settings::sample_interval(ctx).await? * pending).await?;
     // The Last Tick Fires With the Sleep; Await Its Sample Without Advancing Time
     loop {
         let published = pulses.published.notified();
