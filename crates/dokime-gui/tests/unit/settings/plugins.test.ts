@@ -253,9 +253,7 @@ test("Declared Secret Add", () => {
   };
   const render = () => {
     fixture.capturedAdding = false;
-    return renderToStaticMarkup(
-      createElement(InstalledPluginDetail, { detail, onSaveSettings: async () => {} }),
-    );
+    return renderToStaticMarkup(createElement(InstalledPluginDetail, { detail, onSaveSettings: async () => {} }));
   };
   fixture.captureAdding = true;
   const initial = render();
