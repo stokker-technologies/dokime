@@ -411,12 +411,15 @@ class PythonPackagingTests(unittest.TestCase):
             destination = root / "target/package/dev/any/python"
             destination.parent.mkdir(parents=True)
             source.rename(destination)
+            (root / "sdk/python").mkdir(parents=True)
+            (root / "sdk/python/pyproject.toml").write_text('[project]\nname = "dokime-sdk"\n', encoding="utf-8")
             settings = {**SETTINGS, "targets": ["linux-x86_64", "windows-x86_64"]}
             for dry_run in (True, False):
                 with (
                     self.subTest(dry_run=dry_run),
                     mock.patch.object(registry.policy, "profile", return_value="dev"),
                     mock.patch.object(registry.policy, "config", return_value={"version": {"value": "0.1.3"}}),
+                    mock.patch.object(registry, "pypi_digests", return_value={}),
                     mock.patch.object(registry.policy, "execute") as execute,
                 ):
                     registry.python(root, settings, dry_run=dry_run)
