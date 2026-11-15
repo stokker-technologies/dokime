@@ -132,6 +132,9 @@ failure preserves the root and fails the story. The benchmark also retains its
 fixture root when credential cleanup fails and records it in `completion.json`.
 Tests Build enables `testing`;
 focused native desktop commands must also pass `--features testing`.
+That test build selects the controlled clock for owned native hosts. WebView
+journeys start their shared server with `--controlled-clock` and await observed
+conditions for execution progress and evidence.
 The native preference exporter uses a disposable host with the same credential
 removal operation, preserving any earlier generator or user storage roots.
 

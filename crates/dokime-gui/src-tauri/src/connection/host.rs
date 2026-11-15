@@ -48,6 +48,13 @@ use dokime_sdk::client::{CallOptions, PluginEntry, PluginsCreateOptions};
 use dokime_sdk::client::{PluginManaged, PluginPlacement, PluginState, PluginValue, PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_runtime::{HostSettings, services};
+
+#[cfg(feature = "testing")]
+use dokime_runtime::ControlledClock;
+
+#[cfg(not(feature = "testing"))]
+use dokime_runtime::services::WallClock;
+
 use dokime_sdk::client::StatusGetResponse;
 use dokime_sdk::{Client, client::ClientSettings};
 
@@ -504,10 +511,17 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
     use std::num::NonZeroUsize;
     let message_bytes = NonZeroUsize::new(crate::rpc::protocol::FRAME_BYTES as usize).expect("desktop frame bound");
     let stream_buffer = NonZeroUsize::new(8).expect("desktop stream buffer");
+
+    #[cfg(feature = "testing")]
+    let clock = Arc::new(ControlledClock::new(0));
+
+    #[cfg(not(feature = "testing"))]
+    let clock = Arc::new(WallClock);
+
     ConnectionSettings {
         host: HostSettings {
             storage: dokime_runtime::storage_defaults(),
-            clock: Arc::new(services::WallClock),
+            clock,
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),
                 reconnect_delay: Duration::from_millis(25),

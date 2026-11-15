@@ -41,7 +41,7 @@ try {
     assert.equal(detail.outcome.attribution.case, "notEvaluated");
     assert.equal(detail.outcome.attribution.value.termination, execution.Termination.CANCELLED);
   } else {
-    assert.equal(detail.outcome.attribution.case, "evaluated");
+    assert.equal(detail.outcome.attribution.case, "evaluated", JSON.stringify(detail.outcome));
     assert.equal(detail.outcome.attribution.value.status, scenario === "complete" ? types.ResultStatus.PASSED : types.ResultStatus.FAILED);
     const samples = await api.evidenceSamplesList(session, { scope: { executionId } });
     assert.ok(samples.samples.length);

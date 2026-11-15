@@ -173,7 +173,7 @@ async function startBackendMeasured(
   }
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
   const log = await open(join(evidence, `${label}.log`), "w");
-  const child = spawn(backendBinary, ["server", "--endpoint", `127.0.0.1:${port}`, "--storage", dataRoot], {
+  const child = spawn(backendBinary, ["server", "--controlled-clock", "--endpoint", `127.0.0.1:${port}`, "--storage", dataRoot], {
     cwd: work,
     detached: !windows,
     windowsHide: true,
