@@ -517,8 +517,8 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                     execution_id: Some(execution.clone()),
                     ..Default::default()
                 }),
-                technique: Downsample::MinMax as i32,
-                max_points: Some(128),
+                technique: Downsample::Raw as i32,
+                max_points: Some(512),
                 ..Default::default()
             };
             let request = SnapshotsWatchRequest {
