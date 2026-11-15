@@ -19,6 +19,7 @@ pub mod stop;
 /* === Imports === */
 
 // Standard Library Imports
+use std::path::PathBuf;
 
 // Third Party Imports
 
@@ -32,11 +33,34 @@ pub mod stop;
 
 /* === Structs === */
 
+/// Host-Owned Local File Capture Bounds; Requests Carry No Limits.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CaptureSettings {
+    /// Directories Plugins May Capture From; Empty Refuses Every Local Capture.
+    pub roots: Vec<PathBuf>,
+    pub maximum_files: usize,
+    pub maximum_bytes: u64,
+    pub maximum_captures: usize,
+    pub scan_entries: usize,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Default for CaptureSettings {
+    fn default() -> Self {
+        Self {
+            roots: Vec::new(),
+            maximum_files: 64,
+            maximum_bytes: 256 * 1024 * 1024,
+            maximum_captures: 256,
+            scan_entries: 100_000,
+        }
+    }
+}
 
 /* === Public Functions === */
 

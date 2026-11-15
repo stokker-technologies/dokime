@@ -32,7 +32,7 @@ use tokio::sync::watch::Receiver;
 
 // Local Imports
 use crate::ExecutionCapabilities;
-use crate::{Cycle, Error, PlacementSettings, Result, SchedulerClock};
+use crate::{CaptureSettings, Cycle, Error, PlacementSettings, Result, SchedulerClock};
 use dokime_protocol::host::ExecutionControls;
 use dokime_protocol::host::ExecutionMode;
 use dokime_protocol::host::PromptsCreateRequest;
@@ -63,6 +63,7 @@ pub struct HostSettings {
     pub placement: PlacementSettings,
     pub storage: StorageSettings,
     pub clock: Arc<dyn SchedulerClock>,
+    pub capture: CaptureSettings,
 }
 #[derive(Clone)]
 pub struct Host {

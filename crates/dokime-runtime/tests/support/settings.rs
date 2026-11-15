@@ -56,6 +56,7 @@ pub fn settings() -> HostSettings {
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         },
         clock: Arc::new(ControlledClock::new(0)),
+        capture: dokime_runtime::CaptureSettings::default(),
     }
 }
 

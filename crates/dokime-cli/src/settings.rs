@@ -17,7 +17,7 @@
 
 // Standard Library Imports
 use std::{
-    num::NonZeroUsize,
+    num::{NonZeroU64, NonZeroUsize},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -33,7 +33,7 @@ use crate::Result;
 use dokime::client::{CallOptions, ClientSettings as RpcClientSettings};
 use dokime::{Client, StorageTransferSettings};
 use dokime_runtime::{
-    ControlledClock, HostSettings, PlacementSettings, SchedulerClock,
+    CaptureSettings, ControlledClock, HostSettings, PlacementSettings, SchedulerClock,
     services::{ClientSettings, WallClock},
 };
 
@@ -73,6 +73,10 @@ pub(crate) struct Settings {
     pub stream_buffer: NonZeroUsize,
     pub max_cases: NonZeroUsize,
     pub page_items: NonZeroUsize,
+    pub capture_roots: Vec<PathBuf>,
+    pub capture_files: NonZeroUsize,
+    pub capture_bytes: NonZeroU64,
+    pub captures: NonZeroUsize,
 }
 
 /* === Enums === */
@@ -103,6 +107,10 @@ impl Default for Settings {
             stream_buffer: NonZeroUsize::new(8).unwrap(),
             max_cases: NonZeroUsize::new(1000).unwrap(),
             page_items: NonZeroUsize::new(1000).unwrap(),
+            capture_roots: Vec::new(),
+            capture_files: NonZeroUsize::new(CaptureSettings::default().maximum_files).unwrap(),
+            capture_bytes: NonZeroU64::new(CaptureSettings::default().maximum_bytes).unwrap(),
+            captures: NonZeroUsize::new(CaptureSettings::default().maximum_captures).unwrap(),
         }
     }
 }
@@ -147,6 +155,13 @@ impl Settings {
                 pending_bytes: self.telemetry_pending_bytes,
                 query_bytes: self.telemetry_query_bytes,
                 previews: storage_defaults().previews,
+            },
+            capture: CaptureSettings {
+                roots: self.capture_roots.clone(),
+                maximum_files: self.capture_files.get(),
+                maximum_bytes: self.capture_bytes.get(),
+                maximum_captures: self.captures.get(),
+                ..CaptureSettings::default()
             },
         }
     }

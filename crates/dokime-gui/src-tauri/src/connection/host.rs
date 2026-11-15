@@ -520,6 +520,7 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
 
     ConnectionSettings {
         host: HostSettings {
+            capture: dokime_runtime::CaptureSettings::default(),
             storage: dokime_runtime::storage_defaults(),
             clock,
             placement: PlacementSettings {

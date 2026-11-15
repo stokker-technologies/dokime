@@ -53,11 +53,13 @@ async fn main() -> Result<(), Box<dyn StdError>> {
     let mut root = None;
     let mut controlled = false;
     let mut remove_credentials = false;
+    let mut capture = dokime_runtime::CaptureSettings::default();
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "--endpoint" => endpoint = Some(arguments.next().ok_or("Start Host: Supply --endpoint HOST:PORT")?.parse()?),
             "--storage" => root = Some(PathBuf::from(arguments.next().ok_or("Start Host: Supply --storage PATH")?)),
             "--controlled-clock" => controlled = true,
+            "--capture-root" => capture.roots.push(PathBuf::from(arguments.next().ok_or("Start Host: Supply --capture-root PATH")?)),
             "--remove-credentials" => remove_credentials = true,
             _ => return Err(format!("Start Host: Unknown Argument {argument}").into()),
         }
@@ -79,6 +81,7 @@ async fn main() -> Result<(), Box<dyn StdError>> {
             stream_window: NonZeroUsize::new(8).unwrap(),
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         },
+        capture,
     };
     let settings = ClientSettings {
         read_timeout: Duration::from_secs(30),
