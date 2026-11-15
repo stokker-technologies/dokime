@@ -134,7 +134,7 @@ export async function followNativeExecutionFile(
   if (identity && (identity.store !== history.store || identity.epoch !== history.epoch || identity.fileId !== id))
     throw new Error("Follow Execution File: Original Identity Changed");
   const stream = await rpc.filesWatch(session, {
-    file,
+    target: { case: "file", value: file },
     offset: BigInt(offset),
   });
   return {

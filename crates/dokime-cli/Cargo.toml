@@ -68,7 +68,6 @@ tempfile = { workspace = true }
 
 # Async
 tokio = { workspace = true, features = ["io-std", "process"] }
-tokio-stream = { workspace = true }
 
 # Networking
 reqwest = { workspace = true }
