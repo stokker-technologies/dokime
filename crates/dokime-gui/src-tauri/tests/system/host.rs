@@ -517,7 +517,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                     execution_id: Some(execution.clone()),
                     ..Default::default()
                 }),
-                technique: Downsample::Raw as i32,
+                technique: Downsample::MinMax as i32,
                 max_points: Some(128),
                 ..Default::default()
             };
