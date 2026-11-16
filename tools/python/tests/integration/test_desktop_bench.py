@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Desktop Benchmark Reporting And Refusal Preservation"""
+"Desktop Benchmark Reporting and Refusal Preservation"
 
 # === Imports === #
 
@@ -17,18 +17,27 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import nullcontext
 from itertools import product
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
-from dokime_tools.build import bench as bench_builder
-from dokime_tools.ci import tasks
+# isort: split
 
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
+import dokime_tools.build.bench
+import dokime_tools.process
+import dokime_tools.test.credentials
+import dokime_tools.test.scratch
+from dokime_tools.ci import tasks
 from dokime_tools.release import reports
-from dokime_tools.test import desktop_bench, run
+from dokime_tools.test import benchmark, desktop_bench, lanes, policy, report
+
+from .environment import Resource
 
 # Type Checking Imports
 
@@ -43,14 +52,16 @@ from dokime_tools.test import desktop_bench, run
 
 class DesktopBench(unittest.TestCase):
     def test_killed_native_child_credentials_are_removed_before_its_scratch(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             directory = Path(temporary)
             host = directory / "bin/dokime-host.exe"
             host.parent.mkdir()
             host.touch()
             cleaned = []
 
-            def remove(command, **options):
+            def remove(command: list[str], **options: Any) -> subprocess.CompletedProcess[str]:
                 self.assertEqual(Path(command[0]), host)
                 self.assertEqual(command[1::2], ["--storage", "--credential-namespace", "--remove-credentials"])
                 self.assertEqual(command[4], options["env"]["DOKIME_CREDENTIAL_NAMESPACE"])
@@ -60,13 +71,15 @@ class DesktopBench(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0)
 
             with (
-                patch.object(desktop_bench.sys, "platform", "win32"),
+                patch.object(sys, "platform", "win32"),
                 patch.object(desktop_bench.paths, "output", return_value=directory),
             ):
                 for failed in (False, True):
-                    with self.subTest(failed=failed), patch.object(desktop_bench.subprocess, "run", side_effect=remove):
+                    with self.subTest(failed=failed), patch.object(subprocess, "run", side_effect=remove):
                         try:
-                            with desktop_bench.scratch(dict(os.environ), directory / "reports") as environment:
+                            scratch_root = dokime_tools.test.scratch.Root(dict(os.environ), directory / "reports")
+                            try:
+                                environment = scratch_root.environment
                                 script = (
                                     "import os, pathlib, sys; "
                                     "root = pathlib.Path(os.environ['TEMP']) / 'abandoned-host'; "
@@ -79,19 +92,25 @@ class DesktopBench(unittest.TestCase):
                                     stdin=subprocess.PIPE,
                                     stdout=subprocess.PIPE,
                                     text=True,
-                                    creationflags=desktop_bench.spawn_flags(),
+                                    creationflags=dokime_tools.process.spawn_flags(),
                                 ) as child:
+                                    assert child.stdout is not None
                                     root = Path(child.stdout.readline().strip())
                                     if failed:
                                         child.kill()
+                                    assert child.stdin is not None
                                     child.stdin.close()
                                     child.wait()
                                 if failed:
                                     raise ChildProcessError("Native Child Was Killed")
+                            finally:
+                                scratch_root.close()
                         except ChildProcessError:
                             self.assertTrue(failed)
                         self.assertEqual(cleaned[-1], root)
                         self.assertFalse(root.exists())
+        finally:
+            temporary_directory.cleanup()
 
     def test_once_preserves_benchmark_selection_and_does_not_promote_baselines(self) -> None:
         with (
@@ -112,15 +131,17 @@ class DesktopBench(unittest.TestCase):
             execute.assert_not_called()
 
     def test_desktop_build_embeds_its_surface_without_replacing_shipping_assets(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             directory = Path(temporary)
             live = directory / "crates/dokime-gui/dist/index.html"
             live.parent.mkdir(parents=True)
             live.write_bytes(b"shipping")
-            output = bench_builder.paths.output(directory, "build", "bench")
+            output = dokime_tools.build.bench.paths.output(directory, "build", "bench")
             web = output / "web"
 
-            def bundle(command, **options):
+            def bundle(command: list[str], **options: Any) -> subprocess.CompletedProcess[str] | None:
                 if command[:3] == ["mise", "run", "build:typescript"]:
                     self.assertEqual(command, ["mise", "run", "build:typescript", "--profile", "dev"])
                     return subprocess.CompletedProcess(command, 0)
@@ -129,7 +150,7 @@ class DesktopBench(unittest.TestCase):
                 web.mkdir(parents=True)
                 (web / "index.html").write_bytes(b"benchmark")
 
-            def compile(root, extra, selection, **options):
+            def compile(root: Path, extra: list[str], selection: str, **options: Any) -> Path:
                 self.assertTrue((web / "index.html").is_file())
                 config = json.loads(options["environment"]["TAURI_CONFIG"])
                 frontend = Path(config["build"]["frontendDist"])
@@ -142,17 +163,19 @@ class DesktopBench(unittest.TestCase):
                 return output / "bench/compiler.json"
 
             with (
-                patch.object(bench_builder.Path, "cwd", return_value=directory),
-                patch.object(bench_builder.sys, "argv", ["bench", "--binary", "system-desktop"]),
+                patch.object(dokime_tools.build.bench.Path, "cwd", return_value=directory),
+                patch.object(dokime_tools.build.bench.sys, "argv", ["bench", "--binary", "system-desktop"]),
                 patch.dict(os.environ, {"TAURI_CONFIG": '{"bundle":{"active":false}}'}),
-                patch.object(bench_builder.subprocess, "run", side_effect=bundle),
-                patch.object(bench_builder, "build", side_effect=compile),
-                patch.object(bench_builder.generated, "stage"),
-                patch.object(bench_builder.archive, "stamp"),
+                patch.object(dokime_tools.build.bench.subprocess, "run", side_effect=bundle),
+                patch.object(dokime_tools.build.bench, "build", side_effect=compile),
+                patch.object(dokime_tools.build.bench.generated, "stage"),
+                patch.object(dokime_tools.build.bench.archive, "stamp"),
             ):
-                bench_builder.main()
+                dokime_tools.build.bench.main()
                 self.assertEqual(os.environ["TAURI_CONFIG"], '{"bundle":{"active":false}}')
             self.assertEqual(live.read_bytes(), b"shipping")
+        finally:
+            temporary_directory.cleanup()
 
     def test_lanes_reclaim_child_scratch_and_keep_failure_reports(self) -> None:
         script = (
@@ -166,38 +189,40 @@ class DesktopBench(unittest.TestCase):
             "('<failure/>' if sys.argv[2] == '1' else '') + '</testcase></testsuite></testsuites>'); "
             "os._exit(int(sys.argv[2]))"
         )
-        rules = run.policy.load(Path.cwd())
-        with (
-            tempfile.TemporaryDirectory() as temporary,
-            patch.object(desktop_bench, "credentials", side_effect=lambda environment: nullcontext(environment)),
-        ):
-            directory = Path(temporary)
-            cases = [*product(("rust", "python", "typescript"), run.policy.CATEGORIES), ("rust", "coverage"), ("python", "coverage")]
-            for language, category in cases:
-                for failed in (False, True):
-                    key = f"{category}-{language}"
-                    scratch = directory / f"{category}-{language}-{int(failed)}"
-                    scratch.mkdir()
-                    junit = scratch / "junit.xml"
-                    lane = run._lane(
-                        directory,
-                        rules,
-                        key,
-                        category,
-                        language,
-                        ".",
-                        "dev",
-                        [sys.executable, "-c", script, str(junit), str(int(failed))],
-                        directory,
-                        {**os.environ, "DOKIME_KEEP_EVIDENCE": "0", run.COVERAGE_VARIABLE: "1" if category == "coverage" else "0"},
-                        junit,
-                        scratch,
-                    )
-                    destination = run.report.location(directory, "dev", key)
-                    native_root = Path(json.loads((destination / "scratch.json").read_text())["root"])
-                    self.assertFalse(native_root.exists())
-                    self.assertEqual(lane["outcome"], "failed" if failed else "passed")
-                    self.assertTrue((destination / "junit.xml").is_file())
+        rules = policy.load(Path.cwd())
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
+            with patch.object(dokime_tools.test.credentials, "Store", side_effect=lambda environment: Resource(environment)):
+                directory = Path(temporary)
+                cases = [*product(("rust", "python", "typescript"), policy.CATEGORIES), ("rust", "coverage"), ("python", "coverage")]
+                for language, category in cases:
+                    for failed in (False, True):
+                        key = f"{category}-{language}"
+                        scratch = directory / f"{category}-{language}-{int(failed)}"
+                        scratch.mkdir()
+                        junit = scratch / "junit.xml"
+                        lane = lanes.record(
+                            directory,
+                            rules,
+                            key,
+                            category,
+                            language,
+                            ".",
+                            "dev",
+                            [sys.executable, "-c", script, str(junit), str(int(failed))],
+                            directory,
+                            {**os.environ, "DOKIME_KEEP_EVIDENCE": "0", lanes.COVERAGE_VARIABLE: "1" if category == "coverage" else "0"},
+                            junit,
+                            scratch,
+                        )
+                        destination = report.location(directory, "dev", key)
+                        native_root = Path(json.loads((destination / "scratch.json").read_text())["root"])
+                        self.assertFalse(native_root.exists())
+                        self.assertEqual(lane["outcome"], "failed" if failed else "passed")
+                        self.assertTrue((destination / "junit.xml").is_file())
+        finally:
+            temporary_directory.cleanup()
 
     def test_native_child_scratch_is_reclaimed_after_success_and_failure(self) -> None:
         original = dict(os.environ)
@@ -208,45 +233,63 @@ class DesktopBench(unittest.TestCase):
             "tempfile.NamedTemporaryFile(prefix='dokime-output-', delete=False).close(); "
             "print(root.parent, flush=True); os._exit(0)"
         )
-        with tempfile.TemporaryDirectory() as temporary:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             reports = Path(temporary) / "reports"
             for failed in (False, True):
                 try:
-                    with desktop_bench.scratch(original, reports) as environment:
+                    scratch_root = dokime_tools.test.scratch.Root(original, reports)
+                    try:
+                        environment = scratch_root.environment
                         child = subprocess.run([sys.executable, "-c", script], env=environment, capture_output=True, text=True, check=True)
                         root = Path(child.stdout.strip())
                         self.assertTrue(any(root.glob("dokime-evidence-*")))
                         self.assertTrue(any(root.glob("dokime-output-*")))
                         if failed:
                             raise ValueError("failed desktop run")
+                    finally:
+                        scratch_root.close()
                 except ValueError:
                     self.assertTrue(failed)
                 self.assertFalse(root.exists())
                 self.assertFalse(reports.exists())
-            with desktop_bench.scratch({**original, "DOKIME_KEEP_EVIDENCE": "1"}, reports) as environment:
+            scratch_root = dokime_tools.test.scratch.Root({**original, "DOKIME_KEEP_EVIDENCE": "1"}, reports)
+            try:
+                environment = scratch_root.environment
                 child = subprocess.run([sys.executable, "-c", script], env=environment, capture_output=True, text=True, check=True)
                 root = Path(child.stdout.strip())
+            finally:
+                scratch_root.close()
             self.assertFalse(root.exists())
             self.assertTrue(any(reports.rglob("dokime-evidence-*")))
             self.assertTrue(any(reports.rglob("dokime-output-*")))
+        finally:
+            temporary_directory.cleanup()
         self.assertEqual(dict(os.environ), original)
 
     def test_failed_preflight_does_not_publish_cached_measurements(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             previous = root / "target/benchmarks/benchmarks-rust-desktop.json"
             previous.parent.mkdir(parents=True)
             previous.write_text(json.dumps({"benchmarks": [{"name": "previous"}]}))
             with (
-                patch.object(run.policy, "load"),
-                patch.object(run, "_preflight", side_effect=run.policy.TestError("missing")),
-                self.assertRaises(run.policy.TestError),
+                patch.object(policy, "load"),
+                patch.object(lanes, "preflight", side_effect=policy.TestError("missing")),
+                self.assertRaises(policy.TestError),
             ):
-                run.bench(root, "system", "rust", ".", False, [], binary="system-desktop")
+                benchmark.run(root, "system", "rust", ".", False, [], binary="system-desktop")
             self.assertFalse(previous.exists())
+        finally:
+            temporary_directory.cleanup()
 
     def test_failed_native_initialization_clears_old_results_without_promoting_baseline(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             home = root / "native"
             home.mkdir()
@@ -263,9 +306,13 @@ class DesktopBench(unittest.TestCase):
             self.assertEqual({row["reason"] for row in rows}, {"WebDriver close failed"})
             self.assertEqual(json.loads((root / "target/benchmarks/benchmarks-rust-desktop.json").read_text())["benchmarks"], rows)
             self.assertEqual((home / "dev.json").read_bytes(), previous)
+        finally:
+            temporary_directory.cleanup()
 
     def test_stage_totals_quantiles_and_refusals(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             home = root / "native"
             home.mkdir()
@@ -341,6 +388,8 @@ class DesktopBench(unittest.TestCase):
             newer = json.loads((home / "new.json").read_text())
             measured = next(row for row in newer["benchmarks"] if row["name"] == "desktop/2073600/30/warm/canvas_draw/p50")
             self.assertEqual(measured["baseline_value"], 20)
+        finally:
+            temporary_directory.cleanup()
 
 
 # === Public Functions === #

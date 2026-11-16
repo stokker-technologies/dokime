@@ -36,8 +36,15 @@ from .. import policy
 
 def package(exported: Path, destination: Path) -> None:
     """Verify Every Local Import Before Archiving All Exported Contracts and Notices."""
-    files = {path.relative_to(exported).as_posix(): path for path in exported.rglob("*") if path.is_file()}
-    sources = {name: path for name, path in files.items() if name.endswith(".proto")}
+    files = {}
+    sources = {}
+    for path in exported.rglob("*"):
+        if not path.is_file():
+            continue
+        name = path.relative_to(exported).as_posix()
+        files[name] = path
+        if name.endswith(".proto"):
+            sources[name] = path
     required = {"README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"}
     missing = required - files.keys()
     if not sources or missing:
@@ -48,7 +55,13 @@ def package(exported: Path, destination: Path) -> None:
         content = path.read_text(encoding="utf-8")
         # Ignore Comments While Preserving Quoted Import Paths.
         tokens = re.finditer(r'"(?:\\.|[^"\\])*"|/\*.*?\*/|//[^\n]*|[^"/]+|/', content, re.DOTALL)
-        content = "".join(token[0] if not token[0].startswith(("//", "/*")) else " " for token in tokens)
+        parts = []
+        for token in tokens:
+            if token[0].startswith(("//", "/*")):
+                parts.append(" ")
+            else:
+                parts.append(token[0])
+        content = "".join(parts)
         for imported in re.findall(r'\bimport\s+(?:(?:public|weak)\s+)?"([^"\n]+)"\s*;', content):
             relative = PurePosixPath(imported)
             if relative.is_absolute() or ".." in relative.parts or imported not in sources:

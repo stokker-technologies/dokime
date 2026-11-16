@@ -6,11 +6,13 @@
 #
 # ***
 
-"""Verify Release Inventory Integrity and Unsafe Archive Refusal."""
+
+"""Verify Supply Tests."""
 
 # === Imports === #
 
 # Standard Library Imports
+import email.message
 import hashlib
 import io
 import json
@@ -21,15 +23,23 @@ import tempfile
 import tomllib
 import unittest
 import urllib.error
+import urllib.request
 import zipfile
 from datetime import date
 from pathlib import Path
 from unittest import mock
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools import policy
 from dokime_tools.release import layout, notices, sbom
+
+from .environment import isolate_environment
 
 # Type Checking Imports
 
@@ -43,9 +53,11 @@ from dokime_tools.release import layout, notices, sbom
 
 
 class SupplyTests(unittest.TestCase):
-    def test_notice_config_uses_policy_and_dated_exceptions(self):
+    def test_notice_config_uses_policy_and_dated_exceptions(self) -> None:
         repository = Path(__file__).resolve().parents[4]
-        with tempfile.TemporaryDirectory() as temporary:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             (root / "tools/config").mkdir(parents=True)
             (root / "tools/config/deny.toml").write_bytes((repository / "tools/config/deny.toml").read_bytes())
@@ -65,52 +77,65 @@ class SupplyTests(unittest.TestCase):
             license_policy = tomllib.loads((root / "tools/config/deny.toml").read_text(encoding="utf-8"))
             self.assertEqual(config["accepted"], license_policy["licenses"]["allow"])
             self.assertEqual(config["dependency"]["accepted"], ["NCSA"])
+        finally:
+            temporary_directory.cleanup()
 
-    def test_notice_scope_without_installed_shell(self):
+    def test_notice_scope_without_installed_shell(self) -> None:
         for installed in (False, True):
-            with self.subTest(installed=installed), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                output = root / "target/notices"
-                output.mkdir(parents=True)
-                (root / "tools/config").mkdir(parents=True)
-                (root / "tools/config/deny.toml").write_text('[licenses]\nallow = ["MIT"]\n')
-                (root / "uv.lock").write_text("package = []\n")
-                (root / "NOTICE").write_text("notice")
-                (output / "THIRD-PARTY-NOTICES").write_text("product")
-                (output / "rust.json").write_text('{"licenses": []}')
-                (output / "rust.txt").write_text("rust")
-                if installed:
-                    (root / "crates/dokime-gui/node_modules").mkdir(parents=True)
-                with (
-                    mock.patch.object(sbom, "exceptions", return_value={}),
-                    mock.patch.object(policy, "execute", return_value='{"packages": []}') as execute,
-                    mock.patch.object(notices, "shell_notices", return_value=("shell", 3)) as shell,
-                    mock.patch.object(notices, "python_notices", return_value=("python", 2)),
-                ):
+            temporary_directory = tempfile.TemporaryDirectory()
+            temporary = temporary_directory.name
+            try:
+                with self.subTest(installed=installed):
+                    root = Path(temporary)
+                    output = root / "target/notices"
+                    output.mkdir(parents=True)
+                    (root / "tools/config").mkdir(parents=True)
+                    (root / "tools/config/deny.toml").write_text('[licenses]\nallow = ["MIT"]\n')
+                    (root / "uv.lock").write_text("package = []\n")
+                    (root / "NOTICE").write_text("notice")
+                    (output / "THIRD-PARTY-NOTICES").write_text("product")
+                    (output / "rust.json").write_text('{"licenses": []}')
+                    (output / "rust.txt").write_text("rust")
                     if installed:
-                        counts = notices.generate(root)
-                        self.assertEqual(counts, {"rust": 0, "shell": 3, "python": 2})
-                        self.assertEqual((output / "THIRD-PARTY-NOTICES").read_text(), "rust\n\nshell\n\npython\n")
-                        shell.assert_called_once()
-                        self.assertEqual(execute.call_args.args[1][0], "pnpm")
-                    else:
-                        with self.assertRaises(policy.ToolError):
-                            notices.generate(root)
+                        (root / "crates/dokime-gui/node_modules").mkdir(parents=True)
+                    with (
+                        mock.patch.object(sbom, "exceptions", return_value={}),
+                        mock.patch.object(policy, "execute", return_value='{"packages": []}') as execute,
+                        mock.patch.object(notices, "shell_notices", return_value=("shell", 3)) as shell,
+                        mock.patch.object(notices, "python_notices", return_value=("python", 2)),
+                    ):
+                        if installed:
+                            counts = notices.generate(root)
+                            self.assertEqual(counts, {"rust": 0, "shell": 3, "python": 2})
+                            self.assertEqual((output / "THIRD-PARTY-NOTICES").read_text(), "rust\n\nshell\n\npython\n")
+                            shell.assert_called_once()
+                            self.assertEqual(execute.call_args.args[1][0], "pnpm")
+                        else:
+                            with self.assertRaises(policy.ToolError):
+                                notices.generate(root)
+                        if not installed:
+                            shell.assert_not_called()
+                            self.assertTrue(all(call.args[1][0] == "cargo" for call in execute.call_args_list))
+                    self.assertFalse((root / "THIRD-PARTY-NOTICES").exists())
                     if not installed:
-                        shell.assert_not_called()
-                        self.assertTrue(all(call.args[1][0] == "cargo" for call in execute.call_args_list))
-                self.assertFalse((root / "THIRD-PARTY-NOTICES").exists())
-                if not installed:
-                    self.assertEqual((output / "THIRD-PARTY-NOTICES").read_text(), "product")
+                        self.assertEqual((output / "THIRD-PARTY-NOTICES").read_text(), "product")
+            finally:
+                temporary_directory.cleanup()
 
-    def test_shell_notice_missing_package_is_tool_error(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_shell_notice_missing_package_is_tool_error(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             document = {"MIT": [{"name": "missing", "version": "1", "paths": [str(Path(temporary) / "missing")]}]}
             with self.assertRaises(policy.ToolError):
                 notices.shell_notices(document)
+        finally:
+            temporary_directory.cleanup()
 
-    def test_notice_exception_requires_every_resolved_version(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_notice_exception_requires_every_resolved_version(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             document = {"license": [{"package": "dependency", "version": "1", "license": "NCSA"}]}
             metadata = {"packages": [{"name": "dependency", "version": version} for version in ("1", "2")]}
             with (
@@ -119,27 +144,41 @@ class SupplyTests(unittest.TestCase):
                 self.assertRaisesRegex(policy.ToolError, "does not cover every resolved dependency version"),
             ):
                 notices.generate(Path(temporary))
+        finally:
+            temporary_directory.cleanup()
 
-    def test_archive_traversal_is_rejected_before_extraction(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_archive_traversal_is_rejected_before_extraction(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             archive = root / "input.zip"
-            with zipfile.ZipFile(archive, "w") as output:
+            output = zipfile.ZipFile(archive, "w")
+            try:
                 output.writestr("safe.txt", "content")
                 output.writestr("../outside.txt", "content")
+            finally:
+                output.close()
             destination = root / "unpacked"
             destination.mkdir()
             with self.assertRaises(policy.ToolError):
                 sbom.unpack(archive, destination)
             self.assertEqual(list(destination.iterdir()), [])
             self.assertFalse((root / "outside.txt").exists())
+        finally:
+            temporary_directory.cleanup()
 
-    def test_artifact_records_digest_and_deduplicates_components(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_artifact_records_digest_and_deduplicates_components(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             source = root / "cli.zip"
-            with zipfile.ZipFile(source, "w") as output:
+            output = zipfile.ZipFile(source, "w")
+            try:
                 output.writestr("dokime", b"binary")
+            finally:
+                output.close()
             cargo = root / "cargo.json"
             component = {"type": "library", "name": "dependency", "purl": "pkg:cargo/dependency@1.0"}
             cargo.write_text(json.dumps({"components": [component]}))
@@ -149,8 +188,10 @@ class SupplyTests(unittest.TestCase):
             document = json.loads(result.read_text())
             self.assertEqual(len(document["components"]), 1)
             self.assertEqual(document["metadata"]["component"]["hashes"][0]["content"], hashlib.sha256(source.read_bytes()).hexdigest())
+        finally:
+            temporary_directory.cleanup()
 
-    def test_python_wheel_hash_mismatch_is_rejected(self):
+    def test_python_wheel_hash_mismatch_is_rejected(self) -> None:
         lock = {
             "package": [
                 {
@@ -169,11 +210,14 @@ class SupplyTests(unittest.TestCase):
         ):
             notices.python_notices(lock)
 
-    def test_python_notices_use_verified_license_files(self):
+    def test_python_notices_use_verified_license_files(self) -> None:
         content = io.BytesIO()
-        with zipfile.ZipFile(content, "w") as output:
+        output = zipfile.ZipFile(content, "w")
+        try:
             output.writestr("dependency-1.dist-info/METADATA", "Name: dependency\nVersion: 1\nLicense-Expression: MIT\n")
             output.writestr("dependency-1.dist-info/licenses/LICENSE", "fixture license text")
+        finally:
+            output.close()
         data = content.getvalue()
         lock = {
             "package": [
@@ -186,64 +230,79 @@ class SupplyTests(unittest.TestCase):
             ]
         }
         for cached in (False, True):
-            with self.subTest(cached=cached), tempfile.TemporaryDirectory() as temporary:
-                if cached:
-                    (Path(temporary) / hashlib.sha256(data).hexdigest()).write_bytes(data)
-                with (
-                    mock.patch.dict(os.environ, {"UV_CACHE_DIR": temporary}),
-                    mock.patch("urllib.request.urlopen", side_effect=[ssl.SSLEOFError("dropped"), io.BytesIO(data)]) as opener,
-                    mock.patch.object(notices.time, "sleep") as sleep,
-                ):
-                    text, count = notices.python_notices(lock)
-                self.assertEqual(count, 1)
-                self.assertIn("fixture license text", text)
-                self.assertEqual(opener.call_count, 0 if cached else 2)
-                self.assertEqual(sleep.call_count, 0 if cached else 1)
+            temporary_directory = tempfile.TemporaryDirectory()
+            temporary = temporary_directory.name
+            try:
+                with self.subTest(cached=cached):
+                    if cached:
+                        (Path(temporary) / hashlib.sha256(data).hexdigest()).write_bytes(data)
+                    with (
+                        mock.patch.dict(os.environ, {"UV_CACHE_DIR": temporary}),
+                        mock.patch("urllib.request.urlopen", side_effect=[ssl.SSLEOFError("dropped"), io.BytesIO(data)]) as opener,
+                        mock.patch.object(notices.time, "sleep") as sleep,
+                    ):
+                        text, count = notices.python_notices(lock)
+                    self.assertEqual(count, 1)
+                    self.assertIn("fixture license text", text)
+                    self.assertEqual(opener.call_count, 0 if cached else 2)
+                    self.assertEqual(sleep.call_count, 0 if cached else 1)
+            finally:
+                temporary_directory.cleanup()
 
-    def test_python_notices_verify_versioned_upstream_license_sources(self):
+    def test_python_notices_verify_versioned_upstream_license_sources(self) -> None:
         license_data = bytes(range(32, 127)) + b"\n"
         source_url = "https://example.invalid/source-license"
         for version, source_data in (("1", license_data), ("1", b"changed"), ("2", license_data)):
-            with self.subTest(version=version, source_data=source_data), tempfile.TemporaryDirectory() as temporary:
-                content = io.BytesIO()
-                with zipfile.ZipFile(content, "w") as output:
-                    output.writestr("dependency.dist-info/METADATA", f"Name: dependency\nVersion: {version}\nLicense-Expression: MIT\n")
-                data = content.getvalue()
-                lock = {
-                    "package": [
-                        {
-                            "name": "dependency",
-                            "version": version,
-                            "source": {"registry": "https://pypi.org/simple"},
-                            "wheels": [{"url": "https://example.invalid/wheel", "hash": "sha256:" + hashlib.sha256(data).hexdigest()}],
-                        }
-                    ]
-                }
-                with (
-                    mock.patch.dict(os.environ, {"UV_CACHE_DIR": temporary}),
-                    mock.patch.dict(
-                        notices.PYTHON_LICENSE_SOURCES,
-                        {("dependency", "1"): (source_url, hashlib.sha256(license_data).hexdigest())},
-                        clear=True,
-                    ),
-                    mock.patch("urllib.request.urlopen", side_effect=[io.BytesIO(data), io.BytesIO(source_data)]) as opener,
-                ):
-                    if version == "1" and source_data == license_data:
-                        text, count = notices.python_notices(lock)
-                        self.assertEqual(count, 1)
-                        self.assertIn(license_data.decode("utf-8"), text)
-                    else:
-                        with self.assertRaises(policy.ToolError):
-                            notices.python_notices(lock)
-                self.assertEqual(opener.call_count, 2 if version == "1" else 1)
+            temporary_directory = tempfile.TemporaryDirectory()
+            temporary = temporary_directory.name
+            try:
+                with self.subTest(version=version, source_data=source_data):
+                    content = io.BytesIO()
+                    output = zipfile.ZipFile(content, "w")
+                    try:
+                        output.writestr("dependency.dist-info/METADATA", f"Name: dependency\nVersion: {version}\nLicense-Expression: MIT\n")
+                    finally:
+                        output.close()
+                    data = content.getvalue()
+                    lock = {
+                        "package": [
+                            {
+                                "name": "dependency",
+                                "version": version,
+                                "source": {"registry": "https://pypi.org/simple"},
+                                "wheels": [{"url": "https://example.invalid/wheel", "hash": "sha256:" + hashlib.sha256(data).hexdigest()}],
+                            }
+                        ]
+                    }
+                    with (
+                        mock.patch.dict(os.environ, {"UV_CACHE_DIR": temporary}),
+                        mock.patch.dict(
+                            notices.PYTHON_LICENSE_SOURCES,
+                            {("dependency", "1"): (source_url, hashlib.sha256(license_data).hexdigest())},
+                            clear=True,
+                        ),
+                        mock.patch("urllib.request.urlopen", side_effect=[io.BytesIO(data), io.BytesIO(source_data)]) as opener,
+                    ):
+                        if version == "1" and source_data == license_data:
+                            text, count = notices.python_notices(lock)
+                            self.assertEqual(count, 1)
+                            self.assertIn(license_data.decode("utf-8"), text)
+                        else:
+                            with self.assertRaises(policy.ToolError):
+                                notices.python_notices(lock)
+                    self.assertEqual(opener.call_count, 2 if version == "1" else 1)
+            finally:
+                temporary_directory.cleanup()
 
-    def test_notice_download_http_status_and_retry_exhaustion(self):
+    def test_notice_download_http_status_and_retry_exhaustion(self) -> None:
         url = "https://example.invalid/license"
         for status, attempts in ((404, 1), (503, 3)):
             with (
                 self.subTest(status=status),
                 mock.patch.object(notices, "DOWNLOAD_ATTEMPTS", 3),
-                mock.patch("urllib.request.urlopen", side_effect=urllib.error.HTTPError(url, status, "failure", {}, None)) as opener,
+                mock.patch(
+                    "urllib.request.urlopen", side_effect=urllib.error.HTTPError(url, status, "failure", email.message.Message(), None)
+                ) as opener,
                 mock.patch.object(notices.time, "sleep") as sleep,
                 self.assertRaisesRegex(policy.ToolError, f"{url} after {attempts} attempts:.*{status}"),
             ):
@@ -251,27 +310,38 @@ class SupplyTests(unittest.TestCase):
             self.assertEqual(opener.call_count, attempts)
             self.assertEqual(sleep.call_count, attempts - 1)
 
-    def test_shell_notice_download_retries_read_failure(self):
+    def test_shell_notice_download_retries_read_failure(self) -> None:
         url = "https://example.invalid/license"
         response = mock.MagicMock()
-        response.__enter__.return_value.read.side_effect = TimeoutError("dropped body")
-        with (
-            tempfile.TemporaryDirectory() as temporary,
-            mock.patch.dict(notices.SHELL_LICENSE_SOURCES, {("dependency", "1"): url}),
-            mock.patch("urllib.request.urlopen", side_effect=[response, io.BytesIO(b"license bytes")]) as opener,
-            mock.patch.object(notices.time, "sleep"),
-        ):
-            text, count = notices.shell_notices({"MIT": [{"name": "dependency", "version": "1", "paths": [temporary]}]})
+        response.read.side_effect = TimeoutError("dropped body")
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
+            with (
+                mock.patch.dict(notices.SHELL_LICENSE_SOURCES, {("dependency", "1"): url}),
+                mock.patch("urllib.request.urlopen", side_effect=[response, io.BytesIO(b"license bytes")]) as opener,
+                mock.patch.object(notices.time, "sleep"),
+            ):
+                text, count = notices.shell_notices({"MIT": [{"name": "dependency", "version": "1", "paths": [temporary]}]})
+        finally:
+            temporary_directory.cleanup()
         self.assertEqual(count, 1)
         self.assertIn("license bytes", text)
         self.assertEqual(opener.call_count, 2)
 
-    def test_shell_missing_license_text_fails(self):
-        with tempfile.TemporaryDirectory() as temporary, self.assertRaises(policy.ToolError):
-            notices.shell_notices({"MIT": [{"name": "dependency", "versions": ["1"], "paths": [temporary]}]})
+    def test_shell_missing_license_text_fails(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
+            with self.assertRaises(policy.ToolError):
+                notices.shell_notices({"MIT": [{"name": "dependency", "versions": ["1"], "paths": [temporary]}]})
+        finally:
+            temporary_directory.cleanup()
 
-    def test_staged_notice_hashes_match_bytes(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_staged_notice_hashes_match_bytes(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             destination = root / "distribution"
             destination.mkdir()
@@ -287,9 +357,13 @@ class SupplyTests(unittest.TestCase):
             self.assertEqual(files["existing"], "digest")
             for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
                 self.assertEqual(files[name], hashlib.sha256((destination / name).read_bytes()).hexdigest())
+        finally:
+            temporary_directory.cleanup()
 
-    def test_expiry_refuses_the_expiry_date(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_expiry_refuses_the_expiry_date(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             (root / "tools/config").mkdir(parents=True)
             (root / "tools/config/supply-chain-exceptions.toml").write_text(
@@ -301,9 +375,13 @@ class SupplyTests(unittest.TestCase):
             self.assertIsNone(sbom.accepted(document, "advisory", "dependency", "2", "RUSTSEC-example"))
             with self.assertRaises(policy.ToolError):
                 sbom.exceptions(root, today=date(2030, 1, 2))
+        finally:
+            temporary_directory.cleanup()
 
-    def test_unknown_audit_finding_cannot_use_another_versions_exception(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_unknown_audit_finding_cannot_use_another_versions_exception(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             report = {
                 "vulnerabilities": {"list": [{"advisory": {"id": "RUSTSEC-example"}, "package": {"name": "dependency", "version": "2"}}]}
@@ -321,8 +399,10 @@ class SupplyTests(unittest.TestCase):
                 self.assertRaises(policy.ToolError),
             ):
                 sbom.check(root)
+        finally:
+            temporary_directory.cleanup()
 
-    def test_release_wrapper_preserves_profile_and_existing_cache(self):
+    def test_release_wrapper_preserves_profile_and_existing_cache(self) -> None:
         with (
             mock.patch.dict(os.environ, {"RUSTC_WRAPPER": "cache"}, clear=True),
             mock.patch.object(sbom.shutil, "which", return_value="auditable"),
@@ -336,16 +416,18 @@ class SupplyTests(unittest.TestCase):
         self.assertEqual(environment["RUSTC_WORKSPACE_WRAPPER"], "auditable")
         self.assertTrue(json.loads(environment["CARGO_AUDITABLE_ORIG_ARGS"])["locked"])
 
-    def test_sbom_manifest_classifies_the_underlying_target(self):
+    def test_sbom_manifest_classifies_the_underlying_target(self) -> None:
         item = layout.classify({"product": "dokime"}, {}, "dokime-0.1-x86_64-pc-windows-msvc-setup.exe.cdx.json")
         self.assertEqual((item["kind"], item["os"], item["arch"]), ("sbom", "windows", "x86_64"))
 
 
 # === Public Functions === #
 
+
+def setUpModule() -> None:
+    isolate_environment()
+
+
 # === Private Functions === #
 
 # === Entry Point === #
-
-if __name__ == "__main__":
-    unittest.main()

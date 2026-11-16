@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Publish A Nightly Run's Existing Packages To The Mutable Nightly Prerelease."""
+"Publish a Nightly Run's Existing Packages to the Mutable Nightly Prerelease."
 
 # === Imports === #
 
@@ -19,14 +19,25 @@ import urllib.parse
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .. import policy
+# isort: split
 
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
-from . import layout, registry, reports, run
+import dokime_tools.release.verify
+
+from .. import policy
+from . import (
+    context,
+    dry,
+    layout,
+    registry,
+    reports,
+)
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -55,26 +66,26 @@ IMMUTABLE = (
 def publish(directory: Path, *, release_notes: str | None = None, report: bool = False) -> None:
     settings = policy.policy(directory, "release")
     if settings.get(TAG) is not True:
-        raise policy.ToolError(f"release.{TAG} must opt in to channel publication")
+        raise policy.ToolError(f"Publish Nightly: release.{TAG} must opt in to channel publication")
 
     github = settings["provider"] == "github"
     sha, identifier, url = _source(github)
-    if not re.fullmatch(r"[0-9a-f]{40,64}", sha) or not identifier.isdecimal() or run._revision(directory) != sha:
+    if not re.fullmatch(r"[0-9a-f]{40,64}", sha) or not identifier.isdecimal() or context.revision(directory) != sha:
         raise policy.ToolError(f"{TAG} checkout must match the source CI commit")
 
     source_run = f"[{identifier}]({url})"
     endpoint = f"releases/tags/{TAG}" if github else f"releases/{TAG}"
-    previous = registry.document(settings, endpoint, channel=True)
+    previous = registry.provider.document(settings, endpoint, channel=True)
     previous_notes = (previous or {}).get("body" if github else "description", "")
 
     with policy.credential_free(settings, profile=PROFILE):
-        run._refuse_overrides(directory)
+        context.refuse_overrides(directory)
         content = release_notes if release_notes is not None else _notes(directory, settings, sha, source_run, previous_notes)
-        run.dry(directory, settings, profile=PROFILE, require_all=True, release_notes=content, channel=TAG)
+        dry.dry(directory, settings, profile=PROFILE, require_all=True, release_notes=content, channel=TAG)
 
     files = layout.uploads(directory, staged=True)
-    notes = (directory / run.ASSETS / run.SHARED / "CHANGELOG.md").read_text(encoding="utf-8")
-    summary = json.loads((directory / run.ASSETS / run.SHARED / "reports.json").read_text(encoding="utf-8"))
+    notes = (directory / context.ASSETS / context.SHARED / "CHANGELOG.md").read_text(encoding="utf-8")
+    summary = json.loads((directory / context.ASSETS / context.SHARED / "reports.json").read_text(encoding="utf-8"))
     results = json.loads(os.environ.get("NEEDS", "{}"))
     # Documentation Builds Beside Publication, So Only The Completed Report States Whether It Was Attached.
     documentation = any(item["name"] == f"dokime-docs-{TAG}.zip" for item in files) if report else None
@@ -87,10 +98,10 @@ def publish(directory: Path, *, release_notes: str | None = None, report: bool =
 
 
 def complete(directory: Path) -> bool:
-    """Replace This Run's Inventory And Notes With Its Completed Suite Reports."""
+    """Replace This Run's Inventory and Notes with Its Completed Suite Reports."""
     settings = policy.policy(directory, "release")
     sha, identifier, url = _source(settings["provider"] == "github")
-    current = registry.document(settings, "releases/tags/nightly", channel=True)
+    current = registry.provider.document(settings, "releases/tags/nightly", channel=True)
     identity = f"| CI Run | [{identifier}]({url}) |"
     if not current or identity not in current.get("body", "").splitlines() or current.get("target_commitish") != sha:
         print("A Newer Run Replaced Nightly; Leaving Its Assets And Notes Unchanged")
@@ -102,28 +113,28 @@ def complete(directory: Path) -> bool:
 
 
 def verify(directory: Path) -> None:
-    """Verify Nightly Downloads And Native Installation Against The Shared Manifest."""
-    run.verify(directory, policy.policy(directory, "release"), channel=TAG)
+    """Verify Nightly Downloads and Native Installation Against the Shared Manifest."""
+    dokime_tools.release.verify.verify(directory, policy.policy(directory, "release"), channel=TAG)
 
 
 # === Private Functions === #
 
 
 def _source(github: bool) -> tuple[str, str, str]:
-    """The Commit, Run Identifier And Run URL Of A Scheduled Or Manual Run On `dev`."""
+    """The Commit, Run Identifier and Run URL of a Scheduled or Manual Run on `dev`."""
     if github:
         return _github_source()
     source = os.environ.get("PIPELINE_SOURCE") or os.environ.get("CI_PIPELINE_SOURCE")
     eligible = source in ("schedule", "web") and os.environ.get("CI_COMMIT_BRANCH") == "dev"
     if not eligible or os.environ.get("CI_DEFAULT_BRANCH") != "dev":
-        raise policy.ToolError("GitLab nightly publishes only scheduled or manual pipelines on default dev")
+        raise policy.ToolError("Publish Nightly: GitLab nightly publishes only scheduled or manual pipelines on default dev")
     return os.environ["CI_COMMIT_SHA"], os.environ["CI_PIPELINE_ID"], os.environ["CI_PIPELINE_URL"]
 
 
 def _github_source() -> tuple[str, str, str]:
     event = os.environ.get("GITHUB_EVENT_NAME")
     if event not in ("schedule", "workflow_dispatch") or os.environ.get("GITHUB_REF") != "refs/heads/dev":
-        raise policy.ToolError("nightly publishes only scheduled or dispatched runs on dev")
+        raise policy.ToolError("Publish Nightly: nightly publishes only scheduled or dispatched runs on dev")
     identifier = os.environ["GITHUB_RUN_ID"]
     server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
     url = f"{server}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{identifier}"
@@ -226,7 +237,7 @@ def _github(
     identifier: str,
     notes: str,
 ) -> None:
-    previous = registry.document(settings, f"releases/tags/{TAG}", channel=True)
+    previous = registry.provider.document(settings, f"releases/tags/{TAG}", channel=True)
     if _superseded(previous, identifier, "body"):
         print("nightly superseded by a newer published run")
         return
@@ -238,7 +249,7 @@ def _github(
         return
 
     # Stage A Complete Replacement As A Separate Draft; The Published Channel Stays Untouched Until The Swap.
-    staged = registry.document(
+    staged = registry.provider.document(
         settings,
         "releases",
         "POST",
@@ -265,20 +276,20 @@ def _github(
     # Swap: Move The Tag, Release It From The Previous Channel, Then Publish The Staged Draft.
     # Updating A Ref Across Workflow Changes Needs The Workflows Permission The Job Token Cannot Hold;
     # Recreating The Tag Does Not.
-    reference = registry.document(settings, f"git/ref/tags/{TAG}", channel=True)
+    reference = registry.provider.document(settings, f"git/ref/tags/{TAG}", channel=True)
     original = (reference or {}).get("object", {}).get("sha")
     try:
         _point_tag(settings, original, sha)
         if previous:
-            registry.document(settings, f"releases/{previous['id']}", "PATCH", {"draft": True}, channel=True)
-        registry.document(
+            registry.provider.document(settings, f"releases/{previous['id']}", "PATCH", {"draft": True}, channel=True)
+        registry.provider.document(
             settings,
             endpoint,
             "PATCH",
             {"tag_name": TAG, "target_commitish": sha, "draft": False},
             channel=True,
         )
-        published = registry.document(settings, f"releases/tags/{TAG}", channel=True)
+        published = registry.provider.document(settings, f"releases/tags/{TAG}", channel=True)
         if (
             not published
             or published.get("id") != staged["id"]
@@ -296,27 +307,27 @@ def _github(
         raise policy.ToolError(IMMUTABLE)
 
     # Retire The Replaced Release And Every Draft Interrupted Runs Left Behind.
-    for release in registry.pages(settings, "releases", channel=True):
+    for release in registry.provider.pages(settings, "releases", channel=True):
         if release.get("id") != staged["id"] and (release.get("draft") is True and release.get("name") == TITLE):
-            registry.request(settings, f"releases/{release['id']}", "DELETE", channel=True)
+            registry.provider.request(settings, f"releases/{release['id']}", "DELETE", channel=True)
 
 
 def _workflows_moved(settings: dict, sha: str) -> bool:
-    """Whether Dev's Head Now Carries Different Workflow Files Than The Build Commit."""
-    head = registry.document(settings, "git/ref/heads/dev", channel=True)["object"]["sha"]
+    """Whether Dev's Head Now Carries Different Workflow Files Than the Build Commit."""
+    head = registry.provider.document(settings, "git/ref/heads/dev", channel=True)["object"]["sha"]
     return head != sha and _workflows(settings, head) != _workflows(settings, sha)
 
 
 def _workflows(settings: dict, revision: str) -> str | None:
-    entries = registry.document(settings, f"contents/.github?ref={revision}", channel=True) or []
+    entries = registry.provider.document(settings, f"contents/.github?ref={revision}", channel=True) or []
     return next((entry["sha"] for entry in entries if entry["name"] == "workflows" and entry["type"] == "dir"), None)
 
 
 def _upload(directory: Path, settings: dict, endpoint: str, item: dict) -> None:
-    """Upload One Download, Replacing A Partial Asset Of The Same Name Left By A Failed Attempt."""
+    """Upload One Download, Replacing a Partial Asset of the Same Name Left by a Failed Attempt."""
     path = policy.inside(directory, item["path"])
     name = urllib.parse.quote(item["name"], safe="")
-    registry.request(
+    registry.provider.request(
         settings,
         f"{endpoint}/assets?name={name}",
         "POST",
@@ -328,7 +339,7 @@ def _upload(directory: Path, settings: dict, endpoint: str, item: dict) -> None:
 
 
 def _verify_assets(settings: dict, endpoint: str, files: list[dict], failure: str) -> None:
-    assets = registry.pages(settings, f"{endpoint}/assets", channel=True)
+    assets = registry.provider.pages(settings, f"{endpoint}/assets", channel=True)
     actual = {asset["name"]: asset["size"] for asset in assets}
     expected = {item["name"]: item["size"] for item in files}
     if (
@@ -343,59 +354,61 @@ def _verify_assets(settings: dict, endpoint: str, files: list[dict], failure: st
         raise policy.ToolError(f"{TAG} upload digest differs")
     inventory = {item["name"]: item for item in files}
     for asset in assets:
-        registry.verify_download(settings, f"releases/assets/{asset['id']}", inventory[asset["name"]], channel=True)
+        registry.provider.verify_download(settings, f"releases/assets/{asset['id']}", inventory[asset["name"]], channel=True)
 
 
 def _point_tag(settings: dict, current: str | None, sha: str) -> None:
     if current == sha:
         return
     if current is not None:
-        registry.request(settings, f"git/refs/tags/{TAG}", "DELETE", channel=True)
-    registry.document(settings, "git/refs", "POST", {"ref": f"refs/tags/{TAG}", "sha": sha}, channel=True)
+        registry.provider.request(settings, f"git/refs/tags/{TAG}", "DELETE", channel=True)
+    registry.provider.document(settings, "git/refs", "POST", {"ref": f"refs/tags/{TAG}", "sha": sha}, channel=True)
 
 
 def _discard(settings: dict, release: int) -> None:
     try:
-        registry.request(settings, f"releases/{release}", "DELETE", channel=True)
+        registry.provider.request(settings, f"releases/{release}", "DELETE", channel=True)
     except policy.ToolError as error:
         print(f"nightly: the staged draft remains for the next run to retire: {error}", file=sys.stderr)
 
 
 def _restore(settings: dict, staged: int, previous: dict | None, original: str | None) -> None:
-    """Return The Channel To The Previous Release After A Failed Swap; Report What Could Not Be Undone."""
-    steps = [lambda: registry.document(settings, f"releases/{staged}", "PATCH", {"draft": True}, channel=True)]
+    """Return the Channel to the Previous Release After a Failed Swap; Report What Could Not Be Undone."""
+    try:
+        registry.provider.document(settings, f"releases/{staged}", "PATCH", {"draft": True}, channel=True)
+    except policy.ToolError as error:
+        print(f"nightly: restoring the staged draft failed: {error}", file=sys.stderr)
+
     if original is not None:
-        steps.append(lambda: _point_tag(settings, _tag(settings), original))
-    if previous:
-        steps.append(
-            lambda: registry.document(
-                settings,
-                f"releases/{previous['id']}",
-                "PATCH",
-                {"tag_name": TAG, "draft": False},
-                channel=True,
-            )
-        )
-    steps.append(lambda: _discard(settings, staged))
-    for step in steps:
         try:
-            step()
+            _point_tag(settings, _tag(settings), original)
         except policy.ToolError as error:
-            print(f"nightly: restoring the previous channel failed: {error}", file=sys.stderr)
+            print(f"nightly: restoring the previous tag failed: {error}", file=sys.stderr)
+
+    if previous:
+        try:
+            registry.provider.document(settings, f"releases/{previous['id']}", "PATCH", {"tag_name": TAG, "draft": False}, channel=True)
+        except policy.ToolError as error:
+            print(f"nightly: restoring the previous release failed: {error}", file=sys.stderr)
+
+    try:
+        _discard(settings, staged)
+    except policy.ToolError as error:
+        print(f"nightly: discarding the staged draft failed: {error}", file=sys.stderr)
 
 
 def _tag(settings: dict) -> str | None:
-    reference = registry.document(settings, f"git/ref/tags/{TAG}", channel=True)
+    reference = registry.provider.document(settings, f"git/ref/tags/{TAG}", channel=True)
     return (reference or {}).get("object", {}).get("sha")
 
 
 def _gitlab(settings: dict, files: list[dict], sha: str, identifier: str, notes: str) -> None:
     endpoint = f"releases/{TAG}"
-    release = registry.document(settings, endpoint, channel=True)
+    release = registry.provider.document(settings, endpoint, channel=True)
     if _superseded(release, identifier, "description"):
         return
     if release is None:
-        registry.document(
+        registry.provider.document(
             settings,
             "releases",
             "POST",
@@ -403,13 +416,13 @@ def _gitlab(settings: dict, files: list[dict], sha: str, identifier: str, notes:
             channel=True,
         )
     # Links Address This Job's Unexpiring Staged Artifacts, Never A Moving Branch.
-    links = registry.pages(settings, f"{endpoint}/assets/links", channel=True)
+    links = registry.provider.pages(settings, f"{endpoint}/assets/links", channel=True)
     for link in links:
-        registry.document(settings, f"{endpoint}/assets/links/{link['id']}", "DELETE", channel=True)
+        registry.provider.document(settings, f"{endpoint}/assets/links/{link['id']}", "DELETE", channel=True)
     for item in files:
         path = urllib.parse.quote(item["path"], safe="/")
         url = os.environ["CI_JOB_URL"] + "/artifacts/raw/" + path
-        registry.document(
+        registry.provider.document(
             settings,
             f"{endpoint}/assets/links",
             "POST",
@@ -421,7 +434,7 @@ def _gitlab(settings: dict, files: list[dict], sha: str, identifier: str, notes:
             },
             channel=True,
         )
-    registry.document(
+    registry.provider.document(
         settings,
         endpoint,
         "PUT",

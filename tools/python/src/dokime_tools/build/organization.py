@@ -23,20 +23,27 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools.package.staging import stage_file
 
-# Type Checking Imports
+from ..process import spawn_flags
+from . import configuration
 
+# Type Checking Imports
 
 # === Public Exports === #
 
 # === Constants === #
 
-ROOT = Path(__file__).resolve().parents[5]
-BRAND = ROOT / "organization"
-GENERATED = ROOT / "crates/dokime-gui/src/generated/organization"
+
+BRAND = configuration.ROOT / "organization"
+GENERATED = configuration.ROOT / "crates/dokime-gui/src/generated/organization"
 
 # === Types === #
 
@@ -46,7 +53,7 @@ GENERATED = ROOT / "crates/dokime-gui/src/generated/organization"
 
 
 def generate() -> None:
-    """Generate The Offline Default Brand From The Runtime Manifest."""
+    """Generate the Offline Default Brand From the Runtime Manifest."""
     manifest = tomllib.loads((BRAND / "organization.toml").read_text())
     app = manifest["app"]
     logos = {}
@@ -58,7 +65,7 @@ def generate() -> None:
             path = (BRAND / filename).resolve()
             mime = {".svg": "image/svg+xml", ".png": "image/png"}.get(path.suffix)
             if not path.is_relative_to(BRAND.resolve()) or mime is None:
-                raise ValueError("brand logos must be pack-root-relative SVG or PNG paths")
+                raise ValueError("Build Organization: brand logos must be pack-root-relative SVG or PNG paths")
             data = base64.b64encode(path.read_bytes()).decode("ascii")
             logos[f"{treatment}_on_{surface}"] = {"src": f"data:{mime};base64,{data}", "alt": app["label"]}
     _write_json(
@@ -74,25 +81,27 @@ def generate() -> None:
 
 
 def generate_icons() -> None:
-    """Generate Desktop Icons From The Brand's PNG Icon Master."""
-    destination = ROOT / "crates/dokime-gui/src-tauri/icons"
-    cli = ROOT / "crates/dokime-gui/node_modules/@tauri-apps/cli/tauri.js"
-    with tempfile.TemporaryDirectory(prefix="organization-icons-") as directory:
+    """Generate Desktop Icons From the Brand's PNG Icon Master."""
+    destination = configuration.ROOT / "crates/dokime-gui/src-tauri/icons"
+    cli = configuration.ROOT / "crates/dokime-gui/node_modules/@tauri-apps/cli/tauri.js"
+    directory_directory = tempfile.TemporaryDirectory(prefix="organization-icons-")
+    directory = directory_directory.name
+    try:
         command = ["node", str(cli), "icon", str(BRAND / "icons/icon.png"), "--output", directory]
         subprocess.run(
             command,
-            cwd=ROOT,
+            cwd=configuration.ROOT,
             check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
         subprocess.run(
             [*command, "--png", "64"],
-            cwd=ROOT,
+            cwd=configuration.ROOT,
             check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
@@ -110,6 +119,8 @@ def generate_icons() -> None:
                 "outputs": [_digest(destination / path.name) for path in outputs],
             },
         )
+    finally:
+        directory_directory.cleanup()
 
 
 # === Private Functions === #
@@ -169,17 +180,17 @@ def _inline_asset(match: re.Match[str]) -> str:
         return match.group(0)
     path = (BRAND / relative).resolve()
     if not path.is_relative_to(BRAND.resolve()):
-        raise ValueError(f"organization asset escapes its pack: {relative}")
+        raise ValueError(f"Build Organization: organization asset escapes its pack: {relative}")
     mime = {".woff2": "font/woff2", ".svg": "image/svg+xml", ".png": "image/png"}.get(path.suffix)
     if mime is None:
-        raise ValueError(f"unsupported organization asset: {relative}")
+        raise ValueError(f"Build Organization: unsupported organization asset: {relative}")
     # Percent Encoding Keeps Binary Assets Opaque To Text Searches.
     data = "".join(f"%{byte:02X}" for byte in path.read_bytes())
     return f'url("data:{mime},{data}")'
 
 
 def _digest(path: Path) -> dict[str, str]:
-    return {"path": path.relative_to(ROOT).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    return {"path": path.relative_to(configuration.ROOT).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
 # === Entry Point === #

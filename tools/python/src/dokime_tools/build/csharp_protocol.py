@@ -23,7 +23,8 @@ from google.protobuf.descriptor_pb2 import FileDescriptorProto, FileDescriptorSe
 
 # Local Imports
 from ..process import spawn_flags
-from . import render_resources
+from .resources.csharp import message
+from .resources.schema import table
 
 # Type Checking Imports
 
@@ -51,7 +52,9 @@ def protocols(
     """Keep Wire Requests and Carriers Internal; Give Payloads Their Public Namespace."""
     descriptors = descriptors or root / "crates/dokime-protocol/src/descriptors.bin"
     schema = FileDescriptorSet.FromString(descriptors.read_bytes())
-    requests = {method["request"].rsplit(".", 1)[-1] for method in render_resources.table(schema)}
+    requests = set()
+    for method in table(schema):
+        requests.add(method["request"].rsplit(".", 1)[-1])
     requests.update(
         {"Request", "Response", "ChildRequest", "ChildResponse", "ChildCancel", "ChildWatch", "ChildWatchResponse", "ChildWatchCancel"}
     )
@@ -85,8 +88,12 @@ def protocols(
                 source = _wire_source(path.read_text(encoding="utf-8"), path.name, file, requests, namespace_override)
                 path.write_text(source, encoding="utf-8", newline="\n")
         if check:
-            expected = {path.relative_to(scratch) for path in scratch.rglob("*.cs")}
-            existing = {path.relative_to(destination) for path in destination.rglob("*.cs")}
+            expected = set()
+            for path in scratch.rglob("*.cs"):
+                expected.add(path.relative_to(scratch))
+            existing = set()
+            for path in destination.rglob("*.cs"):
+                existing.add(path.relative_to(destination))
             if expected != existing or any((scratch / path).read_bytes() != (destination / path).read_bytes() for path in expected):
                 raise ValueError("Check C# Protocol: Regenerate With mise run generate -- --protocol")
         else:
@@ -109,7 +116,7 @@ def _wire_source(
     namespace_override: str | None,
 ) -> str:
     """Apply the Public Payload and Internal Carrier Namespace Contract."""
-    source = render_resources.csharp_message(source)
+    source = message(source)
     if namespace_override is not None:
         source = source.replace("namespace Harmos.Clients {", f"namespace {namespace_override} {{")
         source = source.replace("global::Harmos.Clients.", f"global::{namespace_override}.")
@@ -118,7 +125,7 @@ def _wire_source(
     if filename.endswith("Grpc.cs"):
         source = source.replace("namespace Harmos.Plugins {", "namespace Harmos.Internal.Host {")
         source = source.replace("namespace Harmos.Clients {", "namespace Harmos.Internal.Client {")
-        namespace = render_resources.csharp_message(file.options.csharp_namespace)
+        namespace = message(file.options.csharp_namespace)
         if namespace.endswith(".Clients"):
             source = source.replace(f"namespace {namespace} {{", f"namespace {namespace.removesuffix('.Clients')}.Internal.Client {{")
     # Generated Namespaces Follow the Same File-Scoped Rule as Authored C#.

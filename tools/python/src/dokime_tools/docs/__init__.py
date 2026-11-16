@@ -6,13 +6,17 @@
 #
 # ***
 
-"""Build, Preview, Archive And Assemble The Documentation Site"""
+"""Build, Preview, Archive and Assemble the Documentation Site"""
 
 # === Imports === #
 
 # Standard Library Imports
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 

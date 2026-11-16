@@ -6,14 +6,7 @@
 #
 # ***
 
-"""Generated Nextest Profile, Layer Filtersets And Commands For Rust Lanes.
-
-Layers are selected by binary: unit is every library, binary and proc-macro target; acceptance
-and system are the integration-test binaries named after the layer (`tests/acceptance/main.rs`
-autodiscovers as `acceptance`; a `[[test]]` named `acceptance-<suite>` also counts); every other
-integration-test binary is the integration layer. The repository `.config/nextest.toml` is never
-read: the runner writes the one profile it needs and passes it with `--config-file`.
-"""
+"Generated Nextest Profile, Layer Filtersets and Commands for Rust Lanes.\n\nLayers are selected by binary: unit is every library, binary and proc-macro target; acceptance\nand system are the integration-test binaries named after the layer (`tests/acceptance/main.rs`\nautodiscovers as `acceptance`; a `[[test]]` named `acceptance-<suite>` also counts); every other\nintegration-test binary is the integration layer. the repository `.config/nextest.toml` is never\nread: the runner writes the one profile it needs and passes it with `--config-file`.\n"
 
 # === Imports === #
 
@@ -22,7 +15,12 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from . import policy
 
@@ -107,7 +105,11 @@ def overrides(
     """Explicit overrides followed by layer deadlines for all-layer runs."""
     categories = [category] if category else list(policy.CATEGORIES)
     factor = policy.COVERAGE_FACTOR if coverage else 1
-    selected = [(entry.select, entry.timeout_seconds * factor) for name in categories for entry in rules.selected(name, "rust")]
+    selected = []
+    for selected_name in categories:
+        for selected_entry in rules.selected(selected_name, "rust"):
+            selected.append((selected_entry.select, selected_entry.timeout_seconds * factor))
+
     if category is None:
         names = sorted(set(binaries.values()))
         return selected + [(layer(name, names), rules.deadline(name, coverage)) for name in categories]
@@ -121,7 +123,7 @@ def run(
     expression: str | None,
     rest: Sequence[str],
 ) -> list[str]:
-    """Run Extracted Binaries Without Repeating Archive Extraction Or Compilation."""
+    """Run Extracted Binaries Without Repeating Archive Extraction or Compilation."""
     metadata = extract / "target/nextest"
     command = [
         "cargo",
@@ -194,7 +196,12 @@ def report(profile: str, output: Path) -> list[str]:
 
 
 def _named(category: str, binaries: Sequence[str]) -> str:
-    names = [name for name in binaries if name == category or name.startswith(f"{category}-")]
+    names = []
+    for names_name in binaries:
+        if not (names_name == category or names_name.startswith(f"{category}-")):
+            continue
+        names.append(names_name)
+
     return " | ".join(f"binary(={name})" for name in names) or "none()"
 
 
@@ -208,7 +215,7 @@ def _split(arguments: Sequence[str]) -> tuple[list[str], list[str], list[str]]:
         if flag in PACKAGE_FLAGS + FILTER_FLAGS:
             value = inline or next(values, "")
             if not value:
-                raise policy.TestError(f"{flag} needs a value")
+                raise policy.TestError(f"Run Nextest Tests: {flag} needs a value")
             (packages if flag in PACKAGE_FLAGS else filters).append(value)
         elif argument.startswith("-p") and len(argument) > 2:
             packages.append(argument[2:])

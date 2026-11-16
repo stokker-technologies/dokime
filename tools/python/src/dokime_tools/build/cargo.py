@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Run Explicit Cargo Lint And Compilation Selections"""
+"Run Explicit Cargo Lint and Compilation Selections"
 
 # === Imports === #
 
@@ -19,7 +19,12 @@ from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from ..ci import summary
 from ..process import spawn_flags
@@ -56,7 +61,8 @@ def clippy(directory: Path, arguments: Sequence[str], *, environment: Mapping[st
             profile = argument.partition("=")[2]
     selected = compiler_environment(profile, source=environment)
     selected["CARGO_BUILD_WARNINGS"] = "deny"
-    with summary.phase("Clippy"):
+    phase = summary.Phase("Clippy")
+    try:
         subprocess.run(
             ["cargo", "clippy", *arguments],
             cwd=directory,
@@ -67,15 +73,18 @@ def clippy(directory: Path, arguments: Sequence[str], *, environment: Mapping[st
             creationflags=spawn_flags(),
             check=True,
         )
+    finally:
+        phase.close()
 
 
 def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
-    from ..test import archive as reader
+    import dokime_tools.test.archive
+
     from ..test import policy
 
     if profile not in policy.PROFILES:
-        raise policy.TestError("unknown build profile")
-    path = reader.location(directory, profile)
+        raise policy.TestError("Build Cargo: unknown build profile")
+    path = dokime_tools.test.archive.location(directory, profile)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.unlink(missing_ok=True)
     compiler_profile = "test"
@@ -96,46 +105,52 @@ def archive(directory: Path, profile: str, extra: Sequence[str] = ()) -> Path:
         str(path),
         *extra,
     ]
-    with summary.phase("Compilation And Archive"), path.with_name(reader.MESSAGES).open("w", encoding="utf-8") as output:
-        result = subprocess.run(
-            command,
-            env=compiler_environment(compiler_profile),
-            stdin=sys.stdin,
-            stderr=sys.stderr,
-            creationflags=spawn_flags(),
-            cwd=directory,
-            stdout=output,
-            check=False,
-        )
+    phase = summary.Phase("Compilation and Archive")
+    try:
+        with path.with_name(dokime_tools.test.archive.MESSAGES).open("w", encoding="utf-8") as output:
+            result = subprocess.run(
+                command,
+                env=compiler_environment(compiler_profile),
+                stdin=sys.stdin,
+                stderr=sys.stderr,
+                creationflags=spawn_flags(),
+                cwd=directory,
+                stdout=output,
+                check=False,
+            )
+    finally:
+        phase.close()
     if result.returncode:
         path.unlink(missing_ok=True)
-        for line in path.with_name(reader.MESSAGES).read_text(encoding="utf-8").splitlines():
+        for line in path.with_name(dokime_tools.test.archive.MESSAGES).read_text(encoding="utf-8").splitlines():
             message = json.loads(line)
             diagnostic = message.get("message", {}).get("rendered")
             if diagnostic:
                 print(diagnostic, file=sys.stderr, end="")
-        raise policy.TestError(f"nextest archive build failed; compiler messages: {path.with_name(reader.MESSAGES)}")
-    reader.require(directory, profile)
-    reader.prune(path.parent, {reader.ARCHIVE, reader.MESSAGES}, archives=True)
+        raise policy.TestError(
+            f"Build Cargo: nextest archive build failed; compiler messages: {path.with_name(dokime_tools.test.archive.MESSAGES)}"
+        )
+    dokime_tools.test.archive.require(directory, profile)
+    dokime_tools.test.archive.prune(path.parent, {dokime_tools.test.archive.ARCHIVE, dokime_tools.test.archive.MESSAGES}, archives=True)
     return path
 
 
 def focused(directory: Path, operation: str, arguments: Sequence[str]) -> int:
     if operation not in ("build", "check", "test", "clippy", "run", "bench", "rustc"):
-        raise ValueError("focused compilation requires build, check, test, clippy, run, bench or rustc")
+        raise ValueError("Build Cargo: focused compilation requires build, check, test, clippy, run, bench or rustc")
     profile = None
     compiler_arguments = list(arguments[: arguments.index("--")]) if "--" in arguments else list(arguments)
     if any(argument == "--target-dir" or argument.startswith("--target-dir=") for argument in compiler_arguments):
-        raise ValueError("focused tasks use the repository Cargo target")
+        raise ValueError("Build Cargo: focused tasks use the repository Cargo target")
     for index, argument in enumerate(compiler_arguments):
         if argument == "--profile" and index + 1 < len(compiler_arguments):
             profile = compiler_arguments[index + 1]
         elif argument.startswith("--profile="):
             profile = argument.partition("=")[2]
     if profile is not None and profile not in ("dev", "release", "test", "bench"):
-        raise ValueError("focused compilation requires a canonical Cargo profile")
+        raise ValueError("Build Cargo: focused compilation requires a canonical Cargo profile")
     if operation == "test" and ("--release" in compiler_arguments or profile not in (None, "test")):
-        raise ValueError("focused tests use Cargo's default test profile")
+        raise ValueError("Build Cargo: focused tests use Cargo's default test profile")
     if operation == "test":
         from ..test import focused
 
@@ -156,7 +171,7 @@ def focused(directory: Path, operation: str, arguments: Sequence[str]) -> int:
 
 
 def record_target(directory: Path, messages: Path, profile: str, native: str | None = None) -> None:
-    """Record The Actual Rust Target For Generic And Authored Product Builders."""
+    """Record the Actual Rust Target for Generic and Authored Product Builders."""
     compiler = subprocess.run(
         ["rustc", "-vV"],
         creationflags=spawn_flags(),
@@ -177,10 +192,10 @@ def record_target(directory: Path, messages: Path, profile: str, native: str | N
             if "-linux-" in candidate or "-windows-" in candidate or candidate.endswith("-apple-darwin"):
                 compiled_targets.add(candidate)
     if len(compiled_targets) > 1:
-        raise ValueError("Product Build exported more than one Rust target")
+        raise ValueError("Build Cargo: Product Build exported more than one Rust target")
     actual = next(iter(compiled_targets), triple)
     if "CARGO_BUILD_TARGET" in os.environ and actual != triple:
-        raise ValueError("Product Build target differs from CARGO_BUILD_TARGET")
+        raise ValueError("Build Cargo: Product Build target differs from CARGO_BUILD_TARGET")
     destination = paths.output(directory, "build", profile, native) / "product/target.txt"
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(actual + "\n")
@@ -195,19 +210,19 @@ def artifacts(directory: Path, messages: Path) -> Iterator[dict[str, Any]]:
 
 def main() -> None:
     if sys.argv[1:2] == ["focused"]:
-        parser = argparse.ArgumentParser(description="Compile An Explicit Local Rust Selection")
+        parser = argparse.ArgumentParser(description="Compile an Explicit Local Rust Selection")
         parser.add_argument("operation", choices=("build", "check", "test", "clippy", "run", "bench", "rustc"))
         parser.add_argument("arguments", nargs=argparse.REMAINDER)
         options = parser.parse_args(sys.argv[2:])
         raise SystemExit(focused(Path.cwd(), options.operation, options.arguments))
     if sys.argv[1:2] == ["archive"]:
-        parser = argparse.ArgumentParser(description="Build A Nextest Archive")
+        parser = argparse.ArgumentParser(description="Build a Nextest Archive")
         parser.add_argument("--profile", choices=("dev", "release"), default="dev")
         options, extra = parser.parse_known_args(sys.argv[2:])
         extra = extra[1:] if extra[:1] == ["--"] else extra
         archive(Path.cwd(), options.profile, extra)
         return
-    parser = argparse.ArgumentParser(description="Validate A Declared Cargo Target In Build")
+    parser = argparse.ArgumentParser(description="Validate a Declared Cargo Target in Build")
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     options = parser.parse_args()
     arguments = options.arguments[1:] if options.arguments[:1] == ["--"] else options.arguments

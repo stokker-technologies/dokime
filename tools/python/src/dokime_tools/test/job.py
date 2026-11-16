@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -18,12 +18,15 @@ import subprocess
 import sys
 from ctypes import wintypes
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -106,5 +109,14 @@ if __name__ == "__main__":
     if not arguments:
         raise SystemExit("Run Owned Story: Supply Its Command")
     # Exit Closes the Job Before the Outer Runner Cleans the Story's Scratch.
-    with subprocess.Popen(arguments) as child:
+    child = subprocess.Popen(arguments)
+    try:
         raise SystemExit(child.wait())
+    finally:
+        if child.stdout is not None:
+            child.stdout.close()
+        if child.stderr is not None:
+            child.stderr.close()
+        if child.stdin is not None:
+            child.stdin.close()
+        child.wait()

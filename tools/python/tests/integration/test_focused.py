@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Prove Changed-Path Selection Preserves Test Ownership And Consumer Coverage."""
+"Prove Changed-Path Selection Preserves Test Ownership and Consumer Coverage."
 
 # === Imports === #
 
@@ -16,16 +16,26 @@ import json
 import tempfile
 import tomllib
 import unittest
-from contextlib import nullcontext, redirect_stdout
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
+import dokime_tools.test
+import dokime_tools.test.archive
+import dokime_tools.test.credentials
 from dokime_tools.ci import tasks
-from dokime_tools.test import focused
-from dokime_tools.test import run as archived
+from dokime_tools.test import focused, lanes
+
+from .environment import Resource
 
 # Type Checking Imports
 
@@ -39,8 +49,10 @@ from dokime_tools.test import run as archived
 
 
 class ChangedPathsTests(unittest.TestCase):
-    def test_story_edits_and_source_edits_keep_their_dependency_boundaries(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_story_edits_and_source_edits_keep_their_dependency_boundaries(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary).resolve()
             packages = []
             for name, dependency in (("messages", None), ("engine", "messages"), ("client", "engine"), ("independent", None)):
@@ -108,8 +120,10 @@ class ChangedPathsTests(unittest.TestCase):
             ):
                 with self.subTest(paths=paths), self.assertRaises(ValueError):
                     focused.selections(root, metadata, paths, layer)
+        finally:
+            temporary_directory.cleanup()
 
-    def test_focused_dispatch_runs_the_story_filter_and_plan_never_compiles(self):
+    def test_focused_dispatch_runs_the_story_filter_and_plan_never_compiles(self) -> None:
         with patch.object(tasks.transport, "receive"), patch.object(tasks.cargo, "focused", return_value=7) as execute:
             for selector in ("--story", "--select"):
                 self.assertEqual(tasks.main(["test", "--package", "example", "--target", "integration", selector, "save::"]), 7)
@@ -124,25 +138,27 @@ class ChangedPathsTests(unittest.TestCase):
             self.assertEqual(tasks.main(["test", "--package", "example", "--layer", "system", "--story", "save::"]), 7)
             self.assertEqual(execute.call_args.args[-1], ["--locked", "--package", "example", "--test", "system", "save::"])
             execute.reset_mock()
-            with patch.object(archived, "test", return_value=7) as archive:
+            with patch.object(lanes, "run", return_value=7) as archive:
                 self.assertEqual(
                     tasks.main(["test", "--package", "example", "--target", "integration", "--artifact", "tests", "--exact", "save"]), 7
                 )
                 self.assertEqual(archive.call_args.args[-1], ["-E", "binary_id(=example::integration)", "--", "--exact", "save"])
             execute.assert_not_called()
 
-    def test_filterset_reaches_source_and_archived_story_selection(self):
+    def test_filterset_reaches_source_and_archived_story_selection(self) -> None:
         expression = "not (test(native_one) or test(native_two))"
         arguments = ["test", "--package", "example", "--target", "system", "--filterset", expression]
         with patch.object(tasks.transport, "receive"), patch.object(tasks.cargo, "focused", return_value=7) as execute:
             self.assertEqual(tasks.main(arguments), 7)
             self.assertEqual(execute.call_args.args[-1], ["--locked", "--package", "example", "--test", "system", "-E", expression])
-            with patch.object(archived.archive, "install_wheels"), patch.object(archived, "test", return_value=9) as run:
+            with patch.object(dokime_tools.test.archive, "install_wheels"), patch.object(lanes, "run", return_value=9) as run:
                 self.assertEqual(tasks.main([*arguments, "--artifact", "tests"]), 9)
                 self.assertEqual(run.call_args.args[-1], ["-E", "binary_id(=example::system)", "-E", expression])
 
-    def test_native_runner_keeps_deadlines_exact_selection_and_failure(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_native_runner_keeps_deadlines_exact_selection_and_failure(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             (root / "tools").mkdir()
             (root / "tools/project.toml").write_text(
@@ -150,7 +166,7 @@ class ChangedPathsTests(unittest.TestCase):
             )
             observed = []
 
-            def execute(command, **kwargs):
+            def execute(command: list[str], **kwargs: Any) -> SimpleNamespace:
                 if command[1] == "metadata":
                     return SimpleNamespace(
                         stdout=json.dumps({"packages": [{"name": "example", "targets": [{"kind": ["test"], "name": "integration"}]}]})
@@ -164,7 +180,9 @@ class ChangedPathsTests(unittest.TestCase):
                 return SimpleNamespace(returncode=7)
 
             with (
-                patch.object(focused.desktop_bench, "credentials", side_effect=lambda environment: nullcontext(environment)) as credentials,
+                patch.object(
+                    dokime_tools.test.credentials, "Store", side_effect=lambda environment: Resource(environment)
+                ) as store_factory,
                 patch.object(focused.subprocess, "run", side_effect=execute),
                 patch.object(
                     focused.cargo, "compiler_environment", return_value={"CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER": "custom-linker"}
@@ -172,7 +190,7 @@ class ChangedPathsTests(unittest.TestCase):
             ):
                 self.assertEqual(focused.run(root, ["--package", "example", "--test", "integration", "save", "--", "--exact"]), 7)
                 self.assertEqual(focused.run(root, ["--package", "example", "--tests", "--no-run"]), 7)
-            self.assertEqual(credentials.call_count, 2)
+            self.assertEqual(store_factory.call_count, 2)
             self.assertEqual(compiler.call_count, 2)
             compiler.assert_called_with("test")
             command, options, profile = observed[0]
@@ -189,6 +207,8 @@ class ChangedPathsTests(unittest.TestCase):
                 )
             )
             self.assertEqual((root / "target/test-reports/focused/junit.xml").read_text(), '<testsuite><testcase name="save"/></testsuite>')
+        finally:
+            temporary_directory.cleanup()
 
 
 # === Public Functions === #

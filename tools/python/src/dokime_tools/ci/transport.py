@@ -7,7 +7,7 @@
 # ***
 
 
-"""Receive And Export Task Artifacts Through The Single Archive Implementation."""
+"Receive and Export Task Artifacts Through the Single Archive Implementation."
 
 # === Imports === #
 
@@ -16,13 +16,17 @@ import json
 import os
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from ..build.paths import target
 from . import artifacts
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -53,7 +57,7 @@ def receive() -> None:
 
 
 def send(profile: str) -> None:
-    """Export The Producer's Declared Outputs Once For All Consumers."""
+    """Export the Producer's Declared Outputs Once for All Consumers."""
     for output in json.loads(os.environ.get("CI_OUTPUTS", "[]")):
         artifacts.pack(
             Path.cwd(),

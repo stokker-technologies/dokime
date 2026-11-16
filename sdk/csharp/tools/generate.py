@@ -14,18 +14,20 @@
 # Standard Library Imports
 import tomllib
 from pathlib import Path
-from typing import cast
+
+# isort: split
 
 # Third Party Imports
-from dokime_tools.build import render_resources
-from dokime_tools.build.csharp_protocol import protocols
-from dokime_tools.build.protocol_callers import narrow_callers
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
 
+# isort: split
+
 # Local Imports
+from dokime_tools.build.csharp_protocol import protocols
+from dokime_tools.build.protocol_callers import narrow_callers
+from dokime_tools.build.resources import csharp, schema
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -40,19 +42,30 @@ from google.protobuf.descriptor_pb2 import FileDescriptorSet
 
 def main() -> None:
     root = Path(__file__).resolve().parents[3]
-    descriptors = FileDescriptorSet.FromString((root / "crates/dokime-protocol/src/descriptors.bin").read_bytes())
-    settings = tomllib.loads((root / "protocol/composition.toml").read_text(encoding="utf-8"))
-    callers = cast(dict[str, str], settings.get("callers", {}))
-    narrow_callers(descriptors, callers)
-    methods = render_resources.table(descriptors)
-    render_resources.csharp(
+    descriptors = FileDescriptorSet.FromString(
+        (root / "crates/dokime-protocol/src/descriptors.bin").read_bytes()
+    )
+    composition = tomllib.loads(
+        (root / "protocol/composition.toml").read_text(encoding="utf-8")
+    )
+    narrow_callers(descriptors, composition.get("callers", {}))
+    public_names = schema.public_names(descriptors)
+    clients = []
+    plugins = []
+    for method in schema.table(descriptors):
+        if method["face"] == "client":
+            clients.append(method)
+        if method["face"] == "context":
+            plugins.append(method)
+    csharp.render(
         root,
-        [method for method in methods if method["face"] == "client"],
+        clients,
+        public_names=public_names,
         namespace="dokime",
         target=root / "sdk/csharp/src/Dokime/Generated/Client.g.cs",
         check=True,
     )
-    render_resources.csharp_host(root, [method for method in methods if method["face"] == "context"], check=True)
+    csharp.host(root, plugins, check=True)
     protocols(root, check=True)
     print("C# Generation: Frozen Roots and Wire Match Their Descriptors")
 

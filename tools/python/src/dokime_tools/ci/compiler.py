@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Run Compiler Commands With An Owned Foreground Sccache Server."""
+"Run Compiler Commands with an Owned Foreground Sccache Server."
 
 # === Imports === #
 
@@ -21,12 +21,16 @@ import threading
 from collections.abc import Sequence
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from ..process import spawn_flags
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -69,14 +73,14 @@ def run(
     *,
     statistics: dict | None = None,
 ) -> int:
-    """Require The Declared Backend And Clean Up Only Our Process."""
+    """Require the Declared Backend and Clean Up Only Our Process."""
     try:
         return _configured(command, shell, statistics=statistics)
     except CacheError:
         raise
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         _report("configuration", error=error)
-        raise CacheError("sccache: backend configuration failed") from None
+        raise CacheError("Configure Compiler Cache: sccache: backend configuration failed") from None
 
 
 # === Private Functions === #
@@ -84,16 +88,21 @@ def run(
 
 def _configured(command: Sequence[str] | str, shell: str | None, *, statistics: dict | None = None) -> int:
     backend = os.environ.get("COMPILER_CACHE_BACKEND")
-    environment = {key: value for key, value in os.environ.items() if not key.startswith("SCCACHE_")}
+    environment = {}
+    for environment_key, environment_value in os.environ.items():
+        if environment_key.startswith("SCCACHE_"):
+            continue
+        environment[environment_key] = environment_value
+
     mode = os.environ.get(
         "COMPILER_CACHE_MODE",
         "READ_WRITE" if os.environ.get("CACHE_POLICY") == "pull-push" else "READ_ONLY",
     )
     if mode not in {"READ_ONLY", "READ_WRITE"}:
-        raise RuntimeError("sccache: invalid backend access mode")
+        raise RuntimeError("Configure Compiler Cache: sccache: invalid backend access mode")
     if backend == "s3":
         if not os.environ.get("SCCACHE_BUCKET") or not os.environ.get("SCCACHE_REGION"):
-            raise RuntimeError("sccache: S3 bucket and region are required")
+            raise RuntimeError("Configure Compiler Cache: sccache: S3 bucket and region are required")
         environment.update(
             SCCACHE_BUCKET=os.environ["SCCACHE_BUCKET"],
             SCCACHE_REGION=os.environ["SCCACHE_REGION"],
@@ -104,15 +113,17 @@ def _configured(command: Sequence[str] | str, shell: str | None, *, statistics: 
             environment["SCCACHE_ENDPOINT"] = endpoint
     elif backend == "disk":
         if not os.environ.get("SCCACHE_DIR"):
-            raise RuntimeError("sccache: an explicit disk cache directory is required")
+            raise RuntimeError("Configure Compiler Cache: sccache: an explicit disk cache directory is required")
         directory = Path(os.environ["SCCACHE_DIR"])
         directory.mkdir(parents=True, exist_ok=True)
         environment.update(SCCACHE_DIR=str(directory.resolve()), SCCACHE_LOCAL_RW_MODE=mode)
         if size := os.environ.get("SCCACHE_CACHE_SIZE"):
             environment["SCCACHE_CACHE_SIZE"] = size
     else:
-        raise RuntimeError("sccache: a supported explicit backend is required")
-    with tempfile.TemporaryDirectory(prefix="project-sccache-") as temporary:
+        raise RuntimeError("Configure Compiler Cache: sccache: a supported explicit backend is required")
+    temporary_directory = tempfile.TemporaryDirectory(prefix="project-sccache-")
+    temporary = temporary_directory.name
+    try:
         # Ignore Persistent Runner Configuration And Use Only The Declared Store.
         configuration = Path(temporary) / "config"
         configuration.write_text("", encoding="utf-8")
@@ -121,6 +132,8 @@ def _configured(command: Sequence[str] | str, shell: str | None, *, statistics: 
             SCCACHE_CACHED_CONF=str(Path(temporary) / "cached-config"),
         )
         return _execute(command, shell, environment, backend, statistics=statistics)
+    finally:
+        temporary_directory.cleanup()
 
 
 def _execute(
@@ -154,9 +167,9 @@ def _execute(
         )
     except OSError as error:
         _report("process launch", error=error)
-        raise CacheError("sccache: server launch failed") from None
+        raise CacheError("Configure Compiler Cache: sccache: server launch failed") from None
 
-    with server:
+    try:
 
         def read_endpoint() -> None:
             try:
@@ -180,11 +193,11 @@ def _execute(
                 port = endpoint.get(timeout=60)
             except queue.Empty:
                 _report("readiness timeout")
-                raise CacheError("sccache: backend readiness timed out") from None
+                raise CacheError("Configure Compiler Cache: sccache: backend readiness timed out") from None
             if not port or server.poll() is not None:
                 reader.join(timeout=1)
                 _report("startup exit", server.poll())
-                raise CacheError("sccache: backend startup failed")
+                raise CacheError("Configure Compiler Cache: sccache: backend startup failed")
             child_environment = environment | {
                 "SCCACHE_SERVER_PORT": port,
                 "RUSTC_WRAPPER": "sccache",
@@ -209,18 +222,20 @@ def _execute(
                     information = json.loads(readiness.stdout)
                     scheme = "Local disk:" if backend == "disk" else "s3,"
                     if not isinstance(information, dict) or not isinstance(information.get("cache_location"), str):
-                        raise TypeError("invalid backend statistics")
+                        raise TypeError("Configure Compiler Cache: invalid backend statistics")
                     if not information["cache_location"].startswith(scheme):
-                        raise ValueError("unexpected cache location scheme")
+                        raise ValueError("Configure Compiler Cache: unexpected cache location scheme")
                     version = information.get("version")
                     if not isinstance(version, str):
-                        raise TypeError("invalid cache version type")
+                        raise TypeError("Configure Compiler Cache: invalid cache version type")
                     if re.fullmatch(re.escape(SERIES) + r"[0-9]+", version) is None:
-                        raise ValueError("unsupported cache version")
+                        raise ValueError("Configure Compiler Cache: unsupported cache version")
                 except (OSError, TypeError, ValueError, subprocess.SubprocessError) as error:
                     output = error if isinstance(error, subprocess.CalledProcessError) else readiness
                     _report("backend verification", getattr(output, "returncode", None), error)
-                    raise CacheError("sccache: pinned backend verification failed; refusing implicit storage fallback") from None
+                    raise CacheError(
+                        "Configure Compiler Cache: sccache: pinned backend verification failed; refusing implicit storage fallback"
+                    ) from None
             if isinstance(command, str):
                 shell = shell or ("pwsh" if os.name == "nt" else "bash")
                 command = (
@@ -254,22 +269,22 @@ def _execute(
                 )
             except OSError as error:
                 _report("command launch", error=error)
-                raise CacheError("sccache: compiler command launch failed") from None
-            with child:
+                raise CacheError("Configure Compiler Cache: sccache: compiler command launch failed") from None
+            try:
                 try:
                     while child.poll() is None:
                         if server.poll() is not None:
                             child.terminate()
                             reader.join(timeout=1)
                             _report("unexpected server exit", server.poll())
-                            raise CacheError("sccache: owned compiler cache server exited during the command")
+                            raise CacheError("Configure Compiler Cache: sccache: owned compiler cache server exited during the command")
                         try:
                             child.wait(timeout=0.2)
                         except subprocess.TimeoutExpired:
                             continue
                     if server.poll() is not None:
                         _report("unexpected server exit", server.poll())
-                        raise CacheError("sccache: owned compiler cache server exited during the command")
+                        raise CacheError("Configure Compiler Cache: sccache: owned compiler cache server exited during the command")
                     return child.returncode
                 finally:
                     if server.poll() is None:
@@ -297,6 +312,14 @@ def _execute(
                             subprocess.SubprocessError,
                         ) as error:
                             _report("statistics", getattr(error, "returncode", None), error)
+            finally:
+                if child.stdout is not None:
+                    child.stdout.close()
+                if child.stderr is not None:
+                    child.stderr.close()
+                if child.stdin is not None:
+                    child.stdin.close()
+                child.wait()
         finally:
             # The Process Handle Is Ours; Never Issue Stop-Server Against A Reused Endpoint.
             try:
@@ -309,7 +332,7 @@ def _execute(
                     server.wait(timeout=10)
             except (OSError, subprocess.SubprocessError) as error:
                 _report("server cleanup", getattr(error, "returncode", None), error)
-                raise CacheError("sccache: owned server cleanup failed") from None
+                raise CacheError("Configure Compiler Cache: sccache: owned server cleanup failed") from None
             reader.join(timeout=1)
             for category, count in write_errors.items():
                 if count:
@@ -317,6 +340,14 @@ def _execute(
                     print(f"sccache write errors: {category} x{count}", file=sys.stderr, flush=True)
             if statistics is not None:
                 statistics.update({f"write_error_{category}": count for category, count in write_errors.items()})
+    finally:
+        if server.stdout is not None:
+            server.stdout.close()
+        if server.stderr is not None:
+            server.stderr.close()
+        if server.stdin is not None:
+            server.stdin.close()
+        server.wait()
 
 
 def _report(
@@ -324,7 +355,7 @@ def _report(
     status: int | None = None,
     error: BaseException | None = None,
 ) -> None:
-    """Emit Only Fixed Classifications And Validated Native Version And Error Codes."""
+    """Emit Only Fixed Classifications and Validated Native Version and Error Codes."""
     try:
         result = subprocess.run(
             ["sccache", "--version"],
@@ -350,7 +381,7 @@ def _report(
 
 
 def _write_error(line: str) -> str | None:
-    """Classify Native Write Failures Without Exposing Backend URLs Or Credentials."""
+    """Classify Native Write Failures Without Exposing Backend URLs or Credentials."""
     _, marker, reason = line.partition("Error executing cache write: ")
     if not marker:
         return None

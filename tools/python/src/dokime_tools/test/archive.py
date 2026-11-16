@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Read Nextest Archives And Check The Fixture Files Consumed By Lanes."""
+"Read Nextest Archives and Check the Fixture Files Consumed by Lanes."
 
 # === Imports === #
 
@@ -22,7 +22,12 @@ import tarfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import temporary
 from ..build import paths
@@ -64,9 +69,11 @@ def location(directory: Path, profile: str) -> Path:
 
 
 def prune(directory: Path, keep: set[str], *, archives: bool = False) -> None:
-    """Discard Superseded Roots Without Following Links Or Touching Flat Reports."""
+    """Discard Superseded Roots Without Following Links or Touching Flat Reports."""
     for path in directory.iterdir():
-        if path.name in keep or path.is_symlink():
+        if path.name in keep:
+            continue
+        if path.is_symlink():
             continue
         if archives and path.name.startswith("listing-"):
             continue
@@ -77,17 +84,21 @@ def prune(directory: Path, keep: set[str], *, archives: bool = False) -> None:
 
 
 def binaries(directory: Path, profile: str, extracted: Path | None = None) -> dict[str, str]:
-    """Map Archive Binary IDs To Names, Retaining Package Identity For Measured Overrides."""
+    """Map Archive Binary IDs to Names, Retaining Package Identity for Measured Overrides."""
     if extracted is not None:
         metadata = json.loads((extracted / "target/nextest/binaries-metadata.json").read_text(encoding="utf-8"))
         return {identity: entry["binary-name"] for identity, entry in metadata["rust-binaries"].items()}
-    with temporary.directory() as listing:
+    listing_directory = temporary.Directory()
+    listing = listing_directory.path
+    try:
         extract(directory, profile, listing)
         return binaries(directory, profile, listing)
+    finally:
+        listing_directory.close()
 
 
 def extract(directory: Path, profile: str, destination: Path, *, category: str | None = None, arguments: Sequence[str] = ()) -> None:
-    """Extract Once For Read-Only Reuse By Listing And Independent Test Lanes."""
+    """Extract Once for Read-Only Reuse by Listing and Independent Test Lanes."""
     path = require(directory, profile)
     destination.mkdir(parents=True, exist_ok=True)
     if category in LAYERS:
@@ -110,7 +121,7 @@ def extract(directory: Path, profile: str, destination: Path, *, category: str |
         ]
         result = subprocess.run(command, creationflags=spawn_flags(), cwd=directory, capture_output=True, text=True, check=False)
         if result.returncode:
-            raise policy.TestError(f"nextest could not extract test binaries: {result.stderr.strip()}")
+            raise policy.TestError(f"Run Archive Tests: nextest could not extract test binaries: {result.stderr.strip()}")
 
     # Manual Reuse Must Find The Archived Standard Library On The Consumer Machine.
     metadata = destination / "target/nextest/binaries-metadata.json"
@@ -125,7 +136,7 @@ def extract(directory: Path, profile: str, destination: Path, *, category: str |
 def require(directory: Path, profile: str) -> Path:
     path = location(directory, profile)
     if not path.is_file() or path.stat().st_size == 0:
-        raise policy.TestError(f"missing {profile} nextest archive; run the build task first")
+        raise policy.TestError(f"Run Archive Tests: missing {profile} nextest archive; run the build task first")
     return path
 
 
@@ -134,9 +145,9 @@ def install_wheels(directory: Path, profile: str) -> None:
     wheels = sorted(path for root in roots for path in root.glob("*.whl"))
     names = [path.name.split("-", 1)[0].replace("_", "-").lower() for path in wheels]
     if len(names) != len(set(names)):
-        raise policy.TestError("ambiguous built wheels in the shared output")
+        raise policy.TestError("Run Archive Tests: ambiguous built wheels in the shared output")
     if any(root.is_dir() for root in roots) and not wheels:
-        raise policy.TestError("missing built wheels in the selected profile/target")
+        raise policy.TestError("Run Archive Tests: missing built wheels in the selected profile/target")
     if wheels:
         environment = dict(os.environ)
         environment.pop("UV_PROJECT_ENVIRONMENT", None)
@@ -162,7 +173,7 @@ def install_wheels(directory: Path, profile: str) -> None:
 
 
 def stamp(directory: Path, profile: str, files: Sequence[str], metadata: Mapping | None = None) -> None:
-    """Name And Hash The Built Fixtures, Without Binding Source Or Revision."""
+    """Name and Hash the Built Fixtures, Without Binding Source or Revision."""
     record = {
         "profile": profile,
         "target": paths.target(),
@@ -187,13 +198,13 @@ def fixtures(
     path = paths.output(directory, "build", profile) / "fixtures/stamp.json"
     if not path.is_file():
         if required:
-            raise policy.TestError("missing fixture stamp")
+            raise policy.TestError("Run Archive Tests: missing fixture stamp")
         return
     record = json.loads(path.read_text(encoding="utf-8"))
     if record.get("profile") != profile:
-        raise policy.TestError("fixture stamp belongs to another profile")
+        raise policy.TestError("Run Archive Tests: fixture stamp belongs to another profile")
     if record.get("target") != paths.target():
-        raise policy.TestError("fixture stamp belongs to another native target")
+        raise policy.TestError("Run Archive Tests: fixture stamp belongs to another native target")
     files = record.get("files", {})
     selected = None if roots is None else [*roots, *required]
     for name, digest in files.items():
@@ -201,10 +212,10 @@ def fixtures(
             continue
         target = _inside(directory, name)
         if not target.is_file() or _digest(target) != digest:
-            raise policy.TestError(f"missing or stale fixture: {name}")
+            raise policy.TestError(f"Run Archive Tests: missing or stale fixture: {name}")
     for name in required:
         if name not in files or not _inside(directory, name).is_file():
-            raise policy.TestError(f"missing stamped fixture: {name}")
+            raise policy.TestError(f"Run Archive Tests: missing stamped fixture: {name}")
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
@@ -227,15 +238,17 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
 
 def _extract_layer(path: Path, destination: Path, category: str, arguments: Sequence[str] = ()) -> None:
-    """Keep One Layer's Binaries And All Runtime Inputs Without Unpacking Other Test Layers."""
+    """Keep One Layer's Binaries and All Runtime Inputs Without Unpacking Other Test Layers."""
     metadata_name = "target/nextest/binaries-metadata.json"
     with tarfile.open(path, "r|zst") as source:
         member = next((member for member in source if member.name == metadata_name), None)
         metadata = source.extractfile(member) if member is not None else None
         if metadata is None:
-            raise policy.TestError("nextest archive has no binary metadata")
-        with metadata:
+            raise policy.TestError("Run Archive Tests: nextest archive has no binary metadata")
+        try:
             document = json.load(metadata)
+        finally:
+            metadata.close()
         target = Path(document["rust-build-meta"]["target-directory"])
         binaries = document["rust-binaries"]
         # An Exact Positive Conjunct Safely Narrows Extraction; Nextest Still Evaluates Every Filter.
@@ -250,26 +263,27 @@ def _extract_layer(path: Path, destination: Path, category: str, arguments: Sequ
             if matched:
                 selection = matched.groups()
                 break
-        included = {
-            identity: entry
-            for identity, entry in binaries.items()
-            if _in_layer(category, entry)
-            and (
+        included = {}
+        for included_identity, included_entry in binaries.items():
+            if not _in_layer(category, included_entry):
+                continue
+            if not (
                 selection is None
-                or selection[0] == "binary_id"
-                and identity == selection[1]
-                or selection[0] == "package"
-                and identity.split("::", 1)[0] == selection[1]
-            )
-        }
-        omitted = {
-            (Path("target") / Path(entry["binary-path"]).relative_to(target)).as_posix()
-            for identity, entry in binaries.items()
-            if identity not in included
-        }
+                or (selection[0] == "binary_id" and included_identity == selection[1])
+                or (selection[0] == "package" and included_identity.split("::", 1)[0] == selection[1])
+            ):
+                continue
+            included[included_identity] = included_entry
+
+        omitted = set()
+        for omitted_identity, omitted_entry in binaries.items():
+            if omitted_identity in included:
+                continue
+            omitted.add((Path("target") / Path(omitted_entry["binary-path"]).relative_to(target)).as_posix())
+
         document["rust-binaries"] = included
         if not document["rust-binaries"]:
-            raise policy.TestError(f"nextest archive has no {category} binaries")
+            raise policy.TestError(f"Run Archive Tests: nextest archive has no {category} binaries")
 
     # Stream The Archive Again So Memory And Disk Follow The Selected Lane's Inputs.
     with tarfile.open(path, "r|zst") as source:
@@ -281,7 +295,7 @@ def _extract_layer(path: Path, destination: Path, category: str, arguments: Sequ
 
 
 def _in_layer(category: str, entry: Mapping) -> bool:
-    """The Archive Counterpart Of `nextest.layer`, Selecting By Target Kind And Binary Name."""
+    """The Archive Counterpart of `nextest.layer`, Selecting by Target Kind and Binary Name."""
     if category == "unit":
         return entry["kind"] in UNIT_KINDS
     if entry["kind"] != "test":
@@ -294,13 +308,16 @@ def _in_layer(category: str, entry: Mapping) -> bool:
 def _inside(directory: Path, name: str) -> Path:
     path = directory / name
     if Path(name).is_absolute() or not path.resolve().is_relative_to(directory.resolve()):
-        raise policy.TestError(f"fixture path escapes the workspace: {name}")
+        raise policy.TestError(f"Run Archive Tests: fixture path escapes the workspace: {name}")
     return path
 
 
 def _digest(path: Path) -> str:
-    with path.open("rb") as source:
+    source = path.open("rb")
+    try:
         return hashlib.file_digest(source, "sha256").hexdigest()
+    finally:
+        source.close()
 
 
 def _toolchain(directory: Path) -> str:

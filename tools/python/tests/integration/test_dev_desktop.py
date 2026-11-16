@@ -17,7 +17,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools import policy
 from dokime_tools.dev import desktop
@@ -34,7 +39,7 @@ from dokime_tools.dev import desktop
 
 
 class DevelopmentDesktopTests(unittest.TestCase):
-    def test_isolation_replaces_inherited_roots_and_namespace(self):
+    def test_isolation_replaces_inherited_roots_and_namespace(self) -> None:
         inherited = {
             "PATH": "tools",
             "DOKIME_CREDENTIAL_NAMESPACE": "dokime",
@@ -48,9 +53,10 @@ class DevelopmentDesktopTests(unittest.TestCase):
             {"PATH": "tools", "DOKIME_CREDENTIAL_NAMESPACE": "dokime-dev-1", "DOKIME_APPLICATION_ROOT": "disposable"},
         )
 
-    def test_discard_removes_each_roots_credentials_before_the_folder(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            # One Desktop Root and One Nested Host Root Each Hold Credentials.
+    def test_discard_removes_each_roots_credentials_before_the_folder(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             folder = Path(temporary) / "dev"
             roots = [folder / "data", folder / "data/nested"]
             for root in roots:
@@ -72,6 +78,8 @@ class DevelopmentDesktopTests(unittest.TestCase):
             self.assertEqual(storages, [str(root) for root in roots])
             self.assertTrue(all(call.args[0][1:3] == ["--credential-namespace", "dokime-dev-1"] for call in run.call_args_list))
             self.assertFalse(folder.exists())
+        finally:
+            temporary_directory.cleanup()
 
 
 # === Public Functions === #

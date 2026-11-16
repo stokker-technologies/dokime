@@ -6,18 +6,21 @@
 #
 # ***
 
-"""Own Disposable Directories In Normal System Temporary Storage"""
+"Own Disposable Directories in Normal System Temporary Storage"
 
 # === Imports === #
 
 # Standard Library Imports
 import os
 import tempfile
-from collections.abc import Generator
-from contextlib import contextmanager
 from pathlib import Path
+from typing import BinaryIO
+
+# isort: split
 
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 
@@ -31,28 +34,40 @@ from pathlib import Path
 
 # === Classes === #
 
-# === Public Functions === #
 
+class Directory:
+    """Own a Locked Temporary Root Until Explicitly Closed."""
 
-@contextmanager
-def directory() -> Generator[Path]:
-    with tempfile.TemporaryDirectory(prefix="project-tmp-") as name:
-        path = Path(name)
-        with (path / "owner.lock").open("x+b") as owner:
+    def __init__(self) -> None:
+        self._temporary = tempfile.TemporaryDirectory(prefix="project-tmp-")
+        self.root = Path(self._temporary.name)
+        self.path = self.root / "contents"
+        self.owner: BinaryIO | None = None
+        try:
+            self.owner = (self.root / "owner.lock").open("x+b")
             if os.name == "nt":
                 import msvcrt
 
-                msvcrt.locking(owner.fileno(), msvcrt.LK_NBLCK, 1)
+                msvcrt.locking(self.owner.fileno(), msvcrt.LK_NBLCK, 1)
             else:
                 import fcntl
 
-                fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            owner.write(b"project-temporary-v1\n")
-            owner.flush()
-            contents = path / "contents"
-            contents.mkdir()
-            yield contents
+                fcntl.flock(self.owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.owner.write(b"project-temporary-v1\n")
+            self.owner.flush()
+            self.path.mkdir()
+        except BaseException:
+            self.close()
+            raise
 
+    def close(self) -> None:
+        if self.owner is not None:
+            self.owner.close()
+            self.owner = None
+        self._temporary.cleanup()
+
+
+# === Public Functions === #
 
 # === Private Functions === #
 

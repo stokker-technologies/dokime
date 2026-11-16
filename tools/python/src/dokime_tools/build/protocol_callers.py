@@ -104,13 +104,14 @@ def check_public_surfaces(root: Path) -> None:
     candidates = [root / "README.md", *sorted((root / "docs").glob("*.md"))]
     candidates += sorted((root / "sdk/cpp/include").rglob("*.hpp"))
     candidates += sorted((root / "sdk/cpp/examples").glob("*/generated/*.hpp"))
-    candidates += [
-        path
-        for path in (root / "sdk/python/src/dokime").rglob("*")
-        if path.suffix in {".py", ".pyi"}
-        and not any(part.startswith("_") for part in path.relative_to(root / "sdk/python/src/dokime").parts[:-1])
-        and (not path.name.startswith("_") or path.name == "__init__.py")
-    ]
+    for path in (root / "sdk/python/src/dokime").rglob("*"):
+        if path.suffix not in {".py", ".pyi"}:
+            continue
+        if any(part.startswith("_") for part in path.relative_to(root / "sdk/python/src/dokime").parts[:-1]):
+            continue
+        if path.name.startswith("_") and path.name != "__init__.py":
+            continue
+        candidates.append(path)
     findings = []
     for path in candidates:
         relative = path.relative_to(root)
@@ -160,9 +161,14 @@ def check_public_surfaces(root: Path) -> None:
 
 def _descriptor_pool(descriptors: FileDescriptorSet) -> DescriptorPool:
     pool = DescriptorPool()
-    pending = {file.name: file for file in descriptors.file}
+    pending = {}
+    for file in descriptors.file:
+        pending[file.name] = file
     while pending:
-        ready = [file for file in pending.values() if all(name not in pending for name in file.dependency)]
+        ready = []
+        for file in pending.values():
+            if all(name not in pending for name in file.dependency):
+                ready.append(file)
         if not ready:
             raise ValueError("Protocol Callers: Resolve Descriptor Dependencies Before Generation")
         for file in ready:

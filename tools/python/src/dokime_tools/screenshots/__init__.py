@@ -6,13 +6,17 @@
 #
 # ***
 
-"""Screenshot Capture And Validation"""
+"Screenshot Capture and Validation"
 
 # === Imports === #
 
 # Standard Library Imports
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 
