@@ -44,7 +44,7 @@ from .. import policy
 
 
 def triple(directory: Path, settings: dict, target: str) -> str:
-    """Resolve a Product's Actual ABI From Its Declarations, Never From Its Name."""
+    """Resolve a Product's Actual ABI from Its Declarations, Never from Its Name."""
     candidates = set()
     for candidates_item in policy.config(directory).get("package", {}).get("executables", []):
         if target not in candidates_item["targets"]:
@@ -95,7 +95,7 @@ def asset_name(directory: Path, settings: dict, definition: dict, selected: str,
 
 
 def plugins(directory: Path, settings: dict, tag: str, targets: list[str], profile: str) -> list[dict]:
-    """Resolve Explicit Shipped Bundles Into Shared Archives and Version-Less Members."""
+    """Resolve Explicit Shipped Bundles into Shared Archives and Version-Less Members."""
     declarations = settings.get("plugins", [])
     if not declarations:
         return []
@@ -197,7 +197,8 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
             finally:
                 archive.close()
         else:
-            with tarfile.open(destination, "x:gz") as archive:
+            archive = tarfile.TarFile.open(destination, "x:gz")
+            try:
                 for bundle in sorted(members, key=operator.itemgetter("member")):
                     data = policy.inside(directory, bundle["path"]).read_bytes()
                     bundle["sha256"] = hashlib.sha256(data).hexdigest()
@@ -205,12 +206,14 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
                     metadata.size = len(data)
                     metadata.mode = 0o644
                     archive.addfile(metadata, io.BytesIO(data))
+            finally:
+                archive.close()
         outputs.append(destination)
     return outputs
 
 
 def download_url(settings: dict, tag: str, name: str) -> str:
-    """The Public Download of One Release Asset Under Its Tag, From the Declared Provider."""
+    """The Public Download of One Release Asset Under Its Tag, from the Declared Provider."""
     quoted = f"{urllib.parse.quote(tag, safe='')}/{urllib.parse.quote(name, safe='')}"
     if settings["provider"] == "github":
         return f"https://github.com/{settings['repository']}/releases/download/{quoted}"
@@ -219,11 +222,11 @@ def download_url(settings: dict, tag: str, name: str) -> str:
 
 
 def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
-    """Read Kind, OS, Architecture and Format Back From the Asset Names This Tooling Produces."""
+    """Read Kind, OS, Architecture and Format Back from the Asset Names This Tooling Produces."""
     product = settings["product"]
     lowered = name.lower()
     format_ = next((suffix for suffix in ("tar.gz", "exe", "zip", "deb", "rpm", "whl", "md", "json") if lowered.endswith("." + suffix)), "")
-    for family in ("compliance", "proto", "reports"):
+    for family in ("compliance", "docs", "proto", "reports"):
         if name.startswith(f"{product}-{family}-") and format_ == "zip":
             return {"kind": family, "os": "any", "arch": "any", "format": "zip"}
     if name.endswith(".cdx.json"):
@@ -261,7 +264,7 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
 def downloads(
     settings: dict, executables: dict[str, str], *, version: str, channel: str, tag: str, published: str, files: list[dict], sums: str
 ) -> dict:
-    """The Download Manifest: Every Staged Upload Classified, Linked Under Its Tag, Hashed From SHA256SUMS."""
+    """The Download Manifest: Every Staged Upload Classified, Linked Under Its Tag, Hashed from SHA256SUMS."""
     digests = {}
     for line in sums.splitlines():
         digest, separator, name = line.partition("  ")
@@ -329,7 +332,7 @@ def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
 
 
 def _platform(name: str) -> tuple[str, str]:
-    """OS and Architecture From a Rust Target Triple; Shared SDK Assets Mean Any."""
+    """OS and Architecture from a Rust Target Triple; Shared SDK Assets Mean Any."""
     lowered = name.lower()
     triple = re.search(r"(x86_64|aarch64)-[a-z0-9_]+-(windows|linux|darwin)", lowered)
     if triple:

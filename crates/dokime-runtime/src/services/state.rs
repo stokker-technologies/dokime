@@ -51,8 +51,6 @@ use dokime_protocol::model::Suite;
 use dokime_protocol::model::Suites;
 use dokime_protocol::model::Value;
 use dokime_protocol::model::origin::Kind;
-use dokime_protocol::plugin::AnalysesComputeRequest;
-use dokime_protocol::plugin::AnalysesComputeResponse;
 use dokime_protocol::plugin::{TestCasesMaterializeRequest, TestCasesMaterializeResponse};
 use harmos_protocol::host::PluginEntry;
 use harmos_protocol::model::FileReference;
@@ -161,15 +159,6 @@ impl ClientHost for State {
     }
     fn publish_report(&self, prepared: dokime_storage::Report) -> Result<dokime_storage::Report> {
         self.host.reports.publish_prepared(prepared).map_err(convert)
-    }
-    async fn analyze(&self, _plugin: &str, operation: &str, request: AnalysesComputeRequest) -> Result<AnalysesComputeResponse> {
-        let action = operation;
-        let payload = self
-            .operations
-            .call_encoded(action, request.encode_to_vec())
-            .await
-            .map_err(|source| Error::Native { action: "Compute Analysis", source })?;
-        AnalysesComputeResponse::decode(payload.as_slice()).map_err(Into::into)
     }
     async fn plugins(&self) -> Result<Vec<PluginEntry>> {
         use harmos_protocol::host::PluginsListRequest;

@@ -31,11 +31,11 @@
 
 // Compiler Story: Calls Are Type-Checked Without Starting a Host.
 void generated_surface(dokime::Client &client, dokime::plugin::Context &context) {
-  auto analyses = client.analyses.list();
+  auto plugins = client.plugins.list();
   auto capture = context.host().files.capture(dokime::FileSource{}, "output");
   (void)capture;
   auto artifact = context.host().content.artifacts.create(harmos::FileReference{}, "capture.bin", "application/octet-stream");
-  (void)analyses;
+  (void)plugins;
   (void)artifact;
 }
 

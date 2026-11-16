@@ -42,7 +42,7 @@ use dokime::{FileReference, FileSource};
 
 // Compiler Story: No Host, Runtime, Storage or Fixtures Are Required.
 pub async fn generated_surface(client: &Client, context: &Context) -> Result<(), Box<dyn std::error::Error>> {
-    let _ = client.analyses.list().await?;
+    let _ = client.plugins.list().await?;
     let host = context.host();
     let _ = host.files.capture(FileSource::default(), String::new()).await?;
     let _ = host.content.artifacts.create(FileReference::default(), "capture.bin".into(), "application/octet-stream".into()).await?;

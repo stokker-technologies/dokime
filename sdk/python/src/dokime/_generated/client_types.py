@@ -117,7 +117,6 @@ from dokime._wire.host.v1.aggregates_pb2 import (
     QueryRow,
     QuerySource,
 )
-from dokime._wire.host.v1.analyses_pb2 import AnalysesListResponse
 from dokime._wire.host.v1.backend.overview_pb2 import EvidenceCounts as BackendEvidenceCounts
 from dokime._wire.host.v1.backend.overview_pb2 import OverviewGetResponse as BackendOverviewGetResponse
 from dokime._wire.host.v1.backend.overview_pb2 import OverviewWatchResponse as BackendOverviewWatchResponse
@@ -516,9 +515,6 @@ from dokime._wire.host.v1.plots.snapshots_pb2 import (
     PLOT_STREAM_KIND_STATISTICS,
     PLOT_STREAM_KIND_UNSPECIFIED,
 )
-from dokime._wire.host.v1.plots.snapshots_pb2 import AnalysisComputation as PlotsAnalysisComputation
-from dokime._wire.host.v1.plots.snapshots_pb2 import AnalysisEvidence as PlotsAnalysisEvidence
-from dokime._wire.host.v1.plots.snapshots_pb2 import AnalysisSeries as PlotsAnalysisSeries
 from dokime._wire.host.v1.plots.snapshots_pb2 import ContourGrid as PlotsContourGrid
 from dokime._wire.host.v1.plots.snapshots_pb2 import GridCell as PlotsGridCell
 from dokime._wire.host.v1.plots.snapshots_pb2 import GridFrame as PlotsGridFrame
@@ -753,8 +749,6 @@ QueryFilter.__module__ = "dokime.client"
 QueryFilter.__qualname__ = "QueryFilter"
 QueryRow.__module__ = "dokime.client"
 QueryRow.__qualname__ = "QueryRow"
-AnalysesListResponse.__module__ = "dokime.client"
-AnalysesListResponse.__qualname__ = "AnalysesListResponse"
 BackendEvidenceCounts.__module__ = "dokime.client"
 BackendEvidenceCounts.__qualname__ = "BackendEvidenceCounts"
 BackendOverviewGetResponse.__module__ = "dokime.client"
@@ -1085,12 +1079,6 @@ PlotsSettingsGetResponse.__module__ = "dokime.client"
 PlotsSettingsGetResponse.__qualname__ = "PlotsSettingsGetResponse"
 PlotsSettingsSetResponse.__module__ = "dokime.client"
 PlotsSettingsSetResponse.__qualname__ = "PlotsSettingsSetResponse"
-PlotsAnalysisComputation.__module__ = "dokime.client"
-PlotsAnalysisComputation.__qualname__ = "PlotsAnalysisComputation"
-PlotsAnalysisEvidence.__module__ = "dokime.client"
-PlotsAnalysisEvidence.__qualname__ = "PlotsAnalysisEvidence"
-PlotsAnalysisSeries.__module__ = "dokime.client"
-PlotsAnalysisSeries.__qualname__ = "PlotsAnalysisSeries"
 PlotsContourGrid.__module__ = "dokime.client"
 PlotsContourGrid.__qualname__ = "PlotsContourGrid"
 PlotsGridCell.__module__ = "dokime.client"
@@ -1652,7 +1640,6 @@ __all__ = [
     "AccessPairingsListResponse",
     "AggregateReply",
     "AggregatesGetResponse",
-    "AnalysesListResponse",
     "AppearanceAssetMetadata",
     "AppearanceAssetReference",
     "AppearanceFailure",
@@ -1856,9 +1843,6 @@ __all__ = [
     "PlotReferenceBand",
     "PlotReferenceLine",
     "PlotReferenceValue",
-    "PlotsAnalysisComputation",
-    "PlotsAnalysisEvidence",
-    "PlotsAnalysisSeries",
     "PlotsContourGrid",
     "PlotsGridCell",
     "PlotsGridFrame",

@@ -14,8 +14,6 @@ using Transfer = global::Harmos.Transfer;
 using ArtifactScope = global::Dokime.ArtifactScope;
 using AggregatesGetRequest = global::Dokime.Clients.AggregatesGetRequest;
 using AggregatesGetResponse = global::Dokime.Clients.AggregatesGetResponse;
-using AnalysesListRequest = global::Dokime.Clients.AnalysesListRequest;
-using AnalysesListResponse = global::Dokime.Clients.AnalysesListResponse;
 using ApplicationSettings = global::Dokime.Clients.ApplicationSettings;
 using BackendAppearanceRequest = global::Dokime.Clients.BackendAppearanceRequest;
 using BackendAppearanceResponse = global::Dokime.Clients.BackendAppearanceResponse;
@@ -303,7 +301,6 @@ public sealed class Client : IDisposable
   private GrpcChannel? ownedChannel;
   public AccessResource Access { get; }
   public AggregatesResource Aggregates { get; }
-  public AnalysesResource Analyses { get; }
   public BackendResource Backend { get; }
   public CasesResource Cases { get; }
   public ContentResource Content { get; }
@@ -334,7 +331,6 @@ public sealed class Client : IDisposable
   {
     Access = new AccessResource(invoker);
     Aggregates = new AggregatesResource(invoker);
-    Analyses = new AnalysesResource(invoker);
     Backend = new BackendResource(invoker);
     Cases = new CasesResource(invoker);
     Content = new ContentResource(invoker);
@@ -463,38 +459,6 @@ public sealed class AggregatesResource
     catch (RpcException error)
     {
       throw new RpcException(new Status(error.StatusCode, "Call aggregates.get: " + error.Status.Detail), error.Trailers);
-    }
-    return response;
-  }
-}
-public sealed class AnalysesResource
-{
-  private readonly CallInvoker invoker;
-  public AnalysesResource(CallInvoker invoker)
-  {
-    this.invoker = invoker;
-  }
-  public async Task<AnalysesListResponse> List(ReadCut? at = null, CallOptions context = default)
-  {
-    var request = new AnalysesListRequest
-    {
-    };
-    if (at is not null)
-    {
-      request.At = at;
-    }
-    var method = new Method<AnalysesListRequest, AnalysesListResponse>(MethodType.Unary, "dokime.host.v1.Analyses", "List",
-        Marshallers.Create<AnalysesListRequest>(value => value.ToByteArray(), bytes => AnalysesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<AnalysesListResponse>(value => value.ToByteArray(), bytes => AnalysesListResponse.Parser.ParseFrom(bytes)));
-    using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    AnalysesListResponse response;
-    try
-    {
-      response = await call.ResponseAsync;
-    }
-    catch (RpcException error)
-    {
-      throw new RpcException(new Status(error.StatusCode, "Call analyses.list: " + error.Status.Detail), error.Trailers);
     }
     return response;
   }

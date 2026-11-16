@@ -31,6 +31,7 @@ from unittest import mock
 import dokime_tools.package.definition
 import dokime_tools.package.verification
 from dokime_tools import policy
+from dokime_tools.docs import site
 from dokime_tools.release import (
     context,
     dry,
@@ -186,6 +187,15 @@ class StageTests(unittest.TestCase):
                     python.mkdir(parents=True)
                     for name in ("dokime_sdk-0.1.3-py3-none-any.whl", "dokime_sdk-0.1.3.tar.gz"):
                         (python / name).write_bytes(b"packaged Python")
+                    documentation = root / site.OUTPUT / site.ARCHIVE
+                    documentation.parent.mkdir(parents=True)
+                    archive = zipfile.ZipFile(documentation, "w")
+                    try:
+                        entry = "0.1" if channel == "stable" else "dev"
+                        archive.writestr(site.STAMP, json.dumps({"entry": entry, "version": "0.1.3", "revision": "a" * 40}))
+                        archive.writestr("index.html", "<!doctype html>")
+                    finally:
+                        archive.close()
                     shell_inventory = root / "target/release-assets/any/dokime-shell.cdx.json"
 
                     def artifact(_: object, source: Path, output: Path, inventories: list[dict]) -> Path:
@@ -260,7 +270,9 @@ class StageTests(unittest.TestCase):
                         "SHA256SUMS",
                     }
                     if channel == "nightly":
-                        expected.update({"dokime-reports-0.1.3.zip", "benchmarks.json"})
+                        expected.update({"dokime-reports-0.1.3.zip", "benchmarks.json", "dokime-docs-nightly.zip"})
+                    else:
+                        expected.add("dokime-docs-0.1.3.zip")
                     self.assertEqual({item["name"] for item in files}, expected)
                     document = json.loads((staged / context.SHARED / context.INDEX).read_text())
                     self.assertEqual(document["platforms"], feed["platforms"])
@@ -285,6 +297,30 @@ class StageTests(unittest.TestCase):
                     staging.checksums(staged / context.SHARED / context.SUMS, inventory)
             finally:
                 directory_directory.cleanup()
+
+    def test_stable_publication_requires_the_documentation_of_its_release_line(self) -> None:
+        directory_directory = tempfile.TemporaryDirectory()
+        directory = directory_directory.name
+        try:
+            root = Path(directory)
+            shared = root / context.ASSETS / context.SHARED
+            shared.mkdir(parents=True)
+            self.assertIsNone(staging._documentation(root, root / context.ASSETS, "v0.2.4", "stable", required=False))
+            with self.assertRaises(policy.ToolError):
+                staging._documentation(root, root / context.ASSETS, "v0.2.4", "stable", required=True)
+            archive = root / site.OUTPUT / site.ARCHIVE
+            archive.parent.mkdir(parents=True)
+            for entry, version, channel in (("dev", "0.2.4", "stable"), ("0.2", "0.2.3", "stable"), ("0.2", "0.2.4", "nightly")):
+                with self.subTest(entry=entry, version=version, channel=channel):
+                    source = zipfile.ZipFile(archive, "w")
+                    try:
+                        source.writestr(site.STAMP, json.dumps({"entry": entry, "version": version}))
+                    finally:
+                        source.close()
+                    with self.assertRaises(policy.ToolError):
+                        staging._documentation(root, root / context.ASSETS, "v0.2.4", channel, required=True)
+        finally:
+            directory_directory.cleanup()
 
 
 # === Public Functions === #

@@ -4,9 +4,6 @@ from harmos.plugin import Window as SampleWindow
 from .._context import Context
 from .._generated.host import HostOperation, HostRoot
 from .._generated.plugin_types import (
-    AnalysesComputeRequest,
-    AnalysesComputeResponse,
-    AnalysisSamples,
     BackendEnvironmentResponse,
     CriteriaEvaluateRequest,
     CriteriaEvaluateResponse,
@@ -41,9 +38,6 @@ from .._generated.plugin_types import (
 from .._plugin import Plugin
 
 __all__ = [
-    "AnalysesComputeRequest",
-    "AnalysesComputeResponse",
-    "AnalysisSamples",
     "BackendEnvironmentResponse",
     "Context",
     "CriteriaEvaluateRequest",

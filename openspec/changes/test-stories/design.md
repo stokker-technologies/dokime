@@ -94,5 +94,4 @@ and the 30 s browser guards. Each waits for its event first.
 | `R/tests/integration/execution/workflow/simulation.rs:45` | Constructs a simulated runtime and drops it |
 | `R/tests/integration/execution/workflow/definition.rs:97` | Checks only a generated identifier and counts |
 | `R/tests/integration/plugin/plugin_settings.rs:322,373` | Echo authored labels and names |
-| `R/tests/integration/plugin/analysis.rs:231` | Checks declaration metadata; no analysis runs |
 | `R/src/parameters.rs:504` | Checks generated field names; folded into parameter decoding |

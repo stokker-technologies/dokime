@@ -31,3 +31,7 @@ force-exclude = true
 [tool.ruff.lint]
 # Every Authored Function Declares Its Typed Contract.
 extend-select = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN205", "ANN206"]
+
+[tool.uv]
+# Use the Workstation Certificate Store for Dependency Downloads.
+system-certs = true

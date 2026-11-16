@@ -10,9 +10,9 @@
 /* === Local Imports === */
 
 import { serializedValueObjectToJson } from "@/lib/api/native-values";
-import type { AnalysisSelection, Value as SerializedValue } from "@/lib/document-contracts";
+import type { Value as SerializedValue } from "@/lib/document-contracts";
 import type { ReportPayload } from "@/lib/report-types";
-import type { EvidenceAnalysisResult, PlotPayload } from "@/lib/types";
+import type { PlotPayload } from "@/lib/types";
 
 /* === Constants === */
 
@@ -63,81 +63,13 @@ export function readReportPayload(): ReportPayload {
   }
 }
 
-/* === Types === */
-
-type CapturedAnalysis = {
-  definition: Omit<EvidenceAnalysisResult["definition"], "maxSamples" | "maxOutputValues"> & {
-    limits: { max_samples: number; max_output_values: number };
-  };
-  selection: AnalysisSelection;
-  source: {
-    position: { history: { store: string; epoch: string }; sequence: number };
-    stream: string;
-    scope: EvidenceAnalysisResult["source"]["scope"];
-    window_s?: number;
-    fields: string[];
-    x_key: string;
-  };
-  series: {
-    key: string;
-    label: string;
-    origin?: string;
-    input_samples: number;
-    first_axis: number;
-    last_axis: number;
-    display_indices: Record<string, number[]>;
-    output: {
-      outputs: { key: string; unit: string; axis_unit: string; axis: number[]; values: number[] }[];
-    };
-  }[];
-};
-
 /* === Private Functions === */
 
 function capturedPlots(plots?: Record<string, PlotPayload>): Record<string, PlotPayload> {
   return Object.fromEntries(
     Object.entries(plots ?? {}).map(([key, payload]) => {
       const context = serializedValueObjectToJson((payload.context ?? {}) as Record<string, SerializedValue>);
-      if (!payload.computed) return [key, { ...payload, context }];
-      const captured = payload.computed as unknown as CapturedAnalysis;
-      const computed: EvidenceAnalysisResult = {
-        definition: {
-          ...captured.definition,
-          maxSamples: captured.definition.limits.max_samples,
-          maxOutputValues: captured.definition.limits.max_output_values,
-        },
-        selection: {
-          ...captured.selection,
-          parameters: serializedValueObjectToJson(captured.selection.parameters),
-        },
-        source: {
-          store: captured.source.position.history.store,
-          epoch: captured.source.position.history.epoch,
-          position: captured.source.position.sequence.toString(),
-          stream: captured.source.stream,
-          scope: captured.source.scope,
-          windowS: captured.source.window_s,
-          fields: captured.source.fields,
-          xKey: captured.source.x_key,
-        },
-        series: captured.series.map((series) => ({
-          key: series.key,
-          label: series.label,
-          origin: series.origin,
-          inputSamples: series.input_samples,
-          firstAxis: series.first_axis,
-          lastAxis: series.last_axis,
-          outputs: series.output.outputs.map((output) => ({
-            key: output.key,
-            unit: output.unit,
-            axisUnit: output.axis_unit,
-            axis: output.axis,
-            values: output.values,
-            displayIndices: series.display_indices[output.key],
-          })),
-        })),
-      };
-      return [key, { ...payload, context, computed }];
+      return [key, { ...payload, context }];
     }),
   );
 }

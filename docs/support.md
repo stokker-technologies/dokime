@@ -51,7 +51,7 @@ Development storage formats may break without a version bump, and no automatic
 migration is promised. Keep incompatible existing roots intact and use a fresh root.
 
 The [Apache-2.0 source](../LICENSE), [documented build](CONTRIBUTING.md#development-setup)
-and [exportable evidence](product-guide.md#cli-reference) allow customers to retain
+and [exportable evidence](product-guide.md#storage-roots-and-archives) allow customers to retain
 results and arrange independent maintenance. Archive the source revision, lockfiles,
 toolchain, build instructions and evidence format documentation alongside exports.
 These assets do not guarantee maintainer availability, replacement expertise,

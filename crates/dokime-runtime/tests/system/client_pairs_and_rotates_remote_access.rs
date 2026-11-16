@@ -23,7 +23,6 @@
 use dokime::Client;
 use dokime::ClientSettings;
 use dokime::client::AccessPairingsListOptions;
-use dokime::client::AnalysesListOptions;
 use dokime::client::BackendOverviewGetOptions;
 use dokime::client::CallOptions;
 use dokime::client::CasesCreateOptions;
@@ -41,7 +40,6 @@ use dokime::client::SelectionPlan;
 use dokime::client::SettingsGetOptions;
 use dokime::client::SettingsSetOptions;
 use dokime::client::StatusGetOptions;
-use dokime_protocol::host::AnalysesListRequest;
 use dokime_protocol::host::CasesCreateRequest;
 use dokime_protocol::host::CyclesCreateRequest;
 use dokime_protocol::host::CyclesListRequest;
@@ -395,24 +393,6 @@ fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> {
                 Code::InvalidArgument
             );
             drop(telemetry);
-
-            let plots = Client::from_channel(channel.clone(), super::support::client_settings())?.plots.snapshots.clone();
-            assert_eq!(
-                Client::from_channel(channel.clone(), super::support::client_settings())?.analyses.clone().list().await.unwrap_err().code(),
-                Code::Unauthenticated
-            );
-            let request = AnalysesListRequest::default();
-            let mut context_request = CallOptions::default();
-            context_request.metadata.insert("authorization", key.parse()?);
-            Client::from_channel(channel.clone(), super::support::client_settings())?
-                .analyses
-                .clone()
-                .list_with(AnalysesListOptions {
-                    at: (request.clone()).at,
-                    context: context_request,
-                })
-                .await?;
-            drop(plots);
 
             let documents = Client::from_channel(channel.clone(), super::support::client_settings())?.settings.clone();
             assert_eq!(documents.set(Default::default(), Default::default()).await.unwrap_err().code(), Code::Unauthenticated);

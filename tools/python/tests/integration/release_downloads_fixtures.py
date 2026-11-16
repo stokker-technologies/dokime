@@ -52,6 +52,8 @@ EXPECTED = {
     "dokime_sdk-0.1.3-py3-none-any.whl": ("sdk-python", "any", "any", "whl"),
     "dokime_sdk-0.1.3.tar.gz": ("sdk-python", "any", "any", "tar.gz"),
     "dokime-compliance-0.1.3.zip": ("compliance", "any", "any", "zip"),
+    "dokime-docs-0.1.3.zip": ("docs", "any", "any", "zip"),
+    "dokime-docs-nightly.zip": ("docs", "any", "any", "zip"),
     "dokime-proto-0.1.3.zip": ("proto", "any", "any", "zip"),
     "dokime-reports-0.1.3.zip": ("reports", "any", "any", "zip"),
     "unexpected.bin": ("other", "any", "any", "bin"),

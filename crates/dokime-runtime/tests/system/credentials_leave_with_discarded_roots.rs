@@ -16,18 +16,26 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{
+    error::Error,
+    fs, io, panic,
+    path::Path,
+    sync::{Arc, Barrier, Mutex},
+    thread,
+};
 
 // Third Party Imports
+use prost::Message;
+use tonic::transport::Endpoint;
+use uuid::Uuid;
 
 // Local Imports
 use dokime::Client;
 use dokime::Metadata;
 use dokime::SecretWritable;
 use dokime::client::SecretsSetOptions;
+use dokime_runtime::credentials::Entry;
 use dokime_storage::Store;
-use std::error::Error;
-use tonic::transport::Endpoint;
-
 /* === Constants === */
 
 /* === Macros === */
@@ -36,19 +44,19 @@ use tonic::transport::Endpoint;
 
 /* === Structs === */
 
-#[derive(Clone, PartialEq, prost::Message)]
+#[derive(Clone, PartialEq, Message)]
 struct AccessPointer {
     #[prost(string, tag = "5")]
     key_slot: String,
 }
 
-#[derive(Clone, PartialEq, prost::Message)]
+#[derive(Clone, PartialEq, Message)]
 struct SecretPointer {
     #[prost(message, repeated, tag = "2")]
     entries: Vec<SecretSlot>,
 }
 
-#[derive(Clone, PartialEq, prost::Message)]
+#[derive(Clone, PartialEq, Message)]
 struct SecretSlot {
     #[prost(string, tag = "2")]
     slot: String,
@@ -67,40 +75,31 @@ struct SecretSlot {
 /* === Tests === */
 
 #[test]
-fn concurrent_hosts_remove_native_credentials_on_their_owner_thread() {
-    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
-    let names = std::thread::scope(|scope| {
+fn concurrent_hosts_remove_native_credentials_across_processes() {
+    let barrier = Arc::new(Barrier::new(2));
+    let names = thread::scope(|scope| {
         let workers: Vec<_> = (0..2)
             .map(|_| {
                 let barrier = barrier.clone();
                 scope.spawn(move || {
                     super::support::run(Box::pin(async move {
                         let root = super::support::tempdir().unwrap();
-                        let server = dokime_runtime::services::serve(
-                            "127.0.0.1:0".parse().unwrap(),
-                            root.path(),
-                            super::support::settings(),
-                            super::support::service_settings(),
-                        )
-                        .await
-                        .unwrap();
+                        let process = super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &[])
+                            .await
+                            .unwrap();
                         let store = Store::open(root.path()).unwrap();
                         let pointer: AccessPointer = store.administration("access").unwrap().unwrap();
                         let name = format!("{}:{}", store.identity(), pointer.key_slot);
                         assert!(
-                            !keyring::Entry::new(&super::support::namespace().service("access"), &name)
-                                .unwrap()
-                                .get_password()
-                                .unwrap()
-                                .is_empty()
+                            !Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password().unwrap().is_empty()
                         );
                         tokio::task::spawn_blocking(move || barrier.wait()).await.unwrap();
-                        server.close().await.unwrap();
+                        process.close().await.unwrap();
                         drop(store);
                         drop(root);
-                        // This Guard Deliberately Reads From the Calling Thread, Outside the Owner.
+                        // Read the Native Store on This Thread After the Child Process Exits.
                         assert!(matches!(
-                            keyring::Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password(),
+                            Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password(),
                             Err(keyring::Error::NoEntry)
                         ));
                         name
@@ -112,7 +111,7 @@ fn concurrent_hosts_remove_native_credentials_on_their_owner_thread() {
     });
     for name in names {
         assert!(matches!(
-            keyring::Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password(),
+            Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password(),
             Err(keyring::Error::NoEntry)
         ));
     }
@@ -120,17 +119,17 @@ fn concurrent_hosts_remove_native_credentials_on_their_owner_thread() {
 
 #[test]
 fn failed_live_story_removes_its_access_credential() {
-    let created = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let created = Arc::new(Mutex::new(None));
     let recorded = created.clone();
-    let failure = std::panic::catch_unwind(move || {
+    let failure = panic::catch_unwind(move || {
         super::support::run(Box::pin(async {
             let root = super::support::tempdir().unwrap();
             let _process = super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(root.path(), &[]).await.unwrap();
             let store = Store::open(root.path()).unwrap();
             let pointer: AccessPointer = store.administration("access").unwrap().unwrap();
-            let host_id = std::fs::read_to_string(root.path().join("backend-id")).unwrap();
+            let host_id = fs::read_to_string(root.path().join("backend-id")).unwrap();
             let name = format!("{host_id}:{}", pointer.key_slot);
-            let credential = keyring::Entry::new(&super::support::namespace().service("access"), &name).unwrap();
+            let credential = Entry::new(&super::support::namespace().service("access"), &name).unwrap();
             assert!(!credential.get_password().unwrap().is_empty());
             *recorded.lock().unwrap() = Some((name, root.path().to_owned()));
             panic!("Simulated Failure With a Live Host");
@@ -139,7 +138,7 @@ fn failed_live_story_removes_its_access_credential() {
     assert!(failure.is_err());
     let (name, root) = created.lock().unwrap().take().expect("The Story Created Its Credential Before Failing");
     assert!(matches!(
-        keyring::Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password(),
+        Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password(),
         Err(keyring::Error::NoEntry)
     ));
     assert!(!root.exists());
@@ -158,7 +157,7 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
                         .secrets
                         .clone();
                 let initial = secrets.list().await?;
-                let value = uuid::Uuid::now_v7().to_string();
+                let value = Uuid::now_v7().to_string();
                 secrets
                     .set_with(
                         "story.access",
@@ -179,15 +178,13 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
                     .await?;
                 let store = Store::open(root.path())?;
                 let pointer: AccessPointer = store.administration("access")?.ok_or("Read Access Credential: Missing Publication")?;
-                let host_id = std::fs::read_to_string(root.path().join("backend-id"))?;
-                let entry =
-                    keyring::Entry::new(&super::support::namespace().service("access"), &format!("{host_id}:{}", pointer.key_slot))?;
+                let host_id = fs::read_to_string(root.path().join("backend-id"))?;
+                let access_account = format!("{host_id}:{}", pointer.key_slot);
+                let entry = Entry::new(&super::support::namespace().service("access"), &access_account)?;
                 assert!(!entry.get_password()?.is_empty());
                 let pointer: SecretPointer = store.administration("secrets")?.ok_or("Read Secret Credential: Missing Publication")?;
-                let secret = keyring::Entry::new(
-                    &super::support::namespace().service("shared-secrets"),
-                    &format!("{host_id}:{}", pointer.entries.first().ok_or("Read Secret Credential: Missing Slot")?.slot),
-                )?;
+                let secret_account = format!("{host_id}:{}", pointer.entries.first().ok_or("Read Secret Credential: Missing Slot")?.slot);
+                let secret = Entry::new(&super::support::namespace().service("shared-secrets"), &secret_account)?;
                 assert_eq!(secret.get_password()?, value);
                 drop(store);
 
@@ -196,9 +193,9 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
                 let child = super::client_runs_thermal_suite_over_grpc::HostProcess::start_with_environment(&nested, &[]).await?;
                 let store = Store::open(&nested)?;
                 let pointer: AccessPointer = store.administration("access")?.ok_or("Read Nested Credential: Missing Publication")?;
-                let host_id = std::fs::read_to_string(nested.join("backend-id"))?;
-                let nested_entry =
-                    keyring::Entry::new(&super::support::namespace().service("access"), &format!("{host_id}:{}", pointer.key_slot))?;
+                let nested_host_id = fs::read_to_string(nested.join("backend-id"))?;
+                let nested_account = format!("{nested_host_id}:{}", pointer.key_slot);
+                let nested_entry = Entry::new(&super::support::namespace().service("access"), &nested_account)?;
                 assert!(!nested_entry.get_password()?.is_empty());
                 drop(store);
                 child.close().await?;
@@ -216,7 +213,7 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
 
                 // Finish or Unwind the Story Before Discarding Its Root
                 if fails {
-                    let failure = std::panic::catch_unwind(move || {
+                    let failure = panic::catch_unwind(move || {
                         let _root = root;
                         panic!("Simulated Story Failure");
                     });
@@ -225,10 +222,19 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
                     drop(root);
                 }
 
-                // The Created Name Is No Longer Readable
-                assert!(matches!(entry.get_password(), Err(keyring::Error::NoEntry)));
-                assert!(matches!(secret.get_password(), Err(keyring::Error::NoEntry)));
-                assert!(matches!(nested_entry.get_password(), Err(keyring::Error::NoEntry)));
+                // Fresh Native Reads Confirm Every Created Name Is Gone, Including Root Claims.
+                for (owner, account) in [
+                    ("access", access_account),
+                    ("shared-secrets", secret_account),
+                    ("access", nested_account),
+                    ("root", host_id),
+                    ("root", nested_host_id),
+                ] {
+                    let service = super::support::namespace().service(owner);
+                    let credential = Entry::new(&service, &account)?;
+                    assert!(matches!(credential.get_password(), Err(keyring::Error::NoEntry)));
+                    eprintln!("Removed Test Credential: {account}.{service}");
+                }
             }
             Ok::<(), Box<dyn Error>>(())
         })
@@ -236,14 +242,14 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
     }))
 }
 
-fn copy_folder(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
-    std::fs::create_dir_all(to)?;
-    for entry in std::fs::read_dir(from)? {
+fn copy_folder(from: &Path, to: &Path) -> io::Result<()> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)? {
         let entry = entry?;
         if entry.file_type()?.is_dir() {
             copy_folder(&entry.path(), &to.join(entry.file_name()))?;
         } else {
-            std::fs::copy(entry.path(), to.join(entry.file_name()))?;
+            fs::copy(entry.path(), to.join(entry.file_name()))?;
         }
     }
     Ok(())
@@ -269,7 +275,7 @@ fn copied_roots_never_remove_the_original_credentials() -> Result<(), Box<dyn Er
             .secrets
             .clone();
             let initial = secrets.list().await?;
-            let value = uuid::Uuid::now_v7().to_string();
+            let value = Uuid::now_v7().to_string();
             let request = SecretsSetOptions {
                 request_id: Some("credential".into()),
                 ..Default::default()
@@ -287,16 +293,16 @@ fn copied_roots_never_remove_the_original_credentials() -> Result<(), Box<dyn Er
             let store = Store::open(root.path())?;
             let host_id = store.identity().to_owned();
             let access: AccessPointer = store.administration("access")?.ok_or("Read Access Credential: Missing Publication")?;
-            let access = keyring::Entry::new(&super::support::namespace().service("access"), &format!("{host_id}:{}", access.key_slot))?;
+            let access = Entry::new(&super::support::namespace().service("access"), &format!("{host_id}:{}", access.key_slot))?;
             let pointer: SecretPointer = store.administration("secrets")?.ok_or("Read Secret Credential: Missing Publication")?;
             let slot = &pointer.entries.first().ok_or("Read Secret Credential: Missing Slot")?.slot;
-            let secret = keyring::Entry::new(&super::support::namespace().service("shared-secrets"), &format!("{host_id}:{slot}"))?;
+            let secret = Entry::new(&super::support::namespace().service("shared-secrets"), &format!("{host_id}:{slot}"))?;
             drop(store);
 
             // A Full Folder Copy Carries the Identity and Catalogs but Cannot Remove or Use Them
             let copy = super::support::tempdir()?;
             copy_folder(root.path(), copy.path())?;
-            assert_eq!(std::fs::read_to_string(copy.path().join("backend-id"))?, host_id);
+            assert_eq!(fs::read_to_string(copy.path().join("backend-id"))?, host_id);
             assert!(dokime_runtime::services::remove_credentials(copy.path(), &super::support::namespace()).is_err());
             let opened = dokime_runtime::services::serve(
                 "127.0.0.1:0".parse()?,

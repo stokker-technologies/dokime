@@ -63,7 +63,7 @@ IMMUTABLE = (
 # === Public Functions === #
 
 
-def publish(directory: Path, *, release_notes: str | None = None) -> None:
+def publish(directory: Path, *, release_notes: str | None = None, report: bool = False) -> None:
     settings = policy.policy(directory, "release")
     if settings.get(TAG) is not True:
         raise policy.ToolError(f"Publish Nightly: release.{TAG} must opt in to channel publication")
@@ -87,7 +87,10 @@ def publish(directory: Path, *, release_notes: str | None = None) -> None:
     notes = (directory / context.ASSETS / context.SHARED / "CHANGELOG.md").read_text(encoding="utf-8")
     summary = json.loads((directory / context.ASSETS / context.SHARED / "reports.json").read_text(encoding="utf-8"))
     results = json.loads(os.environ.get("NEEDS", "{}"))
-    notes += "\n<!-- nightly-results -->\n" + reports.table(summary, results, url) + "\n<!-- /nightly-results -->\n"
+    # Documentation Builds Beside Publication, So Only The Completed Report States Whether It Was Attached.
+    documentation = any(item["name"] == f"dokime-docs-{TAG}.zip" for item in files) if report else None
+    table = reports.table(summary, results, url, documentation=documentation)
+    notes += "\n<!-- nightly-results -->\n" + table + "\n<!-- /nightly-results -->\n"
     if github:
         _github(directory, settings, files, sha, identifier, notes)
     else:
@@ -105,7 +108,7 @@ def complete(directory: Path) -> bool:
         return False
     # Reuse The Draft Swap So Report Assets, Index And Checksums Change Together.
     notes = re.sub(r"\n<!-- nightly-results -->.*?<!-- /nightly-results -->\n?", "", current["body"], flags=re.DOTALL)
-    publish(directory, release_notes=notes)
+    publish(directory, release_notes=notes, report=True)
     return True
 
 

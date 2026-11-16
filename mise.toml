@@ -76,6 +76,7 @@ run = [
   { task = "build:python" },
   "mise -C sdk/python run install",
   "{% if not usage.without_frontend %}pnpm --dir crates/dokime-gui install --frozen-lockfile{% endif %}",
+  "{% if not usage.without_frontend %}pnpm --dir site install --frozen-lockfile{% endif %}",
 ]
 
 [tasks."generate"]
@@ -119,6 +120,18 @@ run = "{{vars.tools}} dokime_tools.ci.tasks bench"
 description = "Package Built Artifacts"
 run = "{{vars.tools}} dokime_tools.ci.tasks package"
 
+[tasks."docs:build"]
+description = "Build the Documentation Site Entry"
+run = "{{vars.tools}} dokime_tools.docs.site build"
+
+[tasks."docs:serve"]
+description = "Preview the Documentation Site"
+run = "{{vars.tools}} dokime_tools.docs.site serve"
+
+[tasks."docs:image"]
+description = "Assemble Published Documentation Archives Into the Site Image"
+run = "{{vars.tools}} dokime_tools.docs.image"
+
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-prepare"
@@ -138,6 +151,12 @@ run = "{{vars.tools}} dokime_tools.ci.workflow release-tag"
 [tasks."release:verify"]
 description = "Verify Published Release Assets and Installers"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-verify"
+
+# === Dev === #
+
+[tasks.dev]
+description = "Start the Desktop with Live Reload and the OBC Plugin on a Disposable Root"
+run = "{{vars.tools}} dokime_tools.dev.desktop"
 
 # === Internal Steps === #
 
@@ -172,7 +191,10 @@ run_windows = '''pwsh -NoProfile -Command "taplo fmt --config tools/config/taplo
 hide = true
 description = "Format TypeScript"
 usage = 'flag "--check"'
-run = "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} ."
+run = [
+  "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
+  "pnpm --dir site exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
+]
 
 [tasks."lint:python"]
 hide = true
@@ -193,7 +215,7 @@ env = { CARGO_BUILD_WARNINGS = "deny" }
 [tasks."lint:typescript"]
 hide = true
 description = "Lint TypeScript"
-run = "pnpm --dir crates/dokime-gui exec biome lint ."
+run = ["pnpm --dir crates/dokime-gui exec biome lint .", "pnpm --dir site exec biome lint ."]
 
 [tasks.screenshots]
 description = "Capture Product Screenshots"

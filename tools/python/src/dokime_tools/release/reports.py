@@ -142,9 +142,11 @@ def stage(directory: Path, shared: Path, version: str) -> list[Path]:
     return [destination, index]
 
 
-def table(summary: dict, results: dict, url: str) -> str:
-    """A Compact Report of Available Measurements and Every Suite Outcome."""
+def table(summary: dict, results: dict, url: str, *, documentation: bool | None = None) -> str:
+    """A Compact Report of Available Measurements, the Documentation Archive and Every Suite Outcome."""
     lines = ["| Result | Measurement |", "|---|---|"]
+    if documentation is not None:
+        lines.append(f"| Documentation Archive | {'Attached' if documentation else 'Missing; see the documentation build suite'} |")
     for row in summary["coverage"]:
         lines.append(f"| Coverage / {row['language']} | {row['line_percent']:.2f}% |")
     if not summary["coverage"]:

@@ -52,9 +52,8 @@ exceeds every floating-point integer, so the tiles prove exact integer
 statistics end to end; the sum exceeds 64 bits and stays exact.
 
 `obc.device.read` and `obc.device.set_power` are Public operations controlling
-one demonstration charger outside any execution. `obc.analysis.ripple` gives any
-plotted trace its peak-to-peak ripple. Start-up and steady-state attach their
-JSON summaries as execution artifacts; start-up optionally attaches
+one demonstration charger outside any execution. Start-up and steady-state
+attach their JSON summaries as execution artifacts; start-up optionally attaches
 `reference.png` from the **Reference Images Directory** setting.
 
 ## Not Restored
@@ -77,7 +76,7 @@ JSON summaries as execution artifacts; start-up optionally attaches
 - `src/device.rs`, `src/testbench.rs`: the charger model and its execution resource and observers.
 - `src/measurement.rs`, `src/records.rs`, `src/prompts.rs`: rows, record messages and operator checkpoints.
 - `src/suites/`: one file per suite, each owning its streams, steps, criteria and document.
-- `src/operations.rs`, `src/analyses.rs`, `src/settings.rs`, `src/evidence.rs`: manual device, ripple, settings, artifacts and traceability.
+- `src/operations.rs`, `src/settings.rs`, `src/evidence.rs`: manual device, settings, artifacts and traceability.
 - `tests/integration/`: the charger model and the catalog's document bindings.
 
 ## Build and Validate

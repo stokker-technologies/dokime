@@ -523,7 +523,7 @@ applies on every face. Amended by the owner on 2026-11-13.
 | Set | Shape | Reason |
 | --- | --- | --- |
 | Catalog entries, plugins and pairings (library-owned) | Whole | The admitted configuration is a small bounded set, not accumulated evidence. |
-| Catalog suites, record/stream schemas, prompt definitions and analyses | Whole | Each is a finite declaration set from admitted catalogs or one frozen execution. |
+| Catalog suites, record/stream schemas and prompt definitions | Whole | Each is a finite declaration set from admitted catalogs or one frozen execution. |
 | Secrets metadata and storage sources | Whole | These describe configured values/endpoints, not an accumulated evidence history. |
 | Cases and pending prompts | Whole | These are the bounded current plan and active operator questions. |
 | Executions, cycles and retained prompt history | Paged, position-resolved | Successive runs and asked questions accumulate without a fixed bound. |
@@ -856,7 +856,6 @@ Detailed caller owners: `crates/dokime-gui/src/lib/api/native-*.ts`,
 | `Planning.MaterializeTemplate` | `Cases.Create` | Product | Merged: Single materialized selection. | GCS |
 | `Planning.PreviewSelection` | `Cases.Create` | Product | Merged: validate_only, no registration. | GC |
 | `Planning.RegisterSelection` | `Cases.Create` | Product | Merged: Atomic plan with replay key. | C |
-| `Plots.ListAnalyses` | `Catalog.Analyses` | Product | Renamed: Move immutable declarations. | N |
 | `Plots.QuerySnapshots` | `Plots.Snapshots.List` | Product | Renamed: Bounded evaluated snapshots. | G |
 | `Plots.Watch` | `Plots.Snapshots.Watch` | Product | Renamed: Same plot selector/cut. | G |
 | `Plugins.GetInstallation` | `Plugins.Get` | Library | Renamed: One managed/remote entry. | G |
@@ -971,7 +970,6 @@ namespace-only parents are not empty services. The package column is exact.
 | Library | `harmos.v1` | Storage | No | 8 | `CreateFileProduction`, `GetFileProduction`, `CreateFileWriter`, `AppendFileBytes`, `DeleteFileProduction`, `PublishFileProduction`, `GetFileBytes`, `WatchFileBytes` |
 | Product | `dokime.v1` | Backend | No | 1 | `Appearance` |
 | Product | `dokime.v1.backend` | Backend.Overview | Yes | 2 | `Get`, `Watch` |
-| Product | `dokime.v1` | Catalog | No | 1 | `Analyses` |
 | Product | `dokime.v1.catalog` | Catalog.Suites | Yes | 2 | `Get`, `List` |
 | Product | `dokime.v1.catalog` | Catalog.RecordSchemas | Yes | 2 | `Get`, `List` |
 | Product | `dokime.v1.catalog` | Catalog.StreamSchemas | Yes | 2 | `Get`, `List` |

@@ -378,8 +378,8 @@ Source inventory (data-service worker; continuation adds Content, Notes, Documen
 - [x] Serve base paths for the ten landed plot kinds through QuerySnapshots/Watch and their Run envelopes; use storage reduction, explicit resolution and a counted two-million-sample, forty-plot story.
 - [x] Add isolated cancellable storage read sessions for blocking plot workers, row filters, scale/offset/detail projections and source-time stream/record joins without loading whole streams.
 - [x] Serve grouped time series, histograms and boxes, logarithmic contour bins, XY sigma intervals, grid highlights, bounded record markers and separate summary windows; prove the variants through `client_queries_advanced_plots`.
-- [x] Serve bounded Raw/LTTB time-series windows, encoded-budget bucket coarsening and unary plugin analyses with typed defaults, bounded raw input and output validation; prove endpoint retention, batch fitting and malformed-output refusal through the advanced plot story.
-- [ ] Complete incremental bucket reads and live deltas, higher-order category aggregates, non-category aggregate plots and derived analysis-parameter defaults. QuerySnapshots and Watch are routed; unsupported variants refuse with corrective actions and Watch still emits snapshots. Retired RPCs: none.
+- [x] Serve bounded Raw/LTTB time-series windows and encoded-budget bucket coarsening; prove endpoint retention and batch fitting through the advanced plot story.
+- [ ] Complete incremental bucket reads and live deltas, higher-order category aggregates and non-category aggregate plots. QuerySnapshots and Watch are routed; unsupported variants refuse with corrective actions and Watch still emits snapshots. Retired RPCs: none.
 - [x] Route Documents CaptureCurrentDocument/UpdatePlotSettings and all Run envelopes, persist plot preferences, stream structure/table/summary/plot bindings, and bind document plot requests to a captured execution frontier.
 - [x] Route all Reports direct/Run methods: fixed-snapshot materialization, explicit execution publication and execution/cycle HTML downloads; prove temporary download, publication independence and bounded plot data through `client_renders_fixed_documents`.
 - [x] Expand repeated sections in bounded pages with stable identities, inherit filters in plot and summary queries, serve cycle-scoped default capture, evaluate record/scalar summary expressions and exact percentiles, and render masked contour bands against nonuniform edges.
@@ -418,7 +418,7 @@ Source inventory: `crates/dokime-runtime/src/{services,bin}/`, its library/manif
   - [ ] Query: held for the owner's client API overlap decision; Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples and RunListSamples remain named refusals. ListExecutions is served with the shared execution case/archive presentation.
   - [ ] Media: held for the owner's API decision; AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot and RunScreenshot remain named refusals.
   - [ ] Content: DownloadAppearanceAsset and RunDownloadAppearanceAsset remain named refusals. Every artifact, evidence archive and execution-file method is served through direct and Run transports.
-  - [ ] Plots: every RPC is routed; incremental bucket reads/live deltas, higher-order category aggregates, non-category aggregate plots and derived analysis-parameter defaults remain unfinished as listed above.
+  - [ ] Plots: every RPC is routed; incremental bucket reads/live deltas, higher-order category aggregates and non-category aggregate plots remain unfinished as listed above.
   - [ ] Documents: every RPC is routed; evidence-card filters, cross-execution/higher-order category and artifact expressions, and complete trajectory/grid report playback remain unfinished as listed above.
   - [x] Evidence, Telemetry, Reports and Notes: all direct and Run methods are served; no named refusals remain.
   - [x] Execution, Planning, Observation, Prompts, History and administration: all direct and Run methods are served; no named refusals remain.
@@ -667,13 +667,12 @@ existing host services, proto and generated Rust protocol remain with their owne
 ## Plot Document Correctness
 
 Sole writer on `fix/plot-document-correctness`; local commits only. Inventory:
-plot projection and grouped loading in the desktop; plot analysis input in operations;
+plot projection and grouped loading in the desktop;
 typed statistics in storage, protocol, operations and generated consumers; native and
 frontend document fixtures/stories; benchmark instrumentation and `docs/tooling.md`,
 `docs/gui.md`, `docs/architecture.md`. README claims remain applicable.
 
 - [x] Repair categorical projection and require every benchmark card to draw data.
-- [x] Restore captured raw samples for plugin analyses.
 - [x] Preserve exact integer statistics through storage, wire and summary tiles, including pending structure bindings and complete evaluated results.
 - [x] Stabilize bounded viewport groups and separate traversal, query and driver measurements; prefetch after visible data and reuse covered exact moments for previews and RMS.
 - [x] Run the desktop benchmark once on the committed candidate and refresh its accurately labelled observations.

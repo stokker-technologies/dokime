@@ -16,7 +16,6 @@ from dokime._wire.host.v1.files.captures_pb2 import MirrorCapture as FilesMirror
 from dokime._wire.host.v1.files.captures_pb2 import StreamCapture as FilesStreamCapture
 from dokime._wire.host.v1.files_pb2 import FilesCaptureResponse
 from dokime._wire.host.v1.prompts_pb2 import PromptsCreateResponse
-from dokime._wire.plugin.v1.analyses_pb2 import AnalysesComputeRequest, AnalysesComputeResponse, AnalysisSamples
 from dokime._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
 from dokime._wire.plugin.v1.executions_pb2 import (
     ExecutionsCleanupRequest,
@@ -67,12 +66,6 @@ FilesCaptureResponse.__module__ = "dokime.plugin"
 FilesCaptureResponse.__qualname__ = "FilesCaptureResponse"
 PromptsCreateResponse.__module__ = "dokime.plugin"
 PromptsCreateResponse.__qualname__ = "PromptsCreateResponse"
-AnalysesComputeRequest.__module__ = "dokime.plugin"
-AnalysesComputeRequest.__qualname__ = "AnalysesComputeRequest"
-AnalysesComputeResponse.__module__ = "dokime.plugin"
-AnalysesComputeResponse.__qualname__ = "AnalysesComputeResponse"
-AnalysisSamples.__module__ = "dokime.plugin"
-AnalysisSamples.__qualname__ = "AnalysisSamples"
 CriteriaEvaluateRequest.__module__ = "dokime.plugin"
 CriteriaEvaluateRequest.__qualname__ = "CriteriaEvaluateRequest"
 CriteriaEvaluateResponse.__module__ = "dokime.plugin"
@@ -95,9 +88,6 @@ TestCasesMaterializeResponse.__module__ = "dokime.plugin"
 TestCasesMaterializeResponse.__qualname__ = "TestCasesMaterializeResponse"
 
 __all__ = [
-    "AnalysesComputeRequest",
-    "AnalysesComputeResponse",
-    "AnalysisSamples",
     "BackendEnvironmentResponse",
     "CriteriaEvaluateRequest",
     "CriteriaEvaluateResponse",

@@ -27,8 +27,9 @@ capture execution never samples the boundary counter's execution resources.
 
 The root uv workspace installs `tools/python` into the root `.venv/`. The
 `dokime_tools` package ships `py.typed`; Ruff and ty cover all its authored
-modules, including release and test orchestration. Formatting and linting cover the complete package without subpackage
-exclusions or handpicked file lists.
+modules, including documentation generation, desktop development, release and
+test orchestration. Formatting and linting cover the complete package without
+subpackage exclusions or handpicked file lists.
 
 `ci/tasks.py` parses the public arguments. Each module under `task/` selects
 one operation's existing mise leaves, including the hidden `ci:*` tasks used
@@ -192,6 +193,21 @@ before deleting that root, including when a story unwinds.
 
 ## Desktop Integration
 
+`mise run dev -- --help` describes the entry point without generating or starting processes.
+`mise run dev` is the single entry point for interactive desktop work
+(`tools/python/src/dokime_tools/dev/desktop.py`). It runs `generate:typescript`,
+builds `plugin-obc`, `dokime` and `dokime-host`, and bundles the plugin like the
+product build does. It then installs that bundle through a short-lived
+`dokime server` on a fresh root under the system temporary directory, using a
+unique `dokime-dev-<id>` credential namespace. Finally it starts
+`tauri dev --features console` with that root and namespace. Windows owns the
+started tree through a kill-on-close job; Linux uses one session per started
+process. On exit the tool waits for every owned process to stop. It then runs
+`dokime-host --remove-credentials` for each root and deletes the folder. The
+desktop `package.json` keeps only the scripts that tasks call: `build:live`,
+`build:report` and `typecheck`, plus Vite's `dev`, which is the Tauri
+`beforeDevCommand`.
+
 The desktop native package is restored to workspace and default membership.
 Build it with `mise run build -- --package dokime-gui`; add
 `--features tauri/custom-protocol` to embed the prepared live frontend.
@@ -226,6 +242,34 @@ add `--check` to prove its drift. Never edit generated files.
 The protocol task also generates four-language SDK roots through the pinned
 library's descriptor table/generator; its check verifies those outputs for drift.
 Never edit generated files.
+
+## Documentation Site
+
+The website renders the guides in `docs/` in place through the Starlight project in
+`site/`, with static search and a release selector; the operations reference is
+generated from the protocol definitions and their comments. Edit guides only in
+`docs/`; each guide's first heading becomes its page title.
+
+```sh
+mise run docs:serve
+mise run docs:build
+mise run docs:build -- --release --archive
+mise run docs:image -- --archive target/docs/dokime-docs.zip
+```
+
+`docs:serve` previews the development entry with live reload. `docs:build` writes
+the development entry to `target/docs/dev/` and fails on a broken page link or
+heading anchor; `--release` builds the release line of the current version under
+`/<MAJOR.MINOR>/` instead, and `--archive` packs the entry as
+`target/docs/dokime-docs.zip`. Release staging publishes that archive as
+`dokime-docs-<version>.zip` (required for a stable release) or
+`dokime-docs-nightly.zip`. The staging owner in
+`tools/python/src/dokime_tools/release/staging.py` checks the archive entry and
+version before adding it to the shared download inventory. `docs:image` downloads
+the newest archive of each release line and the Nightly archive (it needs `GH_TOKEN`), or assembles the given archives,
+and packs `target/docs/dokime-docs-site.zip` with `versions.json` and the `latest`
+redirects. Pull requests run `Build / Documentation`; Nightly builds the archive
+beside publication and its report states whether the archive was attached.
 
 ## Build and Delivery Artifacts
 
@@ -392,9 +436,14 @@ parent-owned: after child exit, including termination, the runner removes each
 root's credentials through `dokime-host --remove-credentials` before discarding
 the root. Cleanup failures retain ownership metadata with the diagnostics.
 Existing workstation credentials outside those fresh roots are untouched.
-Native credential calls run on one dedicated process-lifetime owner thread.
+Windows native credential calls share a per-user cross-process file lock, including
+story reads: even a concurrent read can race a persistent write to an unrelated
+target and resurrect a deleted credential. Callers use
+`dokime_runtime::credentials::Entry` instead of accessing keyring directly.
 Cleanup checks absence and retains ownership when a key remains. Concurrent-host
-stories also check native absence from the calling threads after root removal.
+stories use separate processes and check native absence from their calling threads
+after root removal. External callers that do not take the product lock remain outside
+this coordination boundary.
 The desktop panic story now checks its exact access key and deliberate panic
 type; full-lane failures and post-lane native inventories remain separate proof.
 

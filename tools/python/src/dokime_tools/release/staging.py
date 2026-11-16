@@ -28,10 +28,10 @@ from pathlib import Path
 # Local Imports
 import dokime_tools.package.definition
 import dokime_tools.package.verification
-import dokime_tools.screenshots.run
 
 from .. import policy, temporary
 from ..build import paths, wheel
+from ..docs import site
 from ..package.changelog import notes
 from . import context, layout, notices, reports, sbom
 
@@ -228,6 +228,9 @@ def stage(
     finally:
         archive.close()
     files.append(describe(root, compliance))
+    documentation = _documentation(directory, root, tag, channel, required=channel == "stable" and signed)
+    if documentation is not None:
+        files.append(describe(root, documentation))
     if channel == "nightly":
         for destination in reports.stage(directory, shared, tag[1:]):
             files.append(describe(root, destination))
@@ -291,5 +294,33 @@ def describe(root: Path, path: Path) -> dict:
 
 
 # === Private Functions === #
+
+
+def _documentation(directory: Path, root: Path, tag: str, channel: str, *, required: bool) -> Path | None:
+    """Stage the Built Documentation Archive of Exactly This Source; Stable Publication Requires It."""
+    documentation = f"{site.OUTPUT}/{site.ARCHIVE}"
+    source = policy.inside(directory, documentation)
+    if not source.is_file() or source.is_symlink():
+        if required:
+            raise policy.ToolError(
+                f"Publish Release: The Documentation Archive Is Required; Build It With mise run docs:build -- --release --archive ({documentation})"
+            )
+        return None
+    archive = zipfile.ZipFile(source)
+    try:
+        stamp = json.loads(archive.read(site.STAMP))
+    finally:
+        archive.close()
+    major, minor, _ = tag[1:].split(".")
+    entry = "dev" if channel == "nightly" else f"{major}.{minor}"
+    if stamp.get("entry") != entry or (channel != "nightly" and stamp.get("version") != tag[1:]):
+        raise policy.ToolError(
+            f"Stage Documentation: Archive Holds Entry {stamp.get('entry')} {stamp.get('version')}, Expected {entry} {tag[1:]}; "
+            f"Rebuild It With mise run docs:build -- {'' if channel == 'nightly' else '--release '}--archive"
+        )
+    destination = root / context.SHARED / f"dokime-docs-{'nightly' if channel == 'nightly' else tag[1:]}.zip"
+    shutil.copyfile(source, destination)
+    return destination
+
 
 # === Entry Point === #

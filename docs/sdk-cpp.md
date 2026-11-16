@@ -8,7 +8,7 @@ protobuf and gRPC use the same vcpkg graph for both SDKs.
 
 Request aliases include their resource owner, reserved operation words gain an
 underscore, and library policy/operation/watch types retain their owner.
-Artifacts.Create is shared by both callers and plugin AnalysisSamples is public.
+Artifacts.Create is shared by both callers.
 
 ## Public Surface
 
@@ -120,13 +120,6 @@ host calls. Calls require matching scope, template, plugin identity and frozen
 origin. Cleanup releases execution resources even when its callback throws;
 failed initialization and process shutdown release their resources too.
 
-`plugin.analysis(definition, compute, policy)` publishes an Analysis and binds its
-identifier to a Protected compute operation. The callback receives `Context&`,
-`const AnalysisSamples&` and `const MapValue&`, and returns
-`std::vector<AnalysisValues>`. Samples retain raw source-time axes, values and
-units. The test example scales values with a declared gain parameter while
-preserving the input axis; its managed and remote stories invoke that binding.
-
 `context.host()` returns the generated plugin-callable resource tree, including
 `evidence`, `executions.progress`, `files`, `plugins.settings`, `secrets` and `time`.
 Declare a generated dependency with
@@ -166,8 +159,6 @@ base-10 numerator and positive denominator without conversion through double.
 Statistics, including sum, and plot summaries retain typed fields and presence.
 Category totals remain Value entries separate from drawing coordinates.
 Document replies preserve the host's typed layout and completion states.
-Plugin analysis callbacks use the public AnalysisSamples export and preserve raw
-axes and values independently of plot drawing coordinates.
 
 ## Setup, Build, Test and Package
 
