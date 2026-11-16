@@ -106,7 +106,9 @@ def build(profile: str, language: str = "auto") -> None:
         )
         shutil.copy2(root / "target/debug" / f"plugin-obc{extension}", output / f"plugin-obc{extension}")
 
-        # Build The Reference Host From The Same Library Revision As The Product.
+        # Build The Reference Host From The Same Library Revision As The Product. Its Library Crates Are Path
+        # Dependencies of the Pinned Checkout, Which Cargo Fingerprints by Their Workspace-Relative Path; Each
+        # Revision Builds in Its Own Target Directory So Another Revision's Artifacts Are Never Reused.
         manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
         library = manifest["workspace"]["dependencies"]["harmos"]
         subprocess.run(
@@ -123,7 +125,7 @@ def build(profile: str, language: str = "auto") -> None:
                 "--root",
                 str(root / "target/reference-host"),
                 "--target-dir",
-                str(root / "target"),
+                str(root / "target/reference-host/build" / library["rev"]),
                 "--bin",
                 "harmos-conformance",
                 "harmos-conformance",

@@ -91,10 +91,7 @@ run = [
 
 [tasks."build:reference"]
 description = "Build the Pinned Reference Host"
-run = [
-  'python tools/prepare_reference.py',
-  'cargo install --path ../../target/cs/reference/tools/conformance --locked --debug --force --root ../../target/reference-host --bin harmos-conformance --jobs 1 --target-dir ../../target',
-]
+run = 'python tools/prepare_reference.py'
 
 [tasks."build:examples"]
 description = "Build the Installed NuGet Examples"

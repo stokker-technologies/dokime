@@ -201,7 +201,7 @@ stay in the test harness. Scenario time uses host windows and awaited conditions
 `test:starter` selects the installed Test example and exercises managed shutdown.
 Set `DOKIME_STARTER` to another prepared example executable when needed.
 `build:reference` builds the pinned library conformance host with one Cargo job
-in the shared `target` directory and installs it at `target/reference-host/bin`.
+in its own per-revision target directory and installs it at `target/reference-host/bin`.
 `HARMOS_CONFORMANCE_HOST` can name another prepared exact-revision host;
 `test:conformance` runs its managed and remote fixture journeys. These require
 prepared artifacts and never compile inside a test.
