@@ -150,7 +150,15 @@ impl Server {
             task.await??;
         }
         self.host.executions.shutdown().await?;
-        self.host.assembly.as_ref().expect("assembled host").client_watches.settle().await?;
+        // Every Product Watch Ends on Shutdown; a Client That Stops Reading Is Cut When the Listener Detaches.
+        let assembly = self.host.assembly.as_ref().expect("assembled host");
+        match tokio::time::timeout(assembly.close_timeout, assembly.client_watches.settle()).await {
+            Ok(settled) => settled?,
+            Err(_) => tracing::warn!(
+                timeout = ?assembly.close_timeout,
+                "Settle Client Watches: A Client Stopped Reading; Detaching the Listener Ends Its Watch"
+            ),
+        }
         if let Some(listener) = self.listener.take() {
             listener.detach().await?;
         }

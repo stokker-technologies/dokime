@@ -22,14 +22,18 @@
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Client;
+use dokime::EvidenceRecordScope;
 use dokime::EvidenceScope;
 use dokime::MapValue;
 use dokime::client::BackendOverviewGetOptions;
 use dokime::client::BackendOverviewWatchOptions;
+use dokime::client::EvidenceRecordsWatchOptions;
+use dokime::client::ExecutionMode;
 use dokime::client::ExecutionsProgressWatchOptions;
 use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
+use dokime::record_scope::Kind as RecordScopeKind;
 use dokime_runtime::PluginProcess;
 use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
 use std::collections::HashMap;
@@ -113,6 +117,10 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
             let cases = super::support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
             let cycle = super::support::admit(&client, cases).await?;
             let identifier = cycle[0].clone();
+            // Admission Started the Run, Queued or Running; Starting It Again Returns That Run, in Its Mode Only.
+            let started = client.executions.start(identifier.clone(), ExecutionMode::Automatic).await?;
+            assert!(started.execution.is_some_and(|execution| execution.controls.is_some_and(|controls| controls.request_id.is_some())));
+            assert!(client.executions.start(identifier.clone(), ExecutionMode::Interactive).await.is_err());
             let mut progress = Client::from_channel(channel.clone(), super::support::client_settings())?
                 .executions
                 .progress
@@ -149,12 +157,34 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
                 terminal |= frame.finished;
             }
             assert!(terminal);
+
+            // Closing the Host Ends Every Open Watch Cleanly, the Overview After Reporting Its Shutdown
+            let scope = EvidenceScope {
+                execution_id: Some(identifier.clone()),
+                ..Default::default()
+            };
+            let mut traceability = client.evidence.traceability.watch(scope).await?;
+            assert!(traceability.next().await?.is_some_and(|frame| frame.opening));
+            let options = EvidenceRecordsWatchOptions {
+                versions: Some(Vec::new()),
+                between: Some(Default::default()),
+                step: Some(String::new()),
+                selection: Some(Default::default()),
+                ..Default::default()
+            };
+            let scope = EvidenceRecordScope {
+                kind: Some(RecordScopeKind::Execution(identifier.clone())),
+            };
+            let mut records = client.evidence.records.watch_with(scope, String::new(), options).await?;
+            assert!(records.next().await?.is_some_and(|frame| frame.opening));
             process.close().await?;
             let mut stopped = false;
             while let Some(frame) = watch.next().await? {
                 stopped |= frame.overview.as_ref().is_some_and(|overview| overview.shutting_down);
             }
             assert!(stopped);
+            while traceability.next().await?.is_some() {}
+            while records.next().await?.is_some() {}
             plugin.close().await?;
             Ok::<_, Box<dyn Error>>(())
         })
