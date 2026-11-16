@@ -22,17 +22,18 @@ import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from selectors import DefaultSelector, EVENT_READ
+from selectors import EVENT_READ, DefaultSelector
 from statistics import median
 
 # Third Party Imports
 # Local Imports
+import dokime_tools.test.policy
+
 from .. import policy, temporary
-from ..ci import bootstrap
 from ..build import paths
+from ..ci import bootstrap
 from ..process import spawn_flags
 from ..release import reports
-from . import policy as test_policy
 
 # Type Checking Imports
 
@@ -54,52 +55,60 @@ def credentials(environment: dict[str, str] | None) -> Generator[dict[str, str]]
     if sys.platform != "linux":
         yield selected
         return
-    timeout = test_policy.load(test_policy.root()).deadline("integration")
+    timeout = dokime_tools.test.policy.load(dokime_tools.test.policy.root()).deadline("integration")
     with temporary.directory() as scratch:
         home = scratch / "credentials"
         home.mkdir(mode=0o700)
         selected.update({name: str(home) for name in ("XDG_DATA_HOME", "XDG_RUNTIME_DIR")})
-        with subprocess.Popen(
+        bus = subprocess.Popen(
             ["dbus-daemon", "--session", "--nofork", "--print-address=1"],
             env=selected,
             stdout=subprocess.PIPE,
             text=True,
-        ) as bus:
+        )
+        try:
+            ready = DefaultSelector()
             try:
-                with DefaultSelector() as ready:
-                    ready.register(bus.stdout, EVENT_READ)
-                    if not ready.select(timeout):
-                        raise RuntimeError("Start Story Credential Store: Private D-Bus Did Not Publish Its Address")
-                address = bus.stdout.readline().strip()
-                if not address:
-                    raise RuntimeError(f"Start Story Credential Store: Private D-Bus Exited ({bus.wait()})")
-                selected["DBUS_SESSION_BUS_ADDRESS"] = address
-                with subprocess.Popen(
-                    ["gnome-keyring-daemon", "--foreground", "--components=secrets", "--unlock", "--control-directory", str(home)],
-                    env=selected,
-                    stdin=subprocess.PIPE,
-                ) as keyring:
-                    try:
-                        keyring.stdin.write(b"dokime-story-keyring-password")
-                        keyring.stdin.close()
-                        subprocess.run(["gdbus", "wait", "--session", "org.freedesktop.secrets"], env=selected, check=True, timeout=timeout)
-                        yield selected
-                    finally:
-                        if keyring.poll() is None:
-                            keyring.terminate()
-                        try:
-                            keyring.wait(timeout=timeout)
-                        except subprocess.TimeoutExpired:
-                            keyring.kill()
-                            keyring.wait()
+                ready.register(bus.stdout, EVENT_READ)
+                if not ready.select(timeout):
+                    raise RuntimeError("Start Story Credential Store: Private D-Bus Did Not Publish Its Address")
             finally:
-                if bus.poll() is None:
-                    bus.terminate()
+                ready.close()
+            address = bus.stdout.readline().strip()
+            if not address:
+                raise RuntimeError(f"Start Story Credential Store: Private D-Bus Exited ({bus.wait()})")
+            selected["DBUS_SESSION_BUS_ADDRESS"] = address
+            keyring = subprocess.Popen(
+                ["gnome-keyring-daemon", "--foreground", "--components=secrets", "--unlock", "--control-directory", str(home)],
+                env=selected,
+                stdin=subprocess.PIPE,
+            )
+            try:
+                keyring.stdin.write(b"dokime-story-keyring-password")
+                keyring.stdin.close()
+                subprocess.run(["gdbus", "wait", "--session", "org.freedesktop.secrets"], env=selected, check=True, timeout=timeout)
+                yield selected
+            finally:
+                if keyring.poll() is None:
+                    keyring.terminate()
                 try:
-                    bus.wait(timeout=timeout)
+                    keyring.wait(timeout=timeout)
                 except subprocess.TimeoutExpired:
-                    bus.kill()
-                    bus.wait()
+                    keyring.kill()
+                    keyring.wait()
+                try:
+                    keyring.stdin.close()
+                except BrokenPipeError:
+                    pass
+        finally:
+            if bus.poll() is None:
+                bus.terminate()
+            try:
+                bus.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                bus.kill()
+                bus.wait()
+            bus.stdout.close()
 
 
 @contextmanager
@@ -115,7 +124,7 @@ def scratch(environment: dict[str, str] | None, reports: Path) -> Generator[dict
         finally:
             if sys.platform == "win32":
                 for identity in root.rglob("backend-id"):
-                    directory = test_policy.root()
+                    directory = dokime_tools.test.policy.root()
                     profile = child_environment.get("TEST_PROFILE", "bench")
                     output = paths.output(directory, "build", profile)
                     candidates = [output / "fixtures/host/dokime-host.exe", output / "bin/dokime-host.exe"]
@@ -156,9 +165,6 @@ def native(directory: Path, environment: dict[str, str]) -> Generator[None]:
         else:
             bootstrap.install_gui_packages(runtime=True, desktop=True)
             bootstrap.prepare_linux_browser(directory)
-            # WebKitGTK Takes WebDriver Screenshots From the Web Process, Which Cannot Snapshot an Idle Page Under
-            # Accelerated Compositing on the Display's Software GL (WebKit Bug 206514), So the Capture Never Answers.
-            environment.setdefault("WEBKIT_DISABLE_COMPOSITING_MODE", "1")
             if not environment.get("DISPLAY"):
                 number = next(number for number in range(90, 120) if not Path(f"/tmp/.X11-unix/X{number}").exists())
                 display = subprocess.Popen(

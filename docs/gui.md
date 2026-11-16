@@ -115,6 +115,13 @@ and displayed message. The benchmark times traversal inside the WebView and
 records the driver round trip separately from drawing.
 The benchmark awaits its library plugin entry's Ready state through Watch before
 planning the capture, so admission cannot race declaration availability.
+
+On Linux, the desktop and its benchmark retain WebKitGTK's default renderer and
+compositor. Forcing the legacy backing store can leave WebDriver's screenshot
+callback waiting for another GTK draw after the page becomes idle. Native capture
+remains required after the visible measurement, with the same request deadline.
+Explicit operator environment overrides remain available.
+
 Evidence statistics, plot legends and summary tiles retain integer and exact
 rational values. Large values are formatted from their decimal representation;
 chart coordinates use floating point. Dispersion and RMS retain their approximate
