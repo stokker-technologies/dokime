@@ -108,8 +108,13 @@ than the envelope, unsaved tails) remain product policy.
 
 Sealing an execution clears its stored envelope and every preview (time envelopes, scatter
 occupancy grids, group counters, persisted summaries) in the same compound mutation that
-records the seal, after the sealed report has been computed. After seal, full-range plots of
-that execution use on-demand Harmos bucket summaries over the sealed cut.
+records the seal. Reports can be created after seal (`host/reports/create.rs` reads the
+current document at the sealed cut), so reports and full-range plots of a sealed execution
+read the sealed cut through on-demand Harmos bucket summaries; no ordering between report
+creation and clearing is required. `report-previews` (Frozen Evidence Cut, Incremental Plot
+Previews) keeps its behavior: previews are maintained during execution and a sealed cut is
+reconstructed from source data. The owner stated only that seal clears the stored envelope
+and previews; the on-demand read path for sealed executions is this design's consequence.
 Consequence to measure: on-demand full-range cost over multi-day sealed histories; report
 it from the existing plot and document benchmarks, without changing any budget.
 
@@ -120,7 +125,8 @@ settings, keeps an operation caller instead of the operation manager
 (`services/state.rs`), activates plugins, binds clocks and starts and stops samples through
 Harmos in-process operations (`execution.rs`, `dispatch.rs`), imports backend contracts
 through the authoring module and removes direct dependencies on `harmos-domain`,
-`harmos-query`, `harmos-storage` and `harmos-protocol`. Harmos model values reach
+`harmos-query` and `harmos-storage`. The direct `harmos-protocol` dependency goes in group 13,
+after callers stop using `harmos_protocol::host` paths; Harmos payload values then reach
 `dokime-protocol` through the `harmos` SDK root. The filesystem publication helper used by
 `crates/dokime-gui/src-tauri/src/parameters.rs` becomes product-owned.
 
@@ -143,7 +149,9 @@ C++ SDK, stories) calls today. Candidates from the current tree:
 Plugins reach time and their own settings through the Harmos plugin protocol facilities and
 need no Dokime wrapper. A method no Dokime client calls is not wrapped. Each wrapper is a
 declaration plus a handler that calls the in-process Harmos operation; authorization uses
-the existing product authorizer.
+the existing product authorizer. Wrappers reuse the Harmos request and response messages as
+their payloads (Dokime services, Harmos messages), so no twin message is declared; the
+generated SDKs contain those messages but no Harmos service.
 
 `protocol/composition.toml`, `setup.composition`, `native::callers()`, the TOML reading in
 both SDK generators and `resource_roots.py` are deleted. Generators read

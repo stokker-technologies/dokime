@@ -42,14 +42,14 @@ Dokime SHALL keep a stored zoom envelope per numeric field, advanced by its prod
 
 ### Requirement: Sealing Clears Stored Previews
 
-Sealing an execution SHALL clear its stored envelope and previews, including persisted summaries, occupancy grids and group counters, in the seal's compound mutation after the sealed report is computed.
+Sealing an execution SHALL clear its stored envelope and previews, including persisted summaries, occupancy grids and group counters, in the seal's compound mutation.
 
-#### Scenario: Plot After Seal
-
-- **WHEN** a viewer requests a full-range plot of a sealed execution
-- **THEN** no stored envelope exists for it and the plot is computed from Harmos bucket summaries over the sealed cut
-
-#### Scenario: Report Before Clearing
+#### Scenario: Seal Clears Previews
 
 - **WHEN** an execution is sealed
-- **THEN** its report contains the envelope-based plots computed before the previews were cleared
+- **THEN** no stored envelope or preview of that execution remains at the seal's cut
+
+#### Scenario: Report After Seal
+
+- **WHEN** a report or full-range plot of a sealed execution is created
+- **THEN** its plots read the sealed cut through Harmos bucket summaries and match the plots the execution showed before sealing at the same bound

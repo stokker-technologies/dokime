@@ -34,7 +34,10 @@ without redeclaring or forwarding them", invariant 1's composition reference, in
 "Product seals, artifact metadata and transaction ownership remain in the product Store",
 and the Final Library Assembly and Storage Contract's manager construction and composition
 file. It also supersedes the `storage-interface` change's statement that independent
-backend writes are not one cross-method transaction (compound mutation is now an operation).
+backend writes are not one cross-method transaction (compound mutation is now an operation),
+and in the `operation-grammar` change the decisions "Managers and direct library composition"
+(docs/architecture.md Decisions table) and the composition-based caller narrowing of
+Operations List/Get; its three-level visibility stays.
 
 ## Capabilities
 
@@ -51,8 +54,10 @@ backend writes are not one cross-method transaction (compound mutation is now an
 
 ### Modified Capabilities
 
-None. Product query, report and plot behavior is preserved; `report-previews` and
-`telemetry-query` keep their requirements on the new sources.
+None. No main specification requirement is contradicted (checked against
+`openspec/specs`). `report-previews` keeps its requirements: previews are maintained during
+execution, and after seal clears them a report reconstructs the sealed cut from source data
+through Harmos bucket summaries. `telemetry-query` already follows Harmos f64 semantics.
 
 ## Impact
 
