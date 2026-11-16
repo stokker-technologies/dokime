@@ -286,8 +286,11 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 - Start `storage-interface` only after wave 5: benchmark before/after with multi-day data, extend Harmos storage first, then extract `dokime-storage`; no storage extension or extraction in the gRPC waves.
 - Parked by the owner: batch-native stream storage, one row per window instead of per sample, which changes the Arrow layout and every reader.
   Measured state: 128 streams at 1 kHz are met, storage takes about 5M samples/s at 128 streams, and 128 streams at 1 MHz in real time fail fast.
-- Parked by the owner: stream decimation and downsampling, keeping previews and aggregates at full rate and raw samples at a lower rate or around events.
+- Parked by the owner: stream decimation and downsampling, keeping previews and aggregates at full rate and raw samples at a lower rate or around events. It is a declared, deterministic reduction per stream (for example mean-N, median-N or a min/max envelope), recorded in evidence, never a silent load-dependent fallback.
   Measured state: 128 streams at 1 kHz are met, storage takes about 5M samples/s at 128 streams, and 128 streams at 1 MHz in real time fail fast.
+- Parked by the owner: Harmos storage lifecycle, as part of moving Dokime storage behind Harmos storage operations. Streams and files go open, append, then finalize (sealed, immutable and hashed), and objects stay atomic. Sealing an execution finalizes its streams and files first, then atomically writes the execution object's sealed state.
+- Parked by the owner: rolling per-stream segments, only if one stream ever saturates a core; a few large files listed in the catalog, never merged.
+- Parked by the owner: Parquet export of a sealed execution, as an export and not the stored format.
 - Run only focused tasks until combined source closure; final native proof remains separate.
 
 ## Combined Tree Integration
