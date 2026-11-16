@@ -679,7 +679,7 @@ mod tests {
     }
 
     fn nulls(sequence: &mut Sequence, rows: usize, one_in: u64) -> NullBuffer {
-        NullBuffer::from((0..rows).map(|_| sequence.next() % one_in != 0).collect::<Vec<_>>())
+        NullBuffer::from((0..rows).map(|_| !sequence.next().is_multiple_of(one_in)).collect::<Vec<_>>())
     }
 
     /// Extremes, Signed Zeros, Non-Finite Values, Nulls at Every Level and Times That Jump Back.

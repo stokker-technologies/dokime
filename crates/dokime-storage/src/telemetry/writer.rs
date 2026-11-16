@@ -79,9 +79,8 @@ struct Chunk {
     checkpoints: Vec<(String, Vec<u8>)>,
 }
 
-/// A Writer's Durable Prefix Before a Commit's Writes, and Its Batches and End After Them.
+/// A Writer's Batches and End After a Commit's Writes.
 struct Written {
-    before: ipc::Checkpoint,
     indices: Vec<ipc::BatchIndex>,
     after: ipc::Checkpoint,
 }
@@ -205,6 +204,55 @@ impl Claim {
 }
 
 impl Store {
+    /// Open Execution Streams, Creating and Cataloging Each Stream's Arrow File in Parallel.
+    ///
+    /// Each file and its header are synced before one transaction records the streams and their empty
+    /// files. A crash before that commit leaves files without catalog entries, which hold no saved rows;
+    /// opening the streams again recovers their verified headers instead of creating them.
+    pub fn open_streams(&self, execution: &str, streams: &[String]) -> Result<()> {
+        let mut connection = self.lock()?;
+        crate::store::require_open(&connection, execution)?;
+        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+        let root = self.database.parent().ok_or(Error::Data("select a valid storage root"))?;
+        let mut files = Vec::with_capacity(streams.len());
+        for stream in streams {
+            let codec = telemetry.codec(&connection, execution, stream)?;
+            let id = catalog::identifier(execution, stream, &codec.digest);
+            // A Cataloged File Holds Saved Rows; Only a File Without an Entry May Be Recovered to Its Header.
+            let cataloged: bool =
+                connection.query_row("SELECT EXISTS(SELECT 1 FROM telemetry_files WHERE id=?1)", [&id], |row| row.get(0))?;
+            if cataloged {
+                return Err(Error::Data("open each execution stream once"));
+            }
+            files.push((stream.as_str(), catalog::path(root, &id)?, id, codec));
+        }
+        let opened = parallel(files, |(stream, path, id, codec)| {
+            let writer = if path.exists() {
+                ipc::Writer::recover_empty(&path, codec.schema.clone())
+            } else {
+                ipc::Writer::create(&path, codec.schema.clone())
+            };
+            (stream, id, codec, writer)
+        });
+        let mut writers = Vec::with_capacity(opened.len());
+        for (stream, id, codec, writer) in opened {
+            writers.push((stream, id, codec, writer?));
+        }
+        let transaction = connection.transaction()?;
+        for (stream, id, codec, writer) in &writers {
+            let header = writer.checkpoint();
+            transaction.execute("INSERT INTO streams VALUES (?1,?2,0)", params![execution, stream])?;
+            transaction.execute(
+                "INSERT INTO telemetry_files VALUES(?1,?2,?3,?4,?5,?6,0,0,?5,?7)",
+                params![id, execution, stream, codec.digest, header.end as i64, header.hash, header.digest()?.as_slice()],
+            )?;
+        }
+        transaction.commit()?;
+        for (_, id, _, writer) in writers {
+            telemetry.writers.insert(id, writer);
+        }
+        Ok(())
+    }
     pub fn sample_batch(&self, execution: &str, samples: &[Sample]) -> Result<Vec<u64>> {
         if samples.is_empty() {
             return Ok(Vec::new());
@@ -397,26 +445,16 @@ impl Store {
             return Ok(());
         }
         let root = self.database.parent().ok_or(Error::Data("select a valid storage root"))?;
+        // Every Stream File Is Created and Cataloged When Its Stream Opens; After a Restart It Resumes Here.
         let mut openings = Vec::new();
         for prepared in prepared.iter().filter(|prepared| !telemetry.writers.contains_key(&prepared.id)) {
-            let exists: bool =
-                connection.query_row("SELECT EXISTS(SELECT 1 FROM telemetry_files WHERE id=?1)", [&prepared.id], |row| row.get(0))?;
-            let saved = if exists {
-                Some((catalog::indices(connection, &prepared.id)?, catalog::checkpoint(connection, &prepared.id)?))
-            } else {
-                None
-            };
-            openings.push((prepared.id.clone(), prepared.codec.schema.clone(), catalog::path(root, &prepared.id)?, saved));
+            let path = catalog::path(root, &prepared.id)?;
+            let saved = (catalog::indices(connection, &prepared.id)?, catalog::checkpoint(connection, &prepared.id)?);
+            openings.push((prepared.id.clone(), prepared.codec.schema.clone(), path, saved));
         }
-        // New Files Sync Their Header and Directory Entry, So They Open in Parallel Too.
-        for (id, writer) in parallel(openings, |(id, schema, path, saved)| {
-            let writer = match saved {
-                Some((indices, checkpoint)) => ipc::Writer::resume(&path, schema, &indices, &checkpoint),
-                None if path.exists() => ipc::Writer::recover_empty(&path, schema),
-                None => ipc::Writer::create(&path, schema),
-            };
-            (id, writer)
-        }) {
+        for (id, writer) in
+            parallel(openings, |(id, schema, path, (indices, checkpoint))| (id, ipc::Writer::resume(&path, schema, &indices, &checkpoint)))
+        {
             telemetry.writers.insert(id, writer?);
         }
         let written = {
@@ -442,7 +480,7 @@ impl Store {
         for (id, before, result) in written {
             match result {
                 Ok((indices, after)) => {
-                    files.insert(id.clone(), Written { before: before.clone(), indices, after });
+                    files.insert(id.clone(), Written { indices, after });
                 }
                 Err(error) => {
                     failure.get_or_insert(error);
@@ -466,17 +504,6 @@ impl Store {
         let result = (|| -> Result<()> {
             for prepared in &prepared {
                 let file = files.get(&prepared.id).ok_or(Error::Data("restart after an Arrow writer went missing"))?;
-                transaction.prepare_cached("INSERT OR IGNORE INTO telemetry_files VALUES(?1,?2,?3,?4,?5,?6,0,0,?5,?7)")?.execute(
-                    params![
-                        prepared.id,
-                        prepared.key.0,
-                        prepared.key.1,
-                        prepared.codec.digest,
-                        file.before.end as i64,
-                        file.before.hash,
-                        file.before.digest()?.as_slice()
-                    ],
-                )?;
                 for (chunk, index) in prepared.chunks.iter().zip(&file.indices) {
                     for (field, moments) in &chunk.checkpoints {
                         aggregates::checkpoint(&transaction, &prepared.id, index.offset, field, chunk.span, moments)?;
@@ -781,6 +808,38 @@ mod tests {
                 .map(|moments| Ok(serde_json::from_slice::<Moments>(&moments?)?.count))
                 .sum::<Result<u64>>()?;
             assert_eq!(counted, rows);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn streams_open_with_cataloged_files_and_recover_an_uncommitted_open() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        store.create(&execution())?;
+        // A Crash Between Creating a Stream File and Its Catalog Commit Leaves a Header Without an Entry.
+        let codec = {
+            let connection = store.lock()?;
+            store.telemetry.lock().unwrap().codec(&connection, "execution", &stream(0))?
+        };
+        let path = catalog::path(root.path(), &catalog::identifier("execution", &stream(0), &codec.digest))?;
+        std::fs::create_dir_all(path.parent().unwrap())?;
+        drop(ipc::Writer::create(&path, codec.schema.clone())?);
+        store.open_streams("execution", &(0..STREAMS).map(stream).collect::<Vec<_>>())?;
+        let empty: i64 =
+            store.lock()?.query_row("SELECT COUNT(*) FROM telemetry_files WHERE batches=0 AND finalized=0", [], |row| row.get(0))?;
+        assert_eq!(empty as usize, STREAMS);
+        store.sample_batch("execution", &samples(0))?;
+        store.flush_samples()?;
+        // Opening a Stream Again Is Refused Before It Touches Its Saved File.
+        assert!(store.open_stream("execution", &stream(0)).is_err());
+        drop(store);
+        let store = Store::open(root.path())?;
+        require_saved_once(&store, 1)?;
+        store.close_streams("execution")?;
+        for entry in std::fs::read_dir(root.path().join("telemetry"))? {
+            let reader = arrow_ipc::reader::FileReader::try_new(std::fs::File::open(entry?.path())?, None)?;
+            assert_eq!(reader.map(|batch| Ok(batch?.num_rows() as u64)).sum::<Result<u64>>()?, ROWS);
         }
         Ok(())
     }
