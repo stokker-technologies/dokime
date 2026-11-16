@@ -1547,17 +1547,15 @@ dependencies = [
 name = "dokime-protocol"
 version = "0.1.5"
 dependencies = [
+ "dokime-protocol-generator",
  "harmos-protocol",
  "heck 0.5.0",
  "prost",
- "prost-build",
  "prost-reflect",
  "prost-types",
- "protoc-bin-vendored",
  "tempfile",
  "tonic",
  "tonic-prost",
- "tonic-prost-build",
 ]
 
 [[package]]

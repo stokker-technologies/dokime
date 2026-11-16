@@ -34,7 +34,7 @@ service Sources {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // SourcesGetRequest for Sources.Get.
 message SourcesGetRequest {
@@ -47,8 +47,6 @@ message SourcesGetResponse {
   bytes revision = 2;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Set === //
 
 // SourcesSetRequest for Sources.Set.
 message SourcesSetRequest {

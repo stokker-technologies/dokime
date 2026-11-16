@@ -24,7 +24,7 @@ service Analyses {
   rpc Compute(.dokime.plugin.v1.AnalysesComputeRequest) returns (.dokime.plugin.v1.AnalysesComputeResponse) {}
 }
 
-// === Compute === //
+// === Requests and Responses === //
 
 // AnalysesComputeRequest for Analyses.Compute.
 message AnalysesComputeRequest {

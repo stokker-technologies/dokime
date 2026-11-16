@@ -12,6 +12,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import shutil
 import tempfile
 import tomllib
 from pathlib import Path
@@ -45,9 +46,8 @@ def main() -> None:
     methods = render_resources.table(descriptors)
     clients = [method for method in methods if method["face"] == "client"]
     plugins = [method for method in methods if method["face"] == "context"]
-    directory = tempfile.TemporaryDirectory(prefix="dokime-cpp-generation-")
+    staging = Path(tempfile.mkdtemp(prefix="dokime-cpp-generation-"))
     try:
-        staging = Path(directory.name)
         descriptor_path = staging / "crates/dokime-protocol/src/descriptors.bin"
         descriptor_path.parent.mkdir(parents=True)
         descriptor_path.write_bytes(descriptors.SerializeToString())
@@ -64,7 +64,7 @@ def main() -> None:
             raise RuntimeError("Check C++ Generation: Frozen Output Drift: " + ", ".join(changed))
         print("C++ Generation Matches All Six Frozen Outputs")
     finally:
-        directory.cleanup()
+        shutil.rmtree(staging)
 
 
 # === Private Functions === #

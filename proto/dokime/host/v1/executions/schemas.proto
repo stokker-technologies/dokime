@@ -32,7 +32,7 @@ service Schemas {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // SchemasGetRequest for Schemas.Get.
 message SchemasGetRequest {

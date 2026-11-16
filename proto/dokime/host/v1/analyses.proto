@@ -30,7 +30,7 @@ service Analyses {
   }
 }
 
-// === List === //
+// === Requests and Responses === //
 
 // AnalysesListRequest for Analyses.List.
 message AnalysesListRequest {

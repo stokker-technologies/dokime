@@ -34,7 +34,7 @@ service Captures {
   }
 }
 
-// === Start === //
+// === Requests and Responses === //
 
 // CapturesStartRequest for Captures.Start.
 message CapturesStartRequest {
@@ -47,8 +47,6 @@ message CapturesStartRequest {
 message CapturesStartResponse {
   uint64 capture_id = 1;
 }
-
-// === Stop === //
 
 // CapturesStopRequest for Captures.Stop.
 message CapturesStopRequest {

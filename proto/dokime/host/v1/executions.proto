@@ -79,7 +79,7 @@ service Executions {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // ExecutionsGetRequest for Executions.Get.
 message ExecutionsGetRequest {
@@ -96,8 +96,6 @@ message ExecutionsGetResponse {
   .harmos.model.v1.Position resolved_at = 90;
 }
 
-// === Set === //
-
 // ExecutionsSetRequest for Executions.Set.
 message ExecutionsSetRequest {
   string name = 1;
@@ -112,8 +110,6 @@ message ExecutionsSetResponse {
   bytes revision = 2;
   .harmos.model.v1.Receipt receipt = 3;
 }
-
-// === List === //
 
 // ExecutionsListRequest for Executions.List.
 message ExecutionsListRequest {
@@ -132,8 +128,6 @@ message ExecutionsListResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
-
-// === Watch === //
 
 // ExecutionsWatchRequest for Executions.Watch.
 message ExecutionsWatchRequest {
@@ -154,8 +148,6 @@ message ExecutionsWatchResponse {
   .harmos.model.v1.Failure resync_required = 92;
 }
 
-// === Create === //
-
 // ExecutionsCreateRequest for Executions.Create.
 message ExecutionsCreateRequest {
   string parent = 1;
@@ -168,8 +160,6 @@ message ExecutionsCreateResponse {
   repeated .dokime.host.v1.ExecutionDetail executions = 1;
   .harmos.model.v1.Receipt receipt = 2;
 }
-
-// === Start === //
 
 // ExecutionsStartRequest for Executions.Start.
 message ExecutionsStartRequest {
@@ -184,8 +174,6 @@ message ExecutionsStartResponse {
   .harmos.model.v1.Receipt receipt = 2;
 }
 
-// === Stop === //
-
 // ExecutionsStopRequest for Executions.Stop.
 message ExecutionsStopRequest {
   string name = 1;
@@ -197,8 +185,6 @@ message ExecutionsStopResponse {
   .dokime.host.v1.ExecutionDetail execution = 1;
   .harmos.model.v1.Receipt receipt = 2;
 }
-
-// === Cancel === //
 
 // ExecutionsCancelRequest for Executions.Cancel.
 message ExecutionsCancelRequest {
@@ -212,8 +198,6 @@ message ExecutionsCancelResponse {
   .harmos.model.v1.Receipt receipt = 2;
 }
 
-// === Delete === //
-
 // ExecutionsDeleteRequest for Executions.Delete.
 message ExecutionsDeleteRequest {
   string name = 1;
@@ -225,8 +209,6 @@ message ExecutionsDeleteResponse {
   .dokime.host.v1.ExecutionDetail execution = 1;
   .harmos.model.v1.Receipt receipt = 2;
 }
-
-// === Parameters === //
 
 // ExecutionsParametersRequest for Executions.Parameters.
 message ExecutionsParametersRequest {
@@ -240,8 +222,6 @@ message ExecutionsParametersResponse {
   repeated .dokime.host.v1.MaterializedParameter parameters = 1;
   .harmos.model.v1.Position resolved_at = 90;
 }
-
-// === Steps === //
 
 // ExecutionsStepsRequest for Executions.Steps.
 message ExecutionsStepsRequest {

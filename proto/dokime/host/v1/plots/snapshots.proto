@@ -41,7 +41,7 @@ service Snapshots {
   }
 }
 
-// === List === //
+// === Requests and Responses === //
 
 // SnapshotsListRequest for Snapshots.List.
 message SnapshotsListRequest {
@@ -56,8 +56,6 @@ message SnapshotsListResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
-
-// === Watch === //
 
 // SnapshotsWatchRequest for Snapshots.Watch.
 message SnapshotsWatchRequest {

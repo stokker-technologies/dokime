@@ -14,14 +14,17 @@
 # Standard Library Imports
 import ast
 import re
+import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
 
 # Third Party Imports
 from google.protobuf import descriptor_pool, message_factory
-from google.protobuf.descriptor_pb2 import FileDescriptorSet
+from google.protobuf.descriptor import EnumDescriptor, FieldDescriptor
+from google.protobuf.descriptor_pb2 import FileDescriptorSet, MethodDescriptorProto
 
 # Local Imports
 from ..process import spawn_flags
@@ -42,76 +45,49 @@ from ..process import spawn_flags
 
 def caller_options(descriptors: FileDescriptorSet) -> dict[str, str]:
     """Read Custom Options Without Depending on Generated SDK Imports."""
-    pool = descriptor_pool.DescriptorPool()
-    pending = {file.name: file for file in descriptors.file}
-    while pending:
-        ready = [file for file in pending.values() if all(name not in pending for name in file.dependency)]
-        if not ready:
-            raise ValueError("Protocol Callers: Unresolved Descriptor Dependencies")
-        for file in ready:
-            pool.AddSerializedFile(file.SerializeToString())
-            del pending[file.name]
-    result = {}
-    for file in descriptors.file:
-        if "host" not in Path(file.name).parts[:-1]:
-            continue
-        for service in file.service:
-            for method in service.method:
-                identity = f"{file.package}.{service.name}/{method.name}"
-                try:
-                    extension = pool.FindExtensionByName("harmos.model.v1.callers")
-                except KeyError as error:
-                    raise ValueError(f"Protocol Callers: {identity} Has No Callers Declaration") from error
-                if extension.enum_type is None:
-                    raise ValueError("Protocol Callers: Option Must Be an Enum")
-                options = cast(Any, message_factory.GetMessageClass(pool.FindMessageTypeByName("google.protobuf.MethodOptions"))())
-                options.ParseFromString(method.options.SerializeToString())
-                value = options.Extensions[extension]
-                allowed = extension.enum_type.values_by_number.get(value)
-                if not options.HasExtension(extension) or allowed is None or allowed.name not in {"CLIENTS", "PLUGINS", "ALL"}:
-                    raise ValueError(f"Protocol Callers: {identity} Requires CLIENTS, PLUGINS or ALL")
-                result[identity] = allowed.name
-    return result
+    pool = _descriptor_pool(descriptors)
+    return _caller_options(descriptors, pool)
 
 
 def narrow_callers(descriptors: FileDescriptorSet, overrides: dict[str, str]) -> None:
     """Apply Product Assembly Restrictions to the Generator's Descriptor Copy."""
-    declared = caller_options(descriptors)
+    pool = _descriptor_pool(descriptors)
+    declared = _caller_options(descriptors, pool)
     audiences = {"CLIENTS": {"CLIENTS"}, "PLUGINS": {"PLUGINS"}, "ALL": {"CLIENTS", "PLUGINS"}}
     for identity, selected in overrides.items():
         original = declared.get(identity)
-        if original is None or selected not in audiences or not audiences[selected] <= audiences[original]:
-            raise ValueError(f"Narrow {identity}: Callers Must Be a Subset of the Declaration")
-    # The Extension Number and Its Definition Are Owned by the Descriptor, Not This Tool.
-    pool = descriptor_pool.DescriptorPool()
-    pending = {file.name: file for file in descriptors.file}
-    while pending:
-        ready = [file for file in pending.values() if all(name not in pending for name in file.dependency)]
-        for file in ready:
-            pool.AddSerializedFile(file.SerializeToString())
-            del pending[file.name]
-    extension = pool.FindExtensionByName("harmos.model.v1.callers")
-    if extension.enum_type is None:
-        raise ValueError("Protocol Callers: Option Must Be an Enum")
-    options_type = message_factory.GetMessageClass(pool.FindMessageTypeByName("google.protobuf.MethodOptions"))
-    for file in descriptors.file:
-        for service in file.service:
-            for method in service.method:
-                selected = overrides.get(f"{file.package}.{service.name}/{method.name}")
-                if selected is None:
-                    continue
-                options = cast(Any, options_type.FromString(method.options.SerializeToString()))
-                options.Extensions[extension] = extension.enum_type.values_by_name[selected].number
-                method.options.ParseFromString(options.SerializeToString())
+        if original is None or selected not in audiences:
+            raise ValueError(f"Narrow {identity}: Select a Declared Caller Subset")
+        if not audiences[selected] <= audiences[original]:
+            raise ValueError(f"Narrow {identity}: Select a Declared Caller Subset")
+
+    # The Descriptor Owns the Extension Number and Enum Vocabulary.
+    extension, callers = _caller_extension(pool)
+    options_descriptor = pool.FindMessageTypeByName("google.protobuf.MethodOptions")
+    options_type = message_factory.GetMessageClass(options_descriptor)
+    for identity, method in _host_methods(descriptors):
+        selected = overrides.get(identity)
+        if selected is None:
+            continue
+        options = cast(Any, options_type.FromString(method.options.SerializeToString()))
+        options.Extensions[extension] = callers.values_by_name[selected].number
+        method.options.ParseFromString(options.SerializeToString())
 
 
 def main() -> None:
-    check_public_surfaces(Path(__file__).resolve().parents[5])
-    with tempfile.TemporaryDirectory() as scratch:
-        output = Path(scratch) / "descriptors.bin"
-        subprocess.run(["buf", "build", "--as-file-descriptor-set", "-o", str(output)], check=True, creationflags=spawn_flags())
-        methods = caller_options(FileDescriptorSet.FromString(output.read_bytes()))
+    root = Path(__file__).resolve().parents[5]
+    check_public_surfaces(root)
+
+    scratch = Path(tempfile.mkdtemp())
+    try:
+        output = scratch / "descriptors.bin"
+        command = ["buf", "build", "--as-file-descriptor-set", "-o", str(output)]
+        subprocess.run(command, check=True, creationflags=spawn_flags())
+        descriptors = FileDescriptorSet.FromString(output.read_bytes())
+        methods = caller_options(descriptors)
         print(f"Protocol Callers: {len(methods)} Annotated Operations")
+    finally:
+        shutil.rmtree(scratch)
 
 
 def check_public_surfaces(root: Path) -> None:
@@ -179,6 +155,60 @@ def check_public_surfaces(root: Path) -> None:
 
 
 # === Private Functions === #
+
+
+def _descriptor_pool(descriptors: FileDescriptorSet) -> descriptor_pool.DescriptorPool:
+    pool = descriptor_pool.DescriptorPool()
+    pending = {file.name: file for file in descriptors.file}
+    while pending:
+        ready = [file for file in pending.values() if all(name not in pending for name in file.dependency)]
+        if not ready:
+            raise ValueError("Protocol Callers: Resolve Descriptor Dependencies Before Generation")
+        for file in ready:
+            pool.AddSerializedFile(file.SerializeToString())
+            del pending[file.name]
+    return pool
+
+
+def _host_methods(descriptors: FileDescriptorSet) -> Iterator[tuple[str, MethodDescriptorProto]]:
+    for file in descriptors.file:
+        if "host" not in Path(file.name).parts[:-1]:
+            continue
+        for service in file.service:
+            for method in service.method:
+                identity = f"{file.package}.{service.name}/{method.name}"
+                yield identity, method
+
+
+def _caller_extension(pool: descriptor_pool.DescriptorPool) -> tuple[FieldDescriptor, EnumDescriptor]:
+    try:
+        extension = pool.FindExtensionByName("harmos.model.v1.callers")
+    except KeyError as error:
+        raise ValueError("Protocol Callers: Declare the Library Callers Option") from error
+    if extension.enum_type is None:
+        raise ValueError("Protocol Callers: Declare an Enum Option")
+    return extension, extension.enum_type
+
+
+def _caller_options(descriptors: FileDescriptorSet, pool: descriptor_pool.DescriptorPool) -> dict[str, str]:
+    result: dict[str, str] = {}
+    methods = list(_host_methods(descriptors))
+    if not methods:
+        return result
+    extension, callers = _caller_extension(pool)
+    options_descriptor = pool.FindMessageTypeByName("google.protobuf.MethodOptions")
+    options_type = message_factory.GetMessageClass(options_descriptor)
+    for identity, method in methods:
+        # Protobuf Custom Extensions Are a Dynamic Boundary.
+        options = cast(Any, options_type.FromString(method.options.SerializeToString()))
+        allowed = callers.values_by_number.get(options.Extensions[extension])
+        declared = options.HasExtension(extension)
+        supported = allowed is not None and allowed.name in {"CLIENTS", "PLUGINS", "ALL"}
+        if not declared or not supported:
+            raise ValueError(f"Protocol Callers: {identity} Requires CLIENTS, PLUGINS or ALL")
+        result[identity] = allowed.name
+    return result
+
 
 # === Entry Point === #
 

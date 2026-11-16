@@ -41,7 +41,7 @@ service ExecutionFiles {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // ExecutionFilesGetRequest for ExecutionFiles.Get.
 message ExecutionFilesGetRequest {
@@ -57,8 +57,6 @@ message ExecutionFilesGetResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
 
-// === List === //
-
 // ExecutionFilesListRequest for ExecutionFiles.List.
 message ExecutionFilesListRequest {
   string parent = 1;
@@ -72,8 +70,6 @@ message ExecutionFilesListResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
-
-// === Watch === //
 
 // ExecutionFilesWatchRequest for ExecutionFiles.Watch.
 message ExecutionFilesWatchRequest {

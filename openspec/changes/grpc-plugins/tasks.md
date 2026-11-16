@@ -130,6 +130,9 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 
 ## 2. Protocol
 
+- [x] Refactor the protocol helpers and owned SDK generators to the company conventions, mirror executor/model responsibilities, normalize product proto sections, remove handwritten import aliases and path overrides, and regenerate tracked outputs. Keep the plot authoring value required by generated getter names, with explicit message access instead of dereference forwarding.
+- [ ] Validate the protocol convention refactor with protocol and SDK generation tests, generated drift, workspace compilation, formatting and lint.
+
 - [x] 2.1 Define and check in `dokime.v1` host operations, `TestCase`, `Step`, `Criterion` and `Statistics`; generate the protocol crate.
 - [x] 2.1.1 Reproduce the hosted Windows interruption timeout five times by exact name; all five pass. Examined terminal-query servicing, batch acknowledgement, held mutation replies, admission watches and the frozen-origin commit; no cleanup regression or permanently unsent event was established.
 - [ ] 2.2 Add the host operations plugins need that exist only as evidence-page fields today: progress, log, traceability, document parts, record reads and statistics.

@@ -40,7 +40,7 @@ service Samples {
   }
 }
 
-// === List === //
+// === Requests and Responses === //
 
 // SamplesListRequest for Samples.List.
 message SamplesListRequest {
@@ -64,8 +64,6 @@ message SamplesListResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
-
-// === Watch === //
 
 // SamplesWatchRequest for Samples.Watch.
 message SamplesWatchRequest {
