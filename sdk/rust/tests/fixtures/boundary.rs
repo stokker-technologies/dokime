@@ -110,7 +110,8 @@ fn main() -> Result<()> {
         .observer(host_observer)
         .stream(setting_stream)
         .observer(setting_observer);
-    // One 1 MHz Window Holding More Rows Than the Shared Plugin Publication Pool Admits at Once.
+    // One 1 MHz Window Holding More Rows Than the Shared Plugin Publication Pool Admits at Once: the Step's
+    // 10 s Sleep Cuts the Hour-Long Window, While the Real-Clock Connection Demand Never Reaches Its End.
     let overflow_stream = Stream::<Reading>::new("execution.window.overflow", "Overflow Window Samples");
     let overflow_observer = Observer::window(&overflow_stream, async |_: &Context, window: &SampleWindow| {
         Ok(ReadingColumns {
@@ -129,7 +130,7 @@ fn main() -> Result<()> {
             title: "Overflow Window".into(),
             description: "Sampling time one window of the overflow stream covers".into(),
             default: Some(dokime::SettingValue {
-                value: Some(dokime::setting_value::Value::Duration(prost_types::Duration { seconds: 10, nanos: 0 })),
+                value: Some(dokime::setting_value::Value::Duration(prost_types::Duration { seconds: 3600, nanos: 0 })),
             }),
         })
         .setting(dokime::SettingDeclaration {
