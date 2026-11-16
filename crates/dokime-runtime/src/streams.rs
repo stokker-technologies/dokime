@@ -216,7 +216,14 @@ impl StreamConsumer<Application> for Samples {
         };
         // Storage Admission Takes Locks and Can Flush Under Byte Pressure, So It Runs Off the Async Delivery Task.
         if let Err(error) = tokio::task::spawn_blocking(move || intake.drain(&batch)).await {
-            tracing::error!(%error, "Ingest Execution Samples");
+            // A Delivery Whose Admission Failed Lost Its Rows, So Every Sampling Execution Fails.
+            let scopes = self.scopes.lock().expect("sample scope lock is healthy");
+            let mut failures = self.failures.lock().expect("sample failure lock is healthy");
+            for execution in scopes.keys() {
+                let action = "Ingest Execution Samples: Storage Admission Failed; See the Host Log, Then Rerun the Execution".to_owned();
+                tracing::error!(%execution, %error, "Ingest Execution Samples");
+                failures.insert(execution.clone(), action);
+            }
         }
         self.cursor = reaches;
         self.cursor

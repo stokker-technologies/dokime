@@ -334,8 +334,11 @@ impl Store {
             if !accepted.contains_key(&execution) {
                 accepted.insert(execution.clone(), crate::store::saved_position(&connection, &execution)?);
             }
-            let codec = telemetry.codec(&connection, &execution, &stream)?;
-            streams.push(((execution, stream), codec));
+            // A Stream Whose Frozen Row No Longer Decodes Refuses Samples, as Before It Was Reopened.
+            match telemetry.codec(&connection, &execution, &stream) {
+                Ok(codec) => streams.push(((execution, stream), codec)),
+                Err(error) => tracing::warn!(%error, %execution, %stream, "Reopen Stream Intake"),
+            }
         }
         drop(telemetry);
         let mut intake = self.intake()?;
@@ -379,7 +382,7 @@ impl Store {
             used: std::cell::Cell::new(false),
             committed: std::cell::Cell::new(false),
         };
-        self.flush_locked(connection, Some((execution, reservation.position)))?;
+        self.flush_locked(connection, Some((execution, reservation.position)), false)?;
         Ok(reservation)
     }
     /// Open Execution Streams, Creating and Cataloging Each Stream's Arrow File in Parallel.
@@ -556,11 +559,14 @@ impl Store {
     pub async fn shutdown_samples(&self) -> Result<()> {
         let (mut result, workers) = {
             let mut connection = self.lock()?;
-            let result = self.flush_samples_locked(&mut connection);
-            let mut intake = self.intake()?;
-            intake.closed = true;
-            intake.running = false;
-            (result, std::mem::take(&mut intake.workers))
+            // Intake Closes Before the Final Flush, So No Row Is Accepted That It Would Not Save.
+            let workers = {
+                let mut intake = self.intake()?;
+                intake.closed = true;
+                intake.running = false;
+                std::mem::take(&mut intake.workers)
+            };
+            (self.flush_locked(&mut connection, None, true), workers)
         };
         self.changed.send_modify(|revision| *revision += 1);
         for worker in workers {
@@ -579,15 +585,18 @@ impl Store {
     }
     /// Flush Every Pending Row Before Returning; Its Caller Holds the Store's Connection.
     pub(crate) fn flush_samples_locked(&self, connection: &mut Connection) -> Result<()> {
-        self.flush_locked(connection, None)
+        self.flush_locked(connection, None, false)
     }
     /// Flush Pending Rows, Behind a Fence Only an Execution's Rows Before Its Position, Syncing Without Intake.
-    fn flush_locked(&self, connection: &mut Connection, fence: Option<(&str, u64)>) -> Result<()> {
+    ///
+    /// After shutdown closed intake, rows still pending mean its final flush failed; only that
+    /// `closing` flush may save them.
+    fn flush_locked(&self, connection: &mut Connection, fence: Option<(&str, u64)>, closing: bool) -> Result<()> {
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
         self.settle(connection, &mut telemetry)?;
         let claims = {
             let intake = self.intake()?;
-            if intake.closed && !intake.pending.is_empty() {
+            if intake.closed && !closing && !intake.pending.is_empty() {
                 return Err(Error::Data("reopen storage after its failed shutdown flush"));
             }
             intake.claim(fence)?
@@ -1256,6 +1265,22 @@ mod tests {
         store.close_streams("other")?;
         assert_eq!(saved_positions(&store, "other")?, (1..=ROWS * STREAMS as u64).collect::<Vec<_>>());
         Ok(())
+    }
+
+    #[test]
+    fn shutdown_closes_intake_before_its_final_flush() -> Result<()> {
+        let (_root, store) = opened(storage_defaults())?;
+        store.sample_batch("execution", &samples(0))?;
+        let runtime = tokio::runtime::Builder::new_current_thread().build()?;
+        while_syncing(
+            || runtime.block_on(store.shutdown_samples()),
+            || {
+                // Rows Arriving During the Final Flush's Sync Are Refused, Not Accepted and Left Unsaved.
+                assert!(store.sample_batch("execution", &samples(1)).is_err());
+            },
+        )?;
+        assert!(store.intake()?.pending.is_empty());
+        require_saved_once(&store, 1)
     }
 
     #[test]
