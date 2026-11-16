@@ -80,7 +80,7 @@
 
 ## 9. Later Item 5 — Crate Layering After Harmos Authoring Streamline
 - [x] 9.1 Wait for published upstream authoring-streamline and settle its context/lifetime/concurrency/lane/reload contracts against design.md. This is outside tonight's implementation. Lock complete move/consumer inventory before editing; keep deferred tasks open.
-- [x] 9.2 Storage extraction is landed in dokime-storage and the retired domain/server/client crates are removed. Further product crate extraction needs a measured justification; facade and dependency-fence replacement belongs to operation-boundary 11–12.
+- [x] 9.2 Superseded by [operation-boundary tasks 11–12](../operation-boundary/tasks.md): the locked backend/facade boundary replaces exploratory crate extraction. Further product crate extraction needs a measured justification; no compatibility declaration tree is retained.
 - [x] 9.3 Introduce flat dokime-operations with runtime feature, standalone messages and one operation struct with gated resources/impl. Move declarations and handlers together. Contract-only consumers compile without execution dependencies; packaging stays below runtime. Update facade/shells/generators/templates/examples/guidance/bindings together.
 - [ ] 9.4 Prove the resulting Cargo boundaries and native lifecycle after `grpc-plugins` SDK and client/server dependency work; do not create a compatibility declaration tree.
 

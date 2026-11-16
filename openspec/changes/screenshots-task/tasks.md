@@ -22,4 +22,4 @@
 
 ## Reported Regression Repair
 
-- [ ] 1.6 Repair the owner-reported Linux desktop screenshot hang in the screenshot journey and capture/shutdown path; prove deterministic readiness and joined termination with existing operation policies, then obtain native Linux capture proof. Preserve actual capture failures and do not add retries, sleeps or longer deadlines.
+- [ ] 1.10 Repair the owner-reported Linux desktop screenshot hang in the screenshot journey and capture/shutdown path; prove deterministic readiness and joined termination with existing operation policies, then obtain native Linux capture proof. Preserve actual capture failures and do not add retries, sleeps or longer deadlines.

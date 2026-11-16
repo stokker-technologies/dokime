@@ -38,7 +38,7 @@ Checked supersession pointers record transferred scope, never passing proof.
 
 ## 5. Focused Proof
 
-- [ ] 5.1 Prove query parity, native columnar pruning, ordered seek pages, saved-cut/live-tail semantics, late replacement and execution/step-range statistics through Harmos transforms, using deterministic data and the accepted Harmos f64 RMS/standard-deviation semantics.
+- [ ] 5.1 Prove query parity, native columnar pruning, ordered seek pages, saved-cut/live-tail semantics, late replacement and execution/step-range statistics through Harmos transforms, using deterministic data. Preserve exact typed counts, extrema and sums; RMS/standard deviation use the accepted Harmos f64 semantics.
 - [ ] 5.2 Prove projection replay/frontiers, settings conflicts, capture/artifact ownership, interrupted finalization/seals, report dependencies and fresh-root refusal without silent resets.
 - [ ] 5.3 Compare before/adoption/extraction benchmarks on Linux and Windows, including multi-day data, concurrent ingestion/read, restart and late samples; report throughput, first-page latency, stop/cancel/report time, peak memory, bytes read and durability cost, and resolve regressions.
 

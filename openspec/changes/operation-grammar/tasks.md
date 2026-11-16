@@ -5,7 +5,7 @@ direct Store access, direct library wire composition, manager construction and
 product aggregation. Its numbered pointers below close superseded work only,
 not replacement implementation or proof. plugin-lifecycle must explicitly inventory
 its replacement work before lifecycle pointers can close. Executor-owned packages
-under 0.L replace the historical face inventories; generated output stays tracked
+under 0.L replace the historical face inventories; generated output keeps its current tracking
 until the owner decides otherwise.
 
 Status: locked by the owner on 2026-11-12
@@ -71,7 +71,7 @@ source/type/operation inventory and eight consumer work lists are maintained in
 
 - [x] 0.A Record paging eligibility, one SDK package per language, unary transfers with 4 MiB default chunks and 8 MiB messages, and accepted threshold-free durable lag with no accepted-data snapshot in proposal/design/requirements/architecture; amended by the owner on 2026-11-13.
 - [ ] 0.B Superseded by plugin-lifecycle: harmonize lifecycle names and bindings around register/initialize/finalize; align four SDKs and descriptors. Keep this transfer open until explicit replacement tasks exist.
-- [ ] 0.C Close the complete agreed source inventory and targeted proof in the combined feature candidate, then obtain delivery authorization and preserve remote SHA/hosted results. Dev integration is ungated; this documentation assignment authorizes no push or partial-feature delivery.
+- [ ] 0.P.2 Close the complete agreed source inventory and targeted proof in the combined feature candidate, then obtain delivery authorization and preserve remote SHA/hosted results. Dev integration is ungated; this documentation assignment authorizes no push or partial-feature delivery.
 - [x] 0.H Superseded by [operation-boundary tasks 1–11](../operation-boundary/tasks.md): inventory and replace every direct Store consumer with in-process Harmos storage operations.
 - [ ] 0.H.1 Product backend registration and Arrow/SQLite ownership are landed. Remaining inventory and direct-call migration belong to operation-boundary 1–11; verify that the upstream backend support matrix explicitly retains every required durability and recovery capability.
 - [x] 0.H.2 The rebuilt sample-table layout is replaced by typed compressed Arrow files, SQLite catalog/checkpoints, configurable flush policy, saved/live readers and unchanged-file evidence archives. Aggregation moves to operation-boundary 8; retained native and recovery proof remains open.
@@ -108,7 +108,7 @@ source/type/operation inventory and eight consumer work lists are maintained in
 - [x] 0.G.7 Command-line tool: migrate typed/raw calls, discovery, examples, revisioned mutations, transfers and retained paging using final 0.E/0.G names; run focused command-line proof.
 - [x] 0.G.8 Desktop adapter: regenerate final message modules after host migration, apply the 0.E/0.G wire/payload work order and validate native plus both WebView journeys.
 - [x] 0.D Face split in one pass, amended by the owner on 2026-11-13: after the desktop and command-line branches are merged, one definition commit moves every remaining product operation in `proto/dokime/**` to its face package and grammar name, with the lifecycle identities of 0.B, and regenerates; the host, the SDKs, the command-line tool and the desktop adapter then follow in parallel with disjoint ownership on this branch, with one combined proof and the `-next` rename at the end. Operations whose grammar name belongs to a library service keep their present declaration until that composition lands.
-- [x] 0.B Implement whole-set responses for product-owned bounded lists using design.md's per-set reasoning; keep unbounded evidence/history paged and position-resolved.
+- [x] 0.A.1 Implement whole-set responses for product-owned bounded lists using design.md's per-set reasoning; keep unbounded evidence/history paged and position-resolved.
 - [x] 0.C Each language has one product SDK package containing authoring and clients; audience-specific package builds are removed. Final installed-artifact and native conformance proof stays open in sections 5 and 8.
 
 
@@ -158,7 +158,7 @@ source/type/operation inventory and eight consumer work lists are maintained in
 
 ## 0. Face Packages and File Moves First
 
-- [ ] 0.2.4 Replace client Evidence Records with nested Evidence.Records.List/Watch, issued durable positions, row/byte/work-bounded pages and retained scope/provenance. Inventory: nested/shared protos and generated protocol/four SDK roots; storage evidence sequencing, issued positions and deletion invalidation; client selection/list/watch operations and host service; Rust/Python client conveniences, CLI/raw RPC consumers and host/SDK journeys; architecture/execution-host/query/SDK guides. Remove Evidence.ListRecords/WatchRecords and their Run twins in the same building slice. Context Records declarations already use their separate final face; preserve that plugin journey and its controlled-clock evidence.
+- [ ] 0.2.4 Complete issued durable-position, row/byte/work-bound and retained-provenance behavior for the existing Evidence.Records.List/Watch declarations and consumers through operation-boundary 4 and 10. The former ListRecords/WatchRecords and automatic Run declarations are removed; focused paging, mutation, deletion and resynchronization proof remains required.
 
 - [x] 0.2.3 Replace Traceability with separate context Evidence.Traceability.Get/Set and client Evidence.Traceability.Get/Watch, whole-value revisions and retained position-resolved scoped snapshots. Inventory: host/shared payloads and nested protos, generated protocol/SDK roots, storage values and scoped read positions, context/client operations and host service, four SDKs and consumers/fixtures/starters, plugin/client stories and current guides. Preserve scoped history reads; delete SetTraceability and Observation traceability methods and twins in the same building slice.
 
@@ -222,10 +222,10 @@ source/type/operation inventory and eight consumer work lists are maintained in
 
 - [ ] 4.10 Preserve one host registry, descriptor/digest/fingerprint/requirement and provider admission. Implement Public plugin -> host -> plugin calls with inherited scope, result/failure propagation and caller-to-child cancellation. Refuse Protected peers/clients; Private is absent from wire catalogs and never routed. Clients reach Public operations through Invocations.Invoke, never direct instance access; plugin identity does not grant client management. Require explicit visibility in all four SDKs.
 - [ ] 4.11 The adopted visibility enum includes Private, Protected and Public. Verify unspecified/catalogued Private admission and endpoint guards on the exact published pin; product and four-language runtime conformance remain in A1 and 4.16.
-- [ ] 4.12 Confirm the published library Rust SDK has local-only Private dispatch with ordinary policy, retries, deadline and cancellation; remove the obsolete no-local-dispatch audit premise. Final parity proof remains in 4.16.
-- [ ] 4.13 Confirm the published library Python SDK has local-only Private dispatch with ordinary policy, retries, deadline and cancellation; remove the obsolete no-local-dispatch audit premise. Final parity proof remains in 4.16.
-- [ ] 4.14 Confirm the published library C# SDK has local-only Private dispatch with ordinary policy, retries, deadline and cancellation; remove the obsolete no-local-dispatch audit premise. Final parity proof remains in 4.16.
-- [ ] 4.15 Confirm the published library C++ SDK has local-only Private dispatch with ordinary policy, retries, deadline and cancellation; remove the obsolete no-local-dispatch audit premise. Final parity proof remains in 4.16.
+- [x] 4.12 The adopted library Rust SDK implements local Private dispatch with ordinary policy/retry/deadline/cancellation handling. Published-pin and runtime parity proof remains open in 1.11, 4.16 and section 8.
+- [x] 4.13 The adopted library Python SDK implements local Private dispatch with ordinary policy/retry/deadline/cancellation handling. Published-pin and runtime parity proof remains open in 1.11, 4.16 and section 8.
+- [x] 4.14 The adopted library C# SDK implements local Private dispatch with ordinary policy/retry/deadline/cancellation handling. Published-pin and runtime parity proof remains open in 1.11, 4.16 and section 8.
+- [x] 4.15 The adopted library C++ SDK implements local Private dispatch with ordinary policy/retry/deadline/cancellation handling. Published-pin and runtime parity proof remains open in 1.11, 4.16 and section 8.
 - [ ] 4.16 Extend four-language conformance: Private is absent from catalog/descriptors/wire and callable only locally under ordinary policy; Protected is host-invocable and refused to another plugin and client; Public is invocable by another plugin with a declared requirement and by a client through the host. Reject Private endpoint associations and Protected client gRPC bindings.
 - [ ] 4.17 Superseded by plugin-lifecycle: register/initialize/finalize and host-only lifecycle/observer controls use harmonized Protected bindings in all SDKs; retain this task until explicitly covered there.
 
@@ -259,7 +259,7 @@ source/type/operation inventory and eight consumer work lists are maintained in
 
 - [x] C++ generated client-root calls must accept caller metadata and cancellation/deadline overrides (for example `access.listener.get(request, grpc::ClientContext&)`, with equivalent Watch ownership). The pinned `harmos::AccessListenerResource::get` constructs its own inaccessible `grpc::ClientContext`, as do Status and Storage roots. Consumer proof: the authenticated pairing story's bearer request cannot be expressed through `dokime::Client::access` although the raw generated stub can take a context. Product wrappers are now owned by operation-boundary 13; no authenticated-root workaround is added. The pinned root now accepts ClientContext first; authenticated Status.Get and Logs.Watch journeys pass, including caller-owned Watch lifetime and authentication refusal.
 
-- [ ] Adopt and prove immutable product content-source delivery at the exact published Harmos pin; the old missing-registration API probe is historical and does not establish a current blocker. Product metadata, authorization, retained read leases, length/digest and bounded ranges remain required. Implementation is owned by operation-boundary 7 and 13; no second persistence owner or byte-copy workaround.
+- [x] Immutable content-source registration exists at the adopted Harmos pin; the missing-registration probe is obsolete. Product composition, authorization, retained leases and bounded verified byte delivery remain owned by operation-boundary 7/13 and the grpc-plugins appearance task, without a second persistence owner or byte-copy workaround.
 
 - [ ] Adopt and prove execution-scoped sample sessions through the typed Harmos operation caller at the exact published pin, including activation fencing, controlled ticks, awaited terminal close and scope isolation. The old missing-manager-method probe is historical, not a current blocker. operation-boundary 5 and 12 owns implementation; no second connection/process owner.
 
@@ -275,5 +275,5 @@ source/type/operation inventory and eight consumer work lists are maintained in
 
 ## Reconciled Ownership
 
-- [ ] PL1 Transfer catalog(), register/initialize/finalize, template-scoped resources/prompts/records, harmonized SDK names and removal of plugin analyses to explicit plugin-lifecycle tasks. Until that change carries each obligation, the lifecycle pointers here remain unchecked.
+- [ ] PL1 Transfer catalog(), register/initialize/finalize, template-scoped prompts/records, harmonized SDK names and removal of plugin analyses to explicit plugin-lifecycle tasks. Until that change carries each obligation, the lifecycle pointers here remain unchecked.
 - [ ] RV1 Reconcile archive applicability for data-root-identity, query-operations and query-snapshots against the current main specs; preserve remaining requirements under a live change and remove superseded deltas before archive.

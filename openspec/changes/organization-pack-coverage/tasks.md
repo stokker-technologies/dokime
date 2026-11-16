@@ -36,4 +36,4 @@
 
 ## Archive Reconciliation
 
-- [ ] 4.2 Reconcile organization-installers and organization-packs deltas with the main specifications before archive; required capabilities absent from main need valid additions, preserving branded/default packaged and report proof.
+- [ ] 4.6 Reconcile organization-installers and organization-packs deltas with the main specifications before archive; required capabilities absent from main need valid additions, preserving branded/default packaged and report proof.

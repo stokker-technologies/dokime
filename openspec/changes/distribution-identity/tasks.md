@@ -19,7 +19,7 @@ The startup identity file is separate from `installer.json`, the inventory consu
 - [x] 1.6 Installer display-name repair: organization labels in native display fields; identifier-based install paths and registry keys.
 
 ## 2. Validation
-- [ ] 2.1 Targeted proof, then the native desktop walkthrough on Windows and Unix with a branded distribution.
+- [ ] 2.1 Run targeted proof, then native Windows and Linux desktop walkthroughs with branded and default distributions; prove identity, storage/credential isolation and absence of cross-distribution state leakage.
 
 ## Workflow Follow-Up
 

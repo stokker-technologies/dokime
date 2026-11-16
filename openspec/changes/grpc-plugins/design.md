@@ -8,7 +8,7 @@ in this document; its tasks own the replacement, not this change's historical me
 Unchecked plugin-lifecycle transfers in grpc-plugins and operation-grammar retain
 register/initialize/finalize, catalog(), template-scoped prompts/records, harmonized
 names and plugin analysis removal until explicitly inventoried there. Generated
-protocol output stays tracked pending the owner's decision.
+protocol output keeps its current tracking pending the owner's decision.
 
 ## Resuming
 

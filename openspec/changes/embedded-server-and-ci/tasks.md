@@ -75,7 +75,7 @@
 - [ ] 2.4 Finish and retire the specification after required delivery evidence exists.
 - [ ] 2.6 Validate the combined desktop candidate on native Windows and Linux: same-root launches open independent windows and show actionable local-backend lease conflicts, distinct roots remain independent, shutdown and retry retain ownership, remembered backend identity and Settings reconnect behave correctly, and direct plugin installation, restart and refusal scenarios pass. Validate organization installer packaging and generated artifacts without installing them, as explicitly directed by the user; preserve user-owned applications and external outputs.
 - [ ] 2.7 Verify remote preservation and retire the superseded organization-installers worktree through housekeeping after its open change is completed. Preserve external brand packs, installers and user-owned applications.
-- [ ] 2.8 Rerun the affected development Release / Dry job with the combined candidate and require the source archive in release validation; targeted selector proof does not substitute for the actual packaging and verification job.
+- [ ] 2.8 Run the affected Release / Dry proof in its configured release context on the combined candidate and require the source archive in release validation; targeted selector proof does not substitute for actual packaging and verification. Dev pushes retain quick check/build only.
 - [ ] 2.5 Rerun Linux acceptance/system and Windows system evidence-sealing and watch regressions on the combined candidate; preserve original assertions and durable acknowledgements.
 
 ## Clean Desktop Architecture Audit
