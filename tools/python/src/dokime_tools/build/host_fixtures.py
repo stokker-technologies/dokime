@@ -190,9 +190,9 @@ def build(profile: str, language: str = "auto") -> None:
             stderr=sys.stderr,
         )
 
-    # Build The C++ Fixture With The Pinned Native Dependency Graph.
+    # Build The C++ Fixture With The Pinned Native Dependency Graph; the Release Preset Keeps It Within the Bundle Bound.
     if "cpp" in languages:
-        directory = root / "target/cp/tests"
+        directory = root / "target/cp/release"
         subprocess.run(
             ["mise", "-C", "sdk/cpp", "run", "prepare"],
             cwd=root,
@@ -203,7 +203,7 @@ def build(profile: str, language: str = "auto") -> None:
             stderr=sys.stderr,
         )
         subprocess.run(
-            ["mise", "-C", "sdk/cpp", "run", "build", "--", "--target", "dokime-system-suite"],
+            ["mise", "-C", "sdk/cpp", "run", "build", "--", "--preset", "release", "--target", "dokime-system-suite"],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),

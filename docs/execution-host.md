@@ -420,7 +420,9 @@ behind that window's end (`PlacementSettings::interval_lag`, default
 fails the stream instead of granting ever longer windows. The execution ends
 Interrupted with a `streams:failure` entry that names the stream and the action: lower
 its rate or the number of streams, shorten its window, or raise
-`interval_lag_windows`. A window larger than the shared plugin publication pool, and a
+`interval_lag_windows`. On a controlled clock, a window whose handler waits on host time
+past the lag limit falls behind the same way, since that wait advances the clock while
+its window stays unanswered. A window larger than the shared plugin publication pool, and a
 pool full of rows storage has not taken in, end the execution the same way. Dokime
 holds no demand on a plugin stream outside an execution: scoped sampling is all it
 stores, and the library grants no idle windows.

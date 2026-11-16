@@ -70,6 +70,8 @@ pub async fn handle(context: &Context, request: OverviewWatchRequest) -> Result<
                 loop {
                     let cut = page.resolved_at.clone();
                     let token = String::new();
+                    // The Watch Ends After Sending a Snapshot Read While the Host Shuts Down, Never Before.
+                    let stopping = page.overview.as_ref().is_some_and(|overview| overview.shutting_down);
                     let response = OverviewWatchResponse {
                         overview: page.overview,
                         resolved_at: cut.clone(),
@@ -82,7 +84,7 @@ pub async fn handle(context: &Context, request: OverviewWatchRequest) -> Result<
                     if !token.is_empty() {
                         selection.at = cut;
                     } else {
-                        if context.host.shutting_down() {
+                        if stopping {
                             return;
                         }
                         tokio::select! {

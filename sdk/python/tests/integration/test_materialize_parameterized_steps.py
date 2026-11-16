@@ -146,7 +146,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         identifiers = []
         for _ in range(2):
             registered = await host.client.cases.create(plan, False)
-            cycle = (await host.client.cycles.create([], Metadata(label="Channel Measurements"), True, "")).cycle
+            cycle = (await host.client.cycles.create([], Metadata(label="Channel Measurements"), False, "")).cycle
             identifier = str(uuid4())
             identifiers.append(identifier)
             await host.client.executions.create(

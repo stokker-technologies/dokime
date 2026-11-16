@@ -56,7 +56,8 @@ pub async fn handle(context: &Context, request: ExecutionsStartRequest) -> Resul
             Ok(ExecutionMode::Automatic | ExecutionMode::Unspecified) => ExecutionMode::Automatic,
             _ => return Err(Error::Invalid("Start Execution: Choose an Execution Mode".into())),
         };
-        if controls.can_cancel {
+        // An Active Run, Queued or Running, Already Started the Execution; Starting It Again Returns That Run.
+        if controls.request_id.is_some() {
             if controls.mode != mode as i32 {
                 return Err(Error::Conflict("Start Execution: Resolve the Existing Run Mode".into()));
             }
