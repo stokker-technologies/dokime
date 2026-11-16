@@ -43,9 +43,9 @@ impl PlotKind {
         if let Some(replacement) = retired_plot_kind(short) {
             return Err(format!("{short}: use {replacement}"));
         }
-        Self::from_str_name(&format!("PLOT_KIND_{short}"))
-            .filter(|kind| *kind != Self::Unspecified)
-            .ok_or_else(|| format!("unknown plot kind {name}"))
+        let declared_name = format!("PLOT_KIND_{short}");
+        let kind = Self::from_str_name(&declared_name).filter(|kind| *kind != Self::Unspecified);
+        kind.ok_or_else(|| format!("use a declared plot kind instead of {name}"))
     }
 
     /// Validate wire numbers without reinterpreting a retired enum tag.
@@ -66,7 +66,8 @@ impl PlotKind {
         if let Some(name) = retired {
             return Err(format!("{name}: use {}", retired_plot_kind(name).expect("retired kind has a replacement")));
         }
-        Self::try_from(number).ok().filter(|kind| *kind != Self::Unspecified).ok_or_else(|| format!("unknown plot kind number {number}"))
+        let kind = Self::try_from(number).ok().filter(|kind| *kind != Self::Unspecified);
+        kind.ok_or_else(|| format!("use a declared plot kind number instead of {number}"))
     }
 }
 

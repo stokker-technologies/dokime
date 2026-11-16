@@ -686,10 +686,10 @@ and `src/plugin/`. Generated wire packages remain private; those modules expose
 their complete contract surfaces. Hand-written expression/document construction,
 plot-kind validation and frozen-origin validation live with their model contracts.
 Plugin request validation lives with the owning executor resource and shares the
-model's frozen-origin check. `builders::Plot` is a separate authoring value because Prost generates enum and
-optional-field getters with the same names as its composition methods. It owns its
-message explicitly and converts into the generated plot without dereference forwarding. The Rust
-generator is a normal tooling library consumed by its CLI and the protocol drift
+model's frozen-origin check. `builders::Plot` is a separate authoring value because
+Prost generates enum and optional-field getters with the same names as its composition methods. It owns its
+message explicitly and converts into the generated plot without dereference
+forwarding. The Rust generator is a normal tooling library consumed by its CLI and the protocol drift
 test; tests do not import generator source through path overrides.
 
 The exact [operation/message/caller map](execution-host.md#operation-identity-and-caller-mapping)

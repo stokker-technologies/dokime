@@ -90,7 +90,7 @@ def main(*, check: bool = False) -> None:
                 (target.parent / "py.typed").touch()
                 (target.parent / "__init__.py").touch(exist_ok=True)
         if check:
-            existing = {path for path in (source / "_wire").rglob("*_pb2*") if path.is_file()}
+            existing = {path for path in (source / "_wire").rglob("*_pb2*") if path.is_file() and path.suffix in {".py", ".pyi"}}
             drift.extend(str(path.relative_to(sdk)) for path in sorted(existing - expected))
             if (output / "surface.pb").read_bytes() != (source / "_wire/surface.pb").read_bytes():
                 drift.append("_wire/surface.pb")
