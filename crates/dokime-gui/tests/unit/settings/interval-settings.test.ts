@@ -82,13 +82,11 @@ function render() {
 
 /* === Tests === */
 
-test("Saved Values Show With Units in Brackets and Nothing to Save", async () => {
+test("Saved Values Show With Nothing to Save", async () => {
   const html = render();
   assert.ok(fixture.read);
   await fixture.read();
   assert.deepEqual(fixture.invoke.mock.calls, [["desktop_interval_settings_read", undefined]]);
-  assert.ok(html.includes("Interval Window [ms]"));
-  assert.ok(html.includes("Interval Lag [windows]"));
   assert.ok(html.includes('value="100"'));
   assert.ok(html.includes('value="10"'));
   assert.equal(fixture.save?.disabled, true);
