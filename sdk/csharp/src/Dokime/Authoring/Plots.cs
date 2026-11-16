@@ -14,6 +14,8 @@ namespace Dokime.Plugins;
 // Each Convenience Produces A Canonical Message And Copies Its Operands.
 public static class Plots
 {
+  public static Plot Line(string identifier, string label) => new() { Metadata = new Metadata { Identifier = identifier, Label = label }, Kind = PlotKind.TimeSeries };
+
   public static Plot TimeSeries(DataExpression value) => new() { Kind = PlotKind.TimeSeries, Y = { value.Clone() } };
   public static Plot FrequencySeries(DataExpression value) => new() { Kind = PlotKind.FrequencySeries, Y = { value.Clone() } };
   public static Plot Xy(DataExpression value) => new() { Kind = PlotKind.Xy, Y = { value.Clone() } };
