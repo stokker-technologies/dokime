@@ -16,22 +16,32 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::{BTreeMap, BTreeSet};
+use std::error::Error;
 use std::fs;
 use std::path::Path;
 
 // Third Party Imports
+use harmos_protocol::model::{Callers, Declarations, OperationContract, OperationPolicy, Visibility};
+use harmos_protocol::plugin::InstanceGetResponse;
+use harmos_protocol::schema::method_callers;
+use heck::AsSnakeCase;
+use prost::Message;
+use prost_reflect::{DynamicMessage, ReflectMessage};
+use prost_types::{Duration, Timestamp};
 
 // Local Imports
-use dokime_protocol::builders::Plot as PlotBuilder;
-use dokime_protocol::model::PlotKind;
-use dokime_protocol::model::Step;
-use dokime_protocol::model::TestCase;
+use dokime_protocol::builders;
+use dokime_protocol::host::{
+    CasesCreateRequest, CasesCreateResponse, EvaluatedOutcome, ExecutionDetail, ExecutionOutcome, ExecutionsGetResponse, PlannedCase,
+    RegisteredSelection, RegisteredSelectionParametersEntry, ResultStatus, SelectionPlan, SelectionValues, execution_outcome,
+};
+use dokime_protocol::model::{
+    BarArrangement, ContourRender, Document, FieldReference, GridAxisEntry, Origin, PlotKind, PluginRun, Reduction, Section, Step,
+    TestCase, Value, XyInterval, data_expression, origin, transform_expression, value,
+};
 use dokime_protocol::plugin::{StepsExecuteRequest, StepsExecuteResponse};
-use harmos_protocol::plugin::InstanceGetResponse;
-use prost_reflect::ReflectMessage;
-use prost_types::Duration;
-use prost_types::Timestamp;
-use std::error::Error;
+use dokime_protocol_generator::protocol;
 
 /* === Constants === */
 
@@ -54,37 +64,35 @@ use std::error::Error;
 /* === Tests === */
 
 #[test]
-fn retired_plot_kinds_require_explicit_replacements() {
-    use PlotKind;
-    for (name, number, replacement) in [
-        ("GROUPED_BAR", 3, "BAR"),
-        ("STACKED_BAR", 4, "BAR"),
-        ("DONUT", 6, "PIE"),
-        ("PARETO", 7, "BAR"),
-        ("XY_INTERVAL", 9, "XY"),
-        ("HEATMAP", 11, "CONTOUR"),
-        ("XY_VALUE_HEATMAP", 12, "CONTOUR"),
-        ("WIFI_CHANNEL_OCCUPANCY", 13, "GRID_CHART"),
-        ("BOX_SUMMARY", 16, "BOX_PLOT"),
-        ("AGGREGATE_TABLE", 17, "Summary"),
-    ] {
-        for result in [PlotKind::parse_name(name), PlotKind::from_declared_number(number)] {
-            let error = result.unwrap_err();
-            let identifiers = error.split(|character: char| !character.is_ascii_alphanumeric() && character != '_').collect::<Vec<_>>();
-            assert!(identifiers.contains(&name));
-            assert!(identifiers.contains(&replacement));
-            let option = match name {
-                "GROUPED_BAR" => Some("arrangement=grouped"),
-                "STACKED_BAR" => Some("arrangement=stacked"),
-                "DONUT" => Some("hole=0.5"),
-                "PARETO" => Some("pareto=true"),
-                "XY_INTERVAL" => Some("interval=sigma"),
-                _ => None,
-            };
-            if let Some(option) = option {
-                assert!(error.contains(option));
-            }
+fn embedded_export_contains_every_import() {
+    let sources = dokime_protocol::SOURCES.iter().copied().collect::<BTreeMap<_, _>>();
+    for file in dokime_protocol::descriptor_pool().files() {
+        assert!(sources.contains_key(file.name()), "Export Protocol: Missing {}", file.name());
+        for dependency in &file.file_descriptor_proto().dependency {
+            assert!(sources.contains_key(dependency.as_str()), "Export Protocol: Missing Import {dependency}");
         }
+    }
+}
+
+#[test]
+fn plot_kind_validation_rejects_retired_and_undeclared_values() {
+    for (name, number) in [
+        ("GROUPED_BAR", 3),
+        ("STACKED_BAR", 4),
+        ("DONUT", 6),
+        ("PARETO", 7),
+        ("XY_INTERVAL", 9),
+        ("HEATMAP", 11),
+        ("XY_VALUE_HEATMAP", 12),
+        ("WIFI_CHANNEL_OCCUPANCY", 13),
+        ("BOX_SUMMARY", 16),
+        ("AGGREGATE_TABLE", 17),
+        ("UNSPECIFIED", 0),
+        ("UNKNOWN", i32::MAX),
+    ] {
+        assert!(PlotKind::parse_name(name).is_err());
+        assert!(PlotKind::parse_name(&format!("PLOT_KIND_{name}")).is_err());
+        assert!(PlotKind::from_declared_number(number).is_err());
     }
     for kind in [PlotKind::Contour, PlotKind::GridChart, PlotKind::BoxPlot] {
         assert_eq!(PlotKind::parse_name(kind.as_str_name()), Ok(kind));
@@ -99,10 +107,9 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn Error>> {
     let output_root = root.join("target/generated/rust/dokime-protocol");
     fs::create_dir_all(&output_root)?;
     let output = tempfile::tempdir_in(output_root)?;
-    crate::protocol::generate(&root, output.path())?;
+    protocol::generate(&root, output.path())?;
 
     // Match the Vendored Contract to Its Published Type Owner.
-    use ReflectMessage;
     let published = InstanceGetResponse::default().descriptor().parent_file();
     let vendored = dokime_protocol::descriptor_pool().get_file_by_name(published.name()).expect("vendored Harmos source");
     let mut published = published.file_descriptor_proto().clone();
@@ -110,6 +117,22 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn Error>> {
     published.source_code_info = None;
     vendored.source_code_info = None;
     assert_eq!(vendored, published);
+
+    // Compare the Complete Package Inventory, Including Retired Outputs.
+    let expected = fs::read_dir(output.path())?
+        .map(|entry| entry.map(|entry| entry.file_name()))
+        .collect::<Result<BTreeSet<_>, _>>()?
+        .into_iter()
+        .filter(|name| {
+            name.to_str().is_some_and(|name| {
+                name.ends_with(".rs") && !matches!(name, "reflection.rs" | "sources.rs") && !name.starts_with("harmos.")
+            })
+        })
+        .collect::<BTreeSet<_>>();
+    let existing = fs::read_dir(root.join("crates/dokime-protocol/src/generated"))?
+        .map(|entry| entry.map(|entry| entry.file_name()))
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    assert_eq!(existing, expected, "Regenerate Protocol: Run mise run generate -- --protocol");
 
     // Compare Protocol Outputs, Retaining Evidence on Failure.
     for entry in fs::read_dir(output.path())? {
@@ -139,21 +162,21 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn typed_plot_builders_produce_canonical_document_messages() {
-    use dokime_protocol::model::*;
-    use prost::Message;
     let scan = FieldReference::new("scan");
-    let surface = PlotBuilder::contour(scan.field("temperature").scale(1.0))
+    let surface = builders::Plot::contour(scan.field("temperature").scale(1.0))
         .x(scan.field("position_x"))
         .y(scan.field("position_y"))
         .label("Temperature Map")
         .unit("°C")
         .reduce(Reduction::Mean)
         .render(ContourRender::Bands);
-    assert_eq!(surface.kind, PlotKind::Contour as i32);
-    assert_eq!(surface.y.len(), 1);
-    let data_expression::Kind::Transform(transform) = surface.z.as_ref().unwrap().kind.as_ref().unwrap() else { panic!("typed scale") };
+    assert_eq!(surface.message.kind, PlotKind::Contour as i32);
+    assert_eq!(surface.message.y.len(), 1);
+    let data_expression::Kind::Transform(transform) = surface.message.z.as_ref().unwrap().kind.as_ref().unwrap() else {
+        panic!("typed scale")
+    };
     assert_eq!(transform.kind, Some(transform_expression::Kind::Scale(1.0)));
-    let grid = PlotBuilder::grid_chart(scan.field("value"))
+    let grid = builders::Plot::grid_chart(scan.field("value"))
         .row(scan.field("row_key"))
         .column(scan.field("column_key"))
         .frame(scan.field("timestamp"))
@@ -171,32 +194,39 @@ fn typed_plot_builders_produce_canonical_document_messages() {
         }])
         .reduce(Reduction::Max)
         .label("Sensor Grid");
-    assert!(grid.grid.as_ref().unwrap().frame.is_some());
+    assert!(grid.message.grid.as_ref().unwrap().frame.is_some());
     let document = Document::new("Scan").section(Section::new("Map").plot(surface).plot(grid));
     assert_eq!(Document::decode(document.encode_to_vec().as_slice()).unwrap(), document);
     let variants = [
-        PlotBuilder::bar(scan.field("value")).x(scan.field("category")).series_by(scan.field("group")).arrangement(BarArrangement::Grouped),
-        PlotBuilder::bar(scan.field("value")).x(scan.field("category")).series_by(scan.field("group")).arrangement(BarArrangement::Stacked),
-        PlotBuilder::bar(scan.field("value")).x(scan.field("category")).pareto(true),
-        PlotBuilder::pie(scan.field("value")).x(scan.field("category")).hole(0.5),
-        PlotBuilder::xy(scan.field("value")).x(scan.field("position")).interval(XyInterval::Sigma),
+        builders::Plot::bar(scan.field("value"))
+            .x(scan.field("category"))
+            .series_by(scan.field("group"))
+            .arrangement(BarArrangement::Grouped),
+        builders::Plot::bar(scan.field("value"))
+            .x(scan.field("category"))
+            .series_by(scan.field("group"))
+            .arrangement(BarArrangement::Stacked),
+        builders::Plot::bar(scan.field("value")).x(scan.field("category")).pareto(true),
+        builders::Plot::pie(scan.field("value")).x(scan.field("category")).hole(0.5),
+        builders::Plot::xy(scan.field("value")).x(scan.field("position")).interval(XyInterval::Sigma),
     ];
-    assert_eq!(variants[0].arrangement, Some(BarArrangement::Grouped as i32));
-    assert_eq!(variants[1].arrangement, Some(BarArrangement::Stacked as i32));
-    assert!(variants[2].pareto);
-    assert_eq!(variants[3].hole, Some(0.5));
-    assert_eq!(variants[4].interval, Some(XyInterval::Sigma as i32));
+    assert_eq!(variants[0].message.arrangement, Some(BarArrangement::Grouped as i32));
+    assert_eq!(variants[1].message.arrangement, Some(BarArrangement::Stacked as i32));
+    assert!(variants[2].message.pareto);
+    assert_eq!(variants[3].message.hole, Some(0.5));
+    assert_eq!(variants[4].message.interval, Some(XyInterval::Sigma as i32));
     assert_eq!(
-        PlotBuilder::contour(scan.field("value")).id("stable").label("Temperature Map").metadata.as_ref().unwrap().identifier,
+        builders::Plot::contour(scan.field("value")).id("stable").label("Temperature Map").message.metadata.as_ref().unwrap().identifier,
         "stable"
     );
+    let section = Section::default().plot(builders::Plot::contour(scan.field("temperature").scale(2.0)).id("stable"));
+    let metadata = section.cards[0].metadata.as_ref().unwrap();
+    assert_eq!(metadata.identifier, "stable");
+    assert_eq!(metadata.label, "temperature");
 }
 
 #[test]
 fn descriptors_separate_executors_and_admit_declared_callers() {
-    use harmos_protocol::model::Callers;
-    use harmos_protocol::schema::method_callers;
-
     // Discover Real Services on Both Executors and Keep Values Service-Free.
     let pool = dokime_protocol::descriptor_pool();
     let mut host_methods = Vec::new();
@@ -206,7 +236,7 @@ fn descriptors_separate_executors_and_admit_declared_callers() {
         let plugin = service.package_name() == "dokime.plugin.v1";
         assert!(host || plugin);
         assert_eq!(service.parent_file().services().count(), 1);
-        assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", heck::AsSnakeCase(service.name())));
+        assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", AsSnakeCase(service.name())));
         for method in service.methods() {
             assert_eq!(method.input().name(), format!("{}{}Request", service.name(), method.name()));
             assert_eq!(method.output().name(), format!("{}{}Response", service.name(), method.name()));
@@ -247,12 +277,6 @@ fn descriptors_separate_executors_and_admit_declared_callers() {
 
 #[test]
 fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
-    use dokime_protocol::host::*;
-    use dokime_protocol::model::*;
-    use prost::Message;
-    use prost_reflect::DynamicMessage;
-    use prost_reflect::ReflectMessage;
-
     // Reflect Plan Admission Against the Final Resource Service.
     let request = CasesCreateRequest {
         plan: Some(SelectionPlan {
@@ -325,14 +349,6 @@ fn reflected_case_creation_preserves_frozen_origin_and_outcome() {
 
 #[test]
 fn lifecycle_bindings_share_payloads_without_sharing_identity_or_policy() {
-    use ReflectMessage;
-
-    use harmos_protocol::model::Declarations;
-    use harmos_protocol::model::OperationContract;
-    use harmos_protocol::model::OperationPolicy;
-    use harmos_protocol::model::Visibility;
-    use prost::Message;
-
     // Independent Dotted Bindings Share One Typed Step Payload Family.
     let mut catalog = Declarations::default();
     for (id, seconds) in [("measurement.sample.step.0", 2), ("measurement.sample.step.1", 9)] {

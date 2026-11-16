@@ -698,6 +698,30 @@ SQLite catalog and compressed Arrow file backend remain product-owned in
 `crates/dokime-storage`; the library owns its interfaces, native operations,
 StorageManager/StateManager and query engine. Its in-memory backend is test support.
 
+The protocol crate mirrors the executor packages with `src/host/`, `src/model/`
+and `src/plugin/`. Generated wire packages remain private; those modules expose
+their complete contract surfaces. Hand-written expression/document construction,
+plot-kind validation and frozen-origin validation live with their model contracts.
+Plugin request validation lives with the owning executor resource and shares the
+model's frozen-origin check. `builders::Plot` is a separate authoring value because
+Prost generates enum and optional-field getters with the same names as its composition methods. It owns its
+message explicitly and converts into the generated plot without dereference
+forwarding. The Rust generator is a normal tooling library consumed by its CLI and the protocol drift
+test; tests do not import generator source through path overrides.
+SDK drift checks render into a disposable temporary directory and compare the
+complete owned output inventory by bytes, including obsolete files, without
+changing sources or consulting git status. Protocol generation alone owns cleanup
+of retired Rust wire packages.
+
+`dokime proto export` embeds the descriptor-selected Google import closure from
+the pinned compiler package alongside Dokime and Harmos sources, license texts,
+Buf configuration and the [protocol usage guide](protocol-export.md) as README.
+Release packaging verifies every import resolves inside that export before
+creating the self-contained contracts ZIP. The release staging operation in
+`tools/python/src/dokime_tools/release/staging.py` delegates archive closure
+validation to `release/contracts.py`; SDK resource renderers live under
+`tools/python/src/dokime_tools/build/resources/`.
+
 At the current pin, the product `execution.sqlite3` ledger still owns coupled
 execution, evidence, sample, seal and report transitions, while registered Harmos
 operations persist in `storage.sqlite3`. Their sequencing cannot be split by moving

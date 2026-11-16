@@ -39,7 +39,7 @@ service Effects {
   }
 }
 
-// === Create === //
+// === Requests and Responses === //
 
 // EffectsCreateRequest for Effects.Create.
 message EffectsCreateRequest {
@@ -58,8 +58,6 @@ message EffectsCreateResponse {
   .harmos.model.v1.Receipt receipt = 4;
 }
 
-// === Get === //
-
 // EffectsGetRequest for Effects.Get.
 message EffectsGetRequest {
   string name = 1;
@@ -72,8 +70,6 @@ message EffectsGetResponse {
   bytes revision = 2;
   .harmos.model.v1.Position resolved_at = 3;
 }
-
-// === Set === //
 
 // EffectsSetRequest for Effects.Set.
 message EffectsSetRequest {

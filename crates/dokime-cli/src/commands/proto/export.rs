@@ -21,6 +21,7 @@ use std::{fs, path::PathBuf};
 // Third Party Imports
 
 // Local Imports
+use dokime_protocol::{EXPORT_FILES, SOURCES};
 
 /* === Constants === */
 
@@ -45,7 +46,7 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) fn run(args: Args) -> crate::Result<()> {
-    for (relative, source) in dokime_protocol::SOURCES {
+    for (relative, source) in SOURCES.iter().chain(EXPORT_FILES) {
         let path = args.out.join(relative);
         fs::create_dir_all(path.parent().unwrap())?;
         fs::write(path, source)?;

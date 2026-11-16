@@ -47,7 +47,7 @@ service Documents {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // DocumentsGetRequest for Documents.Get.
 message DocumentsGetRequest {
@@ -69,8 +69,6 @@ message DocumentsGetResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
 
-// === Watch === //
-
 // DocumentsWatchRequest for Documents.Watch.
 message DocumentsWatchRequest {
   .dokime.host.v1.DocumentScope scope = 1;
@@ -91,8 +89,6 @@ message DocumentsWatchResponse {
   bool opening = 91;
   .harmos.model.v1.Failure resync_required = 92;
 }
-
-// === AppendParts === //
 
 // DocumentsAppendPartsRequest for Documents.AppendParts.
 message DocumentsAppendPartsRequest {

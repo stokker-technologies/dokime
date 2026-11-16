@@ -36,7 +36,7 @@ service Evidence {
   }
 }
 
-// === Statistics === //
+// === Requests and Responses === //
 
 // EvidenceStatisticsRequest for Evidence.Statistics.
 // Clients supply scope; a plugin may omit it and may select only its own execution. The returned Statistics includes every former plugin statistic.
@@ -56,8 +56,6 @@ message EvidenceStatisticsResponse {
   .dokime.host.v1.Statistics statistics = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Archive === //
 
 // EvidenceArchiveRequest for Evidence.Archive.
 message EvidenceArchiveRequest {

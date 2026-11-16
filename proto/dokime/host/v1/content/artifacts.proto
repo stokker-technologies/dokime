@@ -47,7 +47,7 @@ service Artifacts {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // ArtifactsGetRequest for Artifacts.Get.
 message ArtifactsGetRequest {
@@ -61,8 +61,6 @@ message ArtifactsGetResponse {
   .harmos.model.v1.FileReference file = 2;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Create === //
 
 // ArtifactsCreateRequest for Artifacts.Create.
 // Clients supply scope; a plugin may omit it and is restricted to its own execution. Metadata is retained alongside the published file.
@@ -82,8 +80,6 @@ message ArtifactsCreateResponse {
   .harmos.model.v1.Receipt receipt = 2;
 }
 
-// === List === //
-
 // ArtifactsListRequest for Artifacts.List.
 message ArtifactsListRequest {
   .dokime.model.v1.ArtifactScope scope = 1;
@@ -97,8 +93,6 @@ message ArtifactsListResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
-
-// === Watch === //
 
 // ArtifactsWatchRequest for Artifacts.Watch.
 message ArtifactsWatchRequest {

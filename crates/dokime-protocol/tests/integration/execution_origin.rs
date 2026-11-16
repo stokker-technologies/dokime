@@ -19,7 +19,8 @@
 
 // Third Party Imports
 use prost::Message;
-use prost_reflect::ReflectMessage;
+use prost_reflect::{DynamicMessage, ReflectMessage};
+use prost_types::Timestamp;
 
 // Local Imports
 use dokime_protocol::model::Import;
@@ -76,7 +77,7 @@ fn frozen_plugin_case_survives_transport_and_rejects_another_case() {
         plugin: "thermal".into(),
         template: "thermal.cycle".into(),
         digest: vec![7; 32],
-        started_at: Some(prost_types::Timestamp { seconds: 1_700_000_000, nanos: 42 }),
+        started_at: Some(Timestamp { seconds: 1_700_000_000, nanos: 42 }),
     };
     let origin = Some(Origin {
         kind: Some(origin::Kind::PluginRun(run.clone())),
@@ -116,7 +117,7 @@ fn frozen_plugin_case_survives_transport_and_rejects_another_case() {
     assert_eq!(cleanup.validate_origin().unwrap(), &run);
 
     // Decode Using the Same Authoritative Descriptor as Host Registration.
-    let dynamic = prost_reflect::DynamicMessage::decode(step.descriptor(), step.encode_to_vec().as_slice()).unwrap();
+    let dynamic = DynamicMessage::decode(step.descriptor(), step.encode_to_vec().as_slice()).unwrap();
     assert_eq!(dynamic.transcode_to::<StepsExecuteRequest>().unwrap(), step);
 
     // Refuse a Changed Case and Incomplete Identity Before Calling the Plugin.
@@ -173,7 +174,7 @@ fn import_provenance_round_trips_without_a_plugin_and_cannot_drive_one() {
         importer: "Measurement Script".into(),
         sdk_version: "0.1.5".into(),
         processing: "Calibrated source readings".into(),
-        imported_at: Some(prost_types::Timestamp { seconds: 1_700_000_001, nanos: 1 }),
+        imported_at: Some(Timestamp { seconds: 1_700_000_001, nanos: 1 }),
         key: "run42".into(),
         predecessor: String::new(),
     };

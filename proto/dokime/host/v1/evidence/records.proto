@@ -44,7 +44,7 @@ service Records {
   }
 }
 
-// === List === //
+// === Requests and Responses === //
 
 // RecordsListRequest for Records.List.
 // Clients supply scope; a plugin may omit it and may select only its own execution. record_type replaces the former kind selector.
@@ -72,8 +72,6 @@ message RecordsListResponse {
   .dokime.host.v1.evidence.CapturedRecord last = 5;
 }
 
-// === Watch === //
-
 // RecordsWatchRequest for Records.Watch.
 message RecordsWatchRequest {
   .dokime.host.v1.evidence.RecordScope scope = 1;
@@ -94,8 +92,6 @@ message RecordsWatchResponse {
   bool opening = 91;
   .harmos.model.v1.Failure resync_required = 92;
 }
-
-// === Append === //
 
 // RecordsAppendRequest for Records.Append.
 message RecordsAppendRequest {

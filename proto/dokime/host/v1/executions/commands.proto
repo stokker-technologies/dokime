@@ -35,7 +35,7 @@ service Commands {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // CommandsGetRequest for Commands.Get.
 message CommandsGetRequest {
@@ -49,8 +49,6 @@ message CommandsGetResponse {
   .dokime.host.v1.executions.ExecutionCommandReceipt command = 1;
   .harmos.model.v1.Position resolved_at = 90;
 }
-
-// === Create === //
 
 // CommandsCreateRequest for Commands.Create.
 message CommandsCreateRequest {

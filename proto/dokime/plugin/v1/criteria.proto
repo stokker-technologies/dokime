@@ -23,7 +23,7 @@ service Criteria {
   rpc Evaluate(.dokime.plugin.v1.CriteriaEvaluateRequest) returns (.dokime.plugin.v1.CriteriaEvaluateResponse) {}
 }
 
-// === Evaluate === //
+// === Requests and Responses === //
 
 // CriteriaEvaluateRequest for Criteria.Evaluate.
 message CriteriaEvaluateRequest {

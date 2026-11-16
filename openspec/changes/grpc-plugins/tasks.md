@@ -130,6 +130,19 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 
 ## 2. Protocol
 
+- [x] Merge current dev removals into the protocol convention branch and regenerate remaining contracts without restoring plugin analysis APIs.
+- [x] Merge the dev tooling module split into the protocol convention branch, retain temporary-inventory drift checks and complete contracts archives in their new owners, and regenerate tracked output.
+- [x] Prove the tooling-layout merge on Windows: format, clean lint, product build, nine protocol tests, all five generated-language checks, clean-tree non-mutating drift and 22 targeted protocol/release tooling integration tests pass. Native Linux and hosted proof remain with integration.
+- [x] Generate SDK drift candidates in disposable temporary storage and compare the complete output inventory without modifying sources; cover clean, changed, missing and obsolete outputs.
+- [x] Export and archive the full Google import closure, licenses and protoc/Buf README; refuse unresolved imports during packaging.
+- [x] Validate the merged protocol candidate on Windows: format, clean lint, workspace build, nine protocol tests, two SDK builder tests, 50 targeted tooling tests, all five generated-language checks, clean-tree non-mutating drift and extracted-archive protoc/Buf compilation. Native Linux and hosted proof remain with integration.
+
+- [x] Refactor the protocol helpers and owned SDK generators to the company conventions, mirror executor/model responsibilities, normalize product proto sections, remove handwritten import aliases and path overrides, and regenerate tracked outputs. Keep the plot authoring value required by generated getter names, with explicit message access instead of dereference forwarding.
+- [x] Validate the protocol convention refactor on Windows: eight protocol tests,
+  two SDK generator tests, all five generated SDK compiler surfaces, deterministic
+  regeneration, workspace compilation/build, formatting and lint. Native Linux and
+  hosted proof remain with integration.
+
 - [x] 2.1 Define and check in `dokime.v1` host operations, `TestCase`, `Step`, `Criterion` and `Statistics`; generate the protocol crate.
 - [x] 2.1.1 Reproduce the hosted Windows interruption timeout five times by exact name; all five pass. Examined terminal-query servicing, batch acknowledgement, held mutation replies, admission watches and the frozen-origin commit; no cleanup regression or permanently unsent event was established.
 - [ ] 2.2 Add the host operations plugins need that exist only as evidence-page fields today: progress, log, traceability, document parts, record reads and statistics.

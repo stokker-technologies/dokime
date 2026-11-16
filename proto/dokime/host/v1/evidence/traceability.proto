@@ -43,7 +43,7 @@ service Traceability {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // TraceabilityGetRequest for Traceability.Get.
 // Clients supply scope. For a plugin, omitted scope resolves to its execution; an entry selects its independently revisioned value as well as the scoped snapshots.
@@ -65,8 +65,6 @@ message TraceabilityGetResponse {
   bytes revision = 5;
 }
 
-// === Watch === //
-
 // TraceabilityWatchRequest for Traceability.Watch.
 message TraceabilityWatchRequest {
   .dokime.model.v1.EvidenceScope scope = 1;
@@ -80,8 +78,6 @@ message TraceabilityWatchResponse {
   .harmos.model.v1.ReadCut resolved_at = 2;
   bool opening = 3;
 }
-
-// === Set === //
 
 // TraceabilitySetRequest for Traceability.Set.
 message TraceabilitySetRequest {

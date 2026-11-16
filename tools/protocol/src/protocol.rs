@@ -167,12 +167,27 @@ pub fn generate(root: &Path, output: &Path) -> Result<(), Box<dyn std::error::Er
             }
         }
     }
+    // Embed the Complete Imported Google Source Closure From the Pinned Compiler.
+    for file in pool.files().filter(|file| file.name().starts_with("google/")) {
+        let source = fs::read_to_string(includes.join(file.name()))?.replace("\r\n", "\n");
+        sources.push((file.name().to_owned(), source));
+    }
     sources.sort();
     let mut embedded = String::from("// @generated from authoritative protobuf sources.\npub const SOURCES: &[(&str, &str)] = &[\n");
     for (relative, source) in sources {
         embedded.push_str(&format!("    ({relative:?}, {source:?}),\n"));
     }
     embedded.push_str("];\n");
+    embedded.push_str("pub const EXPORT_FILES: &[(&str, &str)] = &[\n");
+    for (relative, path) in [
+        ("README.md", "docs/protocol-export.md"),
+        ("licenses/Apache-2.0.txt", "LICENSE"),
+        ("licenses/Protobuf.txt", "tools/protocol/protobuf.LICENSE"),
+    ] {
+        let source = fs::read_to_string(root.join(path))?.replace("\r\n", "\n");
+        embedded.push_str(&format!("    ({relative:?}, {source:?}),\n"));
+    }
+    embedded.push_str("    (\"buf.yaml\", \"version: v2\\nmodules:\\n  - path: .\\n\"),\n];\n");
     fs::write(output.join("sources.rs"), embedded)?;
     Ok(())
 }

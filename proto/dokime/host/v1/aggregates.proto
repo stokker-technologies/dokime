@@ -31,7 +31,7 @@ service Aggregates {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // AggregatesGetRequest for Aggregates.Get.
 message AggregatesGetRequest {

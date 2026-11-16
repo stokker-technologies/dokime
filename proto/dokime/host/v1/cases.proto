@@ -55,7 +55,7 @@ service Cases {
   }
 }
 
-// === Create === //
+// === Requests and Responses === //
 
 // CasesCreateRequest for Cases.Create.
 message CasesCreateRequest {
@@ -70,8 +70,6 @@ message CasesCreateResponse {
   .harmos.model.v1.Receipt receipt = 2;
 }
 
-// === Get === //
-
 // CasesGetRequest for Cases.Get.
 message CasesGetRequest {
   string name = 1;
@@ -85,8 +83,6 @@ message CasesGetResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
 
-// === List === //
-
 // CasesListRequest for Cases.List.
 message CasesListRequest {
   string parent = 1;
@@ -98,8 +94,6 @@ message CasesListResponse {
   repeated .dokime.host.v1.CaseSummary cases = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Watch === //
 
 // CasesWatchRequest for Cases.Watch.
 message CasesWatchRequest {
@@ -115,8 +109,6 @@ message CasesWatchResponse {
   .harmos.model.v1.Failure resync_required = 92;
 }
 
-// === Delete === //
-
 // CasesDeleteRequest for Cases.Delete.
 message CasesDeleteRequest {
   string name = 1;
@@ -128,8 +120,6 @@ message CasesDeleteRequest {
 message CasesDeleteResponse {
   .harmos.model.v1.Receipt receipt = 1;
 }
-
-// === Parameters === //
 
 // CasesParametersRequest for Cases.Parameters.
 message CasesParametersRequest {
