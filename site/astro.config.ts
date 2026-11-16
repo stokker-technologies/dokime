@@ -1,0 +1,46 @@
+// Dokime — SPDX-License-Identifier: Apache-2.0
+// One Documentation Entry: the Guides and References of One Source, Served Under /<entry>/.
+
+import { fileURLToPath } from "node:url";
+import { unified } from "@astrojs/markdown-remark";
+import starlight from "@astrojs/starlight";
+import { defineConfig } from "astro/config";
+import { remarkGuides } from "./src/guides";
+
+// The Docs Task Selects the Entry and Source Revision; Direct Runs Preview the Development Entry.
+const root = fileURLToPath(new URL("..", import.meta.url));
+const entry = process.env.DOCS_ENTRY ?? "dev";
+const base = `/${entry}/`;
+const source = process.env.DOCS_SOURCE ?? "https://github.com/stokker-technologies/dokime/blob/dev/";
+
+export default defineConfig({
+  base,
+  outDir: `../target/docs/${entry}`,
+  markdown: {
+    processor: unified({ remarkPlugins: [remarkGuides({ root, base, source })] }),
+  },
+  integrations: [
+    starlight({
+      title: "Dokime",
+      logo: {
+        light: "../organization/logos/transparent-on-light.svg",
+        dark: "../organization/logos/transparent-on-dark.svg",
+        replacesTitle: false,
+      },
+      customCss: ["./src/theme.css"],
+      components: { ThemeSelect: "./src/components/ReleaseSelect.astro" },
+      social: [{ icon: "github", label: "Source", href: "https://github.com/stokker-technologies/dokime" }],
+      sidebar: [
+        { label: "Start", items: ["index", "deployment", "support"] },
+        {
+          label: "Guides",
+          items: ["gui", "execution-host", "plugins", "plugin-security", "plugin-obc", "query-api", "screenshots/readme"],
+        },
+        { label: "SDKs", items: ["rust-sdk", "sdk-python", "sdk-csharp", "sdk-cpp"] },
+        { label: "Remote Access", items: [{ autogenerate: { directory: "remote" } }] },
+        { label: "Operations Reference", items: [{ autogenerate: { directory: "reference/operations" } }] },
+        { label: "Project", items: ["architecture", "tooling", "compliance", "privacy", "contributing", "security"] },
+      ],
+    }),
+  ],
+});

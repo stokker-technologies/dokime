@@ -17,11 +17,11 @@ python = "../../.venv"
 
 [tool.ty.src]
 include = ["src"]
-exclude = ["src/dokime_tools/docs", "src/dokime_tools/release", "src/dokime_tools/test"]
+exclude = ["src/dokime_tools/release", "src/dokime_tools/test"]
 
 [tool.uv]
 system-certs = true
 
 [tool.ruff]
 # Dokime owns these runners; release and test orchestration have dedicated task proof.
-extend-exclude = ["src/dokime_tools/docs", "src/dokime_tools/release", "src/dokime_tools/test"]
+extend-exclude = ["src/dokime_tools/release", "src/dokime_tools/test"]

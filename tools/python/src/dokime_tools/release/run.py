@@ -54,6 +54,8 @@ STATE = "published.json"
 # Staged downloads live under <target>/; SHA256SUMS and the publication state span targets and live under any/.
 ASSETS = "target/release-assets"
 SHARED = "any"
+# The Documentation Build Packs One Entry Here; Staging Names It Per Channel.
+DOCUMENTATION = "target/docs/dokime-docs.zip"
 # Both Registry Identities Belong To The Protected Native Release Workflow.
 RELEASE_WORKFLOW = "release.yml"
 # Verbs Whose Registry Prerequisites Depend On The Channel; RELEASE_CHANNEL Carries It Through Task Chains.
@@ -264,6 +266,9 @@ def stage(
                 destination = sbom.artifact(directory, source, source.parent, inventories)
                 archive.write(destination, "artifacts/" + destination.name)
     files.append(_describe(root, compliance))
+    documentation = _documentation(directory, root, tag, channel, required=channel == "stable" and signed)
+    if documentation is not None:
+        files.append(_describe(root, documentation))
     if channel == "nightly":
         for destination in reports.stage(directory, shared, tag[1:]):
             files.append(_describe(root, destination))
@@ -841,6 +846,29 @@ def _bytes(root: Path, item: dict) -> bytes:
     if hashlib.sha256(data).hexdigest() != item["sha256"]:
         raise policy.ToolError(f"staged release bytes changed: {item['name']}")
     return data
+
+
+def _documentation(directory: Path, root: Path, tag: str, channel: str, *, required: bool) -> Path | None:
+    """Stage The Built Documentation Archive Of Exactly This Source; Stable Publication Requires It."""
+    source = policy.inside(directory, DOCUMENTATION)
+    if not source.is_file() or source.is_symlink():
+        if required:
+            raise policy.ToolError(
+                f"Publish Release: The Documentation Archive Is Required; Build It With mise run docs:build -- --release --archive ({DOCUMENTATION})"
+            )
+        return None
+    with zipfile.ZipFile(source) as archive:
+        stamp = json.loads(archive.read("docs.json"))
+    major, minor, _ = tag[1:].split(".")
+    entry = "dev" if channel == "nightly" else f"{major}.{minor}"
+    if stamp.get("entry") != entry or (channel != "nightly" and stamp.get("version") != tag[1:]):
+        raise policy.ToolError(
+            f"Stage Documentation: Archive Holds Entry {stamp.get('entry')} {stamp.get('version')}, Expected {entry} {tag[1:]}; "
+            f"Rebuild It With mise run docs:build -- {'' if channel == 'nightly' else '--release '}--archive"
+        )
+    destination = root / SHARED / f"dokime-docs-{'nightly' if channel == 'nightly' else tag[1:]}.zip"
+    shutil.copyfile(source, destination)
+    return destination
 
 
 def _describe(root: Path, path: Path) -> dict:

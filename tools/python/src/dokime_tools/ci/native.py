@@ -385,7 +385,10 @@ def default_caches(workspace, environment):
         "cargo_downloads": {"path": ".cache/cargo/registry/\n.cache/cargo/git/", "key": f"ci-v6-cargo-{platform}-" + digest("Cargo.lock")},
         "mise": {"path": "<MISE_DATA_DIR>", "key": f"ci-v6-mise-{platform}-{tools}-<RUNNER_IMAGE_ID>-<MISE_ROOT_ID>-<WORKSPACE_ROOT_ID>"},
         "uv": {"path": ".cache/uv/", "key": f"ci-v6-uv-{platform}-{tools}-" + digest("uv.lock")},
-        "pnpm": {"path": ".cache/pnpm/", "key": f"ci-v6-pnpm-{platform}-{tools}-" + digest("crates/dokime-gui/pnpm-lock.yaml")},
+        "pnpm": {
+            "path": ".cache/pnpm/",
+            "key": f"ci-v6-pnpm-{platform}-{tools}-" + digest("crates/dokime-gui/pnpm-lock.yaml", "site/pnpm-lock.yaml"),
+        },
     }
     if environment.get("COMPILER_CACHE_BACKEND") == "disk":
         profile = environment.get("CI_CACHE_PROFILE") or environment.get("PROFILE", "dev")

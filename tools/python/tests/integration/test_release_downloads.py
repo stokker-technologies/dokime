@@ -55,6 +55,8 @@ EXPECTED = {
     "dokime_sdk-0.1.3-py3-none-any.whl": ("sdk-python", "any", "any", "whl"),
     "dokime_sdk-0.1.3.tar.gz": ("sdk-python", "any", "any", "tar.gz"),
     "dokime-compliance-0.1.3.zip": ("compliance", "any", "any", "zip"),
+    "dokime-docs-0.1.3.zip": ("docs", "any", "any", "zip"),
+    "dokime-docs-nightly.zip": ("docs", "any", "any", "zip"),
     "dokime-proto-0.1.3.zip": ("proto", "any", "any", "zip"),
     "dokime-reports-0.1.3.zip": ("reports", "any", "any", "zip"),
     "unexpected.bin": ("other", "any", "any", "bin"),
@@ -238,6 +240,12 @@ class StageTests(unittest.TestCase):
                 python.mkdir(parents=True)
                 for name in ("dokime_sdk-0.1.3-py3-none-any.whl", "dokime_sdk-0.1.3.tar.gz"):
                     (python / name).write_bytes(b"packaged Python")
+                documentation = root / run.DOCUMENTATION
+                documentation.parent.mkdir(parents=True)
+                with zipfile.ZipFile(documentation, "w") as archive:
+                    entry = "0.1" if channel == "stable" else "dev"
+                    archive.writestr("docs.json", json.dumps({"entry": entry, "version": "0.1.3", "revision": "a" * 40}))
+                    archive.writestr("index.html", "<!doctype html>")
                 shell_inventory = root / "target/release-assets/any/dokime-shell.cdx.json"
 
                 def artifact(_, source, output, inventories):
@@ -309,7 +317,9 @@ class StageTests(unittest.TestCase):
                     "SHA256SUMS",
                 }
                 if channel == "nightly":
-                    expected.update({"dokime-reports-0.1.3.zip", "benchmarks.json"})
+                    expected.update({"dokime-reports-0.1.3.zip", "benchmarks.json", "dokime-docs-nightly.zip"})
+                else:
+                    expected.add("dokime-docs-0.1.3.zip")
                 self.assertEqual({item["name"] for item in files}, expected)
                 document = json.loads((staged / run.SHARED / run.INDEX).read_text())
                 self.assertEqual(document["platforms"], feed["platforms"])
@@ -350,6 +360,23 @@ class PythonPackagingTests(unittest.TestCase):
             member.size = len(proto.read_bytes())
             archive.addfile(member, io.BytesIO(proto.read_bytes()))
         return output
+
+    def test_stable_publication_requires_the_documentation_of_its_release_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shared = root / run.ASSETS / run.SHARED
+            shared.mkdir(parents=True)
+            self.assertIsNone(run._documentation(root, root / run.ASSETS, "v0.2.4", "stable", required=False))
+            with self.assertRaises(policy.ToolError):
+                run._documentation(root, root / run.ASSETS, "v0.2.4", "stable", required=True)
+            archive = root / run.DOCUMENTATION
+            archive.parent.mkdir(parents=True)
+            for entry, version, channel in (("dev", "0.2.4", "stable"), ("0.2", "0.2.3", "stable"), ("0.2", "0.2.4", "nightly")):
+                with self.subTest(entry=entry, version=version, channel=channel):
+                    with zipfile.ZipFile(archive, "w") as source:
+                        source.writestr("docs.json", json.dumps({"entry": entry, "version": version}))
+                    with self.assertRaises(policy.ToolError):
+                        run._documentation(root, root / run.ASSETS, "v0.2.4", channel, required=True)
 
     def test_package_copies_shared_pair_without_rebuilding(self):
         with tempfile.TemporaryDirectory() as temporary:
