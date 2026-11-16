@@ -704,7 +704,7 @@ Product builds, fixtures, native stories and both WebView lanes include it.
 
 ## Final Library Definition Contract
 
-The definitions pin Harmos at `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`.
+The definitions pin Harmos at `7fe385eacbe9a4c9a47943f6a528f97a014256ee`.
 
 ```text
 proto/dokime/
@@ -786,7 +786,7 @@ carried by the merge and are not consumer work to reimplement.
 The first column is the pre-pin wire identity or hand-bound context identity.
 Library composition rows name the library operation directly, without forwarding.
 The complete library identity/type mapping is in the pinned
-[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/640c73959d2a5ee65015afc617c0f3f2b4ca9f6c/docs/architecture.md).
+[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/7fe385eacbe9a4c9a47943f6a528f97a014256ee/docs/architecture.md).
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |
