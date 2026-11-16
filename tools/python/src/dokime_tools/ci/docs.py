@@ -38,12 +38,15 @@ from .. import policy
 
 
 def check(root: Path) -> None:
+    readme = root / "README.md"
+    if not readme.is_file():
+        raise FileNotFoundError("Check Guide Public Surfaces: Restore README.md")
     wire = re.compile(r"\b_wire\b|\w+_wire\b|\b(?:Harmos|Dokime)\.Internal\b|\b(?:[A-Za-z_]\w*(?:\.|::))+v\d+\b|[/\\]v\d+[/\\]")
     grpc_path = re.compile(r"/?[a-zA-Z_]\w*(?:\.\w+)*\.v\d+(?:\.\w+)*/[A-Za-z_]\w*")
-    candidates = [root / "README.md", *sorted((root / "docs").glob("*.md"))]
+    candidates = [readme, *sorted((root / "docs").glob("*.md"))]
     findings = []
     for path in candidates:
-        if not path.is_file() or path.relative_to(root).as_posix() in {"docs/architecture.md", "docs/execution-host.md"}:
+        if path.relative_to(root).as_posix() in {"docs/architecture.md", "docs/execution-host.md"}:
             continue
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             line = grpc_path.sub("", line)

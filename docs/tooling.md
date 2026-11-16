@@ -169,7 +169,8 @@ mise run build -- --artifact tests
 
 Host fixture production builds the Rust reference, pinned library conformance host,
 content fixture, product host and pure Python wheel;
-C# and C++ producers use their SDK tasks. `build:host-fixtures --language
+The Tests archive selects Rust and Python explicitly, independent of installed
+tool detection. C# and C++ producers run independently through their SDK tasks. `build:host-fixtures --language
 rust|python|csharp|cpp` selects one producer. C++ uses `target/cp/` with short
 generated and object paths on Windows. Its CMake 4.2 pin supports Visual Studio 18
 and uses Ninja with the native MSVC environment. Cached dependency builds resolve code

@@ -119,6 +119,21 @@ class ImpactTests(unittest.TestCase):
         for paths in (None, [], ["../outside"], ["/absolute"], ["crates\\runtime\\lib.rs"]):
             self.assertEqual(impact.classify(paths), frozenset({"all"}))
 
+    def test_event_metadata_selects_full_release_and_safe_fallback(self) -> None:
+        cases = (
+            ("push", {}, "push"),
+            ("workflow_dispatch", {}, "full"),
+            ("pull_request", {}, "review"),
+            ("pull_request", {"pull_request": None}, "review"),
+            ("pull_request", {"pull_request": {"head": None}}, "review"),
+            ("pull_request", {"pull_request": {"draft": True}}, "draft"),
+            ("pull_request", {"pull_request": {"head": {"ref": "release/v1.2.3"}}}, "release"),
+            ("pull_request", {"action": "closed", "pull_request": {"draft": True}}, "closed"),
+        )
+        for name, event, expected in cases:
+            with self.subTest(name=name, event=event):
+                self.assertEqual(impact._event(name, event), expected)
+
     def test_matrices_keep_platforms_and_each_artifact_producer(self) -> None:
         fixtures = impact.plan(impact.classify(["sdk/rust/tests/fixtures/capture.rs"]), "review")
         self.assertEqual({row["language"] for row in fixtures["test_matrix"]["include"]}, {"rust", "python", "typescript", "csharp", "cpp"})

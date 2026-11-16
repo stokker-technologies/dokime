@@ -45,11 +45,11 @@
 ## CI Impact and Task Audit
 
 - [x] Add pure path classification and event planning with complete Git comparisons, rename/deletion handling, safe fallback, consumer/producer closure and planned-skip outputs.
-- [x] Route CI checks and stories through planner matrices; isolate documentation proof; keep dev free of test archives/fixtures and Nightly/release validation complete.
+- [x] Route CI checks and stories through planner matrices; isolate documentation proof; select core Rust/Python fixtures explicitly, keep dev free of test archives/fixtures and Nightly/release validation complete.
 - [x] Require planner success and complete job results; reject missing, failed, cancelled and unexpectedly skipped proof.
 - [x] Move the expected lane inventory to project testing policy; normalize SDK/example task visibility and naming, and migrate every caller.
 - [x] Move recurring prerequisite, artifact transport, signing/distribution and summary operations behind hidden CI tasks; retain the necessary pre-mise bootstrap.
 - [x] Add deterministic classifier, diff, event, artifact closure, Required, guide and moved-operation tests; update maintained task and tooling contracts.
 - [x] Preserve the C++ formatter's pinned native dependency sidecar alongside its regenerated mise lock, so clean checkouts can resolve every public task.
-- [ ] Run the requested local format/lint, tooling stories, workflow lint and public help dry runs.
+- [x] Run the requested local format/lint, tooling stories, workflow lint and public help dry runs.
 - [ ] Verify both native platforms through authorized hosted CI and Nightly after integration; no push is authorized in this worktree.

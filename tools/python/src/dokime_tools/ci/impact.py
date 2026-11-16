@@ -273,9 +273,12 @@ def _event(name: str, event: Mapping[str, Any]) -> str:
         if event.get("action") == "closed":
             return "closed"
         pull = event.get("pull_request", {})
+        if not isinstance(pull, Mapping):
+            return "review"
         if pull.get("draft"):
             return "draft"
-        if pull.get("head", {}).get("ref", "").startswith("release/v"):
+        head = pull.get("head", {})
+        if isinstance(head, Mapping) and str(head.get("ref", "")).startswith("release/v"):
             return "release"
         return "review"
     return "full"

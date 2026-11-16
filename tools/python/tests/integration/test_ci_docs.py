@@ -41,6 +41,7 @@ class GuideTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         try:
             root = Path(temporary.name)
+            (root / "README.md").write_text("")
             (root / "docs").mkdir(parents=True)
             path = root / "docs/guide.md"
             for source, invalid in (
@@ -56,6 +57,9 @@ class GuideTests(unittest.TestCase):
                         docs.check(root)
                 else:
                     docs.check(root)
+            (root / "README.md").unlink()
+            with self.assertRaises(FileNotFoundError):
+                docs.check(root)
         finally:
             temporary.cleanup()
 

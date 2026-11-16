@@ -288,7 +288,8 @@ description = "Build Independent Test Archive"
 usage = 'flag "--profile <profile>" default="dev"; flag "--timings"'
 run = [
   "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}}{% if usage.timings %} --timings{% endif %}",
-  { task = "build:host-fixtures --profile {{usage.profile}}" },
+  { task = "build:host-fixtures --profile {{usage.profile}} --language rust" },
+  { task = "build:host-fixtures --profile {{usage.profile}} --language python" },
   { task = "build:cli-fixtures --profile {{usage.profile}}" },
   { task = "build:desktop-fixtures --profile {{usage.profile}}" },
 ]
