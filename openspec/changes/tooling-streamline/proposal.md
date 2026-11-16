@@ -1,7 +1,7 @@
 # Tooling Streamline
 
 Status: entry-point dispatch, project-owned tooling and workflow matrices are
-implemented. Superseded task leaves and native-SDK jobs remain to be removed. Independent of `grpc-plugins`, which removes the things
+implemented. Necessary hidden leaves remain; superseded aliases and unused wrappers are removed. Independent of `grpc-plugins`, which removes the things
 several tasks serve.
 
 ## Why
@@ -103,9 +103,15 @@ check:
   an independent module with its own copy. The copies are kept harmonized,
   with the same task names, arguments, module layout and behaviour, and a
   fix made in one is made in the other.
-- Impact planning is removed. Every pull request runs every job, and the
-  dependency graph kept in the workflow, a script and `tools/python` is
-  deleted.
+- The owner decision on 2026-11-16 restores impact planning through one hidden
+  `ci:impact` task. Pure `classify(paths)` and `plan(classes, event)` functions own
+  job selection and matrices; workflows route from those outputs. Markdown,
+  docs and OpenSpec changes select only documentation proof. Mixed changes union
+  selections, and consumers include all required artifact producers. Unknown or
+  incomplete comparisons run every event-eligible job. Required accepts success
+  or explicit planned skips and rejects planner failure, missing results,
+  cancellation, failures and unexpected skips. Dev has only quick checks and
+  product builds; Nightly and release validation remain complete.
 - The composite actions stay in each repository, reduced to the setup
   action. The duplication between products is accepted, since shared
   tooling no longer renders CI.
@@ -122,7 +128,8 @@ check:
 
 The entry-point interface in the table is the target. Current `mise.toml` still
 contains language/layer leaves and native Python wheel, binding and fixture
-paths. Delete superseded leaves after their consumers migrate; pure Python jobs
+paths. Delete superseded aliases after their consumers migrate; retain necessary leaves
+as hidden tasks, including recurring `ci:*` workflow operations; pure Python jobs
 replace native-SDK jobs with `grpc-plugins`. Focused Cargo selection accepts
 `--features`. CI setup provisions Python before native bootstrap and guards
 Windows APIs by platform. The installable `uv` pin is 0.13.7; no temporary

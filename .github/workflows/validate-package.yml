@@ -109,7 +109,7 @@ jobs:
           work: Rust
           command: package -- --language rust
           outputs: '[{"archive":"target/ci/package-{profile}-rust-{platform}.tar.zst","paths":["target/package/{profile}/{target}/rust"]}]'
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
+          bootstrap: '["mise run ci:prerequisites -- --gui-packages"]'
           language: rust
           inputs: 1,4
         - platform: windows

@@ -1738,7 +1738,7 @@ classification refused, code "-32604", action "Call". No product failure twin is
 
 `mise run check:generated` compiles the five permanent consumers independently of
 operations/runtime; `--language rust|python|csharp|cpp|typescript` selects one.
-Each SDK also exposes `test:generation`. These are compiler contracts, with content
+Use its `--language` argument to select one SDK. These are compiler contracts, with content
 calls through the public client and plugin barrels, not real-host behavior proof.
 C# excludes the authored FileTransfers.cs and writes under target/cs/generation;
 its two remaining errors (nullable deadline and ambiguous File) belong to the C#

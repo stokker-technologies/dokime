@@ -931,7 +931,7 @@ The new dispatcher speaks the published `harmos.v1` Plugin protocol directly,
 sets its ordinary Request.scope, and preserves it in child-operation resources;
 no private envelope, Harmos path override or runtime facade is needed.
 The first host story calls the unchanged SDK thermal executable built by its
-existing `sdk:build` task; the new host crates have no SDK product dependency.
+existing `build` task; the new host crates have no SDK product dependency.
 
 All Harmos git dependencies now adopt
 `de07fc54f38ece9fcd660af3146876aaf651fe3c`. The plugin wire contract is unchanged;

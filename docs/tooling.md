@@ -25,6 +25,11 @@ capture execution never samples the boundary counter's execution resources.
 
 ## Python Tooling
 
+The C++ formatter lock includes its native dependency payload under
+`sdk/cpp/.mise/locks/pipx-clang-format/21.1.8/`. Regenerate it with
+`mise -C sdk/cpp lock pipx:clang-format@21.1.8` and commit its `pyproject.toml`,
+`uv.lock` and the matching `mise.lock` together; other `.mise/` state stays ignored.
+
 The root uv workspace installs `tools/python` into the root `.venv/`. The
 `dokime_tools` package ships `py.typed`; Ruff and ty cover all its authored
 modules, including documentation generation, desktop development, release and
@@ -127,8 +132,7 @@ exports those defaults from their product owner before a full frontend build.
 
 The generated checks compile permanent consumers under each SDK's tests/generation
 (tests/Generation for C#) and the desktop tests/generation. Select one with
-`check:generated --language rust|python|csharp|cpp|typescript`, or use its SDK's
-`test:generation`. These compiler contracts require no product runtime or host fixtures.
+`mise run check:generated -- --language rust|python|csharp|cpp|typescript`. These compiler contracts require no product runtime or host fixtures.
 C# uses its own `target/cs/generation` output; its normal SDK build also compiles
 the authored file-transfer consumer. Generated Python obeys
 ordinary lint and typing; only protoc's private `_pb2*` files use the existing exclusion,
@@ -137,7 +141,9 @@ and the public barrels plus compiler consumer are checked explicitly.
 `prepare:locks` refreshes Cargo and uv locks after a dependency pin change. C# uses
 `restore --refresh-lock` explicitly, then ordinary `restore` and the generation story
 use locked mode. C++ records its source archive digest and vcpkg baseline as inputs.
-The repository check includes buf, callers, public surfaces and workflow lint. Its
+The repository check includes buf, callers, SDK public surfaces and workflow lint.
+The documentation job runs `ci:docs` for guide public surfaces, then builds the site
+and checks its local links and fragments without network requests. Its
 wire-name allow-list covers private generated directories, canonical
 gRPC paths, architecture and execution-host definition maps, and Markdown link targets.
 
@@ -146,7 +152,7 @@ gRPC paths, architecture and execution-host definition maps, and Markdown link t
 The Rust host-fixture producer stages the reference host and its Python
 conformance package from the same locked library checkout. Python system and
 coverage lanes consume that stamped package, without a machine-specific source
-path. The SDK entry point selects the matching prepared profile with
+path. The hidden SDK conformance selection selects the matching prepared profile with
 `mise -C sdk/python run conformance -- --profile release`.
 
 ```sh
@@ -154,7 +160,7 @@ mise run build:host-fixtures
 mise run build:cli-fixtures
 mise run test -- --package dokime-runtime --target system
 mise run test -- --package dokime-cli --target system
-mise -C sdk/rust run sdk:test
+mise -C sdk/rust run test
 mise -C sdk/python run test
 mise -C sdk/csharp run test
 mise -C sdk/cpp run test
@@ -635,6 +641,44 @@ evidence remain under `target/benchmarks/criterion/`; the task repair inventory
 also retains the focused-run observations.
 
 ## Hosted Validation
+
+`ci:impact` owns the pure path classifier and event planner in
+`tools/python/src/dokime_tools/ci/impact.py`. The check and test matrices live in
+`ci/matrices.py`; workflow routing uses only the planner's job outputs and matrices.
+Markdown files (including nested READMEs), `docs/`, `openspec/` and `site/` select
+only `Build / Documentation`, its guide surface check and deterministic local-link
+check. Mixed changes union selections. Language changes select their checks and
+stories plus downstream consumers and every required artifact producer. C# and
+C++ SDK checks and stories retain native Linux and Windows jobs; the C++ host
+equivalence story remains in Nightly.
+
+PR comparisons use merge-base to head; pushes use before to after. Complete
+NUL-delimited Git diffs include deletions and both rename sides. Unknown inputs,
+missing comparison commits, malformed or incomplete diffs select all jobs eligible
+for the event. Shared tooling, root locks/configuration, protocols, descriptors and
+workflow/action changes fan out across their dependent graph.
+
+Dev pushes select only quick checks and product builds, including Python and
+documentation products; they never produce test archives or host fixtures.
+Draft and closed reviews plan no validation jobs. Release reviews and manual full
+validation run the complete graph. Nightly requests the complete matrix without
+a diff and retains its freshness rule. `CI / Required` requires a successful planner,
+the complete declared job inventory, success for selected jobs and success or an
+explicitly planned skip for other jobs. Failed, cancelled, missing and unexpected
+skipped jobs fail Required.
+
+The public task list contains standard operations plus documentation and development
+entry points. Necessary selection leaves are hidden; redundant generation aliases
+and unused C++ wrappers are removed. SDK tests use `test -- --layer unit` for focused
+units, and starter `dev` tasks serve their examples. The expected lane inventory is
+`conventions.testing.expected_lanes` in `tools/project.toml`, independent of task names.
+`ci:bootstrap` runs declared native prerequisite tasks after mise installation and
+before project preparation. The initial pre-mise native bootstrap remains a direct
+file load because neither mise nor the installed tools package exists yet.
+`ci:send`, `ci:receive`, `ci:sign-select`, `ci:sign-package`, `ci:distribution` and
+`ci:summary` own recurring project operations used by provider steps. Tooling-only
+planning and Required preparation build no SDK or fixtures; documentation preparation
+adds only site dependencies.
 
 Pull requests and Nightly retain native Linux and Windows host/SDK validation.
 PR host fixtures select Rust/Python, and a separate PR lane builds the C# fixture

@@ -40,11 +40,15 @@ jobs:
       run: mise run ci:nightly-freshness --
       env:
         GH_TOKEN: ${{ github.token }}
+    - id: impact
+      run: mise run ci:impact -- --event nightly
     env:
       CI_TRANSPORT: 'true'
       MISE_ENABLE_TOOLS: python,uv,node,pnpm
     outputs:
       build: ${{ steps.freshness.outputs.build }}
+      check_matrix: ${{ steps.impact.outputs.check_matrix }}
+      test_matrix: ${{ steps.impact.outputs.test_matrix }}
     if: github.ref == 'refs/heads/dev'
   check:
     name: Check
@@ -52,6 +56,7 @@ jobs:
     with:
       channel: nightly
       profile: release
+      matrix: ${{ needs.freshness.outputs.check_matrix }}
     needs:
     - freshness
     if: needs.freshness.outputs.build == 'true'
@@ -110,10 +115,10 @@ jobs:
         include:
         - platform: unix
           runner: ubuntu-22.04
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
+          bootstrap: '["mise run ci:prerequisites -- --gui-runtime --desktop"]'
         - platform: windows
           runner: windows-latest
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
+          bootstrap: '["mise run ci:prerequisites -- --desktop"]'
     with:
       channel: nightly
       profile: release
@@ -135,7 +140,6 @@ jobs:
     - freshness
     if: needs.freshness.outputs.build == 'true'
   build_docs:
-    # Publication Never Waits for Documentation; the Report Attaches the Archive When It Builds.
     name: Build / Documentation
     uses: ./.github/workflows/validate-build-docs.yml
     with:
@@ -167,153 +171,14 @@ jobs:
       minutes: ${{ matrix.minutes }}
       suite: ${{ format('{0}', strategy.job-index) }}
     needs:
+    - freshness
     - build_product
     - build_tests
     - build_python
     strategy:
       fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Desktop / Execution
-          command: test -- --language typescript --layer system --select native-desktop
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Desktop / Connections
-          command: test -- --language typescript --layer system --select two-gui-remote
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Rust / Acceptance
-          command: test -- --language rust --layer acceptance
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Desktop / Execution
-          command: test -- --language typescript --layer system --select native-desktop
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Desktop / Connections
-          command: test -- --language typescript --layer system --select two-gui-remote
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / Acceptance
-          command: test -- --language rust --layer acceptance
-          bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: TypeScript / Unit
-          command: test -- --language typescript --layer unit
-          bootstrap: '[]'
-          archives: '["target/ci/build-clients-{profile}-unix.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Python / Integration
-          command: test -- --language python --layer integration
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --credential-store"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Python / Integration
-          command: test -- --language python --layer integration
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: TypeScript / Integration
-          command: test -- --language typescript --layer integration
-          bootstrap: '[]'
-          archives: '["target/ci/build-clients-{profile}-unix.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Python / Wheel
-          command: test -- --language python --wheel
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --credential-store"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Python / Wheel
-          command: test -- --language python --wheel
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Python / System
-          command: test -- --language python --layer system
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --credential-store"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Python / System
-          command: test -- --language python --layer system
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / Integration
-          command: test -- --language rust --layer integration
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / Integration
-          command: test -- --language rust --layer integration
-          bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / System
-          command: test -- --language rust --layer system --select "not package(dokime-runtime)"
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / System
-          command: test -- --language rust --layer system --select "not package(dokime-runtime)"
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / Unit
-          command: test -- --language rust --layer unit
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / Unit
-          command: test -- --language rust --layer unit
-          bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+      matrix: ${{ fromJSON(needs.freshness.outputs.test_matrix) }}
+    if: needs.freshness.outputs.build == 'true'
   test_host:
     name: Test / Execution Host
     uses: ./.github/workflows/validate-test.yml
@@ -336,7 +201,7 @@ jobs:
       work: Rust / System / Execution Host
       command: test -- --artifact tests --package dokime-runtime --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence)
         or test(cpp_plugin_matches_rust_thermal_evidence))"
-      bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
+      bootstrap: ${{ matrix.platform == 'unix' && '["mise run ci:prerequisites -- --gui-runtime"]' || '[]' }}
       archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-product-python-{profile}-any.tar.zst"]'
       minutes: 120
       suite: execution-host
@@ -362,7 +227,7 @@ jobs:
       work: Rust / System / Execution Host / SDK Equivalence
       command: test -- --artifact tests --package dokime-runtime --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)
         or test(cpp_plugin_matches_rust_thermal_evidence)"
-      bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
+      bootstrap: ${{ matrix.platform == 'unix' && '["mise run ci:prerequisites -- --gui-runtime"]' || '[]' }}
       archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-csharp-{profile}-{platform}.tar.zst", "target/ci/build-host-cpp-{profile}-{platform}.tar.zst"]'
       minutes: 120
       suite: execution-host-sdks
@@ -470,14 +335,14 @@ jobs:
           minutes: 120
           work: Python / Coverage
           command: test -- --language python --coverage
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
+          bootstrap: '["mise run ci:prerequisites -- --gui-runtime"]'
           inputs: 0,1,2,3
         - platform: unix
           runner: ubuntu-latest
           minutes: 120
           work: Rust / Coverage
           command: test -- --language rust --coverage
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
+          bootstrap: '["mise run ci:prerequisites -- --gui-packages"]'
           inputs: 0,1,2,3,4,5,6
   package:
     name: Package

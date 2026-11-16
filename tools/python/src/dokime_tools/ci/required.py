@@ -14,6 +14,8 @@
 # Standard Library Imports
 import json
 import os
+from collections.abc import Mapping
+from typing import Any
 
 # isort: split
 
@@ -22,6 +24,7 @@ import os
 # isort: split
 
 # Local Imports
+from .impact import JOBS
 
 # Type Checking Imports
 
@@ -36,19 +39,43 @@ import os
 # === Public Functions === #
 
 
+def failures(results: Mapping[str, Any]) -> list[str]:
+    """Accept Success or an Explicit Planned Skip; Require the Complete Job Inventory."""
+    planner = results.get("impact", {})
+    if planner.get("result") != "success":
+        return ["impact"]
+    try:
+        outputs = planner["outputs"]
+        selected = json.loads(outputs["selected"])
+        skipped = json.loads(outputs["skipped"])
+        valid = (
+            isinstance(selected, list)
+            and isinstance(skipped, list)
+            and all(isinstance(job, str) for job in [*selected, *skipped])
+            and len(selected) == len(set(selected))
+            and len(skipped) == len(set(skipped))
+            and not set(selected) & set(skipped)
+            and set(selected) | set(skipped) == set(JOBS)
+        )
+    except (KeyError, TypeError, ValueError):
+        return ["impact"]
+    if not valid:
+        return ["impact"]
+    failed = []
+    for name in JOBS:
+        result = results.get(name, {}).get("result")
+        if result == "success" or result == "skipped" and name in skipped:
+            continue
+        failed.append(name)
+    failed.extend(name for name in results if name not in {*JOBS, "impact"})
+    return failed
+
+
 def run() -> None:
     results = json.loads(os.environ["RESULTS"])
-    allowed_skips = set(json.loads(os.environ.get("OPTIONAL_JOBS", "[]")))
-    failed = []
-    for failed_name, failed_job in results.items():
-        if failed_job["result"] == "success":
-            continue
-        if failed_name in allowed_skips and failed_job["result"] == "skipped":
-            continue
-        failed.append(failed_name)
-
+    failed = failures(results)
     if failed:
-        raise ValueError("required CI jobs failed or skipped: " + ", ".join(failed))
+        raise ValueError("Complete Required CI Jobs: Repair or Rerun Failed, Missing or Unexpectedly Skipped Jobs: " + ", ".join(failed))
 
 
 # === Private Functions === #

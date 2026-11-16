@@ -14,7 +14,6 @@
 # Standard Library Imports
 import argparse
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -59,7 +58,6 @@ def main() -> None:
                 creationflags=spawn_flags(),
             )
         elif language == "python":
-            environment = dict(os.environ, PYTHONPATH=str(root / "sdk/python/src"))
             subprocess.run(
                 [
                     "uv",
@@ -72,7 +70,6 @@ def main() -> None:
                     "import runpy; runpy.run_path('sdk/python/tests/generation/test_surface.py')",
                 ],
                 cwd=root,
-                env=environment,
                 check=True,
                 stdin=sys.stdin,
                 stdout=sys.stdout,
@@ -124,7 +121,7 @@ def main() -> None:
             )
         elif language == "csharp":
             subprocess.run(
-                ["mise", "-C", "sdk/csharp", "run", "test:generation"],
+                ["mise", "-C", "sdk/csharp", "run", "check:generated"],
                 cwd=root,
                 check=True,
                 stdin=sys.stdin,

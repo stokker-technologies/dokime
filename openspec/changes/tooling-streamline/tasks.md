@@ -10,7 +10,7 @@
 - [x] 2.1 Expose language/layer dispatch through the entry points in `proposal.md`.
 - [x] 2.2 Merge generation into `generate` and route organization/report preparation through build and package paths.
 - [x] 2.3 Remove every `CARGO_INCREMENTAL` setting from `mise.toml` and tooling and set it once in the workflows.
-- [ ] 2.4 Delete superseded language/layer task leaves and migrate their callers; retain only the agreed public entry points and necessary workflow transport operations.
+- [x] 2.4 Fold or hide selection leaves, delete superseded generation aliases and unused C++ wrappers, and migrate executable and documented callers; retain conventional public entry points and necessary hidden operations under the owner decision of 2026-11-16.
 - [ ] 2.5 Remove PyO3 wheel, binding and native fixture tasks and jobs when the pure Python SDK lands; replace them with pure-package proof, coordinated with `grpc-plugins` 4.3 and 5.3.
 
 ## 3. Tooling
@@ -41,3 +41,15 @@
 - [x] Record the Windows development-build trials from 2026-11-12.
 - [x] Preserve the trial method and limits.
 - [x] Preserve concurrency/cache observations.
+
+## CI Impact and Task Audit
+
+- [x] Add pure path classification and event planning with complete Git comparisons, rename/deletion handling, safe fallback, consumer/producer closure and planned-skip outputs.
+- [x] Route CI checks and stories through planner matrices; isolate documentation proof; keep dev free of test archives/fixtures and Nightly/release validation complete.
+- [x] Require planner success and complete job results; reject missing, failed, cancelled and unexpectedly skipped proof.
+- [x] Move the expected lane inventory to project testing policy; normalize SDK/example task visibility and naming, and migrate every caller.
+- [x] Move recurring prerequisite, artifact transport, signing/distribution and summary operations behind hidden CI tasks; retain the necessary pre-mise bootstrap.
+- [x] Add deterministic classifier, diff, event, artifact closure, Required, guide and moved-operation tests; update maintained task and tooling contracts.
+- [x] Preserve the C++ formatter's pinned native dependency sidecar alongside its regenerated mise lock, so clean checkouts can resolve every public task.
+- [ ] Run the requested local format/lint, tooling stories, workflow lint and public help dry runs.
+- [ ] Verify both native platforms through authorized hosted CI and Nightly after integration; no push is authorized in this worktree.

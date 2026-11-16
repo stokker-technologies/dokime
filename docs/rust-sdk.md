@@ -223,17 +223,17 @@ card completion states.
 
 ```sh
 mise -C sdk/rust run format
-mise -C sdk/rust run sdk:build
-mise -C sdk/rust run sdk:unit
-mise -C sdk/rust run sdk:test
-mise -C sdk/rust run sdk:lint
-mise -C sdk/rust run sdk:tree
+mise -C sdk/rust run build
+mise -C sdk/rust run test -- --layer unit
+mise -C sdk/rust run test
+mise -C sdk/rust run lint
+mise -C sdk/rust run check
 ```
 
 The external consumer owns installed-consumer compilation, fixture binaries and
 integration stories, with a separate lock and the repository's shared target.
 The build includes the client, plugin and test example sources as consumer binaries.
-Run `sdk:prepare` only when refreshing that consumer's dependency lock.
+Run `prepare` only when refreshing that consumer's dependency lock.
 The unit selection covers both SDK crates and reports an empty selection when
 their invariants are covered by the integration journeys instead.
 Its stories exercise typed declarations, authentication, discovery, schema
