@@ -52,6 +52,8 @@ if __name__ == "__main__":
         status = cargo.focused(Path.cwd(), "run", ["--locked", "--package", "dokime-protocol-generator"])
         if status:
             raise SystemExit(status)
+    # C# Wire Generation Runs the Grpc.Tools Compiler That Preparing the Staged Harmos Project Restores.
+    subprocess.run(["mise", "-C", "sdk/csharp", "run", "prepare:harmos"], check=True, creationflags=spawn_flags())
     resource_roots.generate(options.check)
     if not options.check:
         subprocess.run(["mise", "-C", "sdk/python", "run", "generate"], check=True, creationflags=spawn_flags())

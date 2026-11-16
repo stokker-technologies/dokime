@@ -56,14 +56,15 @@ def protocols(
     requests.update(
         {"Request", "Response", "ChildRequest", "ChildResponse", "ChildCancel", "ChildWatch", "ChildWatchResponse", "ChildWatchCancel"}
     )
-    tools = Path.home() / ".nuget/packages/grpc.tools/2.76.0/tools"
+    # The Staged Harmos Project Restores Grpc.Tools Into the SDK's Own Package Folder (Harmos.csproj).
+    tools = root / "target/cs/packages/grpc.tools/2.76.0/tools"
     system = "windows" if platform.system() == "Windows" else "macosx" if platform.system() == "Darwin" else "linux"
     architecture = "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "x64"
     executable_suffix = ".exe" if system == "windows" else ""
     protoc = tools / f"{system}_{architecture}" / ("protoc" + executable_suffix)
     plugin = protoc.with_name("grpc_csharp_plugin" + executable_suffix)
     if not protoc.is_file():
-        raise FileNotFoundError("Generate C# Protocol: Run mise -C sdk/csharp run restore")
+        raise FileNotFoundError("Generate C# Protocol: Restore Grpc.Tools With mise -C sdk/csharp run prepare:harmos")
     scratch = Path(tempfile.mkdtemp())
     destination = destination or root / "sdk/csharp/src/Dokime/Generated/Wire"
     try:
