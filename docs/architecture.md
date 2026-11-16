@@ -545,7 +545,10 @@ exclude later positions.
 Flush policy is owned by `telemetry/config.rs`. A stream reaching 65,536 rows wakes the
 background round at once, and five seconds after its oldest pending row the timer does;
 the round prepares without the store's locks and drops claims a synchronous flush saved
-first. Pending bytes reaching 64 MiB flush inline on the admitting caller, which bounds
+first. It writes under the locks, then syncs duplicated file handles without them, so
+admission on the host's stream delivery never waits for a file sync; the round catalogs
+its batches afterwards unless a flush holding the locks first synced and cataloged them,
+as every synchronous flush, finalization and later round does before claiming. Pending bytes reaching 64 MiB flush inline on the admitting caller, which bounds
 memory. Evidence barriers retain the writer connection through a synchronous flush and
 the following mutation, and shutdown flushes and closes sample admission under that
 lock. Without a runtime, a due row count also flushes inline. Host settings compose this
