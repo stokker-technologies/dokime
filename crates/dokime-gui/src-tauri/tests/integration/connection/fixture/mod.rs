@@ -9,8 +9,6 @@
 
 /* === Modules === */
 
-#[cfg(feature = "testing")]
-#[path = "delivery/transport.rs"]
 pub mod delivery;
 
 /* === Re-Exports === */
@@ -22,10 +20,24 @@ use std::{
     convert::Infallible,
     net::Ipv4Addr,
     sync::{Arc, Mutex},
+    task::{Context, Poll},
 };
 
 // Third Party Imports
-use tonic::{Request, Response, Status, codegen::BoxFuture};
+use tokio::{
+    net::TcpListener,
+    sync::{Notify, Semaphore},
+    task::JoinHandle,
+};
+use tokio_stream::wrappers::TcpListenerStream;
+use tonic::{
+    Request, Response, Status,
+    body::Body,
+    codegen::{self, BoxFuture, http},
+    server,
+    transport::{Error, Server},
+};
+use tonic_prost::ProstCodec;
 
 // Local Imports
 use dokime_sdk::DiscoveredContract;
@@ -36,7 +48,7 @@ use dokime_gui::connection::{ConnectRequest, ConnectionTarget};
 use dokime_protocol::host::backend::OverviewGetRequest;
 use dokime_sdk::client::BackendOverviewGetResponse;
 use dokime_sdk::client::BackendRuntimeShellSnapshot;
-use harmos_protocol::host as library;
+use harmos_protocol::host;
 
 /* === Constants === */
 
@@ -44,14 +56,14 @@ use harmos_protocol::host as library;
 
 /* === Type Aliases === */
 
-pub type HttpRequest = tonic::codegen::http::Request<tonic::body::Body>;
-pub type HttpResponse = tonic::codegen::http::Response<tonic::body::Body>;
+pub type HttpRequest = http::Request<Body>;
+pub type HttpResponse = http::Response<Body>;
 
 /* === Structs === */
 
 pub struct Gate {
-    pub entered: tokio::sync::Notify,
-    pub release: tokio::sync::Semaphore,
+    pub entered: Notify,
+    pub release: Semaphore,
 }
 
 #[derive(Clone)]
@@ -62,7 +74,7 @@ pub struct Service {
 
 pub struct Listener {
     pub endpoint: String,
-    task: tokio::task::JoinHandle<Result<(), tonic::transport::Error>>,
+    task: JoinHandle<Result<(), Error>>,
 }
 
 #[derive(Clone)]
@@ -79,8 +91,8 @@ struct Reply<T>(T);
 impl Gate {
     pub fn new() -> Self {
         Self {
-            entered: tokio::sync::Notify::new(),
-            release: tokio::sync::Semaphore::new(0),
+            entered: Notify::new(),
+            release: Semaphore::new(0),
         }
     }
 }
@@ -91,7 +103,7 @@ impl Service {
     }
 }
 
-impl<const KIND: u8> tonic::server::NamedService for Rpc<KIND> {
+impl<const KIND: u8> server::NamedService for Rpc<KIND> {
     const NAME: &'static str = match KIND {
         0 => "harmos.host.v1.Status",
         1 => "dokime.host.v1.backend.Overview",
@@ -99,13 +111,13 @@ impl<const KIND: u8> tonic::server::NamedService for Rpc<KIND> {
     };
 }
 
-impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
+impl<const KIND: u8> codegen::Service<HttpRequest> for Rpc<KIND> {
     type Response = HttpResponse;
     type Error = Infallible;
     type Future = BoxFuture<HttpResponse, Infallible>;
 
-    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
-        std::task::Poll::Ready(Ok(()))
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, request: HttpRequest) -> Self::Future {
@@ -113,16 +125,14 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
         Box::pin(async move {
             let response = match request.uri().path() {
                 "/harmos.host.v1.Status/Get" => {
-                    let mut reply = library::StatusGetResponse::default();
+                    let mut reply = host::StatusGetResponse::default();
                     let status = reply.status.get_or_insert_default();
                     status.available = true;
                     status.identity.get_or_insert_default().host_id = service.id;
                     let history = reply.resolved_at.get_or_insert_default().history.get_or_insert_default();
                     history.store = "desktop-fixture".into();
                     history.epoch = "status-history".into();
-                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, library::StatusGetRequest>::default())
-                        .unary(Reply(reply), request)
-                        .await
+                    server::Grpc::new(ProstCodec::<_, host::StatusGetRequest>::default()).unary(Reply(reply), request).await
                 }
                 "/dokime.host.v1.backend.Overview/Get" => {
                     let reply = BackendOverviewGetResponse {
@@ -132,10 +142,10 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
                         }),
                         ..Default::default()
                     };
-                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, OverviewGetRequest>::default()).unary(Reply(reply), request).await
+                    server::Grpc::new(ProstCodec::<_, OverviewGetRequest>::default()).unary(Reply(reply), request).await
                 }
                 "/harmos.host.v1.Operations/List" => {
-                    let reply = library::OperationsListResponse {
+                    let reply = host::OperationsListResponse {
                         operations: vec![DiscoveredOperation {
                             grpc_available: true,
                             contract: Some(DiscoveredContract {
@@ -147,13 +157,10 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
                                 }),
                                 ..Default::default()
                             }),
-                            ..Default::default()
                         }],
                         ..Default::default()
                     };
-                    tonic::server::Grpc::new(tonic_prost::ProstCodec::<_, library::OperationsListRequest>::default())
-                        .unary(Reply(reply), request)
-                        .await
+                    server::Grpc::new(ProstCodec::<_, host::OperationsListRequest>::default()).unary(Reply(reply), request).await
                 }
                 _ => Status::unimplemented("Fixture Route Is Not Served").into_http(),
             };
@@ -162,7 +169,7 @@ impl<const KIND: u8> tonic::codegen::Service<HttpRequest> for Rpc<KIND> {
     }
 }
 
-impl<Q: Send + 'static, R: Clone + Send + 'static> tonic::server::UnaryService<Q> for Reply<R> {
+impl<Q: Send + 'static, R: Clone + Send + 'static> server::UnaryService<Q> for Reply<R> {
     type Response = R;
     type Future = BoxFuture<Response<R>, Status>;
 
@@ -175,16 +182,16 @@ impl<Q: Send + 'static, R: Clone + Send + 'static> tonic::server::UnaryService<Q
 impl Listener {
     pub async fn start(service: Service, tls: bool, ip: Ipv4Addr) -> Self {
         assert!(!tls, "Pinned TLS Uses the Real Host Connection Stories");
-        let listener = tokio::net::TcpListener::bind((ip, 0)).await.unwrap();
+        let listener = TcpListener::bind((ip, 0)).await.unwrap();
         let endpoint = format!("http://{}", listener.local_addr().unwrap());
         let task = tokio::spawn(
-            tonic::transport::Server::builder()
+            Server::builder()
                 .add_service(Rpc::<0>(service.clone()))
                 .add_service(Rpc::<1>(service.clone()))
                 .add_service(Rpc::<2>(service.clone()))
                 .add_service(delivery::Content(service.clone()))
                 .add_service(delivery::Storage(service))
-                .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener)),
+                .serve_with_incoming(TcpListenerStream::new(listener)),
         );
         Self { endpoint, task }
     }
