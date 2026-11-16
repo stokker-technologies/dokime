@@ -49,9 +49,6 @@ class Environment:
             else:
                 bootstrap.install_gui_packages(runtime=True, desktop=True)
                 bootstrap.prepare_linux_browser(directory)
-                # WebKitGTK Takes WebDriver Screenshots From the Web Process, Which Cannot Snapshot an Idle Page Under
-                # Accelerated Compositing on the Display's Software GL (WebKit Bug 206514), So the Capture Never Answers.
-                self.environment.setdefault("WEBKIT_DISABLE_COMPOSITING_MODE", "1")
                 if not self.environment.get("DISPLAY"):
                     number = next(number for number in range(90, 120) if not Path(f"/tmp/.X11-unix/X{number}").exists())
                     self._display = subprocess.Popen(
