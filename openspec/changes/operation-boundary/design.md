@@ -30,6 +30,14 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
 - Offline paths: desktop archive/disposal in
   `crates/dokime-gui/src-tauri/src/native_session/storage.rs`; CLI doctor copies in
   `crates/dokime-cli/src/commands/doctor.rs`.
+- Current-pin cutover dependency: `Backend::open` registers a `storage.sqlite3`
+  ledger, whereas product execution/evidence/sample/seal/report writers use
+  `execution.sqlite3`. Moving an append alone splits their canonical history and
+  invalidates cuts and seal verification. The coupled migration needs Harmos
+  compound atomic mutation at the backend boundary; retaining two writers or
+  adding a mirror is not an acceptable intermediate design. Independent retained
+  view payloads in `host/views.rs` now use Harmos object operations; their evidence
+  cut issuance remains coupled to the product ledger.
 - Composition: `protocol/composition.toml` is read by `services/composition.rs`
   (`setup.composition`), `native::callers()` in `crates/dokime-operations/src/native.rs`,
   `sdk/cpp/tools/generate.py`, `sdk/csharp/tools/generate.py` and

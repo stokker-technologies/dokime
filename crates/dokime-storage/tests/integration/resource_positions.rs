@@ -7,7 +7,7 @@
  * ***
  */
 
-// Saved Reports Retain Exact Bytes and Refuse Tampering After Restart
+// Revisioned Resources and Storage Admission
 
 /* === Modules === */
 
@@ -18,10 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::{FileMetadata, FileReference, History, Position, Section};
+use prost::Message;
+use rusqlite::Connection;
 
 // Local Imports
 
-use dokime_storage::{Result, Store};
+use dokime_storage::{Error, Result, Store};
 
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::ExecutionsDeleteResponse;
@@ -31,7 +34,6 @@ use dokime_protocol::model::Import;
 use dokime_protocol::model::Origin;
 use dokime_protocol::model::Termination;
 use dokime_protocol::model::origin;
-use harmos_protocol::model::{FileMetadata, FileReference, History, Position};
 
 /* === Constants === */
 
@@ -52,6 +54,28 @@ use harmos_protocol::model::{FileMetadata, FileReference, History, Position};
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[test]
+fn superseded_journals_refuse_admission_without_deleting_their_values() -> Result<()> {
+    for key in ["view:resource", "view-at:resource", "prepared-report/resource"] {
+        // Retain an Old Journal Entry
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        let value = Section {
+            r#type: "resource".into(),
+            payload: vec![0, 128, 255],
+        };
+        store.save_administration(key, &value)?;
+        drop(store);
+
+        // Refuse the Root and Preserve Its Stored Value
+        assert!(matches!(Store::open(root.path()), Err(Error::Incompatible(_))));
+        let connection = Connection::open(root.path().join("execution.sqlite3"))?;
+        let payload: Vec<u8> = connection.query_row("SELECT payload FROM administration WHERE id=?1", [key], |row| row.get(0))?;
+        assert_eq!(payload, value.encode_to_vec());
+    }
+    Ok(())
+}
 
 #[test]
 fn artifact_metadata_commits_with_evidence_and_replays_after_sealing() -> Result<()> {

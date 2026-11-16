@@ -15,11 +15,10 @@
 
 /* === Imports === */
 
-use std::fmt::Display;
+// Standard Library Imports
+use std::{fmt::Display, num::NonZeroUsize};
 
-use crate::host::Context;
-use crate::host::files::transfer;
-use crate::{Error, Result};
+// Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray};
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::{ReadCut, Receipt};
@@ -31,7 +30,11 @@ use harmos_runtime::builtins::storage::{
 };
 use harmos_runtime::storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, ReadLimits, StoredObject};
 use prost::Message;
-use std::num::NonZeroUsize;
+
+// Local Imports
+use crate::host::Context;
+use crate::host::files::transfer;
+use crate::{Error, Result};
 
 /* === Constants === */
 
@@ -77,12 +80,14 @@ pub fn catalog() -> ObjectCatalog {
 pub async fn read(context: &Context, key: &str, initial: &[u8], at: Option<ReadCut>) -> Result<Snapshot> {
     let definition = ObjectDefinition::of::<Administration>();
     let schema = definition.schema().map_err(|cause| invalid("Get Administration", cause))?;
-    let item = catalog()
-        .encode(&Administration { key: key.into(), payload: Vec::new() }, bound(context)?)
-        .map_err(|cause| invalid("Get Administration", cause))?
-        .item
-        .to_string();
-    let response = context.storage::<GetObject>(GetObjectRequest { schema: Some(schema), item, at }).await?;
+    let value = Administration { key: key.into(), payload: Vec::new() };
+    let value = catalog().encode(&value, bound(context)?).map_err(|cause| invalid("Get Administration", cause))?;
+    let request = GetObjectRequest {
+        schema: Some(schema),
+        item: value.item.to_string(),
+        at,
+    };
+    let response = context.storage::<GetObject>(request).await?;
     let payload = match response.value {
         Some(value) => {
             catalog().decode::<Administration>(&value, bound(context)?).map_err(|cause| invalid("Get Administration", cause))?.payload
@@ -96,9 +101,8 @@ pub async fn read(context: &Context, key: &str, initial: &[u8], at: Option<ReadC
     })
 }
 pub async fn replace(context: &Context, key: &str, expected: Vec<u8>, request_id: &str, payload: Vec<u8>) -> Result<(Snapshot, Receipt)> {
-    let value = catalog()
-        .encode(&Administration { key: key.into(), payload }, bound(context)?)
-        .map_err(|cause| invalid("Set Administration", cause))?;
+    let value = Administration { key: key.into(), payload };
+    let value = catalog().encode(&value, bound(context)?).map_err(|cause| invalid("Set Administration", cause))?;
     let definition = ObjectDefinition::of::<Administration>();
     let graph = definition.graph(&Default::default()).map_err(|cause| invalid("Set Administration", cause))?;
     let mutation = transfer::mutation(context, key, request_id).await?;
@@ -198,6 +202,27 @@ pub async fn message<T: Message + Default>(context: &Context, key: &str) -> Resu
     let initial = T::default().encode_to_vec();
     let snapshot = read(context, key, &initial, None).await?;
     Ok((T::decode(snapshot.payload.as_slice())?, snapshot.revision))
+}
+
+/// Retain an Immutable Product Value, Returning the First Published Value on a Race.
+pub async fn retain<T: Message + Default>(context: &Context, key: &str, value: &T) -> Result<T> {
+    let (saved, revision) = message::<T>(context, key).await?;
+    if !revision.is_empty() {
+        return Ok(saved);
+    }
+    let request_id = uuid::Uuid::now_v7().to_string();
+    let payload = value.encode_to_vec();
+    match replace(context, key, Vec::new(), &request_id, payload).await {
+        Ok((saved, _)) => Ok(T::decode(saved.payload.as_slice())?),
+        Err(Error::Conflict(_)) => {
+            let (saved, revision) = message::<T>(context, key).await?;
+            if revision.is_empty() {
+                return Err(Error::Precondition(format!("Retain {key}: Restore Its Published Value")));
+            }
+            Ok(saved)
+        }
+        Err(source) => Err(source),
+    }
 }
 
 /* === Private Functions === */

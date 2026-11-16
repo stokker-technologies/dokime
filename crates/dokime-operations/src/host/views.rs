@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::future::Future;
 
 // Third Party Imports
 use harmos_protocol::model::{PageRequest, ReadCut, Receipt, ResourceRevision, Section};
@@ -23,9 +24,8 @@ use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
+use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
-
-use std::future::Future;
 
 /* === Constants === */
 
@@ -52,9 +52,10 @@ pub(crate) async fn read<T: Message + Default>(
         if at.revisions.is_empty() && at.positions.len() == 1 {
             let position = store.evidence_position(at.positions.first())?;
             let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
-            let saved: Section = store
-                .administration(&key)?
-                .ok_or_else(|| Error::Precondition(format!("Read {resource}: The Selected View Is Unavailable; Resynchronize")))?;
+            let (saved, revision) = administration::message::<Section>(context, &key).await?;
+            if revision.is_empty() {
+                return Err(Error::Precondition(format!("Read {resource}: The Selected View Is Unavailable; Resynchronize")));
+            }
             return Ok((T::decode(saved.payload.as_slice())?, at.clone()));
         }
         if at.revisions.len() != 1 || at.revisions[0].name != name || at.positions.len() != 1 {
@@ -62,9 +63,10 @@ pub(crate) async fn read<T: Message + Default>(
         }
         store.evidence_position(at.positions.first())?;
         let revision = hex(&at.revisions[0].revision);
-        let saved: Section = store
-            .administration(&format!("view:{name}:{revision}"))?
-            .ok_or_else(|| Error::Precondition(format!("Read {resource}: Retained View Is Unavailable; Resynchronize")))?;
+        let (saved, revision) = administration::message::<Section>(context, &format!("view:{name}:{revision}")).await?;
+        if revision.is_empty() {
+            return Err(Error::Precondition(format!("Read {resource}: Retained View Is Unavailable; Resynchronize")));
+        }
         return Ok((T::decode(saved.payload.as_slice())?, at.clone()));
     }
     let position = store.evidence_position(None)?;
@@ -76,9 +78,9 @@ pub(crate) async fn read<T: Message + Default>(
     };
     let revision = Sha256::digest(&payload).to_vec();
     let saved = Section { r#type: name.clone(), payload };
-    store.save_administration(&format!("view:{name}:{}", hex(&revision)), &saved)?;
+    administration::retain(context, &format!("view:{name}:{}", hex(&revision)), &saved).await?;
     let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
-    let _ = store.compare_administration(&key, None, &saved)?;
+    administration::retain(context, &key, &saved).await?;
 
     Ok((
         value,

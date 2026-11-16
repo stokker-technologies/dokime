@@ -16,18 +16,19 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime::Client;
 use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
+use dokime::client::SuitesListOptions;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
-use std::error::Error;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -70,7 +71,7 @@ fn client_browses_catalog() -> Result<(), Box<dyn Error>> {
                 .create(
                     "thermal",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -139,6 +140,20 @@ fn client_browses_catalog() -> Result<(), Box<dyn Error>> {
                 Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                     .plugins
                     .clone();
+            // Read the Retained Catalog Before Reconnecting Its Provider
+            let retained =
+                Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+                    .suites
+                    .list_with(
+                        String::new(),
+                        SuitesListOptions {
+                            at: suites.resolved_at.clone(),
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+            assert_eq!(retained.values, suites.values);
+            assert_eq!(retained.resolved_at, suites.resolved_at);
             let restarted = plugins.restart("thermal", plugins.get("thermal").await?.entry.unwrap().revision).await?;
             super::support::plugin_state(&plugins, restarted, harmos_protocol::host::PluginState::Ready).await?;
             assert_eq!(

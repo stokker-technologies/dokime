@@ -7,7 +7,7 @@
  * ***
  */
 
-// Client Queries Every Plot Kind
+// Client Renders Fixed Documents
 
 /* === Modules === */
 
@@ -16,8 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    error::Error,
+    str,
+};
 
 // Third Party Imports
+use harmos_protocol::model::{Declarations, StreamDeclaration};
+use prost_types::FileDescriptorSet;
+use sha2::{Digest, Sha256};
+use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
@@ -52,6 +61,7 @@ use dokime::Value;
 use dokime::client::DocumentScope;
 use dokime::client::DocumentsGetOptions;
 use dokime::client::ExecutionOutcome;
+use dokime::client::FilesReadOptions;
 use dokime::client::PlotsPlotDomain;
 use dokime::client::PlotsPlotSettingsValue;
 use dokime::client::PlotsSettingsSetOptions;
@@ -60,31 +70,22 @@ use dokime::client::ReportsCreateOptions;
 use dokime::client::ReportsPublishOptions;
 use dokime::encoding::Message;
 use dokime_protocol::FILE_DESCRIPTOR_SET;
-use dokime_protocol::builders::Plot as BuildersPlot;
+use dokime_protocol::builders;
 use dokime_protocol::host::DocumentsGetRequest;
 use dokime_protocol::host::ReportsPublishRequest;
-use dokime_protocol::host::document_binding_result::Kind as DocumentBindingResultKind;
-use dokime_protocol::host::document_frame_frame::Kind as DocumentFrameFrameKind;
-use dokime_protocol::host::document_layout_node_node::Kind as DocumentLayoutNodeNodeKind;
+use dokime_protocol::host::document_binding_result;
+use dokime_protocol::host::document_frame_frame;
+use dokime_protocol::host::document_layout_node_node;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
-use dokime_protocol::host::report_subject::Kind as ReportSubjectKind;
+use dokime_protocol::host::report_subject;
 use dokime_protocol::model::card::Body;
-use dokime_protocol::model::data_expression::Kind as DataExpressionKind;
-use dokime_protocol::model::origin::Kind as OriginKind;
-use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_protocol::model::data_expression;
+use dokime_protocol::model::origin;
+use dokime_protocol::model::value;
 use dokime_storage::Evidence;
 use dokime_storage::Execution;
-use dokime_storage::Report;
 use dokime_storage::Sample;
 use dokime_storage::Store;
-use harmos_protocol::model::Declarations;
-use harmos_protocol::model::StreamDeclaration;
-use prost_types::FileDescriptorSet;
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-use std::collections::HashMap;
-use std::error::Error;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -115,14 +116,14 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             let credential_root = super::support::tempdir()?;
             let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
             let store = Store::open(root.path())?;
-            let mut plot = BuildersPlot::time_series(FieldReference::new("reading").field("min")).message;
+            let mut plot = builders::Plot::time_series(FieldReference::new("reading").field("min")).message;
             plot.metadata = Some(Metadata {
                 identifier: "trend".into(),
                 label: "Trend".into(),
                 ..Default::default()
             });
             let aggregate = |input: DataExpression, kind: Aggregate, percentile: f64| DataExpression {
-                kind: Some(DataExpressionKind::Aggregate(Box::new(AggregateExpression {
+                kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
                     input: Some(Box::new(input)),
                     kind: kind as i32,
                     percentile,
@@ -130,7 +131,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 ..Default::default()
             };
             let record = DataExpression {
-                kind: Some(DataExpressionKind::Record(FieldReference {
+                kind: Some(data_expression::Kind::Record(FieldReference {
                     identifier: "measurement".into(),
                     field: "min".into(),
                 })),
@@ -199,7 +200,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                         body: Some(Body::Table(Table {
                             rows: vec![
                                 TableRow {
-                                    cells: HashMap::from([("value".into(), Value { kind: Some(ValueKind::Number(23.0)) })])
+                                    cells: HashMap::from([("value".into(), Value { kind: Some(value::Kind::Number(23.0)) })])
                                 };
                                 7
                             ],
@@ -262,8 +263,8 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 });
             }
             document.metadata.as_mut().unwrap().attributes = HashMap::from([
-                ("first".into(), Value { kind: Some(ValueKind::Integer(1)) }),
-                ("second".into(), Value { kind: Some(ValueKind::Integer(2)) }),
+                ("first".into(), Value { kind: Some(value::Kind::Integer(1)) }),
+                ("second".into(), Value { kind: Some(value::Kind::Integer(2)) }),
             ]);
             let suites = Suites {
                 suites: vec![Suite {
@@ -306,7 +307,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                     cycle: "documents".into(),
                     catalog: catalog.encode_to_vec(),
                     origin: Some(Origin {
-                        kind: Some(OriginKind::Import(Import::default())),
+                        kind: Some(origin::Kind::Import(Import::default())),
                     }),
                     ..Default::default()
                 })?;
@@ -347,10 +348,11 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             }
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-            let documents = Client::from_channel(channel.clone(), super::support::client_settings())?.documents.clone();
-
-            let preferences = Client::from_channel(channel.clone(), super::support::client_settings())?.plots.settings.clone();
-            let reports = Client::from_channel(channel, super::support::client_settings())?.reports.clone();
+            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let documents = &client.documents;
+            let preferences = &client.plots.settings;
+            let reports = &client.reports;
+            let files = &client.files;
             let scope = DocumentScope {
                 cycle_id: "documents".into(),
                 execution_id: "documents-a".into(),
@@ -383,15 +385,15 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             };
             let first = documents
                 .get_with(
-                    ((request.clone()).scope).unwrap_or_default(),
-                    (request.clone()).document_id,
+                    request.scope.clone().unwrap_or_default(),
+                    request.document_id.clone(),
                     DocumentsGetOptions {
-                        structure_only: Some((request.clone()).structure_only),
-                        card_ids: Some((request.clone()).card_ids),
-                        page_token: Some((request.clone()).page_token),
-                        max_bytes: Some((request.clone()).max_bytes),
-                        max_frames: Some((request.clone()).max_frames),
-                        at: (request.clone()).at,
+                        structure_only: Some(request.structure_only),
+                        card_ids: Some(request.card_ids.clone()),
+                        page_token: Some(request.page_token.clone()),
+                        max_bytes: Some(request.max_bytes),
+                        max_frames: Some(request.max_frames),
+                        at: request.at.clone(),
                         ..Default::default()
                     },
                 )
@@ -409,15 +411,15 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 request.at = page.resolved_at;
                 page = documents
                     .get_with(
-                        ((request.clone()).scope).unwrap_or_default(),
-                        (request.clone()).document_id,
+                        request.scope.clone().unwrap_or_default(),
+                        request.document_id.clone(),
                         DocumentsGetOptions {
-                            structure_only: Some((request.clone()).structure_only),
-                            card_ids: Some((request.clone()).card_ids),
-                            page_token: Some((request.clone()).page_token),
-                            max_bytes: Some((request.clone()).max_bytes),
-                            max_frames: Some((request.clone()).max_frames),
-                            at: (request.clone()).at,
+                            structure_only: Some(request.structure_only),
+                            card_ids: Some(request.card_ids.clone()),
+                            page_token: Some(request.page_token.clone()),
+                            max_bytes: Some(request.max_bytes),
+                            max_frames: Some(request.max_frames),
+                            at: request.at.clone(),
                             ..Default::default()
                         },
                     )
@@ -442,19 +444,19 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             let mut ready = BTreeSet::new();
             for (index, frame) in frames.iter().enumerate() {
                 match frame.frame.as_ref().unwrap().kind.as_ref().unwrap() {
-                    DocumentFrameFrameKind::Card(card) => {
+                    document_frame_frame::Kind::Card(card) => {
                         assert!(!structures);
                         assert!(cards.insert(card.metadata.as_ref().unwrap().identifier.clone()));
                     }
-                    DocumentFrameFrameKind::GroupDefinition(_) | DocumentFrameFrameKind::TileDefinition(_) => {
+                    document_frame_frame::Kind::GroupDefinition(_) | document_frame_frame::Kind::TileDefinition(_) => {
                         assert!(!structures)
                     }
-                    DocumentFrameFrameKind::Binding(value) => {
+                    document_frame_frame::Kind::Binding(value) => {
                         assert_eq!(value.metadata.as_ref().unwrap().identifier, value.source_id);
                         if !structures {
                             assert!(matches!(
                                 value.result.as_ref().and_then(|result| result.kind.as_ref()),
-                                Some(DocumentBindingResultKind::Pending(true))
+                                Some(document_binding_result::Kind::Pending(true))
                             ));
                             bindings.insert(value.source_id.clone());
                         } else {
@@ -462,25 +464,26 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                             assert!(bindings.contains(&value.source_id));
                             assert!(ready.insert(value.source_id.clone()));
                         }
-                        if let Some(DocumentBindingResultKind::Plot(plot)) = value.result.as_ref().and_then(|result| result.kind.as_ref())
+                        if let Some(document_binding_result::Kind::Plot(plot)) =
+                            value.result.as_ref().and_then(|result| result.kind.as_ref())
                             && value.source_id == "trend-card"
                         {
                             binding = plot.request.clone();
                         }
                     }
-                    DocumentFrameFrameKind::SectionIdentity(section) => {
+                    document_frame_frame::Kind::SectionIdentity(section) => {
                         assert!(!structures);
                         assert!(!section.node_id.is_empty());
                         assert_eq!(section.metadata.as_ref().unwrap().identifier, section.node_id);
                         assert!(section_identities.insert(section.node_id.clone()));
                     }
-                    DocumentFrameFrameKind::LayoutNode(node) => {
+                    document_frame_frame::Kind::LayoutNode(node) => {
                         assert!(!structures);
                         layout_count += 1;
                         match node.node.as_ref().and_then(|node| node.kind.as_ref()) {
-                            Some(DocumentLayoutNodeNodeKind::Section(section)) => assert!(sections.insert(section.node_id.clone())),
+                            Some(document_layout_node_node::Kind::Section(section)) => assert!(sections.insert(section.node_id.clone())),
                             // An Undeclared Layout Reports No Span; a Declared Span Is Kept.
-                            Some(DocumentLayoutNodeNodeKind::Placement(placement)) if placement.card_id.ends_with("summary") => {
+                            Some(document_layout_node_node::Kind::Placement(placement)) if placement.card_id.ends_with("summary") => {
                                 assert_eq!(
                                     (placement.column_span.as_ref(), placement.row_span),
                                     (None, 0),
@@ -488,7 +491,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                                 );
                                 spans_checked += 1;
                             }
-                            Some(DocumentLayoutNodeNodeKind::Placement(placement)) if placement.card_id.ends_with("table") => {
+                            Some(document_layout_node_node::Kind::Placement(placement)) if placement.card_id.ends_with("table") => {
                                 assert_eq!(
                                     (placement.column_span.as_ref().map(|span| span.base), placement.row_span),
                                     (Some(6), 2),
@@ -499,11 +502,11 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                             _ => {}
                         }
                     }
-                    DocumentFrameFrameKind::RepeatSelection(value) => {
+                    document_frame_frame::Kind::RepeatSelection(value) => {
                         assert!(!structures);
                         repeats.insert(value.node_id.clone());
                     }
-                    DocumentFrameFrameKind::StructureComplete(counts) => {
+                    document_frame_frame::Kind::StructureComplete(counts) => {
                         assert!(!structures);
                         structures = true;
                         assert_eq!(counts.frame_count, index as u64 + 1);
@@ -515,16 +518,16 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                         assert_eq!(section_identities, sections);
                         assert_eq!(counts.repeat_count, repeats.len() as u64);
                     }
-                    DocumentFrameFrameKind::EvidenceCut(_) => {
+                    document_frame_frame::Kind::EvidenceCut(_) => {
                         assert!(structures);
                         assert!(!evidence_cut);
                         evidence_cut = true;
                     }
-                    DocumentFrameFrameKind::SummaryGroup(group) => {
+                    document_frame_frame::Kind::SummaryGroup(group) => {
                         assert!(evidence_cut);
                         assert!(ready.contains(&group.card_id));
                     }
-                    DocumentFrameFrameKind::SummaryTile(tile) => {
+                    document_frame_frame::Kind::SummaryTile(tile) => {
                         assert!(evidence_cut);
                         assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
                         if tile.card_id.starts_with("group-count.") {
@@ -533,17 +536,17 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                             summaries.insert(tile.metadata.as_ref().unwrap().identifier.clone(), tile.value.clone().unwrap());
                         }
                     }
-                    DocumentFrameFrameKind::TableRow(_) => {
+                    document_frame_frame::Kind::TableRow(_) => {
                         assert!(evidence_cut);
                         table_rows += 1;
                     }
-                    DocumentFrameFrameKind::CardComplete(id) => {
+                    document_frame_frame::Kind::CardComplete(id) => {
                         assert!(evidence_cut);
                         assert!(bindings.contains(id));
                         assert!(ready.contains(id));
                         assert!(finished.insert(id.clone()));
                     }
-                    DocumentFrameFrameKind::Completion(counts) => {
+                    document_frame_frame::Kind::Completion(counts) => {
                         assert!(evidence_cut);
                         assert_eq!(counts.frame_count, index as u64 + 1);
                         assert_eq!(counts.binding_count, bindings.len() as u64);
@@ -558,16 +561,16 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             assert_eq!(finished, bindings);
             assert_eq!(sections.len(), 1033);
             assert_eq!(table_rows, 7);
-            assert_eq!(summaries["percentile"].kind, Some(ValueKind::Number(2500.5)));
-            assert_eq!(summaries["record-mean"].kind, Some(ValueKind::Number(3.0)));
-            assert_eq!(summaries["record-std"].kind, Some(ValueKind::Number(1.0)));
-            assert_eq!(summaries["record-rms"].kind, Some(ValueKind::Number(10.0f64.sqrt())));
+            assert_eq!(summaries["percentile"].kind, Some(value::Kind::Number(2500.5)));
+            assert_eq!(summaries["record-mean"].kind, Some(value::Kind::Number(3.0)));
+            assert_eq!(summaries["record-std"].kind, Some(value::Kind::Number(1.0)));
+            assert_eq!(summaries["record-rms"].kind, Some(value::Kind::Number(10.0f64.sqrt())));
             assert_eq!(grouped_counts.len(), 31);
             assert_eq!(
                 grouped_counts
                     .iter()
                     .map(|value| match value.kind {
-                        Some(ValueKind::Integer(value)) => value,
+                        Some(value::Kind::Integer(value)) => value,
                         _ => panic!("Expected Count"),
                     })
                     .sum::<i64>(),
@@ -616,25 +619,25 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             loop {
                 let page = documents
                     .get_with(
-                        ((structure.clone()).scope).unwrap_or_default(),
-                        (structure.clone()).document_id,
+                        structure.scope.clone().unwrap_or_default(),
+                        structure.document_id.clone(),
                         DocumentsGetOptions {
-                            structure_only: Some((structure.clone()).structure_only),
-                            card_ids: Some((structure.clone()).card_ids),
-                            page_token: Some((structure.clone()).page_token),
-                            max_bytes: Some((structure.clone()).max_bytes),
-                            max_frames: Some((structure.clone()).max_frames),
-                            at: (structure.clone()).at,
+                            structure_only: Some(structure.structure_only),
+                            card_ids: Some(structure.card_ids.clone()),
+                            page_token: Some(structure.page_token.clone()),
+                            max_bytes: Some(structure.max_bytes),
+                            max_frames: Some(structure.max_frames),
+                            at: structure.at.clone(),
                             ..Default::default()
                         },
                     )
                     .await?;
                 for frame in page.frames {
                     match frame.frame.unwrap().kind.unwrap() {
-                        DocumentFrameFrameKind::EvidenceCut(_) => cut_seen = true,
-                        DocumentFrameFrameKind::CardComplete(_)
-                        | DocumentFrameFrameKind::SummaryTile(_)
-                        | DocumentFrameFrameKind::TableRow(_) => {
+                        document_frame_frame::Kind::EvidenceCut(_) => cut_seen = true,
+                        document_frame_frame::Kind::CardComplete(_)
+                        | document_frame_frame::Kind::SummaryTile(_)
+                        | document_frame_frame::Kind::TableRow(_) => {
                             panic!("Structure-Only Capture Evaluated a Card")
                         }
                         _ => (),
@@ -650,7 +653,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
 
             // Preparing Never Publishes; Publication Requires the Exact Prepared Revision.
             let subject = ReportSubject {
-                kind: Some(ReportSubjectKind::Execution("documents-a".into())),
+                kind: Some(report_subject::Kind::Execution("documents-a".into())),
             };
             let prepared = reports
                 .create_with(
@@ -664,10 +667,16 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 .await?;
             let reference = prepared.file.unwrap();
             let name = reference.metadata.as_ref().unwrap().id.clone();
-            let frozen: Report = store.administration(&name)?.unwrap();
-            use sha2::Digest;
-            assert_eq!(sha2::Sha256::digest(&frozen.html).as_slice(), reference.sha256);
-            assert!(std::str::from_utf8(&frozen.html)?.contains("<svg"));
+            let mut html = Vec::new();
+            let mut at = None;
+            while (html.len() as u64) < reference.length {
+                let page = files.read_with(reference.clone(), html.len() as u64, 0, FilesReadOptions { at, ..Default::default() }).await?;
+                assert!(!page.data.is_empty());
+                at = page.resolved_at;
+                html.extend(page.data);
+            }
+            assert_eq!(Sha256::digest(&html).as_slice(), reference.sha256);
+            assert!(str::from_utf8(&html)?.contains("<svg"));
             assert!(store.reports("documents-a")?.is_empty());
             let mut publish = ReportsPublishRequest {
                 name,
@@ -678,11 +687,11 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             assert!(
                 reports
                     .publish_with(
-                        (publish.clone()).name,
-                        ((publish.clone()).subject).unwrap_or_default(),
-                        (publish.clone()).expected_revision,
+                        publish.name.clone(),
+                        publish.subject.clone().unwrap_or_default(),
+                        publish.expected_revision.clone(),
                         ReportsPublishOptions {
-                            request_id: Some((publish.clone()).request_id),
+                            request_id: Some(publish.request_id.clone()),
                             ..Default::default()
                         }
                     )
@@ -693,11 +702,11 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             publish.expected_revision = reference.sha256;
             reports
                 .publish_with(
-                    (publish.clone()).name,
-                    ((publish.clone()).subject).unwrap_or_default(),
-                    (publish.clone()).expected_revision,
+                    publish.name.clone(),
+                    publish.subject.clone().unwrap_or_default(),
+                    publish.expected_revision.clone(),
                     ReportsPublishOptions {
-                        request_id: Some((publish.clone()).request_id),
+                        request_id: Some(publish.request_id.clone()),
                         ..Default::default()
                     },
                 )
@@ -706,7 +715,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             let cycle = reports
                 .create_with(
                     ReportSubject {
-                        kind: Some(ReportSubjectKind::Cycle("documents".into())),
+                        kind: Some(report_subject::Kind::Cycle("documents".into())),
                     },
                     String::new(),
                     ReportsCreateOptions {
@@ -722,7 +731,7 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
                 cycle: "documents".into(),
                 catalog: catalog.encode_to_vec(),
                 origin: Some(Origin {
-                    kind: Some(OriginKind::Import(Import::default())),
+                    kind: Some(origin::Kind::Import(Import::default())),
                 }),
                 ..Default::default()
             })?;
@@ -740,21 +749,21 @@ fn client_renders_fixed_documents() -> Result<(), Box<dyn Error>> {
             loop {
                 let page = documents
                     .get_with(
-                        ((cycle_request.clone()).scope).unwrap_or_default(),
-                        (cycle_request.clone()).document_id,
+                        cycle_request.scope.clone().unwrap_or_default(),
+                        cycle_request.document_id.clone(),
                         DocumentsGetOptions {
-                            structure_only: Some((cycle_request.clone()).structure_only),
-                            card_ids: Some((cycle_request.clone()).card_ids),
-                            page_token: Some((cycle_request.clone()).page_token),
-                            max_bytes: Some((cycle_request.clone()).max_bytes),
-                            max_frames: Some((cycle_request.clone()).max_frames),
-                            at: (cycle_request.clone()).at,
+                            structure_only: Some(cycle_request.structure_only),
+                            card_ids: Some(cycle_request.card_ids.clone()),
+                            page_token: Some(cycle_request.page_token.clone()),
+                            max_bytes: Some(cycle_request.max_bytes),
+                            max_frames: Some(cycle_request.max_frames),
+                            at: cycle_request.at.clone(),
                             ..Default::default()
                         },
                     )
                     .await?;
                 for frame in page.frames {
-                    if let Some(DocumentFrameFrameKind::EvidenceCut(cut)) = frame.frame.and_then(|frame| frame.kind) {
+                    if let Some(document_frame_frame::Kind::EvidenceCut(cut)) = frame.frame.and_then(|frame| frame.kind) {
                         cacheable = Some(cut.cacheable);
                     }
                 }
