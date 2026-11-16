@@ -20,11 +20,15 @@
 // Third Party Imports
 
 // Local Imports
-use crate::catalog::{field, plot};
+use crate::device::Bench;
 use crate::device::Reading;
-use dokime::{Document, PlotKind, Section};
+use crate::{settings, suites};
+use dokime::plugin::{Context, DeclarationTypes, Observer, Plugin, Stream};
+use dokime::{Document, FieldReference, Plot, PlotKind, Result, Section};
 
 /* === Constants === */
+
+pub const SAMPLES: &str = "obc.measurement";
 
 /* === Macros === */
 
@@ -48,16 +52,6 @@ pub struct Measurement {
     pub dc_voltage_v: f64,
     pub dc_current_a: f64,
     pub phase: String,
-}
-
-/// One Point of the Bench's Thermal Channel Survey: a Heatsink Sensor's Rise Above Ambient.
-#[derive(dokime::Row)]
-#[harmos(package = "obc")]
-pub struct Survey {
-    pub sweep: f64,
-    pub module: f64,
-    pub sensor: f64,
-    pub rise_k: f64,
 }
 
 /* === Enums === */
@@ -87,13 +81,27 @@ impl Measurement {
 
 /* === Public Functions === */
 
+pub fn catalog<C: DeclarationTypes>(plugin: Plugin<C>) -> Plugin<C> {
+    let stream = Stream::<Measurement>::new(SAMPLES, "Charger Measurements");
+    let observer = Observer::new(&stream, measure).interval_setting(settings::SAMPLE_INTERVAL);
+    plugin.stream(stream).observer(observer)
+}
+
+async fn measure(ctx: &Context) -> Result<Measurement> {
+    if !suites::captures(ctx, SAMPLES) {
+        return Ok(Measurement::default());
+    }
+    let (index, reading, phase) = ctx.get::<Bench>()?.sample();
+    Ok(Measurement::new(index, reading, phase))
+}
+
 /// AC Waveforms Against Model Time and the Battery Charging Outputs.
 pub fn document(stream: &str, id: &str, title: &str) -> Document {
     let mut waveforms = Section::new("AC Waveforms").id(format!("{id}.waveforms"));
     for (name, label, unit) in [("voltage_v", "Voltage", "V"), ("current_a", "Current", "A")] {
-        let mut chart = plot(format!("{stream}.{name}"), label, PlotKind::Xy, unit);
-        chart.x = Some(field(stream, "elapsed_s"));
-        chart.y.push(field(stream, name));
+        let mut chart = Plot::new(format!("{id}.{name}"), label, PlotKind::Xy).unit(unit);
+        chart.x = Some(FieldReference::new(stream).field("elapsed_s"));
+        chart.y.push(FieldReference::new(stream).field(name));
         waveforms = waveforms.plot(chart);
     }
     Document::new(title).id(format!("{id}.report")).section(waveforms).section(charging(stream, id))
@@ -105,8 +113,8 @@ pub fn charging(stream: &str, id: &str) -> Section {
     for (name, label, unit) in
         [("dc_voltage_v", "Battery Voltage", "V"), ("dc_current_a", "Charging Current", "A"), ("input_power_w", "AC Input Power", "W")]
     {
-        let mut chart = plot(format!("{stream}.{name}"), label, PlotKind::TimeSeries, unit);
-        chart.y.push(field(stream, name));
+        let mut chart = Plot::line(format!("{id}.{name}"), label).unit(unit);
+        chart.y.push(FieldReference::new(stream).field(name));
         section = section.plot(chart);
     }
     section

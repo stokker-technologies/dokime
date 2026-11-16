@@ -18,9 +18,10 @@
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
+use std::fs;
 
 // Third Party Imports
-use prost_reflect::{DescriptorPool, DynamicMessage, Value as ReflectValue};
+use prost_reflect::{self, DescriptorPool, DynamicMessage};
 use sha2::{Digest, Sha256};
 use tonic::transport::Endpoint;
 
@@ -39,13 +40,13 @@ use dokime::client::EvidenceRecordsListOptions;
 use dokime::client::ExecutionState;
 use dokime::client::FrozenSchemaCache;
 use dokime::client::ResultStatus;
-use dokime::record_scope::Kind as RecordScopeKind;
-use dokime_protocol::host::document_binding_result::Kind as DocumentBindingResultKind;
-use dokime_protocol::host::document_frame_frame::Kind as DocumentFrameFrameKind;
-use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
-use dokime_protocol::model::value::Kind as ValueKind;
+use dokime::record_scope;
+use dokime_protocol::host::document_binding_result;
+use dokime_protocol::host::document_frame_frame;
+use dokime_protocol::host::execution_outcome;
+use dokime_protocol::model::value;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::host::{PluginManaged, PluginPlacement, PluginRemote, PluginState, PluginValue};
 
 /* === Constants === */
@@ -71,10 +72,10 @@ const REGISTER: u64 = 1_152_921_504_606_847_975;
 
 /// Install the Packaged Bundle Through a Verified Managed Upload and Await Its Ready Entry.
 async fn install(client: &Client) -> Result<(), Box<dyn Error>> {
-    let archive = std::fs::read(support::obc_bundle()?)?;
+    let archive = fs::read(support::obc_bundle()?)?;
     let content = upload(client, archive.clone()).await?;
     let placement = PluginPlacement {
-        kind: Some(PlacementKind::Managed(PluginManaged {
+        kind: Some(plugin_placement::Kind::Managed(PluginManaged {
             content: Some(content),
             sha256: Sha256::digest(&archive).to_vec(),
         })),
@@ -108,7 +109,7 @@ async fn run(
     assert_eq!(summary.state, ExecutionState::Sealed as i32);
     assert!(
         matches!(detail.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
-            Some(ExecutionOutcomeAttribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32),
+            Some(execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32),
         "{template}: {:?}",
         detail.outcome
     );
@@ -119,11 +120,11 @@ async fn run(
 fn inspection() -> MapValue {
     MapValue {
         values: HashMap::from([
-            ("inspection_passed".into(), Value { kind: Some(ValueKind::Boolean(true)) }),
+            ("inspection_passed".into(), Value { kind: Some(value::Kind::Boolean(true)) }),
             (
                 "operator_note".into(),
                 Value {
-                    kind: Some(ValueKind::Text("Indicator Steady".into())),
+                    kind: Some(value::Kind::Text("Indicator Steady".into())),
                 },
             ),
         ]),
@@ -137,7 +138,7 @@ async fn records(
     let detail = client.executions.get(execution.to_owned()).await?.execution.ok_or("Read Execution: Missing Detail")?;
     let pool = DescriptorPool::from_file_descriptor_set((*FrozenSchemaCache::default().get(client, &detail).await?).clone())?;
     let scope = EvidenceRecordScope {
-        kind: Some(RecordScopeKind::Execution(execution.to_owned())),
+        kind: Some(record_scope::Kind::Execution(execution.to_owned())),
     };
     let options = EvidenceRecordsListOptions {
         versions: Some(Vec::new()),
@@ -149,7 +150,10 @@ async fn records(
     let listed = client.evidence.records.list_with(scope, String::new(), options).await?;
     let mut decoded = BTreeMap::<String, Vec<DynamicMessage>>::new();
     for record in listed.records {
-        let (_, name) = messages.iter().find(|(kind, _)| *kind == record.record_type).ok_or("Decode Record: Unexpected Record Type")?;
+        let (_, name) = messages
+            .iter()
+            .find(|(kind, _)| *kind == record.record_type)
+            .ok_or_else(|| format!("Decode {}: Declare Its Frozen Message in This Story", record.record_type))?;
         let message = pool.get_message_by_name(name).ok_or("Decode Record: Missing Frozen Message")?;
         decoded.entry(record.record_type.clone()).or_default().push(DynamicMessage::decode(message, record.payload.as_slice())?);
     }
@@ -159,9 +163,9 @@ async fn records(
 /// Read a Value as an Exact Decimal Integer, Refusing Floating Results.
 fn exact(value: &Value) -> String {
     match value.kind.as_ref() {
-        Some(ValueKind::UnsignedInteger(value)) => value.to_string(),
-        Some(ValueKind::Integer(value)) => value.to_string(),
-        Some(ValueKind::Exact(value)) if value.denominator == "1" && !value.negative => value.numerator.clone(),
+        Some(value::Kind::UnsignedInteger(value)) => value.to_string(),
+        Some(value::Kind::Integer(value)) => value.to_string(),
+        Some(value::Kind::Exact(value)) if value.denominator == "1" && !value.negative => value.numerator.clone(),
         other => panic!("Expected an Exact Integer, Found {other:?}"),
     }
 }
@@ -182,57 +186,62 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             install(&client).await?;
             let suites = client.suites.list(String::new()).await?;
             let suites = suites.values.iter().map(|suite| suite.metadata.as_ref().unwrap().identifier.clone()).collect::<BTreeSet<_>>();
-            assert!(
-                ["obc.checks", "obc.charger.startup", "obc.charger.steady", "obc.charger.protection", "obc.charger.recovery", "obc.bench"]
-                    .iter()
-                    .all(|suite| suites.contains(*suite))
-            );
+            assert!(["obc.steady_state", "obc.transient", "obc.benchmark"].iter().all(|suite| suites.contains(*suite)));
 
             // Run the Start-Up Sequence and Accept the Operator Inspection
             let answer = Some(("submit", inspection()));
-            let (startup, _) = run(&client, "obc.charger.startup", "obc.charger.startup.sequence", HashMap::new(), answer).await?;
+            let (startup, _) = run(&client, "obc.transient", "obc.transient.startup", HashMap::new(), answer).await?;
             let messages = [
-                ("obc.charger.startup.initialized", "obc.Initialized"),
-                ("obc.charger.startup.started", "obc.Started"),
-                ("obc.charger.startup.checkpoint", "obc.Checkpoint"),
-                ("obc.charger.startup.completed", "obc.Completed"),
+                ("obc.records.charger.initialized", "obc.Initialized"),
+                ("obc.records.charger.started", "obc.Started"),
+                ("obc.transient.startup.checkpoint", "obc.Checkpoint"),
+                ("obc.records.charger.completed", "obc.Completed"),
             ];
             let captured = records(&client, &startup, &messages).await?;
             for record in ["initialized", "started", "checkpoint", "completed"] {
-                assert_eq!(captured[&format!("obc.charger.startup.{record}")].len(), 1, "{record}");
+                let identifier = if record == "checkpoint" {
+                    "obc.transient.startup.checkpoint".into()
+                } else {
+                    format!("obc.records.charger.{record}")
+                };
+                assert_eq!(captured[&identifier].len(), 1, "{record}");
             }
-            let checkpoint = &captured["obc.charger.startup.checkpoint"][0];
-            assert_eq!(checkpoint.get_field_by_name("sample_index").unwrap().as_ref(), &ReflectValue::U64(10));
-            let completed = &captured["obc.charger.startup.completed"][0];
-            assert_eq!(completed.get_field_by_name("sample_count").unwrap().as_ref(), &ReflectValue::U64(20));
-            assert_eq!(completed.get_field_by_name("accepted").unwrap().as_ref(), &ReflectValue::Bool(true));
-            assert_eq!(completed.get_field_by_name("operator_note").unwrap().as_ref(), &ReflectValue::String("Indicator Steady".into()));
+            let checkpoint = &captured["obc.transient.startup.checkpoint"][0];
+            assert_eq!(checkpoint.get_field_by_name("sample_index").unwrap().as_ref(), &prost_reflect::Value::U64(10));
+            let completed = &captured["obc.records.charger.completed"][0];
+            assert_eq!(completed.get_field_by_name("sample_count").unwrap().as_ref(), &prost_reflect::Value::U64(20));
+            assert_eq!(completed.get_field_by_name("accepted").unwrap().as_ref(), &prost_reflect::Value::Bool(true));
+            assert_eq!(
+                completed.get_field_by_name("operator_note").unwrap().as_ref(),
+                &prost_reflect::Value::String("Indicator Steady".into())
+            );
             let scope = EvidenceScope {
                 execution_id: Some(startup.clone()),
                 ..Default::default()
             };
-            let inrush = client.evidence.statistics(scope, "obc.charger.startup.samples", "current_rms_a").await?.statistics.unwrap();
+            let inrush = client.evidence.statistics(scope, "obc.measurement", "current_rms_a").await?.statistics.unwrap();
             assert_eq!(inrush.count, 20);
-            assert!(matches!(inrush.first.and_then(|value| value.kind), Some(ValueKind::Number(first)) if (first - 3.45).abs() < 1e-9));
+            assert!(matches!(inrush.first.and_then(|value| value.kind), Some(value::Kind::Number(first)) if (first - 3.45).abs() < 1e-9));
 
-            // Run the Module Array Bench and Read Its Exact Register Statistics
+            // Run the Exact Values Workload and Read Its Register Statistics
             let answer = Some(("yes", MapValue::default()));
-            let (bench, cycle) = run(&client, "obc.bench", "obc.bench.module_array", HashMap::new(), answer).await?;
-            let captured = records(&client, &bench, &[("obc.bench.confirmation", "obc.Confirmation")]).await?;
-            let confirmation = &captured["obc.bench.confirmation"];
+            let (bench, cycle) = run(&client, "obc.benchmark", "obc.benchmark.exact_values", HashMap::new(), answer).await?;
+            let captured = records(&client, &bench, &[("obc.benchmark.exact_values.confirmation", "obc.Confirmation")]).await?;
+            let confirmation = &captured["obc.benchmark.exact_values.confirmation"];
             assert_eq!(confirmation.len(), 1);
-            assert_eq!(confirmation[0].get_field_by_name("accepted").unwrap().as_ref(), &ReflectValue::Bool(true));
+            assert_eq!(confirmation[0].get_field_by_name("accepted").unwrap().as_ref(), &prost_reflect::Value::Bool(true));
             let scope = EvidenceScope {
                 execution_id: Some(bench.clone()),
                 ..Default::default()
             };
-            let register = client.evidence.statistics(scope, "obc.bench.meter", "energy_register").await?.statistics.unwrap();
+            let register =
+                client.evidence.statistics(scope, "obc.benchmark.exact_values.meter", "energy_register").await?.statistics.unwrap();
             assert_eq!(register.count, 250);
             for value in [&register.min, &register.max, &register.first, &register.last, &register.median] {
                 assert_eq!(exact(value.as_ref().unwrap()), REGISTER.to_string());
             }
 
-            // Read the Bench Document: One Hundred Plots and Eleven Exact Tiles at One Cut
+            // Read the Exact Values Document and Its Eleven Tiles at One Cut
             let scope = DocumentScope { cycle_id: cycle, execution_id: bench };
             let mut options = DocumentsGetOptions {
                 max_frames: Some(32),
@@ -241,17 +250,17 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             let mut plots = BTreeSet::new();
             let mut tiles = BTreeMap::new();
             loop {
-                let page = client.documents.get_with(scope.clone(), "obc.bench.module_array.report", options.clone()).await?;
+                let page = client.documents.get_with(scope.clone(), "obc.benchmark.exact_values.report", options.clone()).await?;
                 for frame in page.frames.into_iter().filter_map(|frame| frame.frame.and_then(|frame| frame.kind)) {
                     match frame {
-                        DocumentFrameFrameKind::Binding(binding) => {
-                            if let Some(DocumentBindingResultKind::Plot(_)) =
+                        document_frame_frame::Kind::Binding(binding) => {
+                            if let Some(document_binding_result::Kind::Plot(_)) =
                                 binding.result.as_ref().and_then(|result| result.kind.as_ref())
                             {
                                 plots.insert(binding.source_id);
                             }
                         }
-                        DocumentFrameFrameKind::SummaryTile(tile) => {
+                        document_frame_frame::Kind::SummaryTile(tile) => {
                             assert!(tile.unavailable.is_none(), "{:?}", tile.unavailable);
                             tiles.insert(tile.metadata.unwrap().identifier, tile.value.unwrap());
                         }
@@ -264,71 +273,72 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
                 options.page_token = Some(page.next_page_token);
                 options.at = page.resolved_at;
             }
-            assert_eq!(plots.len(), 100);
+            assert!(plots.is_empty());
             assert_eq!(exact(&tiles["count"]), "250");
             assert_eq!(exact(&tiles["sum"]), (u128::from(REGISTER) * 250).to_string());
             for name in ["mean", "median", "min", "max", "first", "last", "p05", "p95", "p99"] {
                 assert_eq!(exact(&tiles[name]), REGISTER.to_string(), "{name}");
             }
 
-            // The Pulse Saves Its Requested Samples Between Its Run Records
-            let (pulse, _) = run(&client, "obc.checks", "obc.checks.pulse", HashMap::new(), None).await?;
-            let messages = [("obc.run.started", "obc.Started"), ("obc.run.completed", "obc.RunCompleted")];
-            let captured = records(&client, &pulse, &messages).await?;
-            assert_eq!(captured["obc.run.completed"][0].get_field_by_name("samples").unwrap().as_ref(), &ReflectValue::U64(8));
-
-            // One Steady-State Case of the Sweep Holds for Its Samples and Records Both Supply Events
+            // A Single-Phase Case Captures Settling and the Accepted Observation Window
             let parameters = HashMap::from([
-                ("ac_voltage_v".into(), vec![Value { kind: Some(ValueKind::Number(253.0)) }]),
-                ("load_ohm".into(), vec![Value { kind: Some(ValueKind::Number(80.0)) }]),
+                ("ac_voltage_v".into(), vec![Value { kind: Some(value::Kind::Number(253.0)) }]),
+                ("load_ohm".into(), vec![Value { kind: Some(value::Kind::Number(80.0)) }]),
             ]);
             let answer = Some(("submit", inspection()));
-            let (steady, _) = run(&client, "obc.charger.steady", "obc.charger.steady.measurement", parameters, answer).await?;
+            let (steady, _) = run(&client, "obc.steady_state", "obc.steady_state.single_phase", parameters, answer).await?;
             let messages = [
-                ("obc.charger.steady.initialized", "obc.Initialized"),
-                ("obc.charger.steady.started", "obc.Started"),
-                ("obc.charger.steady.hold", "obc.HoldEvent"),
-                ("obc.charger.steady.completed", "obc.Completed"),
+                ("obc.records.charger.initialized", "obc.Initialized"),
+                ("obc.records.charger.started", "obc.Started"),
+                ("obc.records.charger.hold", "obc.HoldEvent"),
+                ("obc.records.charger.completed", "obc.Completed"),
             ];
             let captured = records(&client, &steady, &messages).await?;
-            let events = captured["obc.charger.steady.hold"]
+            let events = captured["obc.records.charger.hold"]
                 .iter()
-                .map(|event| event.get_field_by_name("event").unwrap().as_str().unwrap().to_owned())
+                .map(|record| record.get_field_by_name("event").unwrap().as_str().unwrap().to_owned())
                 .collect::<Vec<_>>();
             assert_eq!(events, ["hold_started", "hold_reached"]);
-            let completed = &captured["obc.charger.steady.completed"][0];
-            assert_eq!(completed.get_field_by_name("sample_count").unwrap().as_ref(), &ReflectValue::U64(50));
+            let completed = &captured["obc.records.charger.completed"][0];
+            assert_eq!(completed.get_field_by_name("sample_count").unwrap().as_ref(), &prost_reflect::Value::U64(150));
 
             // Protection Trips on the Third Load Step and Refuses a Latched Restart
-            let (protection, _) =
-                run(&client, "obc.charger.protection", "obc.charger.protection.overcurrent", HashMap::new(), None).await?;
+            let (protection, _) = run(&client, "obc.transient", "obc.transient.overcurrent", HashMap::new(), None).await?;
             let messages = [
-                ("obc.charger.protection.initialized", "obc.Initialized"),
-                ("obc.charger.protection.started", "obc.Started"),
-                ("obc.charger.protection.faulted", "obc.Faulted"),
-                ("obc.charger.protection.stopped", "obc.Stopped"),
+                ("obc.records.charger.initialized", "obc.Initialized"),
+                ("obc.records.charger.started", "obc.Started"),
+                ("obc.records.charger.faulted", "obc.Faulted"),
+                ("obc.records.charger.stopped", "obc.Stopped"),
             ];
             let captured = records(&client, &protection, &messages).await?;
-            let stopped = &captured["obc.charger.protection.stopped"][0];
-            assert_eq!(stopped.get_field_by_name("tripped_at_step").unwrap().as_ref(), &ReflectValue::U64(3));
-            let faulted = &captured["obc.charger.protection.faulted"][0];
+            let stopped = &captured["obc.records.charger.stopped"][0];
+            assert_eq!(stopped.get_field_by_name("tripped_at_step").unwrap().as_ref(), &prost_reflect::Value::U64(3));
+            let faulted = &captured["obc.records.charger.faulted"][0];
             assert_eq!(faulted.get_field_by_name("fault").unwrap().as_str(), Some("overcurrent"));
 
-            // Recovery Contains and Recovers Every Outage of the Schedule
-            let (recovery, _) = run(&client, "obc.charger.recovery", "obc.charger.recovery.power", HashMap::new(), None).await?;
-            let messages = [
-                ("obc.charger.recovery.initialized", "obc.Initialized"),
-                ("obc.charger.recovery.started", "obc.Started"),
-                ("obc.charger.recovery.faulted", "obc.Faulted"),
-                ("obc.charger.recovery.cleared", "obc.Cleared"),
-                ("obc.charger.recovery.stopped", "obc.Stopped"),
-            ];
-            let captured = records(&client, &recovery, &messages).await?;
-            assert_eq!(captured["obc.charger.recovery.faulted"].len(), 3);
-            assert_eq!(captured["obc.charger.recovery.cleared"].len(), 3);
-            assert_eq!(captured["obc.charger.recovery.started"].len(), 4);
-            let stopped = &captured["obc.charger.recovery.stopped"][0];
-            assert_eq!(stopped.get_field_by_name("cycles").unwrap().as_ref(), &ReflectValue::U64(3));
+            // Overvoltage Has Its Own Protection Ladder and Restart Refusal
+            let (voltage, _) = run(&client, "obc.transient", "obc.transient.overvoltage", HashMap::new(), None).await?;
+            let captured = records(
+                &client,
+                &voltage,
+                &[
+                    ("obc.records.charger.initialized", "obc.Initialized"),
+                    ("obc.records.charger.started", "obc.Started"),
+                    ("obc.records.charger.faulted", "obc.Faulted"),
+                    ("obc.records.charger.stopped", "obc.Stopped"),
+                ],
+            )
+            .await?;
+            assert_eq!(captured["obc.records.charger.faulted"][0].get_field_by_name("fault").unwrap().as_str(), Some("overvoltage"));
+            assert_eq!(
+                captured["obc.records.charger.stopped"][0].get_field_by_name("tripped_at_step").unwrap().as_ref(),
+                &prost_reflect::Value::U64(3)
+            );
+            // Exercise Each Independent Benchmark and the Balanced Three-Phase Template
+            run(&client, "obc.steady_state", "obc.steady_state.three_phase", HashMap::new(), Some(("submit", inspection()))).await?;
+            run(&client, "obc.benchmark", "obc.benchmark.streams", HashMap::new(), None).await?;
+            run(&client, "obc.benchmark", "obc.benchmark.observers", HashMap::new(), None).await?;
+            run(&client, "obc.benchmark", "obc.benchmark.plots", HashMap::new(), Some(("yes", MapValue::default()))).await?;
             process.close().await?;
             Ok::<(), Box<dyn Error>>(())
         })
@@ -349,7 +359,7 @@ fn real_clock_executions_end_passed() -> Result<(), Box<dyn Error>> {
             let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, support::client_settings())?;
             install(&client).await?;
             let placement = PluginPlacement {
-                kind: Some(PlacementKind::Remote(PluginRemote { url: thermal.endpoint().into() })),
+                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: thermal.endpoint().into() })),
             };
             let entry = client
                 .plugins
@@ -360,18 +370,18 @@ fn real_clock_executions_end_passed() -> Result<(), Box<dyn Error>> {
             support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
 
             // Every Run Seals Passed; Counts and Durations Belong to the Controlled-Clock Stories
-            let limit = HashMap::from([("limit".into(), vec![Value { kind: Some(ValueKind::Number(85.0)) }])]);
+            let limit = HashMap::from([("limit".into(), vec![Value { kind: Some(value::Kind::Number(85.0)) }])]);
             run(&client, "thermal", "thermal.cycle", limit, Some(("yes", MapValue::default()))).await?;
-            run(&client, "obc.charger.startup", "obc.charger.startup.sequence", HashMap::new(), Some(("submit", inspection()))).await?;
-            run(&client, "obc.bench", "obc.bench.module_array", HashMap::new(), Some(("yes", MapValue::default()))).await?;
-            run(&client, "obc.checks", "obc.checks.pulse", HashMap::new(), None).await?;
+            run(&client, "obc.transient", "obc.transient.startup", HashMap::new(), Some(("submit", inspection()))).await?;
+            run(&client, "obc.benchmark", "obc.benchmark.exact_values", HashMap::new(), Some(("yes", MapValue::default()))).await?;
             let parameters = HashMap::from([
-                ("ac_voltage_v".into(), vec![Value { kind: Some(ValueKind::Number(253.0)) }]),
-                ("load_ohm".into(), vec![Value { kind: Some(ValueKind::Number(80.0)) }]),
+                ("ac_voltage_v".into(), vec![Value { kind: Some(value::Kind::Number(253.0)) }]),
+                ("load_ohm".into(), vec![Value { kind: Some(value::Kind::Number(80.0)) }]),
             ]);
-            run(&client, "obc.charger.steady", "obc.charger.steady.measurement", parameters, Some(("submit", inspection()))).await?;
-            run(&client, "obc.charger.protection", "obc.charger.protection.overcurrent", HashMap::new(), None).await?;
-            run(&client, "obc.charger.recovery", "obc.charger.recovery.power", HashMap::new(), None).await?;
+            run(&client, "obc.steady_state", "obc.steady_state.single_phase", parameters, Some(("submit", inspection()))).await?;
+            run(&client, "obc.transient", "obc.transient.overcurrent", HashMap::new(), None).await?;
+            run(&client, "obc.transient", "obc.transient.overvoltage", HashMap::new(), None).await?;
+            run(&client, "obc.steady_state", "obc.steady_state.three_phase", HashMap::new(), Some(("submit", inspection()))).await?;
             process.close().await?;
             thermal.close().await?;
             Ok::<(), Box<dyn Error>>(())

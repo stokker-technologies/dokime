@@ -528,7 +528,12 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
 - [x] Delete the ten old-loop crates and their exclusive consumers, fixtures and configuration.
 - [x] Retain current bundle production/inspection without facade dependencies.
 - [ ] Re-author the host telemetry plugin on the Rust SDK, including its collectors and controls.
-- [ ] Re-author the OBC sidecar on the Rust SDK, including its device operations and suites.
+- [x] Re-author the OBC sidecar on the Rust SDK, including its device operations and suites.
+  - [x] Keep execution-owned benches, synchronization and model clocks private in `device/`; compose global modules through `catalog()` and own each complete template in its suite slice.
+  - [x] Replace the old suites with `steady_state` (single/three phase with resistance, reactance, efficiency and power factor), `transient` (startup, overcurrent and overvoltage) and independent stream/plot/observer/exact-value benchmarks. Remove recovery/checks and OBC analysis registration; migrate identifiers and consumers without aliases.
+  - [x] Add owned number/count/flag/sweep/list, line plot and card builder values across Rust, Python, C# and C++; replace the OBC guide with the existing project authoring skill's canonical layout and per-language guidance.
+  - [x] Preserve steady-state traceability, supply hold records and summary artifacts in both phase templates; retain scoped operator decisions in plot completion records.
+  - [x] Complete the requested OBC build, OBC integration tests, packaged runtime story, SDK builder tests and clean lint proof on the combined candidate.
 - [ ] Re-author storage/plot benchmarks on the remaining host/storage and restore their Nightly producer and suite selections.
 - [ ] Restore the desktop to the workspace when its switch merges.
   - [x] Restore crates/dokime-gui/src-tauri workspace and default membership.

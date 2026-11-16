@@ -7,6 +7,7 @@
  * ***
  */
 
+#include "dokime/parameters.hpp"
 #include "dokime/plots.hpp"
 #include <catch2/catch_test_macros.hpp>
 using dokime::CONTOUR_RENDER_BANDS;
@@ -56,4 +57,30 @@ TEST_CASE("Documents Preserve Composed Plot Operands") {
                         .reduce(REDUCTION_MAX);
   REQUIRE(grid.message.grid().frame().stream().field() == "timestamp");
   REQUIRE(grid.message.reduction() == REDUCTION_MAX);
+}
+
+TEST_CASE("Parameter Builders Preserve Types Expansion and Bounds") {
+  const auto voltage = dokime::authoring::Parameter::number("voltage", "Voltage").unit("V").default_value(230.0).range(0.0, 300.0).build();
+  const auto count = dokime::authoring::Parameter::count("samples", "Samples").default_value(UINT64_MAX).build();
+  const auto flag = dokime::authoring::Parameter::flag("enabled", "Enabled").default_value(true).build();
+  const auto sweep = dokime::authoring::Parameter::sweep("load", "Load", {80.0, 100.0}).build();
+  const auto ladder = dokime::authoring::Parameter::numbers("steps", "Steps", {10.0, 20.0}).items(1, 8).build();
+  dokime::Parameter decoded;
+  REQUIRE(decoded.ParseFromString(voltage.SerializeAsString()));
+  REQUIRE(decoded.expression().literal().number() == 230.0);
+  REQUIRE(decoded.min() == 0.0);
+  REQUIRE(decoded.max() == 300.0);
+  REQUIRE(count.expression().literal().unsigned_integer() == UINT64_MAX);
+  REQUIRE(flag.expression().literal().boolean());
+  REQUIRE(sweep.expansion().cartesian());
+  REQUIRE(sweep.expression().array().values_size() == 2);
+  REQUIRE(ladder.expression().literal().list().values(1).number() == 20.0);
+  REQUIRE(ladder.min_items() == 1);
+  REQUIRE(ladder.max_items() == 8);
+  auto line = dokime::authoring::Plot::line("voltage", "Voltage").unit("V").y(dokime::authoring::field("samples", "voltage"));
+  const auto card = dokime::authoring::plot_card(line, 6);
+  line.message.clear_y();
+  REQUIRE(card.plot().y_size() == 1);
+  REQUIRE(card.layout().columns() == 6);
+  REQUIRE(dokime::authoring::records_card("records").evidence() == dokime::EVIDENCE_CARD_RECORDS);
 }

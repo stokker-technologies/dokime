@@ -44,7 +44,7 @@ pub const IMAGES_DIRECTORY: &str = "images_directory";
 
 /* === Public Functions === */
 
-pub fn declarations() -> [SettingDeclaration; 2] {
+pub fn catalog() -> [SettingDeclaration; 2] {
     [
         SettingDeclaration {
             name: SAMPLE_INTERVAL.into(),

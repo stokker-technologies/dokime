@@ -183,7 +183,7 @@ async function exactBench() {
   // Run the OBC Bench Template, Whose Meter Register Exceeds Every Float's Integer Precision.
   const plan = await call(desktop, "Cases", "Create", {
     requestId: crypto.randomUUID(),
-    plan: { selections: [{ suiteId: "obc.bench", templateId: "obc.bench.module_array" }] },
+    plan: { selections: [{ suiteId: "obc.benchmark", templateId: "obc.benchmark.exact_values" }] },
     validateOnly: false,
   });
   const bench = await call(desktop, "Cycles", "Create", {
