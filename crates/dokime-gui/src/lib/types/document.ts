@@ -102,7 +102,6 @@ export type DocumentViewPlot = {
   x_scale: DocumentAxisScale;
   y_scale: DocumentAxisScale;
   fft: DocumentFftOptions;
-  analysis?: import("./plot").EvidenceAnalysisSelection | null;
   interval?: DocumentSigmaInterval | null;
   histogram?: DocumentHistogramOptions | null;
   y: string[];

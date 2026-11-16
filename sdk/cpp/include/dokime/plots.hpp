@@ -58,6 +58,13 @@ struct Expression {
 };
 
 struct Plot {
+  static Plot line(std::string identifier, std::string label) {
+    Plot result;
+    result.message.set_kind(PLOT_KIND_TIME_SERIES);
+    result.message.mutable_metadata()->set_identifier(std::move(identifier));
+    result.message.mutable_metadata()->set_label(std::move(label));
+    return result;
+  }
   dokime::Plot message;
   Plot &x(const Expression &value) {
     *message.mutable_x() = value.message;
@@ -148,6 +155,21 @@ struct Plot {
 /* === Templates === */
 
 /* === Public Declarations === */
+
+inline Card plot_card(const Plot &plot, std::uint32_t columns = 12) {
+  Card result;
+  *result.mutable_metadata() = plot.message.metadata();
+  *result.mutable_plot() = plot.message;
+  result.mutable_layout()->set_columns(columns);
+  return result;
+}
+inline Card records_card(std::string identifier) {
+  Card result;
+  result.mutable_metadata()->set_identifier(std::move(identifier));
+  result.mutable_metadata()->set_label("Records");
+  result.set_evidence(EVIDENCE_CARD_RECORDS);
+  return result;
+}
 
 inline Expression field(std::string stream, std::string name) {
   Expression value;

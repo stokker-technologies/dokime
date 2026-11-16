@@ -18,11 +18,15 @@ pub use crate::model::{AxisScale, BarArrangement, ContourRender, GridAxisEntry, 
 /* === Imports === */
 
 // Standard Library Imports
+use std::ops::{Bound, RangeBounds};
 
 // Third Party Imports
 
 // Local Imports
-use crate::model::{self, DataExpression, PlotKind, ReferenceBand, ReferenceLine, metadata};
+use crate::model::{
+    self, DataExpression, Metadata, ParameterExpansion, ParameterExpression, ParameterExpressions, PlotKind, ReferenceBand, ReferenceLine,
+    Value, ValueList, ValueType, metadata, parameter_expansion, parameter_expression, value,
+};
 
 /* === Constants === */
 
@@ -39,6 +43,11 @@ use crate::model::{self, DataExpression, PlotKind, ReferenceBand, ReferenceLine,
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Plot {
     pub message: model::Plot,
+}
+
+/// An Owned Parameter Value Under Construction.
+pub struct ParameterBuilder {
+    message: model::Parameter,
 }
 
 /* === Enums === */
@@ -287,8 +296,121 @@ impl Plot {
     }
 }
 
+impl model::Parameter {
+    pub fn number(identifier: impl Into<String>, label: impl Into<String>) -> ParameterBuilder {
+        ParameterBuilder::new(identifier, label, ValueType::Number)
+    }
+    pub fn count(identifier: impl Into<String>, label: impl Into<String>) -> ParameterBuilder {
+        ParameterBuilder::new(identifier, label, ValueType::UnsignedInteger)
+    }
+    pub fn flag(identifier: impl Into<String>, label: impl Into<String>) -> ParameterBuilder {
+        ParameterBuilder::new(identifier, label, ValueType::Boolean)
+    }
+    pub fn sweep(identifier: impl Into<String>, label: impl Into<String>, values: impl IntoIterator<Item = f64>) -> ParameterBuilder {
+        let mut builder = Self::number(identifier, label);
+        builder.message.expression = Some(ParameterExpression {
+            kind: Some(parameter_expression::Kind::Array(ParameterExpressions {
+                values: values.into_iter().map(|number| literal(value::Kind::Number(number))).collect(),
+            })),
+        });
+        builder.message.expansion = Some(ParameterExpansion {
+            kind: Some(parameter_expansion::Kind::Cartesian(true)),
+        });
+        builder
+    }
+    pub fn numbers(identifier: impl Into<String>, label: impl Into<String>, values: impl IntoIterator<Item = f64>) -> ParameterBuilder {
+        let mut builder = ParameterBuilder::new(identifier, label, ValueType::List);
+        builder.message.element_type = ValueType::Number as i32;
+        builder.message.expression = Some(literal(value::Kind::List(ValueList {
+            values: values.into_iter().map(|number| Value { kind: Some(value::Kind::Number(number)) }).collect(),
+        })));
+        builder
+    }
+}
+
+impl ParameterBuilder {
+    fn new(identifier: impl Into<String>, label: impl Into<String>, kind: ValueType) -> Self {
+        Self {
+            message: model::Parameter {
+                metadata: Some(Metadata {
+                    identifier: identifier.into(),
+                    label: label.into(),
+                    ..Default::default()
+                }),
+                r#type: kind as i32,
+                ..Default::default()
+            },
+        }
+    }
+    pub fn unit(mut self, unit: impl Into<String>) -> Self {
+        self.message.unit = unit.into();
+        self
+    }
+    pub fn default(mut self, value: impl Into<value::Kind>) -> Self {
+        self.message.expression = Some(literal(value.into()));
+        self
+    }
+    /// Inclusive Bounds Only; Open Bounds Are Unbounded.
+    pub fn range(mut self, bounds: impl RangeBounds<f64>) -> Self {
+        self.message.min = match bounds.start_bound() {
+            Bound::Included(value) => Some(*value),
+            Bound::Unbounded => None,
+            Bound::Excluded(_) => panic!("Parameter Range: Use Inclusive Bounds"),
+        };
+        self.message.max = match bounds.end_bound() {
+            Bound::Included(value) => Some(*value),
+            Bound::Unbounded => None,
+            Bound::Excluded(_) => panic!("Parameter Range: Use Inclusive Bounds"),
+        };
+        self
+    }
+    pub fn items(mut self, bounds: impl RangeBounds<u32>) -> Self {
+        self.message.min_items = match bounds.start_bound() {
+            Bound::Included(value) => Some(*value),
+            Bound::Unbounded => None,
+            Bound::Excluded(_) => panic!("Parameter Items: Use Inclusive Bounds"),
+        };
+        self.message.max_items = match bounds.end_bound() {
+            Bound::Included(value) => Some(*value),
+            Bound::Unbounded => None,
+            Bound::Excluded(_) => panic!("Parameter Items: Use Inclusive Bounds"),
+        };
+        self
+    }
+    pub fn build(self) -> model::Parameter {
+        self.message
+    }
+}
+
+impl From<ParameterBuilder> for model::Parameter {
+    fn from(builder: ParameterBuilder) -> Self {
+        builder.message
+    }
+}
+impl From<f64> for value::Kind {
+    fn from(value: f64) -> Self {
+        Self::Number(value)
+    }
+}
+impl From<u64> for value::Kind {
+    fn from(value: u64) -> Self {
+        Self::UnsignedInteger(value)
+    }
+}
+impl From<bool> for value::Kind {
+    fn from(value: bool) -> Self {
+        Self::Boolean(value)
+    }
+}
+
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn literal(kind: value::Kind) -> ParameterExpression {
+    ParameterExpression {
+        kind: Some(parameter_expression::Kind::Literal(Value { kind: Some(kind) })),
+    }
+}
 
 /* === Tests === */

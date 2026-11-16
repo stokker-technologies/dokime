@@ -43,60 +43,6 @@ pub struct SnapshotsWatchResponse {
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AnalysisComputation {
-    #[prost(message, optional, tag = "1")]
-    pub definition: ::core::option::Option<super::super::super::model::v1::Analysis>,
-    #[prost(message, optional, tag = "2")]
-    pub selection: ::core::option::Option<
-        super::super::super::model::v1::AnalysisSelection,
-    >,
-    #[prost(message, optional, tag = "3")]
-    pub source: ::core::option::Option<AnalysisEvidence>,
-    #[prost(message, repeated, tag = "4")]
-    pub series: ::prost::alloc::vec::Vec<AnalysisSeries>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AnalysisEvidence {
-    #[prost(string, tag = "1")]
-    pub store: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub epoch: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "3")]
-    pub position: u64,
-    #[prost(string, tag = "4")]
-    pub stream: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "5")]
-    pub scope: ::core::option::Option<super::super::super::model::v1::EvidenceScope>,
-    #[prost(double, optional, tag = "6")]
-    pub window_s: ::core::option::Option<f64>,
-    #[prost(string, repeated, tag = "7")]
-    pub fields: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, tag = "8")]
-    pub x_key: ::prost::alloc::string::String,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AnalysisSeries {
-    #[prost(string, tag = "1")]
-    pub key: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub label: ::prost::alloc::string::String,
-    #[prost(string, optional, tag = "3")]
-    pub origin: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(uint64, tag = "4")]
-    pub input_samples: u64,
-    #[prost(double, tag = "5")]
-    pub first_axis: f64,
-    #[prost(double, tag = "6")]
-    pub last_axis: f64,
-    #[prost(message, repeated, tag = "7")]
-    pub outputs: ::prost::alloc::vec::Vec<
-        super::super::super::model::v1::AnalysisValues,
-    >,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ContourGrid {
     #[prost(uint32, tag = "1")]
     pub columns: u32,
@@ -367,8 +313,6 @@ pub struct PlotPayload {
     pub cycle_started_at: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "14")]
     pub analysis: ::core::option::Option<PlotAnalysis>,
-    #[prost(message, optional, tag = "15")]
-    pub computed: ::core::option::Option<AnalysisComputation>,
     #[prost(message, repeated, tag = "16")]
     pub summaries: ::prost::alloc::vec::Vec<PlotSeriesSummary>,
     #[prost(double, optional, tag = "17")]
@@ -568,10 +512,6 @@ pub struct PlotRequest {
     #[prost(message, optional, tag = "34")]
     pub histogram: ::core::option::Option<
         super::super::super::model::v1::PlotHistogramOptions,
-    >,
-    #[prost(message, optional, tag = "35")]
-    pub analysis: ::core::option::Option<
-        super::super::super::model::v1::AnalysisSelection,
     >,
     #[prost(message, optional, tag = "36")]
     pub summary_window: ::core::option::Option<PlotWindow>,

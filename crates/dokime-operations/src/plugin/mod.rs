@@ -11,7 +11,6 @@
 
 /* === Modules === */
 
-pub mod analyses;
 pub mod criteria;
 pub mod executions;
 pub mod steps;

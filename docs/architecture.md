@@ -194,13 +194,19 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    not the claim: while the original exists, the copy refuses to open with
    credential records and refuses credential removal, so it can never delete the
    original's accounts. A moved root reclaims; removal releases the claim.
-   Access-key cleanup checks native absence before retiring its slot journal;
-   a remaining or unreadable key preserves the root for cleanup. Access and shared
-   secret owners submit native creation, reads and removal to one dedicated
-   process-lifetime credential thread, including root reopen and explicit discard.
+   Native credential removal checks absence before the owner retires its slot journal;
+   a remaining or unreadable key preserves the root for cleanup. On Windows, every
+   native credential call, including test and diagnostic reads, takes the same
+   per-user cross-process file lock at `%LOCALAPPDATA%/dokime/native-credentials.lock`.
+   Persistent Windows credential reads can race writes to unrelated targets and
+   resurrect deleted entries, so neither a namespace lock nor a process-local owner
+   thread provides isolation. `host/credentials/` in `dokime-operations` owns this
+   boundary; calls run on their calling threads. Uncoordinated external credential
+   callers cannot be isolated by this product lock. Unix uses its native service directly.
    Root leases are unlocked before their handles close, since a lock left on a
    closed handle is released only eventually.
-   Concurrent-host stories retain independent calling-thread absence assertions.
+   Concurrent-host stories start separate host processes and retain calling-thread
+   native absence assertions through the same coordination boundary.
    Native test and benchmark runners retain child scratch ownership and remove
    root credentials after child exit, including termination, before deleting scratch.
    `credentials_leave_with_discarded_roots` proves named access and secret credentials
@@ -702,7 +708,6 @@ The definition replaces these ownership paths:
 | dokime.v1 shared grab-bag values | dokime.model.v1 for exchanged values; otherwise the owning host/plugin resource |
 | Product Plugin/Plugins and plugin-settings wrappers | harmos.host.v1.Plugins and harmos.host.v1.plugins.Settings |
 | Product clock operation declarations | harmos.host.v1.Time |
-| AnalysisRequest/AnalysisResponse | dokime.plugin.v1.AnalysesComputeRequest/AnalysesComputeResponse |
 | Product generic ordered merge | harmos-query/src/merge.rs; consumer deletion is still open |
 
 Both assembly and SDK generation read `protocol/composition.toml`. It composes
@@ -910,3 +915,33 @@ starters (decision 0.J). The Python test example carries its host-driven story i
 `tests/`, so `dokime new --lang python` ships the story its `mise run test` runs.
 The C++ starter consumes the installed SDK archive with its supplied SHA-256,
 then resolves the matching native dependencies through vcpkg.
+
+## Reference Plugin Authoring
+
+`plugins/sidecars/obc/src/lib.rs` composes global `catalog()` entry points. Its
+canonical Rust layout is maintained in the
+[authoring skill](../.claude/skills/dokime-authoring/SKILL.md): root entry points and
+settings, private device state/clock/locks behind `device::Bench`, plugin-lived
+manual operations, genuinely shared measurement/charger-event/inspection catalogs,
+and one complete file per template beneath each suite. A device folder does not
+extend a bench's lifetime: template initialization creates it in execution context,
+cleanup powers it down and execution disposal releases it.
+
+The OBC suite IDs are `obc.steady_state`, `obc.transient` and `obc.benchmark`.
+Template IDs append `single_phase`/`three_phase`, `startup`/`overcurrent`/`overvoltage`,
+or `streams`/`plots`/`observers`/`exact_values`, respectively. Resistance and reactance
+set the steady-state impedance and phase. Balanced three-phase input uses per-phase
+RMS quantities and three times the single-phase real power; DC power follows total
+input and conversion efficiency. Overvoltage and overcurrent both latch protection
+and refuse restart. Plot families and the thermal survey belong to the plot
+benchmark; exact unsigned meter values belong to their independent benchmark.
+Steady-state executions retain supply hold events, device/bench traceability and
+summary artifacts. Plot completion records include the operator decision.
+The retired recovery/check suites and plugin analysis registration have no aliases.
+Today's SDK lifecycle verbs remain unchanged.
+
+Rust parameter/plot/card conveniences are implemented with the protocol-owned
+messages in `crates/dokime-protocol/src/builders.rs` and accepted by value through
+the Rust SDK. Python, C# and C++ provide equivalent number/count/flag/sweep/list,
+line plot and card helpers. Generated messages remain tracked and are never edited
+by hand. No protocol shape or storage format changes are needed for this layout.

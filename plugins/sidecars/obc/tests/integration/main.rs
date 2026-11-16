@@ -19,13 +19,13 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
-use prost::Message as _;
+use prost::Message;
 use prost_reflect::DescriptorPool;
 
 // Local Imports
-use dokime::{Aggregate, DataExpression, Declarations, Document, PlotKind, Suites, TestCaseTemplate, Visibility, card, data_expression};
+use dokime::{Aggregate, DataExpression, Declarations, Document, Suites, TestCaseTemplate, Visibility, card, data_expression};
 use plugin_obc::device::{Charger, Fault, Power, Supply};
-use plugin_obc::suites::{bench, startup};
+use plugin_obc::suites::benchmark;
 
 /* === Constants === */
 
@@ -79,7 +79,7 @@ fn stream_fields(expression: &DataExpression, fields: &mut Vec<(String, String)>
 /* === Tests === */
 
 #[test]
-fn charger_inrush_settles_and_protection_latches_until_cleared() {
+fn charger_inrush_settles_and_protection_latches() {
     // Energize the Default Charger: Inrush Starts Half Above the Settled Current
     let mut charger = Charger::new(Supply::default()).unwrap();
     charger.start(0.0).unwrap();
@@ -94,15 +94,6 @@ fn charger_inrush_settles_and_protection_latches_until_cleared() {
     assert_eq!((charger.power, charger.fault), (Power::Faulted, Some(Fault::Overcurrent)));
     assert_eq!(charger.reading(0.3).current_rms_a, 0.0);
     assert!(charger.start(0.4).is_err());
-    charger.clear();
-    charger.set_load(100.0, 0.4).unwrap();
-    charger.start(0.4).unwrap();
-    assert_eq!(charger.power, Power::Running);
-
-    // A Power Loss Removes the Supply Voltage Until It Is Cleared
-    charger.inject(Fault::PowerLoss);
-    assert_eq!(charger.reading(0.5).voltage_rms_v, 0.0);
-    assert!(charger.restart_blocked());
 }
 
 #[test]
@@ -115,12 +106,15 @@ fn catalog_binds_every_document_to_declared_rows() {
         identifiers,
         BTreeSet::from(
             [
-                "obc.checks.pulse",
-                "obc.charger.startup.sequence",
-                "obc.charger.steady.measurement",
-                "obc.charger.protection.overcurrent",
-                "obc.charger.recovery.power",
-                "obc.bench.module_array"
+                "obc.steady_state.single_phase",
+                "obc.steady_state.three_phase",
+                "obc.transient.startup",
+                "obc.transient.overcurrent",
+                "obc.transient.overvoltage",
+                "obc.benchmark.streams",
+                "obc.benchmark.plots",
+                "obc.benchmark.observers",
+                "obc.benchmark.exact_values",
             ]
             .map(String::from)
         )
@@ -155,23 +149,14 @@ fn catalog_binds_every_document_to_declared_rows() {
     }
 
     // The Start-Up Report Draws All Ten Plot Kinds and Keeps Its Signal Maps
-    let report = document(&templates, startup::TEMPLATE);
+    let report = document(&templates, benchmark::plots::TEMPLATE);
     let kinds = plots(&report).iter().map(|(_, plot)| plot.kind).collect::<BTreeSet<_>>();
     assert_eq!(kinds.len(), 10);
-    let maps = plots(&report)
-        .into_iter()
-        .filter(|(section, _)| section == "obc.charger.startup.sequence.maps")
-        .map(|(_, plot)| (plot.kind, plot.metadata.unwrap().label))
-        .collect::<BTreeSet<_>>();
-    assert!(maps.contains(&(PlotKind::Trajectory as i32, "Electrical Trajectory".into())));
-    assert!(maps.contains(&(PlotKind::GridChart as i32, "Channel Survey".into())));
-    assert!(maps.iter().any(|(kind, _)| *kind == PlotKind::Contour as i32));
+    assert!(plots(&report).len() > 100);
 
     // The Bench Report Holds One Hundred Time Series and Eleven Exact Register Tiles
-    let report = document(&templates, bench::TEMPLATE);
-    let series = plots(&report);
-    assert_eq!(series.len(), bench::MODULES * bench::CHANNELS.len());
-    assert!(series.iter().all(|(_, plot)| plot.kind == PlotKind::TimeSeries as i32));
+    let report = document(&templates, benchmark::exact_values::TEMPLATE);
+    assert!(plots(&report).is_empty());
     let tiles = report
         .sections
         .iter()
@@ -187,6 +172,47 @@ fn catalog_binds_every_document_to_declared_rows() {
         assert_ne!(aggregate.kind, Aggregate::Unspecified as i32);
         let mut fields = Vec::new();
         stream_fields(aggregate.input.as_ref().unwrap(), &mut fields);
-        assert_eq!(fields, [(bench::METER.to_owned(), "energy_register".to_owned())]);
+        assert_eq!(fields, [(benchmark::exact_values::METER.to_owned(), "energy_register".to_owned())]);
     }
+}
+
+#[test]
+fn impedance_and_balanced_three_phase_power_are_consistent() {
+    let supply = Supply {
+        load_ohm: 80.0,
+        reactance_ohm: 60.0,
+        current_limit_a: 10.0,
+        ..Supply::default()
+    };
+    let mut single = Charger::new(supply).unwrap();
+    let mut three = Charger::new(Supply { phases: 3, ..supply }).unwrap();
+    single.start(0.0).unwrap();
+    three.start(0.0).unwrap();
+    let single = single.sample(1.0);
+    let three = three.sample(1.0);
+    assert!((single.current_rms_a - 2.3).abs() < 1e-9);
+    assert!((single.input_power_w / (single.voltage_rms_v * single.current_rms_a) - 0.8).abs() < 1e-9);
+    assert!((three.input_power_w - 3.0 * single.input_power_w).abs() < 1e-9);
+    assert!((three.dc_current_a - 3.0 * single.dc_current_a).abs() < 1e-9);
+    assert!((three.dc_voltage_v * three.dc_current_a / three.input_power_w - 0.94).abs() < 1e-9);
+}
+
+#[test]
+fn voltage_protection_disconnects_and_blocks_restart() {
+    let mut charger = Charger::new(Supply::default()).unwrap();
+    charger.start(0.0).unwrap();
+    charger.set_voltage(260.0, 0.2).unwrap();
+    assert_eq!(charger.power, Power::Running);
+    charger.set_voltage(290.0, 0.3).unwrap();
+    assert_eq!((charger.power, charger.fault), (Power::Faulted, Some(Fault::Overvoltage)));
+    assert_eq!(charger.reading(0.3).dc_current_a, 0.0);
+    assert!(charger.start(0.4).is_err());
+    assert!(Charger::new(Supply { phases: 2, ..Supply::default() }).is_err());
+    assert!(
+        Charger::new(Supply {
+            reactance_ohm: f64::NAN,
+            ..Supply::default()
+        })
+        .is_err()
+    );
 }

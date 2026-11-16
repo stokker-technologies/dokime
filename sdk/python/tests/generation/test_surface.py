@@ -36,7 +36,7 @@ from dokime.plugin import Context
 
 async def generated_surface(client: Client, context: Context) -> None:
     """Type-Check Content Calls Without Starting a Product Host."""
-    await client.analyses.list()
+    await client.plugins.list()
     await context.host.files.capture(FileSource(), "output")
     await context.host.content.artifacts.create(FileReference(), "capture.bin", "application/octet-stream")
     await context.host.evidence.statistics("stream", [], Window(), list[Output](), "field", "step")

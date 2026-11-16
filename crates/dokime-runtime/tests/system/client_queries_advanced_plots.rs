@@ -23,11 +23,6 @@
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Aggregate;
 use dokime::AggregateExpression;
-use dokime::Analyses;
-use dokime::Analysis;
-use dokime::AnalysisOutput;
-use dokime::AnalysisSelection;
-use dokime::AnalysisValues;
 use dokime::AxisScale;
 use dokime::Client;
 use dokime::DataExpression;
@@ -38,31 +33,23 @@ use dokime::FilterOperator;
 use dokime::GridDefinition;
 use dokime::GridHighlight;
 use dokime::Import;
-use dokime::MapValue;
 use dokime::Metadata;
 use dokime::Origin;
-use dokime::Parameter;
-use dokime::ParameterExpression;
 use dokime::PlotFilter;
 use dokime::PlotIntervalOptions;
 use dokime::PlotKind;
 use dokime::RecordContract;
 use dokime::RecordContracts;
 use dokime::Reduction;
-use dokime::Suites;
 use dokime::Termination;
 use dokime::TransformExpression;
 use dokime::Value;
-use dokime::ValueType;
 use dokime::XyInterval;
 use dokime::client::ExecutionOutcome;
 use dokime::client::PlotsPlotDomain;
 use dokime::client::PlotsPlotRequest;
 use dokime::client::PlotsPlotWindow;
 use dokime::client::PlotsSnapshotsListOptions;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
 use dokime::encoding::Message;
 use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_protocol::host::evidence::LogsAppendRequest;
@@ -70,52 +57,20 @@ use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::host::plots::plot_analysis_result::Kind as PlotAnalysisResultKind;
 use dokime_protocol::model::data_expression::Kind as DataExpressionKind;
 use dokime_protocol::model::origin::Kind as OriginKind;
-use dokime_protocol::model::parameter_expression::Kind as ParameterExpressionKind;
 use dokime_protocol::model::transform_expression::Kind as TransformExpressionKind;
 use dokime_protocol::model::value::Kind as ValueKind;
-use dokime_protocol::plugin::AnalysesComputeRequest;
-use dokime_protocol::plugin::AnalysesComputeResponse;
 use dokime_storage::Evidence;
 use dokime_storage::Execution;
 use dokime_storage::Sample;
 use dokime_storage::Store;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
 use harmos_protocol::model::Declarations;
-use harmos_protocol::model::OperationContract;
-use harmos_protocol::model::OperationPolicy;
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::Section;
 use harmos_protocol::model::StreamDeclaration;
-use harmos_protocol::model::Visibility;
-use harmos_protocol::plugin::InstanceGetRequest;
-use harmos_protocol::plugin::InstanceGetResponse;
-use harmos_protocol::plugin::InstanceInvokeRequest;
-use harmos_protocol::plugin::InstanceInvokeResponse;
-use harmos_protocol::plugin::InstanceSamplesRequest;
-use harmos_protocol::plugin::InstanceSamplesResponse;
-use harmos_protocol::plugin::InstanceStopRequest;
-use harmos_protocol::plugin::InstanceStopResponse;
-use harmos_protocol::plugin::Response as InvocationResponse;
-use harmos_protocol::plugin::instance_invoke_request::Frame as InvokeRequestFrame;
-use harmos_protocol::plugin::instance_invoke_response::Frame as InvokeResponseFrame;
-use harmos_protocol::plugin::instance_server::Instance;
-use harmos_protocol::plugin::instance_server::InstanceServer;
-use harmos_protocol::plugin::response::Result as InvocationResult;
-use prost_types::Duration;
 use prost_types::FileDescriptorSet;
-use prost_types::Timestamp;
-use std::collections::HashMap;
 use std::error::Error as StdError;
-use std::vec::IntoIter;
-use tokio::net::TcpListener;
-use tokio_stream::Iter;
 use tonic::Code;
-use tonic::Request;
-use tonic::Response;
-use tonic::Status;
-use tonic::Streaming;
 use tonic::transport::Endpoint;
-use tonic::transport::Server;
 
 /* === Constants === */
 
@@ -125,61 +80,11 @@ use tonic::transport::Server;
 
 /* === Structs === */
 
-#[derive(Clone)]
-struct AnalysisProvider {
-    description: InstanceGetResponse,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-
-#[tonic::async_trait]
-impl Instance for AnalysisProvider {
-    async fn get(&self, _: Request<InstanceGetRequest>) -> Result<Response<InstanceGetResponse>, Status> {
-        Ok(Response::new(self.description.clone()))
-    }
-    type InvokeStream = Iter<IntoIter<Result<InstanceInvokeResponse, Status>>>;
-    async fn invoke(&self, request: Request<Streaming<InstanceInvokeRequest>>) -> Result<Response<Self::InvokeStream>, Status> {
-        let mut input = request.into_inner();
-        let Some(InvokeRequestFrame::Request(request)) = input.message().await?.and_then(|frame| frame.frame) else {
-            return Err(Status::invalid_argument("Supply One Unary Request"));
-        };
-        assert!(request.scope.is_empty());
-        let request =
-            AnalysesComputeRequest::decode(request.payload.as_slice()).map_err(|error| Status::invalid_argument(error.to_string()))?;
-        let factor = match request.parameters.unwrap().values["factor"].kind {
-            Some(ValueKind::Number(value)) => value,
-            _ => panic!("Expected a Numeric Factor"),
-        };
-        let samples = request.samples.unwrap();
-        let output = AnalysisValues {
-            key: "scaled".into(),
-            axis_unit: "s".into(),
-            axis: samples.axis,
-            values: samples.values.into_iter().map(|value| value * factor).collect(),
-            ..Default::default()
-        };
-        let result = AnalysesComputeResponse {
-            outputs: if factor == 3.0 { vec![output.clone(), output] } else { vec![output] },
-        };
-        let response = InvocationResponse {
-            result: Some(InvocationResult::Payload(result.encode_to_vec())),
-        };
-        Ok(Response::new(tokio_stream::iter(vec![Ok(InstanceInvokeResponse {
-            frame: Some(InvokeResponseFrame::Response(response)),
-        })])))
-    }
-    type SamplesStream = Iter<IntoIter<Result<InstanceSamplesResponse, Status>>>;
-    async fn samples(&self, _: Request<Streaming<InstanceSamplesRequest>>) -> Result<Response<Self::SamplesStream>, Status> {
-        Err(Status::unimplemented("This Fixture Has No Streams"))
-    }
-    async fn stop(&self, _: Request<InstanceStopRequest>) -> Result<Response<InstanceStopResponse>, Status> {
-        Ok(Response::new(InstanceStopResponse {}))
-    }
-}
 
 /* === Public Functions === */
 
@@ -249,38 +154,6 @@ fn client_queries_advanced_plots() -> Result<(), Box<dyn StdError>> {
         assert!(envelopes.iter().all(|envelope|envelope.diagnostics.as_ref().unwrap().point_count==original_points));
         assert!(envelopes.iter().all(|envelope|envelope.payload.as_ref().unwrap().frame.as_ref().unwrap().series[0].y.last().unwrap().value==Some(32.0)));
 
-        // Invoke a Declared Unary Analysis with Bounded Raw Input and Typed Defaults
-        let definition=Analysis {metadata:Some(Metadata {identifier:"analysis.scale".into(),..Default::default()}),version:1,max_samples:16,max_output_values:16,parameters:vec![Parameter {metadata:Some(Metadata {identifier:"factor".into(),..Default::default()}),r#type:ValueType::Number as i32,min:Some(0.0),max:Some(4.0),expression:Some(ParameterExpression {kind:Some(ParameterExpressionKind::Literal(Value {kind:Some(ValueKind::Number(2.0))}))}),..Default::default()}],outputs:vec![AnalysisOutput {metadata:Some(Metadata {identifier:"scaled".into(),..Default::default()}),axis:"time".into(),axis_unit:"s".into(),..Default::default()}]};
-        let types=FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?;
-        let mut operation=OperationContract {id:"analysis.scale".into(),request:"dokime.plugin.v1.AnalysesComputeRequest".into(),response:"dokime.plugin.v1.AnalysesComputeResponse".into(),visibility:Visibility::Protected as i32,policy:Some(OperationPolicy {timeout:Some(Duration::try_from(super::support::OPERATION_TIMEOUT)?),..Default::default()}),..Default::default()};
-        operation.fingerprint=harmos_protocol::schema::fingerprint(&operation.id,&types,&operation.request,&operation.response)?;
-        let types=harmos_protocol::schema::operation_types(&types,&[&operation.request,&operation.response,"dokime.model.v1.Suites","dokime.model.v1.Analyses"])?;
-        let mut analysis_catalog=Declarations {types:Some(types),operations:vec![operation],sections:vec![Section {r#type:"dokime.model.v1.Suites".into(),payload:Suites::default().encode_to_vec()},Section {r#type:"dokime.model.v1.Analyses".into(),payload:Analyses {analyses:vec![definition]}.encode_to_vec()}],..Default::default()};
-        analysis_catalog.digest=harmos_protocol::schema::declarations_digest(&analysis_catalog);
-        let provider=AnalysisProvider {description:InstanceGetResponse {id:"analysis_fixture".into(),version:"0.1.0".into(),sdk:"rust".into(),sdk_version:env!("CARGO_PKG_VERSION").into(),message_bytes:super::support::settings().placement.message_bytes.get() as u64,started_at:Some(Timestamp::default()),revision:1,declarations:Some(analysis_catalog)}};
-        let listener=TcpListener::bind("127.0.0.1:0").await?;
-        let endpoint=format!("http://{}",listener.local_addr()?);
-        let (stop,stopped)=tokio::sync::oneshot::channel::<()>();
-        let provider_task=tokio::spawn(async move{Server::builder().add_service(InstanceServer::new(provider)).serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener),async {let _=stopped.await;
-}).await});
-        let channel=Endpoint::from_shared(process.url.clone())?.connect().await?;
-        let client=Client::from_channel(channel, super::support::client_settings())?;
-        let entry = client.plugins.create("analysis_fixture", PluginPlacement { kind: Some(PluginPlacementKind::Remote(PluginRemote { url: endpoint })) }, PluginValue { enabled: true }).await?.entry.unwrap();
-        super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
-        assert_eq!(Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?.analyses.clone().list().await?.definitions.len(),1);
-        let analysis_request=PlotsPlotRequest {stream:"cells".into(),scope:scope.clone(),plot_type:PlotKind::TimeSeries as i32,y_keys:vec!["max".into()],viewport:Some(PlotsPlotWindow {from:0.0,to:15.0}),analysis:Some(AnalysisSelection {id:"analysis.scale".into(),version:1,parameters:None}),max_points:Some(5),..Default::default()};
-        let reply=Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?.plots.snapshots.clone().list(vec![analysis_request.clone()]).await?;
-        let computed=reply.envelopes[0].payload.as_ref().unwrap().computed.as_ref().unwrap();
-        assert_eq!(computed.series[0].input_samples,16);
-        assert_eq!(computed.series[0].outputs[0].values,(1..=16).map(|value|value as f64*2.0).collect::<Vec<_>>());
-        assert_eq!(computed.series[0].outputs[0].display_indices,vec![0,3,7,11,15]);
-        let mut oversized=analysis_request.clone();
-oversized.viewport=None;
-        assert!(Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?.plots.snapshots.clone().list(vec![oversized]).await.is_err());
-        let mut malformed=analysis_request;
-malformed.analysis.as_mut().unwrap().parameters=Some(MapValue {values:HashMap::from([("factor".into(),Value {kind:Some(ValueKind::Number(3.0))})])});
-        assert_eq!(Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?.plots.snapshots.clone().list(vec![malformed]).await.unwrap_err().code(),Code::InvalidArgument);
-
         // Filter Stored Units Before Scaling the Selected Value
         let scaled=DataExpression {label:"Adjusted".into(),kind:Some(DataExpressionKind::Transform(Box::new(TransformExpression {input:Some(Box::new(FieldReference::new("cells").field("max"))),kind:Some(TransformExpressionKind::Scale(2.0))})))};
         let request=PlotsPlotRequest {stream:"cells".into(),scope:scope.clone(),plot_type:PlotKind::TimeSeries as i32,y_expressions:vec![scaled],filters:vec![PlotFilter {expression:Some(FieldReference::new("cells").field("max")),operator:FilterOperator::Ge as i32,value:Some(Value {kind:Some(ValueKind::Number(17.0))})}],max_points:Some(128),..Default::default()};
@@ -330,8 +203,6 @@ malformed.analysis.as_mut().unwrap().parameters=Some(MapValue {values:HashMap::f
         let reply=Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?.plots.snapshots.clone().list(vec![request]).await?;
         assert!(matches!(reply.envelopes[0].payload.as_ref().unwrap().analysis.as_ref().unwrap().result.as_ref().unwrap().kind.as_ref(),Some(PlotAnalysisResultKind::GridChart(grid)) if grid.frames[0].highlights.len()==1));
         process.close().await?;
-        let _=stop.send(());
-provider_task.await??;
         Ok::<_,Box<dyn StdError>>(())
     }).await?
     }))

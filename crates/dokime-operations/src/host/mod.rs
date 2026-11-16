@@ -12,7 +12,6 @@
 /* === Modules === */
 
 pub mod aggregates;
-pub mod analyses;
 pub mod backend;
 pub mod cases;
 pub mod catalog_inventory;
@@ -176,9 +175,6 @@ pub trait Host: Send + Sync {
     fn retain_report(&self, file: File, reference: FileReference) -> Result<()>;
     fn temporary_report(&self, identifier: &str) -> Result<Option<(File, FileReference)>>;
     fn publish_report(&self, prepared: Report) -> Result<Report>;
-    async fn analyze(
-        &self, plugin: &str, operation: &str, request: dokime_protocol::plugin::AnalysesComputeRequest,
-    ) -> Result<dokime_protocol::plugin::AnalysesComputeResponse>;
     async fn plugins(&self) -> Result<Vec<PluginEntry>>;
     async fn refresh_plugin_states(&self) -> Result<()>;
     fn suites(&self) -> Result<Vec<(String, dokime_protocol::model::Suite)>>;

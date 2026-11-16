@@ -120,9 +120,6 @@ pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result
                                     return;
                                 }
                                 let changed = selection.requests.iter().any(|request| {
-                                    if request.analysis.is_some() {
-                                        return true;
-                                    }
                                     let Some(execution) = request.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) else {
                                         return true;
                                     };

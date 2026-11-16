@@ -116,12 +116,6 @@ function mapCardBinding(card: DocumentCardDefinition_Serialize, binding: CardBin
       x_scale: input.x_scale,
       y_scale: input.y_scale,
       fft: input.fft,
-      analysis: input.analysis
-        ? {
-            ...input.analysis,
-            parameters: serializedValueObjectToJson(input.analysis.parameters),
-          }
-        : null,
       arrangement: input.arrangement,
       pareto: input.pareto,
       hole: input.hole,

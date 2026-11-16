@@ -20,22 +20,22 @@ describes. With four SDK languages the reference has to be generated from source
 
 ## Decisions
 
-Agreed with the owner on 2026-11-13; proposed, not locked. Implementation waits for the owner.
+Agreed with the owner on 2026-11-13; the open points below were decided on 2026-11-14 and
+2026-11-16, and phase one is implemented. The SDK references wait for the SDK restructures.
 
 - Old releases are never copied into the repository. A release's documentation is the documentation
   at its tag. Maintained Markdown keeps stating current contracts only.
-- One entry per release, plus `latest` and `dev`.
+- One entry per release line showing its latest patch, plus `latest` and `dev` (2026-11-14).
+- The site generator is Starlight (2026-11-16).
 - Installers do not bundle the documentation. The website is the way documentation is read.
 - The documentation archive is a required asset of a stable release. In Nightly it is built by a
   parallel job that may fail; Nightly publication does not depend on it.
 
 ## Open
 
-- Whether "one entry per release" is one per release line showing its latest patch (proposed) or
-  one per tag.
-- The site generator. Starlight is proposed; Docusaurus is the alternative if snapshots in the
-  repository are ever wanted. A trial on the present guides decides.
-- The reference generator per language, to be verified as current before adoption.
+- Whether each SDK generator handles its SDK as built; verified when the SDK references are
+  generated after the restructures. Their currency is recorded in design.md.
+- The deployment target of the site image.
 
 ## Impact
 
