@@ -459,7 +459,10 @@ impl Store {
         if let Some(error) = failure {
             return rollback(telemetry, error);
         }
-        let transaction = connection.transaction()?;
+        let transaction = match connection.transaction() {
+            Ok(transaction) => transaction,
+            Err(error) => return rollback(telemetry, error.into()),
+        };
         let result = (|| -> Result<()> {
             for prepared in &prepared {
                 let file = files.get(&prepared.id).ok_or(Error::Data("restart after an Arrow writer went missing"))?;
@@ -780,6 +783,29 @@ mod tests {
             assert_eq!(counted, rows);
         }
         Ok(())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_due_row_count_flushes_in_the_background_before_the_interval() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let mut settings = storage_defaults();
+        settings.flush_rows = NonZeroUsize::new(16).unwrap();
+        let store = Store::open_with(root.path(), settings)?;
+        store.create(&execution())?;
+        for index in 0..STREAMS {
+            store.open_stream("execution", &stream(index))?;
+        }
+        let admitted = Instant::now();
+        store.sample_batch("execution", &samples(0))?;
+        // Admission Returns Before the Flush; the Background Round Saves the Rows Without Waiting for the Interval.
+        assert_eq!(store.cut("execution")?.frontier, 0);
+        let mut changes = store.subscribe();
+        while store.cut("execution")?.frontier < ROWS * STREAMS as u64 {
+            changes.changed().await.unwrap();
+        }
+        assert!(admitted.elapsed() < settings.flush_interval);
+        store.shutdown_samples().await?;
+        require_saved_once(&store, 1)
     }
 
     #[test]
