@@ -72,7 +72,7 @@ struct Lagging;
 fn main() -> Result<()> {
     let boundary_stream = Stream::<Reading>::new("execution.boundary", "Boundary Samples");
     let boundary_observer = Observer::new(&boundary_stream, async |context: &Context| {
-        // A Scope Samples Every Stream of the Plugin; Only the Boundary Template's Own Scope Counts Its Rows.
+        // Only the Boundary Template's Own Scope Counts Its Rows; Any Other Demand on the Stream Answers Zero.
         let Ok(published) = context.get::<Published>() else {
             return Ok(Reading { value: 0.0 });
         };

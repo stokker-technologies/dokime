@@ -94,7 +94,6 @@ impl Fixture {
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| dokime_gui::test_support::fixture("dokime-rust-thermal"));
         let placement = dokime_runtime::PlacementSettings {
-            connect_timeout: std::time::Duration::from_secs(30),
             reconnect_delay: std::time::Duration::from_millis(25),
             stream_window: std::num::NonZeroUsize::new(8).unwrap(),
             interval_window: dokime_runtime::INTERVAL_WINDOW,

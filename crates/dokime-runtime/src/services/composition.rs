@@ -175,7 +175,6 @@ pub(super) async fn launch(
             directory: root.canonicalize()?.join("plugins"),
             target: dokime_packaging::bundle::native_target().into(),
             placement: PlacementSettings {
-                connect_timeout: placement.connect_timeout,
                 reconnect_delay: placement.reconnect_delay,
                 stop_grace: crate::STOP_GRACE,
                 stream_window: placement.stream_window,
@@ -212,7 +211,7 @@ pub(super) async fn launch(
             cursor: Cursor::ORIGIN,
             scopes: sample_scopes,
         });
-        setup.settings().clock(clock).storage(&storage).plugins(plugins.clone());
+        setup.settings().clock(clock).storage(&storage).plugins(plugins.clone()).grpc_plugin_settings(crate::plugin_settings());
         setup.settings().operation_settings(OperationSettings {
             preparation_bytes: Some(bytes),
             ..Default::default()

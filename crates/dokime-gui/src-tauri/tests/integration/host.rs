@@ -88,7 +88,6 @@ fn settings() -> ConnectionSettings {
             storage: dokime_runtime::storage_defaults(),
             clock: Arc::new(ControlledClock::new(0)),
             placement: PlacementSettings {
-                connect_timeout: Duration::from_secs(30),
                 reconnect_delay: Duration::from_millis(25),
                 stream_window: NonZeroUsize::new(8).unwrap(),
                 interval_window: dokime_runtime::INTERVAL_WINDOW,

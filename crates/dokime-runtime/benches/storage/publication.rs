@@ -53,6 +53,9 @@ use dokime_protocol::model::value;
 
 /* === Constants === */
 
+/// The Bench Client's Operation Deadlines.
+const OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -106,9 +109,9 @@ impl Fixture {
     pub(super) async fn new(settings: HostSettings, endpoint: &str, template: &str, rows: usize) -> Self {
         let root = tempfile::tempdir().unwrap().keep();
         let operations = dokime_runtime::services::ClientSettings {
-            read_timeout: settings.placement.connect_timeout,
-            mutation_timeout: settings.placement.connect_timeout,
-            watch_timeout: settings.placement.connect_timeout,
+            read_timeout: OPERATION_TIMEOUT,
+            mutation_timeout: OPERATION_TIMEOUT,
+            watch_timeout: OPERATION_TIMEOUT,
             max_cases: settings.placement.stream_window.get(),
             page_items: settings.placement.stream_window.get(),
             message_bytes: settings.placement.message_bytes.get(),
@@ -413,7 +416,6 @@ pub(super) fn settings() -> HostSettings {
         clock: Arc::new(ControlledClock::new(1_788_220_800_000_000_000)),
         storage: storage_defaults(),
         placement: PlacementSettings {
-            connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_millis(25),
             stream_window: NonZeroUsize::new(8).unwrap(),
             interval_window: dokime_runtime::INTERVAL_WINDOW,

@@ -141,7 +141,6 @@ impl Settings {
     }
     pub fn placement(&self) -> PlacementSettings {
         PlacementSettings {
-            connect_timeout: Duration::from_secs(self.connect_timeout_s),
             reconnect_delay: Duration::from_millis(self.reconnect_delay_ms),
             stream_window: self.stream_buffer,
             interval_window: Duration::from_millis(self.interval_window_ms),

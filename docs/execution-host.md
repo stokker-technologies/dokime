@@ -697,7 +697,7 @@ Product builds, fixtures, native stories and both WebView lanes include it.
 
 ## Final Library Definition Contract
 
-The definitions pin Harmos at `82e394dac656bf6b28a31f7429360d84f1701051`.
+The definitions pin Harmos at `a14c724f522b56f1770a1d4328c29f4d3a69a9e5`.
 
 ```text
 proto/dokime/
@@ -782,7 +782,7 @@ carried by the merge and are not consumer work to reimplement.
 The first column is the pre-pin wire identity or hand-bound context identity.
 Library composition rows name the library operation directly, without forwarding.
 The complete library identity/type mapping is in the pinned
-[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/82e394dac656bf6b28a31f7429360d84f1701051/docs/architecture.md).
+[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/a14c724f522b56f1770a1d4328c29f4d3a69a9e5/docs/architecture.md).
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |
@@ -1853,10 +1853,14 @@ accepted ingestion before streams close and the execution is sealed. Stop and cl
 each settle within `stop_grace`; a plugin that misses it leaves the execution
 Interrupted with failure evidence naming the action. `stop_grace` is not a setting:
 `dokime_runtime::STOP_GRACE` derives it as one third of the Plugins operation
-timeout (`PLUGIN_TEARDOWN`, 30 s, so 10 s), because a managed teardown settles,
+timeout (`PLUGINS_TIMEOUT`, 30 s, so 10 s), because a managed teardown settles,
 stops and then kills, each phase within `stop_grace`. The host binary, the CLI and
 the desktop all read it; the desktop offers to exit without finishing once
-`PLUGIN_TEARDOWN` plus one `stop_grace` has passed.
+`PLUGINS_TIMEOUT` plus one `stop_grace` has passed. The same timeout is the
+library's `plugins.load` deadline (`dokime_runtime::plugin_settings`): attaching a
+plugin, starting a managed one, each reconnect attempt and each execution's sample
+start load it, spawning included, and a plugin that does not load within it is
+reported Unavailable, naming the plugin and the action.
 The host clock owns transport deadlines and policy retry waits. Each controlled
 execution clock owns its plugin sleeps and publication cadence. Before returning
 a lifecycle call, the driver awaits quiescence at the current execution time;
