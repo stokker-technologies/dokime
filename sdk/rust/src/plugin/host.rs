@@ -1,6 +1,5 @@
 // @generated from protocol descriptors; do not edit.
-use crate::{Context, Error, Result, Plugin, OperationPolicy};
-use std::num::NonZeroUsize;
+use crate::{Context, Error, OperationPolicy, Plugin, Result};
 use dokime_protocol::host::BackendEnvironmentRequest;
 use dokime_protocol::host::BackendEnvironmentResponse;
 use dokime_protocol::host::DocumentsAppendPartsRequest;
@@ -76,8 +75,6 @@ use dokime_protocol::model::Severity;
 use dokime_protocol::model::TraceabilityEntry;
 use dokime_protocol::model::Value;
 use dokime_protocol::model::Window;
-use prost_types::Duration;
-use prost_types::Timestamp;
 use harmos_protocol::host::InvocationsCancelRequest;
 use harmos_protocol::host::InvocationsCancelResponse;
 use harmos_protocol::host::InvocationsGetRequest;
@@ -98,6 +95,9 @@ use harmos_protocol::model::Position;
 use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
 use harmos_protocol::model::Upload;
+use prost_types::Duration;
+use prost_types::Timestamp;
+use std::num::NonZeroUsize;
 pub enum HostOperation {
     BackendEnvironment,
     ContentArtifactsCreate,
@@ -364,7 +364,9 @@ pub struct HostFilesWatch {
 }
 impl HostFilesWatch {
     pub async fn next(&mut self) -> Result<Option<FilesWatchResponse>> {
-        let Some(response) = self.incoming.next().await? else { return Ok(None); };
+        let Some(response) = self.incoming.next().await? else {
+            return Ok(None);
+        };
         Ok(Some(response))
     }
 }
@@ -396,14 +398,15 @@ pub struct HostInvocationsCancelOptions {
     pub policy: Option<OperationPolicy>,
 }
 #[derive(Default)]
-pub struct HostInvocationsWatchOptions {
-}
+pub struct HostInvocationsWatchOptions {}
 pub struct HostInvocationsWatch {
     incoming: crate::context::Watching<InvocationsWatchResponse>,
 }
 impl HostInvocationsWatch {
     pub async fn next(&mut self) -> Result<Option<InstanceState>> {
-        let Some(response) = self.incoming.next().await? else { return Ok(None); };
+        let Some(response) = self.incoming.next().await? else {
+            return Ok(None);
+        };
         response.invocation.map(Some).ok_or_else(|| Error::Invalid("Read InvocationsWatch: Missing Payload".into()))
     }
 }
@@ -426,16 +429,14 @@ pub struct HostBackendResource {
     context: Context,
 }
 impl HostBackendResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn environment(&self) -> Result<BackendEnvironmentResponse> {
         self.environment_with(HostBackendEnvironmentOptions::default()).await
     }
     pub async fn environment_with(&self, options: HostBackendEnvironmentOptions) -> Result<BackendEnvironmentResponse> {
-        let request = BackendEnvironmentRequest {
-            at: options.at,
-        };
+        let request = BackendEnvironmentRequest { at: options.at };
         let response: BackendEnvironmentResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
@@ -445,28 +446,35 @@ pub struct HostContentResource {
     pub artifacts: HostContentArtifactsResource,
 }
 impl HostContentResource {
-    fn new(context: Context) -> Self { Self {
-        artifacts: HostContentArtifactsResource::new(context.clone()),
-    } }
+    fn new(context: Context) -> Self {
+        Self {
+            artifacts: HostContentArtifactsResource::new(context.clone()),
+        }
+    }
 }
 #[derive(Clone)]
 pub struct HostContentArtifactsResource {
     context: Context,
 }
 impl HostContentArtifactsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn create(&self, file: FileReference, filename: String, content_type: String) -> Result<ArtifactsCreateResponse> {
         self.create_with(file, filename, content_type, HostContentArtifactsCreateOptions::default()).await
     }
-    pub async fn create_with(&self, file: FileReference, filename: String, content_type: String, options: HostContentArtifactsCreateOptions) -> Result<ArtifactsCreateResponse> {
+    pub async fn create_with(
+        &self, file: FileReference, filename: String, content_type: String, options: HostContentArtifactsCreateOptions,
+    ) -> Result<ArtifactsCreateResponse> {
         let request = ArtifactsCreateRequest {
             file: Some(file),
             scope: options.scope,
             filename,
             content_type,
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
             metadata: options.metadata,
         };
         let response: ArtifactsCreateResponse = self.context.call_with(request, options.policy).await?;
@@ -478,13 +486,15 @@ pub struct HostDocumentsResource {
     context: Context,
 }
 impl HostDocumentsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn append_parts(&self, execution: String, document: String, section: String) -> Result<Receipt> {
         self.append_parts_with(execution, document, section, HostDocumentsAppendPartsOptions::default()).await
     }
-    pub async fn append_parts_with(&self, execution: String, document: String, section: String, options: HostDocumentsAppendPartsOptions) -> Result<Receipt> {
+    pub async fn append_parts_with(
+        &self, execution: String, document: String, section: String, options: HostDocumentsAppendPartsOptions,
+    ) -> Result<Receipt> {
         let request = DocumentsAppendPartsRequest {
             part: match (options.subsection, options.card) {
                 (Some(value), None) => Some(dokime_protocol::host::documents_append_parts_request::Part::Subsection(value)),
@@ -494,7 +504,10 @@ impl HostDocumentsResource {
             execution,
             document,
             section,
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: DocumentsAppendPartsResponse = self.context.call_with(request, options.policy).await?;
         response.receipt.ok_or_else(|| Error::Invalid("Read DocumentsAppendParts: Missing Payload".into()))
@@ -505,19 +518,26 @@ pub struct HostEffectsResource {
     context: Context,
 }
 impl HostEffectsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
-    pub async fn create(&self, resource: String, inverse_operation: String, inverse: Vec<u8>, description: String) -> Result<EffectsCreateResponse> {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn create(
+        &self, resource: String, inverse_operation: String, inverse: Vec<u8>, description: String,
+    ) -> Result<EffectsCreateResponse> {
         self.create_with(resource, inverse_operation, inverse, description, HostEffectsCreateOptions::default()).await
     }
-    pub async fn create_with(&self, resource: String, inverse_operation: String, inverse: Vec<u8>, description: String, options: HostEffectsCreateOptions) -> Result<EffectsCreateResponse> {
+    pub async fn create_with(
+        &self, resource: String, inverse_operation: String, inverse: Vec<u8>, description: String, options: HostEffectsCreateOptions,
+    ) -> Result<EffectsCreateResponse> {
         let request = EffectsCreateRequest {
             resource,
             inverse_operation,
             inverse,
             description,
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: EffectsCreateResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
@@ -526,22 +546,24 @@ impl HostEffectsResource {
         self.get_with(name, HostEffectsGetOptions::default()).await
     }
     pub async fn get_with(&self, name: String, options: HostEffectsGetOptions) -> Result<EffectsGetResponse> {
-        let request = EffectsGetRequest {
-            name,
-            at: options.at,
-        };
+        let request = EffectsGetRequest { name, at: options.at };
         let response: EffectsGetResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn set(&self, name: String, value: EffectWritable, expected_revision: Vec<u8>) -> Result<EffectsSetResponse> {
         self.set_with(name, value, expected_revision, HostEffectsSetOptions::default()).await
     }
-    pub async fn set_with(&self, name: String, value: EffectWritable, expected_revision: Vec<u8>, options: HostEffectsSetOptions) -> Result<EffectsSetResponse> {
+    pub async fn set_with(
+        &self, name: String, value: EffectWritable, expected_revision: Vec<u8>, options: HostEffectsSetOptions,
+    ) -> Result<EffectsSetResponse> {
         let request = EffectsSetRequest {
             name,
             value: Some(value),
             expected_revision,
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: EffectsSetResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
@@ -555,16 +577,20 @@ pub struct HostEvidenceResource {
     pub traceability: HostEvidenceTraceabilityResource,
 }
 impl HostEvidenceResource {
-    fn new(context: Context) -> Self { Self {
-        logs: HostEvidenceLogsResource::new(context.clone()),
-        records: HostEvidenceRecordsResource::new(context.clone()),
-        traceability: HostEvidenceTraceabilityResource::new(context.clone()),
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self {
+            logs: HostEvidenceLogsResource::new(context.clone()),
+            records: HostEvidenceRecordsResource::new(context.clone()),
+            traceability: HostEvidenceTraceabilityResource::new(context.clone()),
+            context,
+        }
+    }
     pub async fn statistics(&self, stream: String, field: String) -> Result<EvidenceStatisticsResponse> {
         self.statistics_with(stream, field, HostEvidenceStatisticsOptions::default()).await
     }
-    pub async fn statistics_with(&self, stream: String, field: String, options: HostEvidenceStatisticsOptions) -> Result<EvidenceStatisticsResponse> {
+    pub async fn statistics_with(
+        &self, stream: String, field: String, options: HostEvidenceStatisticsOptions,
+    ) -> Result<EvidenceStatisticsResponse> {
         let request = EvidenceStatisticsRequest {
             scope: options.scope,
             stream,
@@ -584,19 +610,24 @@ pub struct HostEvidenceLogsResource {
     context: Context,
 }
 impl HostEvidenceLogsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn append(&self, execution: String, severity: Severity, message: String, at: Timestamp) -> Result<Receipt> {
         self.append_with(execution, severity, message, at, HostEvidenceLogsAppendOptions::default()).await
     }
-    pub async fn append_with(&self, execution: String, severity: Severity, message: String, at: Timestamp, options: HostEvidenceLogsAppendOptions) -> Result<Receipt> {
+    pub async fn append_with(
+        &self, execution: String, severity: Severity, message: String, at: Timestamp, options: HostEvidenceLogsAppendOptions,
+    ) -> Result<Receipt> {
         let request = LogsAppendRequest {
             execution,
             severity: severity as i32,
             message,
             at: Some(at),
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: LogsAppendResponse = self.context.call_with(request, options.policy).await?;
         response.receipt.ok_or_else(|| Error::Invalid("Read EvidenceLogsAppend: Missing Payload".into()))
@@ -607,9 +638,9 @@ pub struct HostEvidenceRecordsResource {
     context: Context,
 }
 impl HostEvidenceRecordsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn list(&self, record_type: String) -> Result<RecordsListResponse> {
         self.list_with(record_type, HostEvidenceRecordsListOptions::default()).await
     }
@@ -630,13 +661,18 @@ impl HostEvidenceRecordsResource {
     pub async fn append(&self, execution: String, kind: String, payload: Vec<u8>, source_at: Timestamp) -> Result<RecordsAppendResponse> {
         self.append_with(execution, kind, payload, source_at, HostEvidenceRecordsAppendOptions::default()).await
     }
-    pub async fn append_with(&self, execution: String, kind: String, payload: Vec<u8>, source_at: Timestamp, options: HostEvidenceRecordsAppendOptions) -> Result<RecordsAppendResponse> {
+    pub async fn append_with(
+        &self, execution: String, kind: String, payload: Vec<u8>, source_at: Timestamp, options: HostEvidenceRecordsAppendOptions,
+    ) -> Result<RecordsAppendResponse> {
         let request = RecordsAppendRequest {
             execution,
             kind,
             payload,
             source_at: Some(source_at),
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: RecordsAppendResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
@@ -647,9 +683,9 @@ pub struct HostEvidenceTraceabilityResource {
     context: Context,
 }
 impl HostEvidenceTraceabilityResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn get(&self) -> Result<TraceabilityGetResponse> {
         self.get_with(HostEvidenceTraceabilityGetOptions::default()).await
     }
@@ -666,12 +702,17 @@ impl HostEvidenceTraceabilityResource {
     pub async fn set(&self, value: TraceabilityEntry, expected_revision: Vec<u8>, entry: String) -> Result<TraceabilitySetResponse> {
         self.set_with(value, expected_revision, entry, HostEvidenceTraceabilitySetOptions::default()).await
     }
-    pub async fn set_with(&self, value: TraceabilityEntry, expected_revision: Vec<u8>, entry: String, options: HostEvidenceTraceabilitySetOptions) -> Result<TraceabilitySetResponse> {
+    pub async fn set_with(
+        &self, value: TraceabilityEntry, expected_revision: Vec<u8>, entry: String, options: HostEvidenceTraceabilitySetOptions,
+    ) -> Result<TraceabilitySetResponse> {
         let request = TraceabilitySetRequest {
             name: options.name,
             value: Some(value),
             expected_revision,
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
             entry,
         };
         let response: TraceabilitySetResponse = self.context.call_with(request, options.policy).await?;
@@ -683,38 +724,42 @@ pub struct HostExecutionsResource {
     pub progress: HostExecutionsProgressResource,
 }
 impl HostExecutionsResource {
-    fn new(context: Context) -> Self { Self {
-        progress: HostExecutionsProgressResource::new(context.clone()),
-    } }
+    fn new(context: Context) -> Self {
+        Self {
+            progress: HostExecutionsProgressResource::new(context.clone()),
+        }
+    }
 }
 #[derive(Clone)]
 pub struct HostExecutionsProgressResource {
     context: Context,
 }
 impl HostExecutionsProgressResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn get(&self) -> Result<ProgressGetResponse> {
         self.get_with(HostExecutionsProgressGetOptions::default()).await
     }
     pub async fn get_with(&self, options: HostExecutionsProgressGetOptions) -> Result<ProgressGetResponse> {
-        let request = ProgressGetRequest {
-            name: options.name,
-            at: options.at,
-        };
+        let request = ProgressGetRequest { name: options.name, at: options.at };
         let response: ProgressGetResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn set(&self, value: ExecutionProgressValue, expected_revision: Vec<u8>) -> Result<ProgressSetResponse> {
         self.set_with(value, expected_revision, HostExecutionsProgressSetOptions::default()).await
     }
-    pub async fn set_with(&self, value: ExecutionProgressValue, expected_revision: Vec<u8>, options: HostExecutionsProgressSetOptions) -> Result<ProgressSetResponse> {
+    pub async fn set_with(
+        &self, value: ExecutionProgressValue, expected_revision: Vec<u8>, options: HostExecutionsProgressSetOptions,
+    ) -> Result<ProgressSetResponse> {
         let request = ProgressSetRequest {
             name: options.name,
             value: Some(value),
             expected_revision,
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: ProgressSetResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
@@ -727,26 +772,27 @@ pub struct HostFilesResource {
     pub uploads: HostFilesUploadsResource,
 }
 impl HostFilesResource {
-    fn new(context: Context) -> Self { Self {
-        captures: HostFilesCapturesResource::new(context.clone()),
-        uploads: HostFilesUploadsResource::new(context.clone()),
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self {
+            captures: HostFilesCapturesResource::new(context.clone()),
+            uploads: HostFilesUploadsResource::new(context.clone()),
+            context,
+        }
+    }
     pub async fn get(&self, file: FileReference) -> Result<FilesGetResponse> {
         self.get_with(file, HostFilesGetOptions::default()).await
     }
     pub async fn get_with(&self, file: FileReference, options: HostFilesGetOptions) -> Result<FilesGetResponse> {
-        let request = FilesGetRequest {
-            file: Some(file),
-            at: options.at,
-        };
+        let request = FilesGetRequest { file: Some(file), at: options.at };
         let response: FilesGetResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
     pub async fn read(&self, file: FileReference, offset: u64, max_bytes: u64) -> Result<FilesReadResponse> {
         self.read_with(file, offset, max_bytes, HostFilesReadOptions::default()).await
     }
-    pub async fn read_with(&self, file: FileReference, offset: u64, max_bytes: u64, options: HostFilesReadOptions) -> Result<FilesReadResponse> {
+    pub async fn read_with(
+        &self, file: FileReference, offset: u64, max_bytes: u64, options: HostFilesReadOptions,
+    ) -> Result<FilesReadResponse> {
         let request = FilesReadRequest {
             file: Some(file),
             offset,
@@ -769,7 +815,9 @@ impl HostFilesResource {
             offset,
             at: options.at,
         };
-        Ok(HostFilesWatch { incoming: self.context.watch(request, max_item_bytes).await? })
+        Ok(HostFilesWatch {
+            incoming: self.context.watch(request, max_item_bytes).await?,
+        })
     }
     pub async fn delete(&self, file: FileReference) -> Result<Receipt> {
         self.delete_with(file, HostFilesDeleteOptions::default()).await
@@ -777,7 +825,10 @@ impl HostFilesResource {
     pub async fn delete_with(&self, file: FileReference, options: HostFilesDeleteOptions) -> Result<Receipt> {
         let request = FilesDeleteRequest {
             file: Some(file),
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: FilesDeleteResponse = self.context.call_with(request, options.policy).await?;
         response.receipt.ok_or_else(|| Error::Invalid("Read FilesDelete: Missing Payload".into()))
@@ -786,10 +837,7 @@ impl HostFilesResource {
         self.capture_with(source, output, HostFilesCaptureOptions::default()).await
     }
     pub async fn capture_with(&self, source: FileSource, output: String, options: HostFilesCaptureOptions) -> Result<FilesCaptureResponse> {
-        let request = FilesCaptureRequest {
-            source: Some(source),
-            output,
-        };
+        let request = FilesCaptureRequest { source: Some(source), output };
         let response: FilesCaptureResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
@@ -799,13 +847,15 @@ pub struct HostFilesCapturesResource {
     context: Context,
 }
 impl HostFilesCapturesResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn start(&self, source: FileSource, output: String, mode: CaptureMode) -> Result<u64> {
         self.start_with(source, output, mode, HostFilesCapturesStartOptions::default()).await
     }
-    pub async fn start_with(&self, source: FileSource, output: String, mode: CaptureMode, options: HostFilesCapturesStartOptions) -> Result<u64> {
+    pub async fn start_with(
+        &self, source: FileSource, output: String, mode: CaptureMode, options: HostFilesCapturesStartOptions,
+    ) -> Result<u64> {
         let request = CapturesStartRequest {
             source: Some(source),
             output,
@@ -818,9 +868,7 @@ impl HostFilesCapturesResource {
         self.stop_with(capture_id, HostFilesCapturesStopOptions::default()).await
     }
     pub async fn stop_with(&self, capture_id: u64, options: HostFilesCapturesStopOptions) -> Result<CapturesStopResponse> {
-        let request = CapturesStopRequest {
-            capture_id,
-        };
+        let request = CapturesStopRequest { capture_id };
         let response: CapturesStopResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
@@ -830,16 +878,19 @@ pub struct HostFilesUploadsResource {
     context: Context,
 }
 impl HostFilesUploadsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn create(&self, metadata: FileMetadata) -> Result<UploadsCreateResponse> {
         self.create_with(metadata, HostFilesUploadsCreateOptions::default()).await
     }
     pub async fn create_with(&self, metadata: FileMetadata, options: HostFilesUploadsCreateOptions) -> Result<UploadsCreateResponse> {
         let request = UploadsCreateRequest {
             metadata: Some(metadata),
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: UploadsCreateResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
@@ -848,10 +899,7 @@ impl HostFilesUploadsResource {
         self.get_with(upload, HostFilesUploadsGetOptions::default()).await
     }
     pub async fn get_with(&self, upload: Upload, options: HostFilesUploadsGetOptions) -> Result<UploadsGetResponse> {
-        let request = UploadsGetRequest {
-            upload: Some(upload),
-            at: options.at,
-        };
+        let request = UploadsGetRequest { upload: Some(upload), at: options.at };
         let response: UploadsGetResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
@@ -861,7 +909,10 @@ impl HostFilesUploadsResource {
     pub async fn resume_with(&self, upload: Upload, options: HostFilesUploadsResumeOptions) -> Result<UploadsResumeResponse> {
         let request = UploadsResumeRequest {
             upload: Some(upload),
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: UploadsResumeResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
@@ -869,12 +920,17 @@ impl HostFilesUploadsResource {
     pub async fn append(&self, upload: Upload, offset: u64, data: Vec<u8>) -> Result<UploadsAppendResponse> {
         self.append_with(upload, offset, data, HostFilesUploadsAppendOptions::default()).await
     }
-    pub async fn append_with(&self, upload: Upload, offset: u64, data: Vec<u8>, options: HostFilesUploadsAppendOptions) -> Result<UploadsAppendResponse> {
+    pub async fn append_with(
+        &self, upload: Upload, offset: u64, data: Vec<u8>, options: HostFilesUploadsAppendOptions,
+    ) -> Result<UploadsAppendResponse> {
         let request = UploadsAppendRequest {
             upload: Some(upload),
             offset,
             data,
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: UploadsAppendResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
@@ -882,12 +938,17 @@ impl HostFilesUploadsResource {
     pub async fn publish(&self, upload: Upload, length: u64, sha256: Vec<u8>) -> Result<UploadsPublishResponse> {
         self.publish_with(upload, length, sha256, HostFilesUploadsPublishOptions::default()).await
     }
-    pub async fn publish_with(&self, upload: Upload, length: u64, sha256: Vec<u8>, options: HostFilesUploadsPublishOptions) -> Result<UploadsPublishResponse> {
+    pub async fn publish_with(
+        &self, upload: Upload, length: u64, sha256: Vec<u8>, options: HostFilesUploadsPublishOptions,
+    ) -> Result<UploadsPublishResponse> {
         let request = UploadsPublishRequest {
             upload: Some(upload),
             length,
             sha256,
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: UploadsPublishResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
@@ -898,7 +959,10 @@ impl HostFilesUploadsResource {
     pub async fn delete_with(&self, upload: Upload, options: HostFilesUploadsDeleteOptions) -> Result<UploadsDeleteResponse> {
         let request = UploadsDeleteRequest {
             upload: Some(upload),
-            request_id: match options.request_id { Some(value) => value, None => harmos::client::request_id()?, },
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => harmos::client::request_id()?,
+            },
         };
         let response: UploadsDeleteResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
@@ -909,16 +973,14 @@ pub struct HostInvocationsResource {
     context: Context,
 }
 impl HostInvocationsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn get(&self, instance: u64) -> Result<InstanceState> {
         self.get_with(instance, HostInvocationsGetOptions::default()).await
     }
     pub async fn get_with(&self, instance: u64, options: HostInvocationsGetOptions) -> Result<InstanceState> {
-        let request = InvocationsGetRequest {
-            instance,
-        };
+        let request = InvocationsGetRequest { instance };
         let response: InvocationsGetResponse = self.context.call_with(request, options.policy).await?;
         response.invocation.ok_or_else(|| Error::Invalid("Read InvocationsGet: Missing Payload".into()))
     }
@@ -926,22 +988,21 @@ impl HostInvocationsResource {
         self.cancel_with(instance, reason, HostInvocationsCancelOptions::default()).await
     }
     pub async fn cancel_with(&self, instance: u64, reason: String, options: HostInvocationsCancelOptions) -> Result<InstanceState> {
-        let request = InvocationsCancelRequest {
-            instance,
-            reason,
-        };
+        let request = InvocationsCancelRequest { instance, reason };
         let response: InvocationsCancelResponse = self.context.call_with(request, options.policy).await?;
         response.invocation.ok_or_else(|| Error::Invalid("Read InvocationsCancel: Missing Payload".into()))
     }
     pub async fn watch(&self, instance: u64, max_item_bytes: NonZeroUsize) -> Result<HostInvocationsWatch> {
         self.watch_with(instance, max_item_bytes, HostInvocationsWatchOptions::default()).await
     }
-    pub async fn watch_with(&self, instance: u64, max_item_bytes: NonZeroUsize, options: HostInvocationsWatchOptions) -> Result<HostInvocationsWatch> {
+    pub async fn watch_with(
+        &self, instance: u64, max_item_bytes: NonZeroUsize, options: HostInvocationsWatchOptions,
+    ) -> Result<HostInvocationsWatch> {
         let HostInvocationsWatchOptions {} = options;
-        let request = InvocationsWatchRequest {
-            instance,
-        };
-        Ok(HostInvocationsWatch { incoming: self.context.watch(request, max_item_bytes).await? })
+        let request = InvocationsWatchRequest { instance };
+        Ok(HostInvocationsWatch {
+            incoming: self.context.watch(request, max_item_bytes).await?,
+        })
     }
 }
 #[derive(Clone)]
@@ -949,26 +1010,25 @@ pub struct HostPluginsResource {
     pub settings: HostPluginsSettingsResource,
 }
 impl HostPluginsResource {
-    fn new(context: Context) -> Self { Self {
-        settings: HostPluginsSettingsResource::new(context.clone()),
-    } }
+    fn new(context: Context) -> Self {
+        Self {
+            settings: HostPluginsSettingsResource::new(context.clone()),
+        }
+    }
 }
 #[derive(Clone)]
 pub struct HostPluginsSettingsResource {
     context: Context,
 }
 impl HostPluginsSettingsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn list(&self) -> Result<SettingsListResponse> {
         self.list_with(HostPluginsSettingsListOptions::default()).await
     }
     pub async fn list_with(&self, options: HostPluginsSettingsListOptions) -> Result<SettingsListResponse> {
-        let request = SettingsListRequest {
-            name: options.name,
-            at: options.at,
-        };
+        let request = SettingsListRequest { name: options.name, at: options.at };
         let response: SettingsListResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
@@ -978,13 +1038,17 @@ pub struct HostPromptsResource {
     context: Context,
 }
 impl HostPromptsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
-    pub async fn create(&self, prompt: String, prompt_type: String, values: std::collections::HashMap<String, Value>) -> Result<PromptsCreateResponse> {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn create(
+        &self, prompt: String, prompt_type: String, values: std::collections::HashMap<String, Value>,
+    ) -> Result<PromptsCreateResponse> {
         self.create_with(prompt, prompt_type, values, HostPromptsCreateOptions::default()).await
     }
-    pub async fn create_with(&self, prompt: String, prompt_type: String, values: std::collections::HashMap<String, Value>, options: HostPromptsCreateOptions) -> Result<PromptsCreateResponse> {
+    pub async fn create_with(
+        &self, prompt: String, prompt_type: String, values: std::collections::HashMap<String, Value>, options: HostPromptsCreateOptions,
+    ) -> Result<PromptsCreateResponse> {
         let request = PromptsCreateRequest {
             prompt,
             prompt_type,
@@ -1000,17 +1064,14 @@ pub struct HostSecretsResource {
     context: Context,
 }
 impl HostSecretsResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn get(&self, name: String) -> Result<SecretsGetResponse> {
         self.get_with(name, HostSecretsGetOptions::default()).await
     }
     pub async fn get_with(&self, name: String, options: HostSecretsGetOptions) -> Result<SecretsGetResponse> {
-        let request = SecretsGetRequest {
-            name,
-            at: options.at,
-        };
+        let request = SecretsGetRequest { name, at: options.at };
         let response: SecretsGetResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
@@ -1020,15 +1081,14 @@ pub struct HostTimeResource {
     context: Context,
 }
 impl HostTimeResource {
-    fn new(context: Context) -> Self { Self {
-        context,
-    } }
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
     pub async fn get(&self) -> Result<Timestamp> {
         self.get_with(HostTimeGetOptions::default()).await
     }
     pub async fn get_with(&self, options: HostTimeGetOptions) -> Result<Timestamp> {
-        let request = TimeGetRequest {
-        };
+        let request = TimeGetRequest {};
         let response: TimeGetResponse = self.context.call_with(request, options.policy).await?;
         response.now.ok_or_else(|| Error::Invalid("Read TimeGet: Missing Payload".into()))
     }
@@ -1036,9 +1096,7 @@ impl HostTimeResource {
         self.sleep_with(duration, HostTimeSleepOptions::default()).await
     }
     pub async fn sleep_with(&self, duration: Duration, options: HostTimeSleepOptions) -> Result<TimeSleepResponse> {
-        let request = TimeSleepRequest {
-            duration: Some(duration),
-        };
+        let request = TimeSleepRequest { duration: Some(duration) };
         let response: TimeSleepResponse = self.context.call_with(request, options.policy).await?;
         Ok(response)
     }
