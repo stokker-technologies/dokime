@@ -25,11 +25,12 @@ change); Dokime owns its product kinds and adopts that machinery.
 | Registration API | **BREAKING.** `fn register(ctx: &mut Registrar) -> Result<()>` with `ctx.register(x::catalog())`; typed registrations accumulate descriptors, removing `Plugin<(C, T)>` growth. C++ calls `add` (register is a reserved keyword). Dokime kinds register through Harmos declaration sections. |
 | Module catalogs | Every global module exposes `catalog()` (settings, operations, observers, streams, prompts, records, suites); a suite folder's `mod.rs` exposes its suite catalog including its templates' prompts, records, observers and streams. `declarations()` stays the frozen host-facing description. |
 | Template-owned declarations | `Template::prompt()` and `Template::record()` in all four SDKs aggregate into the plugin's frozen catalog; no host-side template-scope enforcement. Declarations are immutable; observer instances, demands, resources and bench state die with the execution. |
-| No aliases or path overrides | Dokime refers to the Harmos plugin by qualified path (`harmos::plugin::Plugin`, `harmos.plugin.Plugin`, `Harmos.Plugins.Plugin`, `harmos::plugin::Plugin` in C++); no import aliases or path overrides anywhere except named unavoidable exceptions. |
+| No aliases or path overrides | Dokime refers to the Harmos plugin by qualified path (Rust `harmos::plugin::Plugin`, Python `harmos.plugin.Plugin`, C# `Harmos.Plugins.Plugin`, C++ `harmos::plugin::Plugin`); no import aliases or path overrides anywhere except named unavoidable exceptions. |
 | Canonical plugin layout | The plugin authoring skill documents one layout per language: root `main.rs`, `lib.rs`, `settings.rs`, `error.rs`; folders `device/`, `observers/`, `operations/`, `prompts/`, `records/`, `streams/`, `suites/<suite>/mod.rs` with one file per template. |
 
-- Rename `Executions.Cleanup`, its request and response and the template definition's
-  `cleanup` operation reference to finalize; keep the termination field.
+- Rename `Executions.Cleanup`, its request and response, the template definition's
+  `cleanup` operation reference and the `cleanup` evidence origin to finalize; keep field
+  numbers and the termination field.
 - Security checks and prerequisite UI after admission and before initialize are a possible
   later phase, not part of this change.
 
@@ -52,7 +53,11 @@ operation identity and the `host-executions` delta's cleanup wording; in the
 ### Modified Capabilities
 
 None. `plugin-authoring` (Canonical Runnable Examples) keeps its requirement: examples keep
-their behavior, including release of resources, under the new names.
+their behavior, including release of resources, under the new names. Main specs that say
+shutdown (`evidence-finalization`, `feature-drop`, `python-plugin-authoring`,
+`stable-remote-listener`) describe a process or host ending, which stop still performs; no
+main requirement names the template or plugin release phase or limits it to a successful
+initialize.
 
 ## Impact
 

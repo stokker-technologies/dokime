@@ -18,7 +18,8 @@ Current state (landed, verified 2026-11-16):
 - Wire: `Executions.Cleanup` with `ExecutionsCleanupRequest`, which already carries
   `termination` (`proto/dokime/plugin/v1/executions.proto`); `TestCaseTemplate.cleanup`
   (field 8, `proto/dokime/model/v1/suites.proto`); operation identity `<template>.cleanup`,
-  Protected.
+  Protected; evidence produced during the release phase carries
+  `EvidenceOriginKind.cleanup` (field 4, `proto/dokime/model/v1/evidence.proto`).
 - Host sequencing: `crates/dokime-runtime/src/execution.rs` sets `initialized` only when
   initialize succeeds or is absent and calls cleanup only then; a failed initialize skips it.
 - Termination: the C# cleanup handler builds `Context` without termination
@@ -45,7 +46,13 @@ Current state (landed, verified 2026-11-16):
   `lib.rs` constructs `operations::Manual::new()` while collecting declarations and calls
   `Manual::power_down` from `on_stop`; suites expose `suite()` plus `contracts()`.
 
-Touched invariant: docs/architecture.md invariant 7 assigns plugin machinery and SDKs to the
+Touched invariants in docs/architecture.md:
+
+- Invariant 24, **Cancellation Preserves Cleanup and Evidence**: "Interrupt the active
+  invocation while still running required cleanup". Purpose: cancellation never skips the
+  release phase or loses attributed evidence. Preserved and widened: the release phase is
+  finalize and also follows a failed initialize.
+- Invariant 7 assigns plugin machinery and SDKs to the
 library and storage definitions, objects and schemas to the product. Preserved: the
 registrar and lifecycle machinery are Harmos's; suites, templates, prompts and records stay
 Dokime kinds registered through Harmos declaration sections.
@@ -68,6 +75,14 @@ Dokime kinds registered through Harmos declaration sections.
 
 ## Decisions
 
+Decision sources. Owner-locked (proposal.md): paired verbs, host verbs, plugin and template
+phases, finalize after a failed initialize, termination in C# and C++, registration as
+admission, the registrar API, module and suite catalogs, template-owned prompts and records,
+no aliases or path overrides, the canonical layout. Derived by this design; the owner may
+override each before its group starts: Dokime re-exporting the Harmos `Registrar` and
+`Registration`, the Harmos plugin field named `plugin`, Python endpoint `close` becoming
+`stop`, `TERMINATION_FAILED` for a failed initialize and the per-language layout mapping.
+
 ### D1. Template Phases (Proposed)
 
 materialize (pure, per case, no execution) → initialize → steps → criteria → finalize. The
@@ -75,8 +90,8 @@ host calls finalize once the execution reached initialize: when initialize was a
 (succeeded, failed, timed out or cancelled during the call) or the template declares none. A
 failed initialize finalizes with `TERMINATION_FAILED`; no new termination value is needed.
 Wire rename with field numbers kept: `Executions.Finalize`, `ExecutionsFinalizeRequest`/
-`Response`, `TestCaseTemplate.finalize` (field 8), operation identity `<template>.finalize`,
-still Protected. All four SDKs name the hook `finalize` (`Finalize` in C#) and pass a context
+`Response`, `TestCaseTemplate.finalize` (field 8), `EvidenceOriginKind.finalize` (field 4), operation
+identity `<template>.finalize`, still Protected. All four SDKs name the hook `finalize` (`Finalize` in C#) and pass a context
 carrying termination. Sampling still starts after initialize and stops before finalize.
 
 ### D2. Plugin Phases and Host Verbs (Proposed)

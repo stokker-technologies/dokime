@@ -12,7 +12,7 @@ fresh-root action.
 ## 1. Inventory and Contract
 
 - [ ] 1.1 Lock the source inventory against design.md Context: every template `cleanup` symbol, wire name and operation identity; every plugin `on_stop`/`OnStop` use; every Dokime `launch`, `shutdown` and `serve` symbol and whether it denotes start, stop or run; every plugin-level prompt and record registration; every import alias and path override in the repository; every module entry point in sample plugins, examples and fixtures. Accept when each item has an owning task below; record surprises in design.md before editing.
-- [ ] 1.2 Update `docs/architecture.md` and `docs/execution-host.md` with the paired-verb rule, host verbs, plugin and template phases (finalize after attempted initialize, termination in every SDK), Dokime kinds on the library registrar, template-owned prompts and records and the no-alias rule as locked direction with proposed status. Prove with `mise run check -- --repository`.
+- [ ] 1.2 Quote invariant 24 (Cancellation Preserves Cleanup and Evidence) and invariant 7 in `docs/architecture.md` with their purposes, update them and the `Executions` mapping and message rows of `docs/execution-host.md`, and record the paired-verb rule, host verbs, plugin and template phases (finalize after attempted initialize, termination in every SDK), Dokime kinds on the library registrar, template-owned prompts and records and the no-alias rule as locked direction with proposed status. Prove with `mise run check -- --repository`.
 
 ## 2. Adopt the Harmos Revision
 
@@ -20,8 +20,8 @@ fresh-root action.
 
 ## 3. Template Finalize
 
-- [ ] 3.1 Rename `Executions.Cleanup` to `Executions.Finalize`, its request and response, `TestCaseTemplate.cleanup` to `finalize` (field 8 kept) and the `<template>.cleanup` identity to `<template>.finalize`, keeping Protected visibility; regenerate with `mise run generate -- --protocol`. Prove with `mise run check:generated` and `mise run build -- --package dokime-protocol --check`.
-- [ ] 3.2 Make `crates/dokime-runtime/src/execution.rs` call finalize once initialize was attempted or is absent, including failed, timed-out and cancelled initialize, with `TERMINATION_FAILED` for a failed initialize. Prove with a new story `template_finalizes_after_failed_initialize` and stories `execution_outcomes` and `client_controls_execution_lifecycle`.
+- [ ] 3.1 Rename `Executions.Cleanup` to `Executions.Finalize`, its request and response, `TestCaseTemplate.cleanup` to `finalize` (field 8 kept), `EvidenceOriginKind.cleanup` to `finalize` (field 4 kept) and the `<template>.cleanup` identity to `<template>.finalize`, keeping Protected visibility; regenerate with `mise run generate -- --protocol`. Prove with `mise run check:generated` and `mise run build -- --package dokime-protocol --check`.
+- [ ] 3.2 Make `crates/dokime-runtime/src/execution.rs` call finalize once initialize was attempted or is absent, including failed, timed-out and cancelled initialize, with `TERMINATION_FAILED` for a failed initialize. Rename the story `cancelling_a_thermal_step_runs_cleanup` to `cancelling_a_thermal_step_runs_finalize`. Prove with a new story `template_finalizes_after_failed_initialize` and stories `cancelling_a_thermal_step_runs_finalize`, `execution_outcomes` and `client_controls_execution_lifecycle`.
 - [ ] 3.3 Rename the template hook to `finalize` (`Finalize` in C#) in the Rust, Python, C# and C++ SDKs and give the C# and C++ finalize contexts the termination reason. Prove with each SDK's focused tests for finalize termination and failed initialize, and `mise run build:host-fixtures -- --language rust`, then python, csharp, cpp.
 
 ## 4. Plugin Phases in the SDKs
