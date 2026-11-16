@@ -17,7 +17,7 @@
 use std::{collections::BTreeSet, io::Cursor};
 
 // Third Party Imports
-use arrow_array::{Array, Float64Array, Int64Array, RecordBatch, TimestampNanosecondArray, UInt64Array};
+use arrow_array::{Array, Float64Array, Int64Array, RecordBatch, StringArray, TimestampNanosecondArray, UInt64Array};
 use arrow_ipc::{reader::StreamReader, writer::StreamWriter};
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -52,7 +52,31 @@ pub(super) fn store(connection: &Connection, source: &ColumnSource, batch: &Reco
     if positions(&flat)?.values().windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(invalid("Write Arrow: Positions Must Increase"));
     }
-    let mut pending = std::iter::once(0..batch.num_rows()).collect::<Vec<_>>();
+    // Keep Each Physical Chunk Within One Scope and Object Identity for Reclamation.
+    let scopes =
+        flat.column_by_name("_storage.scope").and_then(|column| column.as_any().downcast_ref::<StringArray>()).ok_or_else(incompatible)?;
+    let items = if source.kind == ColumnKind::Objects {
+        Some(
+            flat.column_by_name("_storage.item")
+                .and_then(|column| column.as_any().downcast_ref::<StringArray>())
+                .ok_or_else(incompatible)?,
+        )
+    } else {
+        None
+    };
+    let scope = |row| (!scopes.is_null(row)).then(|| scopes.value(row));
+    let mut pending = Vec::new();
+    let mut first = 0;
+    for row in 1..batch.num_rows() {
+        let changed_scope = scope(row) != scope(row - 1);
+        let changed_item = items.is_some_and(|items| items.value(row) != items.value(row - 1));
+        if changed_scope || changed_item {
+            pending.push(first..row);
+            first = row;
+        }
+    }
+    pending.push(first..batch.num_rows());
+    pending.reverse();
     while let Some(range) = pending.pop() {
         let mut part = batch.slice(range.start, range.len());
         if part.get_array_memory_size() > settings.chunk_bytes.get() {
@@ -298,6 +322,14 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
             .collect::<Vec<_>>();
         batch = harmos_query::columnar::take(&batch, &indices)?;
     }
+    let mut indices = Vec::new();
+    let visible = compound::visible_positions(&state.connection, &read.source, _first, last, snapshot.at.sequence)?;
+    for (index, position) in positions(&batch)?.values().iter().enumerate() {
+        if visible.contains(position) {
+            indices.push(index as u64);
+        }
+    }
+    batch = harmos_query::columnar::take(&batch, &indices)?;
     let final_position = positions(&batch)?.values().iter().copied().filter(|position| *position <= snapshot.at.sequence).max();
     let mut page = harmos_query::columnar::finish_page(
         snapshot,

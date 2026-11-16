@@ -30,7 +30,6 @@ use harmos_query::columnar::ColumnSource;
 use harmos_storage::query::ObjectVersions;
 use sha2::Digest;
 
-use harmos_domain::Error as DomainError;
 use harmos_storage::DefinitionOutcome;
 use harmos_storage::DefinitionRefusal;
 use harmos_storage::ObjectRetention;
@@ -351,7 +350,7 @@ pub(super) fn append_object_revisions(state: &mut State, values: &[ObjectEntry])
                     kind: 1,
                     schema: Some(&value.value.schema),
                     item: Some(value.value.item.as_str()),
-                    scope: None,
+                    scope: value.value.scope.as_ref().map(Identifier::as_str),
                     stream: None,
                     time: None,
                     data: encode(value)?,
@@ -488,7 +487,17 @@ pub(super) fn list_identities(
         IdentityKind::Streams => 3,
         IdentityKind::Objects => 1,
     };
-    let mut query = state.connection.prepare("SELECT schema_key,scope,item,stream,position FROM storage_rows WHERE position IN (SELECT MIN(position) FROM storage_rows WHERE kind=?1 AND position<=?2 GROUP BY schema_key,scope,item,stream) AND position>?3 AND (?4 IS NULL OR schema_id=?4) ORDER BY position LIMIT ?5").map_err(db)?;
+    let group = match selection.kind {
+        IdentityKind::Streams => "schema_key,scope,item,stream",
+        IdentityKind::Objects => "schema_key,item",
+    };
+    let sql = format!(
+        "SELECT schema_key,scope,item,stream,position FROM storage_rows WHERE position IN
+         (SELECT MIN(position) FROM storage_rows WHERE kind=?1 AND position<=?2
+          AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=storage_rows.position AND d.deleted_at<=?2)
+          GROUP BY {group}) AND position>?3 AND (?4 IS NULL OR schema_id=?4) ORDER BY position LIMIT ?5"
+    );
+    let mut query = state.connection.prepare(&sql).map_err(db)?;
     let mut rows = query
         .query(params![
             kind,
@@ -514,9 +523,9 @@ pub(super) fn list_identities(
                 let stream: String = row.get(3).map_err(db)?;
                 StoredIdentity::Stream {
                     schema,
-                    scope: scope.map(Identifier::new).transpose().map_err(DomainError::from)?,
-                    item: Identifier::new(item).map_err(DomainError::from)?,
-                    stream: Identifier::new(stream).map_err(DomainError::from)?,
+                    scope: scope.map(Identifier::new).transpose().map_err(harmos_domain::Error::from)?,
+                    item: Identifier::new(item).map_err(harmos_domain::Error::from)?,
+                    stream: Identifier::new(stream).map_err(harmos_domain::Error::from)?,
                     first,
                 }
             }
@@ -575,9 +584,19 @@ pub(super) fn list_samples(
             .column_by_name("source_time")
             .and_then(|array| array.as_any().downcast_ref::<TimestampNanosecondArray>())
             .ok_or_else(incompatible)?;
+        let visible = compound::visible_positions(
+            &state.connection,
+            &source,
+            positions.value(0),
+            positions.value(batch.num_rows() - 1),
+            snapshot.at.sequence,
+        )?;
         for row in 0..batch.num_rows() {
             if positions.value(row) <= page.after || positions.value(row) > snapshot.at.sequence || sequences.value(row) <= selection.after
             {
+                continue;
+            }
+            if !visible.contains(&positions.value(row)) {
                 continue;
             }
             let text = |name: &str| -> Result<Option<Identifier>> {
@@ -668,7 +687,7 @@ pub(super) fn get_object(state: &State, snapshot: &BackendSnapshot, point: &Obje
             Some(integer(token.revision().get())?)
         }
     };
-    let bytes = state.connection.query_row("SELECT data FROM storage_rows WHERE kind=1 AND schema_id=?1 AND item=?2 AND position<=?3 AND (?4 IS NULL OR position=?4) ORDER BY position DESC LIMIT 1", params![point.schema.as_str(), point.item.as_str(), integer(snapshot.at.sequence)?, position], |row| row.get::<_, Vec<u8>>(0)).optional().map_err(db)?;
+    let bytes = state.connection.query_row("SELECT data FROM storage_rows WHERE kind=1 AND schema_id=?1 AND item=?2 AND position<=?3 AND (?4 IS NULL OR position=?4) AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=storage_rows.position AND d.deleted_at<=?3) AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d WHERE d.schema_id=storage_rows.schema_id AND d.item=storage_rows.item AND d.position>storage_rows.position AND d.position<=?3) ORDER BY position DESC LIMIT 1", params![point.schema.as_str(), point.item.as_str(), integer(snapshot.at.sequence)?, position], |row| row.get::<_, Vec<u8>>(0)).optional().map_err(db)?;
     if bytes.is_none()
         && let Some(position) = position
     {
@@ -765,7 +784,10 @@ fn query<T: serde::de::DeserializeOwned>(
     connection: &Connection, snapshot: &BackendSnapshot, page: ScanPage, kind: i64, condition: &str, extra: Vec<Value>,
 ) -> Result<Vec<T>> {
     let sql = format!(
-        "SELECT data FROM storage_rows WHERE kind=?1 AND position>?2 AND position<=?3 {condition} ORDER BY position LIMIT {}",
+        "SELECT data FROM storage_rows WHERE kind=?1 AND position>?2 AND position<=?3
+         AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=storage_rows.position AND d.deleted_at<=?3)
+         AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d WHERE storage_rows.kind=1 AND d.schema_id=storage_rows.schema_id AND d.item=storage_rows.item AND d.position>storage_rows.position AND d.position<=?3)
+         {condition} ORDER BY position LIMIT {}",
         page.rows.get().saturating_add(1)
     );
     let mut arguments = vec![Value::Integer(kind), Value::Integer(integer(page.after)?), Value::Integer(integer(snapshot.at.sequence)?)];

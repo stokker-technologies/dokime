@@ -10,6 +10,7 @@
 /* === Modules === */
 
 mod columns;
+mod compound;
 mod definition_mutations;
 mod files;
 mod index;
@@ -24,7 +25,6 @@ mod rows;
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Mutex as LeaseMutex;
 use std::{cell::Cell, collections::BTreeMap, num::NonZeroUsize, path::Path, sync::Arc};
 
 // Third Party Imports
@@ -82,7 +82,7 @@ pub struct Backend {
     state: Arc<Mutex<State>>,
 }
 
-pub struct BackendLease(Arc<LeaseMutex<Option<std::fs::File>>>);
+pub struct BackendLease(Arc<std::sync::Mutex<Option<std::fs::File>>>);
 
 impl BackendLease {
     pub fn close(&self) -> Result<()> {
@@ -104,7 +104,7 @@ impl Drop for BackendLease {
 
 struct State {
     connection: Connection,
-    lease: Arc<LeaseMutex<Option<std::fs::File>>>,
+    lease: Arc<std::sync::Mutex<Option<std::fs::File>>>,
     history: StoreHistory,
     settings: BackendSettings,
     catalog: ObjectCatalog,
@@ -185,7 +185,7 @@ impl Backend {
         if version == 1 {
             let format: Option<String> =
                 connection.query_row("SELECT value FROM storage_meta WHERE name='format'", [], |row| row.get(0)).optional().map_err(db)?;
-            if format.as_deref() != Some("dokime.native-arrow.v1") {
+            if format.as_deref() != Some("dokime.operations-files.v1") {
                 return Err(incompatible());
             }
 
@@ -211,10 +211,15 @@ impl Backend {
             CREATE INDEX IF NOT EXISTS arrow_source ON arrow_chunks(source,last,first);
             CREATE TABLE IF NOT EXISTS arrow_columns(chunk INTEGER NOT NULL REFERENCES arrow_chunks(id), name TEXT NOT NULL, data INTEGER NOT NULL, minimum REAL, maximum REAL, time_min INTEGER, time_max INTEGER, PRIMARY KEY(chunk,name));
             CREATE TABLE IF NOT EXISTS deleted_files(id TEXT PRIMARY KEY,generation INTEGER NOT NULL);
-            CREATE TABLE IF NOT EXISTS storage_files(id TEXT PRIMARY KEY, metadata BLOB NOT NULL, length INTEGER NOT NULL, finished BLOB);
+            CREATE TABLE IF NOT EXISTS storage_files(id TEXT PRIMARY KEY, scope TEXT, metadata BLOB NOT NULL, length INTEGER NOT NULL, finished BLOB);
+            CREATE INDEX IF NOT EXISTS storage_file_scope ON storage_files(scope,id);
             CREATE TABLE IF NOT EXISTS storage_file_chunks(id TEXT NOT NULL REFERENCES storage_files(id), offset INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY(id,offset));
             CREATE TABLE IF NOT EXISTS storage_file_sessions(id TEXT PRIMARY KEY REFERENCES storage_files(id), generation INTEGER NOT NULL, abandoned INTEGER NOT NULL, checkpoint BLOB);
             CREATE TABLE IF NOT EXISTS storage_mutations(id TEXT PRIMARY KEY, data BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS storage_object_deletions(position INTEGER PRIMARY KEY,schema_id TEXT NOT NULL,item TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS storage_object_deletion_key ON storage_object_deletions(schema_id,item,position);
+            CREATE TABLE IF NOT EXISTS storage_row_deletions(position INTEGER PRIMARY KEY,deleted_at INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS storage_compound_ranges(first INTEGER PRIMARY KEY,last INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS storage_indexes(name TEXT PRIMARY KEY,revision INTEGER NOT NULL,source TEXT NOT NULL,definition BLOB NOT NULL);
             CREATE TABLE IF NOT EXISTS storage_index_entries(name TEXT NOT NULL,revision INTEGER NOT NULL,key BLOB NOT NULL,position INTEGER NOT NULL,PRIMARY KEY(name,revision,key,position)) WITHOUT ROWID;
             CREATE TABLE IF NOT EXISTS projection_definitions(name TEXT NOT NULL,revision INTEGER NOT NULL,definition BLOB NOT NULL,retired INTEGER,PRIMARY KEY(name,revision));
@@ -236,7 +241,7 @@ impl Backend {
         if stored.as_ref().is_some_and(|stored| stored != &encoded) {
             return Err(incompatible());
         }
-        tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('format','dokime.native-arrow.v1')", []).map_err(db)?;
+        tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('format','dokime.operations-files.v1')", []).map_err(db)?;
         tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('history',?1)", [&encoded]).map_err(db)?;
         tx.execute_batch("INSERT OR IGNORE INTO storage_meta VALUES('deletion_generation','0'); INSERT OR IGNORE INTO storage_meta VALUES('recovery_written','0'); INSERT OR IGNORE INTO storage_meta VALUES('recovery_saved','0'); INSERT OR IGNORE INTO storage_meta VALUES('saved','0'); INSERT OR IGNORE INTO storage_meta VALUES('floor','0'); INSERT OR IGNORE INTO storage_meta VALUES('object_receipt_floor','0'); PRAGMA user_version=1;").map_err(db)?;
         tx.commit().map_err(db)?;
@@ -245,7 +250,7 @@ impl Backend {
             history: history.clone(),
             state: Arc::new(Mutex::new(State {
                 connection,
-                lease: Arc::new(LeaseMutex::new(lease)),
+                lease: Arc::new(std::sync::Mutex::new(lease)),
                 history,
                 settings,
                 catalog: ObjectCatalog::new(),
@@ -305,6 +310,18 @@ impl State {
 }
 
 impl StorageBackend for Backend {
+    fn mutate<'a>(&'a self, exchange: &'a harmos_storage::CompoundExchange) -> StorageFuture<'a, MutationReceipt> {
+        Box::pin(async move {
+            exchange.validate()?;
+            let position = exchange.position.clone();
+            let items = exchange.items.clone();
+            let header = exchange.mutation().clone();
+            let receipt = self.call(move |state| compound::commit(state, &position, &items, &header)).await?;
+            exchange.replay(&receipt)?;
+            Ok(receipt)
+        })
+    }
+
     fn get_work(&self) -> StorageFuture<'_, StorageWork> {
         Box::pin(self.call(|state| Ok(state.work.get())))
     }
@@ -322,6 +339,7 @@ impl StorageBackend for Backend {
             native_index: true,
             durable_projections: true,
             conditional_objects: true,
+            compound_mutations: true,
         }
     }
 
@@ -329,6 +347,7 @@ impl StorageBackend for Backend {
         Box::pin(self.call(|state| {
             state.check_lease()?;
             state.closed = false;
+            compound::reclaim(state)?;
             state.cursor()
         }))
     }
@@ -342,7 +361,7 @@ impl StorageBackend for Backend {
         Box::pin(self.call(|state| {
             state.snapshots.clear();
             state.snapshot_generations.clear();
-            files::reclaim(state)?;
+            compound::reclaim(state)?;
             state.closed = true;
             state
                 .lease
@@ -425,14 +444,33 @@ impl StorageBackend for Backend {
             state.check()?;
             state.history.check(&at.history)?;
             let floor = meta(&state.connection, "floor")?;
-            if at.sequence < floor {
+            let retained = state
+                .snapshots
+                .iter()
+                .find(|(_, saved)| **saved == at)
+                .and_then(|(token, _)| state.snapshot_generations.get(token))
+                .copied();
+            if at.sequence < floor && retained.is_none() {
                 return Err(Error::Gap { requested: at.sequence, available: floor });
             }
             if at.sequence > state.cursor()?.sequence {
                 return Err(Error::NotReady { domain: "requested storage cut" });
             }
+            let partial: bool = state
+                .connection
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM storage_compound_ranges WHERE first<=?1 AND last>?1)",
+                    [integer(at.sequence)?],
+                    |row| row.get(0),
+                )
+                .map_err(db)?;
+            if partial {
+                return Err(invalid("Create Snapshot: Select a Complete Compound Receipt Frontier"));
+            }
             let token = uuid::Uuid::now_v7().as_bytes().to_vec();
-            state.snapshot_generations.insert(token.clone(), meta(&state.connection, "deletion_generation")?);
+            let generation =
+                if at.sequence < floor { retained.ok_or_else(incompatible)? } else { meta(&state.connection, "deletion_generation")? };
+            state.snapshot_generations.insert(token.clone(), generation);
             state.snapshots.insert(token.clone(), at.clone());
             Ok(BackendSnapshot { at, token })
         }))
@@ -447,7 +485,7 @@ impl StorageBackend for Backend {
             }
             state.snapshots.remove(&snapshot.token);
             state.snapshot_generations.remove(&snapshot.token);
-            files::reclaim(state)?;
+            compound::reclaim(state)?;
             Ok(())
         }))
     }

@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`, rather than
+[Cargo.toml](../Cargo.toml), `7fe385eacbe9a4c9a47943f6a528f97a014256ee`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -180,8 +180,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    archives; `client_reads_runtime` proves status observation and stable restart identity.
    **Status:** storage through operations and product wrappers are locked direction in
    [Operation Boundary](../openspec/changes/operation-boundary/design.md).
-   Retained resource-view payloads use `GetObject` and create-only `SetObject` in
-   `crates/dokime-operations/src/host/views.rs`. Their product evidence cuts still use
+   Retained resource-view indexes use `GetObject` and create-only `SetObject` in
+   `crates/dokime-operations/src/host/views.rs`; their immutable protobuf payloads use
+   chunked native files, so a complete collection can exceed one response page without
+   exceeding an object or transfer bound. Their product evidence cuts still use
    the execution ledger. Access, Status, native transfers and library plugin entries are composed.
    Executions bind the admitted activation once per unit with a trusted scope and
    independent clock; lifecycle dispatch uses the library operation manager. Scoped
@@ -661,14 +663,23 @@ variance uses bounded exact sums of squares, so small spreads above f64 integer
 precision survive. Standard deviation, RMS and chart coordinates remain floating
 point; these drawing coordinates never replace the exact statistic or its label.
 
-`Backend::open(&store)` returns the library's `StorageBackends` pair, sharing the
+`Backend::open(&store, catalog)` returns the library's `StorageBackends` pair, sharing the
 root's durable history. `backend.rs` and `backend/**` implement the native primary
 and recovery contracts. Their catalog is `storage.sqlite3`; native sample batches
 live in compressed `storage.arrow/<id>.arrow` files. SQLite retains replay digests
-and column bounds, with no native sample payload or Arrow-column blobs. Each file
+and column bounds, with no native sample payload or Arrow-column blobs. Arrow chunks
+stay within one scope, and object chunks also stay within one identity; splitting
+mixed-owner batches preserves source order and permits whole-file reclamation. Each file
 is synced before its catalog transaction commits; startup collects uncataloged
 owned files after a failed transaction. Native row reads reconstruct Postcard
 values from those Arrow columns, preserving optional messages and repeated values.
+Compound mutation commits ordered object changes, records and their replayable
+receipt in one SQLite transaction. A late conditional conflict rolls back every
+effect and commits its original refusal receipt. Snapshot admission rejects cuts
+inside a compound range. Object and scoped deletion hide values at new cuts while
+retained snapshots keep their original image; releasing those snapshots permits
+file-byte and fully deleted Arrow-chunk reclamation. The compound backend format
+keeps baseline v1 and refuses superseded native roots with fresh-root guidance.
 Native storage and the existing descriptor-driven evidence store remain distinct
 until operations/runtime callers complete their native-port adoption. Product
 protobuf values and descriptors must be mapped explicitly at those callers.
@@ -726,10 +737,15 @@ At the current pin, the product `execution.sqlite3` ledger still owns coupled
 execution, evidence, sample, seal and report transitions, while registered Harmos
 operations persist in `storage.sqlite3`. Their sequencing cannot be split by moving
 only an append call: reads, retained cuts and seals must move with the canonical
-writer. Compound atomic mutation is the upstream prerequisite for that cutover;
-bootstrap/offline maintenance and scoped deletion are separate named gaps.
-Independent retained-view payloads use Harmos objects, retaining the first value
-published for a product cut. No mirror, fallback reader or dual write is introduced.
+writer. The pinned Harmos revision and registered backend provide compound atomic
+mutation and object/scoped deletion. Their coupled product cutover remains open;
+offline/minimal-assembly storage operations, expression transforms scale/offset/contains,
+consolidated statistics, the bucket-summary kernel and the typed facade remain
+upstream gaps.
+Independent retained views use immutable native files and object indexes, retaining
+the first file published for a product cut. Pages keep their existing response bounds;
+the complete collection is stored and read through bounded native file operations.
+No mirror, fallback reader or dual write is introduced.
 Prepared reports persist their document, execution seal and native file reference
 through Harmos objects. Their HTML stays in the native file and publication reads
 it through `GetFileBytes`; the final product report transaction still awaits the
@@ -800,7 +816,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/640c73959d2a5ee65015afc617c0f3f2b4ca9f6c/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/7fe385eacbe9a4c9a47943f6a528f97a014256ee/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -910,7 +926,7 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`.
+The definition pass pins Harmos at `7fe385eacbe9a4c9a47943f6a528f97a014256ee`.
 Consumer repairs follow the table below.
 The pin and generated contracts do not establish consumer compilation.
 
