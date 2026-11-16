@@ -47,7 +47,7 @@ from .. import notices
 
 
 def publish(directory: Path, settings: dict, *, dry_run: bool) -> None:
-    """Upload The Release Python Packages: PyPI For GitHub Products, The Project Registry On GitLab."""
+    """Upload the Release Python Packages: PyPI for GitHub Products, the Project Registry on GitLab."""
     profile = policy.profile()
     root = paths.output(directory, "package", profile, "any") / "python"
     selected = wheel.distributions(directory, root, policy.config(directory)["version"]["value"])
@@ -77,7 +77,7 @@ def publish(directory: Path, settings: dict, *, dry_run: bool) -> None:
 
 
 def digests(project: str) -> dict[str, str]:
-    """SHA-256 Digests Of Every File PyPI Holds For This Project, By Filename."""
+    """SHA-256 Digests of Every File PyPI Holds for This Project, by Filename."""
     try:
         document = notices.download(f"https://pypi.org/pypi/{urllib.parse.quote(project, safe='')}/json", operation="PyPI project read")
     except policy.ToolError as error:

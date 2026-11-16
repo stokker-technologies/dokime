@@ -59,7 +59,7 @@ def planned_version(directory: Path, current: str) -> str:
 
 
 def prepare(directory: Path, settings: dict) -> None:
-    """Bump Every Version Carrier And Regenerate Release Inputs In The Working Tree."""
+    """Bump Every Version Carrier and Regenerate Release Inputs in the Working Tree."""
     if policy.execute(directory, ["git", "status", "--porcelain"], capture=True).strip():
         raise policy.ToolError("Prepare Release: prepare requires clean committed source")
     require_publication(directory, settings)
@@ -89,7 +89,7 @@ def prepare(directory: Path, settings: dict) -> None:
 
 
 def policy_version(directory: Path, value: str) -> None:
-    """Write `[version] value` In The Project Policy, Keeping Every Other Line."""
+    """Write `[version] value` in the Project Policy, Keeping Every Other Line."""
     path = directory / "tools/project.toml"
     text = path.read_text(encoding="utf-8")
     match = re.search(r"(?ms)(^\[version\]\s*\n)(.*?)(?=^\[|\Z)", text)
@@ -100,7 +100,7 @@ def policy_version(directory: Path, value: str) -> None:
 
 
 def require_publication(directory: Path, settings: dict) -> None:
-    """Refuse A Release Whose Crates Cannot Publish: A First Publication Needs The Bootstrap Token."""
+    """Refuse a Release Whose Crates Cannot Publish: a First Publication Needs the Bootstrap Token."""
     if not (directory / "Cargo.toml").is_file():
         return
     missing = []

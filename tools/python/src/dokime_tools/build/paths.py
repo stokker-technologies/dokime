@@ -63,7 +63,7 @@ def output(directory: Path, stage: str, profile: str, native: str | None = None)
 
 
 def replace(directory: Path, source: Path, destination: Path, *, origin: Path | None = None) -> None:
-    """Replace One Owned Output Subtree, Preserving Other Profiles And Targets."""
+    """Replace One Owned Output Subtree, Preserving Other Profiles and Targets."""
     root = directory.resolve()
     source_root = root if origin is None else origin.resolve()
     if not source.resolve().is_relative_to(source_root) or not destination.resolve().is_relative_to(root):

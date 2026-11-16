@@ -42,7 +42,7 @@ from ..release import reports
 
 
 def collect(directory: Path, home: Path, identity: dict, threshold: float, *, refresh: bool, success: bool) -> None:
-    """Publish Explicit Missing Stages And Refusals Alongside Numeric Observations."""
+    """Publish Explicit Missing Stages and Refusals Alongside Numeric Observations."""
     source = home / "observations.json"
     if not source.is_file():
         raise ValueError("Run Desktop Bench Tests: desktop benchmark wrote no observations")

@@ -112,7 +112,7 @@ APT_FETCH_ATTEMPTS = len(APT_RETRY_DELAYS_S) + 1
 
 
 def spawn_flags(flags: int = 0) -> int:
-    """Load Shared Process Policy Before The Package Is Installed."""
+    """Load Shared Process Policy Before the Package Is Installed."""
     import runpy
 
     source = Path(__file__).resolve().parents[1] / "process/__init__.py"
@@ -211,7 +211,7 @@ def fetch_packages(
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     sleep: Callable[[float], None] = time.sleep,
 ) -> None:
-    """Retry The Package Fetch With Bounded Backoff And Preserve Mirror Diagnostics."""
+    """Retry the Package Fetch with Bounded Backoff and Preserve Mirror Diagnostics."""
     apt = [*prefix, "apt-get", "-o", f"Acquire::Retries={APT_ACQUIRE_RETRIES}"]
     commands = [
         [*apt, "-o", "APT::Update::Error-Mode=any", "update"],
@@ -249,7 +249,7 @@ def fetch_packages(
 
 
 def prepare_linux_browser(root: Path) -> Path:
-    """Reuse An Installed Browser Or Install The Pinned Chrome For Testing Build."""
+    """Reuse an Installed Browser or Install the Pinned Chrome for Testing Build."""
     selected = os.environ.get("DOKIME_E2E_CHROME")
     browser = shutil.which(selected or "google-chrome")
     if selected and browser is None:
@@ -293,7 +293,7 @@ def prepare_linux_browser(root: Path) -> Path:
 
 
 def prepare_windows_desktop(root: Path) -> Path:
-    """Resolve WebView2 And Install Its Exact Microsoft WebDriver."""
+    """Resolve WebView2 and Install Its Exact Microsoft WebDriver."""
     version = _webview_version()
     if version is None:
         temporary_directory = tempfile.TemporaryDirectory(prefix="dokime-webview-")

@@ -43,7 +43,7 @@ from dokime_tools.package.staging import clear_output, stage_file
 
 
 def export(root: Path, profile: str) -> Path:
-    """Record Shipping Command-Line Bytes And Legal Notices."""
+    """Record Shipping Command-Line Bytes and Legal Notices."""
     build = paths.output(root, "build", profile)
     native = (build / "product/target.txt").read_text(encoding="utf-8").strip()
     if native not in {"x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"}:
@@ -85,7 +85,7 @@ def export(root: Path, profile: str) -> Path:
 
 
 def archive(source: Path, output: Path) -> Path:
-    """Publish A Portable Distribution Without Recompiling Or Rewriting Build Bytes."""
+    """Publish a Portable Distribution Without Recompiling or Rewriting Build Bytes."""
     manifest = json.loads((source / "distribution.json").read_text(encoding="utf-8"))
     output.mkdir(parents=True, exist_ok=True)
     destination = output / f"dokime-distribution-{manifest['version']}-{manifest['target']}.zip"

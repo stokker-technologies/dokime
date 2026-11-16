@@ -36,7 +36,7 @@ from typing import BinaryIO
 
 
 class Directory:
-    """Own A Locked Temporary Root Until Explicitly Closed."""
+    """Own a Locked Temporary Root Until Explicitly Closed."""
 
     def __init__(self) -> None:
         self._temporary = tempfile.TemporaryDirectory(prefix="project-tmp-")

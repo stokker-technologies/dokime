@@ -49,7 +49,7 @@ def measurements(
     *,
     boundaries: dict[str, str] | None = None,
 ) -> dict:
-    """Preserve Every Native Measurement And Its Pre-Run Baseline."""
+    """Preserve Every Native Measurement and Its Pre-Run Baseline."""
     benchmarks = []
     for name, value, baseline in rows:
         if not math.isfinite(value) or (baseline is not None and not math.isfinite(baseline)):
@@ -74,7 +74,7 @@ def measurements(
 
 
 def identity(lane: str, platform: str, case: str, boundary: str, *, state: str | None = None) -> dict:
-    """Qualify Measurements At Their Producer, Independently Of Artifact Names."""
+    """Qualify Measurements at Their Producer, Independently of Artifact Names."""
     if state is None:
         parts = re.split(r"[/_]", case)
         state = next(
@@ -119,7 +119,7 @@ def collect(directory: Path) -> tuple[dict, list[Path]]:
 
 
 def stage(directory: Path, shared: Path, version: str) -> list[Path]:
-    """Package Available Measurements And Raw Evidence In The Release Inventory."""
+    """Package Available Measurements and Raw Evidence in the Release Inventory."""
     summary, files = collect(directory)
     source = directory / "target/nightly-reports"
     index = shared / "benchmarks.json"
@@ -143,7 +143,7 @@ def stage(directory: Path, shared: Path, version: str) -> list[Path]:
 
 
 def table(summary: dict, results: dict, url: str) -> str:
-    """A Compact Report Of Available Measurements And Every Suite Outcome."""
+    """A Compact Report of Available Measurements and Every Suite Outcome."""
     lines = ["| Result | Measurement |", "|---|---|"]
     for row in summary["coverage"]:
         lines.append(f"| Coverage / {row['language']} | {row['line_percent']:.2f}% |")

@@ -39,7 +39,7 @@ from . import context, registry
 
 
 def identity(directory: Path, settings: dict) -> None:
-    """Print The OIDC Identity Registries See And The Trusted Publisher Values That Match It."""
+    """Print the OIDC Identity Registries See and the Trusted Publisher Values That Match It."""
     url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL")
     request = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
     if not url or not request:

@@ -46,7 +46,7 @@ MODULES = configuration.ROOT / "target/generated/typescript"
 
 
 def prepare() -> None:
-    """Generate Frontend Message Modules From The Checked-In Protocol Descriptor."""
+    """Generate Frontend Message Modules From the Checked-In Protocol Descriptor."""
     status = cargo.focused(
         configuration.ROOT,
         "run",
@@ -77,7 +77,7 @@ def prepare() -> None:
 
 
 def stage(profile: str) -> Path:
-    """Copy The Freshly Generated Modules Into The Build Output."""
+    """Copy the Freshly Generated Modules Into the Build Output."""
     staged = paths.output(configuration.ROOT, "build", profile) / "generated/typescript"
     sync_output(MODULES, staged)
     sync_output(configuration.ROOT / "target/generated/host", staged.parent / "host")
@@ -85,7 +85,7 @@ def stage(profile: str) -> Path:
 
 
 def restore(profile: str) -> None:
-    """Replace The GUI's Generated Modules With The Staged Build Output."""
+    """Replace the GUI's Generated Modules with the Staged Build Output."""
     output = paths.output(configuration.ROOT, "build", profile)
     staged = output / "generated/typescript"
     if not staged.is_dir():

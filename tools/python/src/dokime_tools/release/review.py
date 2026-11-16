@@ -46,7 +46,7 @@ from . import context, registry, version
 
 
 def review(directory: Path, settings: dict) -> None:
-    """Commit The Prepared Tree To release/v<version> And Open Its Review Into dev With The Release Token."""
+    """Commit the Prepared Tree to release/v<version> and Open Its Review Into dev with the Release Token."""
     token = os.environ.get("RELEASE_TOKEN", "")
     if not context.continuous_integration() or not token:
         raise policy.ToolError("Open Release Review: the release review opens from Release / Prepare with the RELEASE_TOKEN secret")
@@ -100,7 +100,7 @@ def review(directory: Path, settings: dict) -> None:
 
 
 def commit_review(directory: Path, settings: dict, branch: str, title: str) -> None:
-    """Create The Preparation Commit Through The Provider API, Signed By The Provider."""
+    """Create the Preparation Commit Through the Provider API, Signed by the Provider."""
     head = context.revision(directory)
     changed = policy.execute(directory, ["git", "diff", "--cached", "--name-status", "--no-renames", "-z", "HEAD"], capture=True)
     entries = changed.rstrip("\0").split("\0") if changed else []

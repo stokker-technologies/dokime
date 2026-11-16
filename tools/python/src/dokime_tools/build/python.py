@@ -37,7 +37,7 @@ from dokime_tools.build import configuration, wheel
 
 
 def build(profile: str) -> list[str]:
-    """Build The Pure Python SDK Wheel."""
+    """Build the Pure Python SDK Wheel."""
     distributions = wheel.build(configuration.ROOT, profile)
     return configuration.relative(distributions)
 

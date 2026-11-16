@@ -44,7 +44,7 @@ from . import policy
 
 
 def console() -> dict:
-    """Keep Native Console Signaling Available Without A Visible Window."""
+    """Keep Native Console Signaling Available Without a Visible Window."""
     if os.name != "nt":
         return {}
     startup = subprocess.STARTUPINFO()

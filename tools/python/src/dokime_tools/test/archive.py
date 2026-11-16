@@ -69,7 +69,7 @@ def location(directory: Path, profile: str) -> Path:
 
 
 def prune(directory: Path, keep: set[str], *, archives: bool = False) -> None:
-    """Discard Superseded Roots Without Following Links Or Touching Flat Reports."""
+    """Discard Superseded Roots Without Following Links or Touching Flat Reports."""
     for path in directory.iterdir():
         if path.name in keep:
             continue
@@ -84,7 +84,7 @@ def prune(directory: Path, keep: set[str], *, archives: bool = False) -> None:
 
 
 def binaries(directory: Path, profile: str, extracted: Path | None = None) -> dict[str, str]:
-    """Map Archive Binary IDs To Names, Retaining Package Identity For Measured Overrides."""
+    """Map Archive Binary IDs to Names, Retaining Package Identity for Measured Overrides."""
     if extracted is not None:
         metadata = json.loads((extracted / "target/nextest/binaries-metadata.json").read_text(encoding="utf-8"))
         return {identity: entry["binary-name"] for identity, entry in metadata["rust-binaries"].items()}
@@ -98,7 +98,7 @@ def binaries(directory: Path, profile: str, extracted: Path | None = None) -> di
 
 
 def extract(directory: Path, profile: str, destination: Path, *, category: str | None = None, arguments: Sequence[str] = ()) -> None:
-    """Extract Once For Read-Only Reuse By Listing And Independent Test Lanes."""
+    """Extract Once for Read-Only Reuse by Listing and Independent Test Lanes."""
     path = require(directory, profile)
     destination.mkdir(parents=True, exist_ok=True)
     if category in LAYERS:
@@ -173,7 +173,7 @@ def install_wheels(directory: Path, profile: str) -> None:
 
 
 def stamp(directory: Path, profile: str, files: Sequence[str], metadata: Mapping | None = None) -> None:
-    """Name And Hash The Built Fixtures, Without Binding Source Or Revision."""
+    """Name and Hash the Built Fixtures, Without Binding Source or Revision."""
     record = {
         "profile": profile,
         "target": paths.target(),
@@ -238,7 +238,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
 
 def _extract_layer(path: Path, destination: Path, category: str, arguments: Sequence[str] = ()) -> None:
-    """Keep One Layer's Binaries And All Runtime Inputs Without Unpacking Other Test Layers."""
+    """Keep One Layer's Binaries and All Runtime Inputs Without Unpacking Other Test Layers."""
     metadata_name = "target/nextest/binaries-metadata.json"
     with tarfile.open(path, "r|zst") as source:
         member = next((member for member in source if member.name == metadata_name), None)
@@ -295,7 +295,7 @@ def _extract_layer(path: Path, destination: Path, category: str, arguments: Sequ
 
 
 def _in_layer(category: str, entry: Mapping) -> bool:
-    """The Archive Counterpart Of `nextest.layer`, Selecting By Target Kind And Binary Name."""
+    """The Archive Counterpart of `nextest.layer`, Selecting by Target Kind and Binary Name."""
     if category == "unit":
         return entry["kind"] in UNIT_KINDS
     if entry["kind"] != "test":

@@ -53,7 +53,7 @@ GENERATED = configuration.ROOT / "crates/dokime-gui/src/generated/organization"
 
 
 def generate() -> None:
-    """Generate The Offline Default Brand From The Runtime Manifest."""
+    """Generate the Offline Default Brand From the Runtime Manifest."""
     manifest = tomllib.loads((BRAND / "organization.toml").read_text())
     app = manifest["app"]
     logos = {}
@@ -81,7 +81,7 @@ def generate() -> None:
 
 
 def generate_icons() -> None:
-    """Generate Desktop Icons From The Brand's PNG Icon Master."""
+    """Generate Desktop Icons From the Brand's PNG Icon Master."""
     destination = configuration.ROOT / "crates/dokime-gui/src-tauri/icons"
     cli = configuration.ROOT / "crates/dokime-gui/node_modules/@tauri-apps/cli/tauri.js"
     directory_directory = tempfile.TemporaryDirectory(prefix="organization-icons-")

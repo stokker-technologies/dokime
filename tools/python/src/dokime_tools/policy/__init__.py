@@ -72,7 +72,7 @@ def policy(directory: Path, name: str) -> dict[str, Any]:
 
 
 def publishable(directory: Path, metadata: dict) -> dict:
-    """Select Library Workspace Members And Refuse Publishable Artifact-Only Packages."""
+    """Select Library Workspace Members and Refuse Publishable Artifact-Only Packages."""
     settings = config(directory)
     plugin_project = settings.get("project", {}).get("profile") in {"plugin", "sidecar", "guest"}
     plugins = {plugin["package"] for plugin in settings.get("release", {}).get("plugins", [])}
@@ -98,7 +98,7 @@ def publishable(directory: Path, metadata: dict) -> dict:
 
 
 def profile(default: str = "release") -> str:
-    """The Package Profile Passed By The Rendered Job Or A Local Invocation."""
+    """The Package Profile Passed by the Rendered Job or a Local Invocation."""
     selected = os.environ.get("RELEASE_PROFILE") or default
     if selected not in ("dev", "release"):
         raise ToolError("Configure Project Tooling: RELEASE_PROFILE must be dev or release")
@@ -148,7 +148,7 @@ def write_json(path: Path, value: object) -> None:
 
 @contextmanager
 def credential_free(settings: dict, *, profile: str = "release") -> Generator[None]:
-    """Temporarily Remove Publishing Credentials And Select The Requested Package Profile."""
+    """Temporarily Remove Publishing Credentials and Select the Requested Package Profile."""
     declared = set()
     for declared_lane in settings.get("package_signing", []):
         for declared_name in declared_lane.get("secrets", []):

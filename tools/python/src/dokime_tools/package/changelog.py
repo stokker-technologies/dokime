@@ -40,7 +40,7 @@ from .. import policy
 
 
 def notes(directory: Path, tag: str, *, tagged: bool | None = None) -> str:
-    """Render Only This Release's Changes, Never A Cumulative Tracked Changelog."""
+    """Render Only This Release's Changes, Never a Cumulative Tracked Changelog."""
     if tagged is None:
         tags = policy.execute(directory, ["git", "tag", "--points-at", "HEAD"], capture=True).splitlines()
         tagged = tag in tags
@@ -51,7 +51,7 @@ def notes(directory: Path, tag: str, *, tagged: bool | None = None) -> str:
 
 @contextmanager
 def staged(directory: Path, packages: dict) -> Generator[None]:
-    """Temporarily Include Generated Notes In Every Published Crate, Restoring All Inputs."""
+    """Temporarily Include Generated Notes in Every Published Crate, Restoring All Inputs."""
     originals = {}
     try:
         for package in packages.values():

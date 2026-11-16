@@ -39,7 +39,7 @@ from dokime_tools.process import spawn_flags
 
 
 def build(profile: str) -> list[str]:
-    """Generate The GUI Modules From The Product Build And Build The Live Frontend."""
+    """Generate the GUI Modules From the Product Build and Build the Live Frontend."""
     generated.prepare()
     generated.stage(profile)
     organization.generate_icons()

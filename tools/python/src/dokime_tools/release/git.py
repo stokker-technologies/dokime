@@ -42,7 +42,7 @@ from ..process import spawn_flags
 
 
 def push_remote(settings: dict, token: str) -> str:
-    """An Authenticated Push URL For The Release Identity, Which The main Ruleset Admits."""
+    """An Authenticated Push URL for the Release Identity, Which the main Ruleset Admits."""
     if settings["provider"] == "github":
         repository = settings.get("repository", os.environ.get("GITHUB_REPOSITORY"))
         return f"https://x-access-token:{token}@github.com/{repository}.git"
@@ -50,7 +50,7 @@ def push_remote(settings: dict, token: str) -> str:
 
 
 def run(directory: Path, command: list[str], secret: str) -> str:
-    """Run A Command That Carries A Credential, Never Echoing It; Returns Its Scrubbed Standard Output."""
+    """Run a Command That Carries a Credential, Never Echoing It; Returns Its Scrubbed Standard Output."""
     result = subprocess.run(
         command,
         creationflags=spawn_flags(),

@@ -54,7 +54,7 @@ GITLAB_REHEARSAL_JOB = "Release / Rehearsal"
 
 
 def arm_auto_merge(settings: dict, branch: str, title: str, *, sleep: Callable[[float], None] = time.sleep) -> None:
-    """Arm Native Squash Auto-Merge After Opening The Release Review, Waiting Briefly For GitLab's Pipeline."""
+    """Arm Native Squash Auto-Merge After Opening the Release Review, Waiting Briefly for GitLab's Pipeline."""
     if settings["provider"] == "github":
         repository = settings.get("repository", os.environ.get("GITHUB_REPOSITORY", ""))
         head = urllib.parse.quote(repository.split("/")[0] + ":" + branch, safe="")
@@ -151,7 +151,7 @@ def find(settings: dict, sha: str, branch: str) -> dict | None:
 
 
 def rehearsed(directory: Path, settings: dict, review: dict, sha: str) -> None:
-    """The Release Review Head Passed Its Rehearsal And Its Tree Is Exactly The Merged Tree."""
+    """The Release Review Head Passed Its Rehearsal and Its Tree Is Exactly the Merged Tree."""
     head = review["head"]
     if settings["provider"] == "github":
         pull = provider.document(settings, f"pulls/{review['number']}")

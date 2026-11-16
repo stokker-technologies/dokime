@@ -32,7 +32,7 @@ from dokime_tools.ci import review
 
 
 def green(sha: str, pages: Callable[..., list[dict]]) -> bool:
-    """Select The Latest Dev Push And Its Required Gate, Never A Prior Run Or PR."""
+    """Select the Latest Dev Push and Its Required Gate, Never a Prior Run or PR."""
     if re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", sha) is None:
         raise ValueError("Verify Release Evidence: invalid target revision")
     runs = pages(f"actions/workflows/ci.yml/runs?branch=dev&event=push&head_sha={sha}", "workflow_runs")

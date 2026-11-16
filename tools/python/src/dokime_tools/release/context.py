@@ -52,12 +52,12 @@ RELEASE_WORKFLOW = "release.yml"
 
 
 def continuous_integration() -> bool:
-    """Whether A CI Runner Executes This Process."""
+    """Whether a CI Runner Executes This Process."""
     return any(os.environ.get(name, "").lower() in {"1", "true"} for name in ("CI", "GITHUB_ACTIONS", "GITLAB_CI"))
 
 
 def release_tag(directory: Path) -> str:
-    """The Stable Tag Of The Prepared Version: `v` Plus `[version] value`."""
+    """The Stable Tag of the Prepared Version: `v` Plus `[version] value`."""
     value = policy.policy(directory, "version").get("value")
     if not isinstance(value, str) or re.fullmatch(STABLE, value) is None:
         raise policy.ToolError("Configure Release: version.value must declare a stable MAJOR.MINOR.PATCH version")
@@ -80,12 +80,12 @@ def native() -> str:
 
 
 def package(settings: dict) -> str:
-    """The GitLab Generic Package That Carries The Release Downloads."""
+    """The GitLab Generic Package That Carries the Release Downloads."""
     return settings.get("package", settings["product"])
 
 
 def quote(value: str) -> str:
-    """A Single Path Segment Of A Provider Endpoint."""
+    """A Single Path Segment of a Provider Endpoint."""
     return urllib.parse.quote(value, safe="")
 
 

@@ -40,7 +40,7 @@ from .. import temporary
 
 
 class Store:
-    """Own A Private Linux Secret Service For One Native Run."""
+    """Own a Private Linux Secret Service for One Native Run."""
 
     def __init__(self, environment: dict[str, str] | None) -> None:
         self.environment = dict(os.environ if environment is None else environment)

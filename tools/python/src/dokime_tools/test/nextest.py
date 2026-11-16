@@ -123,7 +123,7 @@ def run(
     expression: str | None,
     rest: Sequence[str],
 ) -> list[str]:
-    """Run Extracted Binaries Without Repeating Archive Extraction Or Compilation."""
+    """Run Extracted Binaries Without Repeating Archive Extraction or Compilation."""
     metadata = extract / "target/nextest"
     command = [
         "cargo",

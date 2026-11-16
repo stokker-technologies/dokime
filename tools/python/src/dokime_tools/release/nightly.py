@@ -95,7 +95,7 @@ def publish(directory: Path, *, release_notes: str | None = None) -> None:
 
 
 def complete(directory: Path) -> bool:
-    """Replace This Run's Inventory And Notes With Its Completed Suite Reports."""
+    """Replace This Run's Inventory and Notes with Its Completed Suite Reports."""
     settings = policy.policy(directory, "release")
     sha, identifier, url = _source(settings["provider"] == "github")
     current = registry.provider.document(settings, "releases/tags/nightly", channel=True)
@@ -110,7 +110,7 @@ def complete(directory: Path) -> bool:
 
 
 def verify(directory: Path) -> None:
-    """Verify Nightly Downloads And Native Installation Against The Shared Manifest."""
+    """Verify Nightly Downloads and Native Installation Against the Shared Manifest."""
     dokime_tools.release.verify.verify(directory, policy.policy(directory, "release"), channel=TAG)
 
 
@@ -118,7 +118,7 @@ def verify(directory: Path) -> None:
 
 
 def _source(github: bool) -> tuple[str, str, str]:
-    """The Commit, Run Identifier And Run URL Of A Scheduled Or Manual Run On `dev`."""
+    """The Commit, Run Identifier and Run URL of a Scheduled or Manual Run on `dev`."""
     if github:
         return _github_source()
     source = os.environ.get("PIPELINE_SOURCE") or os.environ.get("CI_PIPELINE_SOURCE")
@@ -310,7 +310,7 @@ def _github(
 
 
 def _workflows_moved(settings: dict, sha: str) -> bool:
-    """Whether Dev's Head Now Carries Different Workflow Files Than The Build Commit."""
+    """Whether Dev's Head Now Carries Different Workflow Files Than the Build Commit."""
     head = registry.provider.document(settings, "git/ref/heads/dev", channel=True)["object"]["sha"]
     return head != sha and _workflows(settings, head) != _workflows(settings, sha)
 
@@ -321,7 +321,7 @@ def _workflows(settings: dict, revision: str) -> str | None:
 
 
 def _upload(directory: Path, settings: dict, endpoint: str, item: dict) -> None:
-    """Upload One Download, Replacing A Partial Asset Of The Same Name Left By A Failed Attempt."""
+    """Upload One Download, Replacing a Partial Asset of the Same Name Left by a Failed Attempt."""
     path = policy.inside(directory, item["path"])
     name = urllib.parse.quote(item["name"], safe="")
     registry.provider.request(
@@ -370,7 +370,7 @@ def _discard(settings: dict, release: int) -> None:
 
 
 def _restore(settings: dict, staged: int, previous: dict | None, original: str | None) -> None:
-    """Return The Channel To The Previous Release After A Failed Swap; Report What Could Not Be Undone."""
+    """Return the Channel to the Previous Release After a Failed Swap; Report What Could Not Be Undone."""
     try:
         registry.provider.document(settings, f"releases/{staged}", "PATCH", {"draft": True}, channel=True)
     except policy.ToolError as error:

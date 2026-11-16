@@ -52,7 +52,7 @@ def dry(
     targets: list[str] | None = None,
     channel: str = "stable",
 ) -> None:
-    """Stage The Active Profile's Packages Like A Release And Run The Native Downloads From Them, Offline."""
+    """Stage the Active Profile's Packages Like a Release and Run the Native Downloads From Them, Offline."""
     tag = context.release_tag(directory)
     version.run(directory, "check")
     # Release reviews package the release profile; every other run packages dev.

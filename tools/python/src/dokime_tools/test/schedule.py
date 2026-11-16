@@ -50,7 +50,7 @@ from . import archive, policy, report
 
 
 def command(category: str, language: str, profile: str, workers: int, archive_directory: Path | None = None) -> list[str]:
-    """Use The Same Native Lane Runner Without Concurrent Input Reinstallation."""
+    """Use the Same Native Lane Runner Without Concurrent Input Reinstallation."""
     arguments = [
         sys.executable,
         "-m",
@@ -136,7 +136,7 @@ def prepare(directory: Path, profile: str) -> None:
 
 
 def lane(directory: Path, profile: str, category: str, language: str, project: str) -> None:
-    """Record The Real Exit Status; The Final Aggregate Fails After All Leaves Finish."""
+    """Record the Real Exit Status; the Final Aggregate Fails After All Leaves Finish."""
     destination = directory / "target/test-reports" / f"run-{profile}-{paths.target()}"
     context = json.loads((destination / "prepared.json").read_text(encoding="utf-8"))
     extracted = Path(context["archive_directory"]) if language == "rust" else None
@@ -156,7 +156,7 @@ def lane(directory: Path, profile: str, category: str, language: str, project: s
 
 
 def finish(directory: Path, profile: str) -> int:
-    """Missing Results And Failed Leaves Both Fail The Aggregate."""
+    """Missing Results and Failed Leaves Both Fail the Aggregate."""
     destination = directory / "target/test-reports" / f"run-{profile}-{paths.target()}"
     context = json.loads((destination / "prepared.json").read_text(encoding="utf-8"))
     keys = [f"{category}-{language}" for category, language in policy.lanes(directory)]

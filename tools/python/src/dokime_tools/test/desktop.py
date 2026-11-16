@@ -38,7 +38,7 @@ from ..ci import bootstrap
 
 
 class Environment:
-    """Prepare Desktop Prerequisites And Stop Only An Owned Display."""
+    """Prepare Desktop Prerequisites and Stop Only an Owned Display."""
 
     def __init__(self, directory: Path, environment: dict[str, str]) -> None:
         self.environment = environment

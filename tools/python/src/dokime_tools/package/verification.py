@@ -42,7 +42,7 @@ from . import definition
 
 
 def binary_bytes(source: Path, name: str) -> bytes:
-    """Read Only The Declared Root Binary, Without Extracting Archive Paths."""
+    """Read Only the Declared Root Binary, Without Extracting Archive Paths."""
     if source.name.endswith(".zip"):
         archive = zipfile.ZipFile(source)
         try:
@@ -76,7 +76,7 @@ def binary_bytes(source: Path, name: str) -> bytes:
 
 
 def verify(directory: Path, profile: str, target: str, root: Path | None = None) -> None:
-    """Execute Packaged Native Bytes In An Isolated Installation Directory."""
+    """Execute Packaged Native Bytes in an Isolated Installation Directory."""
     for item in definition.definitions(directory, profile, target):
         # Staged release downloads hold only the executables that ship.
         if "triple" not in item:

@@ -171,7 +171,7 @@ def focused(directory: Path, operation: str, arguments: Sequence[str]) -> int:
 
 
 def record_target(directory: Path, messages: Path, profile: str, native: str | None = None) -> None:
-    """Record The Actual Rust Target For Generic And Authored Product Builders."""
+    """Record the Actual Rust Target for Generic and Authored Product Builders."""
     compiler = subprocess.run(
         ["rustc", "-vV"],
         creationflags=spawn_flags(),

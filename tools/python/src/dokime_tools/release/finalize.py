@@ -41,7 +41,7 @@ from . import context, layout, registry
 
 
 def finalize(directory: Path, settings: dict) -> None:
-    """Verify Every Manifest Download And Signature Before Making The Release Visible."""
+    """Verify Every Manifest Download and Signature Before Making the Release Visible."""
     root = context.root(directory)
     state = json.loads((root / context.SHARED / context.STATE).read_text(encoding="utf-8"))
     if state.get("sha") != context.revision(directory) or state.get("tag") != context.release_tag(directory):

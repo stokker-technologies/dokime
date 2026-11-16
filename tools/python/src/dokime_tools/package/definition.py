@@ -37,7 +37,7 @@ from ..build import paths
 
 
 def definitions(directory: Path, profile: str, target: str) -> list[dict]:
-    """Resolve Declared Products Without Looking At Native Compiler Directories."""
+    """Resolve Declared Products Without Looking at Native Compiler Directories."""
     config = policy.config(directory)
     version = config.get("version", {}).get("value")
     result = []
@@ -70,7 +70,7 @@ def definitions(directory: Path, profile: str, target: str) -> list[dict]:
 
 
 def packaged(directory: Path, profile: str, target: str) -> list[dict]:
-    """Only Explicitly Shipped Tools Enter The Release; Bundles Need release.assets."""
+    """Only Explicitly Shipped Tools Enter the Release; Bundles Need release.assets."""
     root = paths.output(directory, "package", profile, target)
     result = []
     for result_item in definitions(directory, profile, target):

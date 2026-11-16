@@ -47,7 +47,7 @@ def rehearse(
     stage_only: bool = False,
     channel: str = "stable",
 ) -> None:
-    """Verify Selected Local Packages Or Every Hosted Target Without Publishing Credentials."""
+    """Verify Selected Local Packages or Every Hosted Target Without Publishing Credentials."""
     hosted = context.continuous_integration()
     if profile not in {"dev", "release"}:
         raise policy.ToolError("Rehearse Release: rehearsal profile must be dev or release")

@@ -38,7 +38,7 @@ from typing import Any
 
 
 def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
-    """Select The Non-Test Binaries One Cargo Build Reported."""
+    """Select the Non-Test Binaries One Cargo Build Reported."""
     selected: dict[str, set[Path]] = {name: set() for name in names}
     for item in artifacts(messages):
         target = item.get("target", {})
@@ -65,7 +65,7 @@ def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
 
 
 def artifacts(messages: Path) -> Iterator[dict[str, Any]]:
-    """Decode Cargo Artifact Records Once For All Output Consumers."""
+    """Decode Cargo Artifact Records Once for All Output Consumers."""
     for line in messages.read_text(encoding="utf-8").splitlines():
         item = json.loads(line) if line.startswith("{") else {}
         if item.get("reason") == "compiler-artifact" and not item.get("profile", {}).get("test"):

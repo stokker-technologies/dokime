@@ -47,7 +47,7 @@ THEMES = ("light", "dark")
 
 
 def dimensions(data: bytes) -> tuple[int, int]:
-    """Validate PNG Chunk Boundaries And Checksums Before Reading Its Viewport."""
+    """Validate PNG Chunk Boundaries and Checksums Before Reading Its Viewport."""
     if data[:8] != PNG:
         raise policy.ToolError("Capture Screenshots: screenshot must be a PNG")
     offset = 8
@@ -81,7 +81,7 @@ def dimensions(data: bytes) -> tuple[int, int]:
 
 
 def check(directory: Path, _: str = "check") -> None:
-    """Check The Complete Published Set Without Starting Any Processes."""
+    """Check the Complete Published Set Without Starting Any Processes."""
     folder = directory / "docs/screenshots"
     try:
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))

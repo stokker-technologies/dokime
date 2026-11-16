@@ -57,7 +57,7 @@ def receive() -> None:
 
 
 def send(profile: str) -> None:
-    """Export The Producer's Declared Outputs Once For All Consumers."""
+    """Export the Producer's Declared Outputs Once for All Consumers."""
     for output in json.loads(os.environ.get("CI_OUTPUTS", "[]")):
         artifacts.pack(
             Path.cwd(),

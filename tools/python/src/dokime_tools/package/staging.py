@@ -38,7 +38,7 @@ from pathlib import Path
 
 
 def clear_output(path: Path) -> None:
-    """Prepare One Owned Output Without Following A Directory Link."""
+    """Prepare One Owned Output Without Following a Directory Link."""
     _ensure_directory(path.parent)
     if path.is_symlink():
         raise ValueError(f"Package Product: owned output must not be a symlink: {path}")

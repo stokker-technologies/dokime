@@ -112,7 +112,7 @@ def run(directory: Path, verb: str, *, value: str | None = None) -> None:
 
 
 def sibling_pins(directory: Path, verb: str, target: str) -> None:
-    """Synchronize Exact Local Sibling Requirements, Including Renames And Target Tables."""
+    """Synchronize Exact Local Sibling Requirements, Including Renames and Target Tables."""
     if not (directory / "Cargo.toml").is_file():
         return
     metadata = json.loads(policy.execute(directory, ["cargo", "metadata", "--no-deps", "--format-version", "1"], capture=True))

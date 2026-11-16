@@ -221,7 +221,7 @@ def pages(settings: dict, endpoint: str, key: str | None = None, *, channel: boo
 
 
 def verify_duplicate_policy(settings: dict) -> None:
-    """Read Back The Group's Generic Package Duplicate Protection; Publication Never Changes It."""
+    """Read Back the Group's Generic Package Duplicate Protection; Publication Never Changes It."""
     project = document(settings, "")
     if not isinstance(project, dict):
         raise policy.ToolError("Read Release Provider: GitLab project identity is unavailable")
@@ -254,7 +254,7 @@ def verify_duplicate_policy(settings: dict) -> None:
 
 
 def require_tag(directory: Path, tag: str) -> None:
-    """The Protected Push Of Exactly This Stable Tag, Checked Out At Its Commit."""
+    """The Protected Push of Exactly This Stable Tag, Checked Out at Its Commit."""
     if re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag) is None:
         raise policy.ToolError("Read Release Provider: release requires a stable release tag")
     if os.environ.get("GITHUB_ACTIONS"):
@@ -282,7 +282,7 @@ def require_tag(directory: Path, tag: str) -> None:
 
 
 def draft(settings: dict, tag: str, sha: str, body: str) -> dict:
-    """The GitHub Draft For This Tag: Reused While Still A Draft, Never Replacing A Published Release."""
+    """The GitHub Draft for This Tag: Reused While Still a Draft, Never Replacing a Published Release."""
     releases = []
     for releases_item in pages(settings, "releases"):
         if releases_item["tag_name"] != tag:
@@ -307,7 +307,7 @@ def draft(settings: dict, tag: str, sha: str, body: str) -> dict:
 
 
 def upload(settings: dict, release: int, item: dict, data: bytes) -> str:
-    """Upload One Asset To A Draft Unless Present, Then Verify Its Remote Bytes."""
+    """Upload One Asset to a Draft Unless Present, Then Verify Its Remote Bytes."""
     available = []
     for available_value in pages(settings, f"releases/{release}/assets"):
         if available_value["name"] != item["name"]:
@@ -327,7 +327,7 @@ def upload(settings: dict, release: int, item: dict, data: bytes) -> str:
 
 
 def upload_generic(settings: dict, package: str, tag: str, item: dict, data: bytes) -> dict:
-    """Upload One Asset To The Duplicate-Protected GitLab Generic Package Version."""
+    """Upload One Asset to the Duplicate-Protected GitLab Generic Package Version."""
     endpoint = f"packages/generic/{urllib.parse.quote(package, safe='')}/{urllib.parse.quote(tag, safe='')}/{urllib.parse.quote(item['name'], safe='')}"
     existing = request(settings, endpoint, binary=True)
     if existing is not None and existing != data:
@@ -348,7 +348,7 @@ def verify_download(settings: dict, endpoint: str, item: dict, *, channel: bool 
 
 
 def verify_signatures(directory: Path, settings: dict, root: Path, names: list[str]) -> None:
-    """Run Product-Owned Signature Checks Over Hash-Verified Bytes With RELEASE_ASSET_ROOT Pointing At Them."""
+    """Run Product-Owned Signature Checks Over Hash-Verified Bytes with RELEASE_ASSET_ROOT Pointing at Them."""
     previous = os.environ.get("RELEASE_ASSET_ROOT")
     os.environ["RELEASE_ASSET_ROOT"] = str(root)
     try:
@@ -365,7 +365,7 @@ def verify_signatures(directory: Path, settings: dict, root: Path, names: list[s
 
 
 def oidc_claims(url: str, token: str) -> dict:
-    """The Claims Of A GitHub OIDC Token Requested For Diagnosis Only; The Token Itself Is Never Printed."""
+    """The Claims of a GitHub OIDC Token Requested for Diagnosis Only; the Token Itself Is Never Printed."""
     separator = "&" if "?" in url else "?"
     native = urllib.request.Request(f"{url}{separator}audience=release-identity", headers={"Authorization": "Bearer " + token})
     value = json.loads(notices.download(native, operation="release identity token fetch"))["value"]
@@ -374,13 +374,13 @@ def oidc_claims(url: str, token: str) -> dict:
 
 
 def workflow_filename(reference: str) -> str:
-    """The Workflow File Name Of A `owner/repo/.github/workflows/<file>@<ref>` Reference."""
+    """The Workflow File Name of a `owner/repo/.github/workflows/<file>@<ref>` Reference."""
     match = re.search(r"([^/]+\.ya?ml)(?=@)", reference)
     return match.group(1) if match else "(unknown)"
 
 
 def delete_branch(settings: dict, branch: str) -> bool:
-    """Delete A Remote Branch If It Still Exists, Since Native Source-Branch Removal Usually Got There First."""
+    """Delete a Remote Branch If It Still Exists, Since Native Source-Branch Removal Usually Got There First."""
     if settings["provider"] == "github":
         name = urllib.parse.quote(branch, safe="/")
         if document(settings, "git/ref/heads/" + name) is None:
@@ -395,7 +395,7 @@ def delete_branch(settings: dict, branch: str) -> bool:
 
 
 def create_tag(settings: dict, tag: str, sha: str) -> None:
-    """Create The Lightweight Release Tag Through The Provider With The Release Token."""
+    """Create the Lightweight Release Tag Through the Provider with the Release Token."""
     if settings["provider"] == "github":
         document(settings, "git/refs", "POST", {"ref": "refs/tags/" + tag, "sha": sha})
     else:
@@ -403,7 +403,7 @@ def create_tag(settings: dict, tag: str, sha: str) -> None:
 
 
 def remote_tag(settings: dict, tag: str) -> str | None:
-    """The Commit A Remote Tag Identifies, Peeling Annotated Tags."""
+    """The Commit a Remote Tag Identifies, Peeling Annotated Tags."""
     name = urllib.parse.quote(tag, safe="")
     if settings["provider"] == "github":
         existing = document(settings, "git/ref/tags/" + name)
@@ -418,7 +418,7 @@ def remote_tag(settings: dict, tag: str) -> str | None:
 
 
 def _retry_after(output: str) -> int:
-    """Seconds Until The Registry-Indicated Retry Time, Or The Published Interval."""
+    """Seconds Until the Registry-Indicated Retry Time, or the Published Interval."""
     match = re.search(r"try again after ([A-Z][a-z]{2}, \d{1,2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT)", output)
     if match is None:
         return crates.RATE_INTERVAL_S

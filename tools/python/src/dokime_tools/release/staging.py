@@ -50,7 +50,7 @@ from . import context, layout, notices, reports, sbom
 
 
 def assets(directory: Path, settings: dict, selected: str, tag: str, profile: str | None = None, *, signed: bool = False) -> list[dict]:
-    """The Declared Release Downloads Of One Target, From Its Existing Package Of The Profile."""
+    """The Declared Release Downloads of One Target, From Its Existing Package of the Profile."""
     profile = policy.profile() if profile is None else profile
     result = []
     tools = [{**item, "kind": "tool"} for item in dokime_tools.package.definition.packaged(directory, profile, selected)]
@@ -101,7 +101,7 @@ def stage(
     release_notes: str | None = None,
     channel: str = "stable",
 ) -> list[dict]:
-    """Copy Each Target's Release Downloads Into Its target/release-assets/<target>/ And Their SHA256SUMS Into any/."""
+    """Copy Each Target's Release Downloads Into Its target/release-assets/<target>/ and Their SHA256SUMS Into any/."""
     profile = policy.profile() if profile is None else profile
     root = context.root(directory)
     distributions = [

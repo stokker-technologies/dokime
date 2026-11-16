@@ -43,7 +43,7 @@ from . import context, git, pins, registry
 
 
 def tag(directory: Path, settings: dict) -> None:
-    """Tag An Exactly Rehearsed Merged Release Review, Then Fast-Forward main."""
+    """Tag an Exactly Rehearsed Merged Release Review, Then Fast-Forward main."""
     sha = context.revision(directory)
     event = tag_event(directory, settings, sha)
     pins.check(directory)

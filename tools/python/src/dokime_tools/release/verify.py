@@ -42,7 +42,7 @@ from . import context, layout, registry, staging
 
 
 def verify(directory: Path, settings: dict, *, channel: str = "stable") -> None:
-    """After Publication: Download Every Published Asset, Match SHA256SUMS And Signatures, Install On This Platform."""
+    """After Publication: Download Every Published Asset, Match SHA256SUMS and Signatures, Install on This Platform."""
     tag = context.release_tag(directory) if channel == "stable" else channel
     sha = context.revision(directory)
     if registry.provider.remote_tag(settings, tag) != sha:

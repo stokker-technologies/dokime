@@ -79,7 +79,7 @@ def build_live(args: list[str]) -> None:
 
 
 def build(profile: str) -> Path:
-    """Build The Live Frontend Once And Mirror It Where The Desktop Shell Serves It From."""
+    """Build the Live Frontend Once and Mirror It Where the Desktop Shell Serves It From."""
     organization.generate()
     output = paths.output(configuration.ROOT, "build", profile) / "web"
     clear_output(output)

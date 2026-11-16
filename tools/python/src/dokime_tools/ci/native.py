@@ -58,7 +58,7 @@ EXPORTED = {}
 
 
 def spawn_flags(flags: int = 0) -> int:
-    """Load Shared Process Policy Before Mise Can Install The Tools Package."""
+    """Load Shared Process Policy Before Mise Can Install the Tools Package."""
     source = Path(__file__).resolve().parents[1] / "process/__init__.py"
     module = runpy.run_path(str(source))
     operation: Callable[[int], int] = module["spawn_flags"]
@@ -66,7 +66,7 @@ def spawn_flags(flags: int = 0) -> int:
 
 
 def roots(environment: Mapping[str, str], workspace: Path, home: Path) -> dict[str, str]:
-    """Keep Installation Identity Independent Of The Runner's Per-Job Temp Directory."""
+    """Keep Installation Identity Independent of the Runner's Per-Job Temp Directory."""
     default_data = home / ".local/share/mise"
     if environment.get("RUNNER_OS") == "Windows" and environment.get("RUNNER_TEMP"):
         # Keep Mise On The Work Disk Beside Its Temporary Download And Extraction.
@@ -104,7 +104,7 @@ def download(
     opener: Callable[..., http.client.HTTPResponse] = urllib.request.urlopen,
     sleep: Callable[[float], None] = time.sleep,
 ) -> bytes:
-    """Fetch A Pinned Archive, Retrying Transient Release CDN Failures With Bounded Backoff."""
+    """Fetch a Pinned Archive, Retrying Transient Release CDN Failures with Bounded Backoff."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_file() and hashlib.sha256(destination.read_bytes()).hexdigest() == checksum:
         return destination.read_bytes()
@@ -239,7 +239,7 @@ def windows(workspace: Path) -> None:
 
 
 def temporary_root(workspace: Path) -> None:
-    """Keep Scratch On The Workspace Volume: Hosted Images Put TEMP On The IOPS-Capped OS Disk."""
+    """Keep Scratch on the Workspace Volume: Hosted Images Put TEMP on the IOPS-Capped OS Disk."""
     workspace = workspace.resolve()
     current = Path(tempfile.gettempdir()).resolve()
     if current.drive.casefold() != workspace.drive.casefold():

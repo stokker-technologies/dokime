@@ -53,7 +53,7 @@ def display(operation: str, arguments: Sequence[str]) -> str:
 
 
 def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int:
-    """Compile Only The Requested Cargo Targets, With The Canonical Story Guards."""
+    """Compile Only the Requested Cargo Targets, with the Canonical Story Guards."""
     rules = policy.load(directory)
     values = list(arguments)
     if "--" in values:

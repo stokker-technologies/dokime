@@ -44,7 +44,7 @@ from ..process import spawn_flags
 
 
 class Root:
-    """Own One Native Run's Scratch And Credential Namespace."""
+    """Own One Native Run's Scratch and Credential Namespace."""
 
     def __init__(self, environment: dict[str, str] | None, reports: Path) -> None:
         self._directory = temporary.Directory()

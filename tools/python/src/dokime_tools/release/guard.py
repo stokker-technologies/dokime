@@ -37,7 +37,7 @@ from ..ci import green
 
 
 def check() -> None:
-    """Require Exact-Commit CI Before Tagging Or Publishing A Stable Release."""
+    """Require Exact-Commit CI Before Tagging or Publishing a Stable Release."""
     if not os.environ.get("RELEASE_TARGET_SHA"):
         return
     token = os.environ.get("GH_TOKEN")

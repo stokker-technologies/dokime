@@ -73,7 +73,7 @@ def run(
     *,
     statistics: dict | None = None,
 ) -> int:
-    """Require The Declared Backend And Clean Up Only Our Process."""
+    """Require the Declared Backend and Clean Up Only Our Process."""
     try:
         return _configured(command, shell, statistics=statistics)
     except CacheError:
@@ -355,7 +355,7 @@ def _report(
     status: int | None = None,
     error: BaseException | None = None,
 ) -> None:
-    """Emit Only Fixed Classifications And Validated Native Version And Error Codes."""
+    """Emit Only Fixed Classifications and Validated Native Version and Error Codes."""
     try:
         result = subprocess.run(
             ["sccache", "--version"],
@@ -381,7 +381,7 @@ def _report(
 
 
 def _write_error(line: str) -> str | None:
-    """Classify Native Write Failures Without Exposing Backend URLs Or Credentials."""
+    """Classify Native Write Failures Without Exposing Backend URLs or Credentials."""
     _, marker, reason = line.partition("Error executing cache write: ")
     if not marker:
         return None

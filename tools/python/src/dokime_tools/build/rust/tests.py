@@ -47,7 +47,7 @@ from ...process import spawn_flags
 
 
 def build(profile: str, *, timings: bool = False) -> list[str]:
-    """Compile The Independent Canonical Test Archive And Its Metadata."""
+    """Compile the Independent Canonical Test Archive and Its Metadata."""
     if profile not in dokime_tools.test.policy.PROFILES:
         raise ValueError("Build Tests: test archives require dev or release")
 

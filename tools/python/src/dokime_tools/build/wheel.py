@@ -47,7 +47,7 @@ from dokime_tools.process import spawn_flags
 
 
 def build(root: Path, profile: str) -> list[Path]:
-    """Build One Platform-Independent Wheel In The Selected Product Output."""
+    """Build One Platform-Independent Wheel in the Selected Product Output."""
     root = root.resolve()
     output = paths.output(root, "build", profile, "any") / "python"
     clear_output(output)
@@ -79,7 +79,7 @@ def build(root: Path, profile: str) -> list[Path]:
 
 
 def distributions(root: Path, output: Path, version: str) -> list[Path]:
-    """Select The Single Pure SDK Wheel And Source Distribution."""
+    """Select the Single Pure SDK Wheel and Source Distribution."""
     expected = [output / f"dokime_sdk-{version}-py3-none-any.whl", output / f"dokime_sdk-{version}.tar.gz"]
     actual = sorted(path for path in output.iterdir() if path.is_file() and path.name != ".gitignore") if output.is_dir() else []
     if actual != sorted(expected) or any(path.is_symlink() for path in actual):
@@ -88,7 +88,7 @@ def distributions(root: Path, output: Path, version: str) -> list[Path]:
 
 
 def verify(root: Path, output: Path, version: str) -> list[Path]:
-    """Verify Package Identity, Generated Protocol Sources And Pure Wheel Contents."""
+    """Verify Package Identity, Generated Protocol Sources and Pure Wheel Contents."""
     selected = distributions(root, output, version)
     parser = email.parser.Parser()
     archive = zipfile.ZipFile(selected[0])

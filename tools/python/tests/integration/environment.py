@@ -35,7 +35,7 @@ from unittest.mock import patch
 
 
 class Resource:
-    """A Native Resource Double With No External Handles."""
+    """A Native Resource Double with No External Handles."""
 
     def __init__(self, environment: dict[str, str] | None = None) -> None:
         self.environment = dict(os.environ if environment is None else environment)
@@ -48,7 +48,7 @@ class Resource:
 
 
 def isolate_environment() -> None:
-    """Keep Native Temporary Storage And Restore The Caller At Module Cleanup."""
+    """Keep Native Temporary Storage and Restore the Caller at Module Cleanup."""
     environment = {}
     for environment_key, environment_value in os.environ.items():
         if environment_key not in {"TEMP", "TMP", "TMPDIR"}:

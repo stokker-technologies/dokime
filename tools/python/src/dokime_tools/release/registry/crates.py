@@ -52,7 +52,7 @@ RATE_BUDGET_S = 5400
 
 
 def publish(directory: Path, *, sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic) -> None:
-    """Publish Workspace Crates One At A Time In Dependency Order, Resuming Past Published Versions."""
+    """Publish Workspace Crates One at a Time in Dependency Order, Resuming Past Published Versions."""
 
     if policy.execute(directory, ["git", "status", "--porcelain"], capture=True).strip():
         raise policy.ToolError("Publish Crates: crate publication requires clean source before generated CHANGELOG staging")
@@ -64,7 +64,7 @@ def publish(directory: Path, *, sleep: Callable[[float], None] = time.sleep, clo
 
 
 def rehearse(directory: Path, *, skip_published: bool = True, channel: str = "stable") -> None:
-    """Dry-Run Crates In Publication Order Without Publishing Credentials."""
+    """Dry-Run Crates in Publication Order Without Publishing Credentials."""
     if not pins.check(directory, warn=channel == "nightly"):
         return
     with policy.credential_free(policy.policy(directory, "release")):
@@ -79,13 +79,13 @@ def rehearse(directory: Path, *, skip_published: bool = True, channel: str = "st
 
 
 def inventory(directory: Path) -> dict:
-    """Publishable Workspace Members By Name."""
+    """Publishable Workspace Members by Name."""
     metadata = json.loads(policy.execute(directory, ["cargo", "metadata", "--format-version", "1", "--no-deps", "--locked"], capture=True))
     return policy.publishable(directory, metadata)
 
 
 def published(name: str, version: str | None = None) -> bool:
-    """Whether The Sparse Index Lists This Crate, Or This Exact Crate Version."""
+    """Whether the Sparse Index Lists This Crate, or This Exact Crate Version."""
     lower = name.lower()
     prefix = {1: "1", 2: "2", 3: "3/" + lower[0]}.get(len(lower), f"{lower[0:2]}/{lower[2:4]}")
     try:

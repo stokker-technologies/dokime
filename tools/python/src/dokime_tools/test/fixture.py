@@ -36,7 +36,7 @@ from .. import temporary
 
 
 def main() -> None:
-    """Keep The Canonical Owner Alive Until Its Native Consumer Closes Stdin."""
+    """Keep the Canonical Owner Alive Until Its Native Consumer Closes Stdin."""
     directory_directory = temporary.Directory()
     directory = directory_directory.path
     try:

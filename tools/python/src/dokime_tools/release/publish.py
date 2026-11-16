@@ -40,7 +40,7 @@ from . import context, layout, pins, registry, staging, version
 
 
 def publish(directory: Path, settings: dict) -> None:
-    """Stage And Publish Exactly The Manifest's Downloads From The Protected Release Tag."""
+    """Stage and Publish Exactly the Manifest's Downloads From the Protected Release Tag."""
     tag = context.release_tag(directory)
     sha = context.revision(directory)
     version.run(directory, "check")

@@ -44,7 +44,7 @@ from .. import policy
 
 
 def triple(directory: Path, settings: dict, target: str) -> str:
-    """Resolve A Product's Actual ABI From Its Declarations, Never From Its Name."""
+    """Resolve a Product's Actual ABI From Its Declarations, Never From Its Name."""
     candidates = set()
     for candidates_item in policy.config(directory).get("package", {}).get("executables", []):
         if target not in candidates_item["targets"]:
@@ -64,7 +64,7 @@ def triple(directory: Path, settings: dict, target: str) -> str:
 
 
 def asset_name(directory: Path, settings: dict, definition: dict, selected: str, tag: str, source: Path) -> str | None:
-    """Accept Only The Locked Download Kinds; Product Examples And Registry Artifacts Stay Out."""
+    """Accept Only the Locked Download Kinds; Product Examples and Registry Artifacts Stay Out."""
     if source.name == "latest.json":
         return "latest.json"
     parts = source.relative_to(directory).parts
@@ -95,7 +95,7 @@ def asset_name(directory: Path, settings: dict, definition: dict, selected: str,
 
 
 def plugins(directory: Path, settings: dict, tag: str, targets: list[str], profile: str) -> list[dict]:
-    """Resolve Explicit Shipped Bundles Into Shared Archives And Version-Less Members."""
+    """Resolve Explicit Shipped Bundles Into Shared Archives and Version-Less Members."""
     declarations = settings.get("plugins", [])
     if not declarations:
         return []
@@ -173,7 +173,7 @@ def plugin_feed(settings: dict, tag: str, bundles: list[dict]) -> dict:
 
 
 def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Path]:
-    """Archive Bundle Bytes Once Per Kind And Target, Hashing The Exact Member Bytes."""
+    """Archive Bundle Bytes Once per Kind and Target, Hashing the Exact Member Bytes."""
     groups: dict[tuple[str, str], list[dict]] = {}
     for bundle in bundles:
         groups.setdefault((bundle["target"], bundle["archive"]), []).append(bundle)
@@ -210,7 +210,7 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
 
 
 def download_url(settings: dict, tag: str, name: str) -> str:
-    """The Public Download Of One Release Asset Under Its Tag, From The Declared Provider."""
+    """The Public Download of One Release Asset Under Its Tag, From the Declared Provider."""
     quoted = f"{urllib.parse.quote(tag, safe='')}/{urllib.parse.quote(name, safe='')}"
     if settings["provider"] == "github":
         return f"https://github.com/{settings['repository']}/releases/download/{quoted}"
@@ -219,7 +219,7 @@ def download_url(settings: dict, tag: str, name: str) -> str:
 
 
 def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
-    """Read Kind, OS, Architecture And Format Back From The Asset Names This Tooling Produces."""
+    """Read Kind, OS, Architecture and Format Back From the Asset Names This Tooling Produces."""
     product = settings["product"]
     lowered = name.lower()
     format_ = next((suffix for suffix in ("tar.gz", "exe", "zip", "deb", "rpm", "whl", "md", "json") if lowered.endswith("." + suffix)), "")
@@ -292,7 +292,7 @@ def upload_manifest(directory: Path, root: Path, files: list[dict]) -> None:
 
 
 def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
-    """Read The Exact Publication Inventory, Refusing Unsafe Names, Paths And Changed Bytes."""
+    """Read the Exact Publication Inventory, Refusing Unsafe Names, Paths and Changed Bytes."""
     path = policy.inside(directory, "target/release-assets/upload.json")
     if not path.is_file() or path.is_symlink():
         raise policy.ToolError("Configure Release Downloads: release upload.json manifest is missing or linked")
@@ -329,7 +329,7 @@ def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
 
 
 def _platform(name: str) -> tuple[str, str]:
-    """OS And Architecture From A Rust Target Triple; Shared SDK Assets Mean Any."""
+    """OS and Architecture From a Rust Target Triple; Shared SDK Assets Mean Any."""
     lowered = name.lower()
     triple = re.search(r"(x86_64|aarch64)-[a-z0-9_]+-(windows|linux|darwin)", lowered)
     if triple:

@@ -71,7 +71,7 @@ LATER = "c" * 40
 
 
 class FakeOpener:
-    """Answer Each Provider Request With The Next Scripted Status."""
+    """Answer Each Provider Request with the Next Scripted Status."""
 
     def __init__(self, codes: list[int]) -> None:
         self.codes = list(codes)
@@ -86,7 +86,7 @@ class FakeOpener:
 
 
 class FakeGitHub:
-    """An In-Memory Release Provider With GitHub's Draft, Tag And Asset Semantics And Injectable Faults."""
+    """An In-Memory Release Provider with GitHub's Draft, Tag and Asset Semantics and Injectable Faults."""
 
     def __init__(self, *, previous: bool, faults: set[str] | None = None, immutable: bool = False) -> None:
         self.faults = set(faults or ())

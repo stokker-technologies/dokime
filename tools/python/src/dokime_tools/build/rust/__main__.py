@@ -45,7 +45,7 @@ EXECUTABLES = ("dokime", "dokime-host", "dokime-gui", "plugin-obc")
 
 
 def build(profile: str) -> list[str]:
-    """Build Shipping Native Host And Command-Line Bytes."""
+    """Build Shipping Native Host and Command-Line Bytes."""
     output = paths.output(configuration.ROOT, "build", profile)
     messages = output / "product/compiler.json"
     messages.parent.mkdir(parents=True, exist_ok=True)

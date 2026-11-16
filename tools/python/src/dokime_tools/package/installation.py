@@ -41,7 +41,7 @@ from . import definition, verification
 
 
 def installed(directory: Path, settings: dict, root: Path, target: str) -> None:
-    """Install From Published Assets And Prove No Source Or Third-Party Fallback."""
+    """Install From Published Assets and Prove No Source or Third-Party Fallback."""
     for item in definition.definitions(directory, "release", target):
         if not item.get("installers"):
             continue

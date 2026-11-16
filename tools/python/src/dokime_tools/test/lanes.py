@@ -59,7 +59,7 @@ def run(
     prepared: bool = False,
     archive_directory: Path | None = None,
 ) -> int:
-    """Run One Lane And Retain Its Native Report; Nonzero When Any Story Failed."""
+    """Run One Lane and Retain Its Native Report; Nonzero When Any Story Failed."""
     rules = policy.load(directory)
     key = f"{category}-{language}"
     preflight(directory, category, language, profile)
