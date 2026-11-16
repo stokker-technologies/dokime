@@ -127,6 +127,14 @@ impl Bucket {
 }
 
 impl Envelope {
+    pub(super) fn empty(settings: PreviewSettings) -> Self {
+        Self {
+            origin: 0,
+            width: settings.bucket_interval.as_nanos() as i128,
+            buckets: BTreeMap::new(),
+        }
+    }
+
     pub(crate) fn fit(&mut self, maximum: usize) -> Result<(), Error> {
         while self.buckets.len() > maximum {
             self.coarsen()?;
@@ -275,21 +283,23 @@ impl Store {
 
 /* === Public Functions === */
 
-pub(super) fn append(
-    connection: &Connection, id: &str, field: &str, batch: &RecordBatch, through: u64, settings: PreviewSettings,
-) -> Result<(), Error> {
-    let previous: Option<Vec<u8>> = connection
-        .query_row("SELECT payload FROM telemetry_previews WHERE file=?1 AND field=?2", params![id, field], |row| row.get(0))
-        .optional()?;
-    let mut envelope = previous.map(|bytes| postcard::from_bytes::<Envelope>(&bytes)).transpose()?.unwrap_or(Envelope {
-        origin: 0,
-        width: settings.bucket_interval.as_nanos() as i128,
-        buckets: BTreeMap::new(),
-    });
-    extend(&mut envelope, batch, field, settings.bucket_count.get())?;
+/// Every Saved Preview of One Stream File, by Field.
+pub(super) fn load(connection: &Connection, id: &str) -> Result<BTreeMap<String, Envelope>, Error> {
+    let mut query = connection.prepare_cached("SELECT field,payload FROM telemetry_previews WHERE file=?1")?;
+    query
+        .query_map([id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?
+        .map(|row| {
+            let (field, bytes) = row?;
+            Ok((field, postcard::from_bytes::<Envelope>(&bytes)?))
+        })
+        .collect()
+}
+
+/// Save One Field's Preview Through the Last Position of the Latest Chunk That Gave It a Value.
+pub(super) fn save(connection: &Connection, id: &str, field: &str, through: u64, envelope: &Envelope) -> Result<(), Error> {
     let start = envelope.buckets.first_key_value().ok_or(Error::Data("preview needs a numeric row"))?.1.first.time as i64;
-    let end = envelope.buckets.last_key_value().unwrap().1.last.time as i64;
-    connection.execute("INSERT INTO telemetry_previews VALUES(?1,?2,?3,?4,?5,1,?6) ON CONFLICT(file,field) DO UPDATE SET through=excluded.through,start_ns=excluded.start_ns,end_ns=excluded.end_ns,encoding=1,payload=excluded.payload",params![id,field,through as i64,start,end,postcard::to_allocvec(&envelope)?])?;
+    let end = envelope.buckets.last_key_value().ok_or(Error::Data("preview needs a numeric row"))?.1.last.time as i64;
+    connection.prepare_cached("INSERT INTO telemetry_previews VALUES(?1,?2,?3,?4,?5,1,?6) ON CONFLICT(file,field) DO UPDATE SET through=excluded.through,start_ns=excluded.start_ns,end_ns=excluded.end_ns,encoding=1,payload=excluded.payload")?.execute(params![id,field,through as i64,start,end,postcard::to_allocvec(envelope)?])?;
     Ok(())
 }
 

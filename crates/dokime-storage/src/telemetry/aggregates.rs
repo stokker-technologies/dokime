@@ -30,11 +30,12 @@ use arrow_schema::Fields;
 use harmos_query::scalar::ExactNumber;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
 use super::config::PreviewSettings;
+use super::previews::{self, Envelope};
 use crate::{
     Error, NumericWindow, Result, Store,
     scalar::{self, ScalarValue},
@@ -72,6 +73,18 @@ pub(crate) struct Moments {
 pub(super) struct Numeric<'a> {
     pub(super) values: Values<'a>,
     pub(super) nulls: Option<NullBuffer>,
+}
+
+/// A Stream File's Running Summaries and Previews, Advanced Chunk by Chunk Apart From the Catalog.
+///
+/// They load from the catalog when a flush claims the file and save in its commit, so chunks fold
+/// in without catalog access and in the same order and arithmetic as a catalog round trip each.
+pub(super) struct Statistics {
+    settings: PreviewSettings,
+    summaries: BTreeMap<String, Moments>,
+    previews: BTreeMap<String, Envelope>,
+    /// The Last Position of the Latest Chunk That Gave Each Field a Value.
+    touched: BTreeMap<String, u64>,
 }
 
 /* === Enums === */
@@ -251,6 +264,55 @@ impl Moments {
         Ok((self.squares / self.count as f64).clamp(0.0, 1.0).sqrt() * self.scale)
     }
 }
+impl Statistics {
+    pub(super) fn load(connection: &Connection, id: &str, settings: PreviewSettings) -> Result<Self> {
+        let mut query = connection.prepare_cached("SELECT field,moments FROM telemetry_summaries WHERE file=?1")?;
+        let summaries = query
+            .query_map([id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?
+            .map(|row| {
+                let (field, bytes) = row?;
+                Ok((field, serde_json::from_slice::<Moments>(&bytes)?))
+            })
+            .collect::<Result<_>>()?;
+        Ok(Self {
+            settings,
+            summaries,
+            previews: previews::load(connection, id)?,
+            touched: BTreeMap::new(),
+        })
+    }
+
+    /// Fold One Chunk In and Return Each Valued Field's Chunk Moments for Its Checkpoint.
+    pub(super) fn advance(&mut self, batch: &RecordBatch, last: u64) -> Result<Vec<(String, Vec<u8>)>> {
+        let mut checkpoints = Vec::new();
+        for field in numeric_fields(batch)? {
+            let moments = column_moments(&numeric(batch, &field)?);
+            if moments.count == 0 {
+                continue;
+            }
+            let envelope = self.previews.entry(field.clone()).or_insert_with(|| Envelope::empty(self.settings));
+            previews::extend(envelope, batch, &field, self.settings.bucket_count.get())?;
+            self.summaries.entry(field.clone()).or_insert_with(Moments::empty).merge(&moments)?;
+            self.touched.insert(field.clone(), last);
+            checkpoints.push((field, serde_json::to_vec(&moments)?));
+        }
+        Ok(checkpoints)
+    }
+
+    /// Save the Summary and Preview of Every Field a Chunk Gave a Value.
+    pub(super) fn save(&self, connection: &Connection, id: &str) -> Result<()> {
+        for (field, through) in &self.touched {
+            connection
+                .prepare_cached(
+                    "INSERT INTO telemetry_summaries VALUES(?1,?2,?3) ON CONFLICT(file,field) DO UPDATE SET moments=excluded.moments",
+                )?
+                .execute(params![id, field, serde_json::to_vec(&self.summaries[field])?])?;
+            previews::save(connection, id, field, *through, &self.previews[field])?;
+        }
+        Ok(())
+    }
+}
+
 impl Store {
     pub(crate) fn moments(&self, window: NumericWindow<'_>) -> Result<Moments> {
         let window = if (window.start_ns != i64::MIN || window.end_ns != i64::MAX) && self.preview_bounds(window)?.is_some() {
@@ -428,29 +490,20 @@ pub(crate) fn rank_values(
         .collect()
 }
 
-pub(super) fn append(connection: &Connection, id: &str, offset: u64, batch: &RecordBatch, settings: PreviewSettings) -> Result<()> {
-    let (first, last, start, end) = super::writer::span(batch)?;
-    for field in numeric_fields(batch)? {
-        let moments = column_moments(&numeric(batch, &field)?);
-        if moments.count == 0 {
-            continue;
-        }
-        super::previews::append(connection, id, &field, batch, last, settings)?;
-        let bytes = serde_json::to_vec(&moments)?;
-        connection.execute(
-            "INSERT INTO telemetry_checkpoints VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
-            params![id, offset as i64, field, first as i64, last as i64, start, end, bytes],
-        )?;
-        let previous: Option<Vec<u8>> = connection
-            .query_row("SELECT moments FROM telemetry_summaries WHERE file=?1 AND field=?2", params![id, field], |row| row.get(0))
-            .optional()?;
-        let mut full = previous.map(|bytes| serde_json::from_slice::<Moments>(&bytes)).transpose()?.unwrap_or_else(Moments::empty);
-        full.merge(&moments)?;
-        connection.execute(
-            "INSERT INTO telemetry_summaries VALUES(?1,?2,?3) ON CONFLICT(file,field) DO UPDATE SET moments=excluded.moments",
-            params![id, field, serde_json::to_vec(&full)?],
-        )?;
-    }
+/// Save One Chunk's Moments for One Field, Keyed by the Chunk's File Offset.
+pub(super) fn checkpoint(
+    connection: &Connection, id: &str, offset: u64, field: &str, (first, last, start, end): (u64, u64, i64, i64), moments: &[u8],
+) -> Result<()> {
+    connection.prepare_cached("INSERT INTO telemetry_checkpoints VALUES(?1,?2,?3,?4,?5,?6,?7,?8)")?.execute(params![
+        id,
+        offset as i64,
+        field,
+        first as i64,
+        last as i64,
+        start,
+        end,
+        moments
+    ])?;
     Ok(())
 }
 /// The Dotted Paths of a Stored Batch's Numeric Value Columns, in Schema Order.
