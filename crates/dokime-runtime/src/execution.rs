@@ -282,11 +282,12 @@ fn samples_settlement(action: &str, source: &BindingError, streams: &[String]) -
     Error::Invalid(format!("{action}: Streams {streams}: {}; Rerun the Execution", causes.join(": ")))
 }
 
-/// Name the Stream Whose Interval Demand Failed and the Host or Plugin Setting That Resolves It.
+/// Name the Stream or Plugin That Failed and the Host or Plugin Setting or Change That Resolves It.
 ///
 /// The library reports a stream that fell behind its window end, a publication pool full of rows
-/// storage has not taken in, and a window too large for that pool, possibly beneath other causes.
-fn stream_failure(action: &str, source: &BindingError) -> Option<Error> {
+/// storage has not taken in, a window too large for that pool, a window the plugin failed, and a
+/// plugin that did not load within its deadline, possibly beneath other causes.
+fn stream_failure(action: &str, source: &(dyn std::error::Error + 'static)) -> Option<Error> {
     const WINDOW: &str = "Shorten Its Window (the Observer's Window Setting or interval_window_ms)";
     let mut cause: Option<&(dyn std::error::Error + 'static)> = Some(source);
     while let Some(current) = cause {
@@ -302,6 +303,12 @@ fn stream_failure(action: &str, source: &BindingError) -> Option<Error> {
             Some(BindingError::WindowExceedsPool { stream, samples, needed, bytes, rows }) => Some(format!(
                 "{action}: Stream {stream} Needs at Least {needed} Bytes for One Window of {samples} Samples, More Than the Shared \
                  Plugin Publication Pool Holds ({bytes} Bytes, {rows} Rows); {WINDOW} or Lower Its Rate, Then Rerun the Execution"
+            )),
+            Some(BindingError::WindowFailed { stream, status, message }) => Some(format!(
+                "{action}: The Plugin Failed a Window of Stream {stream} ({status:?}: {message}); Correct the Plugin's Sampling of                  That Stream, Then Rerun the Execution"
+            )),
+            Some(BindingError::LoadDeadline { plugin, timeout, .. }) => Some(format!(
+                "{action}: Plugin {plugin} Did Not Load Within {timeout:?}, the Plugins Operation Timeout; Check Its Startup Logs and                  Make It Start Faster, Then Rerun the Execution"
             )),
             _ => None,
         };
@@ -455,13 +462,19 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     let runtime =
         host.inner.runtime.get().and_then(Weak::upgrade).ok_or_else(|| Error::Invalid("Start Execution: Assemble the Runtime".into()))?;
     let plugins = host.inner.library_plugins.get().ok_or_else(|| Error::Invalid("Start Execution: Assemble Plugins".into()))?;
-    let activation = plugins.activation(&entry.name).await.map_err(|source| Error::ComposedStartup(Box::new(source)))?;
+    // A Plugin That Misses Its Load Deadline Is Named With the Action; Other Startup Failures Keep Their Cause.
+    let activation = plugins
+        .activation(&entry.name)
+        .await
+        .map_err(|source| stream_failure("Start Execution", &source).unwrap_or_else(|| Error::ComposedStartup(Box::new(source))))?;
     let (time, controller) = ExecutionTime::open(host.inner.settings.clock.as_ref());
     host.inner.store.open_streams(&execution, &case.streams)?;
     let scope = SampleScope::new(catalog, &case.streams)?;
     lock(&host.inner.sample_scopes)?.insert(execution.clone(), scope);
-    let binding =
-        runtime.bind_grpc(&activation, &execution, time.clock.clone()).await.map_err(|source| Error::ComposedStartup(Box::new(source)))?;
+    let binding = runtime
+        .bind_grpc(&activation, &execution, time.clock.clone())
+        .await
+        .map_err(|source| stream_failure("Start Execution", &source).unwrap_or_else(|| Error::ComposedStartup(Box::new(source))))?;
     // Close the Binding on Every Exit So Accepted Samples Drain Before the Scope Is Removed.
     let binding = &*active.binding.insert(binding);
     let prepared: Result<(Resources, Termination, Vec<bool>, Result<()>)> = async {
@@ -512,7 +525,8 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                 initialized = true;
             }
             // The Plugin Has Registered the Unit, So the Host May Now Grant Its Stream Windows.
-            if let Err(source) = binding.start_samples().await {
+            // The Scope Samples Exactly the Case's Streams; the Library Refuses Any the Plugin Does Not Declare.
+            if let Err(source) = binding.start_samples(&case.streams).await {
                 let error = samples_settlement("Start Execution Samples", &source, &case.streams);
                 dispatch.resources.failure("streams", &error)?;
                 return Err(error);

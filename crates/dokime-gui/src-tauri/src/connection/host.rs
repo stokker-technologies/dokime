@@ -536,7 +536,6 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
             storage: dokime_runtime::storage_defaults(),
             clock,
             placement: PlacementSettings {
-                connect_timeout: Duration::from_secs(30),
                 reconnect_delay: Duration::from_millis(25),
                 stream_window: stream_buffer,
                 interval_window: dokime_runtime::INTERVAL_WINDOW,

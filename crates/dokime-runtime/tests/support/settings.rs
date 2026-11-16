@@ -30,6 +30,8 @@ use std::time::Duration;
 /* === Constants === */
 
 pub const SYSTEM_HANG_GUARD: Duration = Duration::from_secs(600);
+/// The Story Client's Read and Mutation Deadline and the Policy Timeout of Story-Declared Operations.
+pub const OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /* === Macros === */
 
@@ -49,7 +51,6 @@ pub fn settings() -> HostSettings {
     HostSettings {
         storage: dokime_storage::storage_defaults(),
         placement: PlacementSettings {
-            connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_secs(1),
             stream_window: NonZeroUsize::new(8).unwrap(),
             interval_window: dokime_runtime::INTERVAL_WINDOW,

@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `82e394dac656bf6b28a31f7429360d84f1701051`, rather than
+[Cargo.toml](../Cargo.toml), `a14c724f522b56f1770a1d4328c29f4d3a69a9e5`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -726,7 +726,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/82e394dac656bf6b28a31f7429360d84f1701051/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/a14c724f522b56f1770a1d4328c29f4d3a69a9e5/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -836,7 +836,7 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `82e394dac656bf6b28a31f7429360d84f1701051`.
+The definition pass pins Harmos at `a14c724f522b56f1770a1d4328c29f4d3a69a9e5`.
 Consumer repairs follow the table below.
 The pin and generated contracts do not establish consumer compilation.
 
@@ -862,9 +862,11 @@ sets `PlacementSettings::interval_window` from `interval_window_ms`
 (`dokime_runtime::INTERVAL_WINDOW` by default) and `PlacementSettings::interval_lag`
 from `interval_lag_windows` (`dokime_runtime::INTERVAL_LAG`, 10 window lengths); the
 desktop's built-in host reads both from its Interval Sampling settings at start. The
-library's `Lagging`, `PoolFull` and `WindowExceedsPool` stream failures map in
-`execution.rs` to Interrupted outcomes and `streams:failure` evidence that name the
-stream and the setting that resolves it. Dokime keeps no demand on idle plugin streams. `Tick` and `samples.tick` are gone
+library's `Lagging`, `PoolFull`, `WindowExceedsPool` and `WindowFailed` stream failures
+and its `LoadDeadline` plugin failure map in `execution.rs` to Interrupted outcomes and
+`streams:failure` evidence that name the stream or plugin and the setting or change that
+resolves it. An execution's scope samples exactly its case's streams
+(`start_samples(streams)`); the library refuses a stream the plugin does not declare. Dokime keeps no demand on idle plugin streams. `Tick` and `samples.tick` are gone
 from the vendored protocol and every fixture.
 
 Each of `sdk/cpp`, `sdk/csharp` and `sdk/python` owns its mise tasks and build

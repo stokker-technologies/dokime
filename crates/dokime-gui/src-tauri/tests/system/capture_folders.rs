@@ -214,7 +214,6 @@ fn capture_folders_persist_and_apply_to_the_built_in_host() -> Result<(), Box<dy
         let folders = capture_folders::path(application.path());
         let backend = Backend::new(storage.path().to_path_buf()).with_capture_folders(folders.clone());
         let placement = PlacementSettings {
-            connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_millis(25),
             stream_window: NonZeroUsize::new(8).unwrap(),
             interval_window: dokime_runtime::INTERVAL_WINDOW,

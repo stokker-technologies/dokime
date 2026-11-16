@@ -1,7 +1,7 @@
 # Dokime Python SDK
 
 `dokime-sdk` is a pure Python package for async clients and remote plugin authoring.
-It composes Harmos at immutable revision `82e394dac656bf6b28a31f7429360d84f1701051`.
+It composes Harmos at immutable revision `a14c724f522b56f1770a1d4328c29f4d3a69a9e5`.
 Python connects to an existing host; the application owns the plugin endpoint and its shutdown.
 
 ## Install

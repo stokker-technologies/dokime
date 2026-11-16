@@ -39,7 +39,7 @@ const DESKTOP_CLOSING_VISIBLE_MS: u64 = 1_000;
 // The bounded plugin teardown plus one stop grace for the backend's final
 // checkpoint; past it the operator is offered an explicit choice to exit
 // without finishing.
-const DESKTOP_CLOSING_DEADLINE: Duration = dokime_runtime::PLUGIN_TEARDOWN.checked_add(dokime_runtime::STOP_GRACE).unwrap();
+const DESKTOP_CLOSING_DEADLINE: Duration = dokime_runtime::PLUGINS_TIMEOUT.checked_add(dokime_runtime::STOP_GRACE).unwrap();
 
 // The event the WebView follows (`src/lib/desktop/stopping.ts`).
 const STOPPING_EVENT: &str = "desktop://stopping";

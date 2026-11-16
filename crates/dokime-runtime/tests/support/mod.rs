@@ -20,7 +20,7 @@ pub mod thermal;
 /* === Re-Exports === */
 
 pub use credentials::{CredentialStore, run, tempdir};
-pub use settings::{SYSTEM_HANG_GUARD, settings};
+pub use settings::{OPERATION_TIMEOUT, SYSTEM_HANG_GUARD, settings};
 
 /* === Imports === */
 
@@ -294,8 +294,8 @@ pub fn client_settings() -> ClientSettings {
 pub fn service_settings() -> ServicesClientSettings {
     let bounds = settings();
     ServicesClientSettings {
-        read_timeout: bounds.placement.connect_timeout,
-        mutation_timeout: bounds.placement.connect_timeout,
+        read_timeout: OPERATION_TIMEOUT,
+        mutation_timeout: OPERATION_TIMEOUT,
         watch_timeout: SYSTEM_HANG_GUARD,
         max_cases: 1000,
         page_items: 1000,

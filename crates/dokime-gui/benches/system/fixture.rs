@@ -114,7 +114,6 @@ impl Fixture {
                 clock: Arc::new(ControlledClock::new(ORIGIN_S as i64 * 1_000_000_000)),
                 storage: storage_defaults(),
                 placement: PlacementSettings {
-                    connect_timeout: Duration::from_secs(30),
                     reconnect_delay: Duration::from_millis(25),
                     stream_window: NonZeroUsize::new(8).unwrap(),
                     interval_window: HISTORY_WINDOW,
@@ -157,7 +156,6 @@ impl Fixture {
 
         // Admit the SDK Fixture as a Remote Plugin Through the Host Adapter
         let placement = PlacementSettings {
-            connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_millis(25),
             stream_window: NonZeroUsize::new(8).unwrap(),
             interval_window: HISTORY_WINDOW,

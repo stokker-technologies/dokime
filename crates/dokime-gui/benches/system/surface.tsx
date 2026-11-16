@@ -44,6 +44,7 @@ declare global {
   var desktopResult: (statusOnly?: boolean) => object;
   var desktopInspect: (plotId: string) => { ready: boolean; error: boolean; drawn: boolean; message?: string };
   var desktopTraverse: (count: number, deadlineMs: number) => Promise<object>;
+  var desktopFrameAge: () => number;
 }
 
 const observation: Observation = {
@@ -167,6 +168,8 @@ function presented(now: number) {
   requestAnimationFrame(presented);
 }
 requestAnimationFrame(presented);
+// How Long Ago the Last Animation Frame Ran: a Growing Age Means the WebView Stopped Presenting Frames.
+globalThis.desktopFrameAge = () => performance.now() - previousFrame;
 
 function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: RecordScope }) {
   const states = useLivePlotPayloads({ enabled: true, plots, scope, windowS: 259200 });

@@ -126,6 +126,44 @@ async function closeNative() {
   if (errors.length) throw new Error(errors.join("; "));
 }
 
+// Capture One Case Screenshot; When the Capture Fails, Record What the Page and the WebView Processes Were Doing.
+async function screenshot(label) {
+  const requested = performance.now();
+  try {
+    await desktop.screenshot(label);
+  } catch (error) {
+    const elapsedMs = performance.now() - requested;
+    const page = await desktop
+      .execute(
+        `return {
+          visibility: document.visibilityState,
+          focused: document.hasFocus(),
+          width: innerWidth,
+          height: innerHeight,
+          ratio: devicePixelRatio,
+          lastFrameAgeMs: desktopFrameAge(),
+          status: desktopResult(true),
+        };`,
+      )
+      .catch((cause) => ({ error: String(cause) }));
+    const threads = process.platform === "linux" ? await webviewThreads().catch((cause) => String(cause)) : null;
+    await writeFile(
+      join(output, `screenshot-failure-${label}.json`),
+      JSON.stringify({ label, elapsedMs, error: String(error), page, threads }, null, 2),
+    );
+    throw error;
+  }
+}
+
+// Each WebKit and Desktop Thread With Its State and the Kernel Function It Waits In.
+async function webviewThreads() {
+  const ps = spawn("ps", ["-eLo", "pid,tid,stat,wchan:32,comm", "--no-headers"], { stdio: ["ignore", "pipe", "inherit"] });
+  let text = "";
+  ps.stdout.setEncoding("utf8").on("data", (chunk) => (text += chunk));
+  await once(ps, "close");
+  return text.split(/\r?\n/).filter((line) => /webkit|dokime/i.test(line));
+}
+
 async function waitReady() {
   const deadline = performance.now() + 600000;
   while (true) {
@@ -403,7 +441,7 @@ try {
       await writeFile(join(output, "observations.json"), JSON.stringify({ fixture, native, results, resources }, null, 2));
       const capture = `${historyRows}-${count}-${condition}`;
       if (!captured.has(capture)) {
-        await desktop.screenshot(capture);
+        await screenshot(capture);
         captured.add(capture);
       }
       // Traverse Every Plot Outside the Timing Boundary, Including All Mixed Kinds.

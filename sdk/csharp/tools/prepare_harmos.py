@@ -39,7 +39,7 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision: str = "82e394dac656bf6b28a31f7429360d84f1701051"
+revision: str = "a14c724f522b56f1770a1d4328c29f4d3a69a9e5"
 version: str = f"0.1.0-dev.{revision[:12]}"
 root: Path = Path(__file__).resolve().parents[1]
 feed: Path = root / "../../target/cs/feed"

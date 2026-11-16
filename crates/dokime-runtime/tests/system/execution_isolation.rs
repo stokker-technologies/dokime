@@ -404,7 +404,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                     fingerprint: harmos_protocol::schema::fingerprint(id, &types, request.full_name(), response.full_name())?,
                     visibility: Visibility::Protected as i32,
                     policy: Some(OperationPolicy {
-                        timeout: Some(Duration::try_from(support::settings().placement.connect_timeout)?),
+                        timeout: Some(Duration::try_from(support::OPERATION_TIMEOUT)?),
                         ..Default::default()
                     }),
                     ..Default::default()
