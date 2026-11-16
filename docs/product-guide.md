@@ -100,7 +100,10 @@ part straight into these Arrow columns, one row per sample at the time
 device samples alike. The window length is the host setting `interval_window_ms`
 (100 ms by default): longer windows store more samples per message, shorter ones
 show live samples sooner. A plugin can give one stream its own window through a
-duration setting named by the observer's window setting.
+duration setting named by the observer's window setting. A stream that falls more
+than `interval_lag_windows` window lengths (10 by default) behind ends its execution
+Interrupted, naming the stream and what to change: its rate, the number of streams,
+its window or the lag limit.
 
 Rows are accepted into a bounded live tail. The default flush policy saves at
 65,536 rows or five seconds, under pressure at 64 MiB, and at evidence barriers and

@@ -23,17 +23,19 @@ use std::{
 };
 
 // Third Party Imports
-use arrow_array::{RecordBatch, StructArray};
+use arrow_array::{Array, Float64Array, Int64Array, RecordBatch, StructArray, UInt64Array};
+use arrow_buffer::NullBuffer;
 use arrow_schema::DataType;
 use arrow_schema::Fields;
 use harmos_query::scalar::ExactNumber;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
 use super::config::PreviewSettings;
+use super::previews::{self, Envelope};
 use crate::{
     Error, NumericWindow, Result, Store,
     scalar::{self, ScalarValue},
@@ -67,7 +69,31 @@ pub(crate) struct Moments {
     integer_squares: Option<BigInt>,
 }
 
+/// One Numeric Value Column of a Stored Batch: Its Typed Values and the Rows That Are Null.
+pub(super) struct Numeric<'a> {
+    pub(super) values: Values<'a>,
+    pub(super) nulls: Option<NullBuffer>,
+}
+
+/// A Stream File's Running Summaries and Previews, Advanced Chunk by Chunk Apart From the Catalog.
+///
+/// They load from the catalog when a flush claims the file and save in its commit, so chunks fold
+/// in without catalog access and in the same order and arithmetic as a catalog round trip each.
+pub(super) struct Statistics {
+    settings: PreviewSettings,
+    summaries: BTreeMap<String, Moments>,
+    previews: BTreeMap<String, Envelope>,
+    /// The Last Position of the Latest Chunk That Gave Each Field a Value.
+    touched: BTreeMap<String, u64>,
+}
+
 /* === Enums === */
+
+pub(super) enum Values<'a> {
+    Signed(&'a [i64]),
+    Unsigned(&'a [u64]),
+    Float(&'a [f64]),
+}
 
 /* === Traits === */
 
@@ -238,6 +264,55 @@ impl Moments {
         Ok((self.squares / self.count as f64).clamp(0.0, 1.0).sqrt() * self.scale)
     }
 }
+impl Statistics {
+    pub(super) fn load(connection: &Connection, id: &str, settings: PreviewSettings) -> Result<Self> {
+        let mut query = connection.prepare_cached("SELECT field,moments FROM telemetry_summaries WHERE file=?1")?;
+        let summaries = query
+            .query_map([id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?
+            .map(|row| {
+                let (field, bytes) = row?;
+                Ok((field, serde_json::from_slice::<Moments>(&bytes)?))
+            })
+            .collect::<Result<_>>()?;
+        Ok(Self {
+            settings,
+            summaries,
+            previews: previews::load(connection, id)?,
+            touched: BTreeMap::new(),
+        })
+    }
+
+    /// Fold One Chunk In and Return Each Valued Field's Chunk Moments for Its Checkpoint.
+    pub(super) fn advance(&mut self, batch: &RecordBatch, last: u64) -> Result<Vec<(String, Vec<u8>)>> {
+        let mut checkpoints = Vec::new();
+        for field in numeric_fields(batch)? {
+            let moments = column_moments(&numeric(batch, &field)?);
+            if moments.count == 0 {
+                continue;
+            }
+            let envelope = self.previews.entry(field.clone()).or_insert_with(|| Envelope::empty(self.settings));
+            previews::extend(envelope, batch, &field, self.settings.bucket_count.get())?;
+            self.summaries.entry(field.clone()).or_insert_with(Moments::empty).merge(&moments)?;
+            self.touched.insert(field.clone(), last);
+            checkpoints.push((field, serde_json::to_vec(&moments)?));
+        }
+        Ok(checkpoints)
+    }
+
+    /// Save the Summary and Preview of Every Field a Chunk Gave a Value.
+    pub(super) fn save(&self, connection: &Connection, id: &str) -> Result<()> {
+        for (field, through) in &self.touched {
+            connection
+                .prepare_cached(
+                    "INSERT INTO telemetry_summaries VALUES(?1,?2,?3) ON CONFLICT(file,field) DO UPDATE SET moments=excluded.moments",
+                )?
+                .execute(params![id, field, serde_json::to_vec(&self.summaries[field])?])?;
+            previews::save(connection, id, field, *through, &self.previews[field])?;
+        }
+        Ok(())
+    }
+}
+
 impl Store {
     pub(crate) fn moments(&self, window: NumericWindow<'_>) -> Result<Moments> {
         let window = if (window.start_ns != i64::MIN || window.end_ns != i64::MAX) && self.preview_bounds(window)?.is_some() {
@@ -415,38 +490,158 @@ pub(crate) fn rank_values(
         .collect()
 }
 
-pub(super) fn append(connection: &Connection, id: &str, offset: u64, batch: &RecordBatch, settings: PreviewSettings) -> Result<()> {
-    let (first, last, start, end) = super::writer::span(batch)?;
+/// Save One Chunk's Moments for One Field, Keyed by the Chunk's File Offset.
+pub(super) fn checkpoint(
+    connection: &Connection, id: &str, offset: u64, field: &str, (first, last, start, end): (u64, u64, i64, i64), moments: &[u8],
+) -> Result<()> {
+    connection.prepare_cached("INSERT INTO telemetry_checkpoints VALUES(?1,?2,?3,?4,?5,?6,?7,?8)")?.execute(params![
+        id,
+        offset as i64,
+        field,
+        first as i64,
+        last as i64,
+        start,
+        end,
+        moments
+    ])?;
+    Ok(())
+}
+/// The Dotted Paths of a Stored Batch's Numeric Value Columns, in Schema Order.
+pub(super) fn numeric_fields(batch: &RecordBatch) -> Result<Vec<String>> {
     let values = batch.column(1).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("summary values differ"))?;
     let mut fields = Vec::new();
     scalar_fields(values.fields(), "", &mut fields);
-    for field in fields {
-        let mut moments = Moments::empty();
-        let column = scalar::column(batch, &field)?;
-        for row in 0..batch.num_rows() {
-            moments.push(column.value(row)?)?;
-        }
-        if moments.count == 0 {
-            continue;
-        }
-        super::previews::append(connection, id, &field, batch, last, settings)?;
-        let bytes = serde_json::to_vec(&moments)?;
-        connection.execute(
-            "INSERT INTO telemetry_checkpoints VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
-            params![id, offset as i64, field, first as i64, last as i64, start, end, bytes],
-        )?;
-        let previous: Option<Vec<u8>> = connection
-            .query_row("SELECT moments FROM telemetry_summaries WHERE file=?1 AND field=?2", params![id, field], |row| row.get(0))
-            .optional()?;
-        let mut full = previous.map(|bytes| serde_json::from_slice::<Moments>(&bytes)).transpose()?.unwrap_or_else(Moments::empty);
-        full.merge(&moments)?;
-        connection.execute(
-            "INSERT INTO telemetry_summaries VALUES(?1,?2,?3) ON CONFLICT(file,field) DO UPDATE SET moments=excluded.moments",
-            params![id, field, serde_json::to_vec(&full)?],
-        )?;
-    }
-    Ok(())
+    Ok(fields)
 }
+
+/// Resolve a Numeric Value Column With the Validity of Every Enclosing Structure Folded In.
+pub(super) fn numeric<'a>(batch: &'a RecordBatch, path: &str) -> Result<Numeric<'a>> {
+    let mut array = batch.column_by_name("values").ok_or(Error::Corrupt("values column missing"))?;
+    let mut nulls = array.nulls().cloned();
+    for name in path.split('.') {
+        let structure = array.as_any().downcast_ref::<StructArray>().ok_or(Error::Data("select a scalar field path"))?;
+        array = structure.column_by_name(name).ok_or(Error::Data("declare the selected scalar column"))?;
+        nulls = NullBuffer::union(nulls.as_ref(), array.nulls());
+    }
+    let any = array.as_any();
+    let values = if let Some(array) = any.downcast_ref::<Int64Array>() {
+        Values::Signed(array.values())
+    } else if let Some(array) = any.downcast_ref::<UInt64Array>() {
+        Values::Unsigned(array.values())
+    } else if let Some(array) = any.downcast_ref::<Float64Array>() {
+        Values::Float(array.values())
+    } else {
+        return Err(Error::Data("select a numeric value column"));
+    };
+    Ok(Numeric { values, nulls })
+}
+
+/// One Chunk's Moments, Computed Over the Column's Typed Values in Row Order.
+///
+/// Integer totals and squares are exact, so they are summed directly; the scaled float recurrence
+/// runs the same operations in the same order as [`Moments::push`], so its results are identical.
+pub(super) fn column_moments(column: &Numeric<'_>) -> Moments {
+    let nulls = column.nulls.as_ref();
+    match column.values {
+        Values::Signed(values) => integer_moments(values, nulls, ScalarValue::Signed),
+        Values::Unsigned(values) => integer_moments(values, nulls, ScalarValue::Unsigned),
+        Values::Float(values) => float_moments(values, nulls),
+    }
+}
+
+fn integer_moments<T: Copy + Ord + Into<i128>>(values: &[T], nulls: Option<&NullBuffer>, scalar: fn(T) -> ScalarValue) -> Moments {
+    let mut count = 0u64;
+    let mut bounds: Option<(T, T, T, T)> = None;
+    let mut total = 0i128;
+    let mut squares = 0u128;
+    let mut spilled = BigInt::from(0);
+    each(values, nulls, |value| {
+        count += 1;
+        bounds = Some(match bounds {
+            None => (value, value, value, value),
+            Some((min, max, first, _)) => (min.min(value), max.max(value), first, value),
+        });
+        let integer: i128 = value.into();
+        total += integer;
+        let square = integer.unsigned_abs() * integer.unsigned_abs();
+        squares = squares.checked_add(square).unwrap_or_else(|| {
+            spilled += squares;
+            square
+        });
+    });
+    let Some((min, max, first, last)) = bounds else {
+        return Moments::empty();
+    };
+    spilled += squares;
+    Moments {
+        count,
+        min: scalar(min),
+        max: scalar(max),
+        first: scalar(first),
+        last: scalar(last),
+        total: Some(ExactNumber::new(total < 0, total.unsigned_abs(), NonZeroU128::MIN)),
+        integer_squares: Some(spilled),
+        ..Moments::empty()
+    }
+}
+
+fn float_moments(values: &[f64], nulls: Option<&NullBuffer>) -> Moments {
+    let (mut count, mut mean, mut m2, mut squares, mut scale) = (0u64, 0.0f64, 0.0f64, 0.0f64, 0.0f64);
+    let (mut min, mut max, mut first, mut last) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
+    each(values, nulls, |number| {
+        if !number.is_finite() {
+            return;
+        }
+        if count == 0 {
+            (min, max, first) = (number, number, number);
+        }
+        let next = scale.max(number.abs());
+        let factor = if next == 0.0 { 0.0 } else { scale / next };
+        let previous = if next == 0.0 { 0.0 } else { mean / next };
+        let normalized = if next == 0.0 { 0.0 } else { number / next };
+        m2 *= factor * factor;
+        squares *= factor * factor;
+        scale = next;
+        count += 1;
+        let delta = normalized - previous;
+        let updated = previous + delta / count as f64;
+        mean = updated.clamp(-1.0, 1.0) * scale;
+        m2 += delta * (normalized - updated);
+        squares += normalized * normalized;
+        if number < min {
+            min = number;
+        }
+        if number > max {
+            max = number;
+        }
+        last = number;
+    });
+    if count == 0 {
+        return Moments::empty();
+    }
+    Moments {
+        count,
+        mean,
+        m2,
+        squares,
+        scale,
+        min: ScalarValue::Float(min),
+        max: ScalarValue::Float(max),
+        first: ScalarValue::Float(first),
+        last: ScalarValue::Float(last),
+        total: None,
+        integer_squares: None,
+    }
+}
+
+/// Visit the Values of Valid Rows in Row Order.
+fn each<T: Copy>(values: &[T], nulls: Option<&NullBuffer>, mut visit: impl FnMut(T)) {
+    match nulls {
+        None => values.iter().for_each(|value| visit(*value)),
+        Some(nulls) => nulls.valid_indices().for_each(|row| visit(values[row])),
+    }
+}
+
 fn scalar_fields(fields: &Fields, prefix: &str, output: &mut Vec<String>) {
     for field in fields {
         let name = if prefix.is_empty() { field.name().clone() } else { format!("{prefix}.{}", field.name()) };
@@ -459,3 +654,137 @@ fn scalar_fields(fields: &Fields, prefix: &str, output: &mut Vec<String>) {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::telemetry::previews::{Envelope, Point, extend};
+    use arrow_array::ArrayRef;
+    use arrow_schema::Field;
+    use std::sync::Arc;
+
+    /// A Deterministic xorshift Sequence, So Every Run Compares the Same Inputs.
+    struct Sequence(u64);
+
+    impl Sequence {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+        fn pick<T: Copy>(&mut self, choices: &[T]) -> T {
+            choices[(self.next() % choices.len() as u64) as usize]
+        }
+    }
+
+    fn nulls(sequence: &mut Sequence, rows: usize, one_in: u64) -> NullBuffer {
+        NullBuffer::from((0..rows).map(|_| !sequence.next().is_multiple_of(one_in)).collect::<Vec<_>>())
+    }
+
+    /// Extremes, Signed Zeros, Non-Finite Values, Nulls at Every Level and Times That Jump Back.
+    fn batch(sequence: &mut Sequence, rows: usize) -> RecordBatch {
+        let mut time = sequence.next() as i64 % 1_000_000;
+        let times = (0..rows)
+            .map(|_| {
+                time += sequence.pick(&[0, 1, 7, 999, 1_000, 25_000, -3_000, 1_000_000]);
+                time
+            })
+            .collect::<Vec<i64>>();
+        let signed = (0..rows)
+            .map(|_| match sequence.next() % 4 {
+                0 => sequence.pick(&[i64::MIN, i64::MAX, 0, -1, 1]),
+                _ => sequence.next() as i64 >> sequence.pick(&[0, 20, 50]),
+            })
+            .collect::<Vec<_>>();
+        let unsigned = (0..rows)
+            .map(|_| match sequence.next() % 4 {
+                0 => sequence.pick(&[u64::MAX, 0, 1]),
+                _ => sequence.next() >> sequence.pick(&[0, 30, 60]),
+            })
+            .collect::<Vec<_>>();
+        let mut float = || {
+            (0..rows)
+                .map(|_| match sequence.next() % 6 {
+                    0 => sequence.pick(&[f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 0.0, -0.0, 1e300, -1e-300, f64::MIN_POSITIVE]),
+                    _ => (sequence.next() as i64 as f64) * sequence.pick(&[1e-12, 1.0, 1e6]),
+                })
+                .collect::<Vec<f64>>()
+        };
+        let (plain, deep) = (float(), float());
+        let nullable = |name: &str, kind: DataType| Arc::new(Field::new(name, kind, true));
+        let inner = StructArray::try_new(
+            vec![nullable("deep", DataType::Float64)].into(),
+            vec![Arc::new(Float64Array::new(deep.into(), Some(nulls(sequence, rows, 5)))) as ArrayRef],
+            Some(nulls(sequence, rows, 4)),
+        )
+        .unwrap();
+        let values = StructArray::try_new(
+            vec![
+                nullable("signed", DataType::Int64),
+                nullable("unsigned", DataType::UInt64),
+                nullable("float", DataType::Float64),
+                nullable("nested", inner.data_type().clone()),
+            ]
+            .into(),
+            vec![
+                Arc::new(Int64Array::new(signed.into(), Some(nulls(sequence, rows, 7)))) as ArrayRef,
+                Arc::new(UInt64Array::new(unsigned.into(), None)),
+                Arc::new(Float64Array::new(plain.into(), Some(nulls(sequence, rows, 9)))),
+                Arc::new(inner),
+            ],
+            Some(nulls(sequence, rows, 11)),
+        )
+        .unwrap();
+        let storage = StructArray::try_new(
+            vec![Arc::new(Field::new("position", DataType::UInt64, false)), Arc::new(Field::new("source_ns", DataType::Int64, false))]
+                .into(),
+            vec![Arc::new(UInt64Array::from_iter_values(1..=rows as u64)) as ArrayRef, Arc::new(Int64Array::from(times))],
+            None,
+        )
+        .unwrap();
+        RecordBatch::try_from_iter([("_storage", Arc::new(storage) as ArrayRef), ("values", Arc::new(values) as ArrayRef)]).unwrap()
+    }
+
+    #[test]
+    fn column_kernels_match_the_row_order_reference_bit_for_bit() {
+        let mut sequence = Sequence(0x9E37_79B9_7F4A_7C15);
+        for (rows, width, maximum) in [(1, 1, 256), (300, 1_000, 4), (4_096, 1, 16), (2_000, 1_000_000, 256), (10_000, 7, 3)] {
+            let batch = batch(&mut sequence, rows);
+            for field in numeric_fields(&batch).unwrap() {
+                let mut expected = Moments::empty();
+                let reference = scalar::column(&batch, &field).unwrap();
+                for row in 0..rows {
+                    expected.push(reference.value(row).unwrap()).unwrap();
+                }
+                let actual = column_moments(&numeric(&batch, &field).unwrap());
+                assert_eq!(serde_json::to_vec(&actual).unwrap(), serde_json::to_vec(&expected).unwrap(), "{field} moments");
+                // Chunks Extend One Envelope, the Second Starting From the First One's Coarsened Grid.
+                let empty = Envelope {
+                    origin: 0,
+                    width,
+                    buckets: BTreeMap::new(),
+                };
+                let (mut expected, mut actual) = (empty.clone(), empty);
+                for chunk in [batch.slice(0, rows / 2), batch.slice(rows / 2, rows - rows / 2)] {
+                    let reference = scalar::column(&chunk, &field).unwrap();
+                    let storage = chunk.column(0).as_any().downcast_ref::<StructArray>().unwrap();
+                    let times = storage.column(1).as_any().downcast_ref::<Int64Array>().unwrap();
+                    let positions = storage.column(0).as_any().downcast_ref::<UInt64Array>().unwrap();
+                    for row in 0..chunk.num_rows() {
+                        if let Some(value) = scalar::number(&reference.value(row).unwrap()).filter(|value| value.is_finite()) {
+                            let point = Point {
+                                time: times.value(row) as i128,
+                                position: positions.value(row),
+                                value,
+                            };
+                            expected.push(point, maximum).unwrap();
+                        }
+                    }
+                    extend(&mut actual, &chunk, &field, maximum).unwrap();
+                    assert_eq!(postcard::to_allocvec(&actual).unwrap(), postcard::to_allocvec(&expected).unwrap(), "{field} preview");
+                }
+            }
+        }
+    }
+}

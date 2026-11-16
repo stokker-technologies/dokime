@@ -238,7 +238,8 @@ mise run build -- --artifact bench --binary system-desktop
 mise run bench -- --language rust --layer system --binary system-desktop --once
 ```
 
-The producer selects the runtime's `storage` benchmark in Cargo's bench profile.
+The producer selects the runtime's `storage` benchmark in Cargo's bench profile; its
+in-process hosts run on the product host's multi-thread runtime.
 The consumer verifies the exported executable and fixture stamp. Storage observations
 and its console report stay under `target/benchmarks/storage/`; desktop observations
 stay under `target/benchmarks/criterion/`. Run producers and consumers sequentially:
@@ -365,16 +366,20 @@ type; full-lane failures and post-lane native inventories remain separate proof.
 
 `windows/interval_windows_stored/<clock>/<streams>x<period>ns/<samples>` re-executes
 the storage benchmark binary as a remote Rust SDK plugin with 1, 16 or 128 interval
-streams of one `double`, at 1 kHz (10,050 samples per stream) and 1 MHz (20,000
-samples per stream), each answered by a window observer. 1 kHz streams use the host's
-default `interval_window` (100 ms), so the 1 kHz capture ends inside a window and the
-step's sleep cuts its last window early. 1 MHz streams take a 10 ms window from the
-plugin's `sample_window` Duration setting through `window_setting`, the library
-bench's 1 MHz condition. Each case runs on the controlled clock and on the real clock.
-The timed boundary runs from releasing the ready step to its captured prompt: host
-window grants, the observer's columns, transport, Harmos batch admission, Dokime's
-columnar Arrow admission and the produced-count record, whose evidence barrier makes
-every sample durable. Execution end and shutdown are excluded.
+streams of one `double`, at 1 kHz (70,050 samples per stream) and 1 MHz (200,000
+samples per stream), each answered by a window observer. Every stream passes the
+default 65,536-row flush count, so admission wakes background flush rounds unless
+pending bytes reach their 64 MiB bound first, as they do at 128 streams. 1 kHz streams
+use the host's default `interval_window` (100 ms), so the 1 kHz capture ends inside a
+window and the step's sleep cuts its last window early. 1 MHz streams take a 10 ms
+window from the plugin's `sample_window` Duration setting through `window_setting`,
+the library bench's 1 MHz condition. Each case runs on the controlled clock and on the
+real clock, with in-process hosts on the product host's multi-thread runtime and the
+default `interval_lag_windows` (10). The timed boundary runs from releasing the ready
+step to its captured prompt: host window grants, the observer's columns, transport,
+Harmos batch admission, Dokime's columnar Arrow admission and the produced-count
+record, whose evidence barrier makes every sample durable. Execution end and shutdown
+are excluded.
 
 The case reports stored samples per second through Criterion throughput and, with
 `--once`, a `Measured` line per iteration over five iterations and a `Median` line
@@ -387,29 +392,26 @@ controlled run that loses a sample, prints a `Retained` line with per-stream cou
 the samples the observers answered by the sleep's end, the execution outcome and its
 failure evidence.
 
-Measured on 2026-11-16 with library `efc261fe` (Windows x86-64, AMD Ryzen 9 5950X,
+Measured on 2026-11-16 with library `82e394da` (Windows x86-64, AMD Ryzen 9 5950X,
 bench profile, `--once`), as median stored samples per second over five iterations,
-summed over all streams; the real-clock columns come from a second run whose
-outcomes were inspected:
+summed over all streams:
 
 | Streams | Controlled, 1 kHz, 100 ms Windows | Controlled, 1 MHz, 10 ms Windows | Real, 1 kHz, 100 ms Windows | Real, 1 MHz, 10 ms Windows |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 127,920 | 606,254 | 999 | 1,043,108 |
-| 16 | 471,929 | 1,544,325 | 16,005 | 1,823,046 (3 of 5 Interrupted) |
-| 128 | 356,937 | 1,689,325 | 128,004 | 438,445 (5 of 5 Interrupted) |
+| 1 | 327,171 | 2,460,890 | 1,000 | 1,079,981 |
+| 16 | 369,108 | 7,927,258 | 15,999 | Interrupted 5 of 5 (lag) |
+| 128 | 674,234 | 7,425,052 | 127,985 | Interrupted 5 of 5 (3 lag, 2 full pool) |
 
-Every controlled case retained exactly its samples. With 10 ms windows the
-128-stream 1 MHz case keeps all 2,560,000 samples on the controlled clock; at the
-100 ms default one window per stream needed about 100 MB, more than the library's
-fixed 64 MiB shared publication pool, and the execution ended Interrupted. On the
-real clock every 1 kHz run and the single 1 MHz stream completed with at least the
-requested span. 16 and 128 streams at 1 MHz fall behind real time: their windows
-overflow that pool, and the executions end Interrupted with a stream failure that
-names the streams and says to shorten their windows or lower their rate (or that a
-named stream lost rows before storage read them), so those figures vary widely
-between iterations. `window_overflow_names_its_stream` proves that refusal on the
-controlled clock. Storage alone retains the same 2,560,000 samples
-(`interval_batches_of_many_streams_survive_pressure_flushes`).
+Every controlled case retained exactly its samples, and every real-clock 1 kHz run and
+the single 1 MHz stream completed with at least the requested span. 16 and 128 streams
+at 1 MHz cannot keep up with real time: each execution failed fast and ended
+Interrupted with a stream failure naming the stream and the action, a stream that fell
+more than ten window lengths behind (`Lagging`) or, twice at 128 streams, a shared
+publication pool full of rows storage had not taken in (`PoolFull`). Their stored
+rates (about 7.2 and 15.9 million samples per second) cover only the span before the
+failure, so they are not sustained figures. `window_lag_names_its_stream` and
+`window_overflow_names_its_stream` prove those refusals. Storage alone retains 128
+streams of 20,000 samples (`interval_batches_of_many_streams_survive_pressure_flushes`).
 
 ### Desktop Plot Documents
 

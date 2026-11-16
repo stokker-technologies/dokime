@@ -203,7 +203,7 @@ impl Capture {
         let sealed = self.pass(&mut artifacts, &mut gaps).await;
         if let Err(error) = &sealed
             && let Some(caller) = &self.context.caller
-            && let Err(cause) = caller.evidence("capture:failure", error.to_string().into_bytes(), None)
+            && let Err(cause) = caller.failure("capture", error)
         {
             tracing::warn!(%cause, "Record File Capture Failure");
         }

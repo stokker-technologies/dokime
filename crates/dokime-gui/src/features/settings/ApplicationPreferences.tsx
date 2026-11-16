@@ -137,15 +137,6 @@ const FIELDS: PreferenceField[] = [
     unit: "s",
     max: 3600,
   },
-  {
-    group: "plugins",
-    key: "stop_timeout_s",
-    label: "Plugin Stop Timeout",
-    help: "Time a stopping plugin's executions have to settle. Applies to its next stop or restart.",
-    unit: "s",
-    max: 3600,
-    advanced: true,
-  },
 ];
 
 /* === Components === */

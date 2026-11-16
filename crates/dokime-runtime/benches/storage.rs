@@ -396,7 +396,8 @@ fn main() {
         }
         return;
     }
-    let executor = Builder::new_current_thread().enable_all().build().unwrap();
+    // The In-Process Hosts Run on the Product Host's Multi-Thread Runtime Flavor.
+    let executor = Builder::new_multi_thread().enable_all().build().unwrap();
     let _entered = executor.enter();
     let mut criterion = Criterion::default().configure_from_args();
     let mut group = criterion.benchmark_group("storage");

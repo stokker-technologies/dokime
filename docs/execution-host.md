@@ -391,6 +391,7 @@ mutation_timeout_s = 30
 watch_timeout_s = 3600
 reconnect_delay_ms = 25
 interval_window_ms = 100
+interval_lag_windows = 10
 message_bytes = 4194304
 retained_bytes = 67108864
 stream_buffer = 8
@@ -412,6 +413,17 @@ A stream overrides the host window through a plugin Duration setting named by it
 observer's window setting (Rust `.window_setting("window")`, Python
 `window_setting="window"`, C# `windowSetting: "window"`, C++ `.window_setting("window")`);
 the plugin's settings then edit it per stream like any other plugin setting.
+
+`interval_lag_windows` is how many lengths of a stream's window its demand may fall
+behind that window's end (`PlacementSettings::interval_lag`, default
+`dokime_runtime::INTERVAL_LAG`, 10). A host that cannot keep up with a stream's rate
+fails the stream instead of granting ever longer windows. The execution ends
+Interrupted with a `streams:failure` entry that names the stream and the action: lower
+its rate or the number of streams, shorten its window, or raise
+`interval_lag_windows`. A window larger than the shared plugin publication pool, and a
+pool full of rows storage has not taken in, end the execution the same way. Dokime
+holds no demand on a plugin stream outside an execution: scoped sampling is all it
+stores, and the library grants no idle windows.
 
 Materialized case files contain the authoritative `PreviewSelectionReply`
 protobuf, preserving frozen origins. `--parameters PATH` reads a JSON object
@@ -685,7 +697,7 @@ Product builds, fixtures, native stories and both WebView lanes include it.
 
 ## Final Library Definition Contract
 
-The definitions pin Harmos at `efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`.
+The definitions pin Harmos at `82e394dac656bf6b28a31f7429360d84f1701051`.
 
 ```text
 proto/dokime/
@@ -770,7 +782,7 @@ carried by the merge and are not consumer work to reimplement.
 The first column is the pre-pin wire identity or hand-bound context identity.
 Library composition rows name the library operation directly, without forwarding.
 The complete library identity/type mapping is in the pinned
-[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/efc261fe9431bb3ad2fd3287ecb51a7f1d8da325/docs/architecture.md).
+[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/82e394dac656bf6b28a31f7429360d84f1701051/docs/architecture.md).
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |

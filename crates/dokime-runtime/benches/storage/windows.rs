@@ -43,17 +43,20 @@ use prost::Message as _;
 /// The Plugin Process Reads Its Stream Count and Period From This Variable.
 const LAYOUT: &str = "DOKIME_BENCH_WINDOWS";
 
-/// Streams, Sample Period and Samples per Stream: 10.05 s at 1 kHz, 20 ms at 1 MHz.
+/// Streams, Sample Period and Samples per Stream: 70.05 s at 1 kHz, 200 ms at 1 MHz.
+///
+/// Every stream passes the default 65,536-row flush count, so admission wakes background flush rounds
+/// unless pending bytes reach their bound first.
 ///
 /// The 1 kHz capture ends inside a host window, so the step's sleep cuts its last window early; the 1 MHz
-/// capture spans two whole 10 ms setting windows.
+/// capture spans twenty whole 10 ms setting windows.
 const CASES: [(u64, u64, u64); 6] = [
-    (1, 1_000_000, 10_050),
-    (16, 1_000_000, 10_050),
-    (128, 1_000_000, 10_050),
-    (1, 1_000, 20_000),
-    (16, 1_000, 20_000),
-    (128, 1_000, 20_000),
+    (1, 1_000_000, 70_050),
+    (16, 1_000_000, 70_050),
+    (128, 1_000_000, 70_050),
+    (1, 1_000, 200_000),
+    (16, 1_000, 200_000),
+    (128, 1_000, 200_000),
 ];
 
 /// The Window 1 MHz Streams Take From Their Plugin Setting Instead of the Host's `interval_window`.
@@ -70,6 +73,9 @@ static UNSCOPED: AtomicU64 = AtomicU64::new(0);
 /* === Macros === */
 
 /* === Type Aliases === */
+
+/// Builds the Clock One Case's Host Runs On.
+type ClockSource = fn() -> Arc<dyn SchedulerClock>;
 
 /* === Structs === */
 
@@ -163,8 +169,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
     group.sample_size(10);
     group.sampling_mode(SamplingMode::Flat);
     let once = std::env::var_os("DOKIME_BENCH_ONCE").is_some();
-    let clocks: [(&str, fn() -> Arc<dyn SchedulerClock>); 2] =
-        [("controlled", || settings().clock), ("real", || Arc::new(services::WallClock))];
+    let clocks: [(&str, ClockSource); 2] = [("controlled", || settings().clock), ("real", || Arc::new(services::WallClock))];
     for (clock, source) in clocks {
         for (streams, period_ns, rows) in CASES {
             let total = streams * rows;

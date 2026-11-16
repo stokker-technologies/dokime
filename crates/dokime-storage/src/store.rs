@@ -417,10 +417,7 @@ impl Store {
         ))
     }
     pub fn open_stream(&self, execution: &str, stream: &str) -> Result<()> {
-        let connection = self.lock()?;
-        require_open(&connection, execution)?;
-        connection.execute("INSERT INTO streams VALUES (?1,?2,0)", params![execution, stream])?;
-        Ok(())
+        self.open_streams(execution, &[stream.to_owned()])
     }
     pub fn sample(&self, execution: &str, sample: Sample) -> Result<u64> {
         Ok(self.sample_batch(execution, &[sample])?[0])

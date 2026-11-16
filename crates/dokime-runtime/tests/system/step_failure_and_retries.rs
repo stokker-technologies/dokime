@@ -77,6 +77,10 @@ fn step_failure_and_retries() -> Result<(), Box<dyn Error>> {
                         .map(|evidence| (&evidence.kind, String::from_utf8_lossy(&evidence.payload)))
                         .collect::<Vec<_>>()
                 );
+                // Every Failure Entry Carries Its Reason, Including the Step's Own Failure.
+                let recorded = snapshot.evidence.iter().filter(|evidence| evidence.kind.ends_with(":failure")).collect::<Vec<_>>();
+                assert!(recorded.iter().all(|evidence| !evidence.payload.is_empty()));
+                assert_eq!(recorded.iter().any(|evidence| evidence.kind == "step:failure"), failures == 2);
                 assert_eq!(snapshot.logs()?.len(), 2);
                 assert!(host.streams_closed(&snapshot.execution.identifier)?);
                 let attempts = snapshot

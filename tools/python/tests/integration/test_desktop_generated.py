@@ -56,7 +56,7 @@ const type = registry.getMessage("dokime.host.v1.SettingsGetResponse");
 const value = create(type, { revision: Buffer.from([7]), value: {
   appearance: { themeMode: 1, density: 2 }, report: { plotDownsample: 4, plotPoints: 1537 },
   client: { connectTimeoutMs: 4321n, requestTimeoutMs: 8765n }, telemetry: { intervalMs: 321n },
-  listener: { enabled: true, certificateNames: ["fixture.local"] }, plugins: { startupTimeoutS: 31, stopTimeoutS: 17 },
+  listener: { enabled: true, certificateNames: ["fixture.local"] }, plugins: { startupTimeoutS: 31 },
 }});
 writeFileSync(process.argv[1], toBinary(type, value));
 """,

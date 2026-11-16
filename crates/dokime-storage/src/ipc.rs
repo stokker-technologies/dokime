@@ -57,9 +57,6 @@ pub(crate) struct Writer {
     file: HashedFile,
     schema: SchemaRef,
     blocks: Vec<Block>,
-    options: IpcWriteOptions,
-    dictionaries: DictionaryTracker,
-    context: IpcWriteContext,
     finished: bool,
 
     #[cfg(test)]
@@ -70,7 +67,18 @@ struct HashedFile {
     file: File,
     hash: Sha256,
     length: u64,
-    batch_hash: Option<Sha256>,
+}
+
+/// One Record Batch Message, Encoded and Hashed Apart From Any File So It Can Be Built in Parallel.
+///
+/// Message bytes do not depend on where they land: the IPC prefix and padding are relative to the
+/// message itself, so writing them at any offset yields the bytes a direct append would.
+pub(crate) struct Encoded {
+    bytes: Vec<u8>,
+    metadata_bytes: u32,
+    body_bytes: u64,
+    rows: u64,
+    sha256: [u8; 32],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -144,13 +152,9 @@ impl Writer {
                 file,
                 hash: hash_state(&checkpoint.hash)?,
                 length: checkpoint.end,
-                batch_hash: None,
             },
             schema,
             blocks: indices.iter().map(BatchIndex::block).collect::<Result<Vec<_>>>()?,
-            options: options()?,
-            dictionaries: DictionaryTracker::new(true),
-            context: IpcWriteContext::default(),
             finished: false,
             #[cfg(test)]
             fail_sync: false,
@@ -161,17 +165,12 @@ impl Writer {
 
     pub fn create(path: &Path, schema: SchemaRef) -> Result<Self> {
         let file = OpenOptions::new().create_new(true).write(true).open(path)?;
-        let mut file = HashedFile {
-            file,
-            hash: Sha256::new(),
-            length: 0,
-            batch_hash: None,
-        };
+        let mut file = HashedFile { file, hash: Sha256::new(), length: 0 };
         let options = options()?;
         // IPC V5 Uses Eight-Byte Alignment And A Continuation Prefix.
         file.write_all(b"ARROW1\0\0")?;
-        let mut dictionaries = DictionaryTracker::new(true);
-        let message = IpcDataGenerator::default().schema_to_bytes_with_dictionary_tracker(&schema, &mut dictionaries, &options);
+        let message =
+            IpcDataGenerator::default().schema_to_bytes_with_dictionary_tracker(&schema, &mut DictionaryTracker::new(true), &options);
         write_message(&mut file, message, &options)?;
         {
             let _span = tracing::debug_span!("ingest.ipc.sync").entered();
@@ -182,9 +181,6 @@ impl Writer {
             file,
             schema,
             blocks: Vec::new(),
-            options,
-            dictionaries,
-            context: IpcWriteContext::default(),
             finished: false,
             #[cfg(test)]
             fail_sync: false,
@@ -196,10 +192,6 @@ impl Writer {
         self.fail_sync = true;
     }
 
-    pub(crate) fn digest(&self) -> [u8; 32] {
-        self.file.hash.clone().finalize().into()
-    }
-
     pub fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
             end: self.file.length,
@@ -208,35 +200,41 @@ impl Writer {
         }
     }
 
+    /// Encode, Write and Sync One Batch.
     pub fn append(&mut self, batch: &RecordBatch) -> Result<BatchIndex> {
-        if self.finished || batch.schema() != self.schema {
-            return Err(Error::Data("Arrow writer is finished or its batch schema differs"));
+        let encoded = encode(&self.schema, batch)?;
+        let index = self.write(&encoded)?;
+        self.sync()?;
+        Ok(index)
+    }
+
+    /// Write One Encoded Batch After the Current End; It Is Durable Only After [`Writer::sync`].
+    pub(crate) fn write(&mut self, encoded: &Encoded) -> Result<BatchIndex> {
+        if self.finished {
+            return Err(Error::Data("open a new Arrow writer; this one is finished"));
         }
-        let generator = IpcDataGenerator::default();
-        let (dictionaries, message) = generator.encode(batch, &mut self.dictionaries, &self.options, &mut self.context)?;
-        if !dictionaries.is_empty() {
-            return Err(Error::Data("telemetry IPC does not use dictionary encoding"));
-        }
-        let offset = self.file.length;
-        self.file.batch_hash = Some(Sha256::new());
-        let (metadata, body) = write_message(&mut self.file, message, &self.options)?;
         let index = BatchIndex {
-            offset,
-            metadata_bytes: u32::try_from(metadata).map_err(|_| Error::Data("IPC metadata length overflows"))?,
-            body_bytes: body as u64,
-            rows: batch.num_rows() as u64,
-            sha256: self.file.batch_hash.take().expect("batch hash is active").finalize().into(),
+            offset: self.file.length,
+            metadata_bytes: encoded.metadata_bytes,
+            body_bytes: encoded.body_bytes,
+            rows: encoded.rows,
+            sha256: encoded.sha256,
         };
+        let block = index.block()?;
+        self.file.write_all(&encoded.bytes)?;
+        self.blocks.push(block);
+        Ok(index)
+    }
+
+    /// Make Every Written Batch Durable.
+    pub(crate) fn sync(&mut self) -> Result<()> {
         #[cfg(test)]
         if std::mem::take(&mut self.fail_sync) {
             return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
         }
-        {
-            let _span = tracing::debug_span!("ingest.ipc.sync").entered();
-            self.file.file.sync_all()?;
-        }
-        self.blocks.push(index.block()?);
-        Ok(index)
+        let _span = tracing::debug_span!("ingest.ipc.sync").entered();
+        self.file.file.sync_all()?;
+        Ok(())
     }
 
     // Restore The Last Committed Prefix After A Failed Append Or Catalog Commit.
@@ -245,7 +243,6 @@ impl Writer {
         self.file.file.seek(SeekFrom::Start(checkpoint.end))?;
         self.file.hash = hash_state(&checkpoint.hash)?;
         self.file.length = checkpoint.end;
-        self.file.batch_hash = None;
         self.blocks.truncate(checkpoint.batches);
         Ok(())
     }
@@ -287,9 +284,6 @@ impl Write for HashedFile {
         drop(write_span);
         let _hash = tracing::debug_span!("ingest.ipc.hash").entered();
         self.hash.update(&bytes[..written]);
-        if let Some(hash) = &mut self.batch_hash {
-            hash.update(&bytes[..written]);
-        }
         self.length += written as u64;
         Ok(written)
     }
@@ -300,6 +294,28 @@ impl Write for HashedFile {
 }
 
 /* === Public Functions === */
+
+/// Encode One Batch of the Given Schema as a Compressed Record Batch Message.
+pub(crate) fn encode(schema: &SchemaRef, batch: &RecordBatch) -> Result<Encoded> {
+    if batch.schema() != *schema {
+        return Err(Error::Data("encode batches with the Arrow writer's schema"));
+    }
+    let options = options()?;
+    let (dictionaries, message) =
+        IpcDataGenerator::default().encode(batch, &mut DictionaryTracker::new(true), &options, &mut IpcWriteContext::default())?;
+    if !dictionaries.is_empty() {
+        return Err(Error::Data("telemetry IPC does not use dictionary encoding"));
+    }
+    let mut bytes = Vec::new();
+    let (metadata, body) = write_message(&mut bytes, message, &options)?;
+    Ok(Encoded {
+        metadata_bytes: u32::try_from(metadata).map_err(|_| Error::Data("IPC metadata length overflows"))?,
+        body_bytes: body as u64,
+        rows: batch.num_rows() as u64,
+        sha256: Sha256::digest(&bytes).into(),
+        bytes,
+    })
+}
 
 #[cfg(test)]
 pub(crate) fn read_batch(path: &Path, schema: SchemaRef, index: &BatchIndex) -> Result<RecordBatch> {
@@ -371,7 +387,6 @@ pub(crate) fn recover(path: &Path, schema: SchemaRef, indices: &[BatchIndex], ch
         file,
         hash: hash_state(&checkpoint.hash)?,
         length: checkpoint.end,
-        batch_hash: None,
     };
     let blocks = indices.iter().map(BatchIndex::block).collect::<Result<Vec<_>>>()?;
     footer(&mut file, &schema, &blocks)?;
@@ -459,6 +474,25 @@ mod tests {
             ],
         )
         .unwrap()
+    }
+    #[test]
+    fn separately_encoded_batches_match_the_arrow_file_writer_bytes() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("samples.arrow");
+        let batch = batch();
+        let mut writer = Writer::create(&path, batch.schema()).unwrap();
+        writer.append(&batch).unwrap();
+        let encoded = encode(&batch.schema(), &batch).unwrap();
+        writer.write(&encoded).unwrap();
+        writer.sync().unwrap();
+        let ours = std::fs::read(&path).unwrap();
+        let mut reference = Vec::new();
+        let mut file = arrow_ipc::writer::FileWriter::try_new_with_options(&mut reference, &batch.schema(), options().unwrap()).unwrap();
+        file.write(&batch).unwrap();
+        file.write(&batch).unwrap();
+        file.finish().unwrap();
+        drop(file);
+        assert_eq!(ours, reference[..ours.len()]);
     }
     #[test]
     fn finalize_appends_only_metadata_and_is_idempotent() {

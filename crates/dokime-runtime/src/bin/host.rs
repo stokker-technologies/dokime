@@ -52,7 +52,9 @@ use dokime_runtime::{
 
 /* === Private Functions === */
 
-#[tokio::main(flavor = "current_thread")]
+// Admissions and flush commits briefly hold the store's blocking locks; worker threads keep
+// plugin transport, clients and the flush timer running meanwhile, and connections decode in parallel.
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn StdError>> {
     let mut arguments = std::env::args().skip(1);
     let mut endpoint = None;
@@ -93,6 +95,7 @@ async fn main() -> Result<(), Box<dyn StdError>> {
             reconnect_delay: Duration::from_millis(25),
             stream_window: NonZeroUsize::new(8).unwrap(),
             interval_window: dokime_runtime::INTERVAL_WINDOW,
+            interval_lag: dokime_runtime::INTERVAL_LAG,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         },
         capture,

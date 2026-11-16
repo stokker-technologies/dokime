@@ -17,7 +17,7 @@
 
 // Standard Library Imports
 use std::{
-    num::{NonZeroU64, NonZeroUsize},
+    num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -33,7 +33,7 @@ use crate::Result;
 use dokime::client::{CallOptions, ClientSettings as RpcClientSettings};
 use dokime::{Client, StorageTransferSettings};
 use dokime_runtime::{
-    CaptureSettings, ControlledClock, HostSettings, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
+    CaptureSettings, ControlledClock, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
     services::{ClientSettings, WallClock},
 };
 
@@ -68,6 +68,7 @@ pub(crate) struct Settings {
     pub watch_timeout_s: u64,
     pub reconnect_delay_ms: u64,
     pub interval_window_ms: u64,
+    pub interval_lag_windows: NonZeroU32,
     pub message_bytes: NonZeroUsize,
     pub retained_bytes: NonZeroUsize,
     pub stream_buffer: NonZeroUsize,
@@ -102,6 +103,7 @@ impl Default for Settings {
             watch_timeout_s: 3600,
             reconnect_delay_ms: 25,
             interval_window_ms: INTERVAL_WINDOW.as_millis() as u64,
+            interval_lag_windows: INTERVAL_LAG,
             message_bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
             retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
             stream_buffer: NonZeroUsize::new(8).unwrap(),
@@ -143,6 +145,7 @@ impl Settings {
             reconnect_delay: Duration::from_millis(self.reconnect_delay_ms),
             stream_window: self.stream_buffer,
             interval_window: Duration::from_millis(self.interval_window_ms),
+            interval_lag: self.interval_lag_windows,
             message_bytes: self.message_bytes,
         }
     }

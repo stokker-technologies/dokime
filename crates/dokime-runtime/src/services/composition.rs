@@ -32,7 +32,7 @@ use harmos_runtime::clock::Clock as RuntimeClock;
 use harmos_runtime::clock::Source;
 use harmos_runtime::operations::Lane;
 use harmos_runtime::operations::Settings as OperationSettings;
-use harmos_runtime::plugin::grpc::PlacementSettings;
+use harmos_runtime::plugin::grpc::{IntervalLag, PlacementSettings};
 use harmos_runtime::plugin::manager::{Manager, PluginManagerSettings};
 use harmos_runtime::state::Never;
 use harmos_runtime::{Application as RuntimeApplication, AssemblyError, Lifecycle};
@@ -180,6 +180,7 @@ pub(super) async fn launch(
                 stop_grace: crate::STOP_GRACE,
                 stream_window: placement.stream_window,
                 interval_window: placement.interval_window,
+                interval_lag: IntervalLag::new(placement.interval_lag),
             },
             bundle: Default::default(),
             entries: capacity,

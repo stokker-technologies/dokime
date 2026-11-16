@@ -2,9 +2,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
@@ -166,7 +166,7 @@ async function resourceBoundary(endedMs) {
 }
 
 async function startNative(mode) {
-  // Close Every Reader Before Copying Its Durable Checkpoint.
+  // Close Every Reader Before the Next Host Opens the Saved Root.
   await closeNative();
   if (nativeRoot && seedRoot && !seedRoot.startsWith(`${nativeRoot}${sep}`)) {
     assert.ok(nativeRoot.startsWith(`${work}${sep}`), "Owned native profile stays inside its fixture directory");
@@ -176,8 +176,9 @@ async function startNative(mode) {
     await rm(nativeRoot, { recursive: true, force: true });
   }
   nativeRoot = await realpath(await mkdtemp(join(work, "native-")));
-  const restored = mode === "saved" ? join(nativeRoot, "data") : "";
-  if (restored) await cp(seedRoot, restored, { recursive: true, errorOnExist: true, force: false });
+  // A Saved History Reopens the Seed Root Itself: Root Identity Refuses a Copied Root.
+  const restored = mode === "saved" ? seedRoot : "";
+  const fixtures = restored ? dirname(seedRoot) : nativeRoot;
   nativeTemporary = await mkdtemp(join(tmpdir(), "dokime-desktop-bench-"));
   host = spawn(process.env.DOKIME_DESKTOP_BENCH_HOST, ["--fixture-host"], {
     env: {
@@ -185,7 +186,7 @@ async function startNative(mode) {
       TEMP: nativeTemporary,
       TMP: nativeTemporary,
       TMPDIR: nativeTemporary,
-      DOKIME_DESKTOP_BENCH_FIXTURES: nativeRoot,
+      DOKIME_DESKTOP_BENCH_FIXTURES: fixtures,
       DOKIME_DESKTOP_BENCH_RESTORE: restored,
       DOKIME_DESKTOP_HISTORY_ROWS: String(historyRows),
     },
@@ -206,7 +207,7 @@ async function startNative(mode) {
   const { root: storage, ...metadata } = JSON.parse(ready.value);
   assert.ok(Number.isFinite(metadata.shutdown_ms) && metadata.shutdown_ms > 0, "Fixture host owns its checkpoint shutdown budget");
   const storageRoot = await realpath(storage);
-  assert.ok(storageRoot.toLowerCase().startsWith(`${nativeRoot}${sep}`.toLowerCase()), "Owned storage stays inside its native fixture");
+  assert.ok(storageRoot.toLowerCase().startsWith(`${fixtures}${sep}`.toLowerCase()), "Owned storage stays inside its native fixture");
   seedRoot ??= storageRoot;
   fixture = metadata;
   backendMode = mode;

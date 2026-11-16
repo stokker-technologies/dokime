@@ -244,12 +244,10 @@ class OnDemandRefresh(_message.Message):
     def __init__(self) -> None: ...
 
 class PluginPreferences(_message.Message):
-    __slots__ = ("startup_timeout_s", "stop_timeout_s")
+    __slots__ = ("startup_timeout_s",)
     STARTUP_TIMEOUT_S_FIELD_NUMBER: _ClassVar[int]
-    STOP_TIMEOUT_S_FIELD_NUMBER: _ClassVar[int]
     startup_timeout_s: int
-    stop_timeout_s: int
-    def __init__(self, startup_timeout_s: _Optional[int] = ..., stop_timeout_s: _Optional[int] = ...) -> None: ...
+    def __init__(self, startup_timeout_s: _Optional[int] = ...) -> None: ...
 
 class RemoteListenerSettings(_message.Message):
     __slots__ = ("enabled", "address", "tls_enabled", "authentication_enabled", "certificate_names")

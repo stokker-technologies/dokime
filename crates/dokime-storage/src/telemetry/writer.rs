@@ -8,6 +8,13 @@
  */
 
 // Buffered Durable Arrow Writes
+//
+// A flush claims the head of every stream's pending batches, prepares each stream file in
+// parallel (concatenation, IPC encoding, moments and previews) and commits them together: it
+// writes and syncs every file in parallel, then saves one catalog transaction. Claimed rows
+// stay pending, and so visible to readers, until that transaction commits. Background rounds
+// prepare without the store's locks; a synchronous flush prepares under them and supersedes a
+// round in progress, whose claims it detects as stale and drops.
 
 /* === Modules === */
 
@@ -16,7 +23,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 // Third Party Imports
 use arrow_array::{Array, Int64Array, RecordBatch, StructArray, UInt64Array};
@@ -27,7 +40,7 @@ use rusqlite::{Connection, params};
 use tokio::time::Instant;
 
 // Local Imports
-use super::{Pending, Telemetry, catalog, codec::Codec};
+use super::{Pending, Telemetry, aggregates, aggregates::Statistics, catalog, codec::Codec, config::StorageSettings};
 use crate::{Error, Execution, Result, Sample, Store, ipc};
 use harmos_protocol::model::Declarations;
 
@@ -39,6 +52,39 @@ use harmos_protocol::model::Declarations;
 
 /* === Structs === */
 
+/// One Stream File's Share of a Flush: the Head of Its Pending Batches and Its Saved Statistics.
+struct Claim {
+    key: (String, String),
+    id: String,
+    codec: Arc<Codec>,
+    batches: Vec<RecordBatch>,
+    head: u64,
+    statistics: Statistics,
+}
+
+/// One Stream File's Encoded Chunks and Catalog Values, Ready to Write and Commit.
+struct Prepared {
+    key: (String, String),
+    id: String,
+    codec: Arc<Codec>,
+    batches: usize,
+    head: u64,
+    chunks: Vec<Chunk>,
+    statistics: Statistics,
+}
+
+struct Chunk {
+    encoded: ipc::Encoded,
+    span: (u64, u64, i64, i64),
+    checkpoints: Vec<(String, Vec<u8>)>,
+}
+
+/// A Writer's Batches and End After a Commit's Writes.
+struct Written {
+    indices: Vec<ipc::BatchIndex>,
+    after: ipc::Checkpoint,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -46,6 +92,10 @@ use harmos_protocol::model::Declarations;
 /* === Implementations === */
 
 impl Telemetry {
+    /// The Codec of One Execution Stream.
+    ///
+    /// A miss decodes the execution's frozen catalog once and fills every declared stream, and
+    /// streams that share a row type share one codec.
     pub(crate) fn codec(&mut self, connection: &Connection, execution: &str, stream: &str) -> Result<Arc<Codec>> {
         let key = (execution.to_owned(), stream.to_owned());
         if let Some(codec) = self.codecs.get(&key) {
@@ -53,23 +103,156 @@ impl Telemetry {
         }
         let bytes: Vec<u8> = connection.query_row("SELECT payload FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
         let definition = Execution::decode(bytes.as_slice())?;
-        let frozen = Declarations::decode(definition.catalog.as_slice())?;
+        let mut frozen = Declarations::decode(definition.catalog.as_slice())?;
+        let types = frozen.types.take().ok_or(Error::Data("include frozen stream descriptors"))?;
         let declaration =
             frozen.streams.iter().find(|entry| entry.id == stream).ok_or(Error::Data("declare the stream in the frozen catalog"))?;
-        let pool = DescriptorPool::from_file_descriptor_set(frozen.types.ok_or(Error::Data("include frozen stream descriptors"))?)
-            .map_err(|_| Error::Data("include valid frozen stream descriptors"))?;
+        let pool = DescriptorPool::from_file_descriptor_set(types).map_err(|_| Error::Data("include valid frozen stream descriptors"))?;
         let descriptor = pool.get_message_by_name(&declaration.row).ok_or(Error::Data("include the frozen row descriptor"))?;
-        let codec = Arc::new(Codec::new(descriptor)?);
-        self.codecs.insert(key, codec.clone());
-        Ok(codec)
+        let requested = Arc::new(Codec::new(descriptor)?);
+        let mut rows = BTreeMap::from([(declaration.row.as_str(), requested.clone())]);
+        for declaration in &frozen.streams {
+            let codec = match rows.get(declaration.row.as_str()) {
+                Some(codec) => codec.clone(),
+                None => {
+                    // A Sibling Stream's Invalid Row Fails Only When That Stream Is Used.
+                    let Some(Ok(codec)) = pool.get_message_by_name(&declaration.row).map(Codec::new) else {
+                        continue;
+                    };
+                    let codec = Arc::new(codec);
+                    rows.insert(declaration.row.as_str(), codec.clone());
+                    codec
+                }
+            };
+            self.codecs.entry((execution.to_owned(), declaration.id.clone())).or_insert(codec);
+        }
+        self.codecs.insert(key, requested.clone());
+        Ok(requested)
     }
-    /// Whether Accepted Rows Reached the Pending Byte Pressure or One Stream's Flush Row Count.
-    fn flush_due(&self) -> bool {
+
+    /// Whether Accepted Rows Reached the Pending Byte Bound, Which Flushes on the Admitting Caller.
+    fn pressure(&self) -> bool {
         self.pending.values().map(|pending| pending.bytes).sum::<usize>() >= self.settings.pending_bytes.get()
-            || self.pending.values().any(|pending| pending.rows >= self.settings.flush_rows.get())
+    }
+
+    /// Whether One Stream Reached Its Flush Row Count, Which Starts a Background Round at Once.
+    fn due(&self) -> bool {
+        self.pending.values().any(|pending| pending.rows >= self.settings.flush_rows.get())
+    }
+
+    /// Claim Every Stream's Pending Batches With Their File's Saved Statistics.
+    fn claim(&self, connection: &Connection) -> Result<Vec<Claim>> {
+        self.pending
+            .iter()
+            .map(|((execution, stream), pending)| {
+                let id = catalog::identifier(execution, stream, &pending.codec.digest);
+                Ok(Claim {
+                    key: (execution.clone(), stream.clone()),
+                    statistics: Statistics::load(connection, &id, self.settings.previews)?,
+                    id,
+                    codec: pending.codec.clone(),
+                    head: head(&pending.batches)?,
+                    batches: pending.batches.clone(),
+                })
+            })
+            .collect()
+    }
+
+    /// Whether a Prepared File's Claimed Batches Still Lead Its Stream's Pending Batches.
+    fn current(&self, prepared: &Prepared) -> bool {
+        self.pending
+            .get(&prepared.key)
+            .is_some_and(|pending| pending.batches.len() >= prepared.batches && head(&pending.batches).ok() == Some(prepared.head))
     }
 }
+
+impl Claim {
+    fn prepare(self, rows: usize) -> Result<Prepared> {
+        let Self {
+            key,
+            id,
+            codec,
+            batches,
+            head,
+            mut statistics,
+        } = self;
+        let samples = match batches.as_slice() {
+            [batch] => batch.clone(),
+            batches => concat_batches(&codec.schema, batches)?,
+        };
+        let mut chunks = Vec::new();
+        for offset in (0..samples.num_rows()).step_by(rows) {
+            let batch = samples.slice(offset, rows.min(samples.num_rows() - offset));
+            let span = span(&batch)?;
+            let checkpoints = statistics.advance(&batch, span.1)?;
+            chunks.push(Chunk {
+                encoded: ipc::encode(&codec.schema, &batch)?,
+                span,
+                checkpoints,
+            });
+        }
+        Ok(Prepared {
+            key,
+            id,
+            codec,
+            batches: batches.len(),
+            head,
+            chunks,
+            statistics,
+        })
+    }
+}
+
 impl Store {
+    /// Open Execution Streams, Creating and Cataloging Each Stream's Arrow File in Parallel.
+    ///
+    /// Each file and its header are synced before one transaction records the streams and their empty
+    /// files. A crash before that commit leaves files without catalog entries, which hold no saved rows;
+    /// opening the streams again recovers their verified headers instead of creating them.
+    pub fn open_streams(&self, execution: &str, streams: &[String]) -> Result<()> {
+        let mut connection = self.lock()?;
+        crate::store::require_open(&connection, execution)?;
+        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+        let root = self.database.parent().ok_or(Error::Data("select a valid storage root"))?;
+        let mut files = Vec::with_capacity(streams.len());
+        for stream in streams {
+            let codec = telemetry.codec(&connection, execution, stream)?;
+            let id = catalog::identifier(execution, stream, &codec.digest);
+            // A Cataloged File Holds Saved Rows; Only a File Without an Entry May Be Recovered to Its Header.
+            let cataloged: bool =
+                connection.query_row("SELECT EXISTS(SELECT 1 FROM telemetry_files WHERE id=?1)", [&id], |row| row.get(0))?;
+            if cataloged {
+                return Err(Error::Data("open each execution stream once"));
+            }
+            files.push((stream.as_str(), catalog::path(root, &id)?, id, codec));
+        }
+        let opened = parallel(files, |(stream, path, id, codec)| {
+            let writer = if path.exists() {
+                ipc::Writer::recover_empty(&path, codec.schema.clone())
+            } else {
+                ipc::Writer::create(&path, codec.schema.clone())
+            };
+            (stream, id, codec, writer)
+        });
+        let mut writers = Vec::with_capacity(opened.len());
+        for (stream, id, codec, writer) in opened {
+            writers.push((stream, id, codec, writer?));
+        }
+        let transaction = connection.transaction()?;
+        for (stream, id, codec, writer) in &writers {
+            let header = writer.checkpoint();
+            transaction.execute("INSERT INTO streams VALUES (?1,?2,0)", params![execution, stream])?;
+            transaction.execute(
+                "INSERT INTO telemetry_files VALUES(?1,?2,?3,?4,?5,?6,0,0,?5,?7)",
+                params![id, execution, stream, codec.digest, header.end as i64, header.hash, header.digest()?.as_slice()],
+            )?;
+        }
+        transaction.commit()?;
+        for (_, id, _, writer) in writers {
+            telemetry.writers.insert(id, writer);
+        }
+        Ok(())
+    }
     pub fn sample_batch(&self, execution: &str, samples: &[Sample]) -> Result<Vec<u64>> {
         if samples.is_empty() {
             return Ok(Vec::new());
@@ -105,10 +288,10 @@ impl Store {
         for (stream, batch, codec) in batches {
             admit(&mut telemetry, execution, stream, codec, batch);
         }
-        let flush = telemetry.flush_due();
+        let (pressure, due) = (telemetry.pressure(), telemetry.due());
         drop(telemetry);
         drop(connection);
-        self.admitted(flush)?;
+        self.admitted(pressure, due)?;
         Ok(positions)
     }
     /// Admit One Stored Interval Batch Row as Consecutive Samples, Columns Straight Into Arrow.
@@ -136,14 +319,15 @@ impl Store {
         let batch = codec.assemble(first, sequence, &interval)?;
         accept(&connection, execution, last)?;
         admit(&mut telemetry, execution, stream.to_owned(), codec, batch);
-        let flush = telemetry.flush_due();
+        let (pressure, due) = (telemetry.pressure(), telemetry.due());
         drop(telemetry);
         drop(connection);
-        self.admitted(flush)?;
+        self.admitted(pressure, due)?;
         Ok(count)
     }
-    fn admitted(&self, flush: bool) -> Result<()> {
-        if flush {
+    fn admitted(&self, pressure: bool, due: bool) -> Result<()> {
+        // Byte Pressure Bounds Memory, So It Flushes Here; Without a Runtime No Round Can Take a Due Flush.
+        if pressure || (due && tokio::runtime::Handle::try_current().is_err()) {
             self.flush_samples()?;
         }
         self.start_sample_flush()?;
@@ -158,16 +342,21 @@ impl Store {
         }
         telemetry.running = true;
         let store = self.clone();
-        let worker=runtime.spawn(async move {
-            let mut changes=store.changed.subscribe();
+        let worker = runtime.spawn(async move {
+            let mut changes = store.changed.subscribe();
             loop {
                 let deadline = {
                     let mut telemetry = match store.telemetry.lock() {
                         Ok(t) => t,
                         Err(_) => return,
                     };
-                    if telemetry.closed{telemetry.running=false;return;}
-                    match telemetry.pending.values().map(|pending| pending.started + telemetry.settings.flush_interval).min() {
+                    if telemetry.closed {
+                        telemetry.running = false;
+                        return;
+                    }
+                    let interval = telemetry.settings.flush_interval;
+                    match telemetry.pending.values().map(|pending| pending.started + interval).min() {
+                        Some(_) if telemetry.due() => Instant::now(),
                         Some(deadline) => deadline,
                         None => {
                             telemetry.running = false;
@@ -175,9 +364,9 @@ impl Store {
                         }
                     }
                 };
-                tokio::select!{biased; _=tokio::time::sleep_until(deadline)=>{}, result=changes.changed()=>{if result.is_err(){return;}continue;}}
+                tokio::select! {biased; _=tokio::time::sleep_until(deadline)=>{}, result=changes.changed()=>{if result.is_err(){return;}continue;}}
                 let worker = store.clone();
-                let result = tokio::task::spawn_blocking(move || worker.flush_samples()).await;
+                let result = tokio::task::spawn_blocking(move || worker.flush_round()).await;
                 if !matches!(result, Ok(Ok(()))) {
                     tracing::error!(?result, "Flush Arrow Samples Failed; Saved Position Was Not Acknowledged");
                     if let Ok(mut telemetry) = store.telemetry.lock() {
@@ -215,6 +404,7 @@ impl Store {
         let mut connection = self.lock()?;
         self.flush_samples_locked(&mut connection)
     }
+    /// Flush Every Pending Row Before Returning; Its Caller Holds the Store's Connection.
     pub(crate) fn flush_samples_locked(&self, connection: &mut Connection) -> Result<()> {
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
         if telemetry.closed && !telemetry.pending.is_empty() {
@@ -223,53 +413,110 @@ impl Store {
         if telemetry.pending.is_empty() {
             return Ok(());
         }
-        let transaction = connection.transaction()?;
-        let mut checkpoints = BTreeMap::new();
+        let prepared = prepare(telemetry.claim(connection)?, &telemetry.settings)?;
+        self.commit(connection, &mut telemetry, prepared)
+    }
+    /// One Background Round: Claim Under the Locks, Prepare Without Them, Then Commit What Is Still Pending.
+    fn flush_round(&self) -> Result<()> {
+        let (claims, settings) = {
+            let connection = self.lock()?;
+            let telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+            if telemetry.closed || telemetry.pending.is_empty() {
+                return Ok(());
+            }
+            (telemetry.claim(&connection)?, telemetry.settings)
+        };
+        let prepared = prepare(claims, &settings)?;
+        let mut connection = self.lock()?;
+        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+        if telemetry.closed {
+            return Ok(());
+        }
+        // A Synchronous Flush Since the Claim Saved These Rows Itself; Their Prepared Copies Are Dropped.
+        let prepared = prepared.into_iter().filter(|prepared| telemetry.current(prepared)).collect();
+        self.commit(&mut connection, &mut telemetry, prepared)
+    }
+    /// Write, Sync and Catalog Prepared Files, Then Release Their Claimed Batches.
+    ///
+    /// Every file is synced before the one catalog transaction commits, so a saved position never
+    /// names rows a crash could lose; a failure rolls every writer back to its committed prefix.
+    fn commit(&self, connection: &mut Connection, telemetry: &mut Telemetry, prepared: Vec<Prepared>) -> Result<()> {
+        if prepared.is_empty() {
+            return Ok(());
+        }
         let root = self.database.parent().ok_or(Error::Data("select a valid storage root"))?;
-        let result = (|| -> Result<()> {
-            let keys = telemetry.pending.keys().cloned().collect::<Vec<_>>();
-            for (execution, stream) in keys {
-                let pending = &telemetry.pending[&(execution.clone(), stream.clone())];
-                let codec = pending.codec.clone();
-                let samples = match pending.batches.as_slice() {
-                    [batch] => batch.clone(),
-                    batches => concat_batches(&codec.schema, batches)?,
-                };
-                let id = catalog::identifier(&execution, &stream, &codec.digest);
-                let path = catalog::path(root, &id)?;
-                if let std::collections::btree_map::Entry::Vacant(entry) = telemetry.writers.entry(id.clone()) {
-                    let exists: bool =
-                        transaction.query_row("SELECT EXISTS(SELECT 1 FROM telemetry_files WHERE id=?1)", [&id], |row| row.get(0))?;
-                    let writer = if exists {
-                        let checkpoint = catalog::checkpoint(&transaction, &id)?;
-                        let indices = catalog::indices(&transaction, &id)?;
-                        ipc::Writer::resume(&path, codec.schema.clone(), &indices, &checkpoint)?
-                    } else if path.exists() {
-                        ipc::Writer::recover_empty(&path, codec.schema.clone())?
-                    } else {
-                        ipc::Writer::create(&path, codec.schema.clone())?
-                    };
-                    entry.insert(writer);
+        // Every Stream File Is Created and Cataloged When Its Stream Opens; After a Restart It Resumes Here.
+        let mut openings = Vec::new();
+        for prepared in prepared.iter().filter(|prepared| !telemetry.writers.contains_key(&prepared.id)) {
+            let path = catalog::path(root, &prepared.id)?;
+            let cataloged: bool =
+                connection.query_row("SELECT EXISTS(SELECT 1 FROM telemetry_files WHERE id=?1)", [&prepared.id], |row| row.get(0))?;
+            if !cataloged {
+                return Err(Error::Data("start a fresh execution: this stream opened before streams created their files"));
+            }
+            let saved = (catalog::indices(connection, &prepared.id)?, catalog::checkpoint(connection, &prepared.id)?);
+            openings.push((prepared.id.clone(), prepared.codec.schema.clone(), path, saved));
+        }
+        for (id, writer) in
+            parallel(openings, |(id, schema, path, (indices, checkpoint))| (id, ipc::Writer::resume(&path, schema, &indices, &checkpoint)))
+        {
+            telemetry.writers.insert(id, writer?);
+        }
+        let written = {
+            let mut files = prepared.iter().map(|prepared| (prepared.id.as_str(), prepared)).collect::<BTreeMap<_, _>>();
+            let work = telemetry
+                .writers
+                .iter_mut()
+                .filter_map(|(id, writer)| files.remove(id.as_str()).map(|prepared| (writer, prepared)))
+                .collect::<Vec<_>>();
+            parallel(work, |(writer, prepared)| {
+                let before = writer.checkpoint();
+                let indices = prepared.chunks.iter().map(|chunk| writer.write(&chunk.encoded)).collect::<Result<Vec<_>>>();
+                let result = indices.and_then(|indices| {
+                    writer.sync()?;
+                    Ok((indices, writer.checkpoint()))
+                });
+                (prepared.id.clone(), before, result)
+            })
+        };
+        let mut befores = Vec::new();
+        let mut files = BTreeMap::new();
+        let mut failure = None;
+        for (id, before, result) in written {
+            match result {
+                Ok((indices, after)) => {
+                    files.insert(id.clone(), Written { indices, after });
                 }
-                let previews = telemetry.settings.previews;
-                let rows_per_batch = telemetry.settings.flush_rows.get();
-                let writer = telemetry.writers.get_mut(&id).unwrap();
-                checkpoints.insert(id.clone(), writer.checkpoint());
-                let header = writer.checkpoint();
-                transaction.execute(
-                    "INSERT OR IGNORE INTO telemetry_files VALUES(?1,?2,?3,?4,?5,?6,0,0,?5,?7)",
-                    params![id, execution, stream, codec.digest, header.end as i64, header.hash, writer.digest().as_slice()],
-                )?;
-                for offset in (0..samples.num_rows()).step_by(rows_per_batch) {
-                    let batch = samples.slice(offset, rows_per_batch.min(samples.num_rows() - offset));
-                    let (first, last, start, end) = span(&batch)?;
-                    let index = writer.append(&batch)?;
-                    let checkpoint = writer.checkpoint();
-                    super::aggregates::append(&transaction, &id, index.offset, &batch, previews)?;
-                    transaction.execute(
-                        "INSERT INTO telemetry_batches VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+                Err(error) => {
+                    failure.get_or_insert(error);
+                }
+            }
+            befores.push((id, before));
+        }
+        let rollback = |telemetry: &mut Telemetry, error: Error| -> Result<()> {
+            for (id, before) in &befores {
+                telemetry.writers.get_mut(id).ok_or(Error::Data("restart after an Arrow writer went missing"))?.rollback(before)?;
+            }
+            Err(error)
+        };
+        if let Some(error) = failure {
+            return rollback(telemetry, error);
+        }
+        let transaction = match connection.transaction() {
+            Ok(transaction) => transaction,
+            Err(error) => return rollback(telemetry, error.into()),
+        };
+        let result = (|| -> Result<()> {
+            for prepared in &prepared {
+                let file = files.get(&prepared.id).ok_or(Error::Data("restart after an Arrow writer went missing"))?;
+                for (chunk, index) in prepared.chunks.iter().zip(&file.indices) {
+                    for (field, moments) in &chunk.checkpoints {
+                        aggregates::checkpoint(&transaction, &prepared.id, index.offset, field, chunk.span, moments)?;
+                    }
+                    let (first, last, start, end) = chunk.span;
+                    transaction.prepare_cached("INSERT INTO telemetry_batches VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)")?.execute(
                         params![
-                            id,
+                            prepared.id,
                             index.offset as i64,
                             index.metadata_bytes,
                             index.body_bytes as i64,
@@ -281,28 +528,35 @@ impl Store {
                             last as i64
                         ],
                     )?;
-                    transaction.execute(
-                        "UPDATE telemetry_files SET end=?2,hash_state=?3,batches=?4,length=?2,sha256=?5 WHERE id=?1",
-                        params![id, checkpoint.end as i64, checkpoint.hash, checkpoint.batches as i64, checkpoint.digest()?.as_slice()],
-                    )?;
                 }
+                transaction
+                    .prepare_cached("UPDATE telemetry_files SET end=?2,hash_state=?3,batches=?4,length=?2,sha256=?5 WHERE id=?1")?
+                    .execute(params![
+                    prepared.id,
+                    file.after.end as i64,
+                    file.after.hash,
+                    file.after.batches as i64,
+                    file.after.digest()?.as_slice()
+                ])?;
+                prepared.statistics.save(&transaction, &prepared.id)?;
             }
             Ok(())
         })();
-        if let Err(error) = result {
-            drop(transaction);
-            for (id, checkpoint) in &checkpoints {
-                telemetry.writers.get_mut(id).unwrap().rollback(checkpoint)?;
-            }
-            return Err(error);
+        if let Err(error) = result.and_then(|()| Ok(transaction.commit()?)) {
+            return rollback(telemetry, error);
         }
-        if let Err(error) = transaction.commit() {
-            for (id, checkpoint) in &checkpoints {
-                telemetry.writers.get_mut(id).unwrap().rollback(checkpoint)?;
+        for prepared in &prepared {
+            let pending = telemetry.pending.get_mut(&prepared.key).ok_or(Error::Data("restart after pending samples went missing"))?;
+            for batch in pending.batches.drain(..prepared.batches) {
+                pending.rows -= batch.num_rows();
+                pending.bytes -= bytes(&batch);
             }
-            return Err(error.into());
+            if pending.batches.is_empty() {
+                telemetry.pending.remove(&prepared.key);
+            } else {
+                pending.started = Instant::now();
+            }
         }
-        telemetry.pending.clear();
         self.changed.send_modify(|revision| *revision += 1);
         Ok(())
     }
@@ -381,9 +635,55 @@ fn admit(telemetry: &mut Telemetry, execution: &str, stream: String, codec: Arc<
         bytes: 0,
     });
     pending.rows += batch.num_rows();
-    // Count the Bytes the Rows Use, Not Buffer Capacity, So Small Device Admissions Keep the Byte Bound Meaningful.
-    pending.bytes += batch.columns().iter().map(|column| column.to_data().get_slice_memory_size().unwrap_or_default()).sum::<usize>();
+    pending.bytes += bytes(&batch);
     pending.batches.push(batch);
+}
+
+/// The Bytes a Batch's Rows Use, Not Buffer Capacity, So Small Device Admissions Keep the Byte Bound Meaningful.
+fn bytes(batch: &RecordBatch) -> usize {
+    batch.columns().iter().map(|column| column.to_data().get_slice_memory_size().unwrap_or_default()).sum()
+}
+
+/// Prepare Every Claimed File in Parallel.
+fn prepare(claims: Vec<Claim>, settings: &StorageSettings) -> Result<Vec<Prepared>> {
+    let rows = settings.flush_rows.get();
+    parallel(claims, |claim| claim.prepare(rows)).into_iter().collect()
+}
+
+/// Run `work` Over Every Item on up to the Machine's Parallelism, Returning Results in Item Order.
+fn parallel<T: Send, R: Send>(items: Vec<T>, work: impl Fn(T) -> R + Sync) -> Vec<R> {
+    let threads = std::thread::available_parallelism().map_or(1, |threads| threads.get()).min(items.len());
+    if threads <= 1 {
+        return items.into_iter().map(work).collect();
+    }
+    let next = AtomicUsize::new(0);
+    let slots = items.into_iter().map(|item| Mutex::new((Some(item), None))).collect::<Vec<_>>();
+    std::thread::scope(|scope| {
+        for _ in 0..threads {
+            scope.spawn(|| {
+                while let Some(slot) = slots.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    let item = slot.lock().unwrap_or_else(PoisonError::into_inner).0.take();
+                    if let Some(item) = item {
+                        let result = work(item);
+                        slot.lock().unwrap_or_else(PoisonError::into_inner).1 = Some(result);
+                    }
+                }
+            });
+        }
+    });
+    // A Panicking Worker Panics the Scope, So Every Slot Holds Its Result Here.
+    slots.into_iter().map(|slot| slot.into_inner().unwrap_or_else(PoisonError::into_inner).1.expect("parallel work completed")).collect()
+}
+
+/// The First Position of a Stream's Pending Batches.
+fn head(batches: &[RecordBatch]) -> Result<u64> {
+    let batch = batches.first().ok_or(Error::Data("flush a nonempty sample batch"))?;
+    let storage = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("storage metadata differs"))?;
+    let positions = storage
+        .column_by_name("position")
+        .and_then(|column| column.as_any().downcast_ref::<UInt64Array>())
+        .ok_or(Error::Corrupt("position type differs"))?;
+    positions.values().first().copied().ok_or(Error::Data("flush a nonempty sample batch"))
 }
 
 /// The First and Last Positions and the Earliest and Latest Source Times of a Stored Batch.
@@ -406,3 +706,229 @@ pub(super) fn span(batch: &RecordBatch) -> Result<(u64, u64, i64, i64)> {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::telemetry::{aggregates::Moments, config::storage_defaults, previews::Envelope};
+    use dokime_protocol::model::{Import, Origin, origin};
+    use harmos_protocol::model::StreamDeclaration;
+    use prost_types::{
+        DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
+        field_descriptor_proto::{Label, Type},
+    };
+    use std::{io::Write, num::NonZeroUsize, sync::atomic::AtomicBool};
+
+    const STREAMS: usize = 16;
+    const ROWS: u64 = 37;
+    const ROUNDS: u64 = 40;
+
+    #[derive(Clone, PartialEq, prost::Message)]
+    struct Row {
+        #[prost(uint64, tag = "1")]
+        value: u64,
+    }
+
+    fn stream(index: usize) -> String {
+        format!("stream_{index:02}")
+    }
+
+    fn execution() -> Execution {
+        let types = FileDescriptorSet {
+            file: vec![FileDescriptorProto {
+                name: Some("fixture.proto".into()),
+                package: Some("fixture".into()),
+                syntax: Some("proto3".into()),
+                message_type: vec![DescriptorProto {
+                    name: Some("Row".into()),
+                    field: vec![FieldDescriptorProto {
+                        name: Some("value".into()),
+                        number: Some(1),
+                        label: Some(Label::Optional as i32),
+                        r#type: Some(Type::Uint64 as i32),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        };
+        Execution {
+            identifier: "execution".into(),
+            cycle: "cycle".into(),
+            origin: Some(Origin {
+                kind: Some(origin::Kind::Import(Import::default())),
+            }),
+            catalog: Declarations {
+                types: Some(types),
+                streams: (0..STREAMS)
+                    .map(|index| StreamDeclaration {
+                        id: stream(index),
+                        row: "fixture.Row".into(),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            }
+            .encode_to_vec(),
+            ..Default::default()
+        }
+    }
+
+    /// One Admission Round: `ROWS` Rows per Stream, Interleaved, Each Value Naming Its Round and Row.
+    fn samples(round: u64) -> Vec<Sample> {
+        (0..ROWS * STREAMS as u64)
+            .map(|index| Sample {
+                stream: stream(index as usize % STREAMS),
+                source_ns: (round * ROWS + index / STREAMS as u64) as i64 * 1_000_000,
+                row: Row { value: round * 1_000 + index }.encode_to_vec(),
+                ..Default::default()
+            })
+            .collect()
+    }
+
+    /// Every Admitted Row Is Saved Exactly Once, and Each File's Summary, Chunk Moments and Preview Count It Once.
+    fn require_saved_once(store: &Store, rounds: u64) -> Result<()> {
+        let total = rounds * ROWS * STREAMS as u64;
+        assert_eq!(store.cut("execution")?.frontier, total);
+        let mut positions = store.read("execution")?.samples.iter().map(|sample| sample.position).collect::<Vec<_>>();
+        positions.sort_unstable();
+        assert_eq!(positions, (1..=total).collect::<Vec<_>>());
+        let connection = store.lock()?;
+        let mut files = connection.prepare("SELECT s.file,s.moments,p.payload,(SELECT SUM(rows) FROM telemetry_batches b WHERE b.file=s.file) FROM telemetry_summaries s JOIN telemetry_previews p ON p.file=s.file AND p.field=s.field")?;
+        let files = files
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?, row.get::<_, Vec<u8>>(2)?, row.get::<_, i64>(3)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        assert_eq!(files.len(), STREAMS);
+        for (id, summary, preview, rows) in files {
+            let rows = rows as u64;
+            assert_eq!(rows, rounds * ROWS);
+            assert_eq!(serde_json::from_slice::<Moments>(&summary)?.count, rows);
+            assert_eq!(postcard::from_bytes::<Envelope>(&preview)?.buckets.values().map(|bucket| bucket.count).sum::<u64>(), rows);
+            let mut checkpoints = connection.prepare("SELECT moments FROM telemetry_checkpoints WHERE file=?1")?;
+            let counted = checkpoints
+                .query_map([&id], |row| row.get::<_, Vec<u8>>(0))?
+                .map(|moments| Ok(serde_json::from_slice::<Moments>(&moments?)?.count))
+                .sum::<Result<u64>>()?;
+            assert_eq!(counted, rows);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn streams_open_with_cataloged_files_and_recover_an_uncommitted_open() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        store.create(&execution())?;
+        // A Crash Between Creating a Stream File and Its Catalog Commit Leaves a Header Without an Entry.
+        let codec = {
+            let connection = store.lock()?;
+            store.telemetry.lock().unwrap().codec(&connection, "execution", &stream(0))?
+        };
+        let path = catalog::path(root.path(), &catalog::identifier("execution", &stream(0), &codec.digest))?;
+        std::fs::create_dir_all(path.parent().unwrap())?;
+        drop(ipc::Writer::create(&path, codec.schema.clone())?);
+        store.open_streams("execution", &(0..STREAMS).map(stream).collect::<Vec<_>>())?;
+        let empty: i64 =
+            store.lock()?.query_row("SELECT COUNT(*) FROM telemetry_files WHERE batches=0 AND finalized=0", [], |row| row.get(0))?;
+        assert_eq!(empty as usize, STREAMS);
+        store.sample_batch("execution", &samples(0))?;
+        store.flush_samples()?;
+        // Opening a Stream Again Is Refused Before It Touches Its Saved File.
+        assert!(store.open_stream("execution", &stream(0)).is_err());
+        drop(store);
+        let store = Store::open(root.path())?;
+        require_saved_once(&store, 1)?;
+        store.close_streams("execution")?;
+        for entry in std::fs::read_dir(root.path().join("telemetry"))? {
+            let reader = arrow_ipc::reader::FileReader::try_new(std::fs::File::open(entry?.path())?, None)?;
+            assert_eq!(reader.map(|batch| Ok(batch?.num_rows() as u64)).sum::<Result<u64>>()?, ROWS);
+        }
+        Ok(())
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_due_row_count_flushes_in_the_background_before_the_interval() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let mut settings = storage_defaults();
+        settings.flush_rows = NonZeroUsize::new(16).unwrap();
+        let store = Store::open_with(root.path(), settings)?;
+        store.create(&execution())?;
+        for index in 0..STREAMS {
+            store.open_stream("execution", &stream(index))?;
+        }
+        let admitted = Instant::now();
+        store.sample_batch("execution", &samples(0))?;
+        // Admission Returns Before the Flush; the Background Round Saves the Rows Without Waiting for the Interval.
+        assert_eq!(store.cut("execution")?.frontier, 0);
+        let mut changes = store.subscribe();
+        while store.cut("execution")?.frontier < ROWS * STREAMS as u64 {
+            changes.changed().await.unwrap();
+        }
+        assert!(admitted.elapsed() < settings.flush_interval);
+        store.shutdown_samples().await?;
+        require_saved_once(&store, 1)
+    }
+
+    #[test]
+    fn concurrent_per_stream_flushes_save_each_row_once_and_survive_a_crash() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let mut settings = storage_defaults();
+        settings.flush_rows = NonZeroUsize::new(16).unwrap();
+        let store = Store::open_with(root.path(), settings)?;
+        store.create(&execution())?;
+        for index in 0..STREAMS {
+            store.open_stream("execution", &stream(index))?;
+        }
+        // A Round Whose Claims a Synchronous Flush Saved First Finds Them Stale and Commits Nothing.
+        store.sample_batch("execution", &samples(0))?;
+        let claims = {
+            let connection = store.lock()?;
+            store.telemetry.lock().unwrap().claim(&connection)?
+        };
+        let prepared = prepare(claims, &settings)?;
+        store.flush_samples()?;
+        store.sample_batch("execution", &samples(1))?;
+        assert!(!prepared.iter().any(|prepared| store.telemetry.lock().unwrap().current(prepared)));
+        // Background Rounds Flush All Stream Files in Parallel While Rows and Synchronous Flushes Keep Arriving.
+        let done = AtomicBool::new(false);
+        std::thread::scope(|scope| -> Result<()> {
+            let rounds = scope.spawn(|| -> Result<()> {
+                while !done.load(Ordering::SeqCst) {
+                    store.flush_round()?;
+                }
+                Ok(())
+            });
+            for round in 2..ROUNDS {
+                store.sample_batch("execution", &samples(round))?;
+                if round % 9 == 0 {
+                    store.flush_samples()?;
+                }
+            }
+            done.store(true, Ordering::SeqCst);
+            rounds.join().unwrap()
+        })?;
+        store.flush_round()?;
+        store.flush_samples()?;
+        require_saved_once(&store, ROUNDS)?;
+        // A Crash During an Uncommitted Write Leaves Bytes Past Each File's Saved Prefix.
+        drop(store);
+        for entry in std::fs::read_dir(root.path().join("telemetry"))? {
+            std::fs::OpenOptions::new().append(true).open(entry?.path())?.write_all(b"uncommitted partial batch")?;
+        }
+        let store = Store::open_with(root.path(), settings)?;
+        require_saved_once(&store, ROUNDS)?;
+        store.sample_batch("execution", &samples(ROUNDS))?;
+        store.close_streams("execution")?;
+        drop(store);
+        let store = Store::open_with(root.path(), settings)?;
+        require_saved_once(&store, ROUNDS + 1)?;
+        for entry in std::fs::read_dir(root.path().join("telemetry"))? {
+            let reader = arrow_ipc::reader::FileReader::try_new(std::fs::File::open(entry?.path())?, None)?;
+            assert_eq!(reader.map(|batch| Ok(batch?.num_rows() as u64)).sum::<Result<u64>>()?, (ROUNDS + 1) * ROWS);
+        }
+        Ok(())
+    }
+}
