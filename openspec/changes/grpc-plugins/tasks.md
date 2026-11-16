@@ -132,7 +132,7 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 
 - [x] Merge current dev removals into the protocol convention branch and regenerate remaining contracts without restoring plugin analysis APIs.
 - [x] Merge the dev tooling module split into the protocol convention branch, retain temporary-inventory drift checks and complete contracts archives in their new owners, and regenerate tracked output.
-- [ ] Prove the tooling-layout merge on Windows with format, lint, build, protocol tests, all five generated-language checks, clean-tree drift and protocol/release tooling integration tests.
+- [x] Prove the tooling-layout merge on Windows: format, clean lint, product build, nine protocol tests, all five generated-language checks, clean-tree non-mutating drift and 22 targeted protocol/release tooling integration tests pass. Native Linux and hosted proof remain with integration.
 - [x] Generate SDK drift candidates in disposable temporary storage and compare the complete output inventory without modifying sources; cover clean, changed, missing and obsolete outputs.
 - [x] Export and archive the full Google import closure, licenses and protoc/Buf README; refuse unresolved imports during packaging.
 - [x] Validate the merged protocol candidate on Windows: format, clean lint, workspace build, nine protocol tests, two SDK builder tests, 50 targeted tooling tests, all five generated-language checks, clean-tree non-mutating drift and extracted-archive protoc/Buf compilation. Native Linux and hosted proof remain with integration.
