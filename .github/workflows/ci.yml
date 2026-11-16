@@ -48,6 +48,14 @@ jobs:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
     if: github.event_name != 'pull_request' || github.event.action != 'closed'
+  build_host_fixtures_csharp:
+    name: Build / Host Fixtures / csharp
+    uses: ./.github/workflows/validate-build-tests.yml
+    with:
+      channel: ci
+      profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
+      fixture-language: csharp
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
   build_python:
     name: Build / Python
     uses: ./.github/workflows/validate-build-python.yml
@@ -229,6 +237,32 @@ jobs:
           command: test -- --language rust --layer unit
           bootstrap: '[]'
           archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+  test_host_csharp:
+    name: Test / Execution Host / C# Equivalence
+    uses: ./.github/workflows/validate-test.yml
+    needs:
+    - build_tests
+    - build_host_fixtures_csharp
+    if: (github.event_name != 'pull_request' || github.event.action != 'closed') && github.event_name != 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - platform: unix
+          runner: ubuntu-latest
+        - platform: windows
+          runner: windows-latest
+    with:
+      channel: ci
+      profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
+      platform: ${{ matrix.platform }}
+      runner: ${{ matrix.runner }}
+      work: Rust / System / Execution Host / C# Equivalence
+      command: test -- --artifact tests --package dokime-runtime --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)"
+      bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
+      archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-csharp-{profile}-{platform}.tar.zst"]'
+      minutes: 120
+      suite: execution-host-csharp
   package:
     name: Package
     uses: ./.github/workflows/validate-package.yml
@@ -325,6 +359,8 @@ jobs:
     - build_python
     - check_generated
     - test
+    - build_host_fixtures_csharp
+    - test_host_csharp
     - package
     - release_dry
     - release_rehearsal
@@ -337,12 +373,12 @@ jobs:
     - name: Execution Host Coverage
       shell: python
       run: "import os\nfrom pathlib import Path\nwith Path(os.environ[\"GITHUB_STEP_SUMMARY\"]).open(\"a\", encoding=\"utf-8\") as summary:\n\
-        \    summary.write(\"Execution host: the Rust and Python stories run on Linux and Windows. C# and C++ equivalence stories run in Nightly.\\\
+        \    summary.write(\"Execution host: the Rust and Python stories and the C# equivalence story run on Linux and Windows. The C++ equivalence story runs in Nightly.\\\
         n\")\n"
     - run: mise run ci:required --
       env:
         RESULTS: ${{ toJSON(needs) }}
-        OPTIONAL_JOBS: ${{ github.event_name == 'push' && '["test","package","release_dry","release_rehearsal"]' || (github.event_name == 'pull_request'
+        OPTIONAL_JOBS: ${{ github.event_name == 'push' && '["test","test_host_csharp","package","release_dry","release_rehearsal"]' || (github.event_name == 'pull_request'
           && github.base_ref == 'dev' && startsWith(github.head_ref, 'release/v')) && '[]' || '["release_dry","release_rehearsal"]' }}
     env:
       MISE_ENABLE_TOOLS: python,uv,node,pnpm
