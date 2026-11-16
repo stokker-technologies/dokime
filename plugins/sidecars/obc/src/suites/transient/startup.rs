@@ -16,7 +16,8 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Mutex;
+use std::fs;
+use std::sync::{Mutex, PoisonError};
 
 // Third Party Imports
 
@@ -29,8 +30,6 @@ use crate::streams::measurement;
 use crate::suites::{self, attach, parameters, read_supply, sample_count, supply, timing};
 use dokime::plugin::{Context, Criterion, Record, Step, Template};
 use dokime::{Document, Error, Parameter, Result, Severity};
-use std::fs;
-use std::sync::PoisonError;
 
 /* === Constants === */
 
@@ -91,7 +90,7 @@ pub fn template() -> Template {
             Parameter::flag("continuous", "Observe Until Stopped").default(false).build(),
         ],
     );
-    let template = template
+    template
         .initialize(initialize)
         .step(Step::new("Initialize and Start Charger", setup).identifier("setup"))
         .step(Step::new("Measure Start-Up Inrush", inrush).identifier("inrush"))
@@ -104,8 +103,7 @@ pub fn template() -> Template {
         )
         .cleanup(cleanup)
         .uses_stream(SAMPLES)
-        .document(document());
-    template
+        .document(document())
 }
 
 pub fn document() -> Document {

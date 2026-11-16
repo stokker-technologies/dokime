@@ -144,8 +144,8 @@ impl Bench {
             Some(_) if index == 0 => "start",
             Some((_, total)) if index + 1 == total => "complete",
             Some((checkpoint, _)) if index + 1 == checkpoint => "checkpoint",
-            Some((checkpoint, _)) if index < checkpoint => "before_prompt",
-            Some(_) => "after_prompt",
+            Some((checkpoint, _)) if index < checkpoint => "before_checkpoint",
+            Some(_) => "after_checkpoint",
             None => state.label,
         };
         state.index += 1;

@@ -27,7 +27,7 @@ use crate::records::charger::{self, Completed, Started};
 use crate::streams::measurement;
 use crate::suites::{self, parameters, read_supply, supply, timing};
 use dokime::plugin::{Context, Criterion, Step, Template};
-use dokime::{Document, Parameter, Result};
+use dokime::{Document, Error, Parameter, Result, Value, value};
 
 /* === Constants === */
 
@@ -79,8 +79,25 @@ async fn initialize(ctx: &Context) -> Result<()> {
     Ok(())
 }
 async fn start(ctx: &Context) -> Result<()> {
+    let bench = ctx.get::<Bench>()?;
+    let supply = bench.charger().supply;
+    let number = |value: f64| Value { kind: Some(value::Kind::Number(value)) };
+    let text = |value: &str| Value {
+        kind: Some(value::Kind::Text(value.into())),
+    };
+    // Describe the Device and the Bench
+    suites::trace(ctx, "device.model", "Model", text("Simulated Onboard Charger"), "", "device").await?;
+    suites::trace(ctx, "device.nominal_supply", "Nominal Supply", number(supply.voltage_rms_v), "V", "device").await?;
+    suites::trace(ctx, "device.load_resistance", "Load Resistance", number(supply.load_ohm), "ohm", "device").await?;
+    suites::trace(ctx, "device.load_reactance", "Load Reactance", number(supply.reactance_ohm), "ohm", "device").await?;
+    suites::trace(ctx, "device.phases", "Supply Phases", number(f64::from(supply.phases)), "", "device").await?;
+    suites::trace(ctx, "device.line_frequency", "Line Frequency", number(supply.frequency_hz), "Hz", "device").await?;
+    suites::trace(ctx, "device.protection_limit", "Protection Limit", number(supply.current_limit_a), "A", "device").await?;
+    suites::trace(ctx, "bench.application", "Application", text("Simulated AC Testbench"), "", "bench").await?;
+    suites::trace(ctx, "bench.sample_interval", "Sample Interval", number(bench.step_s()), "s", "bench").await?;
+    // Initialize and Energize the Charger
     ctx.record(&charger::initialized(), charger::Initialized {}).await?;
-    ctx.get::<Bench>()?.start()?;
+    bench.start()?;
     ctx.record(
         &charger::started(),
         Started {
@@ -96,7 +113,29 @@ async fn measure(ctx: &Context) -> Result<()> {
     let settling = bench.samples_for(0.1)?;
     suites::wait(ctx, &bench, settling).await?;
     let samples = bench.samples_for(ctx.parameter("duration_s")?)?;
-    suites::wait(ctx, &bench, samples).await
+    let voltage_rms_v = bench.charger().supply.voltage_rms_v;
+    let event = charger::hold();
+    ctx.record(
+        &event,
+        charger::HoldEvent {
+            event: "hold_started".into(),
+            elapsed_s: bench.now_s(),
+            voltage_rms_v,
+        },
+    )
+    .await?;
+    // Capture the Steady-State Window
+    suites::wait(ctx, &bench, samples).await?;
+    ctx.record(
+        &event,
+        charger::HoldEvent {
+            event: "hold_reached".into(),
+            elapsed_s: bench.now_s(),
+            voltage_rms_v,
+        },
+    )
+    .await?;
+    Ok(())
 }
 async fn inspection(ctx: &Context) -> Result<()> {
     let answer = inspect(ctx, CHECK, "Waveform and Charger Status Indicator Stable").await?;
@@ -107,13 +146,23 @@ async fn inspection(ctx: &Context) -> Result<()> {
         &charger::completed(),
         Completed {
             sample_count: bench.index(),
-            prompt_action: answer.action,
-            operator_note: answer.note,
+            prompt_action: answer.action.clone(),
+            operator_note: answer.note.clone(),
             accepted: answer.accepted && bench.fault().is_none(),
         },
     )
     .await?;
-    Ok(())
+    // Attach the Measurement and Operator Decision
+    let supply = bench.charger().supply;
+    let summary = serde_json::json!({
+        "supply": { "voltage_rms_v": supply.voltage_rms_v, "load_ohm": supply.load_ohm,
+            "reactance_ohm": supply.reactance_ohm, "frequency_hz": supply.frequency_hz,
+            "phases": supply.phases, "current_limit_a": supply.current_limit_a },
+        "sample_count": bench.index(), "prompt_action": answer.action, "operator_note": answer.note, "accepted": answer.accepted,
+    });
+    let bytes = serde_json::to_vec_pretty(&summary)
+        .map_err(|error| Error::Invalid(format!("Attach Steady-State Summary: Correct the Measurement Data: {error}")))?;
+    suites::attach(ctx, "steady-state-summary.json", "application/json", &bytes).await
 }
 async fn efficiency(ctx: &Context) -> Result<bool> {
     let bench = ctx.get::<Bench>()?;

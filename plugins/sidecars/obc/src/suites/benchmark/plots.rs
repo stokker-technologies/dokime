@@ -108,28 +108,23 @@ async fn capture(ctx: &Context) -> Result<()> {
     ctx.record(&charger::started(), charger::Started { note: "Plot Capture Energized".into() }).await?;
     let samples = bench.samples_for(ctx.parameter("duration_s")?)?;
     bench.sequence(samples / 2, samples);
-    suites::wait(ctx, &bench, samples).await?;
+    suites::wait(ctx, &bench, samples).await
+}
+async fn confirmation(ctx: &Context) -> Result<()> {
+    let answer = ctx.host().prompts.create("confirm".into(), "obc.benchmark.plots.confirm".into(), HashMap::new()).await?;
+    let accepted = answer.accepted && answer.action == "yes";
+    let bench = ctx.get::<Bench>()?;
     ctx.record(
         &charger::completed(),
         charger::Completed {
             sample_count: bench.index(),
-            prompt_action: String::new(),
+            prompt_action: answer.action,
             operator_note: String::new(),
-            accepted: bench.fault().is_none(),
+            accepted: accepted && bench.fault().is_none(),
         },
     )
     .await?;
-    Ok(())
-}
-async fn confirmation(ctx: &Context) -> Result<()> {
-    let answer = ctx.host().prompts.create("confirm".into(), "obc.benchmark.plots.confirm".into(), HashMap::new()).await?;
-    ctx.record(
-        &contracts(),
-        PlotConfirmation {
-            accepted: answer.accepted && answer.action == "yes",
-        },
-    )
-    .await?;
+    ctx.record(&contracts(), PlotConfirmation { accepted }).await?;
     Ok(())
 }
 async fn captured(ctx: &Context) -> Result<bool> {

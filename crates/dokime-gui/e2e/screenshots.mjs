@@ -311,11 +311,12 @@ try {
 
   // Materialize A Real Bench Case With Finite Paced Measurements.
   const catalog = await call(session, "Suites", "List", {});
-  const suite = catalog.values.find((row) => row.metadata.label === "Benchmark");
-  assert.ok(suite, "The bench plugin registers its startup suite");
+  const suite = catalog.values.find((row) => row.metadata.identifier === "obc.benchmark");
+  assert.ok(suite, "Load Benchmark Catalog: Install the Prepared OBC Plugin");
   const definition = await call(session, "Suites", "Get", { name: suite.metadata.identifier }).then((reply) => reply.value);
   await writeFile(join(evidence, "suite.json"), JSON.stringify(definition, null, 2));
-  const template = definition.templates.find((row) => row.metadata.label === "Plot Families");
+  const template = definition.templates.find((row) => row.metadata.identifier === "obc.benchmark.plots");
+  assert.ok(template, "Load Plot Template: Rebuild the Prepared OBC Plugin");
 
   // The Library Has No Execution Prerequisite.
   if (options.scene === "library") {

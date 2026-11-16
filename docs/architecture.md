@@ -919,6 +919,8 @@ RMS quantities and three times the single-phase real power; DC power follows tot
 input and conversion efficiency. Overvoltage and overcurrent both latch protection
 and refuse restart. Plot families and the thermal survey belong to the plot
 benchmark; exact unsigned meter values belong to their independent benchmark.
+Steady-state executions retain supply hold events, device/bench traceability and
+summary artifacts. Plot completion records include the operator decision.
 The retired recovery/check suites and plugin analysis registration have no aliases.
 Today's SDK lifecycle verbs remain unchanged.
 

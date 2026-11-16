@@ -22,15 +22,15 @@ pub mod transient;
 // Standard Library Imports
 
 // Third Party Imports
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::device::Bench;
 use crate::device::Supply;
 use crate::settings;
 use dokime::Error;
-use dokime::plugin::{Context, Suite, Template};
-use dokime::{FileMetadata, Parameter, Result};
-use sha2::{Digest, Sha256};
+use dokime::plugin::{Context, HostEvidenceTraceabilityGetOptions, Suite, Template};
+use dokime::{FileMetadata, Metadata, Parameter, Result, TraceabilityEntry, Value};
 
 /* === Constants === */
 
@@ -152,6 +152,24 @@ pub async fn attach(ctx: &Context, filename: &str, content_type: &str, bytes: &[
     let published = uploads.publish(upload, bytes.len() as u64, sha256).await?;
     let file = published.upload.ok_or_else(|| Error::Invalid(format!("Attach {filename}: Missing Published File")))?;
     ctx.host().content.artifacts.create(file, filename.into(), content_type.into()).await?;
+    Ok(())
+}
+
+/// Replace One Execution Traceability Entry at Its Current Revision.
+pub async fn trace(ctx: &Context, id: &str, label: &str, value: Value, unit: &str, source: &str) -> Result<()> {
+    let traceability = ctx.host().evidence.traceability;
+    let options = HostEvidenceTraceabilityGetOptions {
+        entry: Some(id.into()),
+        ..Default::default()
+    };
+    let current = traceability.get_with(options).await?;
+    let entry = TraceabilityEntry {
+        metadata: Some(Metadata::new(id, label)),
+        value: Some(value),
+        source: source.into(),
+        unit: unit.into(),
+    };
+    traceability.set(entry, current.revision, id.into()).await?;
     Ok(())
 }
 

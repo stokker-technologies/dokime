@@ -532,6 +532,7 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
   - [x] Keep execution-owned benches, synchronization and model clocks private in `device/`; compose global modules through `catalog()` and own each complete template in its suite slice.
   - [x] Replace the old suites with `steady_state` (single/three phase with resistance, reactance, efficiency and power factor), `transient` (startup, overcurrent and overvoltage) and independent stream/plot/observer/exact-value benchmarks. Remove recovery/checks and OBC analysis registration; migrate identifiers and consumers without aliases.
   - [x] Add owned number/count/flag/sweep/list, line plot and card builder values across Rust, Python, C# and C++; replace the OBC guide with the existing project authoring skill's canonical layout and per-language guidance.
+  - [x] Preserve steady-state traceability, supply hold records and summary artifacts in both phase templates; retain scoped operator decisions in plot completion records.
   - [ ] Complete the requested OBC build, OBC integration tests, packaged runtime story, SDK builder tests and clean lint proof on the combined candidate.
 - [ ] Re-author storage/plot benchmarks on the remaining host/storage and restore their Nightly producer and suite selections.
 - [ ] Restore the desktop to the workspace when its switch merges.

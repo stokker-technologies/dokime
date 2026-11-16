@@ -149,7 +149,10 @@ impl Charger {
     /// Energize the Supply; a Latched Fault Refuses the Restart.
     pub fn start(&mut self, at_s: f64) -> Result<()> {
         if let Some(fault) = self.fault {
-            return Err(Error::Invalid(format!("Start Charger: Clear the Latched {} Fault First", fault.name())));
+            return Err(Error::Invalid(format!(
+                "Start Charger: Restore a Safe Supply and Initialize a New Charger After the Latched {} Fault",
+                fault.name()
+            )));
         }
         self.power = Power::Running;
         self.energized_s = at_s;

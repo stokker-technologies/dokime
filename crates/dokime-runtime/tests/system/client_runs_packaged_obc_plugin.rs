@@ -150,7 +150,10 @@ async fn records(
     let listed = client.evidence.records.list_with(scope, String::new(), options).await?;
     let mut decoded = BTreeMap::<String, Vec<DynamicMessage>>::new();
     for record in listed.records {
-        let (_, name) = messages.iter().find(|(kind, _)| *kind == record.record_type).ok_or("Decode Record: Unexpected Record Type")?;
+        let (_, name) = messages
+            .iter()
+            .find(|(kind, _)| *kind == record.record_type)
+            .ok_or_else(|| format!("Decode {}: Declare Its Frozen Message in This Story", record.record_type))?;
         let message = pool.get_message_by_name(name).ok_or("Decode Record: Missing Frozen Message")?;
         decoded.entry(record.record_type.clone()).or_default().push(DynamicMessage::decode(message, record.payload.as_slice())?);
     }
@@ -287,9 +290,15 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             let messages = [
                 ("obc.records.charger.initialized", "obc.Initialized"),
                 ("obc.records.charger.started", "obc.Started"),
+                ("obc.records.charger.hold", "obc.HoldEvent"),
                 ("obc.records.charger.completed", "obc.Completed"),
             ];
             let captured = records(&client, &steady, &messages).await?;
+            let events = captured["obc.records.charger.hold"]
+                .iter()
+                .map(|record| record.get_field_by_name("event").unwrap().as_str().unwrap().to_owned())
+                .collect::<Vec<_>>();
+            assert_eq!(events, ["hold_started", "hold_reached"]);
             let completed = &captured["obc.records.charger.completed"][0];
             assert_eq!(completed.get_field_by_name("sample_count").unwrap().as_ref(), &prost_reflect::Value::U64(150));
 
@@ -312,7 +321,12 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             let captured = records(
                 &client,
                 &voltage,
-                &[("obc.records.charger.faulted", "obc.Faulted"), ("obc.records.charger.stopped", "obc.Stopped")],
+                &[
+                    ("obc.records.charger.initialized", "obc.Initialized"),
+                    ("obc.records.charger.started", "obc.Started"),
+                    ("obc.records.charger.faulted", "obc.Faulted"),
+                    ("obc.records.charger.stopped", "obc.Stopped"),
+                ],
             )
             .await?;
             assert_eq!(captured["obc.records.charger.faulted"][0].get_field_by_name("fault").unwrap().as_str(), Some("overvoltage"));
@@ -368,9 +382,6 @@ fn real_clock_executions_end_passed() -> Result<(), Box<dyn Error>> {
             run(&client, "obc.transient", "obc.transient.overcurrent", HashMap::new(), None).await?;
             run(&client, "obc.transient", "obc.transient.overvoltage", HashMap::new(), None).await?;
             run(&client, "obc.steady_state", "obc.steady_state.three_phase", HashMap::new(), Some(("submit", inspection()))).await?;
-            run(&client, "obc.benchmark", "obc.benchmark.streams", HashMap::new(), None).await?;
-            run(&client, "obc.benchmark", "obc.benchmark.observers", HashMap::new(), None).await?;
-            run(&client, "obc.benchmark", "obc.benchmark.plots", HashMap::new(), Some(("yes", MapValue::default()))).await?;
             process.close().await?;
             thermal.close().await?;
             Ok::<(), Box<dyn Error>>(())

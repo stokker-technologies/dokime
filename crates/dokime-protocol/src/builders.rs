@@ -24,10 +24,9 @@ use std::ops::{Bound, Deref, DerefMut, RangeBounds};
 
 // Local Imports
 use crate::model::{
-    self, Aggregate, AggregateExpression, Card, DataExpression, Document, EvidenceCard, FieldReference, Metadata,
-    ParameterExpression, ParameterExpressions, ParameterExpansion, PlotKind, ReferenceBand, ReferenceLine, Section,
-    Summary, SummaryTile, TransformExpression, Value, ValueList, ValueType, card, data_expression,
-    parameter_expression, parameter_expansion, transform_expression, value,
+    self, Aggregate, AggregateExpression, Card, DataExpression, Document, EvidenceCard, FieldReference, Metadata, ParameterExpansion,
+    ParameterExpression, ParameterExpressions, PlotKind, ReferenceBand, ReferenceLine, Section, Summary, SummaryTile, TransformExpression,
+    Value, ValueList, ValueType, card, data_expression, parameter_expansion, parameter_expression, transform_expression, value,
 };
 
 /* === Constants === */

@@ -7,7 +7,7 @@
  * ***
  */
 
-// Charger Protection: Step the Load Until the Overvoltage Latch Opens the Supply
+// Charger Protection: Step the Voltage Until the Overvoltage Latch Opens the Supply
 
 /* === Modules === */
 
@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, PoisonError};
 
 // Third Party Imports
 
@@ -29,7 +29,6 @@ use crate::records::charger::{self, Faulted, Initialized, Started, Stopped};
 use crate::streams::measurement;
 use dokime::plugin::{Context, Criterion, Step, Template};
 use dokime::{Document, Parameter, Result, Severity};
-use std::sync::{Arc, PoisonError};
 
 /* === Constants === */
 
@@ -68,7 +67,7 @@ pub fn template() -> Template {
         template,
         [Parameter::numbers("voltage_steps_v", "Voltage Steps", [230.0, 260.0, 290.0]).unit("V").items(1..=16).build()],
     );
-    let template = parameters(template, timing("Observation Duration per Load Step", 0.02))
+    parameters(template, timing("Observation Duration per Voltage Step", 0.02))
         .initialize(initialize)
         .step(Step::new("Initialize and Start Charger", setup).identifier("setup"))
         .step(Step::new("Walk the Voltage Ladder", overload).identifier("overload"))
@@ -80,8 +79,7 @@ pub fn template() -> Template {
         )
         .cleanup(cleanup)
         .uses_stream(SAMPLES)
-        .document(document());
-    template
+        .document(document())
 }
 
 pub fn document() -> Document {

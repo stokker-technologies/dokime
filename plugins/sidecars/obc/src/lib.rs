@@ -71,6 +71,8 @@ pub fn plugin() -> Result<Plugin<impl DeclarationTypes>> {
         HostOperation::EvidenceRecordsList,
         HostOperation::EvidenceStatistics,
         HostOperation::EvidenceLogsAppend,
+        HostOperation::EvidenceTraceabilityGet,
+        HostOperation::EvidenceTraceabilitySet,
         HostOperation::ExecutionsProgressGet,
         HostOperation::ExecutionsProgressSet,
         HostOperation::FilesUploadsCreate,

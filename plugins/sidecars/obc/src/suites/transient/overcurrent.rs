@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, PoisonError};
 
 // Third Party Imports
 
@@ -29,7 +29,6 @@ use crate::records::charger::{self, Faulted, Initialized, Started, Stopped};
 use crate::streams::measurement;
 use dokime::plugin::{Context, Criterion, Step, Template};
 use dokime::{Document, Parameter, Result, Severity};
-use std::sync::{Arc, PoisonError};
 
 /* === Constants === */
 
@@ -66,7 +65,7 @@ pub fn template() -> Template {
     let template = parameters(template, supply());
     let template =
         parameters(template, [Parameter::numbers("load_steps_ohm", "Load Steps", [100.0, 50.0, 10.0]).unit("ohm").items(1..=16).build()]);
-    let template = parameters(template, timing("Observation Duration per Load Step", 0.02))
+    parameters(template, timing("Observation Duration per Load Step", 0.02))
         .initialize(initialize)
         .step(Step::new("Initialize and Start Charger", setup).identifier("setup"))
         .step(Step::new("Walk the Load Ladder", overload).identifier("overload"))
@@ -78,8 +77,7 @@ pub fn template() -> Template {
         )
         .cleanup(cleanup)
         .uses_stream(SAMPLES)
-        .document(document());
-    template
+        .document(document())
 }
 
 pub fn document() -> Document {

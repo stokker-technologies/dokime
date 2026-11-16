@@ -68,6 +68,15 @@ pub struct Stopped {
     pub tripped_at_step: u64,
 }
 
+/// The Supply at the Start and End of a Steady-State Hold.
+#[derive(dokime::Record)]
+#[harmos(package = "obc")]
+pub struct HoldEvent {
+    pub event: String,
+    pub elapsed_s: f64,
+    pub voltage_rms_v: f64,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -78,7 +87,7 @@ pub struct Stopped {
 
 /// Shared Charger Events Used by Several Templates.
 pub fn catalog<C: DeclarationTypes>(plugin: Plugin<C>) -> Plugin<impl DeclarationTypes> {
-    plugin.record(initialized()).record(started()).record(completed()).record(faulted()).record(stopped())
+    plugin.record(initialized()).record(started()).record(completed()).record(faulted()).record(stopped()).record(hold())
 }
 pub fn initialized() -> Record<Initialized> {
     Record::new("obc.records.charger.initialized", "Charger Initialized")
@@ -94,6 +103,10 @@ pub fn faulted() -> Record<Faulted> {
 }
 pub fn stopped() -> Record<Stopped> {
     Record::new("obc.records.charger.stopped", "Charger Disconnected")
+}
+
+pub fn hold() -> Record<HoldEvent> {
+    Record::new("obc.records.charger.hold", "Supply Hold Event")
 }
 
 /// Decode the Last Record of a Type, Optionally Within One Step.
