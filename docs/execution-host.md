@@ -100,12 +100,21 @@ connections survive and fresh pairings authorize them. New connections trust the
 certificate. Listener settings no longer belong to product application preferences.
 Dokime implements the library CredentialStore with atomic revision checks in product
 storage and private keys in the OS credential store. The library is the sole writer.
-Linux host-process stories retain one isolated credential-store session across restart.
-Windows stories remove their root's protected access and secret slots before deleting
-temporary storage, including during failure unwinding. Explicit root disposal uses
-`services::remove_credentials(root)` after stopping the host; it retains evidence
-and refuses an occupied root. The host executable exposes the same operation as
-`--storage PATH --remove-credentials`. Ordinary shutdown preserves credentials for restart.
+Every native credential the host owns lives under its credential namespace
+(`HostSettings::credentials`, `CredentialNamespace`, default `dokime`): the services are
+`<namespace>.root`, `<namespace>.access` and `<namespace>.shared-secrets`, and a plugin's
+declared secret identifier stays the stored identifier inside it. The host executable
+takes `--credential-namespace NAME`, the CLI the global `--credential-namespace NAME` or
+`credential_namespace` in its configuration, and the desktop `DOKIME_CREDENTIAL_NAMESPACE`.
+Stories never use the default: each story process, Python story host, end-to-end run and
+benchmark run picks its own unique namespace and removes only the entries its own roots
+created inside it. Linux host-process stories also retain one isolated credential-store
+session across restart. Windows stories remove their root's protected access and secret
+slots before deleting temporary storage, including during failure unwinding. Explicit
+root disposal uses `services::remove_credentials(root, namespace)` after stopping the
+host; it retains evidence and refuses an occupied root. The host executable exposes the
+same operation as `--storage PATH --remove-credentials` with the namespace the root ran
+under. Ordinary shutdown preserves credentials for restart.
 Runtime stories own their Tokio runtime through `tests/support/credentials.rs::run`.
 An occupied temporary root is retained until runtime teardown has cancelled its
 detached work; credential removal and root disposal then run outside that runtime.
@@ -398,6 +407,7 @@ page_items = 1000
 capture_roots = ["D:/bench/device"]
 capture_files = 64
 capture_bytes = 268435456
+credential_namespace = "dokime"
 captures = 256
 ```
 
@@ -697,7 +707,7 @@ Product builds, fixtures, native stories and both WebView lanes include it.
 
 ## Final Library Definition Contract
 
-The definitions pin Harmos at `a14c724f522b56f1770a1d4328c29f4d3a69a9e5`.
+The definitions pin Harmos at `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`.
 
 ```text
 proto/dokime/
@@ -782,7 +792,7 @@ carried by the merge and are not consumer work to reimplement.
 The first column is the pre-pin wire identity or hand-bound context identity.
 Library composition rows name the library operation directly, without forwarding.
 The complete library identity/type mapping is in the pinned
-[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/a14c724f522b56f1770a1d4328c29f4d3a69a9e5/docs/architecture.md).
+[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/640c73959d2a5ee65015afc617c0f3f2b4ca9f6c/docs/architecture.md).
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |

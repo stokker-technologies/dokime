@@ -79,6 +79,7 @@ fn process_interruption() -> Result<(), Box<dyn Error>> {
             let mut child = Command::from(dokime_runtime::process::command(std::env::current_exe()?))
                 .args(["--exact", "process_interruption::process_interruption", "--nocapture"])
                 .env("DOKIME_INTERRUPTION_CHILD", root.path())
+                .env("DOKIME_CREDENTIAL_NAMESPACE", super::support::namespace().as_str())
                 .env("DOKIME_INTERRUPTION_ENDPOINT", plugin.endpoint())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::inherit())

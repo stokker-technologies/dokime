@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { appendFile, cp, mkdir, mkdtemp, open, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 
 import net from "node:net";
+import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 
 import { basename, dirname, join, resolve } from "node:path";
@@ -52,6 +53,9 @@ const obcExecutable = join(built, `fixtures/host/plugin-obc${executableSuffix}`)
 const credentialHost =
   process.env.DOKIME_HOST_FIXTURE ?? join(built, `${profile === "bench" ? "bin/" : "fixtures/host/"}dokime-host${executableSuffix}`);
 const windows = process.platform === "win32";
+// Every Host, Desktop and Cleanup of This Run Keeps Credentials in the Run's Own Namespace; Children Inherit It.
+const credentialNamespace = process.env.DOKIME_CREDENTIAL_NAMESPACE ?? `dokime-story-${randomUUID().replaceAll("-", "")}`;
+process.env.DOKIME_CREDENTIAL_NAMESPACE = credentialNamespace;
 const syntheticKeys = process.env.DOKIME_E2E_SYNTHETIC_KEYS === "1";
 const WEBDRIVER_KEYS = { Enter: "\uE007", Escape: "\uE00C", Tab: "\uE004", Control: "\uE009", Backspace: "\uE003", End: "\uE010" };
 const STARTUP_PROMPT = "Is the Door Closed?";
@@ -174,19 +178,32 @@ async function startBackendMeasured(
   }
   const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
   const log = await open(join(evidence, `${label}.log`), "w");
-  const child = spawn(backendBinary, ["server", "--controlled-clock", "--endpoint", `127.0.0.1:${port}`, "--storage", dataRoot], {
-    cwd: work,
-    detached: !windows,
-    windowsHide: true,
-    env: {
-      ...process.env,
-      DOKIME_TEST_HUB_OPERATOR: "Gate Operator",
-      ...environment,
-      ...scratchEnvironment,
-      ...(!windows ? { HOME: work } : {}),
+  const child = spawn(
+    backendBinary,
+    [
+      "--credential-namespace",
+      credentialNamespace,
+      "server",
+      "--controlled-clock",
+      "--endpoint",
+      `127.0.0.1:${port}`,
+      "--storage",
+      dataRoot,
+    ],
+    {
+      cwd: work,
+      detached: !windows,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        DOKIME_TEST_HUB_OPERATOR: "Gate Operator",
+        ...environment,
+        ...scratchEnvironment,
+        ...(!windows ? { HOME: work } : {}),
+      },
+      stdio: ["pipe", log.fd, log.fd],
     },
-    stdio: ["pipe", log.fd, log.fd],
-  });
+  );
   child.on("error", (error) => {
     child.startupError = error;
   });
@@ -1767,7 +1784,10 @@ async function discardHostCredentials(root) {
   while (pending.length) {
     const directory = pending.pop();
     if (existsSync(join(directory, "backend-id"))) {
-      await executeFile(credentialHost, ["--storage", directory, "--remove-credentials"], { windowsHide: true, timeout: WAIT_MS });
+      await executeFile(credentialHost, ["--credential-namespace", credentialNamespace, "--storage", directory, "--remove-credentials"], {
+        windowsHide: true,
+        timeout: WAIT_MS,
+      });
     }
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       if (entry.isDirectory()) pending.push(join(directory, entry.name));

@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -107,6 +108,8 @@ def scratch(environment: dict[str, str] | None, reports: Path) -> Generator[dict
     with temporary.directory() as root:
         child_environment = dict(os.environ if environment is None else environment)
         child_environment.update({name: str(root) for name in ("TEMP", "TMP", "TMPDIR")})
+        # Every Native Child of This Run Keeps Its Credentials in the Run's Own Namespace, Which Cleanup Removes.
+        child_environment["DOKIME_CREDENTIAL_NAMESPACE"] = f"dokime-run-{uuid.uuid4().hex}"
         try:
             yield child_environment
         finally:
@@ -121,7 +124,14 @@ def scratch(environment: dict[str, str] | None, reports: Path) -> Generator[dict
                         if host is None:
                             raise RuntimeError("Missing Prepared Host")
                         subprocess.run(
-                            [str(host), "--storage", str(identity.parent), "--remove-credentials"],
+                            [
+                                str(host),
+                                "--storage",
+                                str(identity.parent),
+                                "--credential-namespace",
+                                child_environment["DOKIME_CREDENTIAL_NAMESPACE"],
+                                "--remove-credentials",
+                            ],
                             env=child_environment,
                             check=True,
                             creationflags=spawn_flags(),

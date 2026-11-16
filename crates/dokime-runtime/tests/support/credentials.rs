@@ -208,6 +208,23 @@ impl Drop for CredentialStore {
 
 /* === Public Functions === */
 
+/// This Story's Own Credential Namespace, So Stories Never Touch the Operator's Credentials.
+///
+/// Each story runs in its own process; its roots' credentials are removed inside this namespace only.
+/// A story's child process inherits the namespace through `DOKIME_CREDENTIAL_NAMESPACE`.
+pub fn namespace() -> dokime_runtime::CredentialNamespace {
+    static NAMESPACE: std::sync::OnceLock<dokime_runtime::CredentialNamespace> = std::sync::OnceLock::new();
+    NAMESPACE
+        .get_or_init(|| {
+            let namespace = std::env::var("DOKIME_CREDENTIAL_NAMESPACE").unwrap_or_else(|_| {
+                let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+                format!("dokime-story-{}-{unique}", std::process::id())
+            });
+            dokime_runtime::CredentialNamespace::new(namespace).expect("Name the Story Credential Namespace")
+        })
+        .clone()
+}
+
 pub fn run<T>(story: std::pin::Pin<Box<impl std::future::Future<Output = T>>>) -> T {
     let roots = Arc::new(Mutex::new(Vec::new()));
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
@@ -257,7 +274,7 @@ fn remove_credentials(root: &Path, runtime_closed: bool) -> Result<(), Box<dyn E
             lease.try_lock()?;
         }
         drop(lease);
-        dokime_runtime::services::remove_credentials(root)?;
+        dokime_runtime::services::remove_credentials(root, &namespace())?;
     }
     for entry in std::fs::read_dir(root)? {
         let entry = entry?;

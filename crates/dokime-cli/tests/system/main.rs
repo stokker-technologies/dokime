@@ -118,7 +118,8 @@ fn command() -> tokio::process::Command {
         .map(PathBuf::from)
         .unwrap_or_else(|| root().join("target/debug").join(format!("dokime{}", std::env::consts::EXE_SUFFIX)));
     let mut command = tokio::process::Command::from(dokime_runtime::process::command(executable));
-    command.kill_on_drop(true);
+    // Every CLI Invocation of a Story Keeps Its Credentials in the Story's Own Namespace.
+    command.args(["--credential-namespace", credentials::namespace().as_str()]).kill_on_drop(true);
     command
 }
 

@@ -239,7 +239,7 @@ fn client_collects_backend_diagnostics() -> Result<(), Box<dyn Error>> {
             let incompatible = super::support::tempdir()?;
             std::fs::write(incompatible.path().join("existing-data"), b"preserve")?;
             let output = Command::from(dokime_runtime::process::command(super::support::host_fixture()?))
-                .args(["--endpoint", "127.0.0.1:0", "--storage"])
+                .args(["--credential-namespace", super::support::namespace().as_str(), "--endpoint", "127.0.0.1:0", "--storage"])
                 .arg(incompatible.path())
                 .output()
                 .await?;

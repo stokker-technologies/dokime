@@ -52,7 +52,8 @@ class DesktopBench(unittest.TestCase):
 
             def remove(command, **options):
                 self.assertEqual(Path(command[0]), host)
-                self.assertEqual(command[1::2], ["--storage", "--remove-credentials"])
+                self.assertEqual(command[1::2], ["--storage", "--credential-namespace", "--remove-credentials"])
+                self.assertEqual(command[4], options["env"]["DOKIME_CREDENTIAL_NAMESPACE"])
                 root = Path(command[2])
                 self.assertTrue((root / "backend-id").is_file())
                 cleaned.append(root)

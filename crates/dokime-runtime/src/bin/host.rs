@@ -64,6 +64,7 @@ async fn main() -> Result<(), Box<dyn StdError>> {
     let mut remove_credentials = false;
     let mut capture = dokime_runtime::CaptureSettings::default();
     let mut environment = None;
+    let mut credentials = dokime_runtime::CredentialNamespace::default();
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "--endpoint" => endpoint = Some(arguments.next().ok_or("Start Host: Supply --endpoint HOST:PORT")?.parse()?),
@@ -71,6 +72,10 @@ async fn main() -> Result<(), Box<dyn StdError>> {
             "--controlled-clock" => controlled = true,
             "--capture-root" => capture.roots.push(PathBuf::from(arguments.next().ok_or("Start Host: Supply --capture-root PATH")?)),
             "--remove-credentials" => remove_credentials = true,
+            "--credential-namespace" => {
+                credentials =
+                    dokime_runtime::CredentialNamespace::new(arguments.next().ok_or("Start Host: Supply --credential-namespace NAME")?)?
+            }
             "--env-file" => environment = Some(PathBuf::from(arguments.next().ok_or("Start Host: Supply --env-file PATH")?)),
             _ => return Err(format!("Start Host: Unknown Argument {argument}").into()),
         }
@@ -83,12 +88,13 @@ async fn main() -> Result<(), Box<dyn StdError>> {
         .with_default_directive(tracing::level_filters::LevelFilter::INFO.into())
         .parse(directives)?;
     if remove_credentials {
-        services::remove_credentials(&root)?;
+        services::remove_credentials(&root, &credentials)?;
         return Ok(());
     }
     let endpoint = endpoint.ok_or("Start Host: Supply --endpoint HOST:PORT")?;
     let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
     let host_settings = HostSettings {
+        credentials,
         storage: dokime_storage::storage_defaults(),
         clock,
         placement: PlacementSettings {

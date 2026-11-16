@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 // Local Imports
+use super::super::credentials::CredentialNamespace;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::model;
 use harmos_protocol::host::PluginEntry;
@@ -45,7 +46,8 @@ use dokime_storage::Store;
 
 /* === Constants === */
 
-const SERVICE: &str = "dokime.shared-secrets";
+/// The Credential Owner Name of Shared Secrets Inside the Host's Namespace.
+const OWNER: &str = "shared-secrets";
 const CATALOG_ITEMS: usize = 1024;
 const SECRET_BYTES: usize = 65536;
 const DOCUMENT_BYTES: usize = 524288;
@@ -131,7 +133,7 @@ pub(crate) enum Reply {
 
 /* === Public Functions === */
 
-pub fn remove_root_secrets(store: &Store) -> Result<()> {
+pub fn remove_root_secrets(store: &Store, namespace: &CredentialNamespace) -> Result<()> {
     let catalog: Catalog = store.administration("secrets")?.unwrap_or_default();
     let journal: KeySlots = store.administration("secret-key-slots")?.unwrap_or_default();
     // A Copied Root Names Another Root's Credentials; Never Delete Those.
@@ -147,7 +149,7 @@ pub fn remove_root_secrets(store: &Store) -> Result<()> {
         .chain(journal.slots.iter().map(|slot| format!("{}:{slot}", journal.host_id)))
         .collect();
     for account in accounts {
-        let entry = super::super::credentials::Entry::new(SERVICE, &account).map_err(|_| unavailable())?;
+        let entry = super::super::credentials::Entry::new(&namespace.service(OWNER), &account).map_err(|_| unavailable())?;
         match entry.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => {}
             Err(_) => return Err(unavailable()),
@@ -238,7 +240,8 @@ fn value(value: &str) -> Result<()> {
     Ok(())
 }
 fn entry(context: &Context, slot: &str) -> Result<super::super::credentials::Entry> {
-    super::super::credentials::Entry::new(SERVICE, &format!("{}:{slot}", context.host.identity().backend_id)).map_err(|_| unavailable())
+    let service = context.host.credential_namespace().service(OWNER);
+    super::super::credentials::Entry::new(&service, &format!("{}:{slot}", context.host.identity().backend_id)).map_err(|_| unavailable())
 }
 fn lookup(context: &Context, catalog: &Catalog, id: &str) -> Result<Zeroizing<String>> {
     identifier(id)?;
@@ -535,11 +538,12 @@ fn run(context: &Context, action: Action, plugins: &[PluginEntry]) -> Result<Rep
         return Err(Error::Conflict("Secret Storage: Refresh the Secret Catalog Before Saving This Change".into()));
     }
     let mut cleanup_pending = false;
+    let service = context.host.credential_namespace().service(OWNER);
     journal.slots.retain(|slot| {
         if next.entries.iter().any(|next| &next.slot == slot) {
             return true;
         }
-        let removed = super::super::credentials::Entry::new(SERVICE, &format!("{}:{slot}", journal.host_id))
+        let removed = super::super::credentials::Entry::new(&service, &format!("{}:{slot}", journal.host_id))
             .and_then(|entry| entry.delete_credential());
         if matches!(removed, Ok(()) | Err(keyring::Error::NoEntry)) {
             return false;
@@ -558,9 +562,14 @@ fn run(context: &Context, action: Action, plugins: &[PluginEntry]) -> Result<Rep
 
 #[cfg(test)]
 mod tests {
-    use super::{Catalog, KeySlots, Slot, remove_root_secrets};
+    use super::{Catalog, CredentialNamespace, KeySlots, Slot, remove_root_secrets};
     use crate::Error;
     use dokime_storage::Store;
+
+    /// Refusals Never Reach the Native Store; a Process-Unique Namespace Still Keeps the Tests Off Real Entries.
+    fn namespace() -> CredentialNamespace {
+        CredentialNamespace::new(format!("dokime-unit-{}", std::process::id())).unwrap()
+    }
 
     #[test]
     fn a_copied_root_never_removes_the_original_roots_credentials() {
@@ -573,7 +582,7 @@ mod tests {
             entries: vec![Slot { metadata: None, slot: "slot".into() }],
         };
         store.save_administration("secrets", &catalog).unwrap();
-        let refused = remove_root_secrets(&store).unwrap_err();
+        let refused = remove_root_secrets(&store, &namespace()).unwrap_err();
         assert!(matches!(refused, Error::Precondition(_)), "{refused}");
         assert_eq!(store.administration::<Catalog>("secrets").unwrap(), Some(catalog));
 
@@ -584,7 +593,7 @@ mod tests {
             slots: vec!["slot".into()],
         };
         store.save_administration("secret-key-slots", &journal).unwrap();
-        assert!(matches!(remove_root_secrets(&store), Err(Error::Precondition(_))));
+        assert!(matches!(remove_root_secrets(&store, &namespace()), Err(Error::Precondition(_))));
         assert_eq!(store.administration::<KeySlots>("secret-key-slots").unwrap(), Some(journal));
     }
 }

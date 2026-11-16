@@ -19,7 +19,7 @@ pub mod thermal;
 
 /* === Re-Exports === */
 
-pub use credentials::{CredentialStore, run, tempdir};
+pub use credentials::{CredentialStore, namespace, run, tempdir};
 pub use settings::{OPERATION_TIMEOUT, SYSTEM_HANG_GUARD, settings};
 
 /* === Imports === */

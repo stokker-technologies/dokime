@@ -34,6 +34,7 @@ mod streams;
 pub use capabilities::ExecutionCapabilities;
 pub use clock::{ControlledClock, SchedulerClock};
 pub use documents::{FixedSnapshot, RenderSettings, RenderedDocument};
+pub use dokime_operations::host::credentials::CredentialNamespace;
 pub use dokime_operations::host::files::captures::CaptureSettings;
 pub use dokime_storage::{StorageSettings, storage_defaults};
 pub use error::Error;

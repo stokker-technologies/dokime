@@ -14,6 +14,7 @@ import asyncio
 import os
 import platform
 import sys
+import uuid
 from asyncio.subprocess import Process
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -39,6 +40,8 @@ from dokime.connection import connect
 class Host:
     def __init__(self) -> None:
         self.root = TemporaryDirectory(prefix="dokime-sdk-host-", delete=False)
+        # The Host Keeps Its Credentials in This Story's Own Namespace, Which Cleanup Removes.
+        self.credentials = f"dokime-story-{uuid.uuid4().hex}"
         self.children: list[Process] = []
         self._client: Client | None = None
         self.process: Process | None = None
@@ -131,6 +134,8 @@ class Host:
         host.binary = binary
         host.process = await asyncio.create_subprocess_exec(
             binary,
+            "--credential-namespace",
+            host.credentials,
             "--endpoint",
             "127.0.0.1:0",
             "--storage",
@@ -174,6 +179,8 @@ class Host:
                     if self.binary is not None:
                         cleanup = await asyncio.create_subprocess_exec(
                             self.binary,
+                            "--credential-namespace",
+                            self.credentials,
                             "--storage",
                             str(Path(self.root.name) / "evidence"),
                             "--remove-credentials",

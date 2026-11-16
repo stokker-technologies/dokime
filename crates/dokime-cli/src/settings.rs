@@ -33,7 +33,7 @@ use crate::Result;
 use dokime::client::{CallOptions, ClientSettings as RpcClientSettings};
 use dokime::{Client, StorageTransferSettings};
 use dokime_runtime::{
-    CaptureSettings, ControlledClock, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
+    CaptureSettings, ControlledClock, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
     services::{ClientSettings, WallClock},
 };
 
@@ -78,6 +78,8 @@ pub(crate) struct Settings {
     pub capture_files: NonZeroUsize,
     pub capture_bytes: NonZeroU64,
     pub captures: NonZeroUsize,
+    /// The Prefix of the Host's Native Credentials; Default `dokime`.
+    pub credential_namespace: String,
 }
 
 /* === Enums === */
@@ -113,6 +115,7 @@ impl Default for Settings {
             capture_files: NonZeroUsize::new(CaptureSettings::default().maximum_files).unwrap(),
             capture_bytes: NonZeroU64::new(CaptureSettings::default().maximum_bytes).unwrap(),
             captures: NonZeroUsize::new(CaptureSettings::default().maximum_captures).unwrap(),
+            credential_namespace: CredentialNamespace::DEFAULT.into(),
         }
     }
 }
@@ -137,6 +140,7 @@ impl Settings {
         if settings.interval_window_ms == 0 {
             return Err("Configure a Positive interval_window_ms".into());
         }
+        settings.credentials()?;
         Ok(settings)
     }
     pub fn placement(&self) -> PlacementSettings {
@@ -148,9 +152,13 @@ impl Settings {
             message_bytes: self.message_bytes,
         }
     }
-    pub fn host(&self, controlled: bool) -> HostSettings {
+    pub fn credentials(&self) -> Result<CredentialNamespace> {
+        Ok(CredentialNamespace::new(self.credential_namespace.clone())?)
+    }
+    pub fn host(&self, controlled: bool) -> Result<HostSettings> {
         let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
-        HostSettings {
+        Ok(HostSettings {
+            credentials: self.credentials()?,
             clock,
             placement: self.placement(),
             storage: StorageSettings {
@@ -167,7 +175,7 @@ impl Settings {
                 maximum_captures: self.captures.get(),
                 ..CaptureSettings::default()
             },
-        }
+        })
     }
     pub fn services(&self) -> ClientSettings {
         ClientSettings {

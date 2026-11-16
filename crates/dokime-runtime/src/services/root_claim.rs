@@ -23,13 +23,13 @@ use prost::Message;
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_operations::host::credentials::Entry;
+use dokime_operations::host::credentials::{CredentialNamespace, Entry};
 use dokime_storage::Store;
 
 /* === Constants === */
 
 // One native entry per backend identity names the folder that owns its credential accounts.
-const SERVICE: &str = "dokime.root";
+const OWNER: &str = "root";
 const CREDENTIAL_RECORDS: [&str; 4] = ["secrets", "secret-key-slots", "access", "access-key-slots"];
 
 /* === Macros === */
@@ -60,21 +60,21 @@ enum Owner {
 ///
 /// A folder copy carries `backend-id` and the credential catalogs, but not the native owner entry, so the
 /// original folder stays the only one that may read, rotate or remove those accounts. A moved root reclaims.
-pub(crate) fn claim(root: &Path, store: &Store) -> Result<()> {
-    match owner(root, store.identity())? {
+pub(crate) fn claim(root: &Path, store: &Store, namespace: &CredentialNamespace) -> Result<()> {
+    match owner(root, store.identity(), namespace)? {
         Owner::This => Ok(()),
         Owner::Copied(original) if holds_credentials(store)? => Err(copied("Open Evidence Root", root, &original)),
         Owner::Copied(_) => Ok(()),
-        Owner::Unclaimed => entry(store.identity())?.set_password(&canonical(root)?).map_err(unavailable),
+        Owner::Unclaimed => entry(store.identity(), namespace)?.set_password(&canonical(root)?).map_err(unavailable),
     }
 }
 
 /// Checks that this folder owns the credentials it is about to remove.
-pub(crate) fn require_owner(root: &Path, store: &Store) -> Result<()> {
+pub(crate) fn require_owner(root: &Path, store: &Store, namespace: &CredentialNamespace) -> Result<()> {
     if !holds_credentials(store)? {
         return Ok(());
     }
-    match owner(root, store.identity())? {
+    match owner(root, store.identity(), namespace)? {
         Owner::This => Ok(()),
         Owner::Copied(original) => Err(copied("Remove Credentials", root, &original)),
         Owner::Unclaimed => Err(Error::Invalid(format!(
@@ -85,9 +85,9 @@ pub(crate) fn require_owner(root: &Path, store: &Store) -> Result<()> {
 }
 
 /// Releases the claim after this folder's credentials are removed.
-pub(crate) fn release(root: &Path, host_id: &str) -> Result<()> {
-    if let Owner::This = owner(root, host_id)? {
-        entry(host_id)?.delete_credential().map_err(unavailable)?;
+pub(crate) fn release(root: &Path, host_id: &str, namespace: &CredentialNamespace) -> Result<()> {
+    if let Owner::This = owner(root, host_id, namespace)? {
+        entry(host_id, namespace)?.delete_credential().map_err(unavailable)?;
     }
     Ok(())
 }
@@ -103,9 +103,9 @@ pub fn detach_credentials(copy: &Path) -> Result<()> {
 
 /* === Private Functions === */
 
-fn owner(root: &Path, host_id: &str) -> Result<Owner> {
+fn owner(root: &Path, host_id: &str, namespace: &CredentialNamespace) -> Result<Owner> {
     let path = canonical(root)?;
-    let claimed = match entry(host_id)?.get_password() {
+    let claimed = match entry(host_id, namespace)?.get_password() {
         Ok(claimed) => claimed,
         Err(keyring::Error::NoEntry) => return Ok(Owner::Unclaimed),
         Err(error) => return Err(unavailable(error)),
@@ -135,8 +135,8 @@ fn canonical(root: &Path) -> Result<String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
-fn entry(host_id: &str) -> Result<Entry> {
-    Entry::new(SERVICE, host_id).map_err(unavailable)
+fn entry(host_id: &str, namespace: &CredentialNamespace) -> Result<Entry> {
+    Entry::new(&namespace.service(OWNER), host_id).map_err(unavailable)
 }
 
 fn copied(action: &str, root: &Path, original: &Path) -> Error {

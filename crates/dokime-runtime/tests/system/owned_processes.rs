@@ -161,6 +161,7 @@ fn owned_processes() -> Result<(), Box<dyn Error>> {
         let mut host = Command::from(process::command(std::env::current_exe()?))
             .args(["--exact", "owned_processes::owned_processes", "--nocapture"])
             .env("DOKIME_OWNED_HOST_ROOT", root.path())
+            .env("DOKIME_CREDENTIAL_NAMESPACE", support::namespace().as_str())
             .env("DOKIME_OWNED_LAUNCH", &launch)
             .env("DOKIME_OWNED_REPORT", reports.local_addr()?.to_string())
             .stdout(Stdio::piped())

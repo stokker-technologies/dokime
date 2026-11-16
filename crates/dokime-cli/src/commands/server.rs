@@ -65,7 +65,7 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
         .or(settings.storage.clone())
         .ok_or_else(|| crate::error::Error::Invalid("Supply --storage PATH or Configure storage".into()))?;
     let server =
-        Box::pin(dokime_runtime::services::serve(endpoint, &storage, settings.host(args.controlled_clock), settings.services())).await?;
+        Box::pin(dokime_runtime::services::serve(endpoint, &storage, settings.host(args.controlled_clock)?, settings.services())).await?;
     use tracing_subscriber::prelude::*;
     tracing::subscriber::set_global_default(tracing_subscriber::registry().with(filter).with(server.status().layer()))
         .map_err(|error| crate::error::Error::Invalid(format!("Start Diagnostic Logging: {error}")))?;
