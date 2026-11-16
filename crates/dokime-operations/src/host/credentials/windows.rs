@@ -38,7 +38,7 @@ use std::{env, fs, fs::OpenOptions, io, path::PathBuf};
 
 /* === Public Functions === */
 
-pub(super) fn call<T>(entry: &keyring::Entry, operation: impl FnOnce(&keyring::Entry) -> keyring::Result<T>) -> keyring::Result<T> {
+pub(crate) fn call<T>(entry: &keyring::Entry, operation: impl FnOnce(&keyring::Entry) -> keyring::Result<T>) -> keyring::Result<T> {
     // Persistent Credential Reads Also Race Writes to Unrelated Slots and Namespaces.
     // One User-Owned File Coordinates All Sessions; a Namespace Lock Would Be Too Narrow.
     let directory = env::var_os("LOCALAPPDATA")

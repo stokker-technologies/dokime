@@ -37,7 +37,7 @@
 
 /* === Public Functions === */
 
-pub(super) fn call<T>(entry: &keyring::Entry, operation: impl FnOnce(&keyring::Entry) -> keyring::Result<T>) -> keyring::Result<T> {
+pub(crate) fn call<T>(entry: &keyring::Entry, operation: impl FnOnce(&keyring::Entry) -> keyring::Result<T>) -> keyring::Result<T> {
     operation(entry)
 }
 

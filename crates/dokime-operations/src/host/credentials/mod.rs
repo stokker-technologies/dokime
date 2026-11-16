@@ -20,10 +20,10 @@ mod unix;
 /* === Re-Exports === */
 
 #[cfg(target_os = "windows")]
-pub(self) use windows::call;
+pub(crate) use windows::call;
 
 #[cfg(unix)]
-pub(self) use unix::call;
+pub(crate) use unix::call;
 
 /* === Imports === */
 
