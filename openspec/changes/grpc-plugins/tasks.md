@@ -133,7 +133,7 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 - [x] Merge current dev removals into the protocol convention branch and regenerate remaining contracts without restoring plugin analysis APIs.
 - [x] Generate SDK drift candidates in disposable temporary storage and compare the complete output inventory without modifying sources; cover clean, changed, missing and obsolete outputs.
 - [x] Export and archive the full Google import closure, licenses and protoc/Buf README; refuse unresolved imports during packaging.
-- [ ] Validate the merged protocol candidate with format, lint, workspace build, protocol tests, all generated-language checks and native archive compilation.
+- [x] Validate the merged protocol candidate on Windows: format, clean lint, workspace build, nine protocol tests, two SDK builder tests, 50 targeted tooling tests, all five generated-language checks, clean-tree non-mutating drift and extracted-archive protoc/Buf compilation. Native Linux and hosted proof remain with integration.
 
 - [x] Refactor the protocol helpers and owned SDK generators to the company conventions, mirror executor/model responsibilities, normalize product proto sections, remove handwritten import aliases and path overrides, and regenerate tracked outputs. Keep the plot authoring value required by generated getter names, with explicit message access instead of dereference forwarding.
 - [x] Validate the protocol convention refactor on Windows: eight protocol tests,
