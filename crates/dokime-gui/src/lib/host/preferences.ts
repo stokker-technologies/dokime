@@ -21,7 +21,6 @@ import {
   ApplicationSettingsSchema,
   ApplicationAppearanceSchema,
   ClientPreferencesSchema,
-  PluginPreferencesSchema,
   ReportDefaultsSchema,
   TelemetryPreferencesSchema,
 } from "@host/model";
@@ -69,7 +68,6 @@ export async function savePreferences(scope: SettingsScope, update: PreferencesU
         connectTimeoutMs: BigInt(settings.client.connect_timeout_ms),
         requestTimeoutMs: BigInt(settings.client.request_timeout_ms),
       }),
-      plugins: create(PluginPreferencesSchema, { startupTimeoutS: settings.plugins.startup_timeout_s }),
       report: create(ReportDefaultsSchema, {
         plotDownsample: downsampling[settings.report.plot_downsample],
         plotPoints: settings.report.plot_points,
@@ -90,7 +88,7 @@ export async function savePreferences(scope: SettingsScope, update: PreferencesU
 function snapshot(bytes: ArrayBuffer): PreferencesSnapshot {
   const reply = fromBinary(SettingsGetResponseSchema, new Uint8Array(bytes));
   const settings = reply.value;
-  if (!settings?.appearance || !settings.client || !settings.listener || !settings.plugins || !settings.report || !settings.telemetry)
+  if (!settings?.appearance || !settings.client || !settings.listener || !settings.report || !settings.telemetry)
     throw new Error("Read Preferences: Host Omitted a Settings Section; Reconnect and Retry");
   const themeMode = Object.entries(themeModes).find(([, value]) => value === settings.appearance?.themeMode)?.[0] as
     | ApplicationSettings["appearance"]["theme_mode"]
@@ -118,7 +116,6 @@ function snapshot(bytes: ArrayBuffer): PreferencesSnapshot {
         authentication_enabled: settings.listener.authenticationEnabled,
         certificate_names: settings.listener.certificateNames,
       },
-      plugins: { startup_timeout_s: settings.plugins.startupTimeoutS },
       report: {
         plot_points: settings.report.plotPoints,
         plot_downsample: plotDownsample,

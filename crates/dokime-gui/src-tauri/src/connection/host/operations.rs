@@ -3,7 +3,7 @@ use super::{Error, Session};
 use dokime_protocol::host;
 use harmos_protocol as library;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [27, 247, 201, 104, 46, 141, 91, 181, 78, 210, 196, 213, 129, 66, 134, 39, 111, 76, 232, 93, 143, 82, 173, 198, 43, 61, 235, 240, 77, 64, 164, 161];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [238, 81, 94, 203, 149, 88, 88, 177, 179, 238, 249, 167, 177, 28, 151, 5, 239, 19, 23, 202, 254, 236, 182, 99, 214, 208, 96, 76, 126, 49, 253, 52];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {

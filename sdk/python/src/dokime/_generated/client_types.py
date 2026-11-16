@@ -721,7 +721,6 @@ from dokime._wire.host.v1.settings_pb2 import (
     HostCardTone,
     ManualRefresh,
     OnDemandRefresh,
-    PluginPreferences,
     RemoteListenerSettings,
     ReportDefaults,
     SettingsCard,
@@ -1274,8 +1273,6 @@ ManualRefresh.__module__ = "dokime.client"
 ManualRefresh.__qualname__ = "ManualRefresh"
 OnDemandRefresh.__module__ = "dokime.client"
 OnDemandRefresh.__qualname__ = "OnDemandRefresh"
-PluginPreferences.__module__ = "dokime.client"
-PluginPreferences.__qualname__ = "PluginPreferences"
 RemoteListenerSettings.__module__ = "dokime.client"
 RemoteListenerSettings.__qualname__ = "RemoteListenerSettings"
 ReportDefaults.__module__ = "dokime.client"
@@ -1904,7 +1901,6 @@ __all__ = [
     "PluginGuest",
     "PluginManaged",
     "PluginPlacement",
-    "PluginPreferences",
     "PluginProcess",
     "PluginRemote",
     "PluginSnapshot",

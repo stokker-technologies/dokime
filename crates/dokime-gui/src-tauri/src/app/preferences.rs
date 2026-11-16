@@ -100,10 +100,7 @@ pub async fn desktop_settings_update(
     }
     let valid = match scope {
         SettingsScope::Local => {
-            proposed.report == previous.report
-                && proposed.telemetry == previous.telemetry
-                && proposed.listener == previous.listener
-                && proposed.plugins == previous.plugins
+            proposed.report == previous.report && proposed.telemetry == previous.telemetry && proposed.listener == previous.listener
         }
         SettingsScope::Backend => proposed.appearance == previous.appearance && proposed.client == previous.client,
     };

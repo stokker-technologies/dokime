@@ -119,7 +119,7 @@ function SectionContent({
   if (section === "backends") return <BackendsTable />;
   if (section === "appearance") return <ApplicationPreferences advanced={advanced} />;
   if (section === "remote") return <RemoteSection advanced={advanced} />;
-  if (section === "plugins") return <PluginsSection advanced={advanced} />;
+  if (section === "plugins") return <PluginsSection />;
   if (section === "secrets") return <SecretsSection />;
   if (section === "capture-folders") return <CaptureFoldersSection />;
   if (section === "diagnostics")

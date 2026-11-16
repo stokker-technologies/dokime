@@ -147,7 +147,6 @@ pub use crate::wire::host::PlotPresentation;
 pub use crate::wire::host::PlotReferenceBand;
 pub use crate::wire::host::PlotReferenceLine;
 pub use crate::wire::host::PlotReferenceValue;
-pub use crate::wire::host::PluginPreferences;
 pub use crate::wire::host::PromptDefinitionsGetResponse;
 pub use crate::wire::host::PromptDefinitionsListResponse;
 pub use crate::wire::host::PromptInstance;

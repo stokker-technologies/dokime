@@ -29,7 +29,7 @@ import { createDebouncedWriter } from "./settings-autosave";
 
 /* === Types === */
 
-type PreferencesSection = "appearance" | "plugins" | "remote";
+type PreferencesSection = "appearance" | "remote";
 type PreferenceGroup = keyof ApplicationSettings;
 type PreferenceField = {
   group: PreferenceGroup;
@@ -129,14 +129,6 @@ const FIELDS: PreferenceField[] = [
     kind: "list",
     advanced: true,
   },
-  {
-    group: "plugins",
-    key: "startup_timeout_s",
-    label: "Plugin Startup Timeout",
-    help: "Time a plugin program has to launch and become ready. Applies to its next start or restart.",
-    unit: "s",
-    max: 3600,
-  },
 ];
 
 /* === Components === */
@@ -154,7 +146,7 @@ export function ApplicationPreferences({
 }) {
   return (
     <>
-      {section !== "remote" && section !== "plugins" && <ScopedPreferences scope="local" advanced={advanced} section={section} />}
+      {section !== "remote" && <ScopedPreferences scope="local" advanced={advanced} section={section} />}
       {!localOnly && <ScopedPreferences scope="backend" advanced={advanced} section={section} onPendingChange={onPendingChange} />}
     </>
   );
@@ -245,7 +237,6 @@ function PreferencesForm({
                   report: input.settings.report,
                   telemetry: input.settings.telemetry,
                   listener: input.settings.listener,
-                  plugins: input.settings.plugins,
                 };
           const saved = await saveRef.current({ previous, settings });
           baseline.current = saved;
@@ -278,11 +269,11 @@ function PreferencesForm({
     const local = field.group === "appearance" || field.group === "client";
     return (
       local === (scope === "local") &&
-      (section === "remote" || section === "plugins"
-        ? field.group === (section === "remote" ? "listener" : "plugins")
+      (section === "remote"
+        ? field.group === "listener"
         : section === "appearance"
           ? field.group === "appearance"
-          : field.group !== "listener" && field.group !== "plugins")
+          : field.group !== "listener")
     );
   });
   function row(field: PreferenceField) {

@@ -98,7 +98,9 @@ message ApplicationSettings {
   .dokime.host.v1.ClientPreferences client = 3;
   .dokime.host.v1.TelemetryPreferences telemetry = 4;
   .dokime.host.v1.RemoteListenerSettings listener = 5;
-  .dokime.host.v1.PluginPreferences plugins = 6;
+  // Plugin startup is bounded by the deadline of the Harmos operation that loads the plugin.
+  reserved 6;
+  reserved "plugins";
 }
 
 // BootstrapPaths value owned by this resource.
@@ -177,14 +179,6 @@ message ManualRefresh {}
 
 // OnDemandRefresh value owned by this resource.
 message OnDemandRefresh {}
-
-// PluginPreferences value owned by this resource.
-message PluginPreferences {
-  // Stop grace is fixed by the host as one third of the Plugins operation timeout.
-  reserved 2;
-  reserved "stop_timeout_s";
-  uint32 startup_timeout_s = 1;
-}
 
 // RemoteListenerSettings value owned by this resource.
 message RemoteListenerSettings {
