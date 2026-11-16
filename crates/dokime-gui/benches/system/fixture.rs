@@ -69,6 +69,9 @@ use std::sync::atomic::Ordering;
 
 pub const ROWS: usize = 3 * 24 * 60 * 60 * 8;
 pub const ORIGIN_S: f64 = 1_767_225_600.0;
+/// Ten-Minute Windows Grant Thousands of History Samples Each, So the Three-Day History Takes Hundreds of
+/// Window Round Trips Rather Than One per Sample; a Controlled Sleep Still Cuts the Live Window at Its End.
+pub const HISTORY_WINDOW: Duration = Duration::from_secs(600);
 
 /* === Macros === */
 
@@ -114,6 +117,7 @@ impl Fixture {
                     connect_timeout: Duration::from_secs(30),
                     reconnect_delay: Duration::from_millis(25),
                     stream_window: NonZeroUsize::new(8).unwrap(),
+                    interval_window: HISTORY_WINDOW,
                     message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
                 },
             },
@@ -155,6 +159,7 @@ impl Fixture {
             connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_millis(25),
             stream_window: NonZeroUsize::new(8).unwrap(),
+            interval_window: HISTORY_WINDOW,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
         let executable = std::env::current_exe().unwrap();
@@ -456,7 +461,7 @@ fn document(count: usize) -> Document {
 }
 
 async fn publish(context: &Context) -> Result<()> {
-    // Advance the Controlled Host Clock Through Real Observer Ticks.
+    // Advance the Controlled Host Clock Through Real Observer Windows.
     let mut sequence = 0;
     let mut first = 0;
     let mut count = rows();
@@ -467,7 +472,7 @@ async fn publish(context: &Context) -> Result<()> {
         let target = sequence + count;
         let history = context.get::<History>()?;
         let pending = target.saturating_sub(history.published.load(Ordering::SeqCst));
-        // A Controlled Sleep Settles After Every Tick It Spans.
+        // A Controlled Sleep Settles After Every Window Due by Its End.
         context.sleep(Duration::from_nanos(pending as u64 * sample_ns() as u64)).await?;
         assert_eq!(history.published.load(Ordering::SeqCst), target, "Publish Benchmark History: Retain the Requested Row Count");
         sequence += count;

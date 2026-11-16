@@ -15,7 +15,7 @@
 
 pub use crate::client::{Client, ClientSettings, Method};
 pub use crate::plugin::{
-    Context, Criterion, HostOperation, Observer, Operation, Plugin, Prompt, Publisher, Record, Step, Stream, Suite, Template,
+    Context, Criterion, HostOperation, Observer, Operation, Plugin, Prompt, Publisher, Record, SampleWindow, Step, Stream, Suite, Template,
 };
 pub use crate::{Error, Message, OperationPolicy, OperationRequest, Parameters, Result, Row, Settings, Visibility};
 

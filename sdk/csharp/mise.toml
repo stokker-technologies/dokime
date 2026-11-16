@@ -12,7 +12,7 @@
 dotnet = "10.0.403"
 
 [tasks."prepare:harmos"]
-description = "Prepare the Pinned Harmos NuGet Feed"
+description = "Prepare the Pinned Harmos Project and NuGet Feed"
 usage = 'flag "--refresh-lock"'
 run = ['python tools/prepare_harmos.py "{{tools.dotnet.path}}/dotnet"{% if usage.refresh_lock %} --refresh-lock{% endif %}']
 
@@ -119,7 +119,7 @@ run = [
   '"{{tools.dotnet.path}}/dotnet" clean examples/Test/Test.csproj --configuration Release',
   '"{{tools.dotnet.path}}/dotnet" clean examples/Client/Client.csproj --configuration Release',
   '"{{tools.dotnet.path}}/dotnet" clean examples/Plugin/Plugin.csproj --configuration Release',
-  '"{{tools.dotnet.path}}/dotnet" clean ../../target/cs/h/Harmos.csproj --configuration Release --artifacts-path ../../target/cs/harmos',
+  '"{{tools.dotnet.path}}/dotnet" clean ../../target/cs/h/Harmos.csproj --configuration Release',
 ]
 
 [tasks."test:generation"]

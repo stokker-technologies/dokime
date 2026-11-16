@@ -248,7 +248,7 @@ pub fn document() -> Document {
 /* === Private Functions === */
 
 async fn initialize(ctx: &Context) -> Result<()> {
-    // Open the Bench With the Model Advancing Per Tick or With the Host Clock
+    // Open the Bench With the Model Advancing Per Sample or With the Host Clock
     let realtime: bool = ctx.parameter("realtime")?;
     let step_s = if realtime { None } else { Some(ctx.parameter("sample_interval_s")?) };
     Testbench::open(ctx, read_supply(ctx)?, step_s).await?;

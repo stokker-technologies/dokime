@@ -59,9 +59,7 @@ use dokime_protocol::host::executions::ProgressSetResponse;
 use harmos_protocol::host::TimeSleepRequest;
 use harmos_protocol::host::TimeSleepResponse;
 use harmos_protocol::model::Visibility;
-use harmos_protocol::plugin::InstanceSamplesRequest;
-use harmos_protocol::plugin::Tick;
-use harmos_protocol::plugin::instance_samples_request::Frame as InstanceSamplesRequestFrame;
+use harmos_protocol::plugin::Window;
 
 /* === Constants === */
 
@@ -71,10 +69,10 @@ use harmos_protocol::plugin::instance_samples_request::Frame as InstanceSamplesR
 
 /* === Structs === */
 
-#[derive(dokime::Row)]
+#[derive(dokime::Message)]
 #[harmos(package = "thermal")]
-struct Temperature {
-    celsius: f64,
+struct TemperatureColumns {
+    celsius: Vec<f64>,
 }
 
 #[derive(dokime::Record)]
@@ -253,30 +251,28 @@ async fn author_serve_materialize_and_execute_a_thermal_suite() -> TestResult {
         TimeSleepRequest::decode(sleep.payload.as_slice())?.duration,
         Some(prost_types::Duration { seconds: 2, nanos: 500_000_000 })
     );
-    let (ticks, mut samples) = process.publish("thermal.temperature", "execution_a").await?;
+    let (grants, mut samples) = process.publish("thermal.temperature", "execution_a").await?;
+    let period = prost_types::Duration { seconds: 1, nanos: 0 };
     let at = prost_types::Timestamp { seconds: 100, nanos: 0 };
-    ticks
-        .send(InstanceSamplesRequest {
-            frame: Some(InstanceSamplesRequestFrame::Tick(Tick { at: Some(at) })),
-        })
-        .await?;
-    let sample = samples.message().await?.ok_or("Missing Sample")?.samples.remove(0);
-    assert_eq!(sample.at, Some(at));
-    assert_eq!(sample.sequence, 1);
-    assert_eq!(Temperature::decode(sample.row.as_slice())?.celsius, 84.0);
+    let window = Window {
+        start: Some(at),
+        period: Some(period),
+        count: 2,
+        sequence: 1,
+    };
+    let columns = Process::window(&grants, &mut samples, window).await?;
+    assert_eq!(TemperatureColumns::decode(columns.as_slice())?.celsius, [84.0, 84.0]);
 
-    // A Second Host Tick Retains the Same Execution Resource and Ordered Sequence.
-    let next = prost_types::Timestamp { seconds: 101, nanos: 0 };
-    ticks
-        .send(InstanceSamplesRequest {
-            frame: Some(InstanceSamplesRequestFrame::Tick(Tick { at: Some(next) })),
-        })
-        .await?;
-    let sample = samples.message().await?.ok_or("Missing Second Sample")?.samples.remove(0);
-    assert_eq!(sample.at, Some(next));
-    assert_eq!(sample.sequence, 2);
-    assert_eq!(Temperature::decode(sample.row.as_slice())?.celsius, 84.0);
-    drop(ticks);
+    // A Second Window Retains the Same Execution Resource and Continues the Sequence.
+    let window = Window {
+        start: Some(prost_types::Timestamp { seconds: 102, nanos: 0 }),
+        period: Some(period),
+        count: 1,
+        sequence: 3,
+    };
+    let columns = Process::window(&grants, &mut samples, window).await?;
+    assert_eq!(TemperatureColumns::decode(columns.as_slice())?.celsius, [84.0]);
+    drop(grants);
     assert!(samples.message().await?.is_none());
 
     // Finish the Wait by Protocol Event and Acknowledge the Step's Final Progress.

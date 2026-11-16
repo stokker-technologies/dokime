@@ -44,10 +44,12 @@ use harmos_protocol::plugin::InstanceStopRequest;
 use harmos_protocol::plugin::Request;
 use harmos_protocol::plugin::Response;
 use harmos_protocol::plugin::SamplesSelection;
+use harmos_protocol::plugin::Window;
 use harmos_protocol::plugin::child_response;
 use harmos_protocol::plugin::instance_invoke_request::Frame as InstanceInvokeRequestFrame;
 use harmos_protocol::plugin::instance_invoke_response::Frame as InstanceInvokeResponseFrame;
 use harmos_protocol::plugin::instance_samples_request::Frame as InstanceSamplesRequestFrame;
+use harmos_protocol::plugin::instance_samples_response::Frame as InstanceSamplesResponseFrame;
 use harmos_protocol::plugin::response;
 
 /* === Constants === */
@@ -140,6 +142,19 @@ impl Process {
         .await?;
         let samples = self.client.samples(ReceiverStream::new(receive)).await?.into_inner();
         Ok((send, samples))
+    }
+    /// Grant One Interval Window and Return the Columns of Its Single Answering Part.
+    pub async fn window(
+        grants: &mpsc::Sender<InstanceSamplesRequest>, samples: &mut Streaming<InstanceSamplesResponse>, window: Window,
+    ) -> TestResult<Vec<u8>> {
+        let count = window.count;
+        grants.send(InstanceSamplesRequest { frame: Some(InstanceSamplesRequestFrame::Window(window)) }).await?;
+        let answer = samples.message().await?.ok_or("Missing Window Answer")?;
+        let Some(InstanceSamplesResponseFrame::Batch(batch)) = answer.frame else {
+            return Err(format!("Expected a Sample Batch, Got {answer:?}").into());
+        };
+        assert_eq!((batch.offset, batch.count, batch.last), (0, count, true));
+        Ok(batch.columns)
     }
     pub async fn stop(mut self, remote: bool) -> TestResult<()> {
         self.client.stop(InstanceStopRequest { reason: "Story Complete".into() }).await?;

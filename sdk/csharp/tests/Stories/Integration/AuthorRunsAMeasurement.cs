@@ -5,6 +5,7 @@ using Dokime.Clients;
 using Dokime.Clients.EvidenceResources;
 using Dokime.Plugins;
 using Google.Protobuf;
+using Google.Protobuf.Collections;
 using Google.Protobuf.WellKnownTypes;
 using Harmos;
 using Stories.Support;
@@ -22,7 +23,7 @@ public sealed class AuthorRunsAMeasurement
   [Fact]
   public async Task MaterializeRunObserveEvaluateAndRelease()
   {
-    // Compose a Suite with an Owned Instrument, Record and Host-Ticked Stream.
+    // Compose a Suite with an Owned Instrument, Record and Host-Sampled Stream.
     var instrument = new Instrument();
     var record = new Record<Statistics>("measurement", "Measurement");
     var stream = new Stream("journey.readings");
@@ -89,13 +90,28 @@ public sealed class AuthorRunsAMeasurement
     Assert.Equal("measurement-read", stored.RequestId);
     Assert.Equal(42, Statistics.Parser.ParseFrom(stored.Payload).Mean.Number);
 
-    // Advance the Observer with One Explicit Host Tick.
-    var at = new Timestamp { Seconds = 123 };
-    var samples = await server.Wire.TickAsync(stream.Identifier, "execution-a", at);
-    var sample = Assert.Single(samples);
-    Assert.Equal(at, sample.At);
-    Assert.Equal(1ul, Statistics.Parser.ParseFrom(sample.Row).Count);
-    Assert.Equal(1, Statistics.Parser.ParseFrom(sample.Row).Mean.Number);
+    // Grant the Observer One Explicit Host Window of Two Samples; Each Sample Sees Its Own Sequence.
+    var columns = await server.Wire.WindowAsync(stream.Identifier, "execution-a", new Timestamp { Seconds = 123 }, new Duration { Seconds = 1 }, 2);
+    var counts = new RepeatedField<ulong>();
+    var means = new RepeatedField<Value>();
+    var input = new CodedInputStream(columns.ToByteArray());
+    for (var tag = input.ReadTag(); tag != 0; tag = input.ReadTag())
+    {
+      switch (WireFormat.GetTagFieldNumber(tag))
+      {
+        case Statistics.CountFieldNumber:
+          counts.AddEntriesFrom(input, FieldCodec.ForUInt64(tag));
+          break;
+        case Statistics.MeanFieldNumber:
+          means.AddEntriesFrom(input, FieldCodec.ForMessage(tag, Value.Parser));
+          break;
+        default:
+          input.SkipLastField();
+          break;
+      }
+    }
+    Assert.Equal([1ul, 2ul], counts);
+    Assert.Equal([1d, 1d], means.Select(mean => mean.Number));
 
     // Evaluate Captured Evidence and Release the Instrument After Cleanup.
     var verdict = await server.Wire.InvokeAsync<CriteriaEvaluateResponse>(description, testCase.Criteria[0].Operation,

@@ -315,19 +315,19 @@ They are historical multi-sample ranges, not statistical comparisons with one ru
 | Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | 99.126 | Earlier single-row carrier: 174.858 |
 | Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | 170.798 | Earlier single-row carrier: 27.696 |
 
-The runtime and desktop fixtures use the real SDK observer and its tick-driven
-Samples protocol. Each tick receives exactly one sample with that tick's
-timestamp and the next sequence. The former proxy carrier is removed.
+The runtime and desktop fixtures use the real SDK observers and the windowed
+Samples protocol: the host grants each interval stream a window of samples and
+the plugin answers it with columns. The runtime table rows above were measured on
+the earlier per-sample tick carrier and are not comparable with window figures.
 Runtime fixtures declare a 1 ms interval. Desktop fixtures declare an exact
 duration setting for their intended three-day density. Each producer sleeps once
-for its requested rows and then awaits the final tick's callback without another
-host call, because that tick fires at the same controlled instant as the sleep.
-The empty spectrum is scheduled daily, outside these short runtime captures;
-an idle device carrier would prevent virtual-clock
+for its requested rows; the sleep settles after every window due by its end, so no
+final callback wait remains. The empty spectrum is scheduled daily, outside these
+short runtime captures; an idle device carrier would prevent virtual-clock
 settlement. Desktop rows retain three days of source values in their timestamp
 field, including late-source offsets. Live and late commands publish eight real
-ticks and samples. Each SDK process remains owned until cleanup. No
-product test hook or separate storage-admission path exists.
+samples. Each SDK process remains owned until cleanup. No product test hook or
+separate storage-admission path exists.
 
 Direct storage ingest measured 127,668 rows/s for admission and 120,143 rows/s
 through durable flush, compared with 122,438 and 108,908 rows/s in the previous
@@ -361,35 +361,55 @@ stories also check native absence from the calling threads after root removal.
 The desktop panic story now checks its exact access key and deliberate panic
 type; full-lane failures and post-lane native inventories remain separate proof.
 
-### Per-Tick Observer Cost
+### Interval Window Ingestion
 
-Measured on 2026-11-15 at `69c7d052e` with library `7181b5ed` (Windows x86-64,
-bench profile) by temporary timing around the controlled-clock advance, the
-product sample consumer, every storage backend call and every evidence append
-while running `runtime/observer_publication_and_barrier_durable/1024`.
+`windows/interval_windows_stored/<clock>/<streams>x<period>ns/<samples>` re-executes
+the storage benchmark binary as a remote Rust SDK plugin with 1, 16 or 128 interval
+streams of one `double`, at 1 kHz (10,050 samples per stream) and 1 MHz (20,000
+samples per stream), each answered by a window observer. 1 kHz streams use the host's
+default `interval_window` (100 ms), so the 1 kHz capture ends inside a window and the
+step's sleep cuts its last window early. 1 MHz streams take a 10 ms window from the
+plugin's `sample_window` Duration setting through `window_setting`, the library
+bench's 1 MHz condition. Each case runs on the controlled clock and on the real clock.
+The timed boundary runs from releasing the ready step to its captured prompt: host
+window grants, the observer's columns, transport, Harmos batch admission, Dokime's
+columnar Arrow admission and the produced-count record, whose evidence barrier makes
+every sample durable. Execution end and shutdown are excluded.
 
-| Phase per Controlled Advance | Time |
-| --- | ---: |
-| Whole advance (1,023 advances, 6,858 ms) | 6.7 ms |
-| Tick admission to the plugin's `Time.Get` child call | 1.3–1.8 ms |
-| `Time.Get` child call, admission to settlement | 1.0–1.6 ms |
-| Child settlement to `samples.tick` settlement | 0.2 ms |
-| Product sample consumer (`Samples::drain`) | 0.09 ms |
-| Storage backend calls and evidence appends | none per tick |
+The case reports stored samples per second through Criterion throughput and, with
+`--once`, a `Measured` line per iteration over five iterations and a `Median` line
+naming the clock and window. Figures are never assertions. The controlled clock must
+retain exactly the requested samples. The real clock samples from the start of the
+execution, including while the ready prompt waits, so it stores at least the
+requested span; its figure divides every stored sample by the timed span. Real-time
+overload is a measured outcome, not a refusal: every real-clock run, and any
+controlled run that loses a sample, prints a `Retained` line with per-stream counts,
+the samples the observers answered by the sleep's end, the execution outcome and its
+failure evidence.
 
-No per-tick durable commit, catalog transaction or product refresh occurs; the
-cost is the library's tick path. Each interval stream sleeps to its tick, then
-invokes `samples.tick` as a full native operation over the plugin's Samples
-stream and waits for that sample before scheduling the next tick
-(`harmos-runtime/src/plugin/grpc/publish.rs:337-357` at `7181b5ed`). An observer
-that reads the clock adds a second full child-call round trip. Library pull
-request 258 (`af8b9a0c`) changes binding teardown and clock-wait admission, not
-this per-tick path.
+Measured on 2026-11-16 with library `efc261fe` (Windows x86-64, AMD Ryzen 9 5950X,
+bench profile, `--once`), as median stored samples per second over five iterations,
+summed over all streams; the real-clock columns come from a second run whose
+outcomes were inspected:
 
-On the real clock, the boundary fixture's 1 ms observer published 5,000 rows in
-10,614 ms (dev profile): one execution sustains about 470 samples per second, and
-tick times stretch to 10,517 ms of source time instead of 5,000 ms. A 1 ms
-observer therefore does not keep up in real time.
+| Streams | Controlled, 1 kHz, 100 ms Windows | Controlled, 1 MHz, 10 ms Windows | Real, 1 kHz, 100 ms Windows | Real, 1 MHz, 10 ms Windows |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 127,920 | 606,254 | 999 | 1,043,108 |
+| 16 | 471,929 | 1,544,325 | 16,005 | 1,823,046 (3 of 5 Interrupted) |
+| 128 | 356,937 | 1,689,325 | 128,004 | 438,445 (5 of 5 Interrupted) |
+
+Every controlled case retained exactly its samples. With 10 ms windows the
+128-stream 1 MHz case keeps all 2,560,000 samples on the controlled clock; at the
+100 ms default one window per stream needed about 100 MB, more than the library's
+fixed 64 MiB shared publication pool, and the execution ended Interrupted. On the
+real clock every 1 kHz run and the single 1 MHz stream completed with at least the
+requested span. 16 and 128 streams at 1 MHz fall behind real time: their windows
+overflow that pool, and the executions end Interrupted with a stream failure that
+names the streams and says to shorten their windows or lower their rate (or that a
+named stream lost rows before storage read them), so those figures vary widely
+between iterations. `window_overflow_names_its_stream` proves that refusal on the
+controlled clock. Storage alone retains the same 2,560,000 samples
+(`interval_batches_of_many_streams_survive_pressure_flushes`).
 
 ### Desktop Plot Documents
 
@@ -397,7 +417,11 @@ These Windows x86-64 observations were measured on 2026-11-15 with the
 library at `a8cee45c`. The desktop fixture uses a local control connection for
 producer handoff and completion. Its observer interval matches each requested
 row density over three days, including fractional-second intervals. The SDK
-observer publishes every row through the real carrier. The producer has no
+observer publishes every row through the real carrier. The fixture host grants
+ten-minute interval windows, so the three-day history takes hundreds of window
+round trips instead of one per sample (about 11 s rather than 13 minutes for
+2,073,600 rows on that machine), and a controlled sleep still cuts the live
+window at its end. The producer has no
 operator prompt gate. Drawing deadlines and input counts are unchanged.
 
 The complete matrix was attempted through focused `--once` runs at `a8cee45c`:

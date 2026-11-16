@@ -39,7 +39,7 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision: str = "5d601dd320edb0fc69131dc2851d789c4dd1e4c0"
+revision: str = "efc261fe9431bb3ad2fd3287ecb51a7f1d8da325"
 version: str = f"0.1.0-dev.{revision[:12]}"
 root: Path = Path(__file__).resolve().parents[1]
 feed: Path = root / "../../target/cs/feed"
@@ -91,22 +91,25 @@ else:
         members.close()
 
 shutil.copyfile(root / "tools/Harmos.csproj", output / "Harmos.csproj")
+# The Package Identity Derives From the Revision; Solution Projects Reference This Staged Project.
+properties: list[str] = [
+    f"<Version>{version}</Version>",
+    f"<SourceRevisionId>{revision}</SourceRevisionId>",
+    f"<RepositoryCommit>{revision}</RepositoryCommit>",
+    "<UseArtifactsOutput>true</UseArtifactsOutput>",
+    "<ArtifactsPath>$(MSBuildThisFileDirectory)../harmos</ArtifactsPath>",
+]
+(output / "Directory.Build.props").write_bytes(
+    "".join(["<Project>", "<PropertyGroup>", *properties, "</PropertyGroup>", "</Project>"]).encode("utf-8")
+)
 subprocess.run(
     [
         sys.argv[1],
         "pack",
-        # The Package Identity Derives From the Revision, So Changed Bytes Never Reuse a Locked Version.
-        f"-p:Version={version}",
-        f"-p:SourceRevisionId={revision}",
-        f"-p:RepositoryCommit={revision}",
-        "-p:RestorePackagesWithLockFile=true",
-        f"-p:NuGetLockFilePath={root / 'tools/Harmos.packages.lock.json'}",
         "-p:RestoreLockedMode=" + ("false" if "--refresh-lock" in sys.argv else "true"),
         str(output / "Harmos.csproj"),
         "--configuration",
         "Release",
-        "--artifacts-path",
-        str(output.parent / "harmos"),
         "--output",
         str(feed.resolve()),
     ],

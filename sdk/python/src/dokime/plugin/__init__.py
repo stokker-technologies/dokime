@@ -1,4 +1,6 @@
 # @generated from protocol descriptors; do not edit.
+from harmos.plugin import Window as SampleWindow
+
 from .._context import Context
 from .._generated.host import HostOperation, HostRoot
 from .._generated.plugin_types import (
@@ -72,6 +74,7 @@ __all__ = [
     "HostRoot",
     "Plugin",
     "PromptsCreateResponse",
+    "SampleWindow",
     "StepsExecuteRequest",
     "StepsExecuteResponse",
     "TestCasesMaterializeRequest",

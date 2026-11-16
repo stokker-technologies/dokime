@@ -27,7 +27,7 @@ use crate::prompts::{BENCH_CONFIRM, confirm};
 use crate::records::Confirmation;
 use crate::settings;
 use crate::testbench::{self, Testbench};
-use dokime::plugin::{Context, Criterion, Observer, Record, Step, Stream, Suite, Template};
+use dokime::plugin::{Context, Criterion, Observer, Record, SampleWindow, Step, Stream, Suite, Template};
 use dokime::{Aggregate, Document, PlotKind, Result, Section, Severity, Summary, value};
 
 /* === Constants === */
@@ -82,11 +82,34 @@ pub struct ModuleTelemetry {
     pub switching_khz: f64,
 }
 
+/// One Window of Module Telemetry, One Value per Sample in Every Channel.
+#[derive(dokime::Message)]
+#[harmos(package = "obc")]
+pub struct ModuleTelemetryColumns {
+    pub ac_voltage_v: Vec<f64>,
+    pub ac_current_a: Vec<f64>,
+    pub input_power_w: Vec<f64>,
+    pub power_factor: Vec<f64>,
+    pub dc_voltage_v: Vec<f64>,
+    pub dc_current_a: Vec<f64>,
+    pub output_power_w: Vec<f64>,
+    pub efficiency_percent: Vec<f64>,
+    pub heatsink_c: Vec<f64>,
+    pub switching_khz: Vec<f64>,
+}
+
 /// The Exact Integer the Revenue Meter Reports Every Sample.
 #[derive(dokime::Row)]
 #[harmos(package = "obc")]
 pub struct MeterRegister {
     pub energy_register: u64,
+}
+
+/// One Window of Meter Register Readings.
+#[derive(dokime::Message)]
+#[harmos(package = "obc")]
+pub struct MeterRegisterColumns {
+    pub energy_register: Vec<u64>,
 }
 
 /* === Enums === */
@@ -123,13 +146,13 @@ pub fn suite() -> Suite {
         .cleanup(cleanup);
     for module in 0..MODULES {
         let telemetry = Stream::<ModuleTelemetry>::new(stream(module), format!("Module {} Telemetry", module + 1));
-        let observer =
-            Observer::new(&telemetry, async move |ctx: &Context| observe(ctx, module).await).interval_setting(settings::SAMPLE_INTERVAL);
+        let observer = Observer::window(&telemetry, async move |ctx: &Context, window: &SampleWindow| observe(ctx, module, window).await)
+            .interval_setting(settings::SAMPLE_INTERVAL);
         template = template.stream(telemetry).observer(observer);
     }
     let meter =
         Stream::<MeterRegister>::new(METER, "Revenue Meter Register").description("The bench meter's exact 64-bit energy register.");
-    let register = Observer::new(&meter, read_register).interval_setting(settings::SAMPLE_INTERVAL);
+    let register = Observer::window(&meter, read_register).interval_setting(settings::SAMPLE_INTERVAL);
     let template = template.stream(meter).observer(register).document(document());
     Suite::new(SUITE, "Bench")
         .description("Scale and exactness workloads on a realistic charger bench: many channels, long histories, exact integers.")
@@ -216,23 +239,71 @@ async fn cleanup(ctx: &Context) -> Result<()> {
     ctx.log(Severity::Info, "Module Array De-Energized").await
 }
 
-async fn observe(ctx: &Context, module: usize) -> Result<ModuleTelemetry> {
+/// One Window of a Module's Telemetry, Each Sample Read From the Charger at Its Own Model Time.
+async fn observe(ctx: &Context, module: usize, window: &SampleWindow) -> Result<ModuleTelemetryColumns> {
+    let mut columns = ModuleTelemetryColumns::default();
+    let samples = usize::try_from(window.count).map_err(|_| dokime::Error::Invalid("Observe Module: Shorten the Window".into()))?;
     if !testbench::captures(ctx, &stream(module)) {
-        return Ok(ModuleTelemetry::default());
+        let zeros = vec![0.0; samples];
+        for channel in columns.channels() {
+            *channel = zeros.clone();
+        }
+        return Ok(columns);
     }
     let bench = ctx.get::<Testbench>()?;
     let state = bench.state();
-    // Each Module Reads the Shared Charger at the Current Model Time
-    let at_s = state.now_s();
-    Ok(telemetry(&state.charger, module, at_s))
+    // Sample `i` of a Window Is the Model's Sample `sequence - 1 + i`, Whatever Order Streams Answer In
+    for index in 0..window.count {
+        let at_s = state.time_s(window.sequence - 1 + index);
+        let reading = telemetry(&state.charger, module, at_s);
+        for (channel, value) in columns.channels().into_iter().zip(reading.values()) {
+            channel.push(value);
+        }
+    }
+    Ok(columns)
 }
 
-async fn read_register(ctx: &Context) -> Result<MeterRegister> {
+async fn read_register(ctx: &Context, window: &SampleWindow) -> Result<MeterRegisterColumns> {
     if testbench::captures(ctx, METER) {
-        // The Meter Advances the Shared Model Clock Once per Tick
-        ctx.get::<Testbench>()?.advance();
+        // The Meter Advances the Shared Model Clock by Every Sample of Its Window
+        ctx.get::<Testbench>()?.advance_by(window.count);
     }
-    Ok(MeterRegister { energy_register: REGISTER })
+    let samples = usize::try_from(window.count).map_err(|_| dokime::Error::Invalid("Read Register: Shorten the Window".into()))?;
+    Ok(MeterRegisterColumns { energy_register: vec![REGISTER; samples] })
+}
+
+impl ModuleTelemetry {
+    fn values(&self) -> [f64; 10] {
+        [
+            self.ac_voltage_v,
+            self.ac_current_a,
+            self.input_power_w,
+            self.power_factor,
+            self.dc_voltage_v,
+            self.dc_current_a,
+            self.output_power_w,
+            self.efficiency_percent,
+            self.heatsink_c,
+            self.switching_khz,
+        ]
+    }
+}
+
+impl ModuleTelemetryColumns {
+    fn channels(&mut self) -> [&mut Vec<f64>; 10] {
+        [
+            &mut self.ac_voltage_v,
+            &mut self.ac_current_a,
+            &mut self.input_power_w,
+            &mut self.power_factor,
+            &mut self.dc_voltage_v,
+            &mut self.dc_current_a,
+            &mut self.output_power_w,
+            &mut self.efficiency_percent,
+            &mut self.heatsink_c,
+            &mut self.switching_khz,
+        ]
+    }
 }
 
 fn telemetry(charger: &Charger, module: usize, at_s: f64) -> ModuleTelemetry {

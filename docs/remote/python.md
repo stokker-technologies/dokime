@@ -10,7 +10,7 @@ uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl
 
 ## Serve a Plugin
 
-The [starter](../../sdk/python/examples/starter/) is the source embedded by
+The [starter](../../sdk/python/examples/test/) is the source embedded by
 `dokime new bench --lang python`. Start Dokime separately, then serve the Python
 plugin and add its printed URL to the host:
 

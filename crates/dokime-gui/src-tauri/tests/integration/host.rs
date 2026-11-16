@@ -91,6 +91,7 @@ fn settings() -> ConnectionSettings {
                 connect_timeout: Duration::from_secs(30),
                 reconnect_delay: Duration::from_millis(25),
                 stream_window: NonZeroUsize::new(8).unwrap(),
+                interval_window: dokime_runtime::INTERVAL_WINDOW,
                 message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
             },
         },

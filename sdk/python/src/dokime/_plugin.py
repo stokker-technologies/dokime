@@ -25,7 +25,7 @@ from google.protobuf.message import Message
 from harmos import VISIBILITY_PROTECTED, Declarations, OperationPolicy, RetryPolicy, SettingDeclaration
 from harmos.plugin import Context as InvocationContext
 from harmos.plugin import Endpoint as LibraryEndpoint
-from harmos.plugin import Operation, Publisher, observer, on_stop, operation, publisher
+from harmos.plugin import Operation, Publisher, Window, observer, on_stop, operation, publisher, window_observer
 from harmos.plugin import Plugin as LibraryPlugin
 
 from dokime._wire.model.v1.record_contracts_pb2 import RecordContract, RecordContracts
@@ -45,7 +45,7 @@ from ._wire.plugin.v1.steps_pb2 import StepsExecuteRequest, StepsExecuteResponse
 from ._wire.plugin.v1.test_cases_pb2 import TestCasesMaterializeRequest, TestCasesMaterializeResponse
 
 # Local Imports
-from .authoring import _SUITES, Case, Record, Stream, Suite, Template
+from .authoring import _SUITES, Case, Record, Sampling, Stream, Suite, Template
 from .values import decode
 
 # Type Checking Imports
@@ -265,7 +265,7 @@ class Plugin:
         self, template: Template, name: str, method: FunctionType
     ) -> Callable[..., Awaitable[Message]] | Callable[..., Awaitable[None]]:
         definition = cast(Stream, vars(method)["__dokime_stream__"])
-        interval = getattr(method, "__dokime_observer__", None)
+        sampling = cast(Sampling | None, getattr(method, "__dokime_observer__", None))
 
         async def observe(adapter: object, transport: InvocationContext) -> Message:
             key = (template.identifier, transport.scope())
@@ -279,6 +279,19 @@ class Plugin:
                 result = await result
             return result if isinstance(result, definition.row) else definition.row(value=result)
 
+        async def observe_window(adapter: object, transport: InvocationContext, window: Window) -> Message:
+            key = (template.identifier, transport.scope())
+            await self._ready.setdefault(key, asyncio.Event()).wait()
+            session = self._sessions[key]
+            context = Context(
+                transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, self.requires, self.records
+            )
+            result = getattr(session.instance, name)(context, window)
+            if inspect.isawaitable(result):
+                result = await result
+            columns = cast(type[Message], sampling.columns if sampling else None)
+            return result if isinstance(result, columns) else columns(value=result)
+
         async def publish(adapter: object, transport: InvocationContext, publisher: Publisher) -> None:
             key = (template.identifier, transport.scope())
             await self._ready.setdefault(key, asyncio.Event()).wait()
@@ -290,12 +303,27 @@ class Plugin:
                 row = result if isinstance(result, definition.row) else definition.row(value=result)
                 await publisher.publish(row)
 
-        if interval:
-            milliseconds, setting = interval
-            duration = Duration(seconds=milliseconds // 1000, nanos=(milliseconds % 1000) * 1_000_000)
-            return observer(
-                definition.identifier, row=definition.row, interval=duration, interval_setting=setting, description=definition.label
-            )(observe)
+        if sampling:
+            nanoseconds = round(sampling.interval_ms * 1_000_000)
+            duration = Duration(seconds=nanoseconds // 1_000_000_000, nanos=nanoseconds % 1_000_000_000)
+            if sampling.columns is None:
+                return observer(
+                    definition.identifier,
+                    row=definition.row,
+                    interval=duration,
+                    interval_setting=sampling.interval_setting,
+                    window_setting=sampling.window_setting,
+                    description=definition.label,
+                )(observe)
+            return window_observer(
+                definition.identifier,
+                row=definition.row,
+                columns=sampling.columns,
+                interval=duration,
+                interval_setting=sampling.interval_setting,
+                window_setting=sampling.window_setting,
+                description=definition.label,
+            )(observe_window)
         return publisher(definition.identifier, row=definition.row, description=definition.label)(publish)
 
     def _stop(self) -> Callable[..., Awaitable[None]]:

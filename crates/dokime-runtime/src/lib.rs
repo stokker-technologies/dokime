@@ -39,7 +39,7 @@ pub use dokime_storage::{StorageSettings, storage_defaults};
 pub use error::Error;
 pub use execution::{Cycle, CycleResult, RunState};
 pub use host::{Host, HostSettings};
-pub use plugin::{PLUGIN_TEARDOWN, PlacementSettings, PluginProcess, STOP_GRACE, describe_plugin};
+pub use plugin::{INTERVAL_WINDOW, PLUGIN_TEARDOWN, PlacementSettings, PluginProcess, STOP_GRACE, describe_plugin};
 
 /* === Imports === */
 

@@ -97,6 +97,29 @@ public:
     native.every(observer.interval);
     if (!observer.interval_setting.empty())
       native.interval_setting(std::move(observer.interval_setting));
+    if (!observer.window_setting.empty())
+      native.window_setting(std::move(observer.window_setting));
+    native_.observer(native);
+    return *this;
+  }
+  template <class T, class C> Plugin &observer(WindowObserver<T, C> observer) {
+    auto state = executions_;
+    auto native = harmos::plugin::Observer<T>::template window<C>(
+        observer.stream, [state, sample = std::move(observer.sample)](harmos::plugin::Context &transport, const SampleWindow &window) {
+          auto resources = state->open(transport.scope());
+          TestCase test_case;
+          {
+            std::lock_guard lock(resources->mutex);
+            test_case = resources->test_case;
+          }
+          Context ctx(transport, std::move(test_case), {}, resources);
+          return sample(ctx, window);
+        });
+    native.every(observer.interval);
+    if (!observer.interval_setting.empty())
+      native.interval_setting(std::move(observer.interval_setting));
+    if (!observer.window_setting.empty())
+      native.window_setting(std::move(observer.window_setting));
     native_.observer(native);
     return *this;
   }

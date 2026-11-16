@@ -90,6 +90,8 @@ pub fn placement() -> harmos_runtime::plugin::grpc::PlacementSettings {
         reconnect_delay: Duration::from_secs(1),
         stop_grace: Duration::from_secs(30),
         stream_window: NonZeroUsize::new(8).unwrap(),
+        // The Reference Host Opens No Interval Demand Here; Stories Grant Their Windows Directly.
+        interval_window: Duration::from_secs(1),
     }
 }
 

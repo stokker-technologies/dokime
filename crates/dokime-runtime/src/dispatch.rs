@@ -102,7 +102,8 @@ impl Dispatch<'_> {
             .map_err(|source| Error::Invalid(format!("Read Sample Failure: {source}")))?
             .get(&self.resources.execution)
         {
-            return Err(Error::Invalid(format!("Ingest Execution Samples: {source}")));
+            // Each Recorded Sample Failure Already Names Its Stream and the Action to Take.
+            return Err(Error::Invalid(source.clone()));
         }
         let payload = result?;
         R::decode(payload.as_slice()).map_err(Into::into)

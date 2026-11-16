@@ -75,7 +75,7 @@ fn main() -> Result<()> {
             dropped: dropped.load(Ordering::SeqCst),
         })
     })
-    .every_ms(1000);
+    .every(std::time::Duration::from_secs(1));
     let template = Template::new("resources.case", "Resource Lifetime")
         .initialize(async move |ctx: &Context| {
             ctx.set(Device(initialize_dropped.clone()));

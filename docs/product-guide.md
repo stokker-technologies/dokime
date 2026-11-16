@@ -93,6 +93,15 @@ footer. Restart truncates an interrupted append to the saved checkpoint before
 continuing; it does not rewrite saved batches. The diagnostics copy includes these
 files and the SQLite files.
 
+Interval streams reach the host in windows: the host grants each stream `count`
+samples at a time and the plugin answers with columns. Storage writes each answered
+part straight into these Arrow columns, one row per sample at the time
+`start + i * period`, so queries, documents, reports and exports read interval and
+device samples alike. The window length is the host setting `interval_window_ms`
+(100 ms by default): longer windows store more samples per message, shorter ones
+show live samples sooner. A plugin can give one stream its own window through a
+duration setting named by the observer's window setting.
+
 Rows are accepted into a bounded live tail. The default flush policy saves at
 65,536 rows or five seconds, under pressure at 64 MiB, and at evidence barriers and
 shutdown. Saved positions advance only after file synchronization and the catalog

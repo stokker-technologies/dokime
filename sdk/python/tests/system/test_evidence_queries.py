@@ -41,7 +41,7 @@ from dokime.evidence import cycle, execution, executions
 # === Constants === #
 
 REPOSITORY = Path(__file__).resolve().parents[4]
-STARTER = REPOSITORY / "sdk/tests/fixtures/python/starter"
+STARTER = REPOSITORY / "sdk/python/examples/test/tests"
 THERMAL = REPOSITORY / "sdk/python/examples/thermal/suite.py"
 COUNTER = 1_152_921_504_606_847_975
 

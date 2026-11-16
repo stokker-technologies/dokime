@@ -35,7 +35,7 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use super::config::PreviewSettings;
 use crate::{
-    Error, NumericWindow, Result, Sample, Store,
+    Error, NumericWindow, Result, Store,
     scalar::{self, ScalarValue},
 };
 
@@ -415,13 +415,8 @@ pub(crate) fn rank_values(
         .collect()
 }
 
-pub(super) fn append(
-    connection: &Connection, id: &str, offset: u64, batch: &RecordBatch, samples: &[Sample], settings: PreviewSettings,
-) -> Result<()> {
-    let first = samples.first().ok_or(Error::Data("flush a nonempty sample batch"))?.position;
-    let last = samples.last().unwrap().position;
-    let start = samples.iter().map(|s| s.source_ns).min().unwrap();
-    let end = samples.iter().map(|s| s.source_ns).max().unwrap();
+pub(super) fn append(connection: &Connection, id: &str, offset: u64, batch: &RecordBatch, settings: PreviewSettings) -> Result<()> {
+    let (first, last, start, end) = super::writer::span(batch)?;
     let values = batch.column(1).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("summary values differ"))?;
     let mut fields = Vec::new();
     scalar_fields(values.fields(), "", &mut fields);

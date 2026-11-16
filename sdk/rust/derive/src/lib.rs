@@ -184,7 +184,15 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         } else {
             quote!(None)
         };
-        let (encode, merge, length) = if repeated {
+        // Proto3 Packs Repeated Numeric Fields; Interval Window Columns Rely on It.
+        let packed = repeated && scalar.is_some_and(|(_, kind)| kind != 9 && kind != 12);
+        let (encode, merge, length) = if packed {
+            (
+                quote!(#encoding::encode_packed(#tag, &self.#ident, buf);),
+                quote!(#encoding::merge_repeated(wire_type, &mut self.#ident, buf, ctx)),
+                quote!(#encoding::encoded_len_packed(#tag, &self.#ident)),
+            )
+        } else if repeated {
             (
                 quote!(#encoding::encode_repeated(#tag, &self.#ident, buf);),
                 quote!(#encoding::merge_repeated(wire_type, &mut self.#ident, buf, ctx)),

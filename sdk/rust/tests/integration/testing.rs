@@ -70,7 +70,7 @@ struct Oven {
 
 fn plugin() -> Plugin<((), Soaked)> {
     let temperature = Stream::<Temperature>::new("oven.temperature", "Temperature");
-    let observer = Observer::new(&temperature, async |ctx: &Context| Ok(Temperature { celsius: ctx.get::<Oven>()?.celsius })).every_ms(500);
+    let observer = Observer::new(&temperature, async |ctx: &Context| Ok(Temperature { celsius: ctx.get::<Oven>()?.celsius })).every(std::time::Duration::from_millis(500));
     let soak = Template::new("oven.soak", "Soak")
         .parameters(Setpoint { celsius: 85.0, hold_s: 2 })
         .initialize(async |ctx: &Context| {
@@ -139,7 +139,7 @@ async fn author_soaks_an_oven_without_a_host() -> Result<()> {
         }]
     );
 
-    // Observers Tick at Each Due Interval of the Controlled Clock, Inside the Step.
+    // The Sleep Grants One Window of Every Sample Due by Its End, Inside the Step.
     let samples = report.samples::<Temperature>("oven.temperature")?;
     let times = samples.iter().map(|sample| (sample.at.seconds, sample.at.nanos)).collect::<Vec<_>>();
     assert_eq!(times, [(0, 500_000_000), (1, 0), (1, 500_000_000), (2, 0)]);

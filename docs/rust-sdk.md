@@ -117,13 +117,47 @@ let settings = ctx.host().plugins.settings.list().await?;
 ```
 
 `ctx.sleep` and `ctx.now` compose library Time operations. Controlled time advances
-through host waits and observer ticks; no SDK retry loop or wall-clock wait drives
-execution. Under controlled time, ticks due before a sleep ends have run when it
-returns; a tick due at
-the sleep's end can run after it, so a step that reads its observer's state for
-that tick awaits the tick's callback. Observer intervals and retry timing belong to declared settings and
-operation policies. `Operation::analysis` adapts typed analysis requests and
-responses while retaining raw sample axes and outputs.
+through host waits; no SDK retry loop or wall-clock wait drives execution. A scoped
+sleep settles after every observer window due by its end has been answered and
+stored, so a step that sleeps for `n` intervals finds `n` more samples saved.
+Observer intervals and retry timing belong to declared settings and operation
+policies. `Operation::analysis` adapts typed analysis requests and responses while
+retaining raw sample axes and outputs.
+
+## Observers and Interval Windows
+
+The host keeps each interval stream's schedule and grants it one window at a time:
+`count` samples, the first due at `start`, each `period` later, with `sequence`
+numbering the first. The plugin answers the whole window with columns, and the host
+stores them without per-sample work. The window length is the host setting
+`interval_window_ms` (`PlacementSettings::interval_window`); `.window_setting("id")`
+takes it from a plugin Duration setting for one stream instead. The batch size
+follows from the window and the interval and is never set directly.
+
+```rust
+use std::time::Duration;
+
+// One sample per call: the SDK calls the handler once per sample, in order.
+let temperature = Observer::new(&stream, read_temperature).every(Duration::from_secs(1));
+
+// One call per window: the columns message repeats every row field (same numbers and types).
+#[derive(dokime::Message)]
+#[harmos(package = "thermal")]
+struct CounterColumns {
+    value: Vec<u64>,
+}
+let counter = Observer::window(&counter_stream, async |_: &Context, window: &SampleWindow| {
+    Ok(CounterColumns { value: vec![1; window.count as usize] })
+})
+.every(Duration::from_millis(1))
+.window_setting("counter_window");
+```
+
+Use the window form for high-rate streams and for models that compute every sample
+from its due time (`window.start + i * window.period`); keep the one-sample form when
+a sample depends on state that steps change between samples. Interval rows hold one
+value per field: repeated, map, oneof and `Option` fields are refused when the plugin
+is admitted. Repeated numeric fields derived with `dokime::Message` encode packed.
 
 Plugin settings use `SettingDeclaration`, `SettingValue` and
 `SettingsDeclarations` from the library. `.settings(defaults)` derives Boolean,
@@ -140,8 +174,8 @@ no host process, storage or hardware. It resolves declared parameter defaults,
 applies the materializer, then runs initialization, each frozen step, the
 criteria and cleanup in the host's order against an in-memory host with a
 controlled clock starting at the epoch (`starting_at` moves it). `ctx.sleep`
-advances that clock and ticks each `every_ms` observer at its due intervals
-first; replay-safe steps retry within their policy. Declared host requirements
+advances that clock and, before it returns, grants each `every` observer one window
+of every sample due by its end, as the host does for a scoped sleep; replay-safe steps retry within their policy. Declared host requirements
 are enforced. Prompts take the answer given with `answer`/`answer_with`,
 otherwise the declared prompt's first non-cancel action.
 

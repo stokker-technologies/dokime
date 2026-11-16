@@ -49,6 +49,7 @@ __all__ = [
     "step",
     "stream",
     "suite",
+    "window_observer",
 ]
 
 # === Constants === #
@@ -58,6 +59,16 @@ _SUITES: WeakKeyDictionary[type, "Suite"] = WeakKeyDictionary()
 # === Types === #
 
 # === Classes === #
+
+
+@dataclass(frozen=True)
+class Sampling:
+    """How an Observer Samples: Its Interval, Optional Settings and Window Columns."""
+
+    interval_ms: float
+    interval_setting: str
+    window_setting: str
+    columns: type[Message] | None
 
 
 @dataclass(frozen=True)
@@ -242,17 +253,26 @@ def materialize[**P, R](handler: Callable[P, R]) -> Callable[P, R]:
     return handler
 
 
-def observer[**P, R](*, interval_ms: int = 1000, interval_setting: str = "") -> Callable[[Callable[P, R]], Callable[P, R]]:
-    if interval_ms <= 0:
-        raise ValueError("Observer interval must be positive")
+def observer[**P, R](
+    *, interval_ms: float = 1000, interval_setting: str = "", window_setting: str = ""
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Sample One Row per Call; Each Host Window Calls the Method Once per Sample, in Order.
 
-    def decorate(handler: Callable[P, R]) -> Callable[P, R]:
-        if not isinstance(handler, FunctionType):
-            raise TypeError("Register Definition: Supply a Function")
-        vars(handler)["__dokime_observer__"] = (interval_ms, interval_setting)
-        return handler
+    `interval_ms` may be fractional (`0.001` samples at 1 MHz). `window_setting` names a plugin
+    duration setting that replaces the host's window length for this stream.
+    """
+    return _sampling(Sampling(interval_ms, interval_setting, window_setting, None))
 
-    return decorate
+
+def window_observer[**P, R](
+    *, columns: type[Message], interval_ms: float = 1000, interval_setting: str = "", window_setting: str = ""
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Answer a Whole Host Window per Call With `columns`, Which Repeats Every Field of the Row.
+
+    The method receives the context and the `SampleWindow`; sample `i` is due at
+    `window.start + i * window.period`, and every column holds `window.count` values.
+    """
+    return _sampling(Sampling(interval_ms, interval_setting, window_setting, columns))
 
 
 def stream[**P, R](label: str, *, identifier: str, row: type[Message] = DoubleValue) -> Callable[[Callable[P, R]], Callable[P, R]]:
@@ -277,5 +297,19 @@ def suite(
 
 
 # === Private Functions === #
+
+
+def _sampling[**P, R](sampling: Sampling) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    if sampling.interval_ms <= 0:
+        raise ValueError("Observer interval must be positive")
+
+    def decorate(handler: Callable[P, R]) -> Callable[P, R]:
+        if not isinstance(handler, FunctionType):
+            raise TypeError("Register Definition: Supply a Function")
+        vars(handler)["__dokime_observer__"] = sampling
+        return handler
+
+    return decorate
+
 
 # === Entry Point === #

@@ -16,12 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 // Third Party Imports
+use prost_reflect::{DescriptorPool, DynamicMessage};
 
 // Local Imports
-use crate::operation::{self, Action, FutureResult, Handler};
+use crate::operation::{self, Action, FutureResult};
 use crate::{Context, Message, Result, context::Executions};
 use harmos::Error as HarmosError;
 use harmos::plugin::Context as HarmosContext;
@@ -29,6 +30,7 @@ use harmos::plugin::Observer as HarmosObserver;
 use harmos::plugin::Plugin as HarmosPlugin;
 use harmos::plugin::Publisher;
 use harmos::plugin::Stream as HarmosStream;
+pub use harmos::plugin::Window as SampleWindow;
 
 /* === Constants === */
 
@@ -58,14 +60,24 @@ pub struct Observer {
 #[derive(Clone)]
 pub(crate) struct Sampler {
     pub stream: String,
-    pub interval_ms: Option<u64>,
+    pub interval: Option<Duration>,
     pub setting: Option<String>,
     pub types: prost_types::FileDescriptorSet,
     pub name: String,
-    pub sample: Arc<dyn Handler<Vec<u8>>>,
+    pub sample: Arc<dyn Sample>,
+}
+
+/// Answers One Granted Window With One Encoded Row per Sample.
+pub(crate) trait Sample: Send + Sync {
+    fn rows<'a>(&'a self, context: &'a Context, window: &'a SampleWindow) -> FutureResult<'a, Vec<Vec<u8>>>;
 }
 
 struct Encoded<T>(Action<T>);
+
+struct Columns<T, C, H> {
+    handler: Arc<H>,
+    marker: PhantomData<fn() -> (T, C)>,
+}
 
 /* === Enums === */
 
@@ -113,6 +125,7 @@ impl<T: Message> Stream<T> {
 }
 
 impl Observer {
+    /// Observe One Sample per Call; Each Granted Window Calls It Once per Sample, in Order.
     pub fn new<T, H>(stream: &Stream<T>, handler: H) -> Self
     where
         T: Message,
@@ -120,14 +133,7 @@ impl Observer {
     {
         let identifier = stream.identifier.clone();
         let action = operation::action(handler);
-        let sampler = Sampler {
-            stream: identifier.clone(),
-            interval_ms: None,
-            setting: None,
-            types: T::types(),
-            name: T::name(),
-            sample: Arc::new(Encoded(action.clone())),
-        };
+        let sampler = Sampler::new::<T>(&identifier, Arc::new(Encoded(action.clone())));
         Self {
             register: Box::new(move |executions| {
                 let stream = HarmosStream::<T>::new(identifier);
@@ -141,20 +147,60 @@ impl Observer {
         }
     }
 
-    pub fn every_ms(mut self, interval_ms: u64) -> Self {
-        self.sampler.interval_ms = Some(interval_ms);
+    /// Observe a Whole Window per Call; `C` Repeats Every Field of `T` With Its Number and Type.
+    ///
+    /// Sample `i` of the window is due at `window.start + i * window.period`; the returned
+    /// columns hold one value per sample in every field.
+    pub fn window<T, C, H>(stream: &Stream<T>, handler: H) -> Self
+    where
+        T: Message,
+        C: Message,
+        H: for<'a> AsyncFn(&'a Context, &'a SampleWindow) -> Result<C> + Send + Sync + 'static,
+    {
+        let identifier = stream.identifier.clone();
+        let handler = Arc::new(handler);
+        let sampler = Sampler::new::<T>(
+            &identifier,
+            Arc::new(Columns::<T, C, H> {
+                handler: handler.clone(),
+                marker: PhantomData,
+            }),
+        );
+        Self {
+            register: Box::new(move |executions| {
+                let stream = HarmosStream::<T>::new(identifier);
+                HarmosObserver::window(&stream, async move |transport: &HarmosContext, window: &SampleWindow| {
+                    let context = Context::publication(transport, &executions)?;
+                    handler(&context, window).await.map_err(HarmosError::from)
+                })
+            }),
+            configure: Vec::new(),
+            sampler,
+        }
+    }
+
+    /// Sample at a Fixed Interval on the Host Clock.
+    pub fn every(mut self, interval: Duration) -> Self {
+        self.sampler.interval = Some(interval);
         self.configure(move |observer| {
             observer.every(prost_types::Duration {
-                seconds: (interval_ms / 1000) as i64,
-                nanos: ((interval_ms % 1000) * 1_000_000) as i32,
+                seconds: i64::try_from(interval.as_secs()).unwrap_or(i64::MAX),
+                nanos: interval.subsec_nanos() as i32,
             })
         })
     }
 
+    /// Take the Interval From a Plugin Duration Setting.
     pub fn interval_setting(mut self, identifier: impl Into<String>) -> Self {
         let identifier = identifier.into();
         self.sampler.setting = Some(identifier.clone());
         self.configure(move |observer| observer.interval_setting(identifier))
+    }
+
+    /// Take This Stream's Window Length From a Plugin Duration Setting Instead of the Host's.
+    pub fn window_setting(self, identifier: impl Into<String>) -> Self {
+        let identifier = identifier.into();
+        self.configure(move |observer| observer.window_setting(identifier))
     }
 
     fn configure(mut self, configure: impl FnOnce(HarmosObserver) -> HarmosObserver + Send + 'static) -> Self {
@@ -173,14 +219,71 @@ impl Observer {
     }
 }
 
-impl<T: Message> Handler<Vec<u8>> for Encoded<T> {
-    fn execute<'a>(&'a self, context: &'a Context) -> FutureResult<'a, Vec<u8>> {
-        Box::pin(async move { Ok(self.0.execute(context).await?.encode_to_vec()) })
+impl Sampler {
+    fn new<T: Message>(stream: &str, sample: Arc<dyn Sample>) -> Self {
+        Self {
+            stream: stream.to_owned(),
+            interval: None,
+            setting: None,
+            types: T::types(),
+            name: T::name(),
+            sample,
+        }
+    }
+}
+
+impl<T: Message> Sample for Encoded<T> {
+    fn rows<'a>(&'a self, context: &'a Context, window: &'a SampleWindow) -> FutureResult<'a, Vec<Vec<u8>>> {
+        Box::pin(async move {
+            let mut rows = Vec::with_capacity(usize::try_from(window.count).unwrap_or_default());
+            for _ in 0..window.count {
+                rows.push(self.0.execute(context).await?.encode_to_vec());
+            }
+            Ok(rows)
+        })
+    }
+}
+
+impl<T, C, H> Sample for Columns<T, C, H>
+where
+    T: Message,
+    C: Message,
+    H: for<'a> AsyncFn(&'a Context, &'a SampleWindow) -> Result<C> + Send + Sync + 'static,
+{
+    fn rows<'a>(&'a self, context: &'a Context, window: &'a SampleWindow) -> FutureResult<'a, Vec<Vec<u8>>> {
+        Box::pin(async move {
+            let columns = (self.handler)(context, window).await?.encode_to_vec();
+            columns_rows::<T, C>(&columns, window.count)
+        })
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/// Split Encoded Columns Into One Encoded Row per Sample, Refusing a Column of Another Length.
+fn columns_rows<T: Message, C: Message>(columns: &[u8], count: u64) -> Result<Vec<Vec<u8>>> {
+    let invalid = |error: String| crate::Error::Invalid(format!("Answer Sample Window: {error}"));
+    let descriptor = |types, name: String| -> Result<prost_reflect::MessageDescriptor> {
+        let pool = DescriptorPool::from_file_descriptor_set(types).map_err(|error| invalid(error.to_string()))?;
+        pool.get_message_by_name(&name).ok_or_else(|| invalid(format!("declare the message {name}")))
+    };
+    let (row, layout) = (descriptor(T::types(), T::name())?, descriptor(C::types(), C::name())?);
+    let columns = DynamicMessage::decode(layout.clone(), columns).map_err(|error| invalid(error.to_string()))?;
+    let count = usize::try_from(count).map_err(|error| invalid(error.to_string()))?;
+    let mut rows = vec![DynamicMessage::new(row); count];
+    for field in layout.fields() {
+        let value = columns.get_field(&field);
+        let Some(values) = value.as_list().filter(|values| values.len() == count) else {
+            return Err(invalid(format!("send {count} values in column `{}`", field.name())));
+        };
+        for (row, value) in rows.iter_mut().zip(values) {
+            row.try_set_field_by_number(field.number(), value.clone()).map_err(|error| invalid(error.to_string()))?;
+        }
+    }
+    let rows = rows.iter().map(prost::Message::encode_to_vec).collect();
+    Ok(rows)
+}
 
 /* === Tests === */
