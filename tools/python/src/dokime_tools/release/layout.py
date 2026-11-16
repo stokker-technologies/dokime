@@ -209,7 +209,7 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
     product = settings["product"]
     lowered = name.lower()
     format_ = next((suffix for suffix in ("tar.gz", "exe", "zip", "deb", "rpm", "whl", "md", "json") if lowered.endswith("." + suffix)), "")
-    for family in ("compliance", "proto", "reports"):
+    for family in ("compliance", "docs", "proto", "reports"):
         if name.startswith(f"{product}-{family}-") and format_ == "zip":
             return {"kind": family, "os": "any", "arch": "any", "format": "zip"}
     if name.endswith(".cdx.json"):

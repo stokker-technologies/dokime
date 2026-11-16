@@ -63,6 +63,13 @@ jobs:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
     if: github.event_name != 'pull_request' || github.event.action != 'closed'
+  build_docs:
+    name: Build / Documentation
+    uses: ./.github/workflows/validate-build-docs.yml
+    with:
+      channel: ci
+      profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
+    if: github.event_name != 'pull_request' || github.event.action != 'closed'
   check_generated:
     name: Check / Generated
     uses: ./.github/workflows/validate-check-generated.yml
@@ -314,6 +321,11 @@ jobs:
         name: package-${{ env.PROFILE }}-rust-unix
         path: target/ci
         github-token: ${{ github.token }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-docs-${{ env.PROFILE }}-any
+        path: target/docs
+        github-token: ${{ github.token }}
     - run: mise run release:rehearse -- --profile ${{ env.PROFILE }} --target all
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
@@ -347,6 +359,7 @@ jobs:
       contents: read
     needs:
     - package
+    - build_docs
     if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.base_ref == 'dev' && startsWith(github.head_ref, 'release/v')
   required:
     name: CI / Required
@@ -357,6 +370,7 @@ jobs:
     - build_product
     - build_tests
     - build_python
+    - build_docs
     - check_generated
     - test
     - build_host_fixtures_csharp

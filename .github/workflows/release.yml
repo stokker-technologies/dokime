@@ -272,7 +272,7 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         REVIEW_RELEASE: 'true'
-        REVIEW_PACKAGES: '["package-PROFILE-python-any","package-PROFILE-rust-unix","package-PROFILE-rust-windows"]'
+        REVIEW_PACKAGES: '["package-PROFILE-python-any","package-PROFILE-rust-unix","package-PROFILE-rust-windows","build-docs-PROFILE-any"]'
         REVIEW_BUILDS: '["build-cli-PROFILE-windows","build-packaging-PROFILE-windows"]'
         REVIEW_REQUIRED: 'true'
     permissions:
