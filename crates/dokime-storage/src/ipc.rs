@@ -66,6 +66,14 @@ pub(crate) struct Writer {
     fail_sync: bool,
 }
 
+/// A Duplicate of a Writer's File Handle; Syncing It Makes Every Batch Written Before Durable.
+pub(crate) struct SyncHandle {
+    file: File,
+
+    #[cfg(test)]
+    fail: bool,
+}
+
 struct HashedFile {
     file: File,
     hash: Sha256,
@@ -109,6 +117,18 @@ pub(crate) struct Checkpoint {
 impl Checkpoint {
     pub(crate) fn digest(&self) -> Result<[u8; 32]> {
         Ok(hash_state(&self.hash)?.finalize().into())
+    }
+}
+
+impl SyncHandle {
+    pub(crate) fn sync(self) -> Result<()> {
+        #[cfg(test)]
+        if self.fail {
+            return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
+        }
+        let _span = tracing::debug_span!("ingest.ipc.sync").entered();
+        self.file.sync_all()?;
+        Ok(())
     }
 }
 
@@ -238,6 +258,15 @@ impl Writer {
         let _span = tracing::debug_span!("ingest.ipc.sync").entered();
         self.file.file.sync_all()?;
         Ok(())
+    }
+
+    /// A Handle That Makes This File's Written Batches Durable Without Holding the Writer.
+    pub(crate) fn sync_handle(&mut self) -> Result<SyncHandle> {
+        Ok(SyncHandle {
+            file: self.file.file.try_clone()?,
+            #[cfg(test)]
+            fail: std::mem::take(&mut self.fail_sync),
+        })
     }
 
     // Restore The Last Committed Prefix After A Failed Append Or Catalog Commit.

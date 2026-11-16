@@ -50,6 +50,9 @@ pub(crate) struct Telemetry {
     pending: BTreeMap<(String, String), Pending>,
     writers: BTreeMap<String, ipc::Writer>,
     codecs: BTreeMap<(String, String), Arc<Codec>>,
+    /// A Background Round's Written Batches Awaiting Their Sync and Catalog Commit.
+    unsynced: Option<writer::Unsynced>,
+    rounds: u64,
     running: bool,
     closed: bool,
     workers: Vec<tokio::task::JoinHandle<()>>,
@@ -83,6 +86,8 @@ impl Telemetry {
             pending: BTreeMap::new(),
             writers: BTreeMap::new(),
             codecs: BTreeMap::new(),
+            unsynced: None,
+            rounds: 0,
             running: false,
             closed: false,
             workers: Vec::new(),

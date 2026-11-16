@@ -13,8 +13,12 @@
 // parallel (concatenation, IPC encoding, moments and previews) and commits them together: it
 // writes and syncs every file in parallel, then saves one catalog transaction. Claimed rows
 // stay pending, and so visible to readers, until that transaction commits. Background rounds
-// prepare without the store's locks; a synchronous flush prepares under them and supersedes a
-// round in progress, whose claims it detects as stale and drops.
+// prepare and sync without the store's locks, so admission never waits for a file sync: a
+// round writes under the locks, leaves its written batches unsynced, syncs duplicated file
+// handles, then catalogs the batches if they are still its own. Whoever holds the locks next
+// (a synchronous flush, finalization or the next round) first syncs and catalogs unsynced
+// batches itself. A synchronous flush prepares under the locks and supersedes a round still
+// preparing, whose claims it detects as stale and drops.
 
 /* === Modules === */
 
@@ -83,6 +87,20 @@ struct Chunk {
 struct Written {
     indices: Vec<ipc::BatchIndex>,
     after: ipc::Checkpoint,
+}
+
+/// Prepared Files Written but Neither Synced nor Cataloged, With Each Writer's End Before Them.
+pub(super) struct Unsynced {
+    round: u64,
+    prepared: Vec<Prepared>,
+    files: BTreeMap<String, Written>,
+    befores: Vec<(String, ipc::Checkpoint)>,
+}
+
+/// A Background Round Between Its Writes and Its Catalog Commit.
+struct Round {
+    id: u64,
+    handles: Vec<ipc::SyncHandle>,
 }
 
 /* === Enums === */
@@ -407,6 +425,7 @@ impl Store {
     /// Flush Every Pending Row Before Returning; Its Caller Holds the Store's Connection.
     pub(crate) fn flush_samples_locked(&self, connection: &mut Connection) -> Result<()> {
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+        self.settle(connection, &mut telemetry)?;
         if telemetry.closed && !telemetry.pending.is_empty() {
             return Err(Error::Data("reopen storage after its failed shutdown flush"));
         }
@@ -414,15 +433,27 @@ impl Store {
             return Ok(());
         }
         let prepared = prepare(telemetry.claim(connection)?, &telemetry.settings)?;
-        self.commit(connection, &mut telemetry, prepared)
+        let unsynced = self.write(connection, &mut telemetry, prepared)?;
+        self.sync_and_catalog(connection, &mut telemetry, unsynced)
     }
-    /// One Background Round: Claim Under the Locks, Prepare Without Them, Then Commit What Is Still Pending.
+    /// One Background Round: Claim Under the Locks, Prepare Without Them, Write Under Them, Sync Without Them.
     fn flush_round(&self) -> Result<()> {
+        match self.begin_round()? {
+            Some(round) => self.finish_round(round),
+            None => Ok(()),
+        }
+    }
+    /// Claim, Prepare and Write One Round, Leaving Its Batches Unsynced With Handles That Sync Them.
+    fn begin_round(&self) -> Result<Option<Round>> {
         let (claims, settings) = {
-            let connection = self.lock()?;
-            let telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
-            if telemetry.closed || telemetry.pending.is_empty() {
-                return Ok(());
+            let mut connection = self.lock()?;
+            let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+            if telemetry.closed {
+                return Ok(None);
+            }
+            self.settle(&mut connection, &mut telemetry)?;
+            if telemetry.pending.is_empty() {
+                return Ok(None);
             }
             (telemetry.claim(&connection)?, telemetry.settings)
         };
@@ -430,20 +461,54 @@ impl Store {
         let mut connection = self.lock()?;
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
         if telemetry.closed {
-            return Ok(());
+            return Ok(None);
         }
+        self.settle(&mut connection, &mut telemetry)?;
         // A Synchronous Flush Since the Claim Saved These Rows Itself; Their Prepared Copies Are Dropped.
-        let prepared = prepared.into_iter().filter(|prepared| telemetry.current(prepared)).collect();
-        self.commit(&mut connection, &mut telemetry, prepared)
-    }
-    /// Write, Sync and Catalog Prepared Files, Then Release Their Claimed Batches.
-    ///
-    /// Every file is synced before the one catalog transaction commits, so a saved position never
-    /// names rows a crash could lose; a failure rolls every writer back to its committed prefix.
-    fn commit(&self, connection: &mut Connection, telemetry: &mut Telemetry, prepared: Vec<Prepared>) -> Result<()> {
+        let prepared = prepared.into_iter().filter(|prepared| telemetry.current(prepared)).collect::<Vec<_>>();
         if prepared.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
+        let mut unsynced = self.write(&connection, &mut telemetry, prepared)?;
+        let mut handles = Vec::with_capacity(unsynced.files.len());
+        for id in unsynced.files.keys() {
+            let handle = match telemetry.writers.get_mut(id) {
+                Some(writer) => writer.sync_handle(),
+                None => Err(Error::Data("restart after an Arrow writer went missing")),
+            };
+            match handle {
+                Ok(handle) => handles.push(handle),
+                Err(error) => return Err(rollback(&mut telemetry, &unsynced.befores, error)),
+            }
+        }
+        telemetry.rounds += 1;
+        unsynced.round = telemetry.rounds;
+        let id = unsynced.round;
+        telemetry.unsynced = Some(unsynced);
+        Ok(Some(Round { id, handles }))
+    }
+    /// Sync a Round's Files Without the Locks, Then Catalog Its Batches Unless Another Flush Already Did.
+    fn finish_round(&self, round: Round) -> Result<()> {
+        let synced = parallel(round.handles, ipc::SyncHandle::sync).into_iter().collect::<Result<()>>();
+        let mut connection = self.lock()?;
+        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+        let Some(unsynced) = telemetry.unsynced.take_if(|unsynced| unsynced.round == round.id) else {
+            return Ok(());
+        };
+        match synced {
+            Ok(()) => self.catalog(&mut connection, &mut telemetry, unsynced),
+            Err(error) => Err(rollback(&mut telemetry, &unsynced.befores, error)),
+        }
+    }
+    /// Sync and Catalog a Round's Unsynced Batches; Every Flush Holding the Locks Does This Before Claiming.
+    fn settle(&self, connection: &mut Connection, telemetry: &mut Telemetry) -> Result<()> {
+        match telemetry.unsynced.take() {
+            Some(unsynced) => self.sync_and_catalog(connection, telemetry, unsynced),
+            None => Ok(()),
+        }
+    }
+    /// Write Prepared Files Without Syncing Them; a Failure Rolls Every Writer Back to Its Committed Prefix.
+    fn write(&self, connection: &Connection, telemetry: &mut Telemetry, prepared: Vec<Prepared>) -> Result<Unsynced> {
         let root = self.database.parent().ok_or(Error::Data("select a valid storage root"))?;
         // Every Stream File Is Created and Cataloged When Its Stream Opens; After a Restart It Resumes Here.
         let mut openings = Vec::new();
@@ -472,11 +537,7 @@ impl Store {
             parallel(work, |(writer, prepared)| {
                 let before = writer.checkpoint();
                 let indices = prepared.chunks.iter().map(|chunk| writer.write(&chunk.encoded)).collect::<Result<Vec<_>>>();
-                let result = indices.and_then(|indices| {
-                    writer.sync()?;
-                    Ok((indices, writer.checkpoint()))
-                });
-                (prepared.id.clone(), before, result)
+                (prepared.id.clone(), before, indices.map(|indices| (indices, writer.checkpoint())))
             })
         };
         let mut befores = Vec::new();
@@ -493,18 +554,32 @@ impl Store {
             }
             befores.push((id, before));
         }
-        let rollback = |telemetry: &mut Telemetry, error: Error| -> Result<()> {
-            for (id, before) in &befores {
-                telemetry.writers.get_mut(id).ok_or(Error::Data("restart after an Arrow writer went missing"))?.rollback(before)?;
-            }
-            Err(error)
-        };
         if let Some(error) = failure {
-            return rollback(telemetry, error);
+            return Err(rollback(telemetry, &befores, error));
+        }
+        Ok(Unsynced { round: 0, prepared, files, befores })
+    }
+    /// Sync Written Files Under the Locks, Then Catalog Them.
+    fn sync_and_catalog(&self, connection: &mut Connection, telemetry: &mut Telemetry, unsynced: Unsynced) -> Result<()> {
+        let work =
+            telemetry.writers.iter_mut().filter(|(id, _)| unsynced.files.contains_key(id.as_str())).map(|(_, writer)| writer).collect();
+        if let Err(error) = parallel(work, |writer: &mut ipc::Writer| writer.sync()).into_iter().collect::<Result<()>>() {
+            return Err(rollback(telemetry, &unsynced.befores, error));
+        }
+        self.catalog(connection, telemetry, unsynced)
+    }
+    /// Catalog Synced Files in One Transaction, Then Release Their Claimed Batches.
+    ///
+    /// Every file is synced before this transaction commits, so a saved position never names rows a
+    /// crash could lose; a failure rolls every writer back to its committed prefix.
+    fn catalog(&self, connection: &mut Connection, telemetry: &mut Telemetry, unsynced: Unsynced) -> Result<()> {
+        let Unsynced { prepared, files, befores, .. } = unsynced;
+        if prepared.is_empty() {
+            return Ok(());
         }
         let transaction = match connection.transaction() {
             Ok(transaction) => transaction,
-            Err(error) => return rollback(telemetry, error.into()),
+            Err(error) => return Err(rollback(telemetry, &befores, error.into())),
         };
         let result = (|| -> Result<()> {
             for prepared in &prepared {
@@ -543,7 +618,7 @@ impl Store {
             Ok(())
         })();
         if let Err(error) = result.and_then(|()| Ok(transaction.commit()?)) {
-            return rollback(telemetry, error);
+            return Err(rollback(telemetry, &befores, error));
         }
         for prepared in &prepared {
             let pending = telemetry.pending.get_mut(&prepared.key).ok_or(Error::Data("restart after pending samples went missing"))?;
@@ -607,6 +682,20 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/// Restore Each Writer to Its Committed Prefix; Returns the Error That Required It, or the Rollback's Own.
+fn rollback(telemetry: &mut Telemetry, befores: &[(String, ipc::Checkpoint)], error: Error) -> Error {
+    for (id, before) in befores {
+        let restored = match telemetry.writers.get_mut(id) {
+            Some(writer) => writer.rollback(before),
+            None => Err(Error::Data("restart after an Arrow writer went missing")),
+        };
+        if let Err(failure) = restored {
+            return failure;
+        }
+    }
+    error
+}
 
 fn require_stream(connection: &Connection, execution: &str, stream: &str) -> Result<()> {
     let closed: i32 =
@@ -870,6 +959,48 @@ mod tests {
         assert!(admitted.elapsed() < settings.flush_interval);
         store.shutdown_samples().await?;
         require_saved_once(&store, 1)
+    }
+
+    #[test]
+    fn a_round_syncs_without_the_locks_and_the_next_flush_settles_it() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let settings = storage_defaults();
+        let store = Store::open_with(root.path(), settings)?;
+        store.create(&execution())?;
+        for index in 0..STREAMS {
+            store.open_stream("execution", &stream(index))?;
+        }
+        // A Round Parked Between Its Writes and Its Sync Holds No Lock: Admission and Reads Proceed.
+        store.sample_batch("execution", &samples(0))?;
+        let round = store.begin_round()?.expect("pending rows start a round");
+        store.sample_batch("execution", &samples(1))?;
+        assert_eq!(store.cut("execution")?.frontier, 0);
+        // A Synchronous Flush Syncs and Catalogs the Parked Batches Before Its Own; the Round Then Commits Nothing.
+        store.flush_samples()?;
+        store.finish_round(round)?;
+        require_saved_once(&store, 2)?;
+        // A Round Left Alone Catalogs Its Own Batches.
+        store.sample_batch("execution", &samples(2))?;
+        let round = store.begin_round()?.expect("pending rows start a round");
+        store.finish_round(round)?;
+        require_saved_once(&store, 3)?;
+        // A Failed Sync Rolls the Round Back; Its Rows Stay Pending and the Next Flush Saves Them Once.
+        store.sample_batch("execution", &samples(3))?;
+        store.telemetry.lock().unwrap().writers.values_mut().next().unwrap().fail_next_sync();
+        let round = store.begin_round()?.expect("pending rows start a round");
+        assert!(store.finish_round(round).is_err());
+        store.flush_samples()?;
+        require_saved_once(&store, 4)?;
+        // A Crash While a Round Is Parked Keeps the Saved Prefix, and Writing Resumes Past the Uncataloged Bytes.
+        store.sample_batch("execution", &samples(4))?;
+        let round = store.begin_round()?.expect("pending rows start a round");
+        drop(round);
+        drop(store);
+        let store = Store::open_with(root.path(), settings)?;
+        require_saved_once(&store, 4)?;
+        store.sample_batch("execution", &samples(4))?;
+        store.flush_samples()?;
+        require_saved_once(&store, 5)
     }
 
     #[test]
