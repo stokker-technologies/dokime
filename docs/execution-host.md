@@ -346,7 +346,9 @@ profile is created. Use the host's Access pairing deletion operation to revoke i
 pairing when supplied, and removes that entry before closing on stdin EOF or Ctrl+C.
 Detecting an unexpected exit and plugin-specific `.proto` source export await the
 host/API requests listed in the parity checklist; embedded product export remains
-`proto export --out proto`.
+`proto export --out proto`. The export includes Google imports, licenses and
+[protoc/Buf instructions](protocol-export.md); the release contracts ZIP contains
+the same self-contained inventory.
 
 ```sh
 dokime new first-plugin --lang rust

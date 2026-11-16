@@ -24,9 +24,9 @@ from unittest import mock
 
 # Third Party Imports
 # Local Imports
+import dokime_tools.package.run
 from dokime_tools import policy
 from dokime_tools.build import wheel
-from dokime_tools.package import run as package_run
 from dokime_tools.release import layout, registry, reports, run
 
 # Type Checking Imports
@@ -268,6 +268,10 @@ class StageTests(unittest.TestCase):
                         path = exported / name
                         path.parent.mkdir(parents=True)
                         path.write_text('syntax = "proto3";')
+                    for name in ("README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"):
+                        path = exported / name
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_text("exported support file")
 
                 source = root / "input/latest.json"
                 source.parent.mkdir()
@@ -287,11 +291,11 @@ class StageTests(unittest.TestCase):
                     mock.patch.object(run.layout, "triple", return_value="x86_64-pc-windows-msvc"),
                     mock.patch.object(run, "assets", return_value=declared),
                     mock.patch.object(run, "_native", return_value="windows-x86_64"),
-                    mock.patch.object(run.packages, "verify"),
+                    mock.patch.object(dokime_tools.package.run, "verify"),
                     mock.patch.object(
-                        run.packages, "definitions", return_value=[{"command": "dokime", "binary": binary, "output": "cli.zip"}]
+                        dokime_tools.package.run, "definitions", return_value=[{"command": "dokime", "binary": binary, "output": "cli.zip"}]
                     ),
-                    mock.patch.object(run.packages, "binary_bytes", return_value=b"cli"),
+                    mock.patch.object(dokime_tools.package.run, "binary_bytes", return_value=b"cli"),
                     mock.patch.object(run.policy, "execute", side_effect=export),
                     mock.patch.object(run.policy, "config", return_value=config),
                     mock.patch.object(run.version, "run"),
@@ -333,7 +337,10 @@ class StageTests(unittest.TestCase):
                     self.assertIn("artifacts/" + installer.name + ".cdx.json", archive.namelist())
                     self.assertIn("crates/any/dokime-shell.cdx.json", archive.namelist())
                 with zipfile.ZipFile(staged / run.SHARED / "dokime-proto-0.1.3.zip") as archive:
-                    self.assertEqual(set(archive.namelist()), protocol_sources)
+                    self.assertEqual(
+                        set(archive.namelist()),
+                        protocol_sources | {"README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"},
+                    )
                 inventory = {item["name"]: item for item in layout.uploads(root, staged=True)}
                 run._checksums(staged / run.SHARED / run.SUMS, inventory)
 
@@ -383,12 +390,12 @@ class PythonPackagingTests(unittest.TestCase):
             root = Path(temporary).resolve()
             output = self.fixture(root)
             with (
-                mock.patch.object(package_run.Path, "cwd", return_value=root),
-                mock.patch.object(package_run.policy, "config", return_value={"version": {"value": "0.1.3"}}),
+                mock.patch.object(dokime_tools.package.run.Path, "cwd", return_value=root),
+                mock.patch.object(dokime_tools.package.run.policy, "config", return_value={"version": {"value": "0.1.3"}}),
                 mock.patch("sys.argv", ["package", "python", "--target", "windows-x86_64"]),
-                mock.patch.object(package_run.subprocess, "run") as execute,
+                mock.patch.object(dokime_tools.package.run.subprocess, "run") as execute,
             ):
-                package_run.main()
+                dokime_tools.package.run.main()
             execute.assert_not_called()
             for source in wheel.distributions(root, output, "0.1.3"):
                 self.assertEqual((root / "target/package/dev/any/python" / source.name).read_bytes(), source.read_bytes())

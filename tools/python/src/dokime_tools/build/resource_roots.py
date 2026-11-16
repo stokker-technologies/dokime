@@ -14,7 +14,9 @@
 import argparse
 import json
 import re
+import shutil
 import subprocess
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -39,15 +41,84 @@ from .protocol_callers import narrow_callers
 # === Public Functions === #
 
 
-def generate(check: bool = False) -> None:
-    root = Path.cwd()
-    composition = root / "protocol/composition.toml"
+def generate(check: bool = False, *, root: Path | None = None) -> None:
+    source = root or Path.cwd()
+    output = Path(tempfile.mkdtemp())
+    try:
+        _render(source, output)
+        if check:
+            differences = compare(source, output)
+            if differences:
+                raise ValueError("Check SDK Definitions: Run mise run generate -- --protocol\n" + "\n".join(differences))
+            return
+        expected = inventory(output)
+        existing = inventory(source)
+        for relative in existing - expected:
+            (source / relative).unlink()
+        for relative in sorted(expected):
+            destination = source / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((output / relative).read_bytes())
+    finally:
+        shutil.rmtree(output)
+
+
+def inventory(root: Path) -> set[Path]:
+    """Collect This Generator's Complete Output Inventory, Including Retired Files."""
+    patterns = (
+        "sdk/python/src/dokime/_generated/**/*.py",
+        "sdk/python/src/dokime/_generated/**/*.pyi",
+        "sdk/csharp/src/Dokime/Generated/**/*.cs",
+        "sdk/cpp/include/dokime/_generated/**/*.hpp",
+        "sdk/cpp/src/generated/*.cpp",
+    )
+    files = {path.relative_to(root) for pattern in patterns for path in root.glob(pattern) if path.is_file()}
+    names = (
+        "sdk/rust/src/exports.rs",
+        "sdk/rust/src/host.rs",
+        "sdk/rust/src/client/resources.rs",
+        "sdk/rust/src/client/types.rs",
+        "sdk/rust/src/plugin/host.rs",
+        "sdk/rust/src/plugin/host_exports.rs",
+        "sdk/rust/src/plugin/types.rs",
+        "sdk/python/src/dokime/__init__.py",
+        "sdk/python/src/dokime/client.py",
+        "sdk/python/src/dokime/plugin/__init__.py",
+        "sdk/cpp/include/dokime/messages.hpp",
+        "sdk/cpp/include/dokime/detail/messages.hpp",
+    )
+    files.update(Path(name) for name in names if (root / name).is_file())
+    for path in (root / "sdk/rust/src").rglob("*.rs"):
+        if path.read_bytes().startswith(b"// @generated from protocol descriptors; do not edit."):
+            files.add(path.relative_to(root))
+    return files
+
+
+def compare(source: Path, expected: Path) -> list[str]:
+    """Report Missing, Changed and Obsolete Generated Files Without Writing."""
+    wanted = inventory(expected)
+    existing = inventory(source)
+    differences = [f"Missing: {path.as_posix()}" for path in sorted(wanted - existing)]
+    differences += [f"Obsolete: {path.as_posix()}" for path in sorted(existing - wanted)]
+    differences += [
+        f"Changed: {path.as_posix()}"
+        for path in sorted(wanted & existing)
+        if (source / path).read_bytes() != (expected / path).read_bytes()
+    ]
+    return differences
+
+
+# === Private Functions === #
+
+
+def _render(source: Path, root: Path) -> None:
+    composition = source / "protocol/composition.toml"
     settings = tomllib.loads(composition.read_text(encoding="utf-8"))
-    descriptors = FileDescriptorSet.FromString((root / "crates/dokime-protocol/src/descriptors.bin").read_bytes())
+    descriptors = FileDescriptorSet.FromString((source / "crates/dokime-protocol/src/descriptors.bin").read_bytes())
     present = {file.package for file in descriptors.file}
     for library in settings["libraries"]:
-        source = (composition.parent / library["descriptors"]).resolve()
-        if source != (root / "crates/dokime-protocol/src/descriptors.bin").resolve():
+        library_source = (composition.parent / library["descriptors"]).resolve()
+        if library_source != (source / "crates/dokime-protocol/src/descriptors.bin").resolve():
             raise ValueError("Compose SDK: Declare the Vendored Descriptor Artifact")
         if set(library["packages"]) - present:
             raise ValueError("Compose SDK: Add the Missing Library Package to the Vendored Descriptors")
@@ -55,12 +126,17 @@ def generate(check: bool = False) -> None:
     methods = render_resources.table(descriptors)
     clients = [method for method in methods if method["face"] == "client"]
     context = [method for method in methods if method["face"] == "context"]
-    for folder in ("sdk/rust/src/client", "sdk/rust/src/plugin", "sdk/python/src/dokime/_generated", "sdk/csharp/src/Dokime/Generated"):
+    for folder in (
+        "sdk/rust/src/client",
+        "sdk/rust/src/plugin",
+        "sdk/python/src/dokime/_generated",
+        "sdk/python/src/dokime/plugin",
+        "sdk/csharp/src/Dokime/Generated",
+    ):
         (root / folder).mkdir(parents=True, exist_ok=True)
-    packages = {file.package for file in descriptors.file if file.package.startswith("dokime.")}
-    for path in (root / "crates/dokime-protocol/src/generated").glob("dokime.*.rs"):
-        if path.stem not in packages:
-            path.unlink()
+    descriptor = root / "crates/dokime-protocol/src/descriptors.bin"
+    descriptor.parent.mkdir(parents=True)
+    descriptor.write_bytes((source / "crates/dokime-protocol/src/descriptors.bin").read_bytes())
     render_resources.rust_exports(root, descriptors)
     render_resources.rust(root, clients, target=root / "sdk/rust/src/client/resources.rs")
     render_resources.rust_host(root, context)
@@ -86,7 +162,7 @@ def generate(check: bool = False) -> None:
     render_resources.python_host(root / "sdk/python/src/dokime/_generated/host.py", context, descriptors)
     render_resources.csharp(root, clients, namespace="dokime", target=root / "sdk/csharp/src/Dokime/Generated/Client.g.cs")
     render_resources.csharp_host(root, context)
-    csharp_protocol.protocols(root)
+    csharp_protocol.protocols(source, destination=root / "sdk/csharp/src/Dokime/Generated/Wire")
     render_resources.cpp_exports(root, descriptors)
     render_resources.cpp(root, clients, namespace="dokime", target=root / "sdk/cpp/include/dokime/_generated/client.hpp")
     render_resources.cpp_host(root, context)
@@ -141,8 +217,9 @@ def generate(check: bool = False) -> None:
         )
     ]
     subprocess.run(
-        ["rustfmt", "--edition", "2024", "--config-path", str(root / "rustfmt.toml"), *map(str, paths)],
+        ["rustfmt", "--edition", "2024", "--config-path", str(source / "rustfmt.toml"), *map(str, paths)],
         check=True,
+        cwd=source,
         creationflags=spawn_flags(),
     )
     python_paths = [
@@ -159,8 +236,8 @@ def generate(check: bool = False) -> None:
         )
     ]
     for path in python_paths:
-        source = re.sub(r"\bimport (\w+) as \1\b", r"import \1", path.read_text(encoding="utf-8"))
-        path.write_text(source, encoding="utf-8", newline="\n")
+        rendered = re.sub(r"\bimport (\w+) as \1\b", r"import \1", path.read_text(encoding="utf-8"))
+        path.write_text(rendered, encoding="utf-8", newline="\n")
     subprocess.run(
         [
             "uv",
@@ -170,28 +247,37 @@ def generate(check: bool = False) -> None:
             "tools/python",
             "ruff",
             "check",
+            "--config",
+            str(source / "sdk/python/ruff.toml"),
+            "--config",
+            'lint.isort.known-first-party=["dokime"]',
             "--select",
             "I,F401,RUF022",
             "--fix",
             *map(str, python_paths),
         ],
         check=True,
+        cwd=source,
         creationflags=spawn_flags(),
     )
     subprocess.run(
-        ["uv", "run", "--no-sync", "--project", "tools/python", "ruff", "format", *map(str, python_paths)],
+        [
+            "uv",
+            "run",
+            "--no-sync",
+            "--project",
+            "tools/python",
+            "ruff",
+            "format",
+            "--config",
+            str(source / "sdk/python/ruff.toml"),
+            *map(str, python_paths),
+        ],
         check=True,
+        cwd=source,
         creationflags=spawn_flags(),
     )
-    # Check Uses the Same Full Generation and Compares Against Git, Including New Outputs.
-    if check:
-        command = ["git", "status", "--porcelain", "--untracked-files=all", "--", "crates/dokime-protocol", "sdk"]
-        result = subprocess.run(command, capture_output=True, text=True, check=True, creationflags=spawn_flags())
-        if result.stdout:
-            raise ValueError("Check SDK Definitions: Regenerate and Commit the Candidate\n" + result.stdout)
 
-
-# === Private Functions === #
 
 # === Entry Point === #
 

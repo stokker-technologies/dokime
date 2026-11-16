@@ -697,6 +697,16 @@ Prost generates enum and optional-field getters with the same names as its compo
 message explicitly and converts into the generated plot without dereference
 forwarding. The Rust generator is a normal tooling library consumed by its CLI and the protocol drift
 test; tests do not import generator source through path overrides.
+SDK drift checks render into a disposable temporary directory and compare the
+complete owned output inventory by bytes, including obsolete files, without
+changing sources or consulting git status. Protocol generation alone owns cleanup
+of retired Rust wire packages.
+
+`dokime proto export` embeds the descriptor-selected Google import closure from
+the pinned compiler package alongside Dokime and Harmos sources, license texts,
+Buf configuration and the [protocol usage guide](protocol-export.md) as README.
+Release packaging verifies every import resolves inside that export before
+creating the self-contained contracts ZIP.
 
 The exact [operation/message/caller map](execution-host.md#operation-identity-and-caller-mapping)
 is canonical.

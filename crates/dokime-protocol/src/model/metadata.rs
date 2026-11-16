@@ -36,6 +36,16 @@ use crate::model::Metadata;
 
 /* === Implementations === */
 
+impl Metadata {
+    pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            identifier: identifier.into(),
+            label: label.into(),
+            ..Default::default()
+        }
+    }
+}
+
 /* === Public Functions === */
 
 pub(crate) fn from_label(label: String) -> Metadata {

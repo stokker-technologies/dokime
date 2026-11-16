@@ -49,6 +49,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     protocol::generate(&root, output.path())?;
     let generated_root = root.join("crates/dokime-protocol/src/generated");
     fs::create_dir_all(&generated_root)?;
+    // Remove Outputs Whose Contract Package Was Deleted.
+    for entry in fs::read_dir(&generated_root)? {
+        let path = entry?.path();
+        if path.extension().is_some_and(|extension| extension == "rs") && !output.path().join(path.file_name().unwrap()).is_file() {
+            fs::remove_file(path)?;
+        }
+    }
     for entry in fs::read_dir(output.path())? {
         let entry = entry?;
         let name = entry.file_name();

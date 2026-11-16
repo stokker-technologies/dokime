@@ -29,6 +29,7 @@ from environment import isolate_environment
 
 # Third Party Imports
 # Local Imports
+import dokime_tools.package.run
 from dokime_tools import policy
 from dokime_tools.ci import tasks, transport, workflow
 from dokime_tools.release import nightly, notices, pins, registry, run
@@ -419,14 +420,16 @@ class ChannelTests(unittest.TestCase):
 
         with (
             tempfile.TemporaryDirectory() as temporary,
-            patch.object(run.packages, "definitions", return_value=[definition]),
-            patch.object(run.packages, "binary_bytes", return_value=b"executable"),
+            patch.object(dokime_tools.package.run, "definitions", return_value=[definition]),
+            patch.object(dokime_tools.package.run, "binary_bytes", return_value=b"executable"),
             patch.object(
-                run.packages.subprocess, "run", side_effect=lambda command, **kwargs: install(command) if command[0] == "mise" else None
+                dokime_tools.package.run.subprocess,
+                "run",
+                side_effect=lambda command, **kwargs: install(command) if command[0] == "mise" else None,
             ) as execute,
         ):
             settings = {"provider": "github", "repository": "example/dokime", "tag": "nightly"}
-            run.packages.installed(Path(temporary), settings, Path(temporary), "windows-x86_64")
+            dokime_tools.package.run.installed(Path(temporary), settings, Path(temporary), "windows-x86_64")
             commands = [call.args[0] for call in execute.call_args_list]
             self.assertEqual(len(commands), 2)
             self.assertEqual(commands[0][0:2], ["mise", "install-into"])
@@ -450,7 +453,7 @@ class ChannelTests(unittest.TestCase):
                 patch.object(run.layout, "uploads", return_value=[{"name": "SHA256SUMS"}]),
                 patch.object(run, "_checksums"),
                 patch.object(run, "native_target", return_value="windows-x86_64"),
-                patch.object(run.packages, "installed") as installed,
+                patch.object(dokime_tools.package.run, "installed") as installed,
             ):
                 root = Path(temporary)
                 run.verify(root, {"provider": "github"}, channel=channel)

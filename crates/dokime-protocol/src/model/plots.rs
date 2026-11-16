@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::model::PlotKind;
+use crate::model::{Metadata, Plot, PlotKind};
 
 /* === Constants === */
 
@@ -35,6 +35,25 @@ use crate::model::PlotKind;
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Plot {
+    pub fn new(identifier: impl Into<String>, label: impl Into<String>, kind: PlotKind) -> Self {
+        Self {
+            metadata: Some(Metadata::new(identifier, label)),
+            kind: kind as i32,
+            ..Default::default()
+        }
+    }
+
+    pub fn line(identifier: impl Into<String>, label: impl Into<String>) -> Self {
+        Self::new(identifier, label, PlotKind::TimeSeries)
+    }
+
+    pub fn unit(mut self, unit: impl Into<String>) -> Self {
+        self.unit = unit.into();
+        self
+    }
+}
 
 impl PlotKind {
     /// Parse a declared kind, refusing retired spellings with authoring guidance.

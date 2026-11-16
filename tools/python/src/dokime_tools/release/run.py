@@ -29,16 +29,17 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+import dokime_tools.package.run
+
 from ..build import paths, wheel
 from ..process import spawn_flags
 
 # isort: split
 from .. import policy, temporary
-from ..package import run as packages
 from ..package.changelog import notes
-from ..screenshots import run as screenshots
+from ..screenshots.run import capture
 from ..test import archive
-from . import layout, notices, pins, registry, reports, sbom, version
+from . import contracts, layout, notices, pins, registry, reports, sbom, version
 
 # Type Checking Imports
 
@@ -112,7 +113,7 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
     """The Declared Release Downloads Of One Target, From Its Existing Package Of The Profile."""
     profile = policy.profile() if profile is None else profile
     result = []
-    tools = [{**item, "kind": "tool"} for item in packages.packaged(directory, profile, selected)]
+    tools = [{**item, "kind": "tool"} for item in dokime_tools.package.run.packaged(directory, profile, selected)]
     declared = settings.get("assets", []) + tools
     for definition in declared:
         profiles = definition.get("profiles", ["dev", "release"])
@@ -191,7 +192,7 @@ def stage(
     for selected in targets:
         # Only the native target's executables can run here; other targets arrive verified by their Package jobs.
         if selected == _native():
-            packages.verify(directory, profile, selected)
+            dokime_tools.package.run.verify(directory, profile, selected)
         (root / selected).mkdir(parents=True)
         declared = assets(directory, settings, selected, tag, profile, signed=signed)
         for asset in declared:
@@ -223,10 +224,10 @@ def stage(
     native = _native()
     if native not in targets:
         raise policy.ToolError("protocol export requires a packaged native CLI target")
-    cli = next(item for item in packages.definitions(directory, profile, native) if item.get("command") == "dokime")
+    cli = next(item for item in dokime_tools.package.run.definitions(directory, profile, native) if item.get("command") == "dokime")
     with temporary.directory() as temporary_root:
         executable = temporary_root / cli["binary"]
-        executable.write_bytes(packages.binary_bytes(root / native / cli["output"], cli["binary"]))
+        executable.write_bytes(dokime_tools.package.run.binary_bytes(root / native / cli["output"], cli["binary"]))
         executable.chmod(0o755)
         # Linux's `dokime` executable must not occupy the exported `dokime/` package directory.
         exported = temporary_root / "proto"
@@ -238,14 +239,13 @@ def stage(
             raise policy.ToolError("Export Release Protocol: No Protocol Definitions Were Produced")
         if missing:
             raise policy.ToolError(f"Export Release Protocol: Missing Definitions: {', '.join(missing)}")
-        with zipfile.ZipFile(protocol, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            for source in sources:
-                archive.write(source, source.relative_to(exported).as_posix())
+        contracts.package(exported, protocol)
     files.append(_describe(root, protocol))
 
     compliance = root / SHARED / f"dokime-compliance-{tag[1:]}.zip"
     shell_inventory = sbom.shell(directory, root / SHARED)
-    with zipfile.ZipFile(compliance, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    archive = zipfile.ZipFile(compliance, "w", compression=zipfile.ZIP_DEFLATED)
+    try:
         for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
             archive.write(shared / name, name)
         archive.write(shell_inventory, "crates/any/" + shell_inventory.name)
@@ -265,6 +265,8 @@ def stage(
                     inventories = []
                 destination = sbom.artifact(directory, source, source.parent, inventories)
                 archive.write(destination, "artifacts/" + destination.name)
+    finally:
+        archive.close()
     files.append(_describe(root, compliance))
     documentation = _documentation(directory, root, tag, channel, required=channel == "stable" and signed)
     if documentation is not None:
@@ -342,7 +344,7 @@ def prepare(directory: Path, settings: dict) -> None:
     for command in commands:
         policy.execute(directory, policy.command(command, "release.lock_commands"))
     if policy.policy(directory, "screenshots").get("scenes"):
-        screenshots.capture(directory)
+        capture(directory)
     print(f"Prepared v{planned}; review the changes, or let Release / Prepare open the release review")
 
 
@@ -430,7 +432,7 @@ def dry(
     native = _native()
     if native in present:
         # The staged bytes themselves run, from an isolated directory, exactly as a user's download would.
-        packages.verify(directory, profile, native, root / native)
+        dokime_tools.package.run.verify(directory, profile, native, root / native)
     print(
         f"staged {len(files) - 2} download(s), {SUMS} and {INDEX} for {', '.join(present) or 'no target'} in {root.relative_to(directory)}"
     )
@@ -553,7 +555,7 @@ def verify(directory: Path, settings: dict, *, channel: str = "stable") -> None:
         if channel == "stable":
             registry.verify_signatures(directory, settings, root, list(inventory))
         native = native_target(settings)
-        packages.installed(directory, {**settings, "tag": tag}, root, native)
+        dokime_tools.package.run.installed(directory, {**settings, "tag": tag}, root, native)
     policy.write_json(directory / "target/state/release-publication.json", {"sha": sha, "tag": tag, "verified": True})
 
 
@@ -857,8 +859,11 @@ def _documentation(directory: Path, root: Path, tag: str, channel: str, *, requi
                 f"Publish Release: The Documentation Archive Is Required; Build It With mise run docs:build -- --release --archive ({DOCUMENTATION})"
             )
         return None
-    with zipfile.ZipFile(source) as archive:
+    archive = zipfile.ZipFile(source)
+    try:
         stamp = json.loads(archive.read("docs.json"))
+    finally:
+        archive.close()
     major, minor, _ = tag[1:].split(".")
     entry = "dev" if channel == "nightly" else f"{major}.{minor}"
     if stamp.get("entry") != entry or (channel != "nightly" and stamp.get("version") != tag[1:]):
@@ -983,8 +988,8 @@ def _tracked(directory: Path, *patterns: str) -> list[str]:
 
 
 def _task_defined(directory: Path, name: str) -> bool:
-    with (directory / "mise.toml").open("rb") as file:
-        return name in tomllib.load(file).get("tasks", {})
+    settings = tomllib.loads((directory / "mise.toml").read_text(encoding="utf-8"))
+    return name in settings.get("tasks", {})
 
 
 # === Entry Point === #

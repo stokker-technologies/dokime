@@ -300,12 +300,15 @@ impl model::Parameter {
     pub fn number(identifier: impl Into<String>, label: impl Into<String>) -> ParameterBuilder {
         ParameterBuilder::new(identifier, label, ValueType::Number)
     }
+
     pub fn count(identifier: impl Into<String>, label: impl Into<String>) -> ParameterBuilder {
         ParameterBuilder::new(identifier, label, ValueType::UnsignedInteger)
     }
+
     pub fn flag(identifier: impl Into<String>, label: impl Into<String>) -> ParameterBuilder {
         ParameterBuilder::new(identifier, label, ValueType::Boolean)
     }
+
     pub fn sweep(identifier: impl Into<String>, label: impl Into<String>, values: impl IntoIterator<Item = f64>) -> ParameterBuilder {
         let mut builder = Self::number(identifier, label);
         builder.message.expression = Some(ParameterExpression {
@@ -318,6 +321,7 @@ impl model::Parameter {
         });
         builder
     }
+
     pub fn numbers(identifier: impl Into<String>, label: impl Into<String>, values: impl IntoIterator<Item = f64>) -> ParameterBuilder {
         let mut builder = ParameterBuilder::new(identifier, label, ValueType::List);
         builder.message.element_type = ValueType::Number as i32;
@@ -332,20 +336,18 @@ impl ParameterBuilder {
     fn new(identifier: impl Into<String>, label: impl Into<String>, kind: ValueType) -> Self {
         Self {
             message: model::Parameter {
-                metadata: Some(Metadata {
-                    identifier: identifier.into(),
-                    label: label.into(),
-                    ..Default::default()
-                }),
+                metadata: Some(Metadata::new(identifier, label)),
                 r#type: kind as i32,
                 ..Default::default()
             },
         }
     }
+
     pub fn unit(mut self, unit: impl Into<String>) -> Self {
         self.message.unit = unit.into();
         self
     }
+
     pub fn default(mut self, value: impl Into<value::Kind>) -> Self {
         self.message.expression = Some(literal(value.into()));
         self
@@ -364,6 +366,7 @@ impl ParameterBuilder {
         };
         self
     }
+
     pub fn items(mut self, bounds: impl RangeBounds<u32>) -> Self {
         self.message.min_items = match bounds.start_bound() {
             Bound::Included(value) => Some(*value),
@@ -377,6 +380,7 @@ impl ParameterBuilder {
         };
         self
     }
+
     pub fn build(self) -> model::Parameter {
         self.message
     }
@@ -387,16 +391,19 @@ impl From<ParameterBuilder> for model::Parameter {
         builder.message
     }
 }
+
 impl From<f64> for value::Kind {
     fn from(value: f64) -> Self {
         Self::Number(value)
     }
 }
+
 impl From<u64> for value::Kind {
     fn from(value: u64) -> Self {
         Self::UnsignedInteger(value)
     }
 }
+
 impl From<bool> for value::Kind {
     fn from(value: bool) -> Self {
         Self::Boolean(value)

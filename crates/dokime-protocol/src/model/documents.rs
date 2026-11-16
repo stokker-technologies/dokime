@@ -20,7 +20,9 @@
 // Third Party Imports
 
 // Local Imports
-use crate::model::{self, Card, DataExpression, Document, Section, Summary, SummaryTile, card, data_expression, metadata};
+use crate::model::{
+    self, Card, DataExpression, Document, EvidenceCard, Metadata, Section, Summary, SummaryTile, card, data_expression, metadata,
+};
 
 /* === Constants === */
 
@@ -35,6 +37,29 @@ use crate::model::{self, Card, DataExpression, Document, Section, Summary, Summa
 /* === Traits === */
 
 /* === Implementations === */
+
+impl Card {
+    pub fn plot(plot: model::Plot) -> Self {
+        Self {
+            metadata: plot.metadata.clone(),
+            body: Some(card::Body::Plot(plot)),
+            ..Default::default()
+        }
+    }
+
+    pub fn records(identifier: impl Into<String>) -> Self {
+        Self {
+            metadata: Some(Metadata::new(identifier, "Records")),
+            body: Some(card::Body::Evidence(EvidenceCard::Records as i32)),
+            ..Default::default()
+        }
+    }
+
+    pub fn columns(mut self, columns: u32) -> Self {
+        self.layout.get_or_insert_default().columns = columns;
+        self
+    }
+}
 
 impl Document {
     pub fn new(label: impl Into<String>) -> Self {

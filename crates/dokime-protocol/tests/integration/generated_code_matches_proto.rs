@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fs;
 use std::path::Path;
@@ -63,6 +64,17 @@ use dokime_protocol_generator::protocol;
 /* === Tests === */
 
 #[test]
+fn embedded_export_contains_every_import() {
+    let sources = dokime_protocol::SOURCES.iter().copied().collect::<BTreeMap<_, _>>();
+    for file in dokime_protocol::descriptor_pool().files() {
+        assert!(sources.contains_key(file.name()), "Export Protocol: Missing {}", file.name());
+        for dependency in &file.file_descriptor_proto().dependency {
+            assert!(sources.contains_key(dependency.as_str()), "Export Protocol: Missing Import {dependency}");
+        }
+    }
+}
+
+#[test]
 fn plot_kind_validation_rejects_retired_and_undeclared_values() {
     for (name, number) in [
         ("GROUPED_BAR", 3),
@@ -105,6 +117,22 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn Error>> {
     published.source_code_info = None;
     vendored.source_code_info = None;
     assert_eq!(vendored, published);
+
+    // Compare the Complete Package Inventory, Including Retired Outputs.
+    let expected = fs::read_dir(output.path())?
+        .map(|entry| entry.map(|entry| entry.file_name()))
+        .collect::<Result<BTreeSet<_>, _>>()?
+        .into_iter()
+        .filter(|name| {
+            name.to_str().is_some_and(|name| {
+                name.ends_with(".rs") && !matches!(name, "reflection.rs" | "sources.rs") && !name.starts_with("harmos.")
+            })
+        })
+        .collect::<BTreeSet<_>>();
+    let existing = fs::read_dir(root.join("crates/dokime-protocol/src/generated"))?
+        .map(|entry| entry.map(|entry| entry.file_name()))
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    assert_eq!(existing, expected, "Regenerate Protocol: Run mise run generate -- --protocol");
 
     // Compare Protocol Outputs, Retaining Evidence on Failure.
     for entry in fs::read_dir(output.path())? {

@@ -26,7 +26,7 @@ include!("generated/modules.rs");
 
 /* === Re-Exports === */
 
-pub use sources::SOURCES;
+pub use sources::{EXPORT_FILES, SOURCES};
 
 /* === Imports === */
 

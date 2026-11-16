@@ -75,6 +75,7 @@ conflicts retain the action and cause and require an explicit retry.
 
 ```sh
 mise run generate -- --protocol
+mise run generate -- --protocol --check
 mise run generate:typescript
 mise run check:generated
 mise run check:locks
@@ -84,6 +85,10 @@ mise -C sdk/csharp run restore
 `generate:typescript` regenerates schemas, dispatch and declared preference types
 without compiling runtime-owned default values. The ordinary `generate` task still
 exports those defaults from their product owner before a full frontend build.
+
+The protocol check regenerates SDK roots in temporary storage and compares the
+complete output inventory, including obsolete outputs. It reports drift without
+rewriting sources; unrelated working-tree edits do not cause false drift.
 
 The generated checks compile permanent consumers under each SDK's tests/generation
 (tests/Generation for C#) and the desktop tests/generation. Select one with
