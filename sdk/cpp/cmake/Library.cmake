@@ -3,7 +3,6 @@ set(DOKIME_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/g")
 # Explicit Protocol Inputs Keep Ninja Freshness Checks Free of Forced Regeneration.
 set(protocols
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/aggregates.proto"
-  "${DOKIME_PROTO_ROOT}/dokime/host/v1/analyses.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/backend.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/backend/overview.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/cases.proto"
@@ -40,7 +39,6 @@ set(protocols
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/storage/sources.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/stream_schemas.proto"
   "${DOKIME_PROTO_ROOT}/dokime/host/v1/suites.proto"
-  "${DOKIME_PROTO_ROOT}/dokime/model/v1/analyses.proto"
   "${DOKIME_PROTO_ROOT}/dokime/model/v1/documents.proto"
   "${DOKIME_PROTO_ROOT}/dokime/model/v1/evidence.proto"
   "${DOKIME_PROTO_ROOT}/dokime/model/v1/execution.proto"
@@ -55,7 +53,6 @@ set(protocols
   "${DOKIME_PROTO_ROOT}/dokime/model/v1/secrets.proto"
   "${DOKIME_PROTO_ROOT}/dokime/model/v1/suites.proto"
   "${DOKIME_PROTO_ROOT}/dokime/model/v1/traceability.proto"
-  "${DOKIME_PROTO_ROOT}/dokime/plugin/v1/analyses.proto"
   "${DOKIME_PROTO_ROOT}/dokime/plugin/v1/criteria.proto"
   "${DOKIME_PROTO_ROOT}/dokime/plugin/v1/executions.proto"
   "${DOKIME_PROTO_ROOT}/dokime/plugin/v1/steps.proto"

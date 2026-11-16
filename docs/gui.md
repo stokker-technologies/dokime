@@ -215,7 +215,7 @@ Generated modules are rebuilt by their generators, never edited by hand.
 
 | Resource | Desktop Contract |
 | --- | --- |
-| `Suites`, `RecordSchemas`, `StreamSchemas`, `PromptDefinitions`, `Analyses` | Top-level registries; no parent registry resource. |
+| `Suites`, `RecordSchemas`, `StreamSchemas`, `PromptDefinitions` | Top-level registries; no parent registry resource. |
 | `Cases` | Create with `validate_only` for preview, or an identified atomic registration; Get, List, Parameters and Delete use resource names and parents. |
 | `Cycles` | Create and Seal have request identities. Get/Set mirror the whole writable value and opaque revision. Lists retain the returned cut and page token. |
 | `Executions` | Get/Set mirror the whole writable value and revision. Create appends explicit attempts; Start, Stop and Cancel use identified commands. List, Parameters and Steps use final resource names. |
@@ -424,8 +424,8 @@ frozen HTML use `src/plots/grouping.ts` for the same conversion, without mutatin
 query payloads. Explicit conversion uses a numeric axis, including encoded 0/1
 Boolean values; ordinary Boolean plots retain False/True labels.
 Scale defaults to 1.0 and is omitted from documents when absent. Validation
-requires a positive finite constant and refuses other plot kinds, custom analyses
-and alternate x axes. Filters and section repeats still use stored units;
+requires a positive finite constant and refuses other plot kinds and alternate
+x axes. Filters and section repeats still use stored units;
 evidence, exports, criteria, query plans and expressions remain unchanged.
 
 Reference bands and lines belong to the plot and always use its Y axis. Bounds,
@@ -687,7 +687,7 @@ from Inspect. Frozen HTML retains its original media and download links under
   lists declaring plugins, including unavailable entries.
 - Completed executions and cycles retain their evidence and reports after plugin
   reload, reinstall or removal, even before sealing. Retry Seal and history reads
-  use frozen report inputs, including plugin analysis results. In an open cycle,
+  use frozen report inputs. In an open cycle,
   starting an unrun case whose plugin was removed reports that its plugin is no
   longer available; install its original revision or add a case from an available plugin.
 - Toast content and history rows open the shared notification details dialog through

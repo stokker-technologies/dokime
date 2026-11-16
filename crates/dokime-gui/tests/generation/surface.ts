@@ -18,7 +18,7 @@
 // Third Party Imports
 
 // Local Imports
-import { analysesList } from "../../../../target/generated/host/client";
+import { pluginsList } from "../../../../target/generated/host/client";
 import type { SessionIdentity } from "../../src/lib/rpc/transport";
 
 /* === Re-Exports === */
@@ -32,7 +32,7 @@ import type { SessionIdentity } from "../../src/lib/rpc/transport";
 /* === Public Functions === */
 
 export async function generatedSurface(session: SessionIdentity): Promise<void> {
-  await analysesList(session, {});
+  await pluginsList(session, {});
 }
 
 /* === Private Functions === */

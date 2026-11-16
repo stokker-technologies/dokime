@@ -63,7 +63,7 @@ Tests use a minimum 120-second hang guard and retain higher limits, as explicitl
 | Server `tests/system/plugin.rs` And `plugin/shutdown.rs` | Telemetry readiness, report completion and shutdown correctness guards; remove stop-speed assertions |
 | Runtime `tests/integration/plugin/demand.rs` And `domains/files/watch.rs` | Telemetry publication and cancelled-watch readiness |
 | Runtime `tests/support/services/bundles.rs` | Ordinary bundle operation policies |
-| Runtime `tests/integration/plugin/{native,analysis,plugin_settings,prelude}.rs` | Ordinary operation and analysis fixture policies |
+| Runtime `tests/integration/plugin/{native,plugin_settings,prelude}.rs` | Ordinary operation fixture policies |
 | Runtime `tests/integration/plugins/store.rs` And `domains/telemetry/declared.rs` | Store and declared telemetry fixture operation policies |
 | Server `tests/integration/{plugins,server/operations}.rs` | Ordinary RPC fixture operation policies |
 | CLI `tests/acceptance/install.rs`, GUI `src-tauri/tests/integration/rpc/mod.rs`, Macros `tests/integration/renamed_sdk.rs` | Install, native RPC and renamed-SDK runtime fixture operation policies |

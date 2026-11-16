@@ -549,7 +549,6 @@ export function plotRequestForDocumentPlot(
     xScale: plot.x_scale ?? "linear",
     yScale: plot.y_scale ?? "linear",
     fft: plot.fft,
-    analysis: plot.analysis,
     interval: plot.interval ?? undefined,
     histogram: plot.histogram ?? undefined,
     zExpression: plot.z_expression ?? undefined,

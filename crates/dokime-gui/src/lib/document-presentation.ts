@@ -149,7 +149,6 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
     style: input.style ?? "line",
     x_scale: input.x_scale ?? "linear",
     y_scale: input.y_scale ?? "linear",
-    analysis: input.analysis ?? null,
     fft: {
       ...input.fft,
       window: input.fft?.window ?? "hann",

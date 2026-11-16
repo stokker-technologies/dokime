@@ -46,15 +46,13 @@ export function documentPlotSpec({
     plot,
     series: payload?.series.length ? payload.series : placeholderSeries(plot.y, plot),
   });
-  const state = payload?.computed
-    ? {}
-    : plotState({
-        stream: plot.stream,
-        plotType: plot.plot_type,
-        series,
-        cartesian: payload?.cartesian ?? null,
-        telemetry,
-      });
+  const state = plotState({
+    stream: plot.stream,
+    plotType: plot.plot_type,
+    series,
+    cartesian: payload?.cartesian ?? null,
+    telemetry,
+  });
 
   // The payload carries the resolved winner of the format precedence chain
   // (§2.3); the document plot's own declaration is the placeholder value
@@ -70,7 +68,6 @@ export function documentPlotSpec({
     series,
     cartesian: payload?.cartesian ?? null,
     analysis: payload?.analysis ?? null,
-    computed: payload?.computed ?? null,
     markers: payload?.markers ?? [],
     plotType: plot.plot_type,
     arrangement: plot.arrangement,

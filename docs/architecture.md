@@ -691,7 +691,6 @@ The definition replaces these ownership paths:
 | dokime.v1 shared grab-bag values | dokime.model.v1 for exchanged values; otherwise the owning host/plugin resource |
 | Product Plugin/Plugins and plugin-settings wrappers | harmos.host.v1.Plugins and harmos.host.v1.plugins.Settings |
 | Product clock operation declarations | harmos.host.v1.Time |
-| AnalysisRequest/AnalysisResponse | dokime.plugin.v1.AnalysesComputeRequest/AnalysesComputeResponse |
 | Product generic ordered merge | harmos-query/src/merge.rs; consumer deletion is still open |
 
 Both assembly and SDK generation read `protocol/composition.toml`. It composes

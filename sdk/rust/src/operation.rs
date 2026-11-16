@@ -21,9 +21,6 @@ use std::{future::Future, pin::Pin, sync::Arc};
 // Third Party Imports
 
 // Local Imports
-use crate::message::Wire;
-use crate::plugin::AnalysesComputeRequest;
-use crate::plugin::AnalysesComputeResponse;
 use crate::{Context, Message, Result, context::Executions};
 use harmos::Error as HarmosError;
 use harmos::OperationPolicy;
@@ -74,25 +71,6 @@ impl Operation {
                     let context = Context::invocation(transport, &executions)?;
                     handler(&context, request).await
                 })
-            }),
-            configure: Vec::new(),
-        }
-    }
-    pub fn analysis<H>(identifier: impl Into<String>, handler: H) -> Self
-    where
-        H: for<'a> AsyncFn(&'a Context, AnalysesComputeRequest) -> Result<AnalysesComputeResponse> + Send + Sync + 'static,
-    {
-        let identifier = identifier.into();
-        Self {
-            register: Box::new(move |executions| {
-                wire(
-                    identifier,
-                    Visibility::Protected,
-                    async move |transport: &HarmosContext, Wire(request): Wire<AnalysesComputeRequest>| {
-                        let context = Context::invocation(transport, &executions)?;
-                        Ok(Wire(handler(&context, request).await?))
-                    },
-                )
             }),
             configure: Vec::new(),
         }

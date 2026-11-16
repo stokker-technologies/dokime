@@ -11,6 +11,5 @@
 
 /* === Modules === */
 
-pub mod analysis;
 pub mod settings;
 pub mod snapshots;

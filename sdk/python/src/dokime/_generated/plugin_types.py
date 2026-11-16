@@ -1,7 +1,10 @@
 # @generated from protocol descriptors; do not edit.
-from dokime._wire.host.v1.backend_pb2 import BackendEnvironmentResponse
-from dokime._wire.host.v1.documents_pb2 import DocumentsAppendPartsResponse
-from dokime._wire.host.v1.effects_pb2 import EffectsCreateResponse, EffectsGetResponse, EffectsSetResponse, EffectWritable
+from dokime._wire.host.v1.backend_pb2 import BackendEnvironmentResponse as BackendEnvironmentResponse
+from dokime._wire.host.v1.documents_pb2 import DocumentsAppendPartsResponse as DocumentsAppendPartsResponse
+from dokime._wire.host.v1.effects_pb2 import EffectWritable as EffectWritable
+from dokime._wire.host.v1.effects_pb2 import EffectsCreateResponse as EffectsCreateResponse
+from dokime._wire.host.v1.effects_pb2 import EffectsGetResponse as EffectsGetResponse
+from dokime._wire.host.v1.effects_pb2 import EffectsSetResponse as EffectsSetResponse
 from dokime._wire.host.v1.evidence.logs_pb2 import LogsAppendResponse as EvidenceLogsAppendResponse
 from dokime._wire.host.v1.evidence.records_pb2 import RecordsAppendResponse as EvidenceRecordsAppendResponse
 from dokime._wire.host.v1.evidence.traceability_pb2 import TraceabilitySetResponse as EvidenceTraceabilitySetResponse
@@ -14,19 +17,18 @@ from dokime._wire.host.v1.files.captures_pb2 import LineMarker as FilesLineMarke
 from dokime._wire.host.v1.files.captures_pb2 import LineMatcher as FilesLineMatcher
 from dokime._wire.host.v1.files.captures_pb2 import MirrorCapture as FilesMirrorCapture
 from dokime._wire.host.v1.files.captures_pb2 import StreamCapture as FilesStreamCapture
-from dokime._wire.host.v1.files_pb2 import FilesCaptureResponse
-from dokime._wire.host.v1.prompts_pb2 import PromptsCreateResponse
-from dokime._wire.plugin.v1.analyses_pb2 import AnalysesComputeRequest, AnalysesComputeResponse, AnalysisSamples
-from dokime._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
-from dokime._wire.plugin.v1.executions_pb2 import (
-    ExecutionsCleanupRequest,
-    ExecutionsCleanupResponse,
-    ExecutionsInitializeRequest,
-    ExecutionsInitializeResponse,
-)
-from dokime._wire.plugin.v1.steps_pb2 import StepsExecuteRequest, StepsExecuteResponse
-from dokime._wire.plugin.v1.test_cases_pb2 import TestCasesMaterializeRequest, TestCasesMaterializeResponse
-
+from dokime._wire.host.v1.files_pb2 import FilesCaptureResponse as FilesCaptureResponse
+from dokime._wire.host.v1.prompts_pb2 import PromptsCreateResponse as PromptsCreateResponse
+from dokime._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest as CriteriaEvaluateRequest
+from dokime._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateResponse as CriteriaEvaluateResponse
+from dokime._wire.plugin.v1.executions_pb2 import ExecutionsCleanupRequest as ExecutionsCleanupRequest
+from dokime._wire.plugin.v1.executions_pb2 import ExecutionsCleanupResponse as ExecutionsCleanupResponse
+from dokime._wire.plugin.v1.executions_pb2 import ExecutionsInitializeRequest as ExecutionsInitializeRequest
+from dokime._wire.plugin.v1.executions_pb2 import ExecutionsInitializeResponse as ExecutionsInitializeResponse
+from dokime._wire.plugin.v1.steps_pb2 import StepsExecuteRequest as StepsExecuteRequest
+from dokime._wire.plugin.v1.steps_pb2 import StepsExecuteResponse as StepsExecuteResponse
+from dokime._wire.plugin.v1.test_cases_pb2 import TestCasesMaterializeRequest as TestCasesMaterializeRequest
+from dokime._wire.plugin.v1.test_cases_pb2 import TestCasesMaterializeResponse as TestCasesMaterializeResponse
 BackendEnvironmentResponse.__module__ = "dokime.plugin"
 BackendEnvironmentResponse.__qualname__ = "BackendEnvironmentResponse"
 DocumentsAppendPartsResponse.__module__ = "dokime.plugin"
@@ -67,12 +69,6 @@ FilesCaptureResponse.__module__ = "dokime.plugin"
 FilesCaptureResponse.__qualname__ = "FilesCaptureResponse"
 PromptsCreateResponse.__module__ = "dokime.plugin"
 PromptsCreateResponse.__qualname__ = "PromptsCreateResponse"
-AnalysesComputeRequest.__module__ = "dokime.plugin"
-AnalysesComputeRequest.__qualname__ = "AnalysesComputeRequest"
-AnalysesComputeResponse.__module__ = "dokime.plugin"
-AnalysesComputeResponse.__qualname__ = "AnalysesComputeResponse"
-AnalysisSamples.__module__ = "dokime.plugin"
-AnalysisSamples.__qualname__ = "AnalysisSamples"
 CriteriaEvaluateRequest.__module__ = "dokime.plugin"
 CriteriaEvaluateRequest.__qualname__ = "CriteriaEvaluateRequest"
 CriteriaEvaluateResponse.__module__ = "dokime.plugin"
@@ -95,37 +91,34 @@ TestCasesMaterializeResponse.__module__ = "dokime.plugin"
 TestCasesMaterializeResponse.__qualname__ = "TestCasesMaterializeResponse"
 
 __all__ = [
-    "AnalysesComputeRequest",
-    "AnalysesComputeResponse",
-    "AnalysisSamples",
-    "BackendEnvironmentResponse",
-    "CriteriaEvaluateRequest",
-    "CriteriaEvaluateResponse",
-    "DocumentsAppendPartsResponse",
-    "EffectWritable",
-    "EffectsCreateResponse",
-    "EffectsGetResponse",
-    "EffectsSetResponse",
-    "EvidenceLogsAppendResponse",
-    "EvidenceRecordsAppendResponse",
-    "EvidenceTraceabilitySetResponse",
-    "ExecutionsCleanupRequest",
-    "ExecutionsCleanupResponse",
-    "ExecutionsInitializeRequest",
-    "ExecutionsInitializeResponse",
-    "ExecutionsProgressSetResponse",
-    "FilesCaptureMode",
-    "FilesCaptureResponse",
-    "FilesCapturesStartResponse",
-    "FilesCapturesStopResponse",
-    "FilesLineField",
-    "FilesLineMarker",
-    "FilesLineMatcher",
-    "FilesMirrorCapture",
-    "FilesStreamCapture",
-    "PromptsCreateResponse",
-    "StepsExecuteRequest",
-    "StepsExecuteResponse",
-    "TestCasesMaterializeRequest",
-    "TestCasesMaterializeResponse",
+    'BackendEnvironmentResponse',
+    'CriteriaEvaluateRequest',
+    'CriteriaEvaluateResponse',
+    'DocumentsAppendPartsResponse',
+    'EffectWritable',
+    'EffectsCreateResponse',
+    'EffectsGetResponse',
+    'EffectsSetResponse',
+    'EvidenceLogsAppendResponse',
+    'EvidenceRecordsAppendResponse',
+    'EvidenceTraceabilitySetResponse',
+    'ExecutionsCleanupRequest',
+    'ExecutionsCleanupResponse',
+    'ExecutionsInitializeRequest',
+    'ExecutionsInitializeResponse',
+    'ExecutionsProgressSetResponse',
+    'FilesCaptureMode',
+    'FilesCaptureResponse',
+    'FilesCapturesStartResponse',
+    'FilesCapturesStopResponse',
+    'FilesLineField',
+    'FilesLineMarker',
+    'FilesLineMatcher',
+    'FilesMirrorCapture',
+    'FilesStreamCapture',
+    'PromptsCreateResponse',
+    'StepsExecuteRequest',
+    'StepsExecuteResponse',
+    'TestCasesMaterializeRequest',
+    'TestCasesMaterializeResponse',
 ]
