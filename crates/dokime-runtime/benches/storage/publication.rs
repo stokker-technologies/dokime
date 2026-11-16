@@ -170,8 +170,7 @@ pub fn serve() -> Result<()> {
         let at = context.now().await?;
         let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "readings")) {
             let observed = context.get::<Observed>()?;
-            let index = observed.count.fetch_add(1, Ordering::SeqCst);
-            index
+            observed.count.fetch_add(1, Ordering::SeqCst)
         } else {
             0
         };
@@ -194,8 +193,7 @@ pub fn serve() -> Result<()> {
     let observer = Observer::new(&pulse, async |context: &Context| {
         let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "pulse")) {
             let observed = context.get::<Observed>()?;
-            let index = observed.count.fetch_add(1, Ordering::SeqCst);
-            index
+            observed.count.fetch_add(1, Ordering::SeqCst)
         } else {
             0
         };
