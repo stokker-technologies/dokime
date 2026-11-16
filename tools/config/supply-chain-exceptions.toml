@@ -6,8 +6,6 @@
 #
 # ***
 
-# Unmaintained-Package Exceptions Reviewed on 2026-11-16 Expire on 2026-12-16 UTC; GLib Retains 2026-11-22.
-
 [[advisory]]
 ecosystem = "cargo"
 id = "RUSTSEC-2024-0370"
