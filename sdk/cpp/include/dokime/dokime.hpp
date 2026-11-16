@@ -12,6 +12,7 @@
 /* === Imports === */
 
 #include "dokime/client.hpp"
+#include "dokime/parameters.hpp"
 #include "dokime/plots.hpp"
 #include "dokime/plugin.hpp"
 /* === Macros === */

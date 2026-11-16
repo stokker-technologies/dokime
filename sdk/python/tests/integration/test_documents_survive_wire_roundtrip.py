@@ -19,7 +19,8 @@ from typing import Any, cast
 # Local Imports
 from dokime import GridAxisEntry, Value, plot
 from dokime.authoring import Stream
-from dokime.documents import Document, Section, Summary
+from dokime.documents import Document, Section, Summary, plot_card, records_card
+from dokime.parameters import Parameter
 from dokime.values import Scalar, decode, encode
 
 # Type Checking Imports
@@ -71,12 +72,32 @@ class DocumentStory(unittest.TestCase):
         # Preserve Parameter Precision, Explicit Null And Source Datetimes.
         values: list[Scalar] = [None, True, -(2**63), 2**64 - 1, 1.25, "reading", b"\x00\xff", [1, None], datetime(2026, 1, 2, tzinfo=UTC)]
         self.assertEqual([decode(encode(value)) for value in values], values)
-        with self.assertRaises(ValueError):
-            encode(datetime(2026, 1, 2))
-        with self.assertRaises(ValueError):
-            decode(Value())
-        with self.assertRaises(TypeError):
-            plot.xy(reading).reduce(cast(Any, "mean"))
+        self.assertRaises(ValueError, encode, datetime(2026, 1, 2))
+        self.assertRaises(ValueError, decode, Value())
+        self.assertRaises(TypeError, plot.xy(reading).reduce, cast(Any, "mean"))
+
+    def test_parameter_plot_card_shorthands_roundtrip(self) -> None:
+        builder = Parameter.number("voltage", "Voltage").unit("V").default(230.0).range(0.0, 300.0)
+        voltage = builder.build()
+        builder.default(120.0)
+        decoded = type(voltage).FromString(voltage.SerializeToString())
+        self.assertEqual(decoded.expression.literal.number, 230.0)
+        self.assertEqual((decoded.min, decoded.max), (0.0, 300.0))
+        self.assertEqual(Parameter.count("samples", "Samples").default(100).build().expression.literal.unsigned_integer, 100)
+        self.assertEqual(Parameter.count("large", "Large").default(2**64 - 1).build().expression.literal.unsigned_integer, 2**64 - 1)
+        self.assertTrue(Parameter.flag("enabled", "Enabled").default(True).build().expression.literal.boolean)
+        sweep = Parameter.sweep("loads", "Loads", [80.0, 100.0]).build()
+        self.assertTrue(sweep.expansion.cartesian)
+        self.assertEqual([value.literal.number for value in sweep.expression.array.values], [80.0, 100.0])
+        ladder = Parameter.numbers("ladder", "Ladder", [10.0, 20.0]).items(1, 8).build()
+        self.assertEqual([value.number for value in ladder.expression.literal.list.values], [10.0, 20.0])
+        self.assertEqual((ladder.min_items, ladder.max_items), (1, 8))
+        line = plot.Plot.line("voltage", "Voltage").unit("V").y(plot.field("samples", "voltage"))
+        card = plot_card(line, columns=6)
+        line.message.y.clear()
+        self.assertEqual(len(card.plot.y), 1)
+        self.assertEqual(card.layout.columns, 6)
+        self.assertEqual(records_card("records").WhichOneof("body"), "evidence")
 
 
 # === Public Functions === #

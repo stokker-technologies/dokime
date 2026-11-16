@@ -20,8 +20,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::plugin::{Context, Record};
-use dokime::{Error, Message, Result};
+use dokime::plugin::{Context, DeclarationTypes, Plugin, Record};
+use dokime::{Error, Message, Result, encoding};
 
 /* === Constants === */
 
@@ -43,24 +43,11 @@ pub struct Started {
     pub note: String,
 }
 
-/// Protection or a Power Loss Opened the Charger Supply.
+/// Protection Opened the Charger Supply.
 #[derive(dokime::Record)]
 #[harmos(package = "obc")]
 pub struct Faulted {
     pub fault: String,
-}
-
-/// Power Was Restored and the Fault Latch Cleared.
-#[derive(dokime::Record)]
-#[harmos(package = "obc")]
-pub struct Cleared {}
-
-/// How Far the Measurement Had Got When the Operator Was Asked.
-#[derive(dokime::Record)]
-#[harmos(package = "obc")]
-pub struct Checkpoint {
-    pub sample_index: u64,
-    pub prompt_type: String,
 }
 
 /// The Measurement and the Operator's Decision, Together.
@@ -73,36 +60,21 @@ pub struct Completed {
     pub accepted: bool,
 }
 
-/// What Happened to the Supply as the Measuring Step Saw It.
-#[derive(dokime::Record)]
-#[harmos(package = "obc")]
-pub struct HoldEvent {
-    pub event: String,
-    pub elapsed_s: f64,
-    pub voltage_rms_v: f64,
-}
-
 /// The Charger Was Left De-Energized, With the Procedure's Decision.
 #[derive(dokime::Record)]
 #[harmos(package = "obc")]
 pub struct Stopped {
     pub accepted: bool,
     pub tripped_at_step: u64,
-    pub cycles: u64,
 }
 
-/// What a Pulse Run Produced Before It Completed.
+/// The Supply at the Start and End of a Steady-State Hold.
 #[derive(dokime::Record)]
 #[harmos(package = "obc")]
-pub struct RunCompleted {
-    pub samples: u64,
-}
-
-/// The Operator's Confirmation of the Bench Readings.
-#[derive(dokime::Record)]
-#[harmos(package = "obc")]
-pub struct Confirmation {
-    pub accepted: bool,
+pub struct HoldEvent {
+    pub event: String,
+    pub elapsed_s: f64,
+    pub voltage_rms_v: f64,
 }
 
 /* === Enums === */
@@ -113,12 +85,36 @@ pub struct Confirmation {
 
 /* === Public Functions === */
 
+/// Shared Charger Events Used by Several Templates.
+pub fn catalog<C: DeclarationTypes>(plugin: Plugin<C>) -> Plugin<impl DeclarationTypes> {
+    plugin.record(initialized()).record(started()).record(completed()).record(faulted()).record(stopped()).record(hold())
+}
+pub fn initialized() -> Record<Initialized> {
+    Record::new("obc.records.charger.initialized", "Charger Initialized")
+}
+pub fn started() -> Record<Started> {
+    Record::new("obc.records.charger.started", "Charger Energized")
+}
+pub fn completed() -> Record<Completed> {
+    Record::new("obc.records.charger.completed", "Measurement Completed")
+}
+pub fn faulted() -> Record<Faulted> {
+    Record::new("obc.records.charger.faulted", "Protection Tripped")
+}
+pub fn stopped() -> Record<Stopped> {
+    Record::new("obc.records.charger.stopped", "Charger Disconnected")
+}
+
+pub fn hold() -> Record<HoldEvent> {
+    Record::new("obc.records.charger.hold", "Supply Hold Event")
+}
+
 /// Decode the Last Record of a Type, Optionally Within One Step.
 pub async fn last<T: Message>(ctx: &Context, record: &Record<T>, step: &str) -> Result<Option<T>> {
     let records = ctx.records(record.identifier(), step, 0).await?;
     records
         .last
-        .map(|captured| <T as dokime::encoding::Message>::decode(captured.payload.as_slice()))
+        .map(|captured| <T as encoding::Message>::decode(captured.payload.as_slice()))
         .transpose()
         .map_err(|error| Error::Invalid(format!("Read {}: {error}", record.identifier())))
 }

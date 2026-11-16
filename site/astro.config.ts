@@ -34,7 +34,7 @@ export default defineConfig({
         { label: "Start", items: ["index", "deployment", "support"] },
         {
           label: "Guides",
-          items: ["gui", "execution-host", "plugins", "plugin-security", "plugin-obc", "query-api", "screenshots/readme"],
+          items: ["gui", "execution-host", "plugins", "plugin-security", "query-api", "screenshots/readme"],
         },
         { label: "SDKs", items: ["rust-sdk", "sdk-python", "sdk-csharp", "sdk-cpp"] },
         { label: "Remote Access", items: [{ autogenerate: { directory: "remote" } }] },

@@ -29,7 +29,7 @@ use tokio::sync::watch;
 use crate::Host;
 use dokime_operations::{
     Error, Result,
-    host::{Host as ClientHost, Progress, RunAction, StartedCycle},
+    host::{self, Progress, RunAction, StartedCycle},
 };
 use dokime_storage::Store;
 
@@ -87,7 +87,7 @@ pub(super) struct State {
 /* === Implementations === */
 
 #[async_trait]
-impl ClientHost for State {
+impl host::Host for State {
     fn store(&self) -> Store {
         self.host.store.clone()
     }
@@ -151,10 +151,10 @@ impl ClientHost for State {
     fn render_report(&self, subject: &ReportSubject, document_id: &str, at: Option<&ReadCut>) -> Result<(File, ReportMetadata)> {
         self.host.render_report(subject, document_id, at, &self.identity, self.render_settings)
     }
-    fn retain_report(&self, file: File, reference: FileReference) -> Result<()> {
-        self.host.reports.retain(file, reference, self.temporary_report_limit).map_err(convert)
+    fn retain_report(&self, reference: FileReference) -> Result<()> {
+        self.host.reports.retain(reference, self.temporary_report_limit).map_err(convert)
     }
-    fn temporary_report(&self, identifier: &str) -> Result<Option<(File, FileReference)>> {
+    fn temporary_report(&self, identifier: &str) -> Result<Option<FileReference>> {
         self.host.reports.temporary(identifier).map_err(convert)
     }
     fn publish_report(&self, prepared: dokime_storage::Report) -> Result<dokime_storage::Report> {

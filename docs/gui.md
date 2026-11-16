@@ -16,7 +16,7 @@ and `src/report`.
 ## Development
 
 `mise run dev` starts the desktop with Tauri dev and Vite live reload. It
-generates the desktop messages, builds the [OBC](plugin-obc.md) plugin, and
+generates the desktop messages, builds the [OBC](../plugins/sidecars/obc/) plugin, and
 creates a disposable application root under the system temporary directory with
 a unique credential namespace. The OBC bundle is installed into that root before
 the window opens. The tool sets `DOKIME_APPLICATION_ROOT` and
@@ -87,9 +87,9 @@ enums and fully qualified library service paths. System drivers now use the SDK
 thermal fixture, registered cases, execution state/outcome, Access resources and
 verified native delivery. Connections exercises two native owners; Execution
 visits the library, live execution, reports/history, settings and appearance, and
-reads exact summary tiles from the [OBC](plugin-obc.md) Bench template admitted
-beside the thermal fixture. The native host story opens that Bench document's
-one hundred plots from two clients while its confirmation prompt is pending.
+reads exact summary tiles from the [OBC](../plugins/sidecars/obc/) Exact Values template admitted
+beside the thermal fixture. The native host story opens the Plot Families document's
+plot families and one hundred time series from two clients while its confirmation prompt is pending.
 The thermal fixture does not publish a report automatically. Stories explicitly
 publish a selected evidence document before requiring a sealed download; a render
 without publication correctly retains the host's Current origin.

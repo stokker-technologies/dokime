@@ -14,20 +14,18 @@
 import re
 from typing import Self
 
-from dokime import Card, DataExpression, Metadata
-from dokime import Document as DocumentValue
-from dokime import Section as SectionValue
-from dokime import Summary as SummaryValue
-
 # Third Party Imports
 # Local Imports
+import dokime
+from dokime import Card, DataExpression, Metadata
+
 from .plot import Expression, Plot, _expression
 
 # Type Checking Imports
 
 # === Public Exports === #
 
-__all__ = ["Document", "Section", "Summary"]
+__all__ = ["Document", "Section", "Summary", "plot_card", "records_card"]
 
 # === Constants === #
 
@@ -38,7 +36,7 @@ __all__ = ["Document", "Section", "Summary"]
 
 class Document:
     def __init__(self, label: str) -> None:
-        self.message = DocumentValue(metadata=metadata(label))
+        self.message = dokime.Document(metadata=metadata(label))
 
     @property
     def label(self) -> str:
@@ -60,7 +58,7 @@ class Document:
 
 class Section:
     def __init__(self, label: str) -> None:
-        self.message = SectionValue(metadata=metadata(label))
+        self.message = dokime.Section(metadata=metadata(label))
 
     def id(self, identifier: str) -> Self:
         self.message.metadata.identifier = identifier
@@ -109,7 +107,7 @@ class Section:
 
 class Summary:
     def __init__(self) -> None:
-        self.message = SummaryValue()
+        self.message = dokime.Summary()
 
     def tile(self, label: str, value: Expression, *, unit: str = "") -> Self:
         self.message.tiles.add(metadata=metadata(label), value=_expression(value), unit=unit)
@@ -117,6 +115,14 @@ class Summary:
 
 
 # === Public Functions === #
+
+
+def plot_card(plot: Plot, columns: int = 12) -> Card:
+    return Card(metadata=plot.message.metadata, plot=plot.message, layout=dokime.CardLayout(columns=columns))
+
+
+def records_card(identifier: str) -> Card:
+    return Card(metadata=Metadata(identifier=identifier, label="Records"), evidence=dokime.EvidenceCard.Value("EVIDENCE_CARD_RECORDS"))
 
 
 def metadata(label: str) -> Metadata:
