@@ -365,34 +365,39 @@ type; full-lane failures and post-lane native inventories remain separate proof.
 
 `windows/interval_windows_stored/<streams>x<period>ns/<samples>` re-executes the
 storage benchmark binary as a remote Rust SDK plugin with 1, 16 or 128 interval
-streams of one `double`, at 1 kHz (10,000 samples per stream) and 1 MHz (20,000
+streams of one `double`, at 1 kHz (10,050 samples per stream) and 1 MHz (20,000
 samples per stream), each answered by a window observer. The host uses the
-controlled clock and the default `interval_window` (100 ms). The timed boundary
+controlled clock and the default `interval_window` (100 ms); both captures end
+inside a window, so the step's sleep cuts its last window early. The timed boundary
 runs from releasing the ready step to its captured prompt: host window grants,
 the observer's columns, transport, Harmos batch admission, Dokime's columnar Arrow
 admission and the produced-count record, whose evidence barrier makes every
 sample durable. Execution end and shutdown are excluded; the case reports
 samples per second through Criterion throughput and, with `--once`, a `Measured`
-line. It records figures only and asserts that every sample was retained.
+line. It records figures only and checks that every sample was retained; when one
+was not, it first prints a `Retained` line with per-stream counts, the samples the
+observers answered by the sleep's end and the execution outcome.
 
-Measured on 2026-11-16 at `97c366f06` with library `efc261fe` (Windows x86-64, AMD
-Ryzen 9 5950X, bench profile, one `--once` iteration per case), in samples per
-second summed over all streams:
+Measured on 2026-11-16 with library `efc261fe` (Windows x86-64, AMD Ryzen 9 5950X,
+bench profile, one `--once` iteration per case), in samples per second summed over
+all streams:
 
-| Streams | 1 kHz, 10,000 Samples per Stream | 1 MHz, 20,000 Samples per Stream |
+| Streams | 1 kHz, 10,050 Samples per Stream | 1 MHz, 20,000 Samples per Stream |
 | ---: | ---: | ---: |
-| 1 | 226,233 | 807,823 |
-| 16 | 500,297 | 2,199,183 |
-| 128 | 504,471 | 3,703,743 (not retained; see below) |
+| 1 | 209,180 | 783,472 |
+| 16 | 474,176 | 2,182,953 |
+| 128 | 384,371 | 1,818,952 (not retained; see below) |
 
 At 1 kHz each 100 ms window holds 100 samples, so per-window grant, transport and
-admission dominate; at 1 MHz one window per stream carries all 20,000 samples. The
-128-stream 1 MHz case completed its boundary but retained only 1,500,000 and then
-1,640,000 of 2,560,000 samples in two runs: whole streams were missing, with no
-ingestion error and no incomplete delivery reported. Storage alone retains the same
-2,560,000 samples (`interval_batches_of_many_streams_survive_pressure_flushes`), so
-the loss lies between scoped sample start and the step's 20 ms controlled sleep;
-it is an open defect, and the case keeps failing its retention check until fixed.
+admission dominate; at 1 MHz one window per stream carries all 20,000 samples. In
+the 128-stream 1 MHz case the observers answered all 2,560,000 samples by the
+sleep's end, but the library refused part of them: the execution ended
+Interrupted with "the shared plugin publication byte or slot capacity is full",
+keeping 67 complete streams (1,340,000 samples; 75 and 82 streams in earlier runs).
+That capacity is the library's fixed 64 MiB shared publication pool, so the case
+fails its retention check until the library admits 128 concurrent 1 MHz windows.
+Storage alone retains the same 2,560,000 samples
+(`interval_batches_of_many_streams_survive_pressure_flushes`).
 
 ### Desktop Plot Documents
 

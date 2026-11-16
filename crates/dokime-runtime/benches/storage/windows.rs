@@ -16,7 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::{Duration, Instant};
+use std::{
+    collections::BTreeMap,
+    sync::atomic::{AtomicU64, Ordering},
+    time::{Duration, Instant},
+};
 
 // Third Party Imports
 use criterion::{Criterion, SamplingMode, Throughput};
@@ -26,22 +30,29 @@ use tokio::runtime::Runtime;
 use super::publication::{Fixture, settings};
 use dokime::plugin::HostOperation;
 use dokime::prelude::*;
+use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_runtime::{PluginProcess, services};
+use prost::Message as _;
 
 /* === Constants === */
 
 /// The Plugin Process Reads Its Stream Count and Period From This Variable.
 const LAYOUT: &str = "DOKIME_BENCH_WINDOWS";
 
-/// Streams, Sample Period and Samples per Stream: 10 s at 1 kHz, 20 ms at 1 MHz.
+/// Streams, Sample Period and Samples per Stream: 10.05 s at 1 kHz, 20 ms at 1 MHz.
+///
+/// Both captures end inside a window, so the step's sleep cuts its last window early.
 const CASES: [(u64, u64, u64); 6] = [
-    (1, 1_000_000, 10_000),
-    (16, 1_000_000, 10_000),
-    (128, 1_000_000, 10_000),
+    (1, 1_000_000, 10_050),
+    (16, 1_000_000, 10_050),
+    (128, 1_000_000, 10_050),
     (1, 1_000, 20_000),
     (16, 1_000, 20_000),
     (128, 1_000, 20_000),
 ];
+
+/// Samples the Plugin's Window Observers Answered for Executions, Across Every Stream.
+static ANSWERED: AtomicU64 = AtomicU64::new(0);
 
 /* === Macros === */
 
@@ -98,7 +109,10 @@ pub fn serve() -> Result<()> {
         .step(Step::new("Capture", async move |context: &Context| capture(context, period).await));
     for index in 0..streams {
         let stream = Stream::<Level>::new(format!("level.stream_{index:03}"), format!("Level {}", index + 1));
-        let observer = Observer::window(&stream, async |_: &Context, window: &SampleWindow| {
+        let observer = Observer::window(&stream, async |context: &Context, window: &SampleWindow| {
+            if !context.execution_id().is_empty() {
+                ANSWERED.fetch_add(window.count, Ordering::SeqCst);
+            }
             Ok(LevelColumns {
                 value: (0..window.count).map(|offset| ((window.sequence + offset) % 1024) as f64).collect(),
             })
@@ -152,7 +166,34 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                         }
                         fixture.release("captured").await;
                         let completed = fixture.cycle.wait().await.unwrap();
-                        assert_eq!(completed.executions[0].samples.len() as u64, total, "Store Interval Windows: Retain Every Sample");
+                        let execution = &completed.executions[0];
+                        if execution.samples.len() as u64 != total {
+                            // Report Where Samples Went Missing Before Refusing the Case.
+                            let mut stored = BTreeMap::<&str, u64>::new();
+                            for sample in &execution.samples {
+                                *stored.entry(sample.stream.as_str()).or_default() += 1;
+                            }
+                            let answered = execution
+                                .evidence
+                                .iter()
+                                .filter(|entry| entry.kind == "record:produced")
+                                .filter_map(|entry| RecordsAppendRequest::decode(entry.payload.as_slice()).ok())
+                                .filter_map(|record| Produced::decode(record.payload.as_slice()).ok())
+                                .map(|produced| produced.rows)
+                                .sum::<u64>();
+                            let mut counts = BTreeMap::<u64, usize>::new();
+                            for count in stored.values() {
+                                *counts.entry(*count).or_default() += 1;
+                            }
+                            println!(
+                                "Retained | {} of {total} samples | {} of {streams} streams stored | streams by count {counts:?} | answered by the sleep's end {answered} | outcome {:?} | states {:?}",
+                                execution.samples.len(),
+                                stored.len(),
+                                execution.execution.outcome,
+                                completed.states,
+                            );
+                        }
+                        assert_eq!(execution.samples.len() as u64, total, "Store Interval Windows: Retain Every Sample");
                         fixture.host.shutdown().await.unwrap();
                         services::remove_credentials(fixture.root.as_path()).unwrap();
                     }
@@ -173,6 +214,8 @@ async fn capture(context: &Context, period: Duration) -> Result<()> {
     // A Controlled Sleep Settles After Every Window Due by Its End, So It Stores Every Requested Sample.
     let span = period.checked_mul(u32::try_from(rows).map_err(|_| Error::Invalid("Capture: Too Many Samples".into()))?);
     context.sleep(span.ok_or_else(|| Error::Invalid("Capture: Duration Overflow".into()))?).await?;
+    // The Record Holds How Many Samples the Observers Answered by the Sleep's End.
+    let rows = ANSWERED.swap(0, Ordering::SeqCst);
     context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows }).await?;
     context.host().prompts.create("captured".into(), "continue".into(), Default::default()).await?;
     Ok(())
