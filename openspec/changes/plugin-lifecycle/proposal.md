@@ -13,19 +13,24 @@ one lifecycle vocabulary, one registration shape and one plugin layout on 2026-1
 
 Owner decisions locked on 2026-11-16. Status per row: **proposed** until its tasks land.
 Harmos owns the generic lifecycle and registration machinery (its `plugin-lifecycle`
-change); Dokime owns its product kinds and adopts that machinery.
+change); Dokime owns its product kinds and adopts that machinery. The later
+`plugin-boundary` owner amendment assigns the only author-facing four-language
+SDKs, public registrars and starters to Dokime. Harmos provides internal carrier
+helpers; no author-facing Harmos types or import aliases. Local register freezes
+declarations; generic host admission precedes product-kind admission/settings
+resolution and initialize. Regenerate once with both boundary changes.
 
 | Decision | Direction |
 | --- | --- |
 | Paired verbs | `initialize` ↔ `finalize` acquire and release resources, and finalize always runs once initialize was attempted, including after a failed initialize; `start` ↔ `stop` begin and end activity; `register` is declaration and admission with no counterpart. Each placement uses only the pairs it needs. |
 | Host verbs | **BREAKING.** Dokime's runtime goes new → register → start → stop; `run` is start, wait, stop. `launch`, `shutdown` and `serve` become `start`, `stop` and `run` where they denote these. |
-| Plugin phases | **BREAKING.** register (admission) → initialize → finalize. Plugin `on_stop` merges into finalize: the host cancels in-flight work, then calls finalize. No plugin start or stop. |
+| Plugin phases | **BREAKING.** Local register → host admission → initialize → finalize. Plugin `on_stop` merges into finalize: the host cancels in-flight work, then calls finalize. No plugin start or stop. |
 | Template phases | **BREAKING.** materialize → initialize → steps, criteria → finalize; `cleanup` becomes `finalize` on the wire and in all four SDKs. Finalize runs even when initialize failed (today `crates/dokime-runtime/src/execution.rs` skips it). C# and C++ finalize contexts carry the termination reason like Rust and Python. |
 | Registration is admission | The plugin declares streams, templates, prompts, records, operations and settings; the host only checks definitions. No run behavior, prompts or resource acquisition during registration; construction with side effects moves into initialize. Registration completes before serving, reaches the host through `Instance.Get` and is frozen per activation. |
 | Registration API | **BREAKING.** `fn register(ctx: &mut Registrar) -> Result<()>` with `ctx.register(x::catalog())`; typed registrations accumulate descriptors, removing `Plugin<(C, T)>` growth. C++ calls `add` (register is a reserved keyword). Dokime kinds register through Harmos declaration sections. |
 | Module catalogs | Every global module exposes `catalog()` (settings, operations, observers, streams, prompts, records, suites); a suite folder's `mod.rs` exposes its suite catalog including its templates' prompts, records, observers and streams. `declarations()` stays the frozen host-facing description. |
 | Template-owned declarations | `Template::prompt()` and `Template::record()` in all four SDKs aggregate into the plugin's frozen catalog; no host-side template-scope enforcement. Declarations are immutable; observer instances, demands, resources and bench state die with the execution. |
-| No aliases or path overrides | Dokime refers to the Harmos plugin by qualified path (Rust `harmos::plugin::Plugin`, Python `harmos.plugin.Plugin`, C# `Harmos.Plugins.Plugin`, C++ `harmos::plugin::Plugin`); no import aliases or path overrides anywhere except named unavoidable exceptions. |
+| No aliases or path overrides | Import the names used and qualify clashes by module path. Harmos references are internal to SDK implementations, never author-facing; no import aliases or path overrides except named unavoidable exceptions. |
 | Canonical plugin layout | The plugin authoring skill documents one layout per language: root `main.rs`, `lib.rs`, `settings.rs`, `error.rs`; folders `device/`, `observers/`, `operations/`, `prompts/`, `records/`, `streams/`, `suites/<suite>/mod.rs` with one file per template. |
 
 - Rename `Executions.Cleanup`, its request and response, the template definition's

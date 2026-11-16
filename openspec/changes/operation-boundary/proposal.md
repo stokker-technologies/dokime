@@ -22,10 +22,18 @@ Owner decisions locked on 2026-11-16. Status: **proposed** until the owning task
 | Envelope stays stored | Decided by the owner on 2026-11-16: Dokime keeps its persisted zoom envelope, stored through Harmos object or file operations, with its merge kernel in Harmos. Sealing an execution clears its stored envelope and previews. |
 | Idiomatic Harmos surface | **BREAKING.** Dokime builds the runtime through the Harmos builder, calls operations, implements its backend through the backend authoring module, and drops direct `harmos-domain`, `harmos-query`, `harmos-storage` and `harmos-protocol` dependencies. |
 | Typed in-process facade | Decided by the owner on 2026-11-16: Dokime calls Harmos in-process through the typed Rust facade over native operations (`runtime.for_call(&ctx).storage().append_samples(..)`, `.plugins().load(..)`); each facade method dispatches its operation with its registered policy, typed values pass without encoding, and no Harmos manager or engine type is reachable. |
-| Harmos SDK scope | Decided by the owner on 2026-11-16: Harmos keeps its four plugin SDKs, protocol generation, Wasm guest support and conformance; its host-client resource roots and host RPC client surfaces are deleted once every host operation is in-process only. Dokime generates its clients from its own wrapper operations and keeps reusing Harmos connection plumbing. |
+| SDK scope (later owner amendment: plugin-boundary) | Dokime owns its contract, four author SDKs, registrars and starters; Harmos types stay internal without import aliases. Harmos retains four-language carrier helpers, shared generation, supported guest ABI and generic conformance. Host-client roots disappear; connection plumbing stays. |
 | Wrapper defaults | Decided by the owner on 2026-11-16: wrappers declare their audience with the `callers` option, plugin-to-host calls become Harmos plugin protocol facilities, and wrappers reuse Harmos request and response messages. |
 | Product wrappers | **BREAKING.** Harmos host operations become in-process only. Dokime declares its own wrapper operations for every Harmos host operation its clients use. |
 | Composition removed | **BREAKING.** `protocol/composition.toml` and its readers are deleted; generators derive from the embedded descriptors and Dokime's own wrappers. |
+
+`plugin-boundary` further makes installation, registry, bundles, persisted settings
+and plugin management operations/projections Dokime-owned policy, not wrappers
+around Harmos administration. Harmos keeps its activation manager; Dokime registers
+kinds with admission/settings hooks and chooses what and when to load. No
+`PluginBackend`. Generic wrapper payload reuse stays internal to author SDKs;
+product administration uses Dokime messages. Regenerate once with both other
+changes, preserving tracked generated output.
 
 The upstream Harmos change `operation-boundary` closes the operation gaps first. Dokime
 adopts the revision that landed each Harmos group in dependency order; development storage

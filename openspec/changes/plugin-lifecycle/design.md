@@ -3,8 +3,9 @@
 ## Context
 
 See proposal.md for motivation and the locked owner decisions. The Harmos `plugin-lifecycle`
-change owns host verbs, plugin phases (admission, initialize, finalize), the registrar, typed
-registrations, declaration sections and the no-alias rule. This design records how Dokime
+change owns host verbs, plugin phases, internal registration accumulation,
+declaration sections and the no-alias rule. Under `plugin-boundary`, Dokime owns
+the public registrar and author SDKs over Harmos carrier helpers. This design records how Dokime
 adopts them and what Dokime owns: product kinds, template phases and the plugin layout.
 Paths are relative to the repository root; cite symbols, not lines.
 
@@ -52,10 +53,10 @@ Touched invariants in docs/architecture.md:
   invocation while still running required cleanup". Purpose: cancellation never skips the
   release phase or loses attributed evidence. Preserved and widened: the release phase is
   finalize and also follows a failed initialize.
-- Invariant 7 assigns plugin machinery and SDKs to the
-library and storage definitions, objects and schemas to the product. Preserved: the
-registrar and lifecycle machinery are Harmos's; suites, templates, prompts and records stay
-Dokime kinds registered through Harmos declaration sections.
+- Invariant 7's earlier assignment of plugin machinery and SDKs to the library is
+  amended by `plugin-boundary`: lifecycle/accumulation machinery stays in Harmos;
+  author SDKs and registrars belong to Dokime. Suites, templates, prompts and
+  records remain product kinds carried in opaque declaration sections.
 
 ## Goals / Non-Goals
 
@@ -79,8 +80,8 @@ Decision sources. Owner-locked (proposal.md): paired verbs, host verbs, plugin a
 phases, finalize after a failed initialize, termination in C# and C++, registration as
 admission, the registrar API, module and suite catalogs, template-owned prompts and records,
 no aliases or path overrides, the canonical layout. Derived by this design; the owner may
-override each before its group starts: Dokime re-exporting the Harmos `Registrar` and
-`Registration`, the Harmos plugin field named `plugin`, Python endpoint `close` becoming
+override each before its group starts: the internal Harmos helper field named
+`plugin`, Python endpoint `close` becoming
 `stop`, `TERMINATION_FAILED` for a failed initialize and the per-language layout mapping.
 
 ### D1. Template Phases (Proposed)
@@ -124,12 +125,19 @@ fn register(ctx: &mut dokime::Registrar) -> Result<()> {
 }
 ```
 
-`dokime::Registrar` and `dokime::Registration` are the Harmos types re-exported under their
-own names (no rename). Dokime kinds (suite, template, prompt, record contract) implement
-`Registration`, registering their operations and appending to Dokime's typed declaration
-section. Python `ctx.register(settings.catalog())`, C# `ctx.Register(Settings.Catalog())`,
-C++ `ctx.add(settings::catalog())`. The Dokime plugin wrapper holds the Harmos plugin by
-qualified path in a field named `plugin` (`_plugin` in Python, `plugin_` in C++).
+`dokime::Registrar` and `dokime::Registration` are product-owned public contracts,
+not re-exported Harmos types (owner amendment, 2026-11-16, `plugin-boundary`). Suite,
+template, prompt and record values implement the product contract; internal
+translation uses Harmos accumulation helpers and opaque declaration sections.
+Python `ctx.register(settings.catalog())`, C# `ctx.Register(Settings.Catalog())`,
+C++ `ctx.add(settings::catalog())`. Helpers stay private, with qualified internal
+paths and no import aliases; no public signature, attribute, error or escape hatch
+exposes Harmos. The plugin value retains one type however many records register.
+
+Local registration remains inert and freezes before serving. Harmos generic
+admission then calls the product kind's admission/settings-resolution hooks before
+initialize. Dokime owns installation and startup load selection; Harmos owns live
+activation and lifecycle guarantees. There is no `PluginBackend` trait.
 
 ### D4. Template-Owned Prompts and Records (Proposed)
 
@@ -171,13 +179,13 @@ restructured now on today's SDK in a separate batch (not tracked here) and switc
 
 ### D6. Qualified Paths Instead of Aliases (Proposed, Owner Direction)
 
-Dokime applies the Harmos rule: imported types and modules are referred to by qualified path;
+Dokime imports the names it uses and qualifies clashes by module path;
 no Rust `use x as y`, Python `import x as y`/`from x import y as z`, C# `using X = Y;`, C++
 renaming `namespace`/`using` aliases, `#[path]` or `sys.path` edits. Defining a new name for a
 composed type is not a rename. Generators stop emitting aliases. Each unavoidable exception is
 named with its reason in the authoring skill and `docs/architecture.md`.
 
-## Risks / Trade-offs
+## Risks / Trade-Offs
 
 - [Finalize after a failed initialize meets partial resources] → termination is
   `TERMINATION_FAILED`, SDK-owned resources are released by the SDK and the skill tells authors
@@ -191,6 +199,11 @@ named with its reason in the authoring skill and `docs/architecture.md`.
   module trees; named exceptions remain where nothing else works.
 
 ## Migration Plan
+
+`plugin-boundary` owns the author API/helper split and coordinated cutover. Lock
+operation, carrier and lifecycle contracts together and regenerate once with
+`operation-boundary`; generated output remains tracked. Qualifying internal helper
+names never permits author-facing Harmos values.
 
 Adopt the Harmos revision that landed its `plugin-lifecycle` change: an integration-only local
 override while it is unpublished, replaced by the published revision before final validation.

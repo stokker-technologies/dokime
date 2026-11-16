@@ -6,12 +6,12 @@ Define what the Dokime host exposes remotely: only operations declared in Dokime
 
 ### Requirement: Product Wrappers for Used Harmos Operations
 
-Dokime SHALL declare a wrapper operation in its own protocol for each Harmos host operation a Dokime client uses, calling the Harmos operation in-process. Harmos host operations no client uses SHALL NOT be wrapped.
+Dokime SHALL declare a wrapper for each generic Harmos host operation its clients use, calling the typed facade in-process. Unused operations SHALL NOT be wrapped. Plugin management/settings contracts and policy SHALL instead be Dokime-owned operations over Harmos activation and storage, not wrappers around library administration.
 
 #### Scenario: Desktop Lists Plugins
 
 - **WHEN** the desktop lists installed plugins
-- **THEN** it calls the Dokime wrapper, which calls the Harmos plugin listing in-process
+- **THEN** it calls the Dokime plugin management operation, which reads the product registry through Harmos storage operations
 
 #### Scenario: Unwrapped Harmos Operation
 

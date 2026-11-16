@@ -1,17 +1,22 @@
 ## Purpose
 
-Define how a Dokime plugin composes its product kinds on the library registrar: module and suite catalogs, template-owned prompts and records, inert registration, plugin finalize and the lifetime of declarations versus execution instances.
+Define product-owned registration through Dokime registrars over internal carrier helpers: module/suite catalogs, template-owned declarations, inert registration, finalize and execution resource lifetimes.
 
 ## ADDED Requirements
 
-### Requirement: Dokime Kinds Register Through the Library Registrar
+### Requirement: Dokime Owns the Author Registrar
 
-Suites, templates, prompts and record contracts SHALL register through the same register phase and registrar as library declarations, in Rust, Python, C# and C++, and SHALL reach the host in Dokime's declaration section of the frozen declarations.
+Dokime SHALL own the public registrar and registration contract in all four languages. Suites, templates, prompts, records and generic author declarations SHALL register through that product API, translated internally into Harmos carrier declarations and opaque product sections. Harmos types SHALL NOT leak to authors or be hidden by import aliases.
 
 #### Scenario: Register a Suite Catalog
 
 - **WHEN** an author's register function registers the suites catalog
 - **THEN** the host lists every suite and template of that catalog with their operations, prompts and records
+
+#### Scenario: Author Uses Only Product Types
+
+- **WHEN** an author registers independent operations and suites together
+- **THEN** every public registration value and error uses Dokime API paths while shared carrier helpers remain internal
 
 ### Requirement: Inert Registration
 
