@@ -75,10 +75,7 @@ pub(crate) fn initial() -> SettingsGetResponse {
             }),
             telemetry: Some(TelemetryPreferences { interval_ms: 1000 }),
             listener: None,
-            plugins: Some(PluginPreferences {
-                startup_timeout_s: 60,
-                stop_timeout_s: 10,
-            }),
+            plugins: Some(PluginPreferences { startup_timeout_s: 60 }),
         }),
         resolved_at: None,
     }
@@ -122,8 +119,8 @@ pub(crate) fn validate(settings: &ApplicationSettings) -> Result<()> {
     let telemetry = settings.telemetry.as_ref().ok_or_else(|| invalid("Supply Telemetry Preferences"))?;
     duration(telemetry.interval_ms)?;
     let plugins = settings.plugins.as_ref().ok_or_else(|| invalid("Supply Plugin Preferences"))?;
-    if !(1..=3600).contains(&plugins.startup_timeout_s) || !(1..=3600).contains(&plugins.stop_timeout_s) {
-        return Err(invalid("Choose Plugin Timeouts from 1 to 3600 Seconds"));
+    if !(1..=3600).contains(&plugins.startup_timeout_s) {
+        return Err(invalid("Choose a Plugin Startup Timeout from 1 to 3600 Seconds"));
     }
     if settings.listener.is_some() {
         return Err(invalid("Configure the Listener Through Access.Listener.Set"));

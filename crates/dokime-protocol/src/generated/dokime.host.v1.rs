@@ -12390,8 +12390,6 @@ pub struct OnDemandRefresh {}
 pub struct PluginPreferences {
     #[prost(uint32, tag = "1")]
     pub startup_timeout_s: u32,
-    #[prost(uint32, tag = "2")]
-    pub stop_timeout_s: u32,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]

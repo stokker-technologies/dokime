@@ -69,10 +69,7 @@ export async function savePreferences(scope: SettingsScope, update: PreferencesU
         connectTimeoutMs: BigInt(settings.client.connect_timeout_ms),
         requestTimeoutMs: BigInt(settings.client.request_timeout_ms),
       }),
-      plugins: create(PluginPreferencesSchema, {
-        startupTimeoutS: settings.plugins.startup_timeout_s,
-        stopTimeoutS: settings.plugins.stop_timeout_s,
-      }),
+      plugins: create(PluginPreferencesSchema, { startupTimeoutS: settings.plugins.startup_timeout_s }),
       report: create(ReportDefaultsSchema, {
         plotDownsample: downsampling[settings.report.plot_downsample],
         plotPoints: settings.report.plot_points,
@@ -121,7 +118,7 @@ function snapshot(bytes: ArrayBuffer): PreferencesSnapshot {
         authentication_enabled: settings.listener.authenticationEnabled,
         certificate_names: settings.listener.certificateNames,
       },
-      plugins: { startup_timeout_s: settings.plugins.startupTimeoutS, stop_timeout_s: settings.plugins.stopTimeoutS },
+      plugins: { startup_timeout_s: settings.plugins.startupTimeoutS },
       report: {
         plot_points: settings.report.plotPoints,
         plot_downsample: plotDownsample,

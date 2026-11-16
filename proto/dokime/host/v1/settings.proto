@@ -180,8 +180,10 @@ message OnDemandRefresh {}
 
 // PluginPreferences value owned by this resource.
 message PluginPreferences {
+  // Stop grace is fixed by the host as one third of the Plugins operation timeout.
+  reserved 2;
+  reserved "stop_timeout_s";
   uint32 startup_timeout_s = 1;
-  uint32 stop_timeout_s = 2;
 }
 
 // RemoteListenerSettings value owned by this resource.
