@@ -16,10 +16,15 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::{
+    convert::Infallible,
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
+use tonic::server::{Grpc, NamedService, UnaryService};
 use tonic::{Request, Response, Status, codegen::BoxFuture};
 
 // Local Imports
@@ -37,12 +42,6 @@ use dokime_sdk::ArtifactState;
 use dokime_sdk::FilesGetResponse;
 use dokime_sdk::FilesReadResponse;
 use dokime_sdk::client::ContentArtifactsGetResponse;
-use std::convert::Infallible;
-use std::task::Context;
-use std::task::Poll;
-use tonic::server::Grpc;
-use tonic::server::NamedService;
-use tonic::server::UnaryService;
 
 /* === Constants === */
 

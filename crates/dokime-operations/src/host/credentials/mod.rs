@@ -7,17 +7,28 @@
  * ***
  */
 
-// Serialize Native Credentials on Their Owning Thread
+// Coordinate Native Credential Access Across Host Processes
 
 /* === Modules === */
 
+#[cfg(target_os = "windows")]
+mod windows;
+
+#[cfg(unix)]
+mod unix;
+
 /* === Re-Exports === */
+
+#[cfg(target_os = "windows")]
+pub(crate) use windows::call;
+
+#[cfg(unix)]
+pub(crate) use unix::call;
 
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::{OnceLock, mpsc};
-use std::thread;
+use std::io;
 
 // Third Party Imports
 use zeroize::Zeroizing;
@@ -30,8 +41,6 @@ use zeroize::Zeroizing;
 
 /* === Type Aliases === */
 
-type Work = Box<dyn FnOnce() + Send>;
-
 /* === Structs === */
 
 /// The Prefix of Every Native Credential Service the Host Owns, Such as `<namespace>.access`.
@@ -41,10 +50,12 @@ type Work = Box<dyn FnOnce() + Send>;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CredentialNamespace(String);
 
-/// A Native Slot Whose Calls Always Run on the Credential Owner Thread.
+/// A Native Slot Whose Calls Coordinate With Other Host Processes for This User.
+///
+/// Every native access, including diagnostic reads, must use this entry: Windows persistent credential
+/// reads can race writes to other slots and resurrect deleted entries. Calls run on the calling thread.
 pub struct Entry {
-    service: String,
-    account: String,
+    inner: keyring::Entry,
 }
 
 /* === Enums === */
@@ -87,67 +98,33 @@ impl Default for CredentialNamespace {
 
 impl Entry {
     pub fn new(service: &str, account: &str) -> keyring::Result<Self> {
-        Ok(Self {
-            service: service.into(),
-            account: account.into(),
-        })
+        let inner = keyring::Entry::new(service, account)?;
+        Ok(Self { inner })
     }
 
     pub fn get_password(&self) -> keyring::Result<String> {
-        self.call(|entry| entry.get_password())
+        call(&self.inner, |entry| entry.get_password())
     }
 
     pub fn get_secret(&self) -> keyring::Result<Vec<u8>> {
-        self.call(|entry| entry.get_secret())
+        call(&self.inner, |entry| entry.get_secret())
     }
 
     pub fn set_password(&self, value: &str) -> keyring::Result<()> {
-        let value = Zeroizing::new(value.to_owned());
-        self.call(move |entry| entry.set_password(&value))
+        call(&self.inner, |entry| entry.set_password(value))
     }
 
     pub fn delete_credential(&self) -> keyring::Result<()> {
-        self.call(|entry| {
+        call(&self.inner, |entry| {
             entry.delete_credential()?;
             match entry.get_secret().map(Zeroizing::new) {
                 Err(keyring::Error::NoEntry) => Ok(()),
                 Err(error) => Err(error),
-                Ok(_) => Err(keyring::Error::PlatformFailure(Box::new(std::io::Error::other(
-                    "Remove Native Credential: Credential Remains in the Native Store",
+                Ok(_) => Err(keyring::Error::PlatformFailure(Box::new(io::Error::other(
+                    "Remove Native Credential: Stop Other Credential Writers and Retry Removing This Root",
                 )))),
             }
         })
-    }
-
-    fn call<T: Send + 'static>(&self, operation: impl FnOnce(keyring::Entry) -> keyring::Result<T> + Send + 'static) -> keyring::Result<T> {
-        // One Process-Lifetime Owner Also Covers Root Reopen and Explicit Discard.
-        static OWNER: OnceLock<mpsc::Sender<Work>> = OnceLock::new();
-        let owner = OWNER.get_or_init(|| {
-            let (send, receive) = mpsc::channel::<Work>();
-            thread::Builder::new()
-                .name("dokime-credentials".into())
-                .spawn(move || {
-                    for work in receive {
-                        work();
-                    }
-                })
-                .expect("Start Native Credential Owner");
-            send
-        });
-        let service = self.service.clone();
-        let account = self.account.clone();
-        let (send, receive) = mpsc::sync_channel(1);
-        owner
-            .send(Box::new(move || {
-                let result = keyring::Entry::new(&service, &account).and_then(operation);
-                let _ = send.send(result);
-            }))
-            .map_err(|error| {
-                keyring::Error::PlatformFailure(Box::new(std::io::Error::other(format!("Call Native Credential Owner: {error}"))))
-            })?;
-        receive.recv().map_err(|error| {
-            keyring::Error::PlatformFailure(Box::new(std::io::Error::other(format!("Await Native Credential Owner: {error}"))))
-        })?
     }
 }
 

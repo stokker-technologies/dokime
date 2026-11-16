@@ -194,13 +194,19 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    not the claim: while the original exists, the copy refuses to open with
    credential records and refuses credential removal, so it can never delete the
    original's accounts. A moved root reclaims; removal releases the claim.
-   Access-key cleanup checks native absence before retiring its slot journal;
-   a remaining or unreadable key preserves the root for cleanup. Access and shared
-   secret owners submit native creation, reads and removal to one dedicated
-   process-lifetime credential thread, including root reopen and explicit discard.
+   Native credential removal checks absence before the owner retires its slot journal;
+   a remaining or unreadable key preserves the root for cleanup. On Windows, every
+   native credential call, including test and diagnostic reads, takes the same
+   per-user cross-process file lock at `%LOCALAPPDATA%/dokime/native-credentials.lock`.
+   Persistent Windows credential reads can race writes to unrelated targets and
+   resurrect deleted entries, so neither a namespace lock nor a process-local owner
+   thread provides isolation. `host/credentials/` in `dokime-operations` owns this
+   boundary; calls run on their calling threads. Uncoordinated external credential
+   callers cannot be isolated by this product lock. Unix uses its native service directly.
    Root leases are unlocked before their handles close, since a lock left on a
    closed handle is released only eventually.
-   Concurrent-host stories retain independent calling-thread absence assertions.
+   Concurrent-host stories start separate host processes and retain calling-thread
+   native absence assertions through the same coordination boundary.
    Native test and benchmark runners retain child scratch ownership and remove
    root credentials after child exit, including termination, before deleting scratch.
    `credentials_leave_with_discarded_roots` proves named access and secret credentials
