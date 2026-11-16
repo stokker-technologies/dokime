@@ -25,10 +25,14 @@ import zipfile
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from .. import policy
+# isort: split
 
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
+from .. import policy
 from ..process import spawn_flags
 
 # Type Checking Imports
@@ -50,19 +54,21 @@ def exceptions(directory: Path, *, today: date | None = None) -> dict:
     today = datetime.now(UTC).date() if today is None else today
     for kind, entries in document.items():
         if kind not in {"advisory", "license", "ban"}:
-            raise policy.ToolError(f"unknown exception category: {kind}")
+            raise policy.ToolError(f"Check Release Supply Chain: unknown exception category: {kind}")
         for entry in entries:
             for field in ("package", "version", "reason", "owner", "fixed"):
                 if not entry.get(field):
-                    raise policy.ToolError(f"exception is missing {field}")
+                    raise policy.ToolError(f"Check Release Supply Chain: exception is missing {field}")
             if kind == "ban":
                 manifest = tomllib.loads(policy.inside(directory, entry["manifest"]).read_text(encoding="utf-8"))
                 digest = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
                 if digest != entry["manifest_sha256"]:
-                    raise policy.ToolError(f"ban exception no longer matches {entry['package']}'s manifest")
+                    raise policy.ToolError(f"Check Release Supply Chain: ban exception no longer matches {entry['package']}'s manifest")
             expiry = entry.get("expires")
             if not isinstance(expiry, date) or expiry <= today:
-                raise policy.ToolError(f"expired exception: {entry['package']} {entry.get('id', entry.get('license'))}")
+                raise policy.ToolError(
+                    f"Check Release Supply Chain: expired exception: {entry['package']} {entry.get('id', entry.get('license'))}"
+                )
     return document
 
 
@@ -141,7 +147,7 @@ def check(directory: Path) -> int:
         elif name == "pnpm":
             report = json.loads(result.stdout)
             if "advisories" not in report or report.get("error"):
-                raise policy.ToolError("pnpm audit returned no advisory report")
+                raise policy.ToolError("Check Release Supply Chain: pnpm audit returned no advisory report")
             for item in report["advisories"].values():
                 identifier = item["github_advisory_id"]
                 for version in sorted({finding["version"] for finding in item["findings"]}):
@@ -169,9 +175,9 @@ def auditable(profile: str, command: list[str]) -> int:
     if profile == "release":
         executable = shutil.which("cargo-auditable")
         if executable is None:
-            raise policy.ToolError("the pinned cargo-auditable tool is missing")
+            raise policy.ToolError("Check Release Supply Chain: the pinned cargo-auditable tool is missing")
         if environment.get("RUSTC_WORKSPACE_WRAPPER"):
-            raise policy.ToolError("cargo-auditable requires ownership of RUSTC_WORKSPACE_WRAPPER")
+            raise policy.ToolError("Check Release Supply Chain: cargo-auditable requires ownership of RUSTC_WORKSPACE_WRAPPER")
         # Preserve Cargo's Subcommand Environment for Compiler-Cache Detection.
         environment.setdefault("CARGO", shutil.which("cargo") or "cargo")
         environment["RUSTC_WORKSPACE_WRAPPER"] = executable
@@ -182,7 +188,7 @@ def auditable(profile: str, command: list[str]) -> int:
     if command[:1] == ["python"]:
         command[0] = sys.executable
     if not command:
-        raise policy.ToolError("pass an existing build entry point")
+        raise policy.ToolError("Check Release Supply Chain: pass an existing build entry point")
     result = subprocess.run(
         command,
         env=environment,
@@ -201,11 +207,15 @@ def workspace(directory: Path, target: str, output: Path) -> list[Path]:
     """Run Cargo CycloneDX in an Isolated Source Snapshot, Preserving the Checkout."""
     output.mkdir(parents=True, exist_ok=True)
     tracked = policy.execute(directory, ["git", "ls-files", "-z"], capture=True).split("\0")
-    with tempfile.TemporaryDirectory(prefix="dokime-sbom-") as temporary:
+    temporary_directory = tempfile.TemporaryDirectory(prefix="dokime-sbom-")
+    temporary = temporary_directory.name
+    try:
         snapshot = Path(temporary)
         for name in tracked:
             source = directory / name
-            if not name or not source.is_file():
+            if not name:
+                continue
+            if not source.is_file():
                 continue
             if source.suffix not in {".rs", ".toml"} and source.name != "Cargo.lock":
                 continue
@@ -214,7 +224,7 @@ def workspace(directory: Path, target: str, output: Path) -> list[Path]:
             shutil.copyfile(source, destination)
         policy.execute(snapshot, ["cargo", "cyclonedx", "--format", "json", "--spec-version", "1.5", "--all", "--target", target])
         if (snapshot / "Cargo.lock").read_bytes() != (directory / "Cargo.lock").read_bytes():
-            raise policy.ToolError("Cargo CycloneDX changed the dependency resolution")
+            raise policy.ToolError("Check Release Supply Chain: Cargo CycloneDX changed the dependency resolution")
         result = []
         for source in sorted(snapshot.rglob("*.cdx.json")):
             relative = source.relative_to(snapshot)
@@ -223,19 +233,25 @@ def workspace(directory: Path, target: str, output: Path) -> list[Path]:
             shutil.copyfile(source, destination)
             result.append(destination)
         if not result:
-            raise policy.ToolError("Cargo CycloneDX produced no inventories")
+            raise policy.ToolError("Check Release Supply Chain: Cargo CycloneDX produced no inventories")
         return result
+    finally:
+        temporary_directory.cleanup()
 
 
 def shell(directory: Path, output: Path) -> Path:
     """Scan the Locked Shell Dependency Inventory with Syft."""
-    with tempfile.TemporaryDirectory(prefix="dokime-shell-sbom-") as temporary:
+    temporary_directory = tempfile.TemporaryDirectory(prefix="dokime-shell-sbom-")
+    temporary = temporary_directory.name
+    try:
         snapshot = Path(temporary)
         for name in ("package.json", "pnpm-lock.yaml"):
             shutil.copyfile(directory / "crates/dokime-gui" / name, snapshot / name)
         document = json.loads(policy.execute(directory, ["syft", "scan", f"dir:{snapshot}", "-o", "cyclonedx-json"], capture=True))
+    finally:
+        temporary_directory.cleanup()
     if not document.get("components"):
-        raise policy.ToolError("Syft produced an empty shell inventory")
+        raise policy.ToolError("Check Release Supply Chain: Syft produced an empty shell inventory")
     output.mkdir(parents=True, exist_ok=True)
     destination = output / "dokime-shell.cdx.json"
     destination.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
@@ -245,15 +261,18 @@ def shell(directory: Path, output: Path) -> Path:
 def unpack(archive: Path, destination: Path) -> None:
     """Reject Traversal and Links Before Extracting a Distribution."""
     if zipfile.is_zipfile(archive):
-        with zipfile.ZipFile(archive) as bundle:
+        bundle = zipfile.ZipFile(archive)
+        try:
             for member in bundle.infolist():
                 name = member.filename
                 mode = member.external_attr >> 16
                 if "\\" in name or ":" in name or not (destination / name).resolve().is_relative_to(destination.resolve()):
-                    raise policy.ToolError(f"unsafe archive member: {name}")
+                    raise policy.ToolError(f"Check Release Supply Chain: unsafe archive member: {name}")
                 if mode & 0o170000 == 0o120000:
-                    raise policy.ToolError(f"archive link is not supported: {name}")
+                    raise policy.ToolError(f"Check Release Supply Chain: archive link is not supported: {name}")
             bundle.extractall(destination)
+        finally:
+            bundle.close()
         return
     if tarfile.is_tarfile(archive):
         with tarfile.open(archive) as bundle:
@@ -264,10 +283,14 @@ def unpack(archive: Path, destination: Path) -> None:
 
 def artifact(directory: Path, source: Path, output: Path, rust: list[Path]) -> Path:
     """Scan Unpacked Bytes and Include the Target's Conservative Rust Source Inventory."""
-    with tempfile.TemporaryDirectory(prefix="dokime-artifact-") as temporary:
+    temporary_directory = tempfile.TemporaryDirectory(prefix="dokime-artifact-")
+    temporary = temporary_directory.name
+    try:
         unpacked = Path(temporary)
         unpack(source, unpacked)
         document = json.loads(policy.execute(directory, ["syft", "scan", f"dir:{unpacked}", "-o", "cyclonedx-json"], capture=True))
+    finally:
+        temporary_directory.cleanup()
     components = {item.get("purl", item.get("bom-ref", item["name"])): item for item in document.get("components", [])}
     for path in rust:
         for item in json.loads(path.read_text(encoding="utf-8")).get("components", []):
@@ -316,13 +339,16 @@ def main() -> int:
     inventories = workspace(directory, options.target, options.output)
     shell_inventory = shell(directory, options.output)
     if options.artifacts:
-        sources = [
-            source
-            for source in sorted(options.artifacts.rglob("*"))
-            if source.is_file() and source.name.endswith((".zip", ".tar.gz", ".whl", ".exe", ".deb", ".rpm"))
-        ]
+        sources = []
+        for sources_source in sorted(options.artifacts.rglob("*")):
+            if not sources_source.is_file():
+                continue
+            if not sources_source.name.endswith((".zip", ".tar.gz", ".whl", ".exe", ".deb", ".rpm")):
+                continue
+            sources.append(sources_source)
+
         if not sources:
-            raise policy.ToolError("no distribution artifacts found")
+            raise policy.ToolError("Check Release Supply Chain: no distribution artifacts found")
         for source in sources:
             desktop = source.name.startswith("dokime-distribution-") or source.name.endswith(("-setup.exe", ".deb", ".rpm"))
             source_inventories = [*inventories, shell_inventory] if desktop else inventories

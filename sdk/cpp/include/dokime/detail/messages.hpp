@@ -1,7 +1,6 @@
 // @generated from protocol descriptors; do not edit.
 #pragma once
 #include "dokime/host/v1/aggregates.pb.h"
-#include "dokime/host/v1/analyses.pb.h"
 #include "dokime/host/v1/backend.pb.h"
 #include "dokime/host/v1/backend/overview.pb.h"
 #include "dokime/host/v1/cases.pb.h"
@@ -38,7 +37,6 @@
 #include "dokime/host/v1/storage/sources.pb.h"
 #include "dokime/host/v1/stream_schemas.pb.h"
 #include "dokime/host/v1/suites.pb.h"
-#include "dokime/model/v1/analyses.pb.h"
 #include "dokime/model/v1/documents.pb.h"
 #include "dokime/model/v1/evidence.pb.h"
 #include "dokime/model/v1/execution.pb.h"
@@ -53,7 +51,6 @@
 #include "dokime/model/v1/secrets.pb.h"
 #include "dokime/model/v1/suites.pb.h"
 #include "dokime/model/v1/traceability.pb.h"
-#include "dokime/plugin/v1/analyses.pb.h"
 #include "dokime/plugin/v1/criteria.pb.h"
 #include "dokime/plugin/v1/executions.pb.h"
 #include "dokime/plugin/v1/steps.pb.h"
@@ -61,7 +58,6 @@
 namespace dokime::detail {
 inline constexpr char stream_fingerprint_prefix[] = "harmos.protobuf.stream.v1\0";
 using ClientAggregatesGetRequest = ::dokime::host::v1::AggregatesGetRequest;
-using ClientAnalysesListRequest = ::dokime::host::v1::AnalysesListRequest;
 using ClientCyclesGetRequest = ::dokime::host::v1::CyclesGetRequest;
 using ClientCyclesSetRequest = ::dokime::host::v1::CyclesSetRequest;
 using ClientCyclesListRequest = ::dokime::host::v1::CyclesListRequest;
@@ -241,37 +237,6 @@ inline constexpr auto ClientQUERY_SOURCE_CASES = static_cast<::dokime::host::v1:
 inline constexpr auto ClientQUERY_SOURCE_EXECUTIONS = static_cast<::dokime::host::v1::QuerySource>(3);
 inline constexpr auto ClientQUERY_SOURCE_STEPS = static_cast<::dokime::host::v1::QuerySource>(4);
 inline constexpr auto ClientQUERY_SOURCE_RECORDS = static_cast<::dokime::host::v1::QuerySource>(5);
-using SharedMetadata = ::dokime::model::v1::Metadata;
-using SharedParameter = ::dokime::model::v1::Parameter;
-using SharedParameterExpansion = ::dokime::model::v1::ParameterExpansion;
-using SharedParameterExpression = ::dokime::model::v1::ParameterExpression;
-using SharedParameterExpressions = ::dokime::model::v1::ParameterExpressions;
-using SharedIntegerRange = ::dokime::model::v1::IntegerRange;
-using SharedNumberRange = ::dokime::model::v1::NumberRange;
-using SharedLinearSpace = ::dokime::model::v1::LinearSpace;
-using SharedDynamicDefault = ::dokime::model::v1::DynamicDefault;
-using SharedParameterUnary = ::dokime::model::v1::ParameterUnary;
-using SharedParameterBinary = ::dokime::model::v1::ParameterBinary;
-using SharedFileParameter = ::dokime::model::v1::FileParameter;
-using SharedDynamicDefaultKey = ::dokime::model::v1::DynamicDefaultKey;
-using SharedParameterUnaryOperator = ::dokime::model::v1::ParameterUnaryOperator;
-using SharedParameterBinaryOperator = ::dokime::model::v1::ParameterBinaryOperator;
-inline constexpr auto SharedDYNAMIC_DEFAULT_KEY_UNSPECIFIED = static_cast<::dokime::model::v1::DynamicDefaultKey>(0);
-inline constexpr auto SharedDYNAMIC_DEFAULT_KEY_OPERATOR_NAME = static_cast<::dokime::model::v1::DynamicDefaultKey>(1);
-inline constexpr auto SharedDYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL = static_cast<::dokime::model::v1::DynamicDefaultKey>(2);
-inline constexpr auto SharedPARAMETER_UNARY_OPERATOR_UNSPECIFIED = static_cast<::dokime::model::v1::ParameterUnaryOperator>(0);
-inline constexpr auto SharedPARAMETER_UNARY_OPERATOR_NEGATE = static_cast<::dokime::model::v1::ParameterUnaryOperator>(1);
-inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_UNSPECIFIED = static_cast<::dokime::model::v1::ParameterBinaryOperator>(0);
-inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_ADD = static_cast<::dokime::model::v1::ParameterBinaryOperator>(1);
-inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_SUBTRACT = static_cast<::dokime::model::v1::ParameterBinaryOperator>(2);
-inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_MULTIPLY = static_cast<::dokime::model::v1::ParameterBinaryOperator>(3);
-inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_DIVIDE = static_cast<::dokime::model::v1::ParameterBinaryOperator>(4);
-using SharedAnalyses = ::dokime::model::v1::Analyses;
-using SharedAnalysis = ::dokime::model::v1::Analysis;
-using SharedAnalysisOutput = ::dokime::model::v1::AnalysisOutput;
-using SharedAnalysisSelection = ::dokime::model::v1::AnalysisSelection;
-using SharedAnalysisValues = ::dokime::model::v1::AnalysisValues;
-using ClientAnalysesListResponse = ::dokime::host::v1::AnalysesListResponse;
 using SharedEvidenceCondition = ::dokime::model::v1::EvidenceCondition;
 using SharedEvidenceConditions = ::dokime::model::v1::EvidenceConditions;
 using SharedRecordMatch = ::dokime::model::v1::RecordMatch;
@@ -303,6 +268,7 @@ inline constexpr auto SharedARTIFACT_STATE_COMPLETE = static_cast<::dokime::mode
 inline constexpr auto SharedARTIFACT_STATE_CANCELLED = static_cast<::dokime::model::v1::ArtifactState>(2);
 inline constexpr auto SharedARTIFACT_STATE_REJECTED = static_cast<::dokime::model::v1::ArtifactState>(3);
 inline constexpr auto SharedARTIFACT_STATE_FAILED = static_cast<::dokime::model::v1::ArtifactState>(4);
+using SharedMetadata = ::dokime::model::v1::Metadata;
 using SharedTestCase = ::dokime::model::v1::TestCase;
 using SharedOrigin = ::dokime::model::v1::Origin;
 using SharedPluginRun = ::dokime::model::v1::PluginRun;
@@ -706,9 +672,6 @@ inline constexpr auto SharedLINE_STYLE_LINE_POINTS = static_cast<::dokime::model
 inline constexpr auto SharedLINE_STYLE_STEP = static_cast<::dokime::model::v1::LineStyle>(4);
 using ClientPlotsSnapshotsListResponse = ::dokime::host::v1::plots::SnapshotsListResponse;
 using ClientPlotsSnapshotsWatchResponse = ::dokime::host::v1::plots::SnapshotsWatchResponse;
-using ClientPlotsAnalysisComputation = ::dokime::host::v1::plots::AnalysisComputation;
-using ClientPlotsAnalysisEvidence = ::dokime::host::v1::plots::AnalysisEvidence;
-using ClientPlotsAnalysisSeries = ::dokime::host::v1::plots::AnalysisSeries;
 using ClientPlotsContourGrid = ::dokime::host::v1::plots::ContourGrid;
 using ClientPlotsGridCell = ::dokime::host::v1::plots::GridCell;
 using ClientPlotsGridFrame = ::dokime::host::v1::plots::GridFrame;
@@ -1132,6 +1095,30 @@ using ClientStorageStorageSource = ::dokime::host::v1::storage::StorageSource;
 using ClientStorageStorageSources = ::dokime::host::v1::storage::StorageSources;
 using ClientStreamSchemasGetResponse = ::dokime::host::v1::StreamSchemasGetResponse;
 using ClientStreamSchemasListResponse = ::dokime::host::v1::StreamSchemasListResponse;
+using SharedParameter = ::dokime::model::v1::Parameter;
+using SharedParameterExpansion = ::dokime::model::v1::ParameterExpansion;
+using SharedParameterExpression = ::dokime::model::v1::ParameterExpression;
+using SharedParameterExpressions = ::dokime::model::v1::ParameterExpressions;
+using SharedIntegerRange = ::dokime::model::v1::IntegerRange;
+using SharedNumberRange = ::dokime::model::v1::NumberRange;
+using SharedLinearSpace = ::dokime::model::v1::LinearSpace;
+using SharedDynamicDefault = ::dokime::model::v1::DynamicDefault;
+using SharedParameterUnary = ::dokime::model::v1::ParameterUnary;
+using SharedParameterBinary = ::dokime::model::v1::ParameterBinary;
+using SharedFileParameter = ::dokime::model::v1::FileParameter;
+using SharedDynamicDefaultKey = ::dokime::model::v1::DynamicDefaultKey;
+using SharedParameterUnaryOperator = ::dokime::model::v1::ParameterUnaryOperator;
+using SharedParameterBinaryOperator = ::dokime::model::v1::ParameterBinaryOperator;
+inline constexpr auto SharedDYNAMIC_DEFAULT_KEY_UNSPECIFIED = static_cast<::dokime::model::v1::DynamicDefaultKey>(0);
+inline constexpr auto SharedDYNAMIC_DEFAULT_KEY_OPERATOR_NAME = static_cast<::dokime::model::v1::DynamicDefaultKey>(1);
+inline constexpr auto SharedDYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL = static_cast<::dokime::model::v1::DynamicDefaultKey>(2);
+inline constexpr auto SharedPARAMETER_UNARY_OPERATOR_UNSPECIFIED = static_cast<::dokime::model::v1::ParameterUnaryOperator>(0);
+inline constexpr auto SharedPARAMETER_UNARY_OPERATOR_NEGATE = static_cast<::dokime::model::v1::ParameterUnaryOperator>(1);
+inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_UNSPECIFIED = static_cast<::dokime::model::v1::ParameterBinaryOperator>(0);
+inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_ADD = static_cast<::dokime::model::v1::ParameterBinaryOperator>(1);
+inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_SUBTRACT = static_cast<::dokime::model::v1::ParameterBinaryOperator>(2);
+inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_MULTIPLY = static_cast<::dokime::model::v1::ParameterBinaryOperator>(3);
+inline constexpr auto SharedPARAMETER_BINARY_OPERATOR_DIVIDE = static_cast<::dokime::model::v1::ParameterBinaryOperator>(4);
 using SharedSuites = ::dokime::model::v1::Suites;
 using SharedSuite = ::dokime::model::v1::Suite;
 using SharedTestCaseTemplate = ::dokime::model::v1::TestCaseTemplate;
@@ -1141,9 +1128,6 @@ using SharedRecordContracts = ::dokime::model::v1::RecordContracts;
 using SharedRecordContract = ::dokime::model::v1::RecordContract;
 using SharedListeners = ::dokime::model::v1::Listeners;
 using SharedRecordListener = ::dokime::model::v1::RecordListener;
-using PluginAnalysesComputeRequest = ::dokime::plugin::v1::AnalysesComputeRequest;
-using PluginAnalysesComputeResponse = ::dokime::plugin::v1::AnalysesComputeResponse;
-using PluginAnalysisSamples = ::dokime::plugin::v1::AnalysisSamples;
 using PluginCriteriaEvaluateRequest = ::dokime::plugin::v1::CriteriaEvaluateRequest;
 using PluginCriteriaEvaluateResponse = ::dokime::plugin::v1::CriteriaEvaluateResponse;
 using PluginExecutionsInitializeRequest = ::dokime::plugin::v1::ExecutionsInitializeRequest;

@@ -1,7 +1,6 @@
 // @generated from protocol descriptors; do not edit.
 #pragma once
 #include "dokime/host/v1/aggregates.grpc.pb.h"
-#include "dokime/host/v1/analyses.grpc.pb.h"
 #include "dokime/host/v1/backend.grpc.pb.h"
 #include "dokime/host/v1/backend/overview.grpc.pb.h"
 #include "dokime/host/v1/cases.grpc.pb.h"
@@ -53,9 +52,6 @@ namespace dokime::detail {
 using AggregatesGetRequest = ::dokime::host::v1::AggregatesGetRequest;
 using AggregatesGetResponse = ::dokime::host::v1::AggregatesGetResponse;
 using AggregatesGetService = ::dokime::host::v1::Aggregates;
-using AnalysesListRequest = ::dokime::host::v1::AnalysesListRequest;
-using AnalysesListResponse = ::dokime::host::v1::AnalysesListResponse;
-using AnalysesListService = ::dokime::host::v1::Analyses;
 using CyclesGetRequest = ::dokime::host::v1::CyclesGetRequest;
 using CyclesGetResponse = ::dokime::host::v1::CyclesGetResponse;
 using CyclesGetService = ::dokime::host::v1::Cycles;

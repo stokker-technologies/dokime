@@ -103,7 +103,7 @@ declarations. `secrets` accepts SecretDeclaration values; duplicate or empty
 identifiers fail before serving. A secret read must name a declared secret, and the
 host also authorizes its trusted plugin identity and binding.
 
-Lifecycle and analysis payloads come from `dokime.plugin`. Independent lifecycle
+Lifecycle payloads come from `dokime.plugin`. Independent lifecycle
 bindings remain Protected. Use the library's `operation` decorator for additional
 operations, and pass their instance through `Plugin(operations=...)`. The SDK
 constructs an execution-owned suite instance, shares it with steps, criteria and
@@ -111,8 +111,8 @@ observers, and releases it after cleanup even when cleanup raises.
 
 Materializers are synchronous and pure. They freeze parameter-dependent steps
 and criteria without host calls. Resources remain on the suite instance and are
-never serialized. Stream callbacks retain their declared protobuf row types and
-raw analysis time axes; scalar observers use DoubleValue rows.
+never serialized. Stream callbacks retain their declared protobuf row types;
+scalar observers use DoubleValue rows.
 
 The host grants each interval stream one window at a time: `count` samples from
 `start`, one `period` apart. `@observer(interval_ms=...)` is called once per sample

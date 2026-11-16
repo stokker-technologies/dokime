@@ -19,7 +19,7 @@ same authorization layer as composed library services.
 
 Use an SDK client to admit a managed executable bundle or remote plugin URL,
 materialize cases, create/start executions, answer prompts and inspect evidence.
-The [CLI Guide](../execution-host.md#command-line-candidate) lists currently
+The [CLI Guide](../execution-host.md#command-line-tool) lists currently
 available commands. Pairing-file CLI convenience remains an explicit parity task.
 
 ## Storage and Recovery

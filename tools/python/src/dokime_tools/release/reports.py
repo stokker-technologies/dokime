@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Collect Nightly Measurements And Raw Reports"""
+"Collect Nightly Measurements and Raw Reports"
 
 # === Imports === #
 
@@ -14,10 +14,16 @@ import json
 import math
 import re
 import zipfile
+from collections.abc import Sequence
 from pathlib import Path
 from xml.etree import ElementTree
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import policy
 from ..build import paths
@@ -36,13 +42,18 @@ from ..build import paths
 
 
 def measurements(
-    rows: list[tuple[str, float, float | None]], suite: str, revision: str, threshold: float, *, boundaries: dict[str, str] | None = None
+    rows: Sequence[tuple[str, float, float | None]],
+    suite: str,
+    revision: str,
+    threshold: float,
+    *,
+    boundaries: dict[str, str] | None = None,
 ) -> dict:
-    """Preserve Every Native Measurement And Its Pre-Run Baseline."""
+    """Preserve Every Native Measurement and Its Pre-Run Baseline."""
     benchmarks = []
     for name, value, baseline in rows:
         if not math.isfinite(value) or (baseline is not None and not math.isfinite(baseline)):
-            raise policy.ToolError(f"non-finite benchmark measurement: {name}")
+            raise policy.ToolError(f"Collect Release Reports: non-finite benchmark measurement: {name}")
         benchmarks.append(
             {
                 "name": name,
@@ -63,7 +74,7 @@ def measurements(
 
 
 def identity(lane: str, platform: str, case: str, boundary: str, *, state: str | None = None) -> dict:
-    """Qualify Measurements At Their Producer, Independently Of Artifact Names."""
+    """Qualify Measurements at Their Producer, Independently of Artifact Names."""
     if state is None:
         parts = re.split(r"[/_]", case)
         state = next(
@@ -81,7 +92,7 @@ def collect(directory: Path) -> tuple[dict, list[Path]]:
     files = sorted(path for path in source.rglob("*") if path.is_file())
     for path in files:
         if path.is_symlink():
-            raise policy.ToolError("nightly reports must not contain linked files")
+            raise policy.ToolError("Collect Release Reports: nightly reports must not contain linked files")
         try:
             if path.name.startswith("benchmarks-") and path.suffix == ".json":
                 benchmarks.extend(json.loads(path.read_text(encoding="utf-8"))["benchmarks"])
@@ -102,31 +113,40 @@ def collect(directory: Path) -> tuple[dict, list[Path]]:
     for row in benchmarks:
         key = (row["suite"], row["name"])
         if key in identities:
-            raise policy.ToolError(f"duplicate benchmark identity in nightly reports: {key!r}")
+            raise policy.ToolError(f"Collect Release Reports: duplicate benchmark identity in nightly reports: {key!r}")
         identities.add(key)
     return {"coverage": coverage, "benchmarks": benchmarks, "errors": errors}, files
 
 
 def stage(directory: Path, shared: Path, version: str) -> list[Path]:
-    """Package Available Measurements And Raw Evidence In The Release Inventory."""
+    """Package Available Measurements and Raw Evidence in the Release Inventory."""
     summary, files = collect(directory)
     source = directory / "target/nightly-reports"
     index = shared / "benchmarks.json"
-    benchmarks = sorted(summary["benchmarks"], key=lambda row: (row["suite"], row["name"]))
+
+    def sort_key(row: dict) -> tuple:
+        return (row["suite"], row["name"])
+
+    benchmarks = sorted(summary["benchmarks"], key=sort_key)
     policy.write_json(index, {"benchmarks": benchmarks})
     policy.write_json(shared / "reports.json", summary)
     destination = shared / f"dokime-reports-{version}.zip"
-    with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    archive = zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED)
+    try:
         archive.write(index, "benchmarks.json")
         archive.write(shared / "reports.json", "summary.json")
         for path in files:
             archive.write(path, path.relative_to(source).as_posix())
+    finally:
+        archive.close()
     return [destination, index]
 
 
-def table(summary: dict, results: dict, url: str) -> str:
-    """A Compact Report Of Available Measurements And Every Suite Outcome."""
+def table(summary: dict, results: dict, url: str, *, documentation: bool | None = None) -> str:
+    """A Compact Report of Available Measurements, the Documentation Archive and Every Suite Outcome."""
     lines = ["| Result | Measurement |", "|---|---|"]
+    if documentation is not None:
+        lines.append(f"| Documentation Archive | {'Attached' if documentation else 'Missing; see the documentation build suite'} |")
     for row in summary["coverage"]:
         lines.append(f"| Coverage / {row['language']} | {row['line_percent']:.2f}% |")
     if not summary["coverage"]:
@@ -140,7 +160,12 @@ def table(summary: dict, results: dict, url: str) -> str:
         name = f"Benchmark / {suite} / {case}".replace("|", "\\|").replace("\n", " ")
         boundary = rows[0].get("boundary", "Boundary unavailable in producer report")
         measured = sum(row.get("status") != "not_measured" for row in rows)
-        missing = [row["reason"] for row in rows if row.get("status") == "not_measured"]
+        missing = []
+        for missing_row in rows:
+            if missing_row.get("status") != "not_measured":
+                continue
+            missing.append(missing_row["reason"])
+
         result = f"{measured} measurements; {boundary}" if measured else f"Not measured: {'; '.join(missing)}; {boundary}"
         if measured and missing:
             result += f"; Not measured: {'; '.join(missing)}"
@@ -150,7 +175,9 @@ def table(summary: dict, results: dict, url: str) -> str:
         if row.get("status") == "not_measured":
             continue
         baseline = row["baseline_value"]
-        if baseline is None or baseline <= 0:
+        if baseline is None:
+            continue
+        if baseline <= 0:
             continue
         change = (row["value"] - baseline) / baseline * 100
         if change > row["threshold_percent"]:

@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Reject Git Dependencies For Releases And Report Them In Nightly."""
+"Reject Git Dependencies for Releases and Report Them in Nightly."
 
 # === Imports === #
 
@@ -14,7 +14,12 @@ import json
 import os
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import policy
 
@@ -32,7 +37,7 @@ from .. import policy
 
 
 def check(directory: Path, *, warn: bool = False) -> bool:
-    """Check The Resolved Graph, Including Transitive Git Sources."""
+    """Check the Resolved Graph, Including Transitive Git Sources."""
     metadata = policy.execute(directory, ["cargo", "metadata", "--locked", "--format-version", "1"], capture=True)
     packages = json.loads(metadata)["packages"]
     names = sorted({package["name"] for package in packages if (package.get("source") or "").startswith("git+")})

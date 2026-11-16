@@ -83,7 +83,6 @@ from harmos._wire.model.v1.receipt_pb2 import Receipt
 from harmos._wire.model.v1.setting_pb2 import SettingValues
 
 from dokime._wire.host.v1.aggregates_pb2 import AggregatesGetRequest, AggregatesGetResponse, QueryAggregate, QueryFilter, QuerySource
-from dokime._wire.host.v1.analyses_pb2 import AnalysesListRequest, AnalysesListResponse
 from dokime._wire.host.v1.backend.overview_pb2 import OverviewGetRequest as BackendOverviewGetRequest
 from dokime._wire.host.v1.backend.overview_pb2 import OverviewGetResponse as BackendOverviewGetResponse
 from dokime._wire.host.v1.backend.overview_pb2 import OverviewWatchRequest as BackendOverviewWatchRequest
@@ -1994,32 +1993,6 @@ class AggregatesResource:
             timeout=timeout,
             credentials=credentials,
             action="aggregates.get",
-        )
-        return response
-
-
-class AnalysesResource:
-    def __init__(self, channel: Channel) -> None:
-        self._channel = channel
-
-    async def list(
-        self,
-        *,
-        at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
-        timeout: float | None = None,
-        credentials: CallCredentials | None = None,
-    ) -> AnalysesListResponse:
-        request = AnalysesListRequest(at=at)
-        response = await unary(
-            self._channel,
-            "/dokime.host.v1.Analyses/List",
-            request,
-            AnalysesListResponse,
-            metadata=call_metadata,
-            timeout=timeout,
-            credentials=credentials,
-            action="analyses.list",
         )
         return response
 
@@ -4128,7 +4101,6 @@ class ClientRoot(LibraryConnection):
         self._channel = channel
         self._composed_access = AccessResource(channel)
         self._composed_aggregates = AggregatesResource(channel)
-        self._composed_analyses = AnalysesResource(channel)
         self._composed_backend = BackendResource(channel)
         self._composed_cases = CasesResource(channel)
         self._composed_content = ContentResource(channel)
@@ -4163,10 +4135,6 @@ class ClientRoot(LibraryConnection):
     @property
     def aggregates(self) -> AggregatesResource:
         return self._composed_aggregates
-
-    @property
-    def analyses(self) -> AnalysesResource:
-        return self._composed_analyses
 
     @property
     def backend(self) -> BackendResource:

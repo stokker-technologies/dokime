@@ -24,7 +24,7 @@ service TestCases {
   rpc Materialize(.dokime.plugin.v1.TestCasesMaterializeRequest) returns (.dokime.plugin.v1.TestCasesMaterializeResponse) {}
 }
 
-// === Materialize === //
+// === Requests and Responses === //
 
 // TestCasesMaterializeRequest for TestCases.Materialize.
 message TestCasesMaterializeRequest {

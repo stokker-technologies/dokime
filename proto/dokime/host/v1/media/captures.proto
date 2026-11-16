@@ -44,7 +44,7 @@ service Captures {
   }
 }
 
-// === Create === //
+// === Requests and Responses === //
 
 // CapturesCreateRequest for Captures.Create.
 message CapturesCreateRequest {
@@ -64,8 +64,6 @@ message CapturesCreateResponse {
   .harmos.model.v1.Receipt receipt = 2;
 }
 
-// === Get === //
-
 // CapturesGetRequest for Captures.Get.
 message CapturesGetRequest {
   string name = 1;
@@ -77,8 +75,6 @@ message CapturesGetResponse {
   .dokime.host.v1.media.Capture capture = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Watch === //
 
 // CapturesWatchRequest for Captures.Watch.
 message CapturesWatchRequest {
@@ -93,8 +89,6 @@ message CapturesWatchResponse {
   bool opening = 91;
   .harmos.model.v1.Failure resync_required = 92;
 }
-
-// === Stop === //
 
 // CapturesStopRequest for Captures.Stop.
 message CapturesStopRequest {

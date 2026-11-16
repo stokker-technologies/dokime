@@ -134,6 +134,16 @@ jobs:
     needs:
     - freshness
     if: needs.freshness.outputs.build == 'true'
+  build_docs:
+    # Publication Never Waits for Documentation; the Report Attaches the Archive When It Builds.
+    name: Build / Documentation
+    uses: ./.github/workflows/validate-build-docs.yml
+    with:
+      channel: nightly
+      profile: release
+    needs:
+    - freshness
+    if: needs.freshness.outputs.build == 'true'
   check_generated:
     name: Check / Generated
     uses: ./.github/workflows/validate-check-generated.yml
@@ -516,6 +526,7 @@ jobs:
     - bench
     - build_host_fixtures
     - build_python
+    - build_docs
     - check_generated
     - test
     - test_host

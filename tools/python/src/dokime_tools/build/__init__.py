@@ -6,13 +6,17 @@
 #
 # ***
 
-"""Build Artifacts And Shared Task Paths"""
+"Build Artifacts and Shared Task Paths"
 
 # === Imports === #
 
 # Standard Library Imports
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 

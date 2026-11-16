@@ -19,13 +19,17 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools.build import paths
 from dokime_tools.package.staging import clear_output, stage_file
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -39,11 +43,11 @@ from dokime_tools.package.staging import clear_output, stage_file
 
 
 def export(root: Path, profile: str) -> Path:
-    """Record Shipping Command-Line Bytes And Legal Notices."""
+    """Record Shipping Command-Line Bytes and Legal Notices."""
     build = paths.output(root, "build", profile)
     native = (build / "product/target.txt").read_text(encoding="utf-8").strip()
     if native not in {"x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"}:
-        raise ValueError(f"unsupported distribution target: {native}")
+        raise ValueError(f"Package Product: unsupported distribution target: {native}")
     suffix = ".exe" if "windows" in native else ""
     config = tomllib.loads((root / "tools/project.toml").read_text(encoding="utf-8"))
     source = {
@@ -56,14 +60,19 @@ def export(root: Path, profile: str) -> Path:
     organization = root / "organization"
     for path in organization.rglob("*"):
         if path.is_symlink() or path.is_junction():
-            raise ValueError(f"distribution appearance input must not contain links: {path}")
+            raise ValueError(f"Package Product: distribution appearance input must not contain links: {path}")
         if path.is_file():
             source[path.relative_to(root).as_posix()] = path
 
     # Validate Inputs Before Replacing the Owned Export
-    invalid = [path for path in source.values() if path.is_symlink() or not path.is_file()]
+    invalid = []
+    for invalid_path in source.values():
+        if not (invalid_path.is_symlink() or not invalid_path.is_file()):
+            continue
+        invalid.append(invalid_path)
+
     if invalid:
-        raise ValueError(f"distribution input must be a regular file: {invalid[0]}")
+        raise ValueError(f"Package Product: distribution input must be a regular file: {invalid[0]}")
     destination = build / "product/distribution"
     clear_output(destination)
     hashes = {}
@@ -76,15 +85,18 @@ def export(root: Path, profile: str) -> Path:
 
 
 def archive(source: Path, output: Path) -> Path:
-    """Publish A Portable Distribution Without Recompiling Or Rewriting Build Bytes."""
+    """Publish a Portable Distribution Without Recompiling or Rewriting Build Bytes."""
     manifest = json.loads((source / "distribution.json").read_text(encoding="utf-8"))
     output.mkdir(parents=True, exist_ok=True)
     destination = output / f"dokime-distribution-{manifest['version']}-{manifest['target']}.zip"
     checksums = manifest["files"]
     names = ["distribution.json", *sorted(checksums)]
     entries = [_entry(source, name, checksums.get(name)) for name in names]
-    with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+    bundle = zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED)
+    try:
         _write_entries(bundle, entries)
+    finally:
+        bundle.close()
     return destination
 
 
@@ -95,13 +107,13 @@ def _entry(source: Path, name: str, checksum: str | None) -> tuple[zipfile.ZipIn
     relative = Path(name)
     unsafe = relative.is_absolute() or ".." in relative.parts
     if unsafe or "\\" in name or ":" in name:
-        raise ValueError("unsafe installer distribution path")
+        raise ValueError("Package Product: unsafe installer distribution path")
     path = source / relative
     if path.is_symlink() or not stat.S_ISREG(path.lstat().st_mode):
-        raise ValueError("installer distribution must contain regular files")
+        raise ValueError("Package Product: installer distribution must contain regular files")
     data = path.read_bytes()
     if checksum is not None and hashlib.sha256(data).hexdigest() != checksum:
-        raise ValueError(f"installer distribution changed after Build: {name}")
+        raise ValueError(f"Package Product: installer distribution changed after Build: {name}")
 
     entry = zipfile.ZipInfo(name)
     entry.create_system = 3

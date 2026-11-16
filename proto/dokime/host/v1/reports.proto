@@ -41,7 +41,7 @@ service Reports {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // ReportsGetRequest for Reports.Get.
 message ReportsGetRequest {
@@ -56,8 +56,6 @@ message ReportsGetResponse {
   .harmos.model.v1.FileReference file = 2;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Create === //
 
 // ReportsCreateRequest for Reports.Create.
 message ReportsCreateRequest {
@@ -74,8 +72,6 @@ message ReportsCreateResponse {
   .harmos.model.v1.ReadCut resolved_at = 3;
   .harmos.model.v1.Receipt receipt = 4;
 }
-
-// === Publish === //
 
 // ReportsPublishRequest for Reports.Publish.
 message ReportsPublishRequest {

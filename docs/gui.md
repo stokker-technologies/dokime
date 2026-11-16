@@ -13,6 +13,21 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
+## Development
+
+`mise run dev` starts the desktop with Tauri dev and Vite live reload. It
+generates the desktop messages, builds the [OBC](../plugins/sidecars/obc/) plugin, and
+creates a disposable application root under the system temporary directory with
+a unique credential namespace. The OBC bundle is installed into that root before
+the window opens. The tool sets `DOKIME_APPLICATION_ROOT` and
+`DOKIME_CREDENTIAL_NAMESPACE` for the run and clears `DOKIME_OUTPUT_ROOT` and
+`DOKIME_REMOTE`, so the desktop never opens the operator's data, credentials or
+saved remote host. Closing the window, pressing Ctrl+C or a failure stops every
+process the run started. It then removes the namespace's credentials and deletes
+the root. If credential removal fails, the root is kept and its path and
+namespace are printed. Run `mise run prepare` once beforehand to install the
+frontend dependencies.
+
 ## Host Connection
 
 The desktop has one native SDK connection owner. The WebView sends generation-fenced
@@ -72,9 +87,9 @@ enums and fully qualified library service paths. System drivers now use the SDK
 thermal fixture, registered cases, execution state/outcome, Access resources and
 verified native delivery. Connections exercises two native owners; Execution
 visits the library, live execution, reports/history, settings and appearance, and
-reads exact summary tiles from the [OBC](plugin-obc.md) Bench template admitted
-beside the thermal fixture. The native host story opens that Bench document's
-one hundred plots from two clients while its confirmation prompt is pending.
+reads exact summary tiles from the [OBC](../plugins/sidecars/obc/) Exact Values template admitted
+beside the thermal fixture. The native host story opens the Plot Families document's
+plot families and one hundred time series from two clients while its confirmation prompt is pending.
 The thermal fixture does not publish a report automatically. Stories explicitly
 publish a selected evidence document before requiring a sealed download; a render
 without publication correctly retains the host's Current origin.
@@ -222,7 +237,7 @@ Generated modules are rebuilt by their generators, never edited by hand.
 
 | Resource | Desktop Contract |
 | --- | --- |
-| `Suites`, `RecordSchemas`, `StreamSchemas`, `PromptDefinitions`, `Analyses` | Top-level registries; no parent registry resource. |
+| `Suites`, `RecordSchemas`, `StreamSchemas`, `PromptDefinitions` | Top-level registries; no parent registry resource. |
 | `Cases` | Create with `validate_only` for preview, or an identified atomic registration; Get, List, Parameters and Delete use resource names and parents. |
 | `Cycles` | Create and Seal have request identities. Get/Set mirror the whole writable value and opaque revision. Lists retain the returned cut and page token. |
 | `Executions` | Get/Set mirror the whole writable value and revision. Create appends explicit attempts; Start, Stop and Cancel use identified commands. List, Parameters and Steps use final resource names. |
@@ -431,8 +446,8 @@ frozen HTML use `src/plots/grouping.ts` for the same conversion, without mutatin
 query payloads. Explicit conversion uses a numeric axis, including encoded 0/1
 Boolean values; ordinary Boolean plots retain False/True labels.
 Scale defaults to 1.0 and is omitted from documents when absent. Validation
-requires a positive finite constant and refuses other plot kinds, custom analyses
-and alternate x axes. Filters and section repeats still use stored units;
+requires a positive finite constant and refuses other plot kinds and alternate
+x axes. Filters and section repeats still use stored units;
 evidence, exports, criteria, query plans and expressions remain unchanged.
 
 Reference bands and lines belong to the plot and always use its Y axis. Bounds,
@@ -694,7 +709,7 @@ from Inspect. Frozen HTML retains its original media and download links under
   lists declaring plugins, including unavailable entries.
 - Completed executions and cycles retain their evidence and reports after plugin
   reload, reinstall or removal, even before sealing. Retry Seal and history reads
-  use frozen report inputs, including plugin analysis results. In an open cycle,
+  use frozen report inputs. In an open cycle,
   starting an unrun case whose plugin was removed reports that its plugin is no
   longer available; install its original revision or add a case from an available plugin.
 - Toast content and history rows open the shared notification details dialog through

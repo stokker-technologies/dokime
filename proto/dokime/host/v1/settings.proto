@@ -39,7 +39,7 @@ service Settings {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // SettingsGetRequest for Settings.Get.
 message SettingsGetRequest {
@@ -52,8 +52,6 @@ message SettingsGetResponse {
   bytes revision = 2;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Set === //
 
 // SettingsSetRequest for Settings.Set.
 message SettingsSetRequest {
@@ -68,8 +66,6 @@ message SettingsSetResponse {
   bytes revision = 2;
   .harmos.model.v1.Receipt receipt = 3;
 }
-
-// === Schema === //
 
 // SettingsSchemaRequest for Settings.Schema.
 message SettingsSchemaRequest {

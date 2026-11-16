@@ -36,7 +36,7 @@ service Overview {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // OverviewGetRequest for Overview.Get.
 message OverviewGetRequest {
@@ -48,8 +48,6 @@ message OverviewGetResponse {
   .dokime.host.v1.backend.RuntimeShellSnapshot overview = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Watch === //
 
 // OverviewWatchRequest for Overview.Watch.
 message OverviewWatchRequest {

@@ -19,7 +19,12 @@ import sys
 import tarfile
 from pathlib import Path, PurePosixPath
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from ..build.paths import target
 from ..process import spawn_flags
@@ -41,25 +46,25 @@ def pack(directory: Path, archive: Path, patterns: list[str], profile: str, nati
     root = directory.resolve()
     owned = root / "target"
     if not archive.resolve().is_relative_to(owned / "ci"):
-        raise ValueError("artifact archive escapes its owned transport directory")
+        raise ValueError("Transfer Build Artifacts: artifact archive escapes its owned transport directory")
     selected: set[str] = set()
     for pattern in patterns:
         pattern = pattern.replace("{profile}", profile).replace("{target}", native)
         if not pattern.startswith("target/") or any(part in (".", "..") for part in pattern.split("/")) or "\\" in pattern:
-            raise ValueError("unsafe artifact path")
+            raise ValueError("Transfer Build Artifacts: unsafe artifact path")
         matches = glob.glob(pattern.rstrip("/"), root_dir=root, recursive=True)
         if not matches:
-            raise ValueError(f"required artifact output is missing: {pattern}")
+            raise ValueError(f"Transfer Build Artifacts: required artifact output is missing: {pattern}")
         for name in matches:
             path = root / name
             if not path.resolve().is_relative_to(owned):
-                raise ValueError("artifact path escapes the repository")
+                raise ValueError("Transfer Build Artifacts: artifact path escapes the repository")
             for child in [path] if path.is_file() else [path, *path.rglob("*")]:
                 if child.is_symlink() and not child.resolve().is_relative_to(owned):
-                    raise ValueError("artifact link escapes the repository")
+                    raise ValueError("Transfer Build Artifacts: artifact link escapes the repository")
             selected.add(Path(name).as_posix())
     if not selected:
-        raise ValueError("artifact has no required outputs")
+        raise ValueError("Transfer Build Artifacts: artifact has no required outputs")
     archive.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
@@ -84,14 +89,11 @@ def pack(directory: Path, archive: Path, patterns: list[str], profile: str, nati
 def extract(directory: Path, archive: Path) -> None:
     root = directory.resolve()
     if not archive.resolve().is_relative_to(root / "target/ci"):
-        raise ValueError("artifact archive escapes its owned transport directory")
-    with subprocess.Popen(
-        ["zstd", "-dc", str(archive)],
-        stdout=subprocess.PIPE,
-        creationflags=spawn_flags(),
-    ) as decompressor:
+        raise ValueError("Transfer Build Artifacts: artifact archive escapes its owned transport directory")
+    decompressor = subprocess.Popen(["zstd", "-dc", str(archive)], stdout=subprocess.PIPE, creationflags=spawn_flags())
+    try:
         if decompressor.stdout is None:
-            raise RuntimeError("artifact decompressor has no output stream")
+            raise RuntimeError("Transfer Build Artifacts: artifact decompressor has no output stream")
         try:
             with tarfile.open(fileobj=decompressor.stdout, mode="r|") as source:
                 source.extractall(root, filter=_member)
@@ -102,6 +104,14 @@ def extract(directory: Path, archive: Path) -> None:
         status = decompressor.wait()
         if status:
             raise subprocess.CalledProcessError(status, "zstd")
+    finally:
+        if decompressor.stdout is not None:
+            decompressor.stdout.close()
+        if decompressor.stderr is not None:
+            decompressor.stderr.close()
+        if decompressor.stdin is not None:
+            decompressor.stdin.close()
+        decompressor.wait()
     archive.unlink()
 
 
@@ -132,7 +142,7 @@ def main() -> None:
 def _tar() -> str:
     found = shutil.which("tar")
     if found is None:
-        raise RuntimeError("artifact transport requires GNU tar from the configured image")
+        raise RuntimeError("Transfer Build Artifacts: artifact transport requires GNU tar from the configured image")
     version = subprocess.run(
         [found, "--version"],
         capture_output=True,
@@ -148,7 +158,7 @@ def _tar() -> str:
         check=True,
     ).stdout
     if not version.startswith("tar (GNU tar)") or not all(option in capabilities for option in ("--force-local", "--use-compress-program")):
-        raise RuntimeError("configured tar lacks required GNU archive capabilities")
+        raise RuntimeError("Transfer Build Artifacts: configured tar lacks required GNU archive capabilities")
     return found
 
 
@@ -157,18 +167,18 @@ def _member(member: tarfile.TarInfo, destination: str) -> tarfile.TarInfo:
     owned = root / "target"
     name = PurePosixPath(member.name)
     if name.is_absolute() or not name.parts or name.parts[0] != "target" or any(part == ".." for part in name.parts) or "\\" in member.name:
-        raise ValueError("artifact member escapes target outputs")
+        raise ValueError("Transfer Build Artifacts: artifact member escapes target outputs")
     if not (root / member.name).resolve().is_relative_to(owned):
-        raise ValueError("artifact member escapes target outputs")
+        raise ValueError("Transfer Build Artifacts: artifact member escapes target outputs")
     if member.issym() or member.islnk():
         link = PurePosixPath(member.linkname)
         origin = root / member.name if member.issym() else root / "anchor"
         resolved = origin.parent / member.linkname
         if link.is_absolute() or "\\" in member.linkname or not resolved.resolve().is_relative_to(owned):
-            raise ValueError("artifact link escapes target outputs")
+            raise ValueError("Transfer Build Artifacts: artifact link escapes target outputs")
     result = tarfile.data_filter(member, destination)
     if result is None:
-        raise ValueError("artifact contains a disallowed member")
+        raise ValueError("Transfer Build Artifacts: artifact contains a disallowed member")
     return result
 
 

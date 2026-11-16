@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -19,14 +19,19 @@ import shutil
 import subprocess
 import sys
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
+import dokime_tools.test.policy
 from dokime_tools.build import configuration, paths
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import archive
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -105,5 +110,5 @@ def build(profile: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=configuration.PROFILES, default="dev")
+    parser.add_argument("--profile", choices=dokime_tools.test.policy.PROFILES, default="dev")
     build(parser.parse_args().profile)

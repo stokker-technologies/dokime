@@ -34,7 +34,7 @@ service Suites {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // SuitesGetRequest for Suites.Get.
 message SuitesGetRequest {
@@ -49,8 +49,6 @@ message SuitesGetResponse {
   .dokime.model.v1.Suite value = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === List === //
 
 // SuitesListRequest for Suites.List.
 message SuitesListRequest {

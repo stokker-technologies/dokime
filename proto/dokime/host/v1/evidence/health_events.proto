@@ -38,7 +38,7 @@ service HealthEvents {
   }
 }
 
-// === List === //
+// === Requests and Responses === //
 
 // HealthEventsListRequest for HealthEvents.List.
 message HealthEventsListRequest {
@@ -53,8 +53,6 @@ message HealthEventsListResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
-
-// === Watch === //
 
 // HealthEventsWatchRequest for HealthEvents.Watch.
 message HealthEventsWatchRequest {

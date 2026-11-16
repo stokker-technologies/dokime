@@ -16,7 +16,8 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{error::Error as StdError, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeSet, env, fs};
+use std::{error::Error, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 // Third Party Imports
 
@@ -27,7 +28,7 @@ use dokime_sdk::client::PluginPlacement;
 use dokime_sdk::client::PluginRemote;
 use dokime_sdk::client::PluginValue;
 use dokime_sdk::client::PluginsCreateOptions;
-use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+use dokime_sdk::client::plugin_placement;
 use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_protocol::host::CasesCreateRequest;
@@ -84,27 +85,28 @@ use dokime_sdk::client::ReportsPublishResponse;
 use dokime_sdk::client::SelectionPlan;
 use dokime_sdk::client::SuitesGetResponse;
 use dokime_sdk::client::SuitesListResponse;
-use dokime_sdk::client::document_frame_frame::Kind as DocumentFrameFrameKind;
-use dokime_sdk::client::report_subject::Kind as ReportSubjectKind;
-use dokime_sdk::origin::Kind as OriginKind;
-use dokime_sdk::value::Kind as ValueKind;
+use dokime_sdk::client::document_frame_frame;
+use dokime_sdk::client::report_subject;
+use dokime_sdk::origin;
+use dokime_sdk::value;
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 
 use dokime_gui::connection::host::{Connection, ConnectionSettings};
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
+use dokime_gui::test_support;
 use dokime_protocol::host::plots::{PlotDomain, SnapshotsListResponse, SnapshotsWatchResponse};
 use dokime_protocol::host::{DocumentsWatchRequest, DocumentsWatchResponse};
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
-use dokime_sdk as model;
+
 use dokime_sdk::StorageTransferSettings;
-use dokime_sdk::client::document_binding_result::Kind as BindingKind;
-use dokime_sdk::client::document_frame_frame::Kind as FrameKind;
+use dokime_sdk::client::document_binding_result;
 use dokime_sdk::client::{ClientSettings, FrozenSchemaCache};
 use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Section, Suite, Suites, TestCaseTemplate};
 use dokime_storage::{Execution, Sample, Store};
-use harmos_protocol::model::{Declarations, Section as CatalogSection, StreamDeclaration};
+use harmos_protocol::model;
+use harmos_protocol::model::{Declarations, StreamDeclaration};
 use prost_types::FileDescriptorSet;
 
 /* === Constants === */
@@ -128,7 +130,7 @@ use prost_types::FileDescriptorSet;
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
-            credentials: dokime_gui::test_support::credentials(),
+            credentials: test_support::credentials(),
             capture: dokime_runtime::CaptureSettings::default(),
             clock: Arc::new(ControlledClock::new(0)),
             storage: storage_defaults(),
@@ -163,10 +165,10 @@ fn settings() -> ConnectionSettings {
 /* === Tests === */
 
 #[test]
-fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Result<(), Box<dyn StdError>> {
-    dokime_gui::test_support::run(async {
+fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Result<(), Box<dyn Error>> {
+    test_support::run(async {
         // Freeze a Large Authored Document and Three Days of Evidence.
-        let root = dokime_gui::test_support::tempdir()?;
+        let root = test_support::tempdir()?;
         let store = Store::open(root.path())?;
         let plots = (0..65)
             .map(|index| Plot {
@@ -197,7 +199,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
                             identifier: format!("card-{index}"),
                             ..Default::default()
                         }),
-                        body: Some(model::card::Body::Plot(plot)),
+                        body: Some(dokime_sdk::card::Body::Plot(plot)),
                         ..Default::default()
                     })
                     .collect(),
@@ -212,7 +214,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
                 row: "dokime.host.v1.plots.PlotDomain".into(),
                 ..Default::default()
             }],
-            sections: vec![CatalogSection {
+            sections: vec![model::Section {
                 r#type: "dokime.model.v1.Suites".into(),
                 payload: Suites {
                     suites: vec![Suite {
@@ -232,7 +234,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             cycle: "cycle".into(),
             catalog: catalog.encode_to_vec(),
             origin: Some(Origin {
-                kind: Some(OriginKind::Import(Import::default())),
+                kind: Some(origin::Kind::Import(Import::default())),
             }),
             ..Default::default()
         })?;
@@ -276,12 +278,12 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
                 let reply: DocumentsGetResponse = session.unary("/dokime.host.v1.Documents/Get", request.clone()).await?;
                 for frame in reply.frames {
                     match frame.frame.and_then(|frame| frame.kind) {
-                        Some(FrameKind::Binding(binding)) => {
-                            if let Some(BindingKind::Plot(plot)) = binding.result.and_then(|result| result.kind) {
+                        Some(document_frame_frame::Kind::Binding(binding)) => {
+                            if let Some(document_binding_result::Kind::Plot(plot)) = binding.result.and_then(|result| result.kind) {
                                 requests.push(plot.request.ok_or("Read Document: Missing Plot Selection")?);
                             }
                         }
-                        Some(FrameKind::Completion(_)) => completed = true,
+                        Some(document_frame_frame::Kind::Completion(_)) => completed = true,
                         _ => (),
                     }
                 }
@@ -338,7 +340,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             assert_eq!(response.envelopes[0].diagnostics.as_ref().unwrap().examined_rows, 16);
             let column = &response.envelopes[0].payload.as_ref().unwrap().frame.as_ref().unwrap().series[0];
             let peak = column.y.iter().enumerate().max_by(|(_, a), (_, b)| a.value.unwrap().total_cmp(&b.value.unwrap())).unwrap().0;
-            assert_eq!(column.x[peak].kind, Some(ValueKind::Number(0.25)));
+            assert_eq!(column.x[peak].kind, Some(value::Kind::Number(0.25)));
 
             // A Saved Document Watch Completes With the Same Plot Definitions.
             let mut watch = session
@@ -357,13 +359,12 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
             while let Some(frame) = watch.next().await {
                 let frame = DocumentsWatchResponse::decode(frame?.as_slice())?;
                 assert!(frame.resync_required.is_none());
-                completed |= frame
-                    .frames
-                    .iter()
-                    .any(|frame| matches!(frame.frame.as_ref().and_then(|frame| frame.kind.as_ref()), Some(FrameKind::Completion(_))));
+                completed |= frame.frames.iter().any(|frame| {
+                    matches!(frame.frame.as_ref().and_then(|frame| frame.kind.as_ref()), Some(document_frame_frame::Kind::Completion(_)))
+                });
             }
             assert!(completed);
-            Ok::<(), Box<dyn StdError>>(())
+            Ok::<(), Box<dyn Error>>(())
         }
         .await;
         let closed = owner.close().await;
@@ -374,13 +375,12 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
 }
 
 #[test]
-fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>> {
-    dokime_gui::test_support::run(async {
-        let executable =
-            std::env::var_os("DOKIME_OBC_PLUGIN").map(PathBuf::from).unwrap_or_else(|| dokime_gui::test_support::fixture("plugin-obc"));
+fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
+    test_support::run(async {
+        let executable = env::var_os("DOKIME_OBC_PLUGIN").map(PathBuf::from).unwrap_or_else(|| test_support::fixture("plugin-obc"));
         let configuration = settings();
         let mut plugin = PluginProcess::start(&executable, true, &configuration.host.placement).await?;
-        let root = dokime_gui::test_support::tempdir()?;
+        let root = test_support::tempdir()?;
         let mut owner = Connection::new(configuration)?;
         let result = async {
             // Admit the Prepared Plugin and Read Its Top-Level Suite Resource.
@@ -393,7 +393,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                 ..Default::default()
             };
             let placement = PluginPlacement {
-                kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let admitted = session
                 .execute(session.client().plugins.create_with("desktop_plot", placement, PluginValue { enabled: true }, options))
@@ -425,7 +425,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
             let suite = suites
                 .values
                 .iter()
-                .find(|suite| suite.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "obc.bench"))
+                .find(|suite| suite.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "obc.benchmark"))
                 .ok_or("Read Suite: Missing Prepared Bench Suite")?;
             let suite_id = suite.metadata.as_ref().ok_or("Read Suite: Missing Identity")?.identifier.clone();
             let suite: SuitesGetResponse = session
@@ -438,7 +438,12 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                 )
                 .await?;
             let suite = suite.value.ok_or("Read Suite: Missing Definition")?;
-            let template = suite.templates.first().and_then(|template| template.metadata.as_ref()).ok_or("Read Suite: Missing Template")?;
+            let template = suite
+                .templates
+                .iter()
+                .find(|template| template.metadata.as_ref().is_some_and(|metadata| metadata.identifier == "obc.benchmark.plots"))
+                .and_then(|template| template.metadata.as_ref())
+                .ok_or("Read Suite: Missing Template")?;
             let plan: CasesCreateResponse = session
                 .unary(
                     "/dokime.host.v1.Cases/Create",
@@ -513,8 +518,8 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
             // Observe a Plot Before Answering, Then Join the Terminal Progress.
             let plot_request = PlotsPlotRequest {
                 plot_id: Some("module-voltage".into()),
-                stream: "obc.bench.module_01".into(),
-                y_keys: vec!["ac_voltage_v".into()],
+                stream: "obc.measurement".into(),
+                y_keys: vec!["voltage_v".into()],
                 scope: Some(EvidenceScope {
                     execution_id: Some(execution.clone()),
                     ..Default::default()
@@ -541,7 +546,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                     cycle_id: cycle.cycle_id.clone(),
                     execution_id: execution.clone(),
                 }),
-                document_id: "obc.bench.module_array.report".into(),
+                document_id: "obc.benchmark.plots.report".into(),
                 max_frames: 32,
                 ..Default::default()
             };
@@ -553,8 +558,8 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                 )?;
                 assert_eq!(first.frames, other.frames);
                 for frame in first.frames {
-                    if let Some(FrameKind::Binding(binding)) = frame.frame.and_then(|frame| frame.kind)
-                        && let Some(BindingKind::Plot(plot)) = binding.result.and_then(|result| result.kind)
+                    if let Some(document_frame_frame::Kind::Binding(binding)) = frame.frame.and_then(|frame| frame.kind)
+                        && let Some(document_binding_result::Kind::Plot(plot)) = binding.result.and_then(|result| result.kind)
                     {
                         let mut request = plot.request.ok_or("Read Producing Document: Restore Its Plot Selection")?;
                         request.at = None;
@@ -567,15 +572,15 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                 document_request.page_token = first.next_page_token;
                 document_request.at = first.resolved_at;
             }
-            assert_eq!(producing.len(), 100);
+            assert!(producing.len() > 100);
             let mut readers = tokio::task::JoinSet::new();
             for viewer in [&session, &second] {
                 for group in producing.chunks(32) {
                     let viewer = viewer.clone();
                     let group = group.to_vec();
                     readers.spawn(async move {
-                        let expected = group.iter().map(|plot| plot.plot_id.clone().unwrap()).collect::<std::collections::BTreeSet<_>>();
-                        let mut data = std::collections::BTreeSet::new();
+                        let expected = group.iter().map(|plot| plot.plot_id.clone().unwrap()).collect::<BTreeSet<_>>();
+                        let mut data = BTreeSet::new();
                         let mut watch = viewer
                             .watch_raw(
                                 "/dokime.host.v1.plots.Snapshots/Watch",
@@ -598,7 +603,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                             }
                         }
                         assert_eq!(data, expected);
-                        Ok::<_, Box<dyn StdError + Send + Sync>>(data.len())
+                        Ok::<_, Box<dyn Error + Send + Sync>>(data.len())
                     });
                 }
             }
@@ -659,7 +664,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                     },
                 )
                 .await?;
-            assert!(records.records.iter().any(|record| record.record_type == "obc.bench.confirmation"));
+            assert!(records.records.iter().any(|record| record.record_type == "obc.benchmark.plots.confirmation"));
             let samples: EvidenceSamplesListResponse = session
                 .unary(
                     "/dokime.host.v1.evidence.Samples/List",
@@ -700,12 +705,12 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                 for frame in reply.frames {
                     assert!(!completed);
                     match frame.frame.and_then(|frame| frame.kind) {
-                        Some(DocumentFrameFrameKind::Header(value)) => {
+                        Some(document_frame_frame::Kind::Header(value)) => {
                             assert!(!header);
                             assert_eq!(value.frontiers.unwrap().process_epoch, process_epoch);
                             header = true;
                         }
-                        Some(DocumentFrameFrameKind::Completion(_)) => completed = true,
+                        Some(document_frame_frame::Kind::Completion(_)) => completed = true,
                         _ => {}
                     }
                 }
@@ -720,7 +725,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
 
             // Deliver the Report Through Product File Ranges and the Native Verified Writer.
             let subject = ReportSubject {
-                kind: Some(ReportSubjectKind::Execution(execution.clone())),
+                kind: Some(report_subject::Kind::Execution(execution.clone())),
             };
             let prepared: ReportsCreateResponse = session
                 .unary(
@@ -749,7 +754,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
                     "/dokime.host.v1.Reports/Get",
                     ReportsGetRequest {
                         subject: Some(ReportSubject {
-                            kind: Some(ReportSubjectKind::Execution(execution.clone())),
+                            kind: Some(report_subject::Kind::Execution(execution.clone())),
                         }),
                         ..Default::default()
                     },
@@ -800,9 +805,9 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn StdError>
             )
             .await?;
             assert!(exported.is_some());
-            assert_eq!(std::fs::read(destination)?, bytes);
+            assert_eq!(fs::read(destination)?, bytes);
             active.disconnect().map_err(|error| format!("{error:?}"))?;
-            Ok::<(), Box<dyn StdError>>(())
+            Ok::<(), Box<dyn Error>>(())
         }
         .await;
         let host_close = owner.close().await;

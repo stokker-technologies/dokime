@@ -132,6 +132,8 @@ Database and evidence formats remain at baseline v1.
 
 See [Contributing](docs/CONTRIBUTING.md), [Repository Tooling](docs/tooling.md),
 [Architecture](docs/architecture.md) and [Security](docs/SECURITY.md).
+`mise run docs:serve` previews the guides as the documentation website; see
+[Documentation Site](docs/tooling.md#documentation-site).
 
 ## About
 

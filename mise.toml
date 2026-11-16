@@ -76,6 +76,7 @@ run = [
   { task = "build:python" },
   "mise -C sdk/python run install",
   "{% if not usage.without_frontend %}pnpm --dir crates/dokime-gui install --frozen-lockfile{% endif %}",
+  "{% if not usage.without_frontend %}pnpm --dir site install --frozen-lockfile{% endif %}",
 ]
 
 [tasks."generate"]
@@ -119,6 +120,18 @@ run = "{{vars.tools}} dokime_tools.ci.tasks bench"
 description = "Package Built Artifacts"
 run = "{{vars.tools}} dokime_tools.ci.tasks package"
 
+[tasks."docs:build"]
+description = "Build the Documentation Site Entry"
+run = "{{vars.tools}} dokime_tools.docs.site build"
+
+[tasks."docs:serve"]
+description = "Preview the Documentation Site"
+run = "{{vars.tools}} dokime_tools.docs.site serve"
+
+[tasks."docs:image"]
+description = "Assemble Published Documentation Archives Into the Site Image"
+run = "{{vars.tools}} dokime_tools.docs.image"
+
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-prepare"
@@ -139,6 +152,12 @@ run = "{{vars.tools}} dokime_tools.ci.workflow release-tag"
 description = "Verify Published Release Assets and Installers"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-verify"
 
+# === Dev === #
+
+[tasks.dev]
+description = "Start the Desktop with Live Reload and the OBC Plugin on a Disposable Root"
+run = "{{vars.tools}} dokime_tools.dev.desktop"
+
 # === Internal Steps === #
 
 [tasks."format:python"]
@@ -150,7 +169,6 @@ run = [
   "{{vars.python}} ruff format sdk/python{% if usage.check %} --check{% endif %}",
   "{{vars.python}} ruff check --select I,F401,PYI{% if not usage.check %} --fix{% endif %} tools/python",
   "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
-  "{{vars.python}} ruff format --no-force-exclude tools/python/src/dokime_tools/test tools/python/src/dokime_tools/release{% if usage.check %} --check{% endif %}",
 ]
 
 [tasks."format:rust"]
@@ -173,7 +191,10 @@ run_windows = '''pwsh -NoProfile -Command "taplo fmt --config tools/config/taplo
 hide = true
 description = "Format TypeScript"
 usage = 'flag "--check"'
-run = "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} ."
+run = [
+  "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
+  "pnpm --dir site exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
+]
 
 [tasks."lint:python"]
 hide = true
@@ -182,8 +203,6 @@ run = [
   "{{vars.python}} ruff check sdk/python",
   "{{vars.python}} ruff check tools/python",
   "{{vars.python}} ty check --project tools/python",
-  "{{vars.python}} ruff check --no-force-exclude tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py tools/python/src/dokime_tools/test/wheel.py tools/python/src/dokime_tools/test/arrow_archive.py",
-  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py',
 ]
 
 [tasks."lint:rust"]
@@ -196,7 +215,7 @@ env = { CARGO_BUILD_WARNINGS = "deny" }
 [tasks."lint:typescript"]
 hide = true
 description = "Lint TypeScript"
-run = "pnpm --dir crates/dokime-gui exec biome lint ."
+run = ["pnpm --dir crates/dokime-gui exec biome lint .", "pnpm --dir site exec biome lint ."]
 
 [tasks.screenshots]
 description = "Capture Product Screenshots"
@@ -326,7 +345,7 @@ flag "--project <project>" default="sdk/python"
 flag "--select <select>"
 '''
 run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language python --project {{usage.project}}{% elif usage.project == "tools/python" %}{{vars.python}} python -m unittest discover -s tools/python/tests/integration {% if usage.select %}-k "{{usage.select}}"{% endif %}{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language python --project {{usage.project}}{% elif usage.project == "tools/python" %}{{vars.python}} python -m unittest discover -s tools/python/tests/integration -t tools/python {% if usage.select %}-k "{{usage.select}}"{% endif %}{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
 
 [tasks."test:python:system"]

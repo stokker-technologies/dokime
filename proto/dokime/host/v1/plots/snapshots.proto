@@ -9,7 +9,6 @@ package dokime.host.v1.plots;
 // === Imports === //
 
 import "dokime/host/v1/record_schemas.proto";
-import "dokime/model/v1/analyses.proto";
 import "dokime/model/v1/evidence.proto";
 import "dokime/model/v1/expressions.proto";
 import "dokime/model/v1/plots.proto";
@@ -41,7 +40,7 @@ service Snapshots {
   }
 }
 
-// === List === //
+// === Requests and Responses === //
 
 // SnapshotsListRequest for Snapshots.List.
 message SnapshotsListRequest {
@@ -56,8 +55,6 @@ message SnapshotsListResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
-
-// === Watch === //
 
 // SnapshotsWatchRequest for Snapshots.Watch.
 message SnapshotsWatchRequest {
@@ -75,37 +72,6 @@ message SnapshotsWatchResponse {
 }
 
 // === Resources === //
-
-// AnalysisComputation value owned by this resource.
-message AnalysisComputation {
-  .dokime.model.v1.Analysis definition = 1;
-  .dokime.model.v1.AnalysisSelection selection = 2;
-  .dokime.host.v1.plots.AnalysisEvidence source = 3;
-  repeated .dokime.host.v1.plots.AnalysisSeries series = 4;
-}
-
-// AnalysisEvidence value owned by this resource.
-message AnalysisEvidence {
-  string store = 1;
-  string epoch = 2;
-  uint64 position = 3;
-  string stream = 4;
-  .dokime.model.v1.EvidenceScope scope = 5;
-  optional double window_s = 6;
-  repeated string fields = 7;
-  string x_key = 8;
-}
-
-// AnalysisSeries value owned by this resource.
-message AnalysisSeries {
-  string key = 1;
-  string label = 2;
-  optional string origin = 3;
-  uint64 input_samples = 4;
-  double first_axis = 5;
-  double last_axis = 6;
-  repeated .dokime.model.v1.AnalysisValues outputs = 7;
-}
 
 // ContourGrid value owned by this resource.
 message ContourGrid {
@@ -266,6 +232,7 @@ message PlotMarker {
 
 // PlotPayload value owned by this resource.
 message PlotPayload {
+  reserved 15;
   string stream = 1;
   string x_key = 2;
   optional string series_by = 3;
@@ -280,7 +247,6 @@ message PlotPayload {
   optional string run_started_at = 12;
   optional string cycle_started_at = 13;
   .dokime.host.v1.plots.PlotAnalysis analysis = 14;
-  .dokime.host.v1.plots.AnalysisComputation computed = 15;
   repeated .dokime.host.v1.plots.PlotSeriesSummary summaries = 16;
   optional double bucket_width_s = 17;
   .dokime.host.v1.plots.PlotWindow bucket_window = 18;
@@ -352,6 +318,7 @@ message PlotStreamUpdate {
 
 // PlotRequest value owned by this resource.
 message PlotRequest {
+  reserved 35;
   optional .dokime.model.v1.BarArrangement arrangement = 1;
   bool pareto = 2;
   optional double hole = 3;
@@ -386,7 +353,6 @@ message PlotRequest {
   .dokime.model.v1.PlotFftOptions fft = 32;
   .dokime.model.v1.PlotIntervalOptions interval = 33;
   .dokime.model.v1.PlotHistogramOptions histogram = 34;
-  .dokime.model.v1.AnalysisSelection analysis = 35;
   .dokime.host.v1.plots.PlotWindow summary_window = 36;
   .dokime.host.v1.plots.PlotWindow viewport = 37;
   optional uint32 panel_width = 38;

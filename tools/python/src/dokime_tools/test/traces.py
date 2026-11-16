@@ -17,12 +17,16 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from . import policy, report
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -47,7 +51,12 @@ def summarize(destination: Path, junit: Path) -> None:
         except (OSError, ValueError, KeyError, TypeError):
             incomplete.append(path.name)
             continue
-        spans = [event for event in events if event.get("ph") == "X"]
+        spans = []
+        for spans_event in events:
+            if spans_event.get("ph") != "X":
+                continue
+            spans.append(spans_event)
+
         children: dict[tuple[int, int], list[tuple[float, float]]] = defaultdict(list)
         for event in spans:
             parent = event.get("args", {}).get("parent_id")
@@ -62,8 +71,16 @@ def summarize(destination: Path, junit: Path) -> None:
             row["count"] += 1
             row["total_ms"] += duration / 1000
             row["self_ms"] += max(0, duration - covered) / 1000
-    by_total = sorted(totals.values(), key=lambda row: (-row["total_ms"], row["target"], row["name"]))
-    by_self = sorted(totals.values(), key=lambda row: (-row["self_ms"], row["target"], row["name"]))
+
+    def sort_key(row: dict) -> tuple:
+        return (-row["total_ms"], row["target"], row["name"])
+
+    by_total = sorted(totals.values(), key=sort_key)
+
+    def sort_key(row: dict) -> tuple:
+        return (-row["self_ms"], row["target"], row["name"])
+
+    by_self = sorted(totals.values(), key=sort_key)
     tests: list[dict[str, Any]] = []
     junit_error = None
     if junit.is_file():
@@ -76,7 +93,11 @@ def summarize(destination: Path, junit: Path) -> None:
             tests.append({"suite": case.suite, "name": case.name, "total_ms": case.seconds * 1000, "outcome": case.outcome})
     else:
         junit_error = "JUnit report was not produced"
-    tests.sort(key=lambda row: (-row["total_ms"], row["suite"], row["name"]))
+
+    def sort_key(row: dict) -> tuple:
+        return (-row["total_ms"], row["suite"], row["name"])
+
+    tests.sort(key=sort_key)
     document = {
         "trace_files": len(files),
         "junit_error": junit_error,

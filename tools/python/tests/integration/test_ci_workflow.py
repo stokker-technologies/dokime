@@ -7,26 +7,31 @@
 # ***
 
 
-"""Prove Task Transport, Required Gates And Compiler Cache Compatibility."""
+"Prove Task Transport, Required Gates and Compiler Cache Compatibility."
 
 # === Imports === #
 
 # Standard Library Imports
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools import policy
 from dokime_tools.ci import native, tasks, transport, workflow
-from dokime_tools.release import nightly, registry
+from dokime_tools.release import guard, nightly, registry
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -38,8 +43,10 @@ from dokime_tools.release import nightly, registry
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_release_mode_exports_routing_and_target_revision(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_release_mode_exports_routing_and_target_revision(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             output = Path(temporary) / "output"
             for mode, sha in (("tag", "a" * 40), ("prepare", ""), ("skip", "")):
                 with (
@@ -50,8 +57,10 @@ class WorkflowTests(unittest.TestCase):
                     output.write_text("", encoding="utf-8")
                     self.assertEqual(workflow.main(["release-mode"]), 0)
                     self.assertEqual(output.read_text(encoding="utf-8"), f"mode={mode}\nsha={sha}\n")
+        finally:
+            temporary_directory.cleanup()
 
-    def test_nightly_report_requires_exact_publication_identity(self):
+    def test_nightly_report_requires_exact_publication_identity(self) -> None:
         sha = "a" * 40
         url = "https://example.test/run"
         identity = f"| CI Run | [7]({url}) |"
@@ -60,7 +69,7 @@ class WorkflowTests(unittest.TestCase):
         with (
             patch.object(nightly.policy, "policy", return_value={"provider": "github"}),
             patch.object(nightly, "_source", return_value=(sha, "7", url)),
-            patch.object(nightly.registry, "document", return_value=release),
+            patch.object(nightly.registry.provider, "document", return_value=release),
             patch.object(nightly, "publish") as publish,
         ):
             self.assertTrue(nightly.complete(Path.cwd()))
@@ -72,20 +81,20 @@ class WorkflowTests(unittest.TestCase):
                 self.assertFalse(nightly.complete(Path.cwd()))
             self.assertEqual(publish.call_count, 2)
 
-    def test_nightly_channel_uses_shared_publish_and_verify_entries(self):
+    def test_nightly_channel_uses_shared_publish_and_verify_entries(self) -> None:
         with (
             patch.dict(os.environ, {}, clear=True),
             patch.object(nightly, "publish") as publish,
             patch.object(nightly, "verify") as verify,
-            patch.object(workflow, "publication_guard") as guard,
+            patch.object(guard, "check") as guard_call,
         ):
             self.assertEqual(tasks.main(["publish", "--channel", "nightly"]), 0)
             self.assertEqual(workflow.main(["release-verify", "--channel", "nightly"]), 0)
             publish.assert_called_once_with(Path.cwd())
             verify.assert_called_once_with(Path.cwd())
-            guard.assert_not_called()
+            guard_call.assert_not_called()
 
-    def test_nightly_freshness_compares_tags_and_only_earlier_duplicates(self):
+    def test_nightly_freshness_compares_tags_and_only_earlier_duplicates(self) -> None:
         sha = "a" * 40
         cases = (
             ("schedule", sha, 0, "", [], False),
@@ -97,7 +106,9 @@ class WorkflowTests(unittest.TestCase):
             ("workflow_dispatch", sha, 0, "", [{"id": 6}], False),
             ("workflow_dispatch", sha, 0, "", [{"id": 7}, {"id": 8}], True),
         )
-        with tempfile.TemporaryDirectory() as temporary:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             output = Path(temporary) / "output"
             for event, published, code, message, runs, expected in cases:
                 environment = {
@@ -111,7 +122,7 @@ class WorkflowTests(unittest.TestCase):
                 with (
                     self.subTest(event=event, code=code, runs=runs),
                     patch.dict(os.environ, environment, clear=True),
-                    patch.object(workflow.subprocess, "run", return_value=Mock(returncode=code, stdout=message, stderr="")),
+                    patch.object(subprocess, "run", return_value=Mock(returncode=code, stdout=message, stderr="")),
                     patch("dokime_tools.ci.review.request", return_value={"object": {"sha": published}}) as request,
                     patch("dokime_tools.ci.review.pages", return_value=runs),
                 ):
@@ -127,9 +138,13 @@ class WorkflowTests(unittest.TestCase):
                         request.assert_not_called()
             with patch.dict(os.environ, {"GITHUB_REF": "refs/heads/topic"}, clear=True), self.assertRaises(ValueError):
                 workflow.main(["nightly-freshness"])
+        finally:
+            temporary_directory.cleanup()
 
-    def test_named_transport_rejects_missing_inputs_before_extracting(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_named_transport_rejects_missing_inputs_before_extracting(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             archive = Path(temporary) / "package-release-unix.tar.zst"
             archive.touch()
             missing = Path(temporary) / "missing.tar.zst"
@@ -142,14 +157,16 @@ class WorkflowTests(unittest.TestCase):
                 missing.touch()
                 transport.receive()
                 self.assertEqual([call.args[1] for call in extract.call_args_list], [archive, missing])
+        finally:
+            temporary_directory.cleanup()
 
-    def test_required_rejects_failed_cancelled_and_unexpected_skips(self):
+    def test_required_rejects_failed_cancelled_and_unexpected_skips(self) -> None:
         for result in ("failure", "cancelled", "skipped"):
             environment = {"RESULTS": json.dumps({"test": {"result": result}})}
             with patch.dict(os.environ, environment, clear=True), self.assertRaises(ValueError):
                 workflow.main(["required"])
 
-    def test_required_allows_only_event_excluded_skips(self):
+    def test_required_allows_only_event_excluded_skips(self) -> None:
         results = {"build": {"result": "success"}, "package": {"result": "skipped"}}
         environment = {"RESULTS": json.dumps(results), "OPTIONAL_JOBS": '["package"]'}
         with patch.dict(os.environ, environment, clear=True):
@@ -159,7 +176,7 @@ class WorkflowTests(unittest.TestCase):
         with patch.dict(os.environ, environment, clear=True), self.assertRaises(ValueError):
             workflow.main(["required"])
 
-    def test_transport_expands_producer_identity(self):
+    def test_transport_expands_producer_identity(self) -> None:
         output = {"archive": "target/ci/package-{profile}-{platform}.tar.zst", "paths": ["target/package/{profile}/{target}"]}
         environment = {"CI_OUTPUTS": json.dumps([output]), "CI_PLATFORM": "unix"}
         with (
@@ -172,8 +189,10 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(pack.call_args.args[2], output["paths"])
         self.assertEqual(pack.call_args.args[3], "release")
 
-    def test_transport_extracts_downloads_only_when_requested(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_transport_extracts_downloads_only_when_requested(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             archive = root / "product.tar.zst"
             archive.touch()
@@ -188,11 +207,15 @@ class WorkflowTests(unittest.TestCase):
             ):
                 transport.receive()
                 extract.assert_called_once_with(Path.cwd(), archive)
+        finally:
+            temporary_directory.cleanup()
 
-    def test_compiler_cache_ignores_unrelated_tools_but_tracks_rust_and_crates(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_compiler_cache_ignores_unrelated_tools_but_tracks_rust_and_crates(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
-            for name in ("mise.lock", "Cargo.lock", "uv.lock", "crates/dokime-gui/pnpm-lock.yaml"):
+            for name in ("mise.lock", "Cargo.lock", "uv.lock", "crates/dokime-gui/pnpm-lock.yaml", "site/pnpm-lock.yaml"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("original", encoding="utf-8")
@@ -216,8 +239,10 @@ class WorkflowTests(unittest.TestCase):
             self.assertNotEqual(rust["restore-keys"], crates["restore-keys"])
             tests = native.default_caches(root, environment | {"CI_CACHE_PROFILE": "test"})["sccache"]
             self.assertNotEqual(tests["restore-keys"], crates["restore-keys"])
+        finally:
+            temporary_directory.cleanup()
 
-    def test_release_rehearsal_uses_moved_evidence_and_requires_green_jobs(self):
+    def test_release_rehearsal_uses_moved_evidence_and_requires_green_jobs(self) -> None:
         head = "a" * 40
         merged = "b" * 40
         review = {"head": head, "number": 7}
@@ -230,31 +255,31 @@ class WorkflowTests(unittest.TestCase):
             "status": "completed",
             "conclusion": "success",
         }
-        jobs = [{"name": "CI / Required", "conclusion": "success"}, {"name": registry.REHEARSAL_CHECK, "conclusion": "success"}]
+        jobs = [{"name": "CI / Required", "conclusion": "success"}, {"name": registry.reviews.REHEARSAL_CHECK, "conclusion": "success"}]
 
-        def pages(settings, endpoint, key=None):
+        def pages(settings: dict, endpoint: str, key: str | None = None) -> list[dict]:
             return [run] if "workflows/ci.yml" in endpoint else jobs
 
         with (
-            patch.object(registry, "document", return_value=pull),
-            patch.object(registry, "pages", side_effect=pages),
-            patch.object(registry, "_same_tree") as tree,
+            patch.object(registry.provider, "document", return_value=pull),
+            patch.object(registry.provider, "pages", side_effect=pages),
+            patch.object(registry.reviews, "_same_tree") as tree,
         ):
-            registry.rehearsed(Path.cwd(), {"provider": "github"}, review, merged)
+            registry.reviews.rehearsed(Path.cwd(), {"provider": "github"}, review, merged)
             tree.assert_called_once_with(Path.cwd(), head, merged)
             jobs[1]["conclusion"] = "failure"
             with self.assertRaises(policy.ToolError):
-                registry.rehearsed(Path.cwd(), {"provider": "github"}, review, merged)
+                registry.reviews.rehearsed(Path.cwd(), {"provider": "github"}, review, merged)
 
-    def test_publication_guard_restores_mutating_token_after_read_guard(self):
+    def test_publication_guard_restores_mutating_token_after_read_guard(self) -> None:
         observed = []
         environment = {"RELEASE_TARGET_SHA": "a" * 40, "CI_READ_TOKEN": "read", "GH_TOKEN": "release"}
         with (
             patch.dict(os.environ, environment, clear=True),
-            patch.object(workflow.runpy, "run_path", side_effect=lambda *args, **kwargs: observed.append(os.environ["GH_TOKEN"])),
+            patch.object(guard.green, "main", side_effect=lambda: observed.append(os.environ["GH_TOKEN"])),
             patch("dokime_tools.release.run.main", return_value=0),
         ):
-            workflow.publication_guard()
+            guard.check()
             self.assertEqual(os.environ["GH_TOKEN"], "release")
         self.assertEqual(observed, ["read"])
 

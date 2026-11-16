@@ -23,7 +23,7 @@ service Steps {
   rpc Execute(.dokime.plugin.v1.StepsExecuteRequest) returns (.dokime.plugin.v1.StepsExecuteResponse) {}
 }
 
-// === Execute === //
+// === Requests and Responses === //
 
 // StepsExecuteRequest for Steps.Execute.
 message StepsExecuteRequest {

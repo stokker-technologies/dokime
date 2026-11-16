@@ -15,12 +15,18 @@
 import sys
 from collections.abc import Sequence
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
-from dokime_tools.build import cargo, frontend
+from dokime_tools.build import cargo
+
+from . import configuration
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -34,7 +40,7 @@ from dokime_tools.build import cargo, frontend
 
 
 def desktop(arguments: Sequence[str]) -> None:
-    cargo.clippy(frontend.ROOT, arguments)
+    cargo.clippy(configuration.ROOT, arguments)
 
 
 # === Private Functions === #

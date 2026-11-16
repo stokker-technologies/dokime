@@ -17,12 +17,6 @@
  * side, so only that side is modelled here.
  */
 
-export type AnalysisSelection = {
-  id: Identifier;
-  version: number;
-  parameters: Record<string, Value>;
-};
-
 export type AxisScale = "linear" | "log";
 
 export type CaseId = string;
@@ -199,7 +193,6 @@ export type PlotDefinition = {
   x_scale?: AxisScale;
   y_scale?: AxisScale;
   fft?: FftOptions;
-  analysis?: AnalysisSelection | null;
   interval?: SigmaIntervalOptions;
   histogram?: HistogramOptions;
   marker_record_types?: string[];
@@ -247,7 +240,6 @@ export type PlotInput = {
   x_scale: AxisScale;
   y_scale: AxisScale;
   fft: FftOptions;
-  analysis?: AnalysisSelection | null;
   interval: SigmaIntervalOptions;
   histogram: HistogramOptions;
   marker_record_types: string[];

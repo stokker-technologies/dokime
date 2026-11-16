@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Prepare Frontend And Report Assets"""
+"Prepare Frontend and Report Assets"
 
 # === Imports === #
 
@@ -17,11 +17,17 @@ import sys
 import tempfile
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools.package.staging import clear_output, sync_output
 
-from . import organization, paths
+from ..process import spawn_flags
+from . import configuration, organization, paths
 
 # Type Checking Imports
 
@@ -29,8 +35,8 @@ from . import organization, paths
 
 # === Constants === #
 
-ROOT = Path(__file__).resolve().parents[5]
-WEB_ROOT = ROOT / "crates/dokime-gui"
+
+WEB_ROOT = configuration.ROOT / "crates/dokime-gui"
 
 
 # === Types === #
@@ -49,35 +55,39 @@ def build_live(args: list[str]) -> None:
             command + args,
             cwd=WEB_ROOT,
             check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
         return
-    with tempfile.TemporaryDirectory(prefix="dokime-gui-live-") as directory:
+    directory_directory = tempfile.TemporaryDirectory(prefix="dokime-gui-live-")
+    directory = directory_directory.name
+    try:
         subprocess.run(
             command + ["--outDir", directory],
             cwd=WEB_ROOT,
             check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
         sync_output(Path(directory), WEB_ROOT / "dist")
+    finally:
+        directory_directory.cleanup()
 
 
 def build(profile: str) -> Path:
-    """Build The Live Frontend Once And Mirror It Where The Desktop Shell Serves It From."""
+    """Build the Live Frontend Once and Mirror It Where the Desktop Shell Serves It From."""
     organization.generate()
-    output = paths.output(ROOT, "build", profile) / "web"
+    output = paths.output(configuration.ROOT, "build", profile) / "web"
     clear_output(output)
     subprocess.run(
         ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--outDir", str(output)],
         cwd=WEB_ROOT,
         check=True,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
         stdin=sys.stdin,
         stdout=sys.stdout,
         stderr=sys.stderr,
@@ -89,17 +99,21 @@ def build(profile: str) -> Path:
 def build_report(args: list[str]) -> None:
     """Generate the Desktop's Standalone Report Renderer."""
     organization.generate()
-    with tempfile.TemporaryDirectory(prefix="dokime-gui-report-") as directory:
+    directory_directory = tempfile.TemporaryDirectory(prefix="dokime-gui-report-")
+    directory = directory_directory.name
+    try:
         subprocess.run(
             ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--mode", "report", "--outDir", directory, *args],
             cwd=WEB_ROOT,
             check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
         sync_output(Path(directory), WEB_ROOT / "dist-report")
+    finally:
+        directory_directory.cleanup()
 
 
 def main() -> None:

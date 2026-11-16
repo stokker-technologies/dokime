@@ -91,33 +91,6 @@ fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()>
     assert_eq!(decoded.bytes, [0, 255]);
     assert!(declarations.sections.iter().any(|section| section.r#type == "harmos.model.v1.SettingsDeclarations"));
 
-    // Bind an Analysis Under Its Independent Host-Only Identity.
-    let declarations = Plugin::new("analysis", "1.0.0")
-        .analysis(
-            dokime::Analysis {
-                metadata: Some(dokime::Metadata {
-                    identifier: "analysis.echo".into(),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            },
-            async |_: &Context, request: dokime::plugin::AnalysesComputeRequest| {
-                let samples = request.samples.ok_or_else(|| Error::Invalid("Compute Analysis: Missing Samples".into()))?;
-                Ok(dokime::plugin::AnalysesComputeResponse {
-                    outputs: vec![dokime::AnalysisValues {
-                        axis: samples.axis,
-                        values: samples.values,
-                        ..Default::default()
-                    }],
-                })
-            },
-        )
-        .declarations()?;
-    let operation = declarations.operations.iter().find(|operation| operation.id == "analysis.echo").expect("Analysis Binding");
-    assert_eq!(operation.visibility, Visibility::Protected as i32);
-    assert!(operation.request.ends_with(".AnalysesComputeRequest"));
-    assert!(operation.response.ends_with(".AnalysesComputeResponse"));
-
     // Retain Integer Precision and Rational Values Without Floating Conversion.
     let exact = dokime::ExactNumber {
         negative: true,

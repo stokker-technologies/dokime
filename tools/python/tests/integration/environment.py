@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Isolate Environment Inputs For Mocked Tooling Stories."""
+"Isolate Environment Inputs for Mocked Tooling Stories."
 
 # === Imports === #
 
@@ -15,7 +15,11 @@ import os
 import unittest
 from unittest.mock import patch
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 
@@ -29,12 +33,28 @@ from unittest.mock import patch
 
 # === Classes === #
 
+
+class Resource:
+    """A Native Resource Double with No External Handles."""
+
+    def __init__(self, environment: dict[str, str] | None = None) -> None:
+        self.environment = dict(os.environ if environment is None else environment)
+
+    def close(self) -> None:
+        return
+
+
 # === Public Functions === #
 
 
 def isolate_environment() -> None:
-    """Keep Native Temporary Storage And Restore The Caller At Module Cleanup."""
-    environment = {key: value for key, value in os.environ.items() if key in {"TEMP", "TMP", "TMPDIR"}}
+    """Keep Native Temporary Storage and Restore the Caller at Module Cleanup."""
+    environment = {}
+    for environment_key, environment_value in os.environ.items():
+        if environment_key not in {"TEMP", "TMP", "TMPDIR"}:
+            continue
+        environment[environment_key] = environment_value
+
     unittest.enterModuleContext(patch.dict(os.environ, environment, clear=True))
 
 

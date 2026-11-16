@@ -132,50 +132,21 @@ public sealed class AuthorRunsAMeasurement
   }
 
   [Fact]
-  public async Task ComputeWithRawAxesAndDeclareSettingsAndSecrets()
+  public async Task DeclareSettingsAndSecrets()
   {
-    // Register a Protected Analysis With Raw Axes and a Typed Parameter.
-    var definition = new Analysis
-    {
-      Metadata = new Metadata { Identifier = "analysis.scale" },
-      Version = 1,
-      MaxSamples = 8,
-      MaxOutputValues = 8
-    };
-    var plugin = new Plugin("analysis", "1.0.0")
+    // Declare a Typed Setting and a Required Secret Without Any Operations.
+    var plugin = new Plugin("declarations", "1.0.0")
         .Setting("enabled", new SettingValue { Flag = true })
-        .Secret("instrument", "Instrument")
-        .Analysis(definition, (_, samples, parameters) =>
-        {
-          var output = new AnalysisValues { Key = "scaled", AxisUnit = samples.AxisUnit, Unit = samples.Unit };
-          output.Axis.AddRange(samples.Axis);
-          output.Values.AddRange(samples.Values.Select(value => value * parameters.Values["factor"].Number));
-          return Task.FromResult<IReadOnlyList<AnalysisValues>>([output]);
-        });
+        .Secret("instrument", "Instrument");
     await using var server = await PluginServer.StartAsync(plugin);
     var description = await server.Wire.DescribeAsync();
-    var binding = Assert.Single(description.Declarations.Operations);
-    Assert.Equal(Visibility.Protected, binding.Visibility);
+    Assert.Empty(description.Declarations.Operations);
     var secrets = SecretsDeclarations.Parser.ParseFrom(description.Declarations.Sections
         .Single(section => section.Type == SecretsDeclarations.Descriptor.FullName).Payload);
     Assert.Equal("instrument", Assert.Single(secrets.Secrets).Metadata.Identifier);
     var settings = SettingsDeclarations.Parser.ParseFrom(description.Declarations.Sections
         .Single(section => section.Type == SettingsDeclarations.Descriptor.FullName).Payload);
     Assert.True(Assert.Single(settings.Values).Default.Flag);
-
-    // Invoke the Analysis Without Converting Its Axis to Drawing Coordinates.
-    var input = new AnalysisSamples { Axis = { 0.25, 0.75 }, Values = { 4, 9 }, AxisUnit = "s", Unit = "V" };
-    var reply = await server.Wire.InvokeAsync<AnalysesComputeResponse>(description, binding.Id,
-        new AnalysesComputeRequest
-        {
-          Samples = input,
-          Parameters = new MapValue { Values = { ["factor"] = new Value { Number = 2 } } }
-        });
-    var result = Assert.Single(reply.Outputs);
-    Assert.Equal(input.Axis, result.Axis);
-    Assert.Equal(input.Values.Select(value => value * 2), result.Values);
-    Assert.Equal(input.AxisUnit, result.AxisUnit);
-    Assert.Equal(input.Unit, result.Unit);
   }
 
   private sealed class Instrument : IAsyncDisposable

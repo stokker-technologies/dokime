@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Select Packageable Native Outputs From The Original Compiler Record"""
+"Select Packageable Native Outputs from the Original Compiler Record"
 
 # === Imports === #
 
@@ -16,7 +16,11 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 
@@ -34,7 +38,7 @@ from typing import Any
 
 
 def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
-    """Select The Non-Test Binaries One Cargo Build Reported."""
+    """Select the Non-Test Binaries One Cargo Build Reported."""
     selected: dict[str, set[Path]] = {name: set() for name in names}
     for item in artifacts(messages):
         target = item.get("target", {})
@@ -50,7 +54,7 @@ def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
     result: dict[str, Path] = {}
     for name, paths in selected.items():
         if len(paths) != 1:
-            raise ValueError(f"Cargo must report exactly one {name} executable")
+            raise ValueError(f"Build Outputs: Cargo must report exactly one {name} executable")
         result[name] = next(iter(paths))
     return result
 
@@ -61,7 +65,7 @@ def executables(messages: Path, names: Sequence[str]) -> dict[str, Path]:
 
 
 def artifacts(messages: Path) -> Iterator[dict[str, Any]]:
-    """Decode Cargo Artifact Records Once For All Output Consumers."""
+    """Decode Cargo Artifact Records Once for All Output Consumers."""
     for line in messages.read_text(encoding="utf-8").splitlines():
         item = json.loads(line) if line.startswith("{") else {}
         if item.get("reason") == "compiler-artifact" and not item.get("profile", {}).get("test"):

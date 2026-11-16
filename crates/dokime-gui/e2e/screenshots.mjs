@@ -147,7 +147,7 @@ async function capture(scene, ready, prepare) {
       await until("loaded signal maps", () =>
         session.execute(`
         const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
-        const maps = doc.querySelector('[data-section-id="obc.charger.startup.sequence.maps"]');
+        const maps = doc.querySelector('[data-section-id="obc.benchmark.plots.maps"]');
         maps?.scrollIntoView({block:'start'});
         return !!maps?.querySelector('[data-testid="contour-plot"]') &&
           !!maps.querySelector('[data-testid="grid-chart-plot"]') &&
@@ -252,7 +252,7 @@ async function capture(scene, ready, prepare) {
         const doc = document.querySelector('#screenshot-report')?.contentDocument ?? document;
         const controls = doc.querySelector('[aria-label="Electrical Trajectory Playback"]');
         [...controls.querySelectorAll('button')].find(button => button.innerText === 'Latest').click();
-        doc.querySelector('[data-section-id="obc.charger.startup.sequence.maps"]').scrollIntoView({block:'start'});
+        doc.querySelector('[data-section-id="obc.benchmark.plots.maps"]').scrollIntoView({block:'start'});
       `);
     }
     if (["cycle", "touch"].includes(scene)) {
@@ -311,11 +311,12 @@ try {
 
   // Materialize A Real Bench Case With Finite Paced Measurements.
   const catalog = await call(session, "Suites", "List", {});
-  const suite = catalog.values.find((row) => row.metadata.label === "Charger Start-Up");
-  assert.ok(suite, "The bench plugin registers its startup suite");
+  const suite = catalog.values.find((row) => row.metadata.identifier === "obc.benchmark");
+  assert.ok(suite, "Load Benchmark Catalog: Install the Prepared OBC Plugin");
   const definition = await call(session, "Suites", "Get", { name: suite.metadata.identifier }).then((reply) => reply.value);
   await writeFile(join(evidence, "suite.json"), JSON.stringify(definition, null, 2));
-  const template = definition.templates.find((row) => row.metadata.label === "Start-Up Sequence");
+  const template = definition.templates.find((row) => row.metadata.identifier === "obc.benchmark.plots");
+  assert.ok(template, "Load Plot Template: Rebuild the Prepared OBC Plugin");
 
   // The Library Has No Execution Prerequisite.
   if (options.scene === "library") {
@@ -324,8 +325,8 @@ try {
       () => session.execute("return document.querySelectorAll('[role=dialog] [aria-label=\"Procedure Steps\"] li').length > 0"),
       async () => {
         await session.goto("/library");
-        await session.clickCss('details:has(table[aria-label="Charger Start-Up"]) > summary');
-        await session.clickCss('table[aria-label="Charger Start-Up"] tbody tr');
+        await session.clickCss('details:has(table[aria-label="Benchmark"]) > summary');
+        await session.clickCss('table[aria-label="Benchmark"] tbody tr[data-row-id="obc.benchmark::obc.benchmark.plots"]');
         await until("template parameters", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
       },
     );
@@ -333,8 +334,6 @@ try {
     const overrides = {
       duration_s: ["Number", 1],
       sample_interval_s: ["Number", 0.001],
-      realtime: ["Bool", true],
-      continuous: ["Bool", false],
     };
     const parameters = Object.entries(overrides).map(([name, [kind, value]]) => {
       const parameter = template.parameters.find(
@@ -519,8 +518,8 @@ try {
         () => session.execute("return document.querySelectorAll('[role=dialog] [aria-label=\"Procedure Steps\"] li').length > 0"),
         async () => {
           await session.goto("/library");
-          await session.clickCss('details:has(table[aria-label="Charger Start-Up"]) > summary');
-          await session.clickCss('table[aria-label="Charger Start-Up"] tbody tr');
+          await session.clickCss('details:has(table[aria-label="Benchmark"]) > summary');
+          await session.clickCss('table[aria-label="Benchmark"] tbody tr[data-row-id="obc.benchmark::obc.benchmark.plots"]');
           await until("template parameters", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
         },
       );

@@ -48,7 +48,7 @@ service Files {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // FilesGetRequest for Files.Get.
 message FilesGetRequest {
@@ -63,8 +63,6 @@ message FilesGetResponse {
   uint64 message_bytes = 3;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Read === //
 
 // FilesReadRequest for Files.Read.
 message FilesReadRequest {
@@ -81,8 +79,6 @@ message FilesReadResponse {
   bytes sha256 = 3;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === Watch === //
 
 // FilesWatchRequest for Files.Watch.
 message FilesWatchRequest {
@@ -102,8 +98,6 @@ message FilesWatchResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
 
-// === Delete === //
-
 // FilesDeleteRequest for Files.Delete.
 message FilesDeleteRequest {
   .harmos.model.v1.FileReference file = 1;
@@ -114,8 +108,6 @@ message FilesDeleteRequest {
 message FilesDeleteResponse {
   .harmos.model.v1.Receipt receipt = 1;
 }
-
-// === Capture === //
 
 // FilesCaptureRequest value owned by this resource.
 message FilesCaptureRequest {

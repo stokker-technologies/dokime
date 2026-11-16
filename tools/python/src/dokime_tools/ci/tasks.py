@@ -5,21 +5,30 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Select Repository Tasks And Dispatch Focused Cargo Commands Directly."""
+"Select Repository Tasks and Dispatch Focused Cargo Commands Directly."
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
+from dokime_tools.test import lanes
+
 from ..build import cargo
 from ..process import spawn_flags
+from ..task import bench, build, check, format, lint, package, publish, test
 from ..test import focused
 from . import transport
 
@@ -42,7 +51,7 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--language", choices=("rust", "python", "typescript", "toml"))
     parser.add_argument("--layer", choices=("unit", "integration", "acceptance", "system"))
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
-    parser.add_argument("--artifact", choices=("product", "tests", "bench", "fixtures"), default="product")
+    parser.add_argument("--artifact", choices=("product", "tests", "bench"), default="product")
     parser.add_argument("--package")
     parser.add_argument("--features")
     parser.add_argument("--target")
@@ -50,7 +59,7 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--story", help="Run One Rust Story Module in a Focused Package")
     parser.add_argument("--changed", nargs="+", help="Run Rust Tests Affected by These Repository Paths")
     parser.add_argument("--plan", action="store_true", help="Print Focused Cargo Commands Without Compiling")
-    parser.add_argument("--no-capture", action="store_true", help="Show Live Output From Focused Rust Stories")
+    parser.add_argument("--no-capture", action="store_true", help="Show Live Output from Focused Rust Stories")
     parser.add_argument("--no-run", action="store_true", help="Compile the Selected Rust Tests Without Running Them")
     parser.add_argument("--timings", action="store_true", help="Retain Native Cargo Build Timings")
     parser.add_argument("--check", action="store_true")
@@ -61,16 +70,16 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--wheel", action="store_true")
     parser.add_argument("--dry", action="store_true")
     parser.add_argument("--stage", choices=("assets", "finalize"))
-    parser.add_argument("--registry", choices=("pypi",), help="Publish One Registry Package From Its Own Trusted Publisher Job")
+    parser.add_argument("--registry", choices=("pypi",), help="Publish One Registry Package from Its Own Trusted Publisher Job")
     parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
     parser.add_argument("--project", choices=("sdk/python", "tools/python"))
     parser.add_argument("--scene", choices=("cycle", "plots", "report", "history", "library", "cycles", "touch"))
     parser.add_argument("--select")
-    parser.add_argument("--filterset", help="Select Focused Rust Stories With A Nextest Filterset")
+    parser.add_argument("--filterset", help="Select Focused Rust Stories with a Nextest Filterset")
     parser.add_argument("--binary")
     parser.add_argument("--refresh-baseline", action="store_true")
     parser.add_argument("--once", action="store_true", help="Run Each Selected Benchmark Case Once")
-    parser.add_argument("--cargo", nargs=argparse.REMAINDER, help="Run A Focused Cargo Build, Check Or Rustc With Native Arguments")
+    parser.add_argument("--cargo", nargs=argparse.REMAINDER, help="Run a Focused Cargo Build, Check or Rustc with Native Arguments")
     args = parser.parse_args(arguments)
     if args.no_capture and (args.operation != "test" or not args.package or args.artifact == "tests"):
         parser.error("--no-capture requires a focused source Rust test")
@@ -118,14 +127,15 @@ def main(arguments: list[str] | None = None) -> int:
         and args.artifact == "tests"
     ):
         parser.error("--timings requires a focused build/test or the Tests artifact")
-    transport.receive()
+    if not args.plan:
+        transport.receive()
     if args.operation == "screenshots":
-        from ..screenshots.run import main as screenshots
+        import dokime_tools.screenshots.run
 
         options = ["--check"] if args.check else []
         if args.scene:
             options += ["--scene", args.scene]
-        return screenshots(options)
+        return dokime_tools.screenshots.run.main(options)
     supported = {
         "lint": {"rust", "python", "typescript"},
         "build": {"rust", "python", "typescript"},
@@ -154,8 +164,8 @@ def main(arguments: list[str] | None = None) -> int:
         parser.error("--story requires a focused test package and cannot combine with --exact or --select")
     if args.package and args.operation == "test" and args.exact and args.select:
         parser.error("choose either --exact or --select")
-    if (args.plan or args.no_run) and not args.package:
-        parser.error("--plan and --no-run require a focused package or --changed")
+    if args.no_run and not args.package:
+        parser.error("--no-run requires a focused package or --changed")
     if (args.plan or args.timings) and args.operation not in ("build", "test"):
         parser.error("--plan and --timings require build or test")
     if args.no_run and args.operation != "test":
@@ -200,8 +210,6 @@ def main(arguments: list[str] | None = None) -> int:
         if args.language not in (None, "rust"):
             parser.error("--package selects Cargo packages")
         if args.operation == "test" and args.artifact == "tests":
-            from ..test import run
-
             if any((args.features, args.timings, args.no_run, args.plan, args.coverage)):
                 parser.error("archived tests consume existing bytes; compiler and coverage options require a source test")
             target = args.target or ("lib" if args.layer == "unit" else args.layer) or ("integration" if args.story else None)
@@ -224,7 +232,7 @@ def main(arguments: list[str] | None = None) -> int:
                 from ..test import archive
 
                 archive.install_wheels(Path.cwd(), args.profile)
-            return run.test(Path.cwd(), category, "rust", ".", args.profile, selection)
+            return lanes.run(Path.cwd(), category, "rust", ".", args.profile, selection)
         operation = "check" if args.operation == "build" and args.check else args.operation
         command = ["--locked", "--package", args.package]
         if args.timings:
@@ -267,118 +275,40 @@ def main(arguments: list[str] | None = None) -> int:
             check=False,
             creationflags=spawn_flags(),
         ).returncode
-    tasks: list[tuple[str, list[str]]] = []
+    tasks: list[tuple[str, list[str]]] | None = []
     languages = [args.language] if args.language else ["rust", "python", "typescript"]
     profile = ["--profile", args.profile]
-    if args.operation in ("format", "lint"):
-        if args.operation == "format" and not args.language:
-            languages.append("toml")
-        tasks = [(f"{args.operation}:{language}", ["--check"] if args.check else []) for language in languages]
+    if args.operation == "format":
+        tasks = format.select(args, languages)
+    elif args.operation == "lint":
+        tasks = lint.select(args, languages)
     elif args.operation == "check":
-        if args.repository:
-            tasks = [("check:repository", [])]
-        elif args.bindings:
-            tasks = [("check:python:bindings", profile)]
-        elif args.supply:
-            tasks = [("check:rust:supply", [])]
-        else:
-            tasks = [("check:repository", [])]
-            tasks += [(f"check:{language}", []) for language in languages if language != "toml"]
-
+        tasks = check.select(args, languages, profile)
     elif args.operation == "build":
-        if args.artifact == "fixtures":
-            parser.error("native Python client fixtures were removed; use the pure SDK's focused stories")
-        elif args.artifact == "bench":
-            tasks = [("build:rust:bench", ["--binary", args.binary] if args.binary else [])]
-        elif args.artifact == "tests":
-            tasks = [("build:rust:tests", profile + (["--timings"] if args.timings else []))]
-        elif args.language:
-            tasks = [(f"build:{args.language}", profile)]
-        else:
-            tasks = [("build:product", profile)]
+        tasks = build.select(args, profile)
     elif args.operation == "test":
-        if args.wheel:
-            tasks = [("test:python:wheel", profile + (["--stubs"] if args.bindings else []))]
-        elif args.coverage:
-            tasks = [(f"test:{language}:coverage", profile) for language in languages if language in ("rust", "python")]
-        else:
-            layers = [args.layer] if args.layer else ["unit", "integration", "acceptance", "system"]
-            if "python" in languages and "integration" in layers:
-                tasks.append(
-                    (
-                        "test:python:integration",
-                        profile + ["--project", "tools/python"] + (["--select", args.select] if args.select else []),
-                    )
-                )
-            if args.project != "tools/python":
-                for language in languages:
-                    for layer in layers:
-                        if language == "typescript" and layer == "acceptance":
-                            continue
-                        if language == "python" and not (Path("sdk/python/tests") / layer).is_dir():
-                            continue
-                        options = profile.copy()
-                        if args.select:
-                            options += ["--select", args.select]
-                        tasks.append((f"test:{language}:{layer}", options))
+        tasks = test.select(args, languages, profile)
     elif args.operation == "bench":
-        layers = [args.layer] if args.layer else ["unit", "integration", "system"]
-        if args.binary == "storage":
-            if args.language not in (None, "rust") or args.refresh_baseline:
-                parser.error("storage benchmarks use Rust and native Criterion output; baseline promotion is separate")
-            layers = []
-            options = ["--select", args.select] if args.select else []
-            if args.once:
-                options += ["--once"]
-            tasks = [("bench:rust:storage", options)]
-        if "acceptance" in layers:
-            parser.error("bench layers are unit, integration and system")
-        for language in [args.language] if args.language else ["rust"]:
-            for layer in layers:
-                if language != "rust" and (language != "python" or layer != "system"):
-                    continue
-                options = ["--refresh-baseline"] if args.refresh_baseline else []
-                if args.once:
-                    if language != "rust":
-                        parser.error("--once selects native Rust benchmarks")
-                    options += ["--once"]
-                if args.binary:
-                    options += ["--binary", args.binary]
-                if args.select:
-                    options += ["--select", args.select]
-                tasks.append((f"bench:{language}:{layer}", options))
+        tasks = bench.select(args, parser)
     elif args.operation == "package":
-        tasks = [
-            (f"package:{language}", profile + (["--target", args.target] if args.target else []))
-            for language in languages
-            if language != "typescript"
-        ]
-    elif args.operation == "publish" and args.registry:
-        # PyPI Trusts Only The Direct Release Job, Never The Shared Publisher Or Nightly.
-        if args.channel != "stable" or args.stage:
-            parser.error("--registry pypi requires stable publication without --stage")
-        tasks = [("release:publish:python:dry" if args.dry else "release:publish:python", [])]
+        tasks = package.select(args, languages, profile)
     elif args.operation == "publish":
-        if args.channel == "nightly" and not args.dry:
-            if args.stage:
-                parser.error("nightly publishes the complete package inventory")
-            from .. import policy
-            from ..release import nightly
+        tasks = publish.select(args, parser)
+    else:
+        parser.error("Select Operation: Choose a Supported Public Task")
+    if tasks is None:
+        return 0
 
-            nightly.publish(policy.root())
-            return 0
-        if args.dry:
-            # The Chained Crate Dry Run Reads The Channel; Only Nightly Reports Git Pins As Pending.
-            os.environ["RELEASE_CHANNEL"] = args.channel
-            tasks = [("release:publish:dry", [])]
-        else:
-            tasks = [(f"release:publish:{stage}", []) for stage in ([args.stage] if args.stage else ["assets", "finalize"])]
     if not tasks:
         parser.error("the selected operation has no implementation for this language")
+    if args.plan:
+        for task, options in tasks:
+            print(shlex.join(["mise", "run", task, "--", *options]))
+        return 0
     if args.operation == "publish" and not args.dry:
-        from .workflow import publication_guard
+        from ..release import guard
 
-        publication_guard()
+        guard.check()
     for task, options in tasks:
         if os.environ.get("COMPILER_CACHE_BACKEND"):
             from .build import run_command

@@ -12,16 +12,26 @@ requires = ["hatchling==1.33.0"]
 build-backend = "hatchling.build"
 
 [tool.ty.environment]
-python-version = "3.13"
+# Match the Pinned Mise Runtime, Including Native Zstandard Tar Archives.
+python-version = "3.15"
+# Share the Root Uv Workspace Environment.
 python = "../../.venv"
 
 [tool.ty.src]
-include = ["src"]
-exclude = ["src/dokime_tools/docs", "src/dokime_tools/release", "src/dokime_tools/test"]
-
-[tool.uv]
-system-certs = true
+# Check the Package and Its Stories in the Same Gate.
+include = ["src", "tests"]
 
 [tool.ruff]
-# Dokime owns these runners; release and test orchestration have dedicated task proof.
-extend-exclude = ["src/dokime_tools/docs", "src/dokime_tools/release", "src/dokime_tools/test"]
+# Match the Shared Formatter Width.
+line-length = 140
+# Templates Are Rendered Before Source Formatting.
+extend-exclude = ["**/.*/**"]
+force-exclude = true
+
+[tool.ruff.lint]
+# Every Authored Function Declares Its Typed Contract.
+extend-select = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN205", "ANN206"]
+
+[tool.uv]
+# Use the Workstation Certificate Store for Dependency Downloads.
+system-certs = true

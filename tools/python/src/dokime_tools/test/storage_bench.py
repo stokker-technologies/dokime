@@ -1,6 +1,6 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -19,12 +19,21 @@ import subprocess
 from pathlib import Path
 from typing import TypedDict, cast
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
+import dokime_tools.test.credentials
+import dokime_tools.test.desktop
+import dokime_tools.test.desktop_bench
+import dokime_tools.test.scratch
+
 from ..build import paths
 from ..process import spawn_flags
 from . import archive
-from .desktop_bench import credentials, scratch
 
 # Type Checking Imports
 
@@ -60,13 +69,16 @@ def main() -> None:
     metadata = output / "bench/compiler.json"
     archive.fixtures(directory, "bench", [metadata.relative_to(directory).as_posix()])
     events = [cast(CompilerEvent, json.loads(line)) for line in metadata.read_text(encoding="utf-8").splitlines()]
-    executables = [
-        executable
-        for event in events
-        if isinstance(executable := event.get("executable"), str)
-        and event["target"]["name"] == "storage"
-        and "bench" in event["target"]["kind"]
-    ]
+    executables = []
+    for executables_event in events:
+        if not isinstance((executable := executables_event.get("executable")), str):
+            continue
+        if executables_event["target"]["name"] != "storage":
+            continue
+        if "bench" not in executables_event["target"]["kind"]:
+            continue
+        executables.append(executable)
+
     if len(executables) != 1:
         raise ValueError("Build the storage benchmark once with mise run build -- --artifact bench --binary storage")
     archive.fixtures(directory, "bench", executables)
@@ -76,41 +88,50 @@ def main() -> None:
     environment.pop("DOKIME_TRACE_DIR", None)
     report = directory / "target/benchmarks/storage/run.log"
     report.parent.mkdir(parents=True, exist_ok=True)
-    with scratch(environment, report.parent) as scratch_environment, credentials(scratch_environment) as child_environment:
-        written = report.open("w", encoding="utf-8")
+    scratch_root = dokime_tools.test.scratch.Root(environment, report.parent)
+    try:
+        scratch_environment = scratch_root.environment
+        credential_store = dokime_tools.test.credentials.Store(scratch_environment)
         try:
-            process = subprocess.Popen(
-                [
-                    str(directory / executables[0]),
-                    "--bench",
-                    *(["--test"] if options.once else []),
-                    *([options.select] if options.select else []),
-                ],
-                cwd=directory,
-                env=child_environment,
-                creationflags=spawn_flags(),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-            )
+            child_environment = credential_store.environment
+            written = report.open("w", encoding="utf-8")
             try:
-                output_stream = process.stdout
-                if output_stream is None:
-                    raise RuntimeError("Measure Storage Benchmarks: Open the Output Stream")
+                process = subprocess.Popen(
+                    [
+                        str(directory / executables[0]),
+                        "--bench",
+                        *(["--test"] if options.once else []),
+                        *([options.select] if options.select else []),
+                    ],
+                    cwd=directory,
+                    env=child_environment,
+                    creationflags=spawn_flags(),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                )
                 try:
-                    for line in output_stream:
-                        print(line, end="", flush=True)
-                        written.write(line)
-                        written.flush()
+                    output_stream = process.stdout
+                    if output_stream is None:
+                        raise RuntimeError("Run Storage Bench Tests: Measure Storage Benchmarks: Open the Output Stream")
+                    try:
+                        for line in output_stream:
+                            print(line, end="", flush=True)
+                            written.write(line)
+                            written.flush()
+                    finally:
+                        output_stream.close()
                 finally:
-                    output_stream.close()
+                    status = process.wait()
             finally:
-                status = process.wait()
+                written.close()
+            if status:
+                raise RuntimeError(f"Run Storage Bench Tests: Measure Storage Benchmarks: Executable Exited {status}; See {report}")
         finally:
-            written.close()
-        if status:
-            raise RuntimeError(f"Measure Storage Benchmarks: Executable Exited {status}; See {report}")
+            credential_store.close()
+    finally:
+        scratch_root.close()
 
 
 # === Private Functions === #

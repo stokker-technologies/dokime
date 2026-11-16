@@ -6,13 +6,17 @@
 #
 # ***
 
-"""Release Tooling: Policy, Versions, Registries And Screenshots"""
+"Release Tooling: Policy, Versions, Registries and Screenshots"
 
 # === Imports === #
 
 # Standard Library Imports
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 

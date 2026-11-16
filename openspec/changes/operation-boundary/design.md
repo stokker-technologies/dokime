@@ -30,6 +30,14 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
 - Offline paths: desktop archive/disposal in
   `crates/dokime-gui/src-tauri/src/native_session/storage.rs`; CLI doctor copies in
   `crates/dokime-cli/src/commands/doctor.rs`.
+- Current-pin cutover dependency: `Backend::open` registers a `storage.sqlite3`
+  ledger, whereas product execution/evidence/sample/seal/report writers use
+  `execution.sqlite3`. Moving an append alone splits their canonical history and
+  invalidates cuts and seal verification. The coupled migration needs Harmos
+  compound atomic mutation at the backend boundary; retaining two writers or
+  adding a mirror is not an acceptable intermediate design. Independent retained
+  view payloads in `host/views.rs` now use Harmos object operations; their evidence
+  cut issuance remains coupled to the product ledger.
 - Composition: `protocol/composition.toml` is read by `services/composition.rs`
   (`setup.composition`), `native::callers()` in `crates/dokime-operations/src/native.rs`,
   `sdk/cpp/tools/generate.py`, `sdk/csharp/tools/generate.py` and
@@ -39,9 +47,12 @@ Touched invariants in `docs/architecture.md` and their purposes:
 
 - Invariant 7 (Library Machinery and Product Policy): "Compose library services directly,
   without redeclaring or forwarding them." Purpose: avoid duplicated generic machinery and
-  product policy in the library. Decision 5 reverses the forwarding clause: Dokime declares
-  wrappers that forward to in-process Harmos operations. The purpose holds because wrappers
-  contain no generic machinery, only exposure.
+  product policy in the library. The owner amended it on 2026-11-16: Dokime composes Harmos
+  through the typed in-process facade over native operations (D5) and declares wrappers that
+  forward to it (D6), reversing "directly" and the forwarding clause. The purpose holds
+  because the facade adds no second policy authority and wrappers contain no generic
+  machinery, only exposure. The same quote in Final Library Assembly and Storage Contract
+  changes with it.
 - Invariant 1 (Executors and Callers): purpose "plugin callers cannot acquire client
   administration". Preserved by the `callers` option on Dokime's own wrapper methods.
 - Invariant 6 (Managers Own Live Orchestration): library managers stay the live owners but
@@ -118,12 +129,23 @@ and previews; the on-demand read path for sealed executions is this design's con
 Consequence to measure: on-demand full-range cost over multi-day sealed histories; report
 it from the existing plot and document benchmarks, without changing any budget.
 
-### D5. Facade Adoption (Proposed)
+### D5. Facade Adoption (Proposed; Facade Shape Decided by the Owner, 2026-11-16)
 
 Dokime builds the runtime through the Harmos builder with its backend pair, catalog and
-settings, keeps an operation caller instead of the operation manager
-(`services/state.rs`), activates plugins, binds clocks and starts and stops samples through
-Harmos in-process operations (`execution.rs`, `dispatch.rs`), imports backend contracts
+settings and calls Harmos only through the typed in-process facade over native operations
+(Harmos `operation-boundary` D6):
+
+```rust
+let harmos = runtime.for_call(&ctx);
+harmos.storage().append_samples(AppendSamples { mutation, scope, batch }).await?;
+harmos.plugins().load(PluginSource::Process(command)).await?;
+```
+
+Each facade method dispatches its Harmos operation with the registered policy; typed values
+pass without encoding; no Harmos manager or engine type is reachable. Dokime keeps the
+runtime handle instead of the operation manager (`services/state.rs`), activates plugins,
+binds clocks and starts and stops samples through facade calls (`execution.rs`,
+`dispatch.rs`), imports backend contracts
 through the authoring module and removes direct dependencies on `harmos-domain`,
 `harmos-query` and `harmos-storage`. The direct `harmos-protocol` dependency goes in group 13,
 after callers stop using `harmos_protocol::host` paths; Harmos payload values then reach
@@ -146,10 +168,11 @@ C++ SDK, stories) calls today. Candidates from the current tree:
 | Schemas, Streams | List; List | CLIENTS |
 | Time | Get, Sleep | CLIENTS only if a client calls it |
 
-Plugins reach time and their own settings through the Harmos plugin protocol facilities and
-need no Dokime wrapper. A method no Dokime client calls is not wrapped. Each wrapper is a
-declaration plus a handler that calls the in-process Harmos operation; authorization uses
-the existing product authorizer. Wrappers reuse the Harmos request and response messages as
+Decided by the owner on 2026-11-16: wrappers declare their audience with the `callers` option
+on their own methods, and plugins reach time and their own settings through the Harmos plugin
+protocol facilities and need no Dokime wrapper. A method no Dokime client calls is not wrapped. Each wrapper is a
+declaration plus a handler that authorizes, maps product values and calls the typed Harmos
+facade; authorization uses the existing product authorizer. Wrappers reuse the Harmos request and response messages as
 their payloads (Dokime services, Harmos messages), so no twin message is declared; the
 generated SDKs contain those messages but no Harmos service.
 
@@ -157,6 +180,13 @@ generated SDKs contain those messages but no Harmos service.
 both SDK generators and `resource_roots.py` are deleted. Generators read
 `crates/dokime-protocol/src/descriptors.bin` and project client and plugin surfaces from the
 `callers` option on Dokime's own methods.
+
+### D7. Harmos SDK Scope (Decided by the Owner, 2026-11-16)
+
+Dokime's Python, C# and C++ SDKs keep building on the Harmos plugin SDKs, protocol
+generation and connection plumbing. Harmos deletes its host-client resource roots and host
+RPC client surfaces once every Harmos host operation is in-process only; Dokime's clients come
+from its own wrappers (D6), so no Dokime client depends on those roots after group 13.
 
 ## Risks / Trade-offs
 
@@ -175,15 +205,3 @@ both SDK generators and `resource_roots.py` are deleted. Generators read
 
 Development storage policy applies: no migrations or compatibility. Groups land in the order
 of D1 on the integration branch; rollback is the previous Harmos pin and the previous commit.
-
-## Open Questions
-
-1. **Embedded calls (owner assessment running, 2026-11-16).** Should Dokime, which embeds
-   Harmos as a Rust library, call Harmos through a public Rust API instead of through
-   operations? The tasks stay as written; the answer may later change D2, D5 and D6.
-2. **Harmos language SDKs (owner assessment running, 2026-11-16).** If Harmos is a building
-   block of an application, do the Harmos Python, C# and C++ SDKs that Dokime's SDKs build
-   on remain justified? The tasks stay as written.
-3. **Wrapper audience marker.** D6 relies on the upstream proposed default that the `callers`
-   option remains for product methods. If the owner chooses another audience declaration,
-   only task 13.2's generator input changes.

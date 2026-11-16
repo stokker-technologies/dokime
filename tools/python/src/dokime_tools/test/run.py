@@ -5,33 +5,24 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Run Archived Test Lanes And Keep Native JUnit Reports Under Target."""
+"Parse Test, Coverage and Benchmark Arguments."
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
-import hashlib
-import json
-import math
-import os
-import platform
-import re
-import shutil
-import signal
-import subprocess
 import sys
-import time
-from collections.abc import Generator, Sequence
-from contextlib import contextmanager, nullcontext
+from collections.abc import Sequence
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
-from .. import temporary
-from ..build import paths
-from ..process import spawn_flags
-from . import archive, desktop_bench, nextest, policy, pytest, report, traces, vitest
+from . import benchmark, coverage, lanes, policy
 
 # Type Checking Imports
 
@@ -39,253 +30,11 @@ from . import archive, desktop_bench, nextest, policy, pytest, report, traces, v
 
 # === Constants === #
 
-COVERAGE_VARIABLE = "COVERAGE"
-CRITERION = report.BENCHMARKS / "criterion"
-BASELINE = "dev"
-SCRIPTS = ("typescript", "javascript")
-
 # === Types === #
 
 # === Classes === #
 
 # === Public Functions === #
-
-
-def test(
-    directory: Path,
-    category: str,
-    language: str,
-    project: str,
-    profile: str,
-    extra: Sequence[str],
-    *,
-    prepared: bool = False,
-    archive_directory: Path | None = None,
-) -> int:
-    """Run One Lane And Retain Its Native Report; Nonzero When Any Story Failed."""
-    rules = policy.load(directory)
-    key = f"{category}-{language}"
-    _preflight(directory, category, language, profile)
-    if language == "python" and not prepared:
-        archive.install_wheels(directory, profile)
-    with _scratch(directory, key, profile) as scratch, temporary.directory() if language == "python" else nullcontext(scratch) as fixtures:
-        deadline = rules.deadline(category)
-
-        # Native Command
-        environment = dict(os.environ)
-        cwd = directory / project
-        if language == "rust":
-            archive.require(directory, profile)
-            extracted = archive_directory or scratch / "extract"
-            if archive_directory is None:
-                archive.extract(directory, profile, extracted, category=category, arguments=extra)
-            binaries = archive.binaries(directory, profile, extracted)
-            names = sorted(set(binaries.values()))
-            expression, rest = nextest.selection(category, extra, names)
-            measured = nextest.overrides(rules, category, coverage=False, binaries=binaries)
-            configuration = scratch / "nextest.toml"
-            store = str(scratch / "store")
-            configuration.write_text(nextest.config(store, deadline, measured), encoding="utf-8")
-            junit = scratch / "store" / nextest.PROFILE / "junit.xml"
-            command = nextest.run(directory, configuration, extracted, expression, rest)
-            cwd = directory
-        elif language == "python":
-            junit = scratch / "junit.xml"
-            arguments = list(extra)
-            if not any(argument.startswith("--basetemp") for argument in arguments):
-                arguments.append(f"--basetemp={fixtures / 'fixtures'}")
-            arguments += ["-o", f"cache_dir={fixtures / 'pytest-cache'}"]
-            command = pytest.run(cwd, f"tests/{category}", deadline, junit, arguments)
-            environment = pytest.environment(directory)
-        else:
-            junit = scratch / "junit.xml"
-            command = vitest.run(extra, junit, deadline)
-
-        environment["TEST_PROFILE"] = profile
-        if language == "python" and category == "system":
-            environment["HARMOS_CONFORMANCE_FIXTURE"] = str(paths.output(directory, "build", profile) / "fixtures/host/python/conformance")
-            environment["HARMOS_CONFORMANCE_HOST"] = str(
-                paths.output(directory, "build", profile) / "fixtures/host" / f"harmos-conformance{'.exe' if os.name == 'nt' else ''}"
-            )
-        environment["DOKIME_TEST_LANE"] = key
-        environment.pop("TEST_REPORT_DIR", None)
-        if category == "system":
-            story_reports = report.native_directory(directory, report.TRACES / profile / paths.target() / key)
-            environment["TEST_REPORT_DIR"] = str(story_reports)
-        trace_report = report.native_directory(directory, Path("target/test-reports") / key)
-        environment.pop("DOKIME_TEST_TRACE_DIR", None)
-        if category in ("integration", "acceptance", "system"):
-            trace_directory = report.native_directory(directory, trace_report.relative_to(directory) / "traces")
-            shutil.rmtree(trace_directory)
-            trace_directory.mkdir()
-            environment["DOKIME_TEST_TRACE_DIR"] = str(trace_directory)
-        try:
-            lane = _lane(
-                directory,
-                rules,
-                key,
-                category,
-                language,
-                project,
-                profile,
-                command,
-                cwd,
-                environment,
-                junit,
-                scratch,
-            )
-        finally:
-            traces.summarize(trace_report, junit)
-        lane["arguments"] = list(extra)
-        return 0 if lane["outcome"] == "passed" else 1
-
-
-def coverage(
-    directory: Path,
-    language: str,
-    category: str | None,
-    project: str,
-    profile: str,
-    extra: Sequence[str],
-) -> int:
-    """Instrumented lane over one layer, or every layer when no category is given."""
-    rules = policy.load(directory)
-    key = f"coverage-{category}-{language}" if category else f"coverage-{language}"
-    _preflight(directory, category, language, profile)
-    with _scratch(directory, key, profile) as scratch:
-        categories = [category] if category else list(policy.CATEGORIES)
-        deadline = max(rules.deadline(name, coverage=True) for name in categories)
-        cobertura = scratch / "coverage.xml"
-        environment = dict(os.environ, **{COVERAGE_VARIABLE: "1"})
-
-        # Instrumented Run
-        if language == "rust":
-            binaries = archive.binaries(directory, profile)
-            names = sorted(set(binaries.values()))
-            expression, rest = nextest.selection(category, extra, names)
-            measured = nextest.overrides(rules, category, coverage=True, binaries=binaries)
-            configuration = scratch / "nextest.toml"
-            store = str(scratch / "store")
-            configuration.write_text(nextest.config(store, deadline, measured), encoding="utf-8")
-            junit = scratch / "store" / nextest.PROFILE / "junit.xml"
-            command = nextest.coverage(profile, configuration, expression, rest)
-            cwd = directory
-        elif language == "python":
-            cwd = directory / project
-            junit = scratch / "junit.xml"
-            suite = f"tests/{category}" if category else "tests"
-            command = pytest.run(cwd, suite, deadline, junit, [*extra, *pytest.coverage(cwd, cobertura)])
-            environment = {**pytest.environment(directory), COVERAGE_VARIABLE: "1"}
-        else:
-            raise policy.TestError("coverage is measured for rust and python")
-
-        environment["TEST_PROFILE"] = profile
-        if language == "python" and category in (None, "system"):
-            environment["HARMOS_CONFORMANCE_FIXTURE"] = str(paths.output(directory, "build", profile) / "fixtures/host/python/conformance")
-            environment["HARMOS_CONFORMANCE_HOST"] = str(
-                paths.output(directory, "build", profile) / "fixtures/host" / f"harmos-conformance{'.exe' if os.name == 'nt' else ''}"
-            )
-        environment.pop("TEST_REPORT_DIR", None)
-        lane = _lane(
-            directory,
-            rules,
-            key,
-            category or "coverage",
-            language,
-            project,
-            profile,
-            command,
-            cwd,
-            environment,
-            junit,
-            scratch,
-        )
-        if language == "rust" and _execute(nextest.report(profile, cobertura), directory, environment) != 0:
-            lane["outcome"] = "failed"
-        if not cobertura.is_file():
-            raise policy.TestError(f"{key}: no coverage report was written")
-        lane["kind"] = "coverage"
-        lane["arguments"] = list(extra)
-        lane["coverage"] = (report.location(directory, profile, key) / "coverage.xml").relative_to(directory).as_posix()
-        report.write(
-            report.location(directory, profile, key) / "coverage.xml",
-            cobertura.read_text(encoding="utf-8"),
-        )
-        return 0 if lane["outcome"] == "passed" else 1
-
-
-def bench(
-    directory: Path,
-    category: str,
-    language: str,
-    project: str,
-    refresh: bool,
-    extra: Sequence[str],
-    archive_arguments: Sequence[str] = (),
-    binary: str | None = None,
-) -> int:
-    """Measure one benchmark layer and compare it with the `dev` baseline."""
-    rules = policy.load(directory)
-    measure = category in ("integration", "system")
-    if language == "rust" and category == "system" and binary in (None, "system-desktop"):
-        previous = directory / report.BENCHMARKS / "benchmarks-rust-desktop.json"
-        if previous.is_symlink() or not previous.resolve().is_relative_to(directory.resolve()):
-            raise policy.TestError("desktop benchmark report escapes the repository")
-        previous.unlink(missing_ok=True)
-    _preflight(directory, category, language, "bench")
-    identity = {
-        "platform": [
-            sys.platform,
-            platform.machine(),
-            platform.platform(),
-            platform.processor(),
-        ],
-        "runner": os.environ.get("RUNNER_NAME", os.environ.get("CI_RUNNER_ID", platform.node())),
-        "profile": "bench",
-        "metric": "median-nanoseconds",
-        "arguments": list(extra),
-        "cargo_arguments": list(archive_arguments),
-    }
-    boundaries = {}
-    if language == "rust":
-        identity["rustc"] = archive._toolchain(directory)
-        rows, status = _bench_rust(directory, category, refresh, measure, extra, archive_arguments, identity, binary, boundaries=boundaries)
-    elif language == "python":
-        identity["python"] = {
-            "version": sys.version,
-            "executable": archive._digest(Path(sys.executable)),
-        }
-        rows, status = _bench_python(directory, category, project, refresh, measure, extra, identity)
-    else:
-        raise policy.TestError("benchmarks run for rust and python")
-    if not rows and "--test" not in extra:
-        raise policy.TestError(f"no {category} {language} benchmark produced results")
-    if "--test" in extra:
-        print("Benchmark Diagnostic Mode: No Criterion Regression Estimates")
-
-    from .. import policy as project_policy
-    from ..release import reports
-
-    revision = os.environ.get("GITHUB_SHA") or project_policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
-    summary = reports.measurements(rows, f"{language}/{category}", revision, rules.bench_regression_percent, boundaries=boundaries)
-    output = directory / report.BENCHMARKS / f"benchmarks-{language}-{category}.json"
-    project_policy.write_json(output, summary)
-
-    for name, median, baseline in rows:
-        if baseline is None:
-            if refresh and status == 0:
-                print(f"::notice::benchmark baseline seeded: {name}")
-            else:
-                print(
-                    f"benchmark baseline missing: {name}; run mise run bench -- --language {language} --layer {category} --refresh-baseline"
-                )
-                status = status or 1
-            continue
-        change = (median - baseline) / baseline * 100
-        if math.isfinite(change) and change > rules.bench_regression_percent:
-            print(f"benchmark regression: {name}: {change:.1f}%")
-    print(f"bench {category}-{language}: {len(rows)} native results; see {report.BENCHMARKS}")
-    return 0 if status == 0 else 1
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
@@ -295,7 +44,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         split = values.index("--")
         values, extra = values[:split], values[split + 1 :]
 
-    parser = argparse.ArgumentParser(description="Test Lanes And Evidence")
+    parser = argparse.ArgumentParser(description="Test Lanes and Evidence")
     commands = parser.add_subparsers(dest="command", required=True)
     lane = commands.add_parser("test", help="run one test lane")
     lane.add_argument("--category", choices=policy.CATEGORIES, required=True)
@@ -304,7 +53,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     lane.add_argument(
         "--prepared", action="store_true", help="Shared wheel installation already completed before concurrent readers started"
     )
-    lane.add_argument("--archive-directory", type=Path, help="Read-Only Nextest Extraction Owned By The Concurrent Entry")
+    lane.add_argument("--archive-directory", type=Path, help="Read-Only Nextest Extraction Owned by the Concurrent Entry")
     bench_lane = commands.add_parser("bench", help="run one benchmark layer")
     bench_lane.add_argument("--category", choices=policy.BENCH_CATEGORIES, required=True)
     bench_lane.add_argument("--language", choices=("rust", "python"), required=True)
@@ -322,7 +71,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     try:
         directory = policy.root()
         if options.command == "test" and options.coverage:
-            return coverage(
+            return coverage.run(
                 directory,
                 options.language,
                 options.category,
@@ -331,7 +80,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 extra,
             )
         if options.command == "test":
-            return test(
+            return lanes.run(
                 directory,
                 options.category,
                 options.language,
@@ -342,7 +91,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 archive_directory=options.archive_directory,
             )
         if options.command == "coverage":
-            return coverage(
+            return coverage.run(
                 directory,
                 options.language,
                 None,
@@ -351,7 +100,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 extra,
             )
         if options.command == "bench":
-            return bench(
+            return benchmark.run(
                 directory,
                 options.category,
                 options.language,
@@ -368,339 +117,6 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
 
 # === Private Functions === #
-
-
-def _preflight(
-    directory: Path,
-    category: str | None,
-    language: str,
-    profile: str,
-) -> None:
-    """Refuse a stale fixture stamp before any Rust test runs."""
-    if language == "rust" and (category != "unit" or profile == "bench"):
-        output = paths.output(directory, "build", profile).relative_to(directory)
-        archive.fixtures(directory, profile, roots=[(output / part).as_posix() for part in ("tests", "fixtures")])
-
-
-@contextmanager
-def _scratch(directory: Path, key: str, profile: str) -> Generator[Path]:
-    if not key.startswith("bench-"):
-        output = report.location(directory, profile, key)
-        if output.is_symlink() or not output.resolve().is_relative_to(directory.resolve()):
-            raise policy.TestError("lane output escapes the repository")
-        shutil.rmtree(output, ignore_errors=True)
-    with temporary.directory() as scratch:
-        yield scratch
-
-
-def _lane(
-    directory: Path,
-    rules: policy.Policy,
-    key: str,
-    category: str,
-    language: str,
-    project: str,
-    profile: str,
-    command: Sequence[str],
-    cwd: Path,
-    environment: dict[str, str] | None,
-    junit: Path,
-    scratch: Path,
-) -> dict:
-    """Execute a lane command and turn its JUnit report into a lane record."""
-    started = time.time()
-    destination = report.location(directory, profile, key)
-    with (
-        desktop_bench.scratch(environment, destination) as scratch_environment,
-        desktop_bench.credentials(scratch_environment)
-        if language == "rust" and category != "unit"
-        else nullcontext(scratch_environment) as child_environment,
-    ):
-        if language in SCRIPTS:
-            status = _execute(command, cwd, child_environment, timeout_s=rules.deadline(category))
-        else:
-            status = _execute(command, cwd, child_environment)
-    seconds = time.time() - started
-    if (
-        not junit.resolve().is_relative_to(scratch.resolve())
-        or any(path.is_symlink() for path in (junit, *junit.parents) if path.is_relative_to(scratch))
-        or destination.is_symlink()
-        or not destination.resolve().is_relative_to(directory.resolve())
-    ):
-        raise policy.TestError(f"{key}: native evidence escapes its owned report paths")
-    for evidence in junit.parent.rglob("*"):
-        if evidence.is_symlink() or not evidence.resolve().is_relative_to(junit.parent.resolve()):
-            raise policy.TestError(f"{key}: native evidence escapes its report directory")
-        if evidence == junit or not evidence.is_file():
-            continue
-        target = destination / evidence.relative_to(junit.parent)
-        if target.is_symlink() or not target.resolve().is_relative_to(destination.resolve()):
-            raise policy.TestError(f"{key}: native evidence destination escapes its lane")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(evidence, target)
-    if not junit.is_file():
-        raise policy.TestError(f"{key}: the runner exited {status} without a JUnit report")
-
-    # Stories And Measurements
-    text = junit.read_text(encoding="utf-8")
-    package = Path(project).name if project != "." else directory.name
-    found = report.cases(text, category, language, package)
-    failed = sum(case.outcome == "failed" for case in found)
-    passed = sum(case.outcome == "passed" for case in found)
-
-    report.write(destination / "junit.xml", text)
-    durations = {}
-    for case in found:
-        if case.outcome == "passed":
-            durations.setdefault(case.suite, {})[case.name] = {"seconds": case.seconds}
-    report.dump(destination / "durations.json", durations)
-    print(f"{key}: {passed} passed, {failed} failed, {len(found) - passed - failed} skipped")
-    ran = passed > 0 or failed > 0
-    return {
-        "category": category,
-        "language": language,
-        "kind": "test",
-        "outcome": "passed" if status == 0 and ran and not failed else "failed",
-        "project": project,
-        "profile": profile,
-        "tests": len(found),
-        "passed": passed,
-        "failed": failed,
-        "skipped": sum(case.outcome == "skipped" for case in found),
-        "seconds": round(seconds, 3),
-        "started_at": int(started),
-        "junit": (destination / "junit.xml").relative_to(directory).as_posix(),
-        "coverage": None,
-        "durations": [(case.suite, case.name, case.package, case.seconds) for case in found if case.outcome == "passed"],
-    }
-
-
-def _console() -> dict:
-    """Keep Native Console Signaling Available Without A Visible Window."""
-    if os.name != "nt":
-        return {}
-    startup = subprocess.STARTUPINFO()
-    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startup.wShowWindow = subprocess.SW_HIDE
-    return {
-        "startupinfo": startup,
-        "creationflags": spawn_flags(subprocess.CREATE_NEW_CONSOLE),
-        "stdin": sys.stdin,
-        "stdout": sys.stdout,
-        "stderr": sys.stderr,
-    }
-
-
-def _execute(command: Sequence[str], cwd: Path, environment: dict[str, str] | None, *, timeout_s: float | None = None) -> int:
-    from .job import own_children
-
-    own_children()
-    if os.name == "nt":
-        command = [sys.executable, "-m", "dokime_tools.test.job", "--", *command]
-    try:
-        with subprocess.Popen(
-            list(command), cwd=cwd, env=environment, start_new_session=os.name != "nt" and timeout_s is not None, **_console()
-        ) as process:
-            try:
-                return process.wait(timeout=timeout_s)
-            except subprocess.TimeoutExpired:
-                print(f"{command[0]}: script lane exceeded its {timeout_s}-second hang guard", file=sys.stderr)
-                if os.name == "nt":
-                    subprocess.run(
-                        ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
-                        check=False,
-                        capture_output=True,
-                        creationflags=spawn_flags(),
-                    )
-                else:
-                    try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                if process.poll() is None:
-                    process.kill()
-                process.wait()
-                return 1
-    except OSError as error:
-        raise policy.TestError(f"{command[0]} is unavailable: {error}") from error
-
-
-def _measured(command: Sequence[str], cwd: Path, environment: dict[str, str], *, output: Path | None = None) -> tuple[int, int | None]:
-    """Exit status and peak resident bytes of one process and the children it waited for."""
-    from .job import own_children
-
-    own_children()
-    if os.name == "nt":
-        command = [sys.executable, "-m", "dokime_tools.test.job", "--", *command]
-    try:
-        console = _console()
-        if output is not None:
-            console.update(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
-        process = subprocess.Popen(list(command), cwd=cwd, env=environment, **console)
-    except OSError as error:
-        raise policy.TestError(f"{command[0]} is unavailable: {error}") from error
-    if output is not None:
-        stream = process.stdout
-        assert stream is not None, "Measure Native Benchmark: Capture Requires An Output Pipe"
-        with output.open("w", encoding="utf-8") as written, stream:
-            for line in stream:
-                print(line, end="", flush=True)
-                written.write(line)
-    if not hasattr(os, "wait4"):
-        return process.wait(), None
-    _, status, usage = os.wait4(process.pid, 0)
-    process.returncode = os.waitstatus_to_exitcode(status)
-    scale = 1 if sys.platform == "darwin" else 1024
-    return process.returncode, usage.ru_maxrss * scale
-
-
-def _bench_rust(
-    directory: Path,
-    category: str,
-    refresh: bool,
-    measure: bool,
-    extra: Sequence[str],
-    archive_arguments: Sequence[str],
-    identity: dict,
-    binary: str | None = None,
-    *,
-    boundaries: dict[str, str] | None = None,
-) -> tuple[list[tuple[str, float, float | None]], int]:
-    messages = paths.output(directory, "build", "bench") / "bench/compiler.json"
-    if not messages.is_file():
-        raise policy.TestError("missing benchmark compiler metadata; run build:rust:bench first")
-    archive.fixtures(directory, "bench", [messages.relative_to(directory).as_posix()])
-    compatibility = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
-    rows = []
-    status = 0
-    executed = False
-    for line in messages.read_text(encoding="utf-8").splitlines():
-        message = json.loads(line) if line.startswith("{") else {}
-        target = message.get("target", {})
-        name = target.get("name", "")
-        if binary is not None and name != binary:
-            continue
-        artifact = message.get("reason") == "compiler-artifact" and "bench" in target.get("kind", []) and message.get("executable")
-        if not artifact or not (name == category or name.startswith(category + "-")):
-            continue
-        executed = True
-        manifest = Path(message["manifest_path"])
-        owner = manifest.parent / name
-        if manifest.is_absolute() or ".." in owner.parts:
-            raise policy.TestError("benchmark owner escapes the repository")
-        home = report.native_directory(directory, CRITERION / compatibility / owner)
-        if any(path.is_symlink() or path.is_junction() for path in home.rglob("*")):
-            raise policy.TestError("native benchmark files must not be linked")
-        baselines = _criterion_baselines(home)
-        since = time.time()
-        environment = dict(os.environ, CRITERION_HOME=str(home.resolve()))
-        environment.pop("TEST_REPORT_DIR", None)
-        environment.pop("DOKIME_TEST_TRACE_DIR", None)
-        if name == "system-desktop":
-            (home / "desktop").mkdir(exist_ok=True)
-            for diagnostic in ("observations.json", "completion.json", "host-shutdown.json"):
-                (home / "desktop" / diagnostic).unlink(missing_ok=True)
-            shutil.copyfile(paths.output(directory, "build", "bench") / "fixtures/stamp.json", home / "desktop/fixture-stamp.json")
-        with (
-            desktop_bench.scratch(environment, home / ("desktop" if name == "system-desktop" else "scratch")) as child_environment,
-            desktop_bench.native(directory, child_environment) if name == "system-desktop" else nullcontext(),
-        ):
-            code, peak = _measured(
-                [str(directory / message["executable"]), "--bench", "--baseline-lenient", BASELINE, *extra],
-                directory / manifest.parent,
-                child_environment,
-                output=home / "run.log",
-            )
-        status = status or code
-        if boundaries is not None and (home / "run.log").is_file():
-            boundary = None
-            for line in (home / "run.log").read_text(encoding="utf-8").splitlines():
-                if line.startswith("Boundary | "):
-                    boundary = line.split(" | ", 2)[2]
-                matched = re.match(r"Benchmarking ([^:]+)(?::|$)", line)
-                if matched and boundary is not None:
-                    boundaries[f"{owner.as_posix()}/{matched[1]}"] = boundary
-        if any(path.is_symlink() or path.is_junction() for path in home.rglob("*")):
-            raise policy.TestError("native benchmark files must not be linked")
-        if name == "system-desktop":
-            desktop_bench.collect(
-                directory, home / "desktop", identity, policy.load(directory).bench_regression_percent, refresh=refresh, success=code == 0
-            )
-        for path in sorted(home.rglob("new/estimates.json")) if home.is_dir() else []:
-            if path.stat().st_mtime < since:
-                continue
-            benchmark = json.loads(path.with_name("benchmark.json").read_text(encoding="utf-8"))
-            estimates = json.loads(path.read_text(encoding="utf-8"))
-            key = path.parent.parent
-            case = f"{owner.as_posix()}/{benchmark.get('full_id', key.name)}"
-            rows.append((case, estimates["median"]["point_estimate"], baselines.get(key)))
-            if code == 0 and refresh:
-                shutil.copytree(path.parent, key / BASELINE, dirs_exist_ok=True)
-        if measure and peak is not None:
-            print(f"benchmark peak memory: {owner.as_posix()}: {peak} bytes")
-    if not executed:
-        raise policy.TestError("no native benchmark executable matched the selection")
-    return rows, status
-
-
-def _criterion_baselines(home: Path) -> dict[Path, float]:
-    medians = {}
-    for path in home.rglob(f"{BASELINE}/estimates.json") if home.is_dir() else []:
-        try:
-            median = json.loads(path.read_text(encoding="utf-8"))["median"]["point_estimate"]
-        except (OSError, ValueError, KeyError, TypeError):
-            continue
-        if not isinstance(median, bool) and isinstance(median, (int, float)) and math.isfinite(median) and median > 0:
-            medians[path.parent.parent] = median
-    return medians
-
-
-def _bench_python(
-    directory: Path,
-    category: str,
-    project: str,
-    refresh: bool,
-    measure: bool,
-    extra: Sequence[str],
-    identity: dict,
-) -> tuple[list[tuple[str, float, float | None]], int]:
-    owner = Path(project)
-    if owner.is_absolute() or ".." in owner.parts:
-        raise policy.TestError("benchmark project escapes the repository")
-    compatibility = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
-    home = report.native_directory(directory, report.BENCHMARKS / "python" / compatibility / owner / category)
-    output = home / "new.json"
-    stored = home / f"{BASELINE}.json"
-    if output.is_symlink() or stored.is_symlink():
-        raise policy.TestError("native benchmark files must not be linked")
-    try:
-        previous = json.loads(stored.read_text(encoding="utf-8")) if stored.is_file() else {}
-        baselines = {entry.get("fullname", entry["name"]): entry["stats"]["median"] * 1e9 for entry in previous.get("benchmarks", [])}
-    except (OSError, ValueError, KeyError, TypeError):
-        baselines = {}
-    baselines = {
-        name: value
-        for name, value in baselines.items()
-        if not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value) and value > 0
-    }
-    output.unlink(missing_ok=True)
-    cwd = directory / project
-    environment = pytest.environment(directory)
-    environment.pop("TEST_REPORT_DIR", None)
-    environment.pop("DOKIME_TEST_TRACE_DIR", None)
-    status, peak = _measured(pytest.bench(cwd, category, output, extra), cwd, environment)
-    if not output.is_file():
-        raise policy.TestError("pytest-benchmark wrote no results")
-    rows = []
-    for entry in json.loads(output.read_text(encoding="utf-8"))["benchmarks"]:
-        name = entry.get("fullname", entry["name"])
-        rows.append((f"{owner.as_posix()}/{name}", entry["stats"]["median"] * 1e9, baselines.get(name)))
-    if status == 0 and refresh:
-        shutil.copyfile(output, stored)
-    if measure and peak is not None:
-        print(f"benchmark peak memory: {project}/{category}: {peak} bytes")
-    return rows, status
-
 
 # === Entry Point === #
 
