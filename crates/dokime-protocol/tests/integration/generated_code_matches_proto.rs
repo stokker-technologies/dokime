@@ -39,11 +39,13 @@ use dokime_protocol::host::{
 use dokime_protocol::model::Step;
 use dokime_protocol::model::TestCase;
 use dokime_protocol::model::{
-    BarArrangement, ContourRender, DataExpression, Document, FieldReference, GridAxisEntry, Origin, PlotKind, PluginRun, Reduction,
-    Section, Value, XyInterval, data_expression, origin, transform_expression, value,
+    BarArrangement, ContourRender, Document, FieldReference, GridAxisEntry, Origin, PlotKind, PluginRun, Reduction, Section, Value,
+    XyInterval, data_expression, origin, transform_expression, value,
 };
 use dokime_protocol::plugin::{StepsExecuteRequest, StepsExecuteResponse};
+use dokime_protocol_generator::protocol;
 use harmos_protocol::plugin::InstanceGetResponse;
+use heck::AsSnakeCase;
 use prost_reflect::ReflectMessage;
 use prost_types::Duration;
 use prost_types::Timestamp;
@@ -113,7 +115,7 @@ fn generated_code_matches_proto() -> Result<(), Box<dyn Error>> {
     let output_root = root.join("target/generated/rust/dokime-protocol");
     fs::create_dir_all(&output_root)?;
     let output = tempfile::tempdir_in(output_root)?;
-    dokime_protocol_generator::protocol::generate(&root, output.path())?;
+    protocol::generate(&root, output.path())?;
 
     // Match the Vendored Contract to Its Published Type Owner.
     let published = InstanceGetResponse::default().descriptor().parent_file();
@@ -222,7 +224,7 @@ fn descriptors_separate_executors_and_admit_declared_callers() {
         let plugin = service.package_name() == "dokime.plugin.v1";
         assert!(host || plugin);
         assert_eq!(service.parent_file().services().count(), 1);
-        assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", heck::AsSnakeCase(service.name())));
+        assert_eq!(service.parent_file().name().rsplit('/').next().unwrap(), format!("{}.proto", AsSnakeCase(service.name())));
         for method in service.methods() {
             assert_eq!(method.input().name(), format!("{}{}Request", service.name(), method.name()));
             assert_eq!(method.output().name(), format!("{}{}Response", service.name(), method.name()));
