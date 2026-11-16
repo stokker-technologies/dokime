@@ -135,7 +135,10 @@ pub(crate) async fn run(command: Command, settings: Settings) -> Result<()> {
         drop(host);
         // The Scratch Copy Releases the Claim It Took at Open; Detached, It Holds No Other Credential.
         dokime_runtime::services::remove_credentials(&copy, &settings.credentials()?)?;
-        drop(lease);
+        if let Some(lease) = lease {
+            // Unlock Before Closing, So the Root Is Free When the Command Returns.
+            lease.unlock()?;
+        }
         report["checks"].as_array_mut().unwrap().push("open_close_scratch_host".into());
         Ok(())
     }

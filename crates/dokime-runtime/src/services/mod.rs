@@ -219,6 +219,8 @@ pub fn remove_credentials(root: &Path, namespace: &CredentialNamespace) -> Resul
     dokime_operations::host::remove_root_secrets(&storage, namespace)?;
     access_credentials::Store::new(storage, host_id.clone(), namespace).remove()?;
     root_claim::release(root, &host_id, namespace)?;
+    // Unlock Before Closing, So the Root Is Free When This Call Returns.
+    lease.unlock()?;
     Ok(())
 }
 
