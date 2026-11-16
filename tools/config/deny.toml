@@ -1,5 +1,7 @@
 # Dependency Policy: Only Explicitly Allowed License Alternatives May Be Selected.
 [advisories]
+# Check Transitive Unsoundness Too; the Default Covers Only Direct Workspace Dependencies.
+unsound = "all"
 # Accepted advisories belong here with a reason, owner and expiry; see docs/SECURITY.md.
 ignore = []
 
