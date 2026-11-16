@@ -78,7 +78,8 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             drop(host);
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-            let reports = Client::from_channel(channel, super::support::client_settings())?.reports;
+            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let reports = &client.reports;
             let subject = ReportSubject {
                 kind: Some(report_subject::Kind::Execution(identifier.clone())),
             };
@@ -115,8 +116,9 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             process.close().await?;
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-            let reports = Client::from_channel(channel.clone(), super::support::client_settings())?.reports;
-            let executions = Client::from_channel(channel, super::support::client_settings())?.executions;
+            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let reports = &client.reports;
+            let executions = &client.executions;
             let current = executions.get_with(identifier.clone(), ExecutionsGetOptions { at: None, ..Default::default() }).await?;
             assert_eq!(current.execution.unwrap().report.unwrap().state, ReportState::Pending as i32);
             let request = ReportsPublishRequest {

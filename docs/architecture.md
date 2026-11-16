@@ -706,6 +706,9 @@ it through `GetFileBytes`; the final product report transaction still awaits the
 compound-mutation cutover.
 The bounded live report registry retains native references only; it owns no second
 copy of the file bytes or file handles after upload.
+Roots containing the superseded SQL view or prepared-report journals are refused
+with fresh-root guidance at baseline v1. Admission preserves their stored values;
+there is no migration, fallback reader or automatic reset.
 
 The exact [operation/message/caller map](execution-host.md#operation-identity-and-caller-mapping)
 is canonical.
@@ -728,18 +731,19 @@ the host, so neither discovery operation is needed by them. Invocations remains
 available for admitted peer/child calls; Time and own-entry plugins.Settings.List
 remain shared. Narrowing never widens an upstream caller set.
 
-The runtime consumer must apply this shape before listeners or plugins start:
+At the pinned revision, the runtime applies this assembly before listeners or plugins start:
 
 ```rust
-let backends = Backend::open(&store)?;
+let (backends, backend_lease) = Backend::open(&store, catalog.clone())?;
 let storage = StorageManager::with_catalog(catalog, backends, storage_settings)?;
 setup.settings().storage(&storage);
 setup.composition(include_str!("../../../protocol/composition.toml"))?;
 setup.catalog(builtins::storage_catalog(), Lane::default());
 ```
 
-This is the required assembly contract, not a claim that runtime consumers already
-implement it. `primary` implements StorageBackend and `state` implements
+The assembled runtime retains `backend_lease`. This records the current manager
+assembly; locked facade/builder adoption replaces that construction after upstream
+support is adopted. `primary` implements StorageBackend and `state` implements
 StateBackend with identical StoreHistory. Keep one manager per root, not one per
 execution. Product histories/scopes select executions under that root. Every data
 operation stays in-process through the library catalog, never a storage gRPC API.

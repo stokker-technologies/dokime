@@ -43,7 +43,7 @@ access credentials/root claims, CLI doctor copies and desktop native archive/dis
 - [ ] 4.1 Move resources, views, execution state, catalog inventory, record schemas, plans, notes, client reads, resource values, evidence positions and administration onto `SetSchema`, `GetObject`, `SetObject` and `ListRows`; delete their direct SQL. Prove with stories `client_browses_catalog`, `client_keeps_execution_notes`, `client_plans_parameter_selections`, `client_edits_settings` and `client_reuses_frozen_schemas`.
 - [ ] 4.2 Remove direct administration deletion in `crates/dokime-operations/src/host/secrets/store.rs` and the backend overview scan in `host/backend/overview/get.rs` (counts through `list_rows`). Prove with stories `client_manages_secret_storage` and `client_inspects_health`.
 
-- [ ] 4.3 Retain catalog/document/plot/evidence view payloads through Harmos object operations, preserving the first published image for each product cut. Remove the unused SQL administration revision/receipt implementation. Prove retained catalog reads across host restart, plus focused operations/storage and affected document/plot stories.
+- [x] 4.3 Retain catalog/document/plot/evidence view payloads through Harmos object operations, preserving the first published image for each product cut. Remove the unused SQL administration revision/receipt implementation. Refuse roots containing superseded SQL view/prepared-report journals without deleting their values. Prove retained catalog reads across host restart, plus focused operations/storage and affected document/plot stories.
 
 ## 5. Records and Sample Ingestion
 
@@ -71,7 +71,7 @@ atomic mutation**; execution/case deletion is blocked on **delete/scoped delete*
 - [ ] 7.1 Move content, artifacts, execution files and report bytes to Harmos file operations and object metadata. Prove with stories `client_transfers_execution_content` and `client_publishes_execution_report`.
 - [ ] 7.2 Implement execution and case deletion with Dokime seal and ownership checks followed by Harmos scoped deletion; delete the `history.rs` and `cycles.rs` deletion paths. Prove with a new story `client_deletes_execution_scope` asserting absence at new cuts and retained-cut reads.
 
-- [ ] 7.3 Store prepared-report metadata and its native file reference through Harmos object operations; read its bytes through GetFileBytes for publication and delete the duplicate prepared HTML journal and unused live temporary-file handles. Prove publication from a prepared report across host restart with `client_publishes_execution_report` and report-manager lifecycle stories.
+- [x] 7.3 Store prepared-report metadata and its native file reference through Harmos object operations; read its bytes through GetFileBytes for publication and delete the duplicate prepared HTML journal and unused live temporary-file handles. Prove publication from a prepared report across host restart with `client_publishes_execution_report` and report-manager lifecycle stories.
 
 ## 8. Queries, Statistics and Expressions
 

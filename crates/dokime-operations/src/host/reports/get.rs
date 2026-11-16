@@ -83,9 +83,7 @@ pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<Rep
             let cut = context.host.store().metadata(execution)?;
             let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Get Report: {error}")))?;
             file.write_all(&report.html).map_err(|error| Error::Invalid(format!("Get Report: {error}")))?;
-            let (_, length, digest) = crate::host::content::transfer::temporary(
-                file.try_clone().map_err(|error| Error::Invalid(format!("Get Report: {error}")))?,
-            )?;
+            let (file, length, digest) = crate::host::content::transfer::temporary(file)?;
             let digest =
                 (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
             let created = create::handle(
