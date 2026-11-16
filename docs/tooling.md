@@ -140,8 +140,8 @@ feed. C++ uses its pinned vcpkg checkout in mise's machine cache and FetchConten
 under `target/cp/`; no product-specific dependency-cache override is required.
 Python consumes the built pure wheel and the pinned library SDK. A focused Python
 lane (`mise run test -- --language python --layer system`) builds the wheel from the
-current source and reinstalls it into the root `.venv/` before pytest; prepared CI
-lanes install the wheel their build job staged. Python system
+current source and reinstalls it into the root `.venv/` before pytest; the prepared
+schedule installs the staged wheel once before its concurrent lanes start. Python system
 and coverage tasks select the conformance executable from the host fixtures.
 Linux host stories own an isolated session bus/keyring for credential storage;
 install `dbus`, `gnome-keyring` and `libglib2.0-bin`. Native unit tests run without
