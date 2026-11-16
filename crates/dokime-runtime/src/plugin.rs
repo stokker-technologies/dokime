@@ -20,6 +20,8 @@ use std::{num::NonZeroUsize, path::Path, process::Stdio, time::Duration};
 
 // Third Party Imports
 use harmos_protocol::plugin::instance_client::InstanceClient;
+use harmos_runtime::builtins::plugins::Delete;
+use harmos_runtime::operations::ProtobufOperation;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::ChildStdout,
@@ -34,6 +36,11 @@ use crate::{Error, Result};
 
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
+/// The Plugins Operation Timeout, Which Bounds a Whole Managed Plugin Teardown.
+pub const PLUGIN_TEARDOWN: Duration = <Delete as ProtobufOperation>::POLICY.timeout;
+/// The Bound of Each Teardown Phase: Settle, Stop and Exit, Then Kill and Reap.
+pub const STOP_GRACE: Duration = PLUGIN_TEARDOWN.checked_div(3).unwrap();
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -44,7 +51,6 @@ const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
 pub struct PlacementSettings {
     pub connect_timeout: Duration,
     pub reconnect_delay: Duration,
-    pub stop_grace: Duration,
     pub stream_window: NonZeroUsize,
     pub message_bytes: NonZeroUsize,
 }
@@ -110,7 +116,7 @@ impl PluginProcess {
         self.child.0.id()
     }
     pub async fn close(&mut self) -> Result<()> {
-        let stopped = tokio::time::timeout(self.settings.stop_grace, async {
+        let stopped = tokio::time::timeout(STOP_GRACE, async {
             let mut client = connect(&self.endpoint, &self.settings).await?;
             client.stop(harmos_protocol::plugin::InstanceStopRequest { reason: "Host Removed the Entry".into() }).await?;
             Ok::<(), Error>(())
@@ -128,7 +134,7 @@ impl PluginProcess {
                 tokio::time::sleep(PROCESS_POLL_INTERVAL).await;
             }
         };
-        match tokio::time::timeout(self.settings.stop_grace, exited).await {
+        match tokio::time::timeout(STOP_GRACE, exited).await {
             Ok(status) => {
                 status?;
             }

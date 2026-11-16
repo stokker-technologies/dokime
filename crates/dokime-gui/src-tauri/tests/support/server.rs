@@ -96,7 +96,6 @@ impl Fixture {
         let placement = dokime_runtime::PlacementSettings {
             connect_timeout: std::time::Duration::from_secs(30),
             reconnect_delay: std::time::Duration::from_millis(25),
-            stop_grace: std::time::Duration::from_secs(30),
             stream_window: std::num::NonZeroUsize::new(8).unwrap(),
             message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };

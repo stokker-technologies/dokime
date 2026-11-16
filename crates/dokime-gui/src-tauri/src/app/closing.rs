@@ -34,14 +34,15 @@ use crate::native_session::{DesktopSessionControl, DesktopSessionError};
 
 /* === Constants === */
 
+// Keep An Idle Close Within Its One-Second Target Free Of Intermediate State.
 const DESKTOP_CLOSING_VISIBLE_MS: u64 = 1_000;
-const DESKTOP_STOP_GRACE_MS: u64 = 5_000;
+// The bounded plugin teardown plus one stop grace for the backend's final
+// checkpoint; past it the operator is offered an explicit choice to exit
+// without finishing.
+const DESKTOP_CLOSING_DEADLINE: Duration = dokime_runtime::PLUGIN_TEARDOWN.checked_add(dokime_runtime::STOP_GRACE).unwrap();
 
 // The event the WebView follows (`src/lib/desktop/stopping.ts`).
 const STOPPING_EVENT: &str = "desktop://stopping";
-// Keep An Idle Close Within Its One-Second Target Free Of Intermediate State.
-// The run's settle budget plus the backend's final checkpoint; past it the
-// operator is offered an explicit choice to exit without finishing.
 const EXIT_WITHOUT_FINISHING: &str = "Exit Without Finishing";
 
 /* === Macros === */
@@ -136,9 +137,7 @@ impl Closing {
         let control = app.state::<DesktopSessionControl>();
         let shutdown = control.shutdown();
         let visible = tokio::time::sleep(Duration::from_millis(DESKTOP_CLOSING_VISIBLE_MS));
-        let deadline = tokio::time::sleep(
-            crate::connection::host::desktop_settings().host.placement.stop_grace + Duration::from_millis(DESKTOP_STOP_GRACE_MS),
-        );
+        let deadline = tokio::time::sleep(DESKTOP_CLOSING_DEADLINE);
         tokio::pin!(shutdown, visible, deadline);
         let mut shown = false;
         loop {

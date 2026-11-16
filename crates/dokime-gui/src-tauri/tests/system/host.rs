@@ -134,7 +134,6 @@ fn settings() -> ConnectionSettings {
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),
                 reconnect_delay: Duration::from_millis(25),
-                stop_grace: Duration::from_secs(30),
                 stream_window: NonZeroUsize::new(8).unwrap(),
                 message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
             },

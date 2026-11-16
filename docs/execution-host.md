@@ -390,7 +390,6 @@ read_timeout_s = 30
 mutation_timeout_s = 30
 watch_timeout_s = 3600
 reconnect_delay_ms = 25
-stop_grace_s = 30
 message_bytes = 4194304
 retained_bytes = 67108864
 stream_buffer = 8
@@ -1821,7 +1820,12 @@ streams and no tick reaches the plugin after cleanup; a run that stops early sti
 stops its samples before cleanup. Binding closure settles descendant calls and
 accepted ingestion before streams close and the execution is sealed. Stop and close
 each settle within `stop_grace`; a plugin that misses it leaves the execution
-Interrupted with failure evidence naming the action.
+Interrupted with failure evidence naming the action. `stop_grace` is not a setting:
+`dokime_runtime::STOP_GRACE` derives it as one third of the Plugins operation
+timeout (`PLUGIN_TEARDOWN`, 30 s, so 10 s), because a managed teardown settles,
+stops and then kills, each phase within `stop_grace`. The host binary, the CLI and
+the desktop all read it; the desktop offers to exit without finishing once
+`PLUGIN_TEARDOWN` plus one `stop_grace` has passed.
 The host clock owns transport deadlines and policy retry waits. Each controlled
 execution clock owns its plugin sleeps and publication cadence. Before returning
 a lifecycle call, the driver awaits quiescence at the current execution time;

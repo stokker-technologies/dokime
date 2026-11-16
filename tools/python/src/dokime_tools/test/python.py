@@ -17,7 +17,7 @@ from tempfile import TemporaryDirectory
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.build import paths
+from dokime_tools.build import wheel
 from dokime_tools.test import policy, run
 
 # Type Checking Imports
@@ -37,10 +37,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("dev", "release"), default="dev")
     options, arguments = parser.parse_known_args()
-    directory = paths.output(policy.root(), "build", options.profile, "any") / "python"
-    wheels = list(directory.glob("*.whl"))
-    if len(wheels) != 1:
-        raise SystemExit(f"expected one staged Python wheel in {directory}; run `mise run build -- --language python`")
+    # A Focused Lane Tests the Current Source: Build the Wheel the Lane Installs.
+    wheel.build(policy.root(), options.profile)
     # Each Invocation Owns Its Fixtures; Pytest Must Not Clean Another Run's Links.
     with TemporaryDirectory(prefix="dokime-pytest-") as scratch:
         if "--" not in arguments:

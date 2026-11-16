@@ -138,7 +138,10 @@ never compile plugins.
 `HARMOS_SOURCE` may select an existing checkout when preparing the C# dependency
 feed. C++ uses its pinned vcpkg checkout in mise's machine cache and FetchContent
 under `target/cp/`; no product-specific dependency-cache override is required.
-Python consumes the built pure wheel and the pinned library SDK. Python system
+Python consumes the built pure wheel and the pinned library SDK. A focused Python
+lane (`mise run test -- --language python --layer system`) builds the wheel from the
+current source and reinstalls it into the root `.venv/` before pytest; prepared CI
+lanes install the wheel their build job staged. Python system
 and coverage tasks select the conformance executable from the host fixtures.
 Linux host stories own an isolated session bus/keyring for credential storage;
 install `dbus`, `gnome-keyring` and `libglib2.0-bin`. Native unit tests run without

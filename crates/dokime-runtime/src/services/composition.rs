@@ -177,7 +177,7 @@ pub(super) async fn launch(
             placement: PlacementSettings {
                 connect_timeout: placement.connect_timeout,
                 reconnect_delay: placement.reconnect_delay,
-                stop_grace: placement.stop_grace,
+                stop_grace: crate::STOP_GRACE,
                 stream_window: placement.stream_window,
             },
             bundle: Default::default(),
