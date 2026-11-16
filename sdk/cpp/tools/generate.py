@@ -61,7 +61,7 @@ def main() -> None:
             if path.is_file() and path.read_bytes() != (root / path.relative_to(staging)).read_bytes()
         ]
         if changed:
-            raise RuntimeError("Check C++ Generation: Frozen Output Drift: " + ", ".join(changed))
+            raise RuntimeError("Check C++ Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(changed))
         print("C++ Generation Matches All Six Frozen Outputs")
     finally:
         shutil.rmtree(staging)

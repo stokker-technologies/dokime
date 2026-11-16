@@ -59,7 +59,7 @@ def main(*, check: bool = False) -> None:
         ]
         status = protoc.main(arguments)
         if status:
-            raise RuntimeError("Generate Python Protocols: protoc Failed")
+            raise RuntimeError("Generate Python Protocols: Correct the Reported Proto Errors and Regenerate")
         if not check:
             for old in source.rglob("*_pb2*"):
                 if old.is_file():
@@ -106,7 +106,7 @@ def main(*, check: bool = False) -> None:
             if (source / "_wire/sources.json").read_text(encoding="utf-8") != text:
                 drift.append("_wire/sources.json")
             if drift:
-                raise ValueError("Check Python Generation: Frozen Output Drift: " + ", ".join(drift))
+                raise ValueError("Check Python Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(drift))
         else:
             (source / "_wire/sources.json").write_text(text, encoding="utf-8", newline="\n")
     finally:
