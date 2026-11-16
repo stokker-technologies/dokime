@@ -56,7 +56,7 @@ service Cycles {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // CyclesGetRequest for Cycles.Get.
 message CyclesGetRequest {
@@ -71,8 +71,6 @@ message CyclesGetResponse {
   .dokime.host.v1.CycleSummary cycle = 3;
   .harmos.model.v1.Position resolved_at = 90;
 }
-
-// === Set === //
 
 // CyclesSetRequest for Cycles.Set.
 message CyclesSetRequest {
@@ -89,8 +87,6 @@ message CyclesSetResponse {
   .harmos.model.v1.Receipt receipt = 3;
 }
 
-// === List === //
-
 // CyclesListRequest for Cycles.List.
 message CyclesListRequest {
   .dokime.host.v1.CycleSelection selection = 1;
@@ -106,8 +102,6 @@ message CyclesListResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
   string next_page_token = 91;
 }
-
-// === Watch === //
 
 // CyclesWatchRequest for Cycles.Watch.
 message CyclesWatchRequest {
@@ -126,8 +120,6 @@ message CyclesWatchResponse {
   .harmos.model.v1.Failure resync_required = 92;
 }
 
-// === Create === //
-
 // CyclesCreateRequest for Cycles.Create.
 message CyclesCreateRequest {
   repeated .dokime.model.v1.Origin origins = 1;
@@ -144,8 +136,6 @@ message CyclesCreateResponse {
   repeated .dokime.host.v1.RerunCaseNotice dropped_parameters = 4;
   .harmos.model.v1.Receipt receipt = 3;
 }
-
-// === Seal === //
 
 // CyclesSealRequest for Cycles.Seal.
 message CyclesSealRequest {

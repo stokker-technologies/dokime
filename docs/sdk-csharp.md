@@ -24,7 +24,7 @@ mise -C sdk/csharp run test:starter
 ```
 
 `restore` stages unmodified Harmos sources from revision
-`640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`, including their checked-in wire output,
+`7fe385eacbe9a4c9a47943f6a528f97a014256ee`, including their checked-in wire output,
 and packs `Harmos` into `target/cs/feed`. Set `HARMOS_SOURCE` to a local library
 checkout to read that exact revision with `git archive`; otherwise preparation
 uses its immutable source archive. Dokime references the staged `Harmos` project,
@@ -52,7 +52,7 @@ locally built `Dokime` and `Harmos` packages. `package` consumes the existing Re
 `build:starter -- --project /path/to/Test.csproj` selects an exported consumer.
 Each example pins the NuGet package directly and can be exported independently.
 
-`test:generation` compiles both generated public surfaces and their content calls
+`check:generated` compiles both generated public surfaces and their content calls
 in isolation under `target/cs/generation`. `build` compiles the complete solution,
 including authored file transfers. `test`, `package`, `build:examples` and
 `test:starter` exercise the SDK and its installed NuGet consumers. Real-host proof
@@ -133,11 +133,6 @@ harmonized selectors and rich replies. Plugin selectors may be omitted and remai
 restricted to the trusted execution. `Context.CallAsync` and `.WatchAsync` also
 support explicitly declared instrument operations, preserving cancellation and
 scope through the pinned library.
-
-`Plugin.Analysis` registers one Protected computation with raw `AnalysisSamples`
-axes, values and units. It returns typed `AnalysisValues`, including full raw axes
-and independent display indices. No analysis convenience converts those axes to
-plot drawing coordinates.
 
 ## Use the Client
 

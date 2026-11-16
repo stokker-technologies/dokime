@@ -303,9 +303,9 @@ dependencies = [
 
 [[package]]
 name = "async-executor"
-version = "1.14.0"
+version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a"
+checksum = "f426a31126c735126297bc5ea7a521263c9faff4f63ca415267ee625651c4f37"
 dependencies = [
  "async-task",
  "concurrent-queue",
@@ -1547,17 +1547,15 @@ dependencies = [
 name = "dokime-protocol"
 version = "0.1.5"
 dependencies = [
+ "dokime-protocol-generator",
  "harmos-protocol",
  "heck 0.5.0",
  "prost",
- "prost-build",
  "prost-reflect",
  "prost-types",
- "protoc-bin-vendored",
  "tempfile",
  "tonic",
  "tonic-prost",
- "tonic-prost-build",
 ]
 
 [[package]]
@@ -2372,7 +2370,7 @@ dependencies = [
 [[package]]
 name = "harmos"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=640c73959d2a5ee65015afc617c0f3f2b4ca9f6c#640c73959d2a5ee65015afc617c0f3f2b4ca9f6c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=7fe385eacbe9a4c9a47943f6a528f97a014256ee#7fe385eacbe9a4c9a47943f6a528f97a014256ee"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2393,7 +2391,7 @@ dependencies = [
 [[package]]
 name = "harmos-domain"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=640c73959d2a5ee65015afc617c0f3f2b4ca9f6c#640c73959d2a5ee65015afc617c0f3f2b4ca9f6c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=7fe385eacbe9a4c9a47943f6a528f97a014256ee#7fe385eacbe9a4c9a47943f6a528f97a014256ee"
 dependencies = [
  "harmos-protocol",
  "harmos-sdk-derive",
@@ -2411,7 +2409,7 @@ dependencies = [
 [[package]]
 name = "harmos-operations"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=640c73959d2a5ee65015afc617c0f3f2b4ca9f6c#640c73959d2a5ee65015afc617c0f3f2b4ca9f6c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=7fe385eacbe9a4c9a47943f6a528f97a014256ee#7fe385eacbe9a4c9a47943f6a528f97a014256ee"
 dependencies = [
  "futures-core",
  "futures-util",
@@ -2437,7 +2435,7 @@ dependencies = [
 [[package]]
 name = "harmos-protocol"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=640c73959d2a5ee65015afc617c0f3f2b4ca9f6c#640c73959d2a5ee65015afc617c0f3f2b4ca9f6c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=7fe385eacbe9a4c9a47943f6a528f97a014256ee#7fe385eacbe9a4c9a47943f6a528f97a014256ee"
 dependencies = [
  "prost",
  "prost-reflect",
@@ -2452,7 +2450,7 @@ dependencies = [
 [[package]]
 name = "harmos-query"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=640c73959d2a5ee65015afc617c0f3f2b4ca9f6c#640c73959d2a5ee65015afc617c0f3f2b4ca9f6c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=7fe385eacbe9a4c9a47943f6a528f97a014256ee#7fe385eacbe9a4c9a47943f6a528f97a014256ee"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -2474,7 +2472,7 @@ dependencies = [
 [[package]]
 name = "harmos-runtime"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=640c73959d2a5ee65015afc617c0f3f2b4ca9f6c#640c73959d2a5ee65015afc617c0f3f2b4ca9f6c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=7fe385eacbe9a4c9a47943f6a528f97a014256ee#7fe385eacbe9a4c9a47943f6a528f97a014256ee"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2516,7 +2514,7 @@ dependencies = [
 [[package]]
 name = "harmos-sdk-derive"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=640c73959d2a5ee65015afc617c0f3f2b4ca9f6c#640c73959d2a5ee65015afc617c0f3f2b4ca9f6c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=7fe385eacbe9a4c9a47943f6a528f97a014256ee#7fe385eacbe9a4c9a47943f6a528f97a014256ee"
 dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",
@@ -2528,7 +2526,7 @@ dependencies = [
 [[package]]
 name = "harmos-storage"
 version = "0.1.14"
-source = "git+https://github.com/stokker-technologies/harmos?rev=640c73959d2a5ee65015afc617c0f3f2b4ca9f6c#640c73959d2a5ee65015afc617c0f3f2b4ca9f6c"
+source = "git+https://github.com/stokker-technologies/harmos?rev=7fe385eacbe9a4c9a47943f6a528f97a014256ee#7fe385eacbe9a4c9a47943f6a528f97a014256ee"
 dependencies = [
  "arrow-array",
  "arrow-data",
@@ -4798,9 +4796,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+checksum = "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
 dependencies = [
  "bitflags 2.13.2",
  "errno",

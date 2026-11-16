@@ -140,7 +140,7 @@ storage root; the old folder is preserved. There is no reset or migration.
 `dokime` is the current command-line binary from `crates/dokime-cli`.
 It hosts Dokime in process, creates projects in all four SDK languages, produces
 and inspects bundles, admits plugins and controls execution/cycle workflows.
-Exact subcommands are in the [CLI section](execution-host.md#command-line-candidate).
+Exact subcommands are in the [CLI section](execution-host.md#command-line-tool).
 The CLI uses the Rust SDK's client roots. `catalog list/show` reads the top-level
 Suites resource; `operation list/show/call` discovers contracts through the library's
 Operations.List. Product and library operations use their respective host executor packages. Product operations are currently absent from host discovery,
@@ -200,7 +200,7 @@ Other operation grammar and library composition slices remain locked work.
 ## Examples
 
 - [Rust Thermal Suite](../sdk/rust/examples/thermal.rs) and [Rust SDK Guide](rust-sdk.md).
-- [OBC Charger Testbench](plugin-obc.md): the shipped charger plugin, including the Bench scale suite.
+- [OBC Reference Plugin](../plugins/sidecars/obc/): steady-state, transient and independent benchmark templates; [authoring guidance](../.claude/skills/dokime-authoring/SKILL.md).
 - [Python Starter](../sdk/python/examples/starter/) and [Python SDK](../sdk/python/README.md).
 - [C# Starter](../sdk/csharp/starter/) and [C# SDK Guide](sdk-csharp.md).
 - [C++ Starter](../sdk/cpp/starter/) and [C++ SDK Guide](sdk-cpp.md).

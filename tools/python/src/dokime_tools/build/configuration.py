@@ -7,7 +7,7 @@
 # ***
 
 
-"""Shared Build Configuration And Task Invocation"""
+"Shared Build Configuration and Task Invocation"
 
 # === Imports === #
 
@@ -20,9 +20,14 @@ from collections.abc import Callable
 from pathlib import Path
 from time import perf_counter
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
-from dokime_tools.build import cargo, frontend, paths
+from dokime_tools.build import cargo, paths
 from dokime_tools.test import policy
 
 # Type Checking Imports
@@ -31,8 +36,7 @@ from dokime_tools.test import policy
 
 # === Constants === #
 
-ROOT = frontend.ROOT
-PROFILES = policy.PROFILES
+ROOT = Path(__file__).resolve().parents[5]
 
 # === Types === #
 
@@ -51,7 +55,7 @@ def relative(paths: list[Path]) -> list[str]:
 
 def invoke(operation: Callable[[str], object]) -> int:
     parser = argparse.ArgumentParser(description=operation.__doc__)
-    parser.add_argument("--profile", choices=PROFILES, default="dev")
+    parser.add_argument("--profile", choices=policy.PROFILES, default="dev")
     options = parser.parse_args()
     os.environ.update(cargo.compiler_environment(options.profile))
     started = perf_counter()

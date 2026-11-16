@@ -29,9 +29,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import policy
 from ..build import paths
@@ -83,22 +89,27 @@ def download(
     *,
     operation: str = "download",
     timeout_s: float = 60,
-    opener=None,
-    before_retry=None,
+    opener: Callable[..., http.client.HTTPResponse] | None = None,
+    before_retry: Callable[[], None] | None = None,
 ) -> bytes:
     """Fetch Complete Bytes with Bounded Retries for Transient Network Failures."""
     address = url.full_url if isinstance(url, urllib.request.Request) else url
     open_request = opener or urllib.request.urlopen
     for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
         try:
-            with open_request(url, timeout=timeout_s) as response:
+            response = open_request(url, timeout=timeout_s)
+            try:
                 return response.read()
+            finally:
+                response.close()
         except (OSError, urllib.error.URLError, http.client.HTTPException) as error:
             retry = not isinstance(error, urllib.error.HTTPError) or 500 <= error.code < 600
             if isinstance(error, urllib.error.HTTPError):
                 error.close()
             if not retry or attempt == DOWNLOAD_ATTEMPTS:
-                raise policy.ToolError(f"{operation} failed: {address} after {attempt} attempts: {error}") from error
+                raise policy.ToolError(
+                    f"Collect Third-Party Notices: {operation} failed: {address} after {attempt} attempts: {error}"
+                ) from error
             delay_s = min(DOWNLOAD_MAX_DELAY_S, DOWNLOAD_BASE_DELAY_S * 2 ** (attempt - 1))
             time.sleep(random.uniform(delay_s / 2, delay_s))
             if before_retry is not None:
@@ -114,7 +125,11 @@ def python_notices(lock: dict) -> tuple[str, int]:
     downloads = 0
     license_downloads = 0
     cache = Path(os.environ.get("UV_CACHE_DIR") or policy.execute(Path.cwd(), ["uv", "cache", "dir"], capture=True).strip())
-    hashes = {wheel["hash"].removeprefix("sha256:") for package in lock["package"] for wheel in package.get("wheels", [])}
+    hashes = set()
+    for hashes_package in lock["package"]:
+        for hashes_wheel in hashes_package.get("wheels", []):
+            hashes.add(hashes_wheel["hash"].removeprefix("sha256:"))
+
     cached = {}
     # uv Usually Stores Unpacked Wheels; Only Original Archives Can Be Hash-Verified.
     for directory, _, files in os.walk(cache):
@@ -126,8 +141,12 @@ def python_notices(lock: dict) -> tuple[str, int]:
             continue
         wheels = package.get("wheels", [])
         if not wheels:
-            raise policy.ToolError(f"no locked wheel available for license inventory: {package['name']}")
-        wheel = min(wheels, key=lambda item: item.get("size", 0))
+            raise policy.ToolError(f"Collect Third-Party Notices: no locked wheel available for license inventory: {package['name']}")
+
+        def sort_key(item: dict) -> int:
+            return item.get("size", 0)
+
+        wheel = min(wheels, key=sort_key)
         digest = wheel["hash"].removeprefix("sha256:")
         filename = Path(urllib.parse.unquote(urllib.parse.urlsplit(wheel["url"]).path)).name
         candidates = cached.get(digest, []) + cached.get(filename, [])
@@ -144,23 +163,29 @@ def python_notices(lock: dict) -> tuple[str, int]:
             cache_hits += 1
         actual = "sha256:" + hashlib.sha256(data).hexdigest()
         if actual != wheel["hash"]:
-            raise policy.ToolError(f"locked wheel hash mismatch: {package['name']} ({wheel['url']})")
+            raise policy.ToolError(f"Collect Third-Party Notices: locked wheel hash mismatch: {package['name']} ({wheel['url']})")
         sections.append(f"\n{package['name']} {package['version']}")
-        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+        try:
             metadata_name = next(name for name in archive.namelist() if name.endswith(".dist-info/METADATA"))
             metadata = email.parser.BytesParser().parsebytes(archive.read(metadata_name))
             license_name = metadata.get("License-Expression") or metadata.get("License")
             if not license_name:
                 license_name = "; ".join(value for value in metadata.get_all("Classifier", []) if value.startswith("License ::"))
             if not license_name:
-                raise policy.ToolError(f"missing Python license metadata: {package['name']}")
+                raise policy.ToolError(f"Collect Third-Party Notices: missing Python license metadata: {package['name']}")
             sections.append(license_name)
-            files = [
-                name
-                for name in archive.namelist()
-                if not name.endswith("/")
-                and (".dist-info/licenses/" in name or Path(name).name.lower().startswith(("license", "licence", "copying", "notice")))
-            ]
+            files = []
+            for files_name in archive.namelist():
+                if files_name.endswith("/"):
+                    continue
+                if not (
+                    ".dist-info/licenses/" in files_name
+                    or Path(files_name).name.lower().startswith(("license", "licence", "copying", "notice"))
+                ):
+                    continue
+                files.append(files_name)
+
             if not files:
                 license_source = PYTHON_LICENSE_SOURCES.get((package["name"], package["version"]))
                 if license_source is None:
@@ -174,6 +199,8 @@ def python_notices(lock: dict) -> tuple[str, int]:
                 license_downloads += 1
             for name in sorted(files):
                 sections.append(archive.read(name).decode("utf-8"))
+        finally:
+            archive.close()
         count += 1
     print(f"Python wheels: {cache_hits} cache hits, {downloads} downloads; {license_downloads} pinned license sources", file=sys.stderr)
     return "\n\n".join(sections), count
@@ -191,7 +218,9 @@ def shell_notices(document: dict) -> tuple[str, int]:
             texts = set()
             for path in package["paths"]:
                 if not Path(path).is_dir():
-                    raise policy.ToolError(f"missing shell dependency: {path}; run pnpm install in crates/dokime-gui")
+                    raise policy.ToolError(
+                        f"Collect Third-Party Notices: missing shell dependency: {path}; run pnpm install in crates/dokime-gui"
+                    )
                 for source in sorted(Path(path).iterdir()):
                     if source.is_file() and source.name.lower().startswith(("license", "licence", "copying", "notice")):
                         texts.add(source.read_text(encoding="utf-8"))
@@ -199,7 +228,7 @@ def shell_notices(document: dict) -> tuple[str, int]:
                 for version in versions:
                     url = SHELL_LICENSE_SOURCES.get((package["name"], version))
                     if url is None:
-                        raise policy.ToolError(f"missing shell license text: {package['name']}")
+                        raise policy.ToolError(f"Collect Third-Party Notices: missing shell license text: {package['name']}")
                     texts.add(f"License Source: {url}\n\n" + download(url).decode("utf-8"))
             if package["name"] == "@bufbuild/protobuf":
                 for path in package["paths"]:
@@ -210,7 +239,7 @@ def shell_notices(document: dict) -> tuple[str, int]:
                                 break
                             header.append(line.removeprefix("//").lstrip())
                         if not header:
-                            raise policy.ToolError(f"missing protobuf copyright header: {relative}")
+                            raise policy.ToolError(f"Collect Third-Party Notices: missing protobuf copyright header: {relative}")
                         texts.add("\n".join(header))
             sections.extend(sorted(texts))
     return "\n\n".join(sections), len(inventory)
@@ -221,17 +250,26 @@ def packaged(sources: list[Path]) -> dict[str, bytes]:
     result = {}
     for source in sources:
         if not source.is_file():
-            raise policy.ToolError(f"missing packaged notices artifact: {source}; restore the matching Rust Package artifact")
-        with zipfile.ZipFile(source) as bundle:
+            raise policy.ToolError(
+                f"Collect Third-Party Notices: missing packaged notices artifact: {source}; restore the matching Rust Package artifact"
+            )
+        bundle = zipfile.ZipFile(source)
+        try:
             for name in ("NOTICE", "THIRD-PARTY-NOTICES"):
                 if bundle.namelist().count(name) != 1:
-                    raise policy.ToolError(f"missing or duplicate {name} in package artifact {source}; rerun its Package job")
+                    raise policy.ToolError(
+                        f"Collect Third-Party Notices: missing or duplicate {name} in package artifact {source}; rerun its Package job"
+                    )
                 content = bundle.read(name)
                 if name in result and result[name] != content:
-                    raise policy.ToolError(f"packaged {name} differs between {sources[0]} and {source}; rebuild matching Package artifacts")
+                    raise policy.ToolError(
+                        f"Collect Third-Party Notices: packaged {name} differs between {sources[0]} and {source}; rebuild matching Package artifacts"
+                    )
                 result[name] = content
+        finally:
+            bundle.close()
     if not result:
-        raise policy.ToolError("packaged notices require at least one target distribution")
+        raise policy.ToolError("Collect Third-Party Notices: packaged notices require at least one target distribution")
     return result
 
 
@@ -253,15 +291,24 @@ def stage(directory: Path, destination: Path) -> None:
 def archive(directory: Path, source: Path) -> None:
     """Add Notices Before Release Hashing, Preserving Executable Modes."""
     notices = {name: (directory / name).read_bytes() for name in ("NOTICE", "THIRD-PARTY-NOTICES")}
-    with tempfile.TemporaryDirectory(prefix="dokime-notices-") as temporary:
+    temporary_directory = tempfile.TemporaryDirectory(prefix="dokime-notices-")
+    temporary = temporary_directory.name
+    try:
         result = Path(temporary) / source.name
         if source.name.endswith(".zip"):
-            with zipfile.ZipFile(source) as original, zipfile.ZipFile(result, "w", compression=zipfile.ZIP_DEFLATED) as output:
-                for entry in original.infolist():
-                    if entry.filename not in notices:
-                        output.writestr(entry, original.read(entry))
-                for name, data in notices.items():
-                    output.writestr(name, data)
+            original = zipfile.ZipFile(source)
+            try:
+                output = zipfile.ZipFile(result, "w", compression=zipfile.ZIP_DEFLATED)
+                try:
+                    for entry in original.infolist():
+                        if entry.filename not in notices:
+                            output.writestr(entry, original.read(entry))
+                    for name, data in notices.items():
+                        output.writestr(name, data)
+                finally:
+                    output.close()
+            finally:
+                original.close()
         elif source.name.endswith(".tar.gz"):
             with tarfile.open(source) as original, tarfile.open(result, "w:gz") as output:
                 for entry in original.getmembers():
@@ -273,8 +320,10 @@ def archive(directory: Path, source: Path) -> None:
                     entry.mode = 0o644
                     output.addfile(entry, io.BytesIO(data))
         else:
-            raise policy.ToolError(f"unsupported notice archive: {source}")
+            raise policy.ToolError(f"Collect Third-Party Notices: unsupported notice archive: {source}")
         shutil.copyfile(result, source)
+    finally:
+        temporary_directory.cleanup()
 
 
 def generate(directory: Path) -> dict:
@@ -289,9 +338,14 @@ def generate(directory: Path) -> dict:
         if (entry["package"], entry["version"]) in packages:
             licenses.setdefault(entry["package"], set()).update(entry.get("accepted", [entry["license"]]))
     for name in licenses:
-        allowed = {item["version"] for item in document["license"] if item["package"] == name}
+        allowed = set()
+        for allowed_item in document["license"]:
+            if allowed_item["package"] != name:
+                continue
+            allowed.add(allowed_item["version"])
+
         if any(package == name and version not in allowed for package, version in packages):
-            raise policy.ToolError(f"license exception does not cover every resolved {name} version")
+            raise policy.ToolError(f"Collect Third-Party Notices: license exception does not cover every resolved {name} version")
     license_policy = tomllib.loads((directory / "tools/config/deny.toml").read_text(encoding="utf-8"))
     config = f"accepted = {json.dumps(license_policy['licenses']['allow'])}\n"
     for name, accepted in sorted(licenses.items()):
@@ -330,9 +384,13 @@ def generate(directory: Path) -> dict:
         ],
     )
     rust = json.loads((output / "rust.json").read_text(encoding="utf-8"))
-    crates = {(item["crate"]["name"], item["crate"]["version"]) for license_ in rust["licenses"] for item in license_["used_by"]}
+    crates = set()
+    for crates_license_ in rust["licenses"]:
+        for crates_item in crates_license_["used_by"]:
+            crates.add((crates_item["crate"]["name"], crates_item["crate"]["version"]))
+
     if not (directory / "crates/dokime-gui/node_modules").is_dir():
-        raise policy.ToolError("missing shell dependencies; run pnpm install in crates/dokime-gui")
+        raise policy.ToolError("Collect Third-Party Notices: missing shell dependencies; run pnpm install in crates/dokime-gui")
     shell = json.loads(
         policy.execute(directory, ["pnpm", "--dir", "crates/dokime-gui", "licenses", "list", "--prod", "--json"], capture=True)
     )

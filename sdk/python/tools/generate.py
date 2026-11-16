@@ -6,9 +6,11 @@
 #
 # ***
 
-"""Build Python Bindings From The Authoritative Protocol Sources."""
+"""Build Python Bindings from the Authoritative Protocol Sources."""
 
 # === Imports === #
+
+# Standard Library Imports
 
 import argparse
 import hashlib
@@ -17,8 +19,21 @@ import shutil
 import tempfile
 from pathlib import Path
 
+# Third Party Imports
 import grpc_tools
 from grpc_tools import protoc
+
+# Local Imports
+
+# Type Checking Imports
+
+# === Public Exports === #
+
+# === Constants === #
+
+# === Types === #
+
+# === Classes === #
 
 # === Public Functions === #
 
@@ -26,7 +41,8 @@ from grpc_tools import protoc
 def main(*, check: bool = False) -> None:
     sdk = Path(__file__).resolve().parents[1]
     root = sdk.parents[1]
-    protocols = sdk / "proto" if (sdk / "proto").is_dir() else root / "proto"
+    bundled_protocols = sdk / "proto"
+    protocols = bundled_protocols if bundled_protocols.is_dir() else root / "proto"
     source = sdk / "src/dokime"
     output = Path(tempfile.mkdtemp(prefix="dokime-protocol-"))
     try:
@@ -41,17 +57,20 @@ def main(*, check: bool = False) -> None:
             "--include_imports",
             *map(str, sorted(protocols.glob("dokime/**/*.proto"))),
         ]
-        if protoc.main(arguments):
-            raise RuntimeError("Generate Python Protocols: protoc Failed")
+        status = protoc.main(arguments)
+        if status:
+            raise RuntimeError("Generate Python Protocols: Correct the Reported Proto Errors and Regenerate")
         if not check:
             for old in source.rglob("*_pb2*"):
                 if old.is_file():
                     old.unlink()
         drift: list[str] = []
+        expected: set[Path] = set()
         for path in (output / "dokime").rglob("*"):
             if not path.is_file():
                 continue
             target = source / "_wire" / path.relative_to(output / "dokime")
+            expected.add(target)
             if not check:
                 target.parent.mkdir(parents=True, exist_ok=True)
             text = path.read_text(encoding="utf-8")
@@ -71,22 +90,30 @@ def main(*, check: bool = False) -> None:
                 (target.parent / "py.typed").touch()
                 (target.parent / "__init__.py").touch(exist_ok=True)
         if check:
+            existing = {path for path in (source / "_wire").rglob("*_pb2*") if path.is_file() and path.suffix in {".py", ".pyi"}}
+            drift.extend(str(path.relative_to(sdk)) for path in sorted(existing - expected))
             if (output / "surface.pb").read_bytes() != (source / "_wire/surface.pb").read_bytes():
                 drift.append("_wire/surface.pb")
         else:
             shutil.copyfile(output / "surface.pb", source / "_wire/surface.pb")
-        manifest = {p.relative_to(protocols).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in protocols.rglob("*.proto")}
+        manifest = {}
+        for path in protocols.rglob("*.proto"):
+            relative = path.relative_to(protocols).as_posix()
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            manifest[relative] = digest
         text = json.dumps(manifest, sort_keys=True) + "\n"
         if check:
             if (source / "_wire/sources.json").read_text(encoding="utf-8") != text:
                 drift.append("_wire/sources.json")
             if drift:
-                raise ValueError("Check Python Generation: Frozen Output Drift: " + ", ".join(drift))
+                raise ValueError("Check Python Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(drift))
         else:
             (source / "_wire/sources.json").write_text(text, encoding="utf-8", newline="\n")
     finally:
         shutil.rmtree(output)
 
+
+# === Private Functions === #
 
 # === Entry Point === #
 

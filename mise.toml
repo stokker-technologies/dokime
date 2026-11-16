@@ -69,13 +69,14 @@ lane = "uv run --no-sync --project tools/python python -m dokime_tools.test.run 
 
 [tasks."prepare"]
 description = "Prepare Tools and Inputs"
-usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Synchronizing"; flag "--without-frontend" help="Prepare Only Python Tooling and SDK Inputs"'
+usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Synchronizing"; flag "--without-frontend" help="Prepare Only Python Tooling and SDK Inputs"; flag "--tools-only" help="Prepare Only Repository Tooling"; flag "--docs-only" help="Prepare Tooling and Documentation Dependencies"'
 run = [
   "{% if usage.refresh_lock %}uv lock{% endif %}",
   "uv sync --locked --all-groups",
-  { task = "build:python" },
-  "mise -C sdk/python run install",
-  "{% if not usage.without_frontend %}pnpm --dir crates/dokime-gui install --frozen-lockfile{% endif %}",
+  "{% if not usage.tools_only and not usage.docs_only %}mise run build:python{% endif %}",
+  "{% if not usage.tools_only and not usage.docs_only %}mise -C sdk/python run install{% endif %}",
+  "{% if not usage.without_frontend and not usage.tools_only and not usage.docs_only %}pnpm --dir crates/dokime-gui install --frozen-lockfile{% endif %}",
+  "{% if not usage.without_frontend and not usage.tools_only %}pnpm --dir site install --frozen-lockfile{% endif %}",
 ]
 
 [tasks."generate"]
@@ -119,6 +120,18 @@ run = "{{vars.tools}} dokime_tools.ci.tasks bench"
 description = "Package Built Artifacts"
 run = "{{vars.tools}} dokime_tools.ci.tasks package"
 
+[tasks."docs:build"]
+description = "Build the Documentation Site Entry"
+run = "{{vars.tools}} dokime_tools.docs.site build"
+
+[tasks."docs:serve"]
+description = "Preview the Documentation Site"
+run = "{{vars.tools}} dokime_tools.docs.site serve"
+
+[tasks."docs:image"]
+description = "Assemble Published Documentation Archives Into the Site Image"
+run = "{{vars.tools}} dokime_tools.docs.image"
+
 [tasks."release:prepare"]
 description = "Prepare the Release Branch"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-prepare"
@@ -139,6 +152,12 @@ run = "{{vars.tools}} dokime_tools.ci.workflow release-tag"
 description = "Verify Published Release Assets and Installers"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-verify"
 
+# === Dev === #
+
+[tasks.dev]
+description = "Start the Desktop with Live Reload and the OBC Plugin on a Disposable Root"
+run = "{{vars.tools}} dokime_tools.dev.desktop"
+
 # === Internal Steps === #
 
 [tasks."format:python"]
@@ -150,7 +169,6 @@ run = [
   "{{vars.python}} ruff format sdk/python{% if usage.check %} --check{% endif %}",
   "{{vars.python}} ruff check --select I,F401,PYI{% if not usage.check %} --fix{% endif %} tools/python",
   "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
-  "{{vars.python}} ruff format --no-force-exclude tools/python/src/dokime_tools/test tools/python/src/dokime_tools/release{% if usage.check %} --check{% endif %}",
 ]
 
 [tasks."format:rust"]
@@ -173,7 +191,10 @@ run_windows = '''pwsh -NoProfile -Command "taplo fmt --config tools/config/taplo
 hide = true
 description = "Format TypeScript"
 usage = 'flag "--check"'
-run = "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} ."
+run = [
+  "pnpm --dir crates/dokime-gui exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
+  "pnpm --dir site exec biome format{% if usage.check %}{% else %} --write{% endif %} .",
+]
 
 [tasks."lint:python"]
 hide = true
@@ -182,8 +203,6 @@ run = [
   "{{vars.python}} ruff check sdk/python",
   "{{vars.python}} ruff check tools/python",
   "{{vars.python}} ty check --project tools/python",
-  "{{vars.python}} ruff check --no-force-exclude tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py tools/python/src/dokime_tools/test/wheel.py tools/python/src/dokime_tools/test/arrow_archive.py",
-  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py',
 ]
 
 [tasks."lint:rust"]
@@ -196,9 +215,10 @@ env = { CARGO_BUILD_WARNINGS = "deny" }
 [tasks."lint:typescript"]
 hide = true
 description = "Lint TypeScript"
-run = "pnpm --dir crates/dokime-gui exec biome lint ."
+run = ["pnpm --dir crates/dokime-gui exec biome lint .", "pnpm --dir site exec biome lint ."]
 
 [tasks.screenshots]
+hide = true
 description = "Capture Product Screenshots"
 run = "{{vars.tools}} dokime_tools.ci.tasks screenshots"
 
@@ -246,7 +266,7 @@ run = [{ task = "format:typescript --check" }, { task = "lint:typescript" }]
 
 [tasks."build:product"]
 hide = true
-description = "Build Shipping Binaries, Bundles And Frontend"
+description = "Build Shipping Binaries, Bundles and Frontend"
 usage = 'flag "--profile <profile>" default="dev"'
 run = [{ task = "build:typescript --profile {{usage.profile}}" }, { task = "build:rust --profile {{usage.profile}}" }]
 
@@ -268,7 +288,8 @@ description = "Build Independent Test Archive"
 usage = 'flag "--profile <profile>" default="dev"; flag "--timings"'
 run = [
   "{{vars.tools}} dokime_tools.build.rust.tests --profile {{usage.profile}}{% if usage.timings %} --timings{% endif %}",
-  { task = "build:host-fixtures --profile {{usage.profile}}" },
+  { task = "build:host-fixtures --profile {{usage.profile}} --language rust" },
+  { task = "build:host-fixtures --profile {{usage.profile}} --language python" },
   { task = "build:cli-fixtures --profile {{usage.profile}}" },
   { task = "build:desktop-fixtures --profile {{usage.profile}}" },
 ]
@@ -326,7 +347,7 @@ flag "--project <project>" default="sdk/python"
 flag "--select <select>"
 '''
 run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language python --project {{usage.project}}{% elif usage.project == "tools/python" %}{{vars.python}} python -m unittest discover -s tools/python/tests/integration {% if usage.select %}-k "{{usage.select}}"{% endif %}{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language python --project {{usage.project}}{% elif usage.project == "tools/python" %}{{vars.python}} python -m unittest discover -s tools/python/tests/integration -t tools/python {% if usage.select %}-k "{{usage.select}}"{% endif %}{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
 
 [tasks."test:python:system"]
@@ -524,7 +545,7 @@ flag "--target <target>" default="any"
 '''
 run = "{{vars.tools}} dokime_tools.package.run python --profile {{usage.profile}} --target any"
 
-[tasks."build:distribution"]
+[tasks."ci:distribution"]
 hide = true
 description = "Refresh the Verified Portable Distribution After Signing"
 usage = 'flag "--profile <profile>" default="dev"'
@@ -626,6 +647,7 @@ description = "Dry-Run the Pure Python SDK Publication"
 run = "{{vars.tools}} dokime_tools.release.run python-dry"
 
 [tasks."prepare:locks"]
+hide = true
 description = "Refresh Dependency Locks After a Library Pin Change"
 run = [
   "cargo update --package harmos",
@@ -637,6 +659,7 @@ run = [
 ]
 
 [tasks."check:locks"]
+hide = true
 description = "Check Immutable Dependency Locks"
 run = [
   "cargo metadata --locked --offline --format-version 1",
@@ -646,10 +669,67 @@ run = [
 ]
 
 [tasks."check:generated"]
+hide = true
 description = "Compile Generated SDK Barrels Without Product Consumers"
 usage = 'flag "--language <language>"'
 run = "{{vars.tools}} dokime_tools.build.generation{% if usage.language %} --language {{usage.language}}{% endif %}"
 
 [tasks."generate:typescript"]
+hide = true
 description = "Generate Desktop Messages from Frozen Definitions"
 run = ["{{vars.tools}} dokime_tools.prepare.generated --generate", "mise -C crates/dokime-gui run generate:host"]
+
+[tasks."ci:impact"]
+hide = true
+description = "Plan CI Jobs from Complete Changed Paths"
+run = "{{vars.tools}} dokime_tools.ci.impact"
+
+[tasks."ci:bootstrap"]
+hide = true
+description = "Run Declared Native Prerequisite Tasks Before Preparation"
+run = "python tools/python/src/dokime_tools/ci/bootstrap.py --commands"
+
+[tasks."ci:prerequisites"]
+hide = true
+description = "Install Selected Native CI Prerequisites"
+run = "python tools/python/src/dokime_tools/ci/bootstrap.py"
+
+[tasks."ci:docs"]
+hide = true
+description = "Check Guide Public Surfaces"
+run = "{{vars.tools}} dokime_tools.ci.docs"
+
+[tasks."ci:send"]
+hide = true
+description = "Export Declared CI Artifacts"
+run = "{{vars.tools}} dokime_tools.ci.workflow send"
+
+[tasks."ci:receive"]
+hide = true
+description = "Receive Declared CI Artifacts"
+run = "{{vars.tools}} dokime_tools.ci.workflow receive"
+
+[tasks."ci:summary"]
+hide = true
+description = "Write the Execution Host Coverage Summary"
+run = "{{vars.tools}} dokime_tools.ci.workflow summary"
+
+[tasks."ci:sdk-check"]
+hide = true
+description = "Check the Selected Native SDK"
+run = "{{vars.tools}} dokime_tools.ci.workflow sdk-check"
+
+[tasks."ci:sdk-test"]
+hide = true
+description = "Build and Test the Selected Native SDK"
+run = "{{vars.tools}} dokime_tools.ci.workflow sdk-test"
+
+[tasks."ci:sign-select"]
+hide = true
+description = "Select the Windows Signing Provider"
+run = "{{vars.tools}} dokime_tools.ci.signing select"
+
+[tasks."ci:sign-package"]
+hide = true
+description = "Verify Executables and Package the Signed Installer"
+run = "{{vars.tools}} dokime_tools.ci.signing package"

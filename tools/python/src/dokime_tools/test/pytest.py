@@ -6,13 +6,7 @@
 #
 # ***
 
-"""Pytest Commands For Python Lanes, Coverage And Benchmarks.
-
-A Python project keeps its stories under `tests/<category>/` and its benchmarks under
-`benchmarks/<category>/`. Lanes run in the shared root `.venv/` without syncing it: a
-focused SDK lane builds and installs the wheel first, and a prepared schedule installs the
-staged wheel before its lanes start. Lane arguments after `--` are appended to pytest.
-"""
+"Pytest Commands for Python Lanes, Coverage and Benchmarks.\n\na Python project keeps its stories under `tests/<category>/` and its benchmarks under\n`benchmarks/<category>/`. Lanes run in the shared root `.venv/` without syncing it: a\nfocused SDK lane builds and installs the wheel first, and a prepared schedule installs the\nstaged wheel before its lanes start. Lane arguments after `--` are appended to pytest.\n"
 
 # === Imports === #
 
@@ -22,7 +16,12 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from . import policy
 
@@ -59,7 +58,7 @@ def run(
 ) -> list[str]:
     """One pytest lane with a terminating per-story hang guard."""
     if not (project / suite).is_dir():
-        raise policy.TestError(f"missing Python suite {project / suite}")
+        raise policy.TestError(f"Run Pytest Tests: missing Python suite {project / suite}")
     # Integration Fixtures Own Ephemeral Sockets And Worker-Local Temporary Roots.
     parallel = []
     if suite == "tests/integration" and not any(
@@ -88,7 +87,7 @@ def coverage(project: Path, cobertura: Path) -> list[str]:
     """
     configuration = project / "pyproject.toml"
     if not configuration.is_file():
-        raise policy.TestError(f"missing coverage configuration {configuration}")
+        raise policy.TestError(f"Run Pytest Tests: missing coverage configuration {configuration}")
     return [
         "--cov",
         f"--cov-config={configuration}",
@@ -100,7 +99,7 @@ def coverage(project: Path, cobertura: Path) -> list[str]:
 def bench(project: Path, category: str, output: Path, arguments: Sequence[str]) -> list[str]:
     suite = f"benchmarks/{category}"
     if not (project / suite).is_dir():
-        raise policy.TestError(f"missing Python benchmarks {project / suite}")
+        raise policy.TestError(f"Run Pytest Tests: missing Python benchmarks {project / suite}")
     return [
         sys.executable,
         "-m",

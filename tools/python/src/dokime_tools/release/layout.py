@@ -13,6 +13,7 @@
 import hashlib
 import io
 import json
+import operator
 import re
 import stat
 import tarfile
@@ -20,7 +21,12 @@ import urllib.parse
 import zipfile
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import policy
 
@@ -38,24 +44,27 @@ from .. import policy
 
 
 def triple(directory: Path, settings: dict, target: str) -> str:
-    """Resolve A Product's Actual ABI From Its Declarations, Never From Its Name."""
-    candidates = {
-        item["targets"][target] for item in policy.config(directory).get("package", {}).get("executables", []) if target in item["targets"]
-    }
+    """Resolve a Product's Actual ABI from Its Declarations, Never from Its Name."""
+    candidates = set()
+    for candidates_item in policy.config(directory).get("package", {}).get("executables", []):
+        if target not in candidates_item["targets"]:
+            continue
+        candidates.add(candidates_item["targets"][target])
+
     candidates.update(item["targets"][target] for item in settings.get("plugins", []) if target in item.get("targets", {}))
     declared = settings.get("target_triples", {}).get(target)
     if declared:
         candidates.add(declared)
     if len(candidates) != 1:
-        raise policy.ToolError(f"declare one release.target_triples entry or executable ABI for {target}")
+        raise policy.ToolError(f"Configure Release Downloads: declare one release.target_triples entry or executable ABI for {target}")
     value = candidates.pop()
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+){2,}", value):
-        raise policy.ToolError("invalid release Rust target triple")
+        raise policy.ToolError("Configure Release Downloads: invalid release Rust target triple")
     return value
 
 
 def asset_name(directory: Path, settings: dict, definition: dict, selected: str, tag: str, source: Path) -> str | None:
-    """Accept Only The Locked Download Kinds; Product Examples And Registry Artifacts Stay Out."""
+    """Accept Only the Locked Download Kinds; Product Examples and Registry Artifacts Stay Out."""
     if source.name == "latest.json":
         return "latest.json"
     parts = source.relative_to(directory).parts
@@ -65,12 +74,12 @@ def asset_name(directory: Path, settings: dict, definition: dict, selected: str,
         return None
     kind = definition.get("kind", "installer")
     if kind not in {"installer", "tool", "distribution"}:
-        raise policy.ToolError(f"unsupported release asset kind: {kind}")
+        raise policy.ToolError(f"Configure Release Downloads: unsupported release asset kind: {kind}")
     name = definition.get("name", source.name)
     substitutions = {"product": settings["product"], "version": tag[1:], "target": selected}
     if kind == "distribution":
         if source.suffix != ".zip":
-            raise policy.ToolError("distribution input must be a ZIP")
+            raise policy.ToolError("Configure Release Downloads: distribution input must be a ZIP")
         return f"{settings['product']}-distribution-{tag[1:]}-{triple(directory, settings, selected)}.zip"
     name = name.format(**substitutions)
     if kind == "tool":
@@ -78,54 +87,56 @@ def asset_name(directory: Path, settings: dict, definition: dict, selected: str,
     if source.suffix.lower() in {".deb", ".rpm"}:
         return name
     if source.suffix.lower() not in {".exe", ".msi", ".msix", ".appimage", ".dmg", ".pkg"}:
-        raise policy.ToolError(f"unsupported release asset; declare distribution ZIPs with kind = 'distribution': {source.name}")
+        raise policy.ToolError(
+            f"Configure Release Downloads: unsupported release asset; declare distribution ZIPs with kind = 'distribution': {source.name}"
+        )
     suffix = "-setup.exe" if source.name.endswith("-setup.exe") else source.suffix
     return f"{settings['product']}-{tag[1:]}-{triple(directory, settings, selected)}{suffix}"
 
 
 def plugins(directory: Path, settings: dict, tag: str, targets: list[str], profile: str) -> list[dict]:
-    """Resolve Explicit Shipped Bundles Into Shared Archives And Version-Less Members."""
+    """Resolve Explicit Shipped Bundles into Shared Archives and Version-Less Members."""
     declarations = settings.get("plugins", [])
     if not declarations:
         return []
     extension = settings.get("plugin_extension")
     if not isinstance(extension, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", extension):
-        raise policy.ToolError("release.plugin_extension must declare the bundle extension without a dot")
+        raise policy.ToolError("Configure Release Downloads: release.plugin_extension must declare the bundle extension without a dot")
     requirement_key = f"requires_{settings['product']}"
     result = []
     names = set()
     for declaration in declarations:
         package = declaration["package"]
         if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", package):
-            raise policy.ToolError("invalid shipped plugin package")
+            raise policy.ToolError("Configure Release Downloads: invalid shipped plugin package")
         if package.casefold() in names:
-            raise policy.ToolError("shipped plugin names collide")
+            raise policy.ToolError("Configure Release Downloads: shipped plugin names collide")
         names.add(package.casefold())
         kind = declaration.get("kind")
         if kind not in {"sidecar", "guest"}:
-            raise policy.ToolError("shipped plugin kind must be sidecar or guest")
+            raise policy.ToolError("Configure Release Downloads: shipped plugin kind must be sidecar or guest")
         requirement = declaration.get(requirement_key)
         if not isinstance(requirement, str) or not requirement.strip() or len(requirement) > 256:
-            raise policy.ToolError(f"plugin {requirement_key} must declare its host requirement")
+            raise policy.ToolError(f"Configure Release Downloads: plugin {requirement_key} must declare its host requirement")
         if kind == "guest" and "targets" in declaration:
-            raise policy.ToolError("guest plugins are target-independent; omit targets")
+            raise policy.ToolError("Configure Release Downloads: guest plugins are target-independent; omit targets")
         declared = declaration.get("targets") if kind == "sidecar" else {"any": "any"}
         if (
             not isinstance(declared, dict)
             or not declared
             or not set(declared) <= set(settings["targets"] if kind == "sidecar" else ["any"])
         ):
-            raise policy.ToolError("sidecar targets must map declared release targets to Rust ABIs")
+            raise policy.ToolError("Configure Release Downloads: sidecar targets must map declared release targets to Rust ABIs")
         for target in targets if kind == "sidecar" else ["any"]:
             abi = declared.get(target)
             if abi is None:
                 continue
             if kind == "sidecar" and abi != triple(directory, settings, target):
-                raise policy.ToolError("plugin target differs from the declared release ABI")
+                raise policy.ToolError("Configure Release Downloads: plugin target differs from the declared release ABI")
             relative = declaration["path"].format(profile=profile, target=target, version=tag[1:], package=package)
             source = policy.inside(directory, relative)
             if source.suffix != f".{extension}" or not source.is_file() or source.is_symlink():
-                raise policy.ToolError(f"missing regular shipped plugin bundle: {relative}")
+                raise policy.ToolError(f"Configure Release Downloads: missing regular shipped plugin bundle: {relative}")
             suffix = ".zip" if target == "any" or target.startswith("windows-") else ".tar.gz"
             family = "plugins" if kind == "sidecar" else "guests"
             name = f"{settings['product']}-{family}-{tag[1:]}" + ("" if target == "any" else f"-{abi}") + suffix
@@ -162,8 +173,8 @@ def plugin_feed(settings: dict, tag: str, bundles: list[dict]) -> dict:
 
 
 def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Path]:
-    """Archive Bundle Bytes Once Per Kind And Target, Hashing The Exact Member Bytes."""
-    groups = {}
+    """Archive Bundle Bytes Once per Kind and Target, Hashing the Exact Member Bytes."""
+    groups: dict[tuple[str, str], list[dict]] = {}
     for bundle in bundles:
         groups.setdefault((bundle["target"], bundle["archive"]), []).append(bundle)
     outputs = []
@@ -171,10 +182,11 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
         destination = policy.inside(root, f"{target}/{name}")
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
-            raise policy.ToolError(f"release download names collide: {name}")
+            raise policy.ToolError(f"Configure Release Downloads: release download names collide: {name}")
         if name.endswith(".zip"):
-            with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED) as archive:
-                for bundle in sorted(members, key=lambda item: item["member"]):
+            archive = zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED)
+            try:
+                for bundle in sorted(members, key=operator.itemgetter("member")):
                     data = policy.inside(directory, bundle["path"]).read_bytes()
                     bundle["sha256"] = hashlib.sha256(data).hexdigest()
                     # Record A Regular-File Mode; The Default Omits The File Type And Installers Reject The Member.
@@ -182,21 +194,26 @@ def plugin_archives(directory: Path, root: Path, bundles: list[dict]) -> list[Pa
                     entry.compress_type = zipfile.ZIP_DEFLATED
                     entry.external_attr = (stat.S_IFREG | 0o644) << 16
                     archive.writestr(entry, data)
+            finally:
+                archive.close()
         else:
-            with tarfile.open(destination, "x:gz") as archive:
-                for bundle in sorted(members, key=lambda item: item["member"]):
+            archive = tarfile.TarFile.open(destination, "x:gz")
+            try:
+                for bundle in sorted(members, key=operator.itemgetter("member")):
                     data = policy.inside(directory, bundle["path"]).read_bytes()
                     bundle["sha256"] = hashlib.sha256(data).hexdigest()
                     metadata = tarfile.TarInfo(bundle["member"])
                     metadata.size = len(data)
                     metadata.mode = 0o644
                     archive.addfile(metadata, io.BytesIO(data))
+            finally:
+                archive.close()
         outputs.append(destination)
     return outputs
 
 
 def download_url(settings: dict, tag: str, name: str) -> str:
-    """The Public Download Of One Release Asset Under Its Tag, From The Declared Provider."""
+    """The Public Download of One Release Asset Under Its Tag, from the Declared Provider."""
     quoted = f"{urllib.parse.quote(tag, safe='')}/{urllib.parse.quote(name, safe='')}"
     if settings["provider"] == "github":
         return f"https://github.com/{settings['repository']}/releases/download/{quoted}"
@@ -205,11 +222,11 @@ def download_url(settings: dict, tag: str, name: str) -> str:
 
 
 def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
-    """Read Kind, OS, Architecture And Format Back From The Asset Names This Tooling Produces."""
+    """Read Kind, OS, Architecture and Format Back from the Asset Names This Tooling Produces."""
     product = settings["product"]
     lowered = name.lower()
     format_ = next((suffix for suffix in ("tar.gz", "exe", "zip", "deb", "rpm", "whl", "md", "json") if lowered.endswith("." + suffix)), "")
-    for family in ("compliance", "proto", "reports"):
+    for family in ("compliance", "docs", "proto", "reports"):
         if name.startswith(f"{product}-{family}-") and format_ == "zip":
             return {"kind": family, "os": "any", "arch": "any", "format": "zip"}
     if name.endswith(".cdx.json"):
@@ -234,7 +251,11 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
         return {"kind": "payload", "os": os_name, "arch": arch, "format": "zip"}
     if re.match(rf"{re.escape(product)}-(?:plugins|guests)-", name) and format_ in {"zip", "tar.gz"}:
         return {"kind": "plugin", "os": os_name, "arch": arch, "format": format_}
-    for executable, kind in sorted(executables.items(), key=lambda item: -len(item[0])):
+
+    def sort_key(item: tuple[str, str]) -> int:
+        return -len(item[0])
+
+    for executable, kind in sorted(executables.items(), key=sort_key):
         if name.startswith(f"{executable}-") and format_ in {"zip", "tar.gz"}:
             return {"kind": kind, "os": os_name, "arch": arch, "format": format_}
     return {"kind": "other", "os": os_name, "arch": arch, "format": format_ or Path(name).suffix[1:].lower() or "txt"}
@@ -243,19 +264,19 @@ def classify(settings: dict, executables: dict[str, str], name: str) -> dict:
 def downloads(
     settings: dict, executables: dict[str, str], *, version: str, channel: str, tag: str, published: str, files: list[dict], sums: str
 ) -> dict:
-    """The Download Manifest: Every Staged Upload Classified, Linked Under Its Tag, Hashed From SHA256SUMS."""
+    """The Download Manifest: Every Staged Upload Classified, Linked Under Its Tag, Hashed from SHA256SUMS."""
     digests = {}
     for line in sums.splitlines():
         digest, separator, name = line.partition("  ")
         if not separator or name in digests:
-            raise policy.ToolError("invalid or duplicate SHA256SUMS entry")
+            raise policy.ToolError("Configure Release Downloads: invalid or duplicate SHA256SUMS entry")
         digests[name] = digest
     artifacts = []
-    for item in sorted(files, key=lambda entry: entry["name"]):
+    for item in sorted(files, key=operator.itemgetter("name")):
         # SHA256SUMS cannot list itself; its own digest comes from the upload inventory.
         digest = item["sha256"] if item["name"] == "SHA256SUMS" else digests.get(item["name"])
         if digest is None:
-            raise policy.ToolError(f"SHA256SUMS does not list {item['name']}")
+            raise policy.ToolError(f"Configure Release Downloads: SHA256SUMS does not list {item['name']}")
         artifacts.append(
             {
                 **classify(settings, executables, item["name"]),
@@ -274,36 +295,36 @@ def upload_manifest(directory: Path, root: Path, files: list[dict]) -> None:
 
 
 def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
-    """Read The Exact Publication Inventory, Refusing Unsafe Names, Paths And Changed Bytes."""
+    """Read the Exact Publication Inventory, Refusing Unsafe Names, Paths and Changed Bytes."""
     path = policy.inside(directory, "target/release-assets/upload.json")
     if not path.is_file() or path.is_symlink():
-        raise policy.ToolError("release upload.json manifest is missing or linked")
+        raise policy.ToolError("Configure Release Downloads: release upload.json manifest is missing or linked")
     manifest = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict) or manifest.get("format_version") != 1 or not isinstance(manifest.get("assets"), list):
-        raise policy.ToolError("unsupported release upload manifest")
+        raise policy.ToolError("Configure Release Downloads: unsupported release upload manifest")
     names = set()
     for item in manifest["assets"]:
         if not isinstance(item, dict) or set(item) != {"name", "path", "sha256", "size"}:
-            raise policy.ToolError("invalid release upload entry")
+            raise policy.ToolError("Configure Release Downloads: invalid release upload entry")
         name, relative, digest, size = (item[key] for key in ("name", "path", "sha256", "size"))
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+", name) or name in {".", "..", "upload.json", "published.json"}:
-            raise policy.ToolError("unsafe release upload name")
+            raise policy.ToolError("Configure Release Downloads: unsafe release upload name")
         if name.casefold() in names:
-            raise policy.ToolError("release upload names collide")
+            raise policy.ToolError("Configure Release Downloads: release upload names collide")
         names.add(name.casefold())
         if not isinstance(relative, str) or not re.fullmatch(r"target/release-assets/[A-Za-z0-9_-]+/" + re.escape(name), relative):
-            raise policy.ToolError("unsafe release upload path")
+            raise policy.ToolError("Configure Release Downloads: unsafe release upload path")
         if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest) or type(size) is not int or size < 0:
-            raise policy.ToolError("invalid release upload digest or size")
+            raise policy.ToolError("Configure Release Downloads: invalid release upload digest or size")
         if staged:
             source = policy.inside(directory, relative)
             if not source.is_file() or source.is_symlink():
-                raise policy.ToolError(f"missing staged upload: {name}")
+                raise policy.ToolError(f"Configure Release Downloads: missing staged upload: {name}")
             data = source.read_bytes()
             if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
-                raise policy.ToolError(f"staged upload changed: {name}")
+                raise policy.ToolError(f"Configure Release Downloads: staged upload changed: {name}")
     if "sha256sums" not in names:
-        raise policy.ToolError("release upload manifest has no SHA256SUMS")
+        raise policy.ToolError("Configure Release Downloads: release upload manifest has no SHA256SUMS")
     return manifest["assets"]
 
 
@@ -311,7 +332,7 @@ def uploads(directory: Path, *, staged: bool = False) -> list[dict]:
 
 
 def _platform(name: str) -> tuple[str, str]:
-    """OS And Architecture From A Rust Target Triple; Shared SDK Assets Mean Any."""
+    """OS and Architecture from a Rust Target Triple; Shared SDK Assets Mean Any."""
     lowered = name.lower()
     triple = re.search(r"(x86_64|aarch64)-[a-z0-9_]+-(windows|linux|darwin)", lowered)
     if triple:

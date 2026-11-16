@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Check And Synchronize Declared Static Package Versions"""
+"Check and Synchronize Declared Static Package Versions"
 
 # === Imports === #
 
@@ -15,7 +15,12 @@ import re
 import tomllib
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import policy
 
@@ -46,7 +51,12 @@ def versions(text: str, name: str) -> list[str]:
             value.get("project", {}),
             value.get("workspace", {}).get("package", {}),
         ]
-        return [table["version"] for table in tables if isinstance(table.get("version"), str)]
+        selected_items = []
+        for selected_table in tables:
+            if not (isinstance(selected_table.get("version"), str)):
+                continue
+            selected_items.append(selected_table["version"])
+        return selected_items
     found = re.search(r"^## \[?v?(" + VERSION + r")\]?", text, re.MULTILINE)
     return [found.group(1)] if found else []
 
@@ -55,7 +65,7 @@ def run(directory: Path, verb: str, *, value: str | None = None) -> None:
     settings = policy.policy(directory, "version")
     target = value or settings.get("value")
     if not isinstance(target, str) or re.fullmatch(VERSION, target) is None:
-        raise policy.ToolError("version.value must declare a semantic version")
+        raise policy.ToolError("Synchronize Release Versions: version.value must declare a semantic version")
     paths = settings.get("files", ["Cargo.toml"])
     pending = []
     for name in paths:
@@ -63,7 +73,7 @@ def run(directory: Path, verb: str, *, value: str | None = None) -> None:
         text = path.read_text(encoding="utf-8", newline="")
         current = versions(text, name)
         if not current:
-            raise policy.ToolError(f"no static version found: {name}")
+            raise policy.ToolError(f"Synchronize Release Versions: no static version found: {name}")
         if verb == "check" and any(value != target for value in current):
             raise policy.ToolError(f"{name}: versions {current} differ from {target}")
         if verb == "sync":
@@ -82,19 +92,19 @@ def run(directory: Path, verb: str, *, value: str | None = None) -> None:
                     ]:
                         sections[index + 1] = re.sub(
                             r'(?m)^(version\s*=\s*)["\'][^"\']+["\']',
-                            lambda match: match.group(1) + json.dumps(target),
+                            r"\g<1>" + json.dumps(target),
                             sections[index + 1],
                         )
                 text = "".join(sections)
             else:
                 text = re.sub(
                     r"(?m)^(## \[?v?)" + VERSION,
-                    lambda match: match.group(1) + target,
+                    r"\g<1>" + target,
                     text,
                     count=1,
                 )
             if versions(text, name) != [target] * len(current):
-                raise policy.ToolError(f"could not synchronize version: {name}")
+                raise policy.ToolError(f"Synchronize Release Versions: could not synchronize version: {name}")
             pending.append((path, text))
     for path, text in pending:
         path.write_text(text, encoding="utf-8", newline="")
@@ -102,18 +112,23 @@ def run(directory: Path, verb: str, *, value: str | None = None) -> None:
 
 
 def sibling_pins(directory: Path, verb: str, target: str) -> None:
-    """Synchronize Exact Local Sibling Requirements, Including Renames And Target Tables."""
+    """Synchronize Exact Local Sibling Requirements, Including Renames and Target Tables."""
     if not (directory / "Cargo.toml").is_file():
         return
     metadata = json.loads(policy.execute(directory, ["cargo", "metadata", "--no-deps", "--format-version", "1"], capture=True))
     members = set(metadata["workspace_members"])
-    siblings = {item["name"]: Path(item["manifest_path"]).resolve() for item in metadata["packages"] if item["id"] in members}
+    siblings = {}
+    for siblings_item in metadata["packages"]:
+        if siblings_item["id"] not in members:
+            continue
+        siblings[siblings_item["name"]] = Path(siblings_item["manifest_path"]).resolve()
+
     manifests = set(siblings.values())
     manifests.add((directory / "Cargo.toml").resolve())
     pending = []
     for manifest in sorted(manifests):
         if not manifest.is_relative_to(directory.resolve()):
-            raise policy.ToolError("workspace manifest must stay inside the repository")
+            raise policy.ToolError("Synchronize Release Versions: workspace manifest must stay inside the repository")
         text = manifest.read_text(encoding="utf-8", newline="")
         document = tomllib.loads(text)
         sections = re.split(r"(?m)(^\[[^\r\n]+\][ \t]*(?:#[^\r\n]*)?\r?$)", text)
@@ -134,13 +149,21 @@ def sibling_pins(directory: Path, verb: str, target: str) -> None:
                 literal = isinstance(dependency, str)
                 if literal:
                     dependency = {"version": dependency}
-                if not isinstance(dependency, dict) or "git" in dependency or "registry" in dependency:
+                if not isinstance(dependency, dict):
+                    continue
+                if "git" in dependency:
+                    continue
+                if "registry" in dependency:
                     continue
                 sibling = siblings.get(dependency.get("package", alias))
                 if "path" in dependency:
                     sibling = (manifest.parent / dependency["path"] / "Cargo.toml").resolve()
                 pin = dependency.get("version", "")
-                if sibling not in manifests or not isinstance(pin, str) or not pin:
+                if sibling not in manifests:
+                    continue
+                if not isinstance(pin, str):
+                    continue
+                if not pin:
                     continue
                 exact = pin.startswith("=")
                 if not exact and pin != policy.policy(directory, "version").get("value"):
@@ -154,7 +177,7 @@ def sibling_pins(directory: Path, verb: str, target: str) -> None:
                 alias_pattern = "(?:" + re.escape(alias) + '|"' + re.escape(alias) + '"|\\x27' + re.escape(alias) + r"\x27)"
                 if literal:
                     pattern = r"(?m)^([ \t]*" + alias_pattern + r'\s*=\s*)["\x27][^"\x27]*["\x27]'
-                    body, count = re.subn(pattern, lambda match, expected=expected: match[1] + json.dumps(expected), body)
+                    body, count = re.subn(pattern, r"\g<1>" + json.dumps(expected), body)
                 elif inline:
                     pattern = (
                         r"(?ms)^([ \t]*(?:"
@@ -166,21 +189,19 @@ def sibling_pins(directory: Path, verb: str, target: str) -> None:
                         + r"\x27)\s*=\s*\{)(.*?)(\})"
                     )
 
-                    def replace(match, expected=expected):
-                        updated = re.sub(
-                            r'(\bversion\s*=\s*)["\x27][^"\x27]*["\x27]', lambda value: value[1] + json.dumps(expected), match[2]
-                        )
+                    def replace(match: re.Match[str], expected: str = expected) -> str:
+                        updated = re.sub(r'(\bversion\s*=\s*)["\x27][^"\x27]*["\x27]', r"\g<1>" + json.dumps(expected), match[2])
                         return match[1] + updated + match[3]
 
                     body, count = re.subn(pattern, replace, body)
                 else:
                     body, count = re.subn(
                         r'(?m)^(version\s*=\s*)["\x27][^"\x27]*["\x27]',
-                        lambda match, expected=expected: match[1] + json.dumps(expected),
+                        r"\g<1>" + json.dumps(expected),
                         body,
                     )
                 if count != 1:
-                    raise policy.ToolError(f"could not synchronize sibling pin {alias} in {manifest}")
+                    raise policy.ToolError(f"Synchronize Release Versions: could not synchronize sibling pin {alias} in {manifest}")
                 sections[index + 1] = body
         pending.append((manifest, "".join(sections)))
     if verb == "sync":

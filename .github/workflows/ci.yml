@@ -27,27 +27,70 @@ env:
   GIT_CONFIG_KEY_0: core.longpaths
   GIT_CONFIG_VALUE_0: 'true'
 jobs:
+  impact:
+    name: Plan / Impact
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: ./.github/actions/setup
+      with:
+        platform: unix
+        prepare-arguments: --tools-only
+    - id: impact
+      run: mise run ci:impact
+    env:
+      MISE_ENABLE_TOOLS: python,uv
+    outputs:
+      check: ${{ steps.impact.outputs.check }}
+      build_product: ${{ steps.impact.outputs.build_product }}
+      build_tests: ${{ steps.impact.outputs.build_tests }}
+      build_host_fixtures_csharp: ${{ steps.impact.outputs.build_host_fixtures_csharp }}
+      build_python: ${{ steps.impact.outputs.build_python }}
+      build_docs: ${{ steps.impact.outputs.build_docs }}
+      check_generated: ${{ steps.impact.outputs.check_generated }}
+      test: ${{ steps.impact.outputs.test }}
+      test_host_csharp: ${{ steps.impact.outputs.test_host_csharp }}
+      package: ${{ steps.impact.outputs.package }}
+      release_dry: ${{ steps.impact.outputs.release_dry }}
+      release_rehearsal: ${{ steps.impact.outputs.release_rehearsal }}
+      selected: ${{ steps.impact.outputs.selected }}
+      skipped: ${{ steps.impact.outputs.skipped }}
+      check_matrix: ${{ steps.impact.outputs.check_matrix }}
+      test_matrix: ${{ steps.impact.outputs.test_matrix }}
   check:
     name: Check
     uses: ./.github/workflows/validate-check.yml
     with:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+      matrix: ${{ needs.impact.outputs.check_matrix }}
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.check == 'true'
+    needs:
+    - impact
   build_product:
     name: Build / Product
     uses: ./.github/workflows/validate-build-product.yml
     with:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_product == 'true'
+    needs:
+    - impact
   build_tests:
     name: Build / Tests
     uses: ./.github/workflows/validate-build-tests.yml
     with:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_tests == 'true'
+    needs:
+    - impact
   build_host_fixtures_csharp:
     name: Build / Host Fixtures / csharp
     uses: ./.github/workflows/validate-build-tests.yml
@@ -55,14 +98,27 @@ jobs:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
       fixture-language: csharp
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_host_fixtures_csharp == 'true'
+    needs:
+    - impact
   build_python:
     name: Build / Python
     uses: ./.github/workflows/validate-build-python.yml
     with:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_python == 'true'
+    needs:
+    - impact
+  build_docs:
+    name: Build / Documentation
+    uses: ./.github/workflows/validate-build-docs.yml
+    with:
+      channel: ci
+      profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.build_docs == 'true'
+    needs:
+    - impact
   check_generated:
     name: Check / Generated
     uses: ./.github/workflows/validate-check-generated.yml
@@ -70,8 +126,9 @@ jobs:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
     needs:
+    - impact
     - build_python
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.check_generated == 'true'
   test:
     name: Test
     uses: ./.github/workflows/validate-test.yml
@@ -87,163 +144,22 @@ jobs:
       minutes: ${{ matrix.minutes }}
       suite: ${{ format('{0}', strategy.job-index) }}
     needs:
+    - impact
     - build_product
     - build_tests
     - build_python
-    if: (github.event_name != 'pull_request' || github.event.action != 'closed') && github.event_name != 'push'
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.test == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Python / Wheel
-          command: test -- --language python --wheel
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --credential-store"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Python / Wheel
-          command: test -- --language python --wheel
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Desktop / Execution
-          command: test -- --language typescript --layer system --select native-desktop
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Desktop / Connections
-          command: test -- --language typescript --layer system --select two-gui-remote
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Rust / Acceptance
-          command: test -- --language rust --layer acceptance
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Desktop / Execution
-          command: test -- --language typescript --layer system --select native-desktop
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Desktop / Connections
-          command: test -- --language typescript --layer system --select two-gui-remote
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --desktop"]'
-          archives: '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / Acceptance
-          command: test -- --language rust --layer acceptance
-          bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: TypeScript / Unit
-          command: test -- --language typescript --layer unit
-          bootstrap: '[]'
-          archives: '["target/ci/build-clients-{profile}-unix.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-22.04
-          minutes: 120
-          work: Python / Integration
-          command: test -- --language python --layer integration
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --credential-store"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Python / Integration
-          command: test -- --language python --layer integration
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: TypeScript / Integration
-          command: test -- --language typescript --layer integration
-          bootstrap: '[]'
-          archives: '["target/ci/build-clients-{profile}-unix.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / Integration
-          command: test -- --language rust --layer integration
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / Integration
-          command: test -- --language rust --layer integration
-          bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / System
-          command: test -- --language rust --layer system --select "not package(dokime-runtime)"
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / System
-          command: test -- --language rust --layer system --select "not package(dokime-runtime)"
-          bootstrap: '[]'
-          archives: '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / System / Execution Host
-          command: test -- --artifact tests --package dokime-runtime --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence)
-            or test(cpp_plugin_matches_rust_thermal_evidence))"
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-product-python-{profile}-any.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / System / Execution Host
-          command: test -- --artifact tests --package dokime-runtime --target system --filterset "not (test(csharp_plugin_matches_rust_thermal_evidence)
-            or test(cpp_plugin_matches_rust_thermal_evidence))"
-          bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst","target/ci/build-product-python-{profile}-any.tar.zst"]'
-        - platform: unix
-          runner: ubuntu-latest
-          minutes: 120
-          work: Rust / Unit
-          command: test -- --language rust --layer unit
-          bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
-        - platform: windows
-          runner: windows-latest
-          minutes: 120
-          work: Rust / Unit
-          command: test -- --language rust --layer unit
-          bootstrap: '[]'
-          archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst"]'
+      matrix: ${{ fromJSON(needs.impact.outputs.test_matrix) }}
   test_host_csharp:
     name: Test / Execution Host / C# Equivalence
     uses: ./.github/workflows/validate-test.yml
     needs:
+    - impact
     - build_tests
     - build_host_fixtures_csharp
-    if: (github.event_name != 'pull_request' || github.event.action != 'closed') && github.event_name != 'push'
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.test_host_csharp == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -259,7 +175,7 @@ jobs:
       runner: ${{ matrix.runner }}
       work: Rust / System / Execution Host / C# Equivalence
       command: test -- --artifact tests --package dokime-runtime --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)"
-      bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
+      bootstrap: ${{ matrix.platform == 'unix' && '["mise run ci:prerequisites -- --gui-runtime"]' || '[]' }}
       archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-csharp-{profile}-{platform}.tar.zst"]'
       minutes: 120
       suite: execution-host-csharp
@@ -270,9 +186,10 @@ jobs:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
     needs:
+    - impact
     - build_product
     - build_python
-    if: (github.event_name != 'pull_request' || github.event.action != 'closed') && github.event_name != 'push'
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.package == 'true'
   release_dry:
     name: Release / Dry
     uses: ./.github/workflows/validate-release-dry.yml
@@ -280,9 +197,9 @@ jobs:
       channel: ci
       profile: ${{ (startsWith(github.ref, 'refs/tags/v') || startsWith(github.head_ref, 'release/v')) && 'release' || 'dev' }}
     needs:
+    - impact
     - package
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed' && startsWith(github.head_ref,
-      'release/v'))
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.release_dry == 'true'
     permissions:
       actions: read
       contents: read
@@ -298,7 +215,7 @@ jobs:
       uses: ./.github/actions/setup
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
-        bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
+        bootstrap: '["mise run ci:prerequisites -- --gui-packages"]'
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: package-${{ env.PROFILE }}-python-any
@@ -313,6 +230,11 @@ jobs:
       with:
         name: package-${{ env.PROFILE }}-rust-unix
         path: target/ci
+        github-token: ${{ github.token }}
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: build-docs-${{ env.PROFILE }}-any
+        path: target/docs
         github-token: ${{ github.token }}
     - run: mise run release:rehearse -- --profile ${{ env.PROFILE }} --target all
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -346,17 +268,21 @@ jobs:
     permissions:
       contents: read
     needs:
+    - impact
     - package
-    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.base_ref == 'dev' && startsWith(github.head_ref, 'release/v')
+    - build_docs
+    if: always() && needs.impact.result == 'success' && needs.impact.outputs.release_rehearsal == 'true'
   required:
     name: CI / Required
     runs-on: ubuntu-latest
     if: always() && (github.event_name != 'pull_request' || github.event.action != 'closed')
     needs:
+    - impact
     - check
     - build_product
     - build_tests
     - build_python
+    - build_docs
     - check_generated
     - test
     - build_host_fixtures_csharp
@@ -369,17 +295,13 @@ jobs:
     - uses: ./.github/actions/setup
       with:
         platform: unix
+        prepare-arguments: --tools-only
       id: setup
     - name: Execution Host Coverage
-      shell: python
-      run: "import os\nfrom pathlib import Path\nwith Path(os.environ[\"GITHUB_STEP_SUMMARY\"]).open(\"a\", encoding=\"utf-8\") as summary:\n\
-        \    summary.write(\"Execution host: the Rust and Python stories and the C# equivalence story run on Linux and Windows. The C++ equivalence story runs in Nightly.\\\
-        n\")\n"
+      run: mise run ci:summary
     - run: mise run ci:required --
       env:
         RESULTS: ${{ toJSON(needs) }}
-        OPTIONAL_JOBS: ${{ github.event_name == 'push' && '["test","test_host_csharp","package","release_dry","release_rehearsal"]' || (github.event_name == 'pull_request'
-          && github.base_ref == 'dev' && startsWith(github.head_ref, 'release/v')) && '[]' || '["release_dry","release_rehearsal"]' }}
     env:
       MISE_ENABLE_TOOLS: python,uv,node,pnpm
   cancel_closed:
@@ -388,16 +310,7 @@ jobs:
       'release/v'))
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-    - uses: ./.github/actions/setup
-      with:
-        platform: unix
-      id: setup
-    - run: mise run ci:required --
-      env:
-        RESULTS: '{}'
-    env:
-      MISE_ENABLE_TOOLS: python,uv,node,pnpm
+    - run: echo "Closed Review Cancels Earlier Validation Through Workflow Concurrency"
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && !(github.event.action == 'closed' && github.event.pull_request.merged && startsWith(github.head_ref,

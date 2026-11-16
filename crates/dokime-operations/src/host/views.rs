@@ -16,16 +16,21 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::future::Future;
 
 // Third Party Imports
-use harmos_protocol::model::{PageRequest, ReadCut, Receipt, ResourceRevision, Section};
+use harmos_protocol::model::{FileMetadata, FileReference, PageRequest, ReadCut, Receipt, ResourceRevision};
 use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
+use crate::host::files::transfer;
+use crate::host::files::uploads::{append, create, delete, publish};
+use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
-
-use std::future::Future;
+use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
+use harmos_runtime::builtins::storage::{DeleteFile, DeleteFileRequest, GetFileBytes, GetFileBytesRequest};
+use harmos_runtime::storage::{self, StagedFile};
 
 /* === Constants === */
 
@@ -52,20 +57,20 @@ pub(crate) async fn read<T: Message + Default>(
         if at.revisions.is_empty() && at.positions.len() == 1 {
             let position = store.evidence_position(at.positions.first())?;
             let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
-            let saved: Section = store
-                .administration(&key)?
-                .ok_or_else(|| Error::Precondition(format!("Read {resource}: The Selected View Is Unavailable; Resynchronize")))?;
-            return Ok((T::decode(saved.payload.as_slice())?, at.clone()));
+            let Some(saved) = retained(context, &key).await? else {
+                return Err(Error::Precondition(format!("Read {resource}: The Selected View Is Unavailable; Resynchronize")));
+            };
+            return Ok((T::decode(saved.as_slice())?, at.clone()));
         }
         if at.revisions.len() != 1 || at.revisions[0].name != name || at.positions.len() != 1 {
             return Err(Error::Invalid(format!("Read {resource}: Supply Its Returned Cut")));
         }
         store.evidence_position(at.positions.first())?;
         let revision = hex(&at.revisions[0].revision);
-        let saved: Section = store
-            .administration(&format!("view:{name}:{revision}"))?
-            .ok_or_else(|| Error::Precondition(format!("Read {resource}: Retained View Is Unavailable; Resynchronize")))?;
-        return Ok((T::decode(saved.payload.as_slice())?, at.clone()));
+        let Some(saved) = retained(context, &format!("view:{name}:{revision}")).await? else {
+            return Err(Error::Precondition(format!("Read {resource}: Retained View Is Unavailable; Resynchronize")));
+        };
+        return Ok((T::decode(saved.as_slice())?, at.clone()));
     }
     let position = store.evidence_position(None)?;
     let value = current.await?;
@@ -75,10 +80,9 @@ pub(crate) async fn read<T: Message + Default>(
         value.encode_to_vec()
     };
     let revision = Sha256::digest(&payload).to_vec();
-    let saved = Section { r#type: name.clone(), payload };
-    store.save_administration(&format!("view:{name}:{}", hex(&revision)), &saved)?;
+    let file = retain(context, &format!("view:{name}:{}", hex(&revision)), &payload).await?;
     let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
-    let _ = store.compare_administration(&key, None, &saved)?;
+    administration::retain(context, &key, &file).await?;
 
     Ok((
         value,
@@ -157,5 +161,110 @@ pub(crate) fn page<T: Message>(
 }
 
 /* === Private Functions === */
+
+async fn retained(context: &Context, key: &str) -> Result<Option<Vec<u8>>> {
+    let (file, revision) = administration::message::<FileReference>(context, key).await?;
+    if revision.is_empty() {
+        return Ok(None);
+    }
+    let file = storage::FileReference::try_from(file)
+        .map_err(|source| Error::Invalid(format!("Read Retained View: Restore a Valid Backup of Its Storage Root: {source}")))?;
+    let maximum = transfer::chunk_bytes(context).await? as u64;
+    let mut payload = Vec::new();
+    while (payload.len() as u64) < file.length {
+        let response = context
+            .storage::<GetFileBytes>(GetFileBytesRequest {
+                file: Some(file.clone()),
+                offset: payload.len() as u64,
+                max_bytes: maximum,
+                at: None,
+            })
+            .await?;
+        if response.data.is_empty() {
+            return Err(Error::Precondition("Read Retained View: Restore Its Complete Native File".into()));
+        }
+        payload.extend(response.data);
+    }
+    Ok(Some(payload))
+}
+
+async fn retain(context: &Context, key: &str, payload: &[u8]) -> Result<FileReference> {
+    let (saved, revision) = administration::message::<FileReference>(context, key).await?;
+    if !revision.is_empty() {
+        return Ok(saved);
+    }
+
+    // Produce the Complete View in Bounded Native Chunks Before Publishing Its Index.
+    let digest = Sha256::digest(payload).to_vec();
+    let request_id = uuid::Uuid::now_v7().to_string();
+    let created = create::handle(
+        context,
+        UploadsCreateRequest {
+            metadata: Some(FileMetadata {
+                id: format!("view/{request_id}"),
+                scope: context.caller.as_ref().map(|caller| caller.execution.clone()),
+                media_type: "application/x-protobuf".into(),
+                expected_length: Some(payload.len() as u64),
+                expected_sha256: Some(digest.clone()),
+            }),
+            request_id: request_id.clone(),
+        },
+    )
+    .await?;
+    let upload = created.upload.ok_or_else(|| Error::Precondition("Retain View: Create Its Native Upload".into()))?;
+    let produced = async {
+        let mut offset = 0;
+        for data in payload.chunks(created.chunk_bytes as usize) {
+            append::handle(
+                context,
+                UploadsAppendRequest {
+                    upload: Some(upload.clone()),
+                    offset,
+                    data: data.to_vec(),
+                    request_id: format!("{request_id}/{offset}"),
+                },
+            )
+            .await?;
+            offset += data.len() as u64;
+        }
+        let published = publish::handle(
+            context,
+            UploadsPublishRequest {
+                upload: Some(upload.clone()),
+                length: payload.len() as u64,
+                sha256: digest,
+                request_id: request_id.clone(),
+            },
+        )
+        .await?;
+        published.upload.ok_or_else(|| Error::Precondition("Retain View: Publish Its Native File".into()))
+    }
+    .await;
+    let file = match produced {
+        Ok(file) => file,
+        Err(source) => {
+            if let Err(cleanup) = delete::handle(context, UploadsDeleteRequest { upload: Some(upload), request_id }).await {
+                return Err(Error::Invalid(format!("Retain View: {source}; Remove Its Failed Upload: {cleanup}")));
+            }
+            return Err(source);
+        }
+    };
+    let saved = administration::retain(context, key, &file).await?;
+    if saved != file {
+        let file = storage::FileReference::try_from(file)
+            .map_err(|source| Error::Invalid(format!("Retain View: Remove Its Unused Native File: {source}")))?;
+        let mutation = transfer::mutation(context, "Retain View", &request_id).await?;
+        context
+            .storage::<DeleteFile>(DeleteFileRequest {
+                file: Some(StagedFile {
+                    history: file.position.history,
+                    id: file.metadata.id,
+                }),
+                mutation: Some(mutation),
+            })
+            .await?;
+    }
+    Ok(saved)
+}
 
 /* === Tests === */

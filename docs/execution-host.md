@@ -187,16 +187,14 @@ Requests using unserved filter/cursor variants are explicitly refused.
 Evidence additionally serves captured-schema lookup and record watches, with
 selection-bound cursors, explicit `dokime.log` reads and Run envelopes. Telemetry
 serves bounded forward/tail pages, source-time windows and event-driven watches,
-including Run envelopes. Plots serves ListAnalyses, QuerySnapshots and Watch with
+including Run envelopes. Plots serves QuerySnapshots and Watch with
 Run envelopes. Its ten kinds reduce in storage, including row filters, scale/offset/detail
 expressions, source-time joins, grouped time series/distributions, logarithmic
 contours, sigma intervals, grid highlights, bounded record markers and separate
 summary windows. Raw reads refuse oversized selections; LTTB selects bounded
 vertices in SQLite. Snapshot batches coarsen complete buckets to the encoded
-message budget. Unary plugin analyses resolve one ready provider by ID/version,
-read bounded raw columns and validate typed parameters, output axes and units.
-Incremental watch buckets, live deltas, higher-order/non-category plot aggregates and
-derived analysis defaults remain open; watches currently emit snapshots.
+message budget. Incremental watch buckets, live deltas and higher-order/non-category
+plot aggregates remain open; watches currently emit snapshots.
 
 Prompts serves all five operations and their bidirectional Run forms. Catalog
 definitions return whole by prompt type; pending prompts return whole by ID with
@@ -348,7 +346,9 @@ profile is created. Use the host's Access pairing deletion operation to revoke i
 pairing when supplied, and removes that entry before closing on stdin EOF or Ctrl+C.
 Detecting an unexpected exit and plugin-specific `.proto` source export await the
 host/API requests listed in the parity checklist; embedded product export remains
-`proto export --out proto`.
+`proto export --out proto`. The export includes Google imports, licenses and
+[protoc/Buf instructions](protocol-export.md); the release contracts ZIP contains
+the same self-contained inventory.
 
 ```sh
 dokime new first-plugin --lang rust
@@ -684,10 +684,7 @@ trajectory/grid playback remain in the owning task inventory.
 
 The focused journeys are `client_renders_fixed_documents` and
 `client_queries_advanced_plots` in the runtime’s system target. The protocol crate’s
-generation task owns the additive `PlotRequest.at` field, unary
-`AnalysisRequest`/`AnalysisSamples`/`AnalysisResponse` contracts and generated output.
-An analysis operation uses its metadata identifier, accepts one bounded raw
-series plus typed parameters and returns its declared `AnalysisValues`.
+generation task owns the additive `PlotRequest.at` field and generated output.
 
 ### Host and Storage Additions
 
@@ -707,7 +704,7 @@ Product builds, fixtures, native stories and both WebView lanes include it.
 
 ## Final Library Definition Contract
 
-The definitions pin Harmos at `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`.
+The definitions pin Harmos at `7fe385eacbe9a4c9a47943f6a528f97a014256ee`.
 
 ```text
 proto/dokime/
@@ -778,10 +775,7 @@ ExactNumber in `model/v1/scalar.proto`, preserving the former library payload's
 reduced fractions, positive nonzero denominators and unsigned zero.
 Consumers map it losslessly to native query values; no storage wire API returns.
 
-Analyses.Compute consumes bounded raw samples with one source-time coordinate per
-value, using aligned frame time when present and normalizing the captured origin.
-The shape remains `dokime.plugin.v1.AnalysisSamples`; the correction is in the
-moved analysis handler. Documents retains pending/result bindings, summary states
+Documents retains pending/result bindings, summary states
 and CardComplete under `dokime.host.v1`; literal table rows settle at completion.
 Desktop group loading retains bounded consecutive kind groups, independent visible
 requests, deferred lookahead and generation fencing. These behavioral fixes were
@@ -792,13 +786,11 @@ carried by the merge and are not consumer work to reimplement.
 The first column is the pre-pin wire identity or hand-bound context identity.
 Library composition rows name the library operation directly, without forwarding.
 The complete library identity/type mapping is in the pinned
-[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/640c73959d2a5ee65015afc617c0f3f2b4ca9f6c/docs/architecture.md).
+[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/7fe385eacbe9a4c9a47943f6a528f97a014256ee/docs/architecture.md).
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |
-| `AnalysisRequest/AnalysisResponse` | `dokime.plugin.v1.Analyses/Compute` | Host Only (Protected; No Callers Option) | `dokime.plugin.v1.AnalysesComputeRequest` | `dokime.plugin.v1.AnalysesComputeResponse` |
 | `dokime.client.v1.Aggregates/Get` | `dokime.host.v1.Aggregates/Get` | CLIENTS | `dokime.host.v1.AggregatesGetRequest` | `dokime.host.v1.AggregatesGetResponse` |
-| `dokime.client.v1.Analyses/List` | `dokime.host.v1.Analyses/List` | CLIENTS | `dokime.host.v1.AnalysesListRequest` | `dokime.host.v1.AnalysesListResponse` |
 | `dokime.client.v1.Backend/Appearance` | `dokime.host.v1.Backend/Appearance` | CLIENTS | `dokime.host.v1.BackendAppearanceRequest` | `dokime.host.v1.BackendAppearanceResponse` |
 | `dokime.client.v1.Cases/Create` | `dokime.host.v1.Cases/Create` | CLIENTS | `dokime.host.v1.CasesCreateRequest` | `dokime.host.v1.CasesCreateResponse` |
 | `dokime.client.v1.Cases/Delete` | `dokime.host.v1.Cases/Delete` | CLIENTS | `dokime.host.v1.CasesDeleteRequest` | `dokime.host.v1.CasesDeleteResponse` |
@@ -979,8 +971,6 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.client.v1.QuerySource` | `dokime.host.v1.QuerySource` |
 | `dokime.client.v1.AggregatesGetRequest` | `dokime.host.v1.AggregatesGetRequest` |
 | `dokime.client.v1.AggregatesGetResponse` | `dokime.host.v1.AggregatesGetResponse` |
-| `dokime.client.v1.AnalysesListRequest` | `dokime.host.v1.AnalysesListRequest` |
-| `dokime.client.v1.AnalysesListResponse` | `dokime.host.v1.AnalysesListResponse` |
 | `dokime.client.v1.AppearanceSnapshot` | `dokime.host.v1.AppearanceSnapshot` |
 | `dokime.client.v1.OrganizationIdentity` | `dokime.host.v1.OrganizationIdentity` |
 | `dokime.client.v1.AppearanceLogo` | `dokime.host.v1.AppearanceLogo` |
@@ -1253,9 +1243,6 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.client.v1.plots.SettingsGetResponse` | `dokime.host.v1.plots.SettingsGetResponse` |
 | `dokime.client.v1.plots.SettingsSetRequest` | `dokime.host.v1.plots.SettingsSetRequest` |
 | `dokime.client.v1.plots.SettingsSetResponse` | `dokime.host.v1.plots.SettingsSetResponse` |
-| `dokime.client.v1.plots.AnalysisComputation` | `dokime.host.v1.plots.AnalysisComputation` |
-| `dokime.client.v1.plots.AnalysisEvidence` | `dokime.host.v1.plots.AnalysisEvidence` |
-| `dokime.client.v1.plots.AnalysisSeries` | `dokime.host.v1.plots.AnalysisSeries` |
 | `dokime.client.v1.plots.ContourGrid` | `dokime.host.v1.plots.ContourGrid` |
 | `dokime.client.v1.plots.GridCell` | `dokime.host.v1.plots.GridCell` |
 | `dokime.client.v1.plots.GridFrame` | `dokime.host.v1.plots.GridFrame` |
@@ -1499,14 +1486,6 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.plugin.v1.StepsExecuteResponse` | `dokime.plugin.v1.StepsExecuteResponse` |
 | `dokime.plugin.v1.TestCasesMaterializeRequest` | `dokime.plugin.v1.TestCasesMaterializeRequest` |
 | `dokime.plugin.v1.TestCasesMaterializeResponse` | `dokime.plugin.v1.TestCasesMaterializeResponse` |
-| `dokime.v1.Analyses` | `dokime.model.v1.Analyses` |
-| `dokime.v1.Analysis` | `dokime.model.v1.Analysis` |
-| `dokime.v1.AnalysisOutput` | `dokime.model.v1.AnalysisOutput` |
-| `dokime.v1.AnalysisRequest` | `dokime.plugin.v1.AnalysesComputeRequest` |
-| `dokime.v1.AnalysisSamples` | `dokime.plugin.v1.AnalysisSamples` |
-| `dokime.v1.AnalysisResponse` | `dokime.plugin.v1.AnalysesComputeResponse` |
-| `dokime.v1.AnalysisSelection` | `dokime.model.v1.AnalysisSelection` |
-| `dokime.v1.AnalysisValues` | `dokime.model.v1.AnalysisValues` |
 | `dokime.v1.AppearanceAssetReference` | `dokime.host.v1.AppearanceAssetReference` |
 | `dokime.v1.AppearanceAssetMetadata` | `dokime.host.v1.AppearanceAssetMetadata` |
 | `dokime.v1.ArchiveScope` | `dokime.host.v1.ArchiveScope` |
@@ -1707,7 +1686,8 @@ unchanged. No library operation is widened or shadowed by a product declaration.
 `mise run generate -- --protocol` owns the protocol crate, composed resource table,
 all four SDK surfaces, private Python wire modules and C# wire output. Dokime owns
 `tools/protocol/src/protocol.rs`, `tools/python/src/dokime_tools/build/{protocol,
-protocol_callers,resource_roots,render_resources,csharp_protocol}.py` and
+protocol_callers,resource_roots,csharp_protocol}.py`, the language renderers in
+`tools/python/src/dokime_tools/build/resources/` and
 `sdk/python/tools/generate.py`; none imports or executes library tooling.
 C++ wire messages/stubs are produced by its own CMake generation rule at build time.
 Root model names take precedence; conflicting library value names receive a Harmos
@@ -1741,7 +1721,7 @@ callers have one root barrel home. In Rust and Python this moves
 EvidenceStatisticsResponse, EvidenceRecordsListResponse, EvidenceRecordScope,
 EvidenceCapturedRecordSelection and ContentArtifactsCreateResponse out of their
 caller-specific barrels. Use the generated name rather than adding an alias.
-C# uses the field's canonical namespace; C++ exports AnalysisSamples under plugin.
+C# uses the field's canonical namespace.
 The severity value at wire number 4 is now SEVERITY_FAILURE (Rust Severity::Failure,
 C# Severity.Failure), avoiding the Windows SDK's SEVERITY_ERROR macro. C++ reserved
 operation words become `delete_`, `export_` and `import_` on generated methods.
@@ -1760,7 +1740,7 @@ classification refused, code "-32604", action "Call". No product failure twin is
 
 `mise run check:generated` compiles the five permanent consumers independently of
 operations/runtime; `--language rust|python|csharp|cpp|typescript` selects one.
-Each SDK also exposes `test:generation`. These are compiler contracts, with content
+Use its `--language` argument to select one SDK. These are compiler contracts, with content
 calls through the public client and plugin barrels, not real-host behavior proof.
 C# excludes the authored FileTransfers.cs and writes under target/cs/generation;
 its two remaining errors (nullable deadline and ambiguous File) belong to the C#
@@ -1837,7 +1817,7 @@ producer accepts each supporting file through `--asset`. Install, add and develo
 current entry until it is Ready; the desktop installer uses the same admission
 condition. Both remote and managed in-process admission take the entry name explicitly;
 remote admission lets the library describe its own connection.
-Case materialization and analysis invoke the admitted library operation
+Case materialization invokes the admitted library operation
 from the selected entry's catalog. They do not reconnect a second plugin instance.
 
 Execution admission resolves the library PluginEntry and its admitted activation.

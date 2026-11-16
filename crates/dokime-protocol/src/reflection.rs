@@ -79,101 +79,6 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.QueryRow").expect("generated protocol descriptor")
 }
 }
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::Metadata {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.Metadata").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::Parameter {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.Parameter").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterExpansion {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterExpansion").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterExpression {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterExpression").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterExpressions {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterExpressions").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::IntegerRange {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.IntegerRange").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::NumberRange {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.NumberRange").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::LinearSpace {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.LinearSpace").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::DynamicDefault {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.DynamicDefault").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterUnary {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterUnary").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterBinary {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterBinary").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::FileParameter {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.FileParameter").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::Analyses {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.Analyses").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::Analysis {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.Analysis").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::AnalysisOutput {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.AnalysisOutput").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::AnalysisSelection {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.AnalysisSelection").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::model::v1::AnalysisValues {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.model.v1.AnalysisValues").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::AnalysesListRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.AnalysesListRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::AnalysesListResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.AnalysesListResponse").expect("generated protocol descriptor")
-}
-}
 impl prost_reflect::ReflectMessage for crate::dokime::model::v1::EvidenceCondition {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.model.v1.EvidenceCondition").expect("generated protocol descriptor")
@@ -222,6 +127,11 @@ crate::descriptor_pool().get_message_by_name("dokime.model.v1.EvidenceScope").ex
 impl prost_reflect::ReflectMessage for crate::dokime::model::v1::Window {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.model.v1.Window").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::Metadata {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.Metadata").expect("generated protocol descriptor")
 }
 }
 impl prost_reflect::ReflectMessage for crate::dokime::model::v1::TestCase {
@@ -1032,21 +942,6 @@ crate::descriptor_pool().get_message_by_name("dokime.host.v1.plots.SnapshotsWatc
 impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plots::SnapshotsWatchResponse {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.plots.SnapshotsWatchResponse").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plots::AnalysisComputation {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.plots.AnalysisComputation").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plots::AnalysisEvidence {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.plots.AnalysisEvidence").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plots::AnalysisSeries {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.host.v1.plots.AnalysisSeries").expect("generated protocol descriptor")
 }
 }
 impl prost_reflect::ReflectMessage for crate::dokime::host::v1::plots::ContourGrid {
@@ -2654,6 +2549,61 @@ fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.host.v1.StreamSchemasListResponse").expect("generated protocol descriptor")
 }
 }
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::Parameter {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.Parameter").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterExpansion {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterExpansion").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterExpression {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterExpression").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterExpressions {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterExpressions").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::IntegerRange {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.IntegerRange").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::NumberRange {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.NumberRange").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::LinearSpace {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.LinearSpace").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::DynamicDefault {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.DynamicDefault").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterUnary {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterUnary").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::ParameterBinary {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.ParameterBinary").expect("generated protocol descriptor")
+}
+}
+impl prost_reflect::ReflectMessage for crate::dokime::model::v1::FileParameter {
+fn descriptor(&self) -> prost_reflect::MessageDescriptor {
+crate::descriptor_pool().get_message_by_name("dokime.model.v1.FileParameter").expect("generated protocol descriptor")
+}
+}
 impl prost_reflect::ReflectMessage for crate::dokime::model::v1::Suites {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.model.v1.Suites").expect("generated protocol descriptor")
@@ -2707,21 +2657,6 @@ crate::descriptor_pool().get_message_by_name("dokime.model.v1.Listeners").expect
 impl prost_reflect::ReflectMessage for crate::dokime::model::v1::RecordListener {
 fn descriptor(&self) -> prost_reflect::MessageDescriptor {
 crate::descriptor_pool().get_message_by_name("dokime.model.v1.RecordListener").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::plugin::v1::AnalysesComputeRequest {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.plugin.v1.AnalysesComputeRequest").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::plugin::v1::AnalysesComputeResponse {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.plugin.v1.AnalysesComputeResponse").expect("generated protocol descriptor")
-}
-}
-impl prost_reflect::ReflectMessage for crate::dokime::plugin::v1::AnalysisSamples {
-fn descriptor(&self) -> prost_reflect::MessageDescriptor {
-crate::descriptor_pool().get_message_by_name("dokime.plugin.v1.AnalysisSamples").expect("generated protocol descriptor")
 }
 }
 impl prost_reflect::ReflectMessage for crate::dokime::plugin::v1::CriteriaEvaluateRequest {

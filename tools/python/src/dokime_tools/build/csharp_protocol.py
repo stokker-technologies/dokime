@@ -19,8 +19,12 @@ import tempfile
 from pathlib import Path
 
 # Third Party Imports
+from google.protobuf.descriptor_pb2 import FileDescriptorProto, FileDescriptorSet
+
 # Local Imports
 from ..process import spawn_flags
+from .resources.csharp import message
+from .resources.schema import table
 
 # Type Checking Imports
 
@@ -46,19 +50,18 @@ def protocols(
     namespace_override: str | None = None,
 ) -> None:
     """Keep Wire Requests and Carriers Internal; Give Payloads Their Public Namespace."""
-    from google.protobuf.descriptor_pb2 import FileDescriptorSet
-
-    from .render_resources import csharp_message, table
-
     descriptors = descriptors or root / "crates/dokime-protocol/src/descriptors.bin"
     schema = FileDescriptorSet.FromString(descriptors.read_bytes())
-    requests = {method["request"].rsplit(".", 1)[-1] for method in table(schema)}
+    requests = set()
+    for method in table(schema):
+        requests.add(method["request"].rsplit(".", 1)[-1])
     requests.update(
         {"Request", "Response", "ChildRequest", "ChildResponse", "ChildCancel", "ChildWatch", "ChildWatchResponse", "ChildWatchCancel"}
     )
     # The Staged Harmos Project Restores Grpc.Tools Into the SDK's Own Package Folder (Harmos.csproj).
     tools = root / "target/cs/packages/grpc.tools/2.76.0/tools"
-    system = "windows" if platform.system() == "Windows" else "macosx" if platform.system() == "Darwin" else "linux"
+    systems = {"Windows": "windows", "Darwin": "macosx"}
+    system = systems.get(platform.system(), "linux")
     architecture = "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "x64"
     executable_suffix = ".exe" if system == "windows" else ""
     protoc = tools / f"{system}_{architecture}" / ("protoc" + executable_suffix)
@@ -82,34 +85,17 @@ def protocols(
                 command += [f"--plugin=protoc-gen-grpc={plugin}", f"--grpc_out={output}", "--grpc_opt=internal_access"]
             subprocess.run([*command, file.name], check=True, creationflags=spawn_flags())
             for path in output.glob("*.cs"):
-                source = csharp_message(path.read_text(encoding="utf-8"))
-                if namespace_override is not None:
-                    source = source.replace("namespace Harmos.Clients {", f"namespace {namespace_override} {{")
-                    source = source.replace("global::Harmos.Clients.", f"global::{namespace_override}.")
-                for name in requests:
-                    source = source.replace(f"public sealed partial class {name} :", f"internal sealed partial class {name} :")
-                if path.name.endswith("Grpc.cs"):
-                    source = source.replace("namespace Harmos.Plugins {", "namespace Harmos.Internal.Host {")
-                    source = source.replace("namespace Harmos.Clients {", "namespace Harmos.Internal.Client {")
-                    namespace = csharp_message(file.options.csharp_namespace)
-                    if namespace.endswith(".Clients"):
-                        source = source.replace(
-                            f"namespace {namespace} {{", f"namespace {namespace.removesuffix('.Clients')}.Internal.Client {{"
-                        )
-                # Carrier Messages Are Never an Authoring Surface.
-
-                # Generated Namespaces Follow the Same File-Scoped Rule as Authored C#.
-                match = re.search(r"namespace ([\w.]+) \{", source)
-                if match:
-                    source = source[: match.start()] + f"namespace {match[1]};" + source[match.end() :]
-                    ending = source.rfind("}")
-                    source = source[:ending] + source[ending + 1 :]
+                source = _wire_source(path.read_text(encoding="utf-8"), path.name, file, requests, namespace_override)
                 path.write_text(source, encoding="utf-8", newline="\n")
         if check:
-            expected = {path.relative_to(scratch) for path in scratch.rglob("*.cs")}
-            existing = {path.relative_to(destination) for path in destination.rglob("*.cs")}
+            expected = set()
+            for path in scratch.rglob("*.cs"):
+                expected.add(path.relative_to(scratch))
+            existing = set()
+            for path in destination.rglob("*.cs"):
+                existing.add(path.relative_to(destination))
             if expected != existing or any((scratch / path).read_bytes() != (destination / path).read_bytes() for path in expected):
-                raise ValueError("Check C# Protocol: Generated Drift; Run mise run generate -- --sdk csharp")
+                raise ValueError("Check C# Protocol: Regenerate With mise run generate -- --protocol")
         else:
             destination.mkdir(parents=True, exist_ok=True)
             for old in destination.rglob("*.cs"):
@@ -120,5 +106,35 @@ def protocols(
 
 
 # === Private Functions === #
+
+
+def _wire_source(
+    source: str,
+    filename: str,
+    file: FileDescriptorProto,
+    requests: set[str],
+    namespace_override: str | None,
+) -> str:
+    """Apply the Public Payload and Internal Carrier Namespace Contract."""
+    source = message(source)
+    if namespace_override is not None:
+        source = source.replace("namespace Harmos.Clients {", f"namespace {namespace_override} {{")
+        source = source.replace("global::Harmos.Clients.", f"global::{namespace_override}.")
+    for name in requests:
+        source = source.replace(f"public sealed partial class {name} :", f"internal sealed partial class {name} :")
+    if filename.endswith("Grpc.cs"):
+        source = source.replace("namespace Harmos.Plugins {", "namespace Harmos.Internal.Host {")
+        source = source.replace("namespace Harmos.Clients {", "namespace Harmos.Internal.Client {")
+        namespace = message(file.options.csharp_namespace)
+        if namespace.endswith(".Clients"):
+            source = source.replace(f"namespace {namespace} {{", f"namespace {namespace.removesuffix('.Clients')}.Internal.Client {{")
+    # Generated Namespaces Follow the Same File-Scoped Rule as Authored C#.
+    match = re.search(r"namespace ([\w.]+) \{", source)
+    if match:
+        source = source[: match.start()] + f"namespace {match[1]};" + source[match.end() :]
+        ending = source.rfind("}")
+        source = source[:ending] + source[ending + 1 :]
+    return source
+
 
 # === Entry Point === #

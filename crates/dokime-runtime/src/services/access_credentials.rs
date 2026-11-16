@@ -16,12 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Mutex;
+use std::{fmt::Display, io, sync::Mutex};
 
 // Third Party Imports
 use dokime_operations::host::credentials::{CredentialNamespace, Entry};
 use harmos_runtime::grpc::access::{CredentialStore, Credentials, Pairing, Pending};
 use prost::Message;
+use uuid::Uuid;
 use zeroize::Zeroizing;
 
 // Local Imports
@@ -126,12 +127,6 @@ impl Store {
                 Ok(()) | Err(keyring::Error::NoEntry) => {}
                 Err(error) => return Err(crate::Error::Invalid(format!("Remove Root Access Credential: {error}"))),
             }
-            // Keep Cleanup Ownership Until the Native Store Confirms Absence.
-            match self.key(slot).and_then(|key| key.get_secret()).map(Zeroizing::new) {
-                Err(keyring::Error::NoEntry) => {}
-                Err(error) => return Err(crate::Error::Invalid(format!("Verify Removed Root Access Credential: {error}"))),
-                Ok(_) => return Err(crate::Error::Invalid("Remove Root Access Credential: Credential Remains in the Native Store".into())),
-            }
         }
         slots.slots.retain(|slot| retained == Some(slot.as_str()));
         if slots.slots.is_empty() {
@@ -146,13 +141,13 @@ impl Store {
 impl CredentialStore for Store {
     fn load(&self) -> Pending<'_, Option<Credentials>> {
         Box::pin(logged("Load Access Credentials", async move {
-            let _guard = self.commit.lock().map_err(|_| std::io::Error::other("Load Access Credentials: Store Lock Failed"))?;
+            let _guard = self.commit.lock().map_err(|_| io::Error::other("Load Access Credentials: Store Lock Failed"))?;
             let Some(value) = self.storage.administration::<Snapshot>("access")? else { return Ok(None) };
             let private_key = Zeroizing::new(self.key(&value.key_slot)?.get_password()?);
             Ok(Some(Credentials {
                 revision: value.revision,
                 listener_revision: value.listener_revision,
-                listener: value.listener.ok_or_else(|| std::io::Error::other("Load Access Credentials: Missing Listener"))?,
+                listener: value.listener.ok_or_else(|| io::Error::other("Load Access Credentials: Missing Listener"))?,
                 certificate_pem: value.certificate_pem,
                 private_key_pem: private_key.to_string(),
                 pairings: value
@@ -169,12 +164,12 @@ impl CredentialStore for Store {
     }
     fn commit(&self, expected_revision: u64, value: Credentials) -> Pending<'_, ()> {
         Box::pin(logged("Commit Access Credentials", async move {
-            let _guard = self.commit.lock().map_err(|_| std::io::Error::other("Commit Access Credentials: Store Lock Failed"))?;
+            let _guard = self.commit.lock().map_err(|_| io::Error::other("Commit Access Credentials: Store Lock Failed"))?;
             let previous = self.storage.administration::<Snapshot>("access")?;
             if previous.as_ref().map_or(0, |value| value.revision) != expected_revision {
-                return Err(std::io::Error::other("Commit Access Credentials: Get Again and Retry the Revision").into());
+                return Err(io::Error::other("Commit Access Credentials: Get Again and Retry the Revision").into());
             }
-            let key_slot = uuid::Uuid::now_v7().to_string();
+            let key_slot = Uuid::now_v7().to_string();
             let key = self.key(&key_slot)?;
             let private_key = Zeroizing::new(value.private_key_pem);
             // Persist Ownership Before Crossing Into the Native Credential Store.
@@ -213,7 +208,7 @@ impl CredentialStore for Store {
                     }
                     return match outcome {
                         Err(error) => Err(error.into()),
-                        _ => Err(std::io::Error::other("Commit Access Credentials: Get Again and Retry the Revision").into()),
+                        _ => Err(io::Error::other("Commit Access Credentials: Get Again and Retry the Revision").into()),
                     };
                 }
             }
@@ -230,7 +225,7 @@ impl CredentialStore for Store {
 /* === Private Functions === */
 
 /// The Library Reports Only That the Credential Store Was Unavailable; the Host Log Keeps the Cause.
-async fn logged<T, E: std::fmt::Display>(action: &'static str, work: impl Future<Output = Result<T, E>>) -> Result<T, E> {
+async fn logged<T, E: Display>(action: &'static str, work: impl Future<Output = Result<T, E>>) -> Result<T, E> {
     let result = work.await;
     if let Err(error) = &result {
         tracing::error!(%error, "{action}");

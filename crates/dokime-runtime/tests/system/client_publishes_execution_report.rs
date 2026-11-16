@@ -16,8 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{error::Error, str};
 
 // Third Party Imports
+use sha2::{Digest, Sha256};
+use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
@@ -29,12 +32,9 @@ use dokime::client::ReportSubject;
 use dokime::client::ReportsCreateOptions;
 use dokime::client::ReportsPublishOptions;
 use dokime_protocol::host::ReportsPublishRequest;
-use dokime_protocol::host::report_subject::Kind as ReportSubjectKind;
+use dokime_protocol::host::report_subject;
 use dokime_runtime::Host;
 use dokime_storage::Store;
-use sha2::Digest;
-use std::error::Error;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -78,10 +78,10 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             drop(host);
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-            let reports = Client::from_channel(channel.clone(), super::support::client_settings())?.reports.clone();
-            let executions = Client::from_channel(channel, super::support::client_settings())?.executions.clone();
+            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let reports = &client.reports;
             let subject = ReportSubject {
-                kind: Some(ReportSubjectKind::Execution(identifier.clone())),
+                kind: Some(report_subject::Kind::Execution(identifier.clone())),
             };
             let preview = reports
                 .create_with(
@@ -112,6 +112,13 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
                     .is_err()
             );
             assert!(store.reports(&identifier)?.is_empty());
+            // Publish From Durable Metadata and File Bytes After Restart
+            process.close().await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let reports = &client.reports;
+            let executions = &client.executions;
             let current = executions.get_with(identifier.clone(), ExecutionsGetOptions { at: None, ..Default::default() }).await?;
             assert_eq!(current.execution.unwrap().report.unwrap().state, ReportState::Pending as i32);
             let request = ReportsPublishRequest {
@@ -125,11 +132,11 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             assert!(
                 reports
                     .publish_with(
-                        (stale.clone()).name,
-                        ((stale.clone()).subject).unwrap_or_default(),
-                        (stale.clone()).expected_revision,
+                        stale.name,
+                        stale.subject.unwrap_or_default(),
+                        stale.expected_revision,
                         ReportsPublishOptions {
-                            request_id: Some((stale.clone()).request_id),
+                            request_id: Some(stale.request_id),
                             ..Default::default()
                         }
                     )
@@ -139,11 +146,11 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             assert!(store.reports(&identifier)?.is_empty());
             let metadata = reports
                 .publish_with(
-                    (request.clone()).name,
-                    ((request.clone()).subject).unwrap_or_default(),
-                    (request.clone()).expected_revision,
+                    request.name.clone(),
+                    request.subject.clone().unwrap_or_default(),
+                    request.expected_revision.clone(),
                     ReportsPublishOptions {
-                        request_id: Some((request.clone()).request_id),
+                        request_id: Some(request.request_id.clone()),
                         ..Default::default()
                     },
                 )
@@ -153,17 +160,17 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             assert_eq!(published[0].document.as_ref(), Some(&document));
             assert_eq!(published[0].identifier, metadata.report.as_ref().unwrap().identifier);
             assert_eq!(published[0].execution_seal, before.seal);
-            assert_eq!(sha2::Sha256::digest(&published[0].html).as_slice(), file.sha256);
-            assert!(std::str::from_utf8(&published[0].html)?.contains("<svg"));
+            assert_eq!(Sha256::digest(&published[0].html).as_slice(), file.sha256);
+            assert!(str::from_utf8(&published[0].html)?.contains("<svg"));
             assert_eq!(store.read(&identifier)?, before);
             assert_eq!(
                 reports
                     .publish_with(
-                        (request.clone()).name,
-                        ((request.clone()).subject).unwrap_or_default(),
-                        (request.clone()).expected_revision,
+                        request.name.clone(),
+                        request.subject.clone().unwrap_or_default(),
+                        request.expected_revision.clone(),
                         ReportsPublishOptions {
-                            request_id: Some((request.clone()).request_id),
+                            request_id: Some(request.request_id.clone()),
                             ..Default::default()
                         }
                     )

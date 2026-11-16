@@ -31,8 +31,8 @@ fn main() -> Result<()> {
 
 Private operations stay inside their plugin, Protected operations admit host
 calls, and Public operations can be discovered and bound by clients. Requirements
-describe dependencies; they do not grant access. Suite lifecycle and analysis
-adapters retain independent Protected operation identities and authored policies.
+describe dependencies; they do not grant access. Suite lifecycle adapters retain
+independent Protected operation identities and authored policies.
 
 ## Examples and New Projects
 
@@ -47,7 +47,7 @@ The [thermal suite](../sdk/rust/examples/thermal.rs) and
 journeys. Both use public imports, execution-local resources and host-driven time.
 The thermal suite captures temperature samples and exact integer counters,
 acknowledges door records and evaluates typed statistics for the Hold step.
-Scale and exactness documents live in the [OBC plugin](plugin-obc.md) Bench suite.
+Scale and exactness documents live in the [OBC plugin](../plugins/sidecars/obc/) Benchmark suite, with separate stream, plot, observer and exact-value workloads.
 
 ## Clients
 
@@ -121,8 +121,7 @@ through host waits; no SDK retry loop or wall-clock wait drives execution. A sco
 sleep settles after every observer window due by its end has been answered and
 stored, so a step that sleeps for `n` intervals finds `n` more samples saved.
 Observer intervals and retry timing belong to declared settings and operation
-policies. `Operation::analysis` adapts typed analysis requests and responses while
-retaining raw sample axes and outputs.
+policies.
 
 ## Observers and Interval Windows
 
@@ -217,24 +216,24 @@ Statistics and plot summaries carry typed `Value` fields, including exact totals
 and sums. `ExactNumber` retains sign, decimal numerator and denominator without
 floating conversion. `FromValue` extracts it losslessly; floating extraction
 refuses an exact value. Drawing coordinates, standard deviation and RMS remain
-floating point. Analysis helpers preserve source-time axes; document replies keep
-pending bindings, result summaries and card completion states.
+floating point. Document replies keep pending bindings, result summaries and
+card completion states.
 
 ## Focused Proof
 
 ```sh
 mise -C sdk/rust run format
-mise -C sdk/rust run sdk:build
-mise -C sdk/rust run sdk:unit
-mise -C sdk/rust run sdk:test
-mise -C sdk/rust run sdk:lint
-mise -C sdk/rust run sdk:tree
+mise -C sdk/rust run build
+mise -C sdk/rust run test -- --layer unit
+mise -C sdk/rust run test
+mise -C sdk/rust run lint
+mise -C sdk/rust run check
 ```
 
 The external consumer owns installed-consumer compilation, fixture binaries and
 integration stories, with a separate lock and the repository's shared target.
 The build includes the client, plugin and test example sources as consumer binaries.
-Run `sdk:prepare` only when refreshing that consumer's dependency lock.
+Run `prepare` only when refreshing that consumer's dependency lock.
 The unit selection covers both SDK crates and reports an empty selection when
 their invariants are covered by the integration journeys instead.
 Its stories exercise typed declarations, authentication, discovery, schema

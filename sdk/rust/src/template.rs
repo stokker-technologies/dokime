@@ -28,6 +28,7 @@ use crate::plugin::{
     CriteriaEvaluateRequest, CriteriaEvaluateResponse, ExecutionsCleanupRequest, ExecutionsCleanupResponse, ExecutionsInitializeRequest,
     ExecutionsInitializeResponse, StepsExecuteRequest, StepsExecuteResponse, TestCasesMaterializeRequest, TestCasesMaterializeResponse,
 };
+use crate::wire::model;
 use crate::{
     Context, Error, Message, Observer, Result, Stream,
     context::Executions,
@@ -36,14 +37,10 @@ use crate::{
     operation::{self, Action},
     stream::{Registration, Sampler},
 };
-use crate::{
-    Criterion as CriterionDefinition, Document, FileParameter, Metadata, Parameter, Step as StepDefinition, TestCase, TestCaseTemplate,
-    Value,
-};
+use crate::{Document, FileParameter, Metadata, Parameter, TestCase, TestCaseTemplate, Value};
 use harmos::OperationPolicy;
 use harmos::Visibility;
-use harmos::plugin::Context as HarmosContext;
-use harmos::plugin::Plugin as HarmosPlugin;
+use harmos::plugin;
 
 /* === Constants === */
 
@@ -231,8 +228,8 @@ impl Template {
         }
         self
     }
-    pub fn parameter(mut self, parameter: Parameter) -> Self {
-        self.definition.parameters.push(parameter);
+    pub fn parameter(mut self, parameter: impl Into<Parameter>) -> Self {
+        self.definition.parameters.push(parameter.into());
         self
     }
     pub fn file(mut self, file: FileParameter) -> Self {
@@ -289,7 +286,7 @@ impl Template {
         let mut steps = Vec::new();
         for (index, step) in self.steps.into_iter().enumerate() {
             let operation = format!("{identifier}.step.{index}");
-            case.steps.push(StepDefinition {
+            case.steps.push(model::Step {
                 metadata: Some(step.metadata.clone()),
                 operation: operation.clone(),
                 repeatable: step.repeatable,
@@ -299,7 +296,7 @@ impl Template {
         let mut criteria = Vec::new();
         for (index, criterion) in self.criteria.into_iter().enumerate() {
             let operation = format!("{identifier}.criterion.{index}");
-            case.criteria.push(CriterionDefinition {
+            case.criteria.push(model::Criterion {
                 metadata: Some(criterion.metadata.clone()),
                 operation: operation.clone(),
             });
@@ -326,7 +323,7 @@ impl Template {
         })
     }
 
-    pub(crate) fn register(self, mut plugin: HarmosPlugin, executions: Executions) -> Result<(TestCaseTemplate, HarmosPlugin)> {
+    pub(crate) fn register(self, mut plugin: plugin::Plugin, executions: Executions) -> Result<(TestCaseTemplate, plugin::Plugin)> {
         let Parts {
             definition,
             case,
@@ -345,7 +342,7 @@ impl Template {
             let handler = operation::wire(
                 operation.clone(),
                 Visibility::Protected,
-                async move |transport: &HarmosContext, Wire(request): Wire<StepsExecuteRequest>| {
+                async move |transport: &plugin::Context, Wire(request): Wire<StepsExecuteRequest>| {
                     let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                     let present = context.test_case()?.steps.iter().any(|step| {
                         step.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.step) && step.operation == operation
@@ -367,7 +364,7 @@ impl Template {
             plugin = plugin.operation(operation::wire(
                 operation.clone(),
                 Visibility::Protected,
-                async move |transport: &HarmosContext, Wire(request): Wire<CriteriaEvaluateRequest>| {
+                async move |transport: &plugin::Context, Wire(request): Wire<CriteriaEvaluateRequest>| {
                     let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                     let present = context.test_case()?.criteria.iter().any(|criterion| {
                         criterion.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.criterion)
@@ -388,7 +385,7 @@ impl Template {
         plugin = plugin.operation(operation::wire(
             definition.materialize.clone(),
             Visibility::Protected,
-            async move |transport: &HarmosContext, Wire(request): Wire<TestCasesMaterializeRequest>| {
+            async move |transport: &plugin::Context, Wire(request): Wire<TestCasesMaterializeRequest>| {
                 if transport.scope().is_ok() {
                     return Err(Error::Invalid("Materialization Requires an Empty Execution Scope".into()));
                 }
@@ -432,7 +429,7 @@ impl Template {
             plugin = plugin.operation(operation::wire(
                 operation,
                 Visibility::Protected,
-                async move |transport: &HarmosContext, Wire(request): Wire<ExecutionsInitializeRequest>| {
+                async move |transport: &plugin::Context, Wire(request): Wire<ExecutionsInitializeRequest>| {
                     let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                     initialize.execute(&context).await?;
                     Ok(Wire(ExecutionsInitializeResponse {}))
@@ -445,7 +442,7 @@ impl Template {
         plugin = plugin.operation(operation::wire(
             definition.cleanup.clone().expect("SDK Cleanup Operation"),
             Visibility::Protected,
-            async move |transport: &HarmosContext, Wire(request): Wire<ExecutionsCleanupRequest>| {
+            async move |transport: &plugin::Context, Wire(request): Wire<ExecutionsCleanupRequest>| {
                 let context = Context::execution(transport, &store, &request.execution, request.test_case, request.origin, &template)?;
                 let _end = context.end(store.clone());
                 let context = context.with_termination(request.termination)?;
@@ -492,3 +489,54 @@ fn metadata(label: &str) -> Metadata {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::Template;
+    use crate::{Card, FieldReference, Parameter, Plot, PlotKind, card, parameter_expansion, parameter_expression, value};
+
+    #[test]
+    fn parameter_builders_preserve_types_expansion_and_bounds() {
+        let template = Template::new("builders.test", "Builders")
+            .parameter(Parameter::number("voltage", "Voltage").unit("V").default(230.0).range(0.0..=300.0))
+            .parameter(Parameter::count("samples", "Samples").default(u64::MAX))
+            .parameter(Parameter::flag("enabled", "Enabled").default(true))
+            .parameter(Parameter::sweep("loads", "Loads", [80.0, 100.0]))
+            .parameter(Parameter::numbers("ladder", "Ladder", [10.0, 20.0]).items(1..=8));
+        let parts = template.parts().unwrap();
+        let values = parts.definition.parameters;
+        assert_eq!((values[0].min, values[0].max), (Some(0.0), Some(300.0)));
+        let literal = |index: usize| match values[index].expression.as_ref().unwrap().kind.as_ref().unwrap() {
+            parameter_expression::Kind::Literal(value) => value.kind.clone().unwrap(),
+            _ => panic!("Expected a Literal"),
+        };
+        assert_eq!(literal(0), value::Kind::Number(230.0));
+        assert_eq!(literal(1), value::Kind::UnsignedInteger(u64::MAX));
+        assert_eq!(literal(2), value::Kind::Boolean(true));
+        assert!(matches!(values[3].expansion.as_ref().unwrap().kind, Some(parameter_expansion::Kind::Cartesian(true))));
+        let Some(parameter_expression::Kind::Array(array)) = values[3].expression.as_ref().unwrap().kind.as_ref() else {
+            panic!("Expected a Sweep");
+        };
+        assert_eq!(array.values.len(), 2);
+        let value::Kind::List(list) = literal(4) else {
+            panic!("Expected a List");
+        };
+        assert_eq!(list.values[1].kind, Some(value::Kind::Number(20.0)));
+        assert_eq!((values[4].min_items, values[4].max_items), (Some(1), Some(8)));
+    }
+
+    #[test]
+    fn plot_and_card_builders_preserve_owned_operands() {
+        let mut plot = Plot::line("voltage", "Voltage").unit("V");
+        plot.y.push(FieldReference::new("samples").field("voltage_v"));
+        let card = Card::plot(plot.clone()).columns(6);
+        plot.y.clear();
+        let Some(card::Body::Plot(captured)) = card.body else {
+            panic!("Expected a Plot");
+        };
+        assert_eq!(captured.kind, PlotKind::TimeSeries as i32);
+        assert_eq!(captured.y.len(), 1);
+        assert_eq!(card.layout.unwrap().columns, 6);
+        assert!(matches!(Card::records("records").body, Some(card::Body::Evidence(_))));
+    }
+}

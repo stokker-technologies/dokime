@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Build And Export The Shared Execution Host Fixtures Through SDK Tasks."""
+"Build and Export the Shared Execution Host Fixtures Through SDK Tasks."
 
 # === Imports === #
 
@@ -20,8 +20,14 @@ import sys
 import tomllib
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
+import dokime_tools.test.policy
 from dokime_tools.build import cargo, configuration, paths
 from dokime_tools.ci import transport
 from dokime_tools.package.staging import sync_output
@@ -58,7 +64,7 @@ def build(profile: str, language: str = "auto") -> None:
     # Build The Rust Reference And Execution Fixtures.
     if "rust" in languages:
         subprocess.run(
-            ["mise", "-C", "sdk/rust", "run", "sdk:build"],
+            ["mise", "-C", "sdk/rust", "run", "build"],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),
@@ -245,7 +251,7 @@ def build(profile: str, language: str = "auto") -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=configuration.PROFILES, default="dev")
+    parser.add_argument("--profile", choices=dokime_tools.test.policy.PROFILES, default="dev")
     parser.add_argument(
         "--language",
         choices=("auto", "none", "rust", "python", "csharp", "cpp"),

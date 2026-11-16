@@ -17,7 +17,7 @@
 
 // Standard Library Imports
 use std::{
-    error::Error as StdError,
+    error,
     ffi::OsString,
     num::NonZeroUsize,
     panic::{AssertUnwindSafe, resume_unwind},
@@ -53,7 +53,7 @@ use tonic::Code;
 
 use dokime_gui::connection::ConnectionError;
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Error, Pairing};
-use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, services};
+use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, credentials, services};
 use dokime_sdk::PageRequest;
 use dokime_sdk::StorageTransferSettings;
 use dokime_sdk::client::ClientSettings;
@@ -119,7 +119,7 @@ fn settings() -> ConnectionSettings {
 /* === Tests === */
 
 #[test]
-fn embedded_readiness_attachment_and_restart() -> Result<(), Box<dyn StdError>> {
+fn embedded_readiness_attachment_and_restart() -> Result<(), Box<dyn error::Error>> {
     dokime_gui::test_support::run(async {
         // Start the Embedded Host and Read Its Ready SDK Identity
         let root = dokime_gui::test_support::tempdir()?;
@@ -156,7 +156,7 @@ fn embedded_readiness_attachment_and_restart() -> Result<(), Box<dyn StdError>> 
 }
 
 #[test]
-fn incompatible_storage_is_preserved_and_retry_uses_an_explicit_fresh_root() -> Result<(), Box<dyn StdError>> {
+fn incompatible_storage_is_preserved_and_retry_uses_an_explicit_fresh_root() -> Result<(), Box<dyn error::Error>> {
     dokime_gui::test_support::run(async {
         // A Foreign Root Must Stay Byte-for-Byte Available for Backup
         let existing = dokime_gui::test_support::tempdir()?;
@@ -183,7 +183,7 @@ fn incompatible_storage_is_preserved_and_retry_uses_an_explicit_fresh_root() -> 
 }
 
 #[test]
-fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn StdError>> {
+fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn error::Error>> {
     dokime_gui::test_support::run(async {
         // Observe Current State Through the SDK Watch Transport
         let root = dokime_gui::test_support::tempdir()?;
@@ -281,7 +281,7 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn StdE
 }
 
 #[test]
-fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdError>> {
+fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn error::Error>> {
     dokime_gui::test_support::run(async {
         // Enable an Isolated Authenticated Listener Through the SDK Root
         let root = dokime_gui::test_support::tempdir()?;
@@ -336,7 +336,7 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdE
             remote.close().await?;
             let options = StatusGetOptions { context: local.call_options()? };
             local.execute(local.client().status.get_with(options)).await?;
-            Ok::<_, Box<dyn StdError>>(())
+            Ok::<_, Box<dyn error::Error>>(())
         })
         .catch_unwind()
         .await;
@@ -352,7 +352,7 @@ fn pinned_pairing_identity_and_certificate_rotation() -> Result<(), Box<dyn StdE
 }
 
 #[test]
-fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Box<dyn StdError>> {
+fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Box<dyn error::Error>> {
     dokime_gui::test_support::run(async {
         use dokime_gui::connection::ConnectionSession;
         use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSession, backend::Backend};
@@ -437,7 +437,7 @@ fn desktop_owner_routes_canonical_ipc_and_replaces_generation() -> Result<(), Bo
 }
 
 #[test]
-fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Result<(), Box<dyn StdError>> {
+fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Result<(), Box<dyn error::Error>> {
     dokime_gui::test_support::run(async {
         use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
         use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSession, DesktopSessionError, backend::Backend};
@@ -470,7 +470,7 @@ fn desktop_refuses_an_occupied_root_but_can_attach_to_its_owner() -> Result<(), 
 }
 
 #[test]
-fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<dyn StdError>> {
+fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<dyn error::Error>> {
     dokime_gui::test_support::run(async {
         use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
         use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSession, backend::Backend};
@@ -502,7 +502,7 @@ fn desktop_attachment_preserves_an_incompatible_local_root() -> Result<(), Box<d
 }
 
 #[test]
-fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn StdError>> {
+fn library_trace_snapshot_watch_and_verified_diagnostics() -> Result<(), Box<dyn error::Error>> {
     dokime_gui::test_support::run(async {
         use sha2::{Digest, Sha256};
         let root = dokime_gui::test_support::tempdir()?;
@@ -616,7 +616,7 @@ fn failed_story_cleanup() {
             let pointer: AccessPointer = store.administration("access").unwrap().unwrap();
             let name = format!("{}:{}", store.identity(), pointer.key_slot);
             assert!(
-                !keyring::Entry::new(&dokime_gui::test_support::credentials().service("access"), &name)
+                !credentials::Entry::new(&dokime_gui::test_support::credentials().service("access"), &name)
                     .unwrap()
                     .get_password()
                     .unwrap()
@@ -628,7 +628,7 @@ fn failed_story_cleanup() {
         })
     });
     assert!(failure.unwrap_err().is::<StoryFailure>());
-    let removed = keyring::Entry::new(&dokime_gui::test_support::credentials().service("access"), &credential.lock().unwrap())
+    let removed = credentials::Entry::new(&dokime_gui::test_support::credentials().service("access"), &credential.lock().unwrap())
         .unwrap()
         .get_password()
         .map(drop);

@@ -1,8 +1,6 @@
 // @generated from protocol descriptors; do not edit.
 use dokime_protocol::host::AggregatesGetRequest;
 use dokime_protocol::host::AggregatesGetResponse;
-use dokime_protocol::host::AnalysesListRequest;
-use dokime_protocol::host::AnalysesListResponse;
 use dokime_protocol::host::ApplicationSettings;
 use dokime_protocol::host::BackendAppearanceRequest;
 use dokime_protocol::host::BackendAppearanceResponse;
@@ -339,22 +337,6 @@ pub struct AggregatesGetOptions {
     pub context: CallOptions,
 }
 impl Clone for AggregatesGetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct AnalysesListOptions {
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for AnalysesListOptions {
     fn clone(&self) -> Self {
         Self {
             at: self.at.clone(),
@@ -2631,7 +2613,6 @@ impl Clone for TimeSleepOptions {
 pub struct Root {
     pub access: Access,
     pub aggregates: Aggregates,
-    pub analyses: Analyses,
     pub backend: Backend,
     pub cases: Cases,
     pub content: Content,
@@ -2664,7 +2645,6 @@ impl Root {
         Self {
             access: Access::new(client.clone()),
             aggregates: Aggregates::new(client.clone()),
-            analyses: Analyses::new(client.clone()),
             backend: Backend::new(client.clone()),
             cases: Cases::new(client.clone()),
             content: Content::new(client.clone()),
@@ -2885,33 +2865,6 @@ impl Aggregates {
             )
             .await
             .map_err(|error| action_error("aggregates.get", error))?;
-        let response = response.into_inner();
-        Ok(response)
-    }
-}
-#[derive(Clone)]
-pub struct Analyses {
-    client: ClientTransport,
-}
-impl Analyses {
-    pub fn new(client: ClientTransport) -> Self {
-        Self { client }
-    }
-    pub async fn list(&self) -> Result<AnalysesListResponse, RpcStatus> {
-        self.list_with(AnalysesListOptions::default()).await
-    }
-    pub async fn list_with(&self, options: AnalysesListOptions) -> Result<AnalysesListResponse, RpcStatus> {
-        let value = AnalysesListRequest { at: options.at };
-        let request = options.context.request(value);
-        let response = self
-            .client
-            .unary::<AnalysesListRequest, AnalysesListResponse>(
-                PathAndQuery::from_static("/dokime.host.v1.Analyses/List"),
-                request,
-                AnalysesListResponse::default().descriptor(),
-            )
-            .await
-            .map_err(|error| action_error("analyses.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }

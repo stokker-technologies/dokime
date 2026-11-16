@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`, rather than
+[Cargo.toml](../Cargo.toml), `7fe385eacbe9a4c9a47943f6a528f97a014256ee`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -161,10 +161,14 @@ ownership changes below are locked direction, not implemented source.
    definitions, objects, authorization, secrets, schemas, UI and archives.
    **Why:** The previous approach duplicated connection, dispatch and process launch;
    product-specific policy must not become generic machinery. HostValues uses a product resolver.
-   Evidence archives read scoped native file histories through the registered
-   backend and publish their output through native uploads. Product seals,
-   artifact metadata and transaction policy remain product-owned and use Harmos
-   storage operations rather than direct Store calls;
+   Evidence archives read scoped native file histories through operations and publish
+   their output through native uploads. Product transitions and seal policy compose
+   Harmos compound mutations; physical transactions belong to the registered backend.
+   Counts and statistics compose Harmos row transforms. Sigma, contour, grid, FFT,
+   document and plot presentation remain product operations reading through Harmos.
+   The stored zoom envelope uses Harmos object or file operations and its merge
+   kernel; sealing clears the envelope and every preview in the seal mutation.
+   Product wrappers declare the remotely callable surface over in-process library operations;
    archive stream members preserve the original Arrow bytes.
    **Where:** [boundary and settings requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md),
    [current composition](../crates/dokime-runtime/Cargo.toml),
@@ -186,7 +190,11 @@ ownership changes below are locked direction, not implemented source.
    archives; `client_reads_runtime` proves status observation and stable restart identity.
    **Status:** the ownership/facade amendments are locked direction. The following
    composition describes landed behavior to migrate, not the target contract.
-   Access, Status, native transfers and library plugin entries are composed.
+   Retained resource-view indexes use `GetObject` and create-only `SetObject` in
+   `crates/dokime-operations/src/host/views.rs`; their immutable protobuf payloads use
+   chunked native files, so a complete collection can exceed one response page without
+   exceeding an object or transfer bound. Their product evidence cuts still use
+   the execution ledger. Access, Status, native transfers and library plugin entries are composed.
    Executions bind the admitted activation once per unit with a trusted scope and
    independent clock; lifecycle dispatch uses the library operation manager. Scoped
    sample ingestion acknowledges only after the product Arrow write and binding
@@ -206,13 +214,19 @@ ownership changes below are locked direction, not implemented source.
    not the claim: while the original exists, the copy refuses to open with
    credential records and refuses credential removal, so it can never delete the
    original's accounts. A moved root reclaims; removal releases the claim.
-   Access-key cleanup checks native absence before retiring its slot journal;
-   a remaining or unreadable key preserves the root for cleanup. Access and shared
-   secret owners submit native creation, reads and removal to one dedicated
-   process-lifetime credential thread, including root reopen and explicit discard.
+   Native credential removal checks absence before the owner retires its slot journal;
+   a remaining or unreadable key preserves the root for cleanup. On Windows, every
+   native credential call, including test and diagnostic reads, takes the same
+   per-user cross-process file lock at `%LOCALAPPDATA%/dokime/native-credentials.lock`.
+   Persistent Windows credential reads can race writes to unrelated targets and
+   resurrect deleted entries, so neither a namespace lock nor a process-local owner
+   thread provides isolation. `host/credentials/` in `dokime-operations` owns this
+   boundary; calls run on their calling threads. Uncoordinated external credential
+   callers cannot be isolated by this product lock. Unix uses its native service directly.
    Root leases are unlocked before their handles close, since a lock left on a
    closed handle is released only eventually.
-   Concurrent-host stories retain independent calling-thread absence assertions.
+   Concurrent-host stories start separate host processes and retain calling-thread
+   native absence assertions through the same coordination boundary.
    Native test and benchmark runners retain child scratch ownership and remove
    root credentials after child exit, including termination, before deleting scratch.
    `credentials_leave_with_discarded_roots` proves named access and secret credentials
@@ -493,7 +507,7 @@ ownership changes below are locked direction, not implemented source.
 | --- | --- | --- |
 | Three visibility levels; explicit SDK choice (2026-11-12) | Preserve truly local work, host-only requests and exposed composition separately. | [operation-grammar](../openspec/changes/operation-grammar/design.md#built-in-visibility-mapping) |
 | Three audience faces (2026-11-12) | Keep instance protocol, invocation context and client authority independent. | [operation-grammar](../openspec/changes/operation-grammar/design.md#audience-faces-and-visibility) |
-| Managers and direct library composition (2026-11-12) | One live owner; avoid rebuilding generic machinery and leaking product policy. | [operation-grammar](../openspec/changes/operation-grammar/design.md#ownership-and-managers) |
+| Storage through operations and product wrappers (2026-11-16) | One physical backend and one library implementation of generic storage/query machinery; product operations retain policy and exposure. | [operation-boundary](../openspec/changes/operation-boundary/design.md) |
 | Nested resources, whole-value Set and Append (2026-11-12) | Predictable verbs and revision safety without field-mask machinery. | [operation-grammar](../openspec/changes/operation-grammar/design.md#shared-grammar-and-vocabulary) |
 | Latest durable/no wait; measured lag accepted (amended by the owner on 2026-11-13) | Consistent reads without making readers drive flushing. | [operation-grammar](../openspec/changes/operation-grammar/design.md#read-selection-and-durability) |
 | Client resends; original receipt (2026-11-12) | Recover lost replies without applying an effect twice. | [operation-grammar](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy) |
@@ -660,14 +674,23 @@ variance uses bounded exact sums of squares, so small spreads above f64 integer
 precision survive. Standard deviation, RMS and chart coordinates remain floating
 point; these drawing coordinates never replace the exact statistic or its label.
 
-`Backend::open(&store)` returns the library's `StorageBackends` pair, sharing the
+`Backend::open(&store, catalog)` returns the library's `StorageBackends` pair, sharing the
 root's durable history. `backend.rs` and `backend/**` implement the native primary
 and recovery contracts. Their catalog is `storage.sqlite3`; native sample batches
 live in compressed `storage.arrow/<id>.arrow` files. SQLite retains replay digests
-and column bounds, with no native sample payload or Arrow-column blobs. Each file
+and column bounds, with no native sample payload or Arrow-column blobs. Arrow chunks
+stay within one scope, and object chunks also stay within one identity; splitting
+mixed-owner batches preserves source order and permits whole-file reclamation. Each file
 is synced before its catalog transaction commits; startup collects uncataloged
 owned files after a failed transaction. Native row reads reconstruct Postcard
 values from those Arrow columns, preserving optional messages and repeated values.
+Compound mutation commits ordered object changes, records and their replayable
+receipt in one SQLite transaction. A late conditional conflict rolls back every
+effect and commits its original refusal receipt. Snapshot admission rejects cuts
+inside a compound range. Object and scoped deletion hide values at new cuts while
+retained snapshots keep their original image; releasing those snapshots permits
+file-byte and fully deleted Arrow-chunk reclamation. The compound backend format
+keeps baseline v1 and refuses superseded native roots with fresh-root guidance.
 Native storage and the existing descriptor-driven evidence store remain distinct
 until operations/runtime callers complete their native-port adoption. Product
 protobuf values and descriptors must be mapped explicitly at those callers.
@@ -720,14 +743,62 @@ tracked. Each release ships one self-contained contracts archive with Dokime and
 Harmos carrier protos, recursive `google/*`, licenses and protoc/Buf instructions;
 packaging verifies import closure.
 
-The source inventory below records the earlier pin/composition contract, superseded
-by this amendment. Its backend method obligations remain; its manager/composition
-examples are historical, not the target public API.
+The inventory below records current pin/composition behavior to migrate. Its backend
+method obligations remain; manager construction is not the target public API. The
+former direct-composition rule prevented duplicated machinery; product wrappers
+preserve that purpose while declaring the library methods clients use.
 Invariant 11, **Distinct Storage Guarantees**, still separates accepted live rows,
 durable cuts, projection frontiers and atomic conditional mutations. The physical
 SQLite catalog and compressed Arrow file backend remain product-owned in
 `crates/dokime-storage`; the library owns its interfaces, native operations,
 StorageManager/StateManager and query engine. Its in-memory backend is test support.
+
+The protocol crate mirrors the executor packages with `src/host/`, `src/model/`
+and `src/plugin/`. Generated wire packages remain private; those modules expose
+their complete contract surfaces. Hand-written expression/document construction,
+plot-kind validation and frozen-origin validation live with their model contracts.
+Plugin request validation lives with the owning executor resource and shares the
+model's frozen-origin check. `builders::Plot` is a separate authoring value because
+Prost generates enum and optional-field getters with the same names as its composition methods. It owns its
+message explicitly and converts into the generated plot without dereference
+forwarding. The Rust generator is a normal tooling library consumed by its CLI and the protocol drift
+test; tests do not import generator source through path overrides.
+SDK drift checks render into a disposable temporary directory and compare the
+complete owned output inventory by bytes, including obsolete files, without
+changing sources or consulting git status. Protocol generation alone owns cleanup
+of retired Rust wire packages.
+
+`dokime proto export` embeds the descriptor-selected Google import closure from
+the pinned compiler package alongside Dokime and Harmos sources, license texts,
+Buf configuration and the [protocol usage guide](protocol-export.md) as README.
+Release packaging verifies every import resolves inside that export before
+creating the self-contained contracts ZIP. The release staging operation in
+`tools/python/src/dokime_tools/release/staging.py` delegates archive closure
+validation to `release/contracts.py`; SDK resource renderers live under
+`tools/python/src/dokime_tools/build/resources/`.
+
+At the current pin, the product `execution.sqlite3` ledger still owns coupled
+execution, evidence, sample, seal and report transitions, while registered Harmos
+operations persist in `storage.sqlite3`. Their sequencing cannot be split by moving
+only an append call: reads, retained cuts and seals must move with the canonical
+writer. The pinned Harmos revision and registered backend provide compound atomic
+mutation and object/scoped deletion. Their coupled product cutover remains open;
+offline/minimal-assembly storage operations, expression transforms scale/offset/contains,
+consolidated statistics, the bucket-summary kernel and the typed facade remain
+upstream gaps.
+Independent retained views use immutable native files and object indexes, retaining
+the first file published for a product cut. Pages keep their existing response bounds;
+the complete collection is stored and read through bounded native file operations.
+No mirror, fallback reader or dual write is introduced.
+Prepared reports persist their document, execution seal and native file reference
+through Harmos objects. Their HTML stays in the native file and publication reads
+it through `GetFileBytes`; the final product report transaction still awaits the
+compound-mutation cutover.
+The bounded live report registry retains native references only; it owns no second
+copy of the file bytes or file handles after upload.
+Roots containing the superseded SQL view or prepared-report journals are refused
+with fresh-root guidance at baseline v1. Admission preserves their stored values;
+there is no migration, fallback reader or automatic reset.
 
 The exact [operation/message/caller map](execution-host.md#operation-identity-and-caller-mapping)
 is canonical.
@@ -739,7 +810,6 @@ The definition replaces these ownership paths:
 | dokime.v1 shared grab-bag values | dokime.model.v1 for exchanged values; otherwise the owning host/plugin resource |
 | Plugin management and persisted plugin settings | Dokime contracts, policy and SDK projections over Harmos activation/storage operations |
 | Product clock operation declarations | Harmos clock mechanics through carrier facilities; Dokime wrappers only for client needs |
-| AnalysisRequest/AnalysisResponse | dokime.plugin.v1.AnalysesComputeRequest/AnalysesComputeResponse |
 | Product generic ordered merge | harmos-query/src/merge.rs; consumer deletion is still open |
 
 At the recorded pin, assembly and SDK generation still read
@@ -748,10 +818,23 @@ their audiences and descriptor-derived projections, and the runtime builder owns
 manager construction. Harmos helpers retain time, own-invocation and admitted
 discovery facilities; own settings resolve through the product kind's hook.
 
-`primary` implements StorageBackend and `state` implements StateBackend with
-identical StoreHistory. The runtime owns one storage manager per root; execution
-histories/scopes select data under that root. Every data operation stays in-process
-through the typed facade, never a storage gRPC API.
+At the pinned revision, the runtime applies this assembly before listeners or plugins start:
+
+```rust
+let (backends, backend_lease) = Backend::open(&store, catalog.clone())?;
+let storage = StorageManager::with_catalog(catalog, backends, storage_settings)?;
+setup.settings().storage(&storage);
+setup.composition(include_str!("../../../protocol/composition.toml"))?;
+setup.catalog(builtins::storage_catalog(), Lane::default());
+```
+
+The assembled runtime retains `backend_lease`. This records the current manager
+assembly; locked facade/builder adoption replaces that construction after upstream
+support is adopted. `primary` implements StorageBackend and `state` implements
+StateBackend with identical StoreHistory. Keep one manager per root, not one per
+execution. Product histories/scopes select executions under that root. Every data
+operation stays in-process through the library catalog, never a storage gRPC API.
+The runtime does not open the descriptor path in the composition file.
 
 At this pin the native PayloadEncoding enum still contains only PostcardV1.
 The backend consumer must encode native object/record/sample values and their
@@ -775,7 +858,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/640c73959d2a5ee65015afc617c0f3f2b4ca9f6c/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/7fe385eacbe9a4c9a47943f6a528f97a014256ee/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -886,10 +969,10 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`.
-The table below describes the earlier pin's consumer repairs. Plugin Boundary
-replaces its direct plugin-service composition and author-facing Harmos values;
-product SDKs use carrier helpers internally and expose Dokime values only.
+The definition pass pins Harmos at `7fe385eacbe9a4c9a47943f6a528f97a014256ee`.
+The table below records consumer repairs at this pin. Plugin Boundary replaces
+direct plugin-service composition and author-facing Harmos values; product SDKs
+use carrier helpers internally and expose Dokime values only.
 The pin and generated contracts do not establish consumer compilation.
 
 | Consumer | Required Change at This Pin |
@@ -936,3 +1019,33 @@ starters (decision 0.J). The Python test example carries its host-driven story i
 `tests/`, so `dokime new --lang python` ships the story its `mise run test` runs.
 The C++ starter consumes the installed SDK archive with its supplied SHA-256,
 then resolves the matching native dependencies through vcpkg.
+
+## Reference Plugin Authoring
+
+`plugins/sidecars/obc/src/lib.rs` composes global `catalog()` entry points. Its
+canonical Rust layout is maintained in the
+[authoring skill](../.claude/skills/dokime-authoring/SKILL.md): root entry points and
+settings, private device state/clock/locks behind `device::Bench`, plugin-lived
+manual operations, genuinely shared measurement/charger-event/inspection catalogs,
+and one complete file per template beneath each suite. A device folder does not
+extend a bench's lifetime: template initialization creates it in execution context,
+cleanup powers it down and execution disposal releases it.
+
+The OBC suite IDs are `obc.steady_state`, `obc.transient` and `obc.benchmark`.
+Template IDs append `single_phase`/`three_phase`, `startup`/`overcurrent`/`overvoltage`,
+or `streams`/`plots`/`observers`/`exact_values`, respectively. Resistance and reactance
+set the steady-state impedance and phase. Balanced three-phase input uses per-phase
+RMS quantities and three times the single-phase real power; DC power follows total
+input and conversion efficiency. Overvoltage and overcurrent both latch protection
+and refuse restart. Plot families and the thermal survey belong to the plot
+benchmark; exact unsigned meter values belong to their independent benchmark.
+Steady-state executions retain supply hold events, device/bench traceability and
+summary artifacts. Plot completion records include the operator decision.
+The retired recovery/check suites and plugin analysis registration have no aliases.
+Today's SDK lifecycle verbs remain unchanged.
+
+Rust parameter/plot/card conveniences are implemented with the protocol-owned
+messages in `crates/dokime-protocol/src/builders.rs` and accepted by value through
+the Rust SDK. Python, C# and C++ provide equivalent number/count/flag/sweep/list,
+line plot and card helpers. Generated messages remain tracked and are never edited
+by hand. No protocol shape or storage format changes are needed for this layout.

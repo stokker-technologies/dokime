@@ -7,7 +7,7 @@
 # ***
 
 
-"""Verify Concurrent Lane Completion, Preparation And Failure Evidence."""
+"Verify Concurrent Lane Completion, Preparation and Failure Evidence."
 
 # === Imports === #
 
@@ -26,12 +26,16 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
-from dokime_tools.test import archive, report, run, schedule
+from dokime_tools.test import archive, execution, lanes, policy, report, run, schedule
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -43,7 +47,7 @@ from dokime_tools.test import archive, report, run, schedule
 
 
 class ScheduleTests(unittest.TestCase):
-    def test_layer_archive_keeps_runtime_inputs_without_other_layers(self):
+    def test_layer_archive_keeps_runtime_inputs_without_other_layers(self) -> None:
         kinds = {
             "dokime": "lib",
             "dokime-cli": "bin",
@@ -61,74 +65,90 @@ class ScheduleTests(unittest.TestCase):
             "system": {"system", "system-recovery"},
         }
         for category, expected in layers.items():
-            with self.subTest(category=category), tempfile.TemporaryDirectory() as temporary:
-                directory = Path(temporary).resolve()
-                target = directory / "producer/target"
-                binaries = {
-                    f"fixture::{name}" if kind == "test" else name: {
-                        "binary-name": name,
-                        "kind": kind,
-                        "binary-path": str(target / "debug/deps" / name),
+            temporary_directory = tempfile.TemporaryDirectory()
+            temporary = temporary_directory.name
+            try:
+                with self.subTest(category=category):
+                    directory = Path(temporary).resolve()
+                    target = directory / "producer/target"
+                    binaries = {}
+                    for binaries_name, binaries_kind in kinds.items():
+                        binaries[f"fixture::{binaries_name}" if binaries_kind == "test" else binaries_name] = {
+                            "binary-name": binaries_name,
+                            "kind": binaries_kind,
+                            "binary-path": str(target / "debug/deps" / binaries_name),
+                        }
+
+                    metadata = {
+                        "rust-build-meta": {"target-directory": str(target), "platforms": {"host": {"libdir": {"status": "unavailable"}}}},
+                        "rust-binaries": binaries,
                     }
-                    for name, kind in kinds.items()
-                }
-                metadata = {
-                    "rust-build-meta": {"target-directory": str(target), "platforms": {"host": {"libdir": {"status": "unavailable"}}}},
-                    "rust-binaries": binaries,
-                }
-                files = {
-                    "target/nextest/binaries-metadata.json": json.dumps(metadata).encode(),
-                    "target/nextest/cargo-metadata.json": b"{}",
-                    **{f"target/debug/deps/{name}": name.encode() for name in kinds},
-                    "target/debug/dokime": b"cli",
-                    "target/debug/build/schema/output": b"generated schema",
-                    "target/nextest/libdirs/host/runtime.dll": b"runtime library",
-                }
-                packed = archive.location(directory, "dev")
-                packed.parent.mkdir(parents=True)
-                with tarfile.open(packed, "w:zst") as output:
-                    for name, data in files.items():
-                        member = tarfile.TarInfo(name)
-                        member.size = len(data)
-                        output.addfile(member, io.BytesIO(data))
+                    files = {
+                        "target/nextest/binaries-metadata.json": json.dumps(metadata).encode(),
+                        "target/nextest/cargo-metadata.json": b"{}",
+                        **{f"target/debug/deps/{name}": name.encode() for name in kinds},
+                        "target/debug/dokime": b"cli",
+                        "target/debug/build/schema/output": b"generated schema",
+                        "target/nextest/libdirs/host/runtime.dll": b"runtime library",
+                    }
+                    packed = archive.location(directory, "dev")
+                    packed.parent.mkdir(parents=True)
+                    with tarfile.open(packed, "w:zst") as output:
+                        for name, data in files.items():
+                            member = tarfile.TarInfo(name)
+                            member.size = len(data)
+                            output.addfile(member, io.BytesIO(data))
 
-                expected_ids = {identity for identity, entry in binaries.items() if entry["binary-name"] in expected}
-                selected = min(expected_ids)
-                package = selected.split("::", 1)[0]
-                for index, arguments in enumerate(
-                    ([], ["-E", f"binary_id(={selected})"], ["--filterset", f"package(={package})"], ["-E", "test(save) | all()"])
-                ):
-                    extracted = directory / f"extracted-{index}"
-                    archive.extract(directory, "dev", extracted, category=category, arguments=arguments)
-                    included = {selected} if index == 1 or index == 2 and package != "fixture" else expected_ids
-                    self.assertEqual(set(archive.binaries(directory, "dev", extracted)), included)
-                    included_names = {binaries[identity]["binary-name"] for identity in included}
-                    for name, data in files.items():
-                        path = extracted / name
-                        if name.startswith("target/debug/deps/") and Path(name).name not in included_names:
-                            self.assertFalse(path.exists())
-                        elif name != "target/nextest/binaries-metadata.json":
-                            self.assertEqual(path.read_bytes(), data)
+                    expected_ids = set()
+                    for expected_ids_identity, expected_ids_entry in binaries.items():
+                        if expected_ids_entry["binary-name"] not in expected:
+                            continue
+                        expected_ids.add(expected_ids_identity)
 
-    def test_archive_dispatch(self):
-        with tempfile.TemporaryDirectory() as temporary:
+                    selected = min(expected_ids)
+                    package = selected.split("::", 1)[0]
+                    for index, arguments in enumerate(
+                        ([], ["-E", f"binary_id(={selected})"], ["--filterset", f"package(={package})"], ["-E", "test(save) | all()"])
+                    ):
+                        extracted = directory / f"extracted-{index}"
+                        archive.extract(directory, "dev", extracted, category=category, arguments=arguments)
+                        included = {selected} if index == 1 or index == 2 and package != "fixture" else expected_ids
+                        self.assertEqual(set(archive.binaries(directory, "dev", extracted)), included)
+                        included_names = {binaries[identity]["binary-name"] for identity in included}
+                        for name, data in files.items():
+                            path = extracted / name
+                            if name.startswith("target/debug/deps/") and Path(name).name not in included_names:
+                                self.assertFalse(path.exists())
+                            elif name != "target/nextest/binaries-metadata.json":
+                                self.assertEqual(path.read_bytes(), data)
+            finally:
+                temporary_directory.cleanup()
+
+    def test_archive_dispatch(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             directory = Path(temporary).resolve()
             command = schedule.command("unit", "rust", "dev", 2, directory)
-            with patch.object(run.policy, "root", return_value=directory), patch.object(run, "test", return_value=0) as lane:
+            with patch.object(policy, "root", return_value=directory), patch.object(lanes, "run", return_value=0) as lane:
                 status = run.main(command[3:])
             self.assertEqual(status, 0)
             lane.assert_called_once()
             self.assertEqual(lane.call_args.kwargs["archive_directory"], directory)
             self.assertNotIn("--archive-directory", lane.call_args.args[-1])
+        finally:
+            temporary_directory.cleanup()
 
-    def test_fixture_evidence(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_fixture_evidence(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             directory = Path(temporary).resolve()
             (directory / "tools").mkdir()
             (directory / "tools/project.toml").write_text("", encoding="utf-8")
             (directory / "tests/unit").mkdir(parents=True)
 
-            def execute(command, cwd, environment):
+            def execute(command: list[str], cwd: Path, environment: dict[str, str] | None) -> int:
                 junit = Path(next(value.removeprefix("--junitxml=") for value in command if value.startswith("--junitxml=")))
                 fixtures = Path(next(value.removeprefix("--basetemp=") for value in command if value.startswith("--basetemp=")))
                 fixtures.mkdir(parents=True)
@@ -136,15 +156,19 @@ class ScheduleTests(unittest.TestCase):
                 junit.write_text('<testsuite name="fixture"><testcase name="passes" time="0.01"/></testsuite>', encoding="utf-8")
                 return 0
 
-            with patch.object(run, "_execute", side_effect=execute):
-                status = run.test(directory, "unit", "python", ".", "dev", [], prepared=True)
+            with patch.object(execution, "execute", side_effect=execute):
+                status = lanes.run(directory, "unit", "python", ".", "dev", [], prepared=True)
             self.assertEqual(status, 0)
             evidence = report.location(directory, "dev", "unit-python")
             self.assertTrue((evidence / "junit.xml").is_file())
             self.assertEqual(list(evidence.rglob("fixture-only.dat")), [])
+        finally:
+            temporary_directory.cleanup()
 
-    def test_native_task_graph_keeps_all_lanes_concurrent_and_reports_failure(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_native_task_graph_keeps_all_lanes_concurrent_and_reports_failure(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             directory = Path(temporary).resolve()
             repository = Path(__file__).resolve().parents[4]
             # Project The Authored Graph Without Product Prerequisites Or Native Test Binaries.
@@ -153,7 +177,7 @@ class ScheduleTests(unittest.TestCase):
             tasks = "\n".join(block for block in blocks if block.startswith(('[tasks."test:', '[tasks."ci:test"]')))
             tasks = tasks.replace('[tasks."ci:test"]', "[tasks.test]")
             (directory / "tools/python/tests/integration").mkdir(parents=True)
-            (directory / "tools/project.toml").write_text("", encoding="utf-8")
+            (directory / "tools/project.toml").write_text((repository / "tools/project.toml").read_text(), encoding="utf-8")
             (directory / "tools/python/tests/integration/test_prepared.py").write_text(
                 "import pathlib, unittest\n"
                 "class Prepared(unittest.TestCase):\n"
@@ -183,7 +207,6 @@ class ScheduleTests(unittest.TestCase):
             wrapper = directory / "wrapper.py"
             wrapper.write_text(
                 "import pathlib, sys\n"
-                f"sys.path.insert(0, {str(repository / 'tools/python/src')!r})\n"
                 "from dokime_tools.test import schedule\n"
                 "root = pathlib.Path.cwd()\n"
                 "if sys.argv[1] == 'prerequisite':\n"
@@ -217,29 +240,48 @@ class ScheduleTests(unittest.TestCase):
             # The Isolated Fixture Owns Different Resources From Its Calling Test Aggregate.
             environment.pop("MISE_TASK_LOCKS", None)
             subprocess.run(["mise", "trust", str(config)], cwd=directory, env=environment, capture_output=True, check=True)
-            with socket.socket() as listener:
+            listener = socket.socket()
+            try:
                 listener.bind(("127.0.0.1", 0))
                 listener.listen()
                 environment["DOKIME_GRAPH_PORT"] = str(listener.getsockname()[1])
                 peers = []
 
-                def rendezvous():
-                    # Release Only After Every Lane Arrives: Serial Execution Cannot Complete.
+                def rendezvous() -> None:
+                    # Admit Every Lane Before Releasing Any Native Workload.
                     for _ in schedule.policy.lanes(directory):
                         peer, _ = listener.accept()
+                        incoming = peer.makefile("rb")
+                        try:
+                            message = incoming.read(5)
+                        finally:
+                            incoming.close()
+                        if message == b"stop!":
+                            peer.close()
+                            for waiting in peers:
+                                waiting.close()
+                            return
+                        self.assertEqual(message, b"ready")
                         peers.append(peer)
                     for peer in peers:
-                        with peer.makefile("rb") as incoming:
-                            self.assertEqual(incoming.read(5), b"ready")
                         peer.sendall(b"1")
                         peer.close()
 
                 barrier = threading.Thread(target=rendezvous, daemon=True)
                 barrier.start()
-                result = subprocess.run(
-                    ["mise", "run", "test"], cwd=directory, env=environment, capture_output=True, text=True, timeout=60, check=False
-                )
-                barrier.join()
+                try:
+                    result = subprocess.run(
+                        ["mise", "run", "test"], cwd=directory, env=environment, capture_output=True, text=True, timeout=60, check=False
+                    )
+                finally:
+                    control = socket.create_connection(listener.getsockname())
+                    try:
+                        control.sendall(b"stop!")
+                    finally:
+                        control.close()
+                    barrier.join()
+            finally:
+                listener.close()
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
             summary = next(directory.glob("target/test-reports/run-*/time-summary.json"))
             document = json.loads(summary.read_text(encoding="utf-8"))
@@ -252,9 +294,13 @@ class ScheduleTests(unittest.TestCase):
             self.assertTrue(summary.with_suffix(".md").is_file())
             self.assertEqual((directory / "unit-rust").read_text(), (directory / "system-rust").read_text())
             self.assertFalse(Path((directory / "unit-rust").read_text()).exists())
+        finally:
+            temporary_directory.cleanup()
 
-    def test_missing_result_fails_the_aggregate(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_missing_result_fails_the_aggregate(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             directory = Path(temporary).resolve()
             with (
                 patch.object(schedule.policy, "lanes", return_value=[("unit", "rust")]),
@@ -264,9 +310,13 @@ class ScheduleTests(unittest.TestCase):
             ):
                 schedule.prepare(directory, "dev")
                 self.assertEqual(schedule.finish(directory, "dev"), 1)
+        finally:
+            temporary_directory.cleanup()
 
-    def test_lane_retains_process_start_failure(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_lane_retains_process_start_failure(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             directory = Path(temporary).resolve()
             with (
                 patch.object(schedule.policy, "lanes", return_value=[("unit", "rust")]),
@@ -280,6 +330,8 @@ class ScheduleTests(unittest.TestCase):
                 self.assertEqual(schedule.finish(directory, "dev"), 1)
             result = next(directory.glob("target/test-reports/run-*/unit-rust.json"))
             self.assertEqual(json.loads(result.read_text(encoding="utf-8"))["exit_code"], 1)
+        finally:
+            temporary_directory.cleanup()
 
 
 # === Public Functions === #

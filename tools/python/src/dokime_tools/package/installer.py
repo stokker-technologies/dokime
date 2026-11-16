@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Package Verified Desktop Product Bytes With Native Tauri Bundlers."""
+"Package Verified Desktop Product Bytes with Native Tauri Bundlers."
 
 # === Imports === #
 
@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 # Local Imports
+import dokime_tools.test.policy
 from dokime_tools import temporary
 from dokime_tools.build import configuration, paths
 from dokime_tools.package.staging import stage_file
@@ -52,7 +53,9 @@ def bundle(root: Path, profile: str) -> list[Path]:
     destination = paths.output(root, "package", profile) / "rust"
     destination.mkdir(parents=True, exist_ok=True)
     outputs = []
-    with temporary.directory() as scratch:
+    scratch_directory = temporary.Directory()
+    scratch = scratch_directory.path
+    try:
         target = scratch / "target"
         mode = "debug" if profile == "dev" else "release"
         staged = target / mode / binary.name
@@ -114,7 +117,9 @@ def bundle(root: Path, profile: str) -> list[Path]:
         if hashlib.sha256(staged.read_bytes()).hexdigest() != expected:
             raise ValueError("Package Desktop: Bundler Modified the Product Executable")
         for artifact in sorted((target / mode / "bundle").rglob("*")):
-            if not artifact.is_file() or not artifact.name.endswith((".exe", ".deb", ".rpm", ".sig")):
+            if not artifact.is_file():
+                continue
+            if not artifact.name.endswith((".exe", ".deb", ".rpm", ".sig")):
                 continue
             extension = ".exe" if artifact.name.endswith(".exe") else ".exe.sig" if artifact.name.endswith(".exe.sig") else artifact.suffix
             ending = "-setup" + extension if windows else extension
@@ -139,6 +144,8 @@ def bundle(root: Path, profile: str) -> list[Path]:
                 },
             }
             (destination / "latest.json").write_text(json.dumps(update, indent=2) + "\n", encoding="utf-8")
+    finally:
+        scratch_directory.close()
     return outputs
 
 
@@ -146,5 +153,5 @@ def bundle(root: Path, profile: str) -> list[Path]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=configuration.PROFILES, default="dev")
+    parser.add_argument("--profile", choices=dokime_tools.test.policy.PROFILES, default="dev")
     bundle(configuration.ROOT, parser.parse_args().profile)

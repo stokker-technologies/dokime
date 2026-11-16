@@ -30,6 +30,23 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
 - Offline paths: desktop archive/disposal in
   `crates/dokime-gui/src-tauri/src/native_session/storage.rs`; CLI doctor copies in
   `crates/dokime-cli/src/commands/doctor.rs`.
+- Current-pin cutover dependency: `Backend::open` registers a `storage.sqlite3`
+  ledger, whereas product execution/evidence/sample/seal/report writers use
+  `execution.sqlite3`. Moving an append alone splits their canonical history and
+  invalidates cuts and seal verification. The coupled migration needs Harmos
+  compound atomic mutation at the backend boundary, now provided by Harmos
+  `7fe385eacbe9a4c9a47943f6a528f97a014256ee` and implemented in
+  `crates/dokime-storage/src/backend/compound.rs`. Product callers still need
+  their coupled cutover; retaining two writers or
+  adding a mirror is not an acceptable intermediate design. Independent retained
+  views in `host/views.rs` now use Harmos objects for immutable file indexes and native
+  file operations for complete protobuf payloads, including collections larger than one
+  response bound. Their evidence cut issuance remains coupled to the product ledger.
+- The native backend commits compound effects and applied/refused receipts together,
+  refuses partial compound cuts, and implements object/scoped tombstones with retained
+  reads and file reclamation. Harmos's public backend conformance kit runs in
+  `crates/dokime-storage/tests/integration/backend.rs`. Maintenance copy/dispose remains
+  dependent on offline/minimal-assembly storage operations; no substitute is introduced.
 - Composition: `protocol/composition.toml` is read by `services/composition.rs`
   (`setup.composition`), `native::callers()` in `crates/dokime-operations/src/native.rs`,
   `sdk/cpp/tools/generate.py`, `sdk/csharp/tools/generate.py` and

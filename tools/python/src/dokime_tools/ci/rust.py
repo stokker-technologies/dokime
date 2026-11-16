@@ -17,12 +17,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -51,7 +55,12 @@ if __name__ == "__main__":
     document = json.loads(metadata.stdout)
     members = set(document["workspace_members"])
     directories = sorted({Path(package["manifest_path"]).parent for package in document["packages"] if package["id"] in members})
-    roots = [directory for directory in directories if not any(parent in directories for parent in directory.parents)]
+    roots = []
+    for roots_directory in directories:
+        if any(parent in directories for parent in roots_directory.parents):
+            continue
+        roots.append(roots_directory)
+
     result = subprocess.run(
         ["cargo-machete", "--skip-target-dir", *map(str, roots)],
         check=False,

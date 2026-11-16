@@ -114,7 +114,6 @@ runs:
     env:
       SETUP_PLATFORM: ${{ inputs.platform }}
       CACHE_PLAN: ${{ inputs.caches }}
-      SETUP_BOOTSTRAP: ${{ inputs.bootstrap }}
       COMPILER_CACHE_BACKEND: ${{ inputs.cache-backend || env.COMPILER_CACHE_BACKEND }}
       COMPILER_CACHE_MODE: ${{ inputs.cache-mode || env.COMPILER_CACHE_MODE }}
   - id: bench_baselines
@@ -173,9 +172,16 @@ runs:
       install_args: ${{ inputs.tools }}
       cache: false
       mise_dir: ${{ env.MISE_DATA_DIR }}
+  - name: Prepare Native Project Prerequisites
+    shell: bash
+    run: mise run ci:bootstrap
+    env:
+      SETUP_BOOTSTRAP: ${{ inputs.bootstrap }}
   - shell: bash
-    run: |
-      read -r -a prepare_arguments <<< "$PREPARE_ARGUMENTS"
+    run: 'read -r -a prepare_arguments <<< "$PREPARE_ARGUMENTS"
+
       mise run prepare -- "${prepare_arguments[@]}"
+
+      '
     env:
       PREPARE_ARGUMENTS: ${{ inputs.prepare-arguments }}

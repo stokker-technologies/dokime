@@ -169,7 +169,12 @@ impl Store {
                 [],
                 |row| row.get(0),
             )?;
-            if !response_column || !evidence_kind || !preview_bounds {
+            let superseded_journals: bool = connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM administration WHERE id GLOB 'view:*' OR id GLOB 'view-at:*' OR id GLOB 'prepared-report/*')",
+                [],
+                |row| row.get(0),
+            )?;
+            if !response_column || !evidence_kind || !preview_bounds || superseded_journals {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {

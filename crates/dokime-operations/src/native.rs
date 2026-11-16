@@ -60,7 +60,6 @@ const OPERATIONS: &[&str] = &[
     crate::host::plots::snapshots::watch::ID,
     crate::host::prompts::watch::ID,
     crate::host::secrets::watch::ID,
-    crate::host::analyses::list::ID,
     crate::host::backend::appearance::ID,
     crate::host::backend::environment::ID,
     crate::host::backend::overview::get::ID,
@@ -333,7 +332,6 @@ pub fn callers() -> Result<String> {
 
 pub fn registration(settings: &ClientSettings) -> Result<harmos_runtime::operations::Registration> {
     let mut registration = harmos_runtime::operations::Registration::new(harmos_runtime::operations::Lane::default());
-    registration = registration.entry(factory::<crate::host::analyses::list::Operation>(settings.read_timeout)?);
     registration = registration.entry(factory::<crate::host::backend::appearance::Operation>(settings.read_timeout)?);
     registration = registration.entry(factory::<crate::host::backend::environment::Operation>(settings.mutation_timeout)?);
     registration = registration.entry(factory::<crate::host::backend::overview::get::Operation>(settings.read_timeout)?);

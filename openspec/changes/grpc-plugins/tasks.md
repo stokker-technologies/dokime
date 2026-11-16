@@ -130,6 +130,19 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 
 ## 2. Protocol
 
+- [x] Merge current dev removals into the protocol convention branch and regenerate remaining contracts without restoring plugin analysis APIs.
+- [x] Merge the dev tooling module split into the protocol convention branch, retain temporary-inventory drift checks and complete contracts archives in their new owners, and regenerate tracked output.
+- [x] Prove the tooling-layout merge on Windows: format, clean lint, product build, nine protocol tests, all five generated-language checks, clean-tree non-mutating drift and 22 targeted protocol/release tooling integration tests pass. Native Linux and hosted proof remain with integration.
+- [x] Generate SDK drift candidates in disposable temporary storage and compare the complete output inventory without modifying sources; cover clean, changed, missing and obsolete outputs.
+- [x] Export and archive the full Google import closure, licenses and protoc/Buf README; refuse unresolved imports during packaging.
+- [x] Validate the merged protocol candidate on Windows: format, clean lint, workspace build, nine protocol tests, two SDK builder tests, 50 targeted tooling tests, all five generated-language checks, clean-tree non-mutating drift and extracted-archive protoc/Buf compilation. Native Linux and hosted proof remain with integration.
+
+- [x] Refactor the protocol helpers and owned SDK generators to the company conventions, mirror executor/model responsibilities, normalize product proto sections, remove handwritten import aliases and path overrides, and regenerate tracked outputs. Keep the plot authoring value required by generated getter names, with explicit message access instead of dereference forwarding.
+- [x] Validate the protocol convention refactor on Windows: eight protocol tests,
+  two SDK generator tests, all five generated SDK compiler surfaces, deterministic
+  regeneration, workspace compilation/build, formatting and lint. Native Linux and
+  hosted proof remain with integration.
+
 - [x] 2.1 Define and check in `dokime.v1` host operations, `TestCase`, `Step`, `Criterion` and `Statistics`; generate the protocol crate.
 - [x] 2.1.1 Reproduce the hosted Windows interruption timeout five times by exact name; all five pass. Examined terminal-query servicing, batch acknowledgement, held mutation replies, admission watches and the frozen-origin commit; no cleanup regression or permanently unsent event was established.
 - [ ] 2.2 Add the host operations plugins need that exist only as evidence-page fields today: progress, log, traceability, document parts, record reads and statistics.
@@ -378,8 +391,8 @@ Source inventory (data-service worker; continuation adds Content, Notes, Documen
 - [x] Serve base paths for the ten landed plot kinds through QuerySnapshots/Watch and their Run envelopes; use storage reduction, explicit resolution and a counted two-million-sample, forty-plot story.
 - [x] Add isolated cancellable storage read sessions for blocking plot workers, row filters, scale/offset/detail projections and source-time stream/record joins without loading whole streams.
 - [x] Serve grouped time series, histograms and boxes, logarithmic contour bins, XY sigma intervals, grid highlights, bounded record markers and separate summary windows; prove the variants through `client_queries_advanced_plots`.
-- [x] Serve bounded Raw/LTTB time-series windows, encoded-budget bucket coarsening and unary plugin analyses with typed defaults, bounded raw input and output validation; prove endpoint retention, batch fitting and malformed-output refusal through the advanced plot story.
-- [ ] Complete incremental bucket reads and live deltas, higher-order category aggregates, non-category aggregate plots and derived analysis-parameter defaults. QuerySnapshots and Watch are routed; unsupported variants refuse with corrective actions and Watch still emits snapshots. Retired RPCs: none.
+- [x] Serve bounded Raw/LTTB time-series windows and encoded-budget bucket coarsening; prove endpoint retention and batch fitting through the advanced plot story.
+- [ ] Complete incremental bucket reads and live deltas, higher-order category aggregates and non-category aggregate plots. QuerySnapshots and Watch are routed; unsupported variants refuse with corrective actions and Watch still emits snapshots. Retired RPCs: none.
 - [x] Route Documents CaptureCurrentDocument/UpdatePlotSettings and all Run envelopes, persist plot preferences, stream structure/table/summary/plot bindings, and bind document plot requests to a captured execution frontier.
 - [x] Route all Reports direct/Run methods: fixed-snapshot materialization, explicit execution publication and execution/cycle HTML downloads; prove temporary download, publication independence and bounded plot data through `client_renders_fixed_documents`.
 - [x] Expand repeated sections in bounded pages with stable identities, inherit filters in plot and summary queries, serve cycle-scoped default capture, evaluate record/scalar summary expressions and exact percentiles, and render masked contour bands against nonuniform edges.
@@ -418,7 +431,7 @@ Source inventory: `crates/dokime-runtime/src/{services,bin}/`, its library/manif
   - [ ] Query: held for the owner's client API overlap decision; Aggregate, RunAggregate, AggregateSamples, RunAggregateSamples, ListCycles, RunListCycles, RunListExecutions, ListRecords, RunListRecords, ListSamples and RunListSamples remain named refusals. ListExecutions is served with the shared execution case/archive presentation.
   - [ ] Media: held for the owner's API decision; AudioRecording, RunAudioRecording, CameraRecording, RunCameraRecording, Photo, RunPhoto, ScreenRecording, RunScreenRecording, Screenshot and RunScreenshot remain named refusals.
   - [ ] Content: DownloadAppearanceAsset and RunDownloadAppearanceAsset remain named refusals. Every artifact, evidence archive and execution-file method is served through direct and Run transports.
-  - [ ] Plots: every RPC is routed; incremental bucket reads/live deltas, higher-order category aggregates, non-category aggregate plots and derived analysis-parameter defaults remain unfinished as listed above.
+  - [ ] Plots: every RPC is routed; incremental bucket reads/live deltas, higher-order category aggregates and non-category aggregate plots remain unfinished as listed above.
   - [ ] Documents: every RPC is routed; evidence-card filters, cross-execution/higher-order category and artifact expressions, and complete trajectory/grid report playback remain unfinished as listed above.
   - [x] Evidence, Telemetry, Reports and Notes: all direct and Run methods are served; no named refusals remain.
   - [x] Execution, Planning, Observation, Prompts, History and administration: all direct and Run methods are served; no named refusals remain.
@@ -528,7 +541,12 @@ All work remains local on feat/grpc-plugins under the existing implementing mark
 - [x] Delete the ten old-loop crates and their exclusive consumers, fixtures and configuration.
 - [x] Retain current bundle production/inspection without facade dependencies.
 - [ ] Re-author the host telemetry plugin on the Rust SDK, including its collectors and controls.
-- [ ] Re-author the OBC sidecar on the Rust SDK, including its device operations and suites.
+- [x] Re-author the OBC sidecar on the Rust SDK, including its device operations and suites.
+  - [x] Keep execution-owned benches, synchronization and model clocks private in `device/`; compose global modules through `catalog()` and own each complete template in its suite slice.
+  - [x] Replace the old suites with `steady_state` (single/three phase with resistance, reactance, efficiency and power factor), `transient` (startup, overcurrent and overvoltage) and independent stream/plot/observer/exact-value benchmarks. Remove recovery/checks and OBC analysis registration; migrate identifiers and consumers without aliases.
+  - [x] Add owned number/count/flag/sweep/list, line plot and card builder values across Rust, Python, C# and C++; replace the OBC guide with the existing project authoring skill's canonical layout and per-language guidance.
+  - [x] Preserve steady-state traceability, supply hold records and summary artifacts in both phase templates; retain scoped operator decisions in plot completion records.
+  - [x] Complete the requested OBC build, OBC integration tests, packaged runtime story, SDK builder tests and clean lint proof on the combined candidate.
 - [ ] Re-author storage/plot benchmarks on the remaining host/storage and restore their Nightly producer and suite selections.
 - [ ] Restore the desktop to the workspace when its switch merges.
   - [x] Restore crates/dokime-gui/src-tauri workspace and default membership.
@@ -667,13 +685,12 @@ existing host services, proto and generated Rust protocol remain with their owne
 ## Plot Document Correctness
 
 Sole writer on `fix/plot-document-correctness`; local commits only. Inventory:
-plot projection and grouped loading in the desktop; plot analysis input in operations;
+plot projection and grouped loading in the desktop;
 typed statistics in storage, protocol, operations and generated consumers; native and
 frontend document fixtures/stories; benchmark instrumentation and `docs/tooling.md`,
 `docs/gui.md`, `docs/architecture.md`. README claims remain applicable.
 
 - [x] Repair categorical projection and require every benchmark card to draw data.
-- [x] Restore captured raw samples for plugin analyses.
 - [x] Preserve exact integer statistics through storage, wire and summary tiles, including pending structure bindings and complete evaluated results.
 - [x] Stabilize bounded viewport groups and separate traversal, query and driver measurements; prefetch after visible data and reuse covered exact moments for previews and RMS.
 - [x] Run the desktop benchmark once on the committed candidate and refresh its accurately labelled observations.

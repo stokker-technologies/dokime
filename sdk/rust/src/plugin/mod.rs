@@ -49,7 +49,6 @@ use crate::SecretDeclaration;
 use crate::SecretsDeclarations;
 use crate::SettingDeclaration;
 use crate::SettingsDeclarations;
-use crate::{Analyses, Analysis};
 use crate::{Error, Message, OperationRequest, Result, context::Executions, message::Wire, stream::Registration, template::validate_names};
 use crate::{Prompt as PromptDefinition, PromptDefinitions, RecordContract, RecordContracts, Suites};
 use harmos::Error as HarmosError;
@@ -78,7 +77,6 @@ struct Assembly {
     suites: Vec<Suite>,
     records: Vec<RecordContract>,
     prompts: Vec<PromptDefinition>,
-    analyses: Vec<Analysis>,
     settings: Vec<SettingDeclaration>,
     secrets: Vec<SecretDeclaration>,
     registrations: Vec<Registration>,
@@ -115,7 +113,6 @@ impl Plugin {
                 suites: Vec::new(),
                 records: Vec::new(),
                 prompts: Vec::new(),
-                analyses: Vec::new(),
                 settings: Vec::new(),
                 secrets: Vec::new(),
                 registrations: Vec::new(),
@@ -135,14 +132,6 @@ impl<C: DeclarationTypes> Plugin<C> {
     pub fn operation(mut self, operation: Operation) -> Self {
         self.assembly.registrations.push(operation.registration());
         self
-    }
-    pub fn analysis<H>(mut self, definition: Analysis, handler: H) -> Self
-    where
-        H: for<'a> AsyncFn(&'a Context, AnalysesComputeRequest) -> Result<AnalysesComputeResponse> + Send + Sync + 'static,
-    {
-        let identifier = definition.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str()).to_owned();
-        self.assembly.analyses.push(definition);
-        self.operation(Operation::analysis(identifier, handler))
     }
     pub fn requires_operation<Q: OperationRequest>(mut self) -> Self {
         self.assembly.requirements.push(Q::ID);
@@ -228,7 +217,6 @@ impl<C: DeclarationTypes> Plugin<C> {
             suites,
             records,
             prompts,
-            analyses,
             settings,
             secrets,
             registrations,
@@ -265,13 +253,6 @@ impl<C: DeclarationTypes> Plugin<C> {
         )?;
         if !secrets.is_empty() {
             inner = inner.section(Wire(SecretsDeclarations { secrets }));
-        }
-        validate_names(
-            analyses.iter().map(|analysis| analysis.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str())),
-            "Analysis",
-        )?;
-        if !analyses.is_empty() {
-            inner = inner.section(Wire(Analyses { analyses }));
         }
         let executions: Executions = Arc::new(Mutex::new(HashMap::new()));
         let mut definitions = Vec::new();

@@ -19,7 +19,6 @@ import type {
   DocumentPlotType,
   DocumentReferenceBand,
   DocumentReferenceLine,
-  EvidenceAnalysisResult,
   PlotAnalysis,
   PlotCartesianFrame,
   PlotMarker,
@@ -41,7 +40,6 @@ export type PlotCardSpec = {
   series: PlotSeries[];
   cartesian?: PlotCartesianFrame | null;
   analysis?: PlotAnalysis | null;
-  computed?: EvidenceAnalysisResult | null;
   markers: PlotMarker[];
   /** When the execution asked and the operator answered; time series only. */
   promptMarkers?: PromptMarker[];

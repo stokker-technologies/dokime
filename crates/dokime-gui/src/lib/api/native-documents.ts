@@ -534,13 +534,6 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
     style: mapPlotStyle(presentation?.style),
     x_scale: mapAxisScale(request.xScale),
     y_scale: mapAxisScale(request.yScale),
-    analysis: request.analysis
-      ? {
-          id: request.analysis.id,
-          version: request.analysis.version,
-          parameters: nativeValuesToJson(request.analysis.parameters?.values),
-        }
-      : null,
     fft: {
       ...(fft?.inputSamples === undefined ? {} : { input_samples: fft.inputSamples }),
       ...(fft?.sampleRateHz === undefined ? {} : { sample_rate_hz: fft.sampleRateHz }),

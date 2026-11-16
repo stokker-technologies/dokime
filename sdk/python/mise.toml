@@ -37,30 +37,36 @@ description = "Package the Built Python Distributions"
 run = 'uv run --no-sync --project ../../tools/python python tools/package.py'
 
 [tasks.install]
+hide = true
 description = "Install the Built Python Wheel"
 run = 'uv run --no-sync --project ../../tools/python python tools/installed.py install'
 
 [tasks.test]
 description = "Test the Installed Python SDK"
+usage = 'flag "--layer <layer>" { choices "unit" "integration" }'
 run = [
-  'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v',
-  'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/integration -v',
+  '{% if not usage.layer or usage.layer == "unit" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v{% endif %}',
+  '{% if not usage.layer or usage.layer == "integration" %}uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/integration -v{% endif %}',
 ]
 
 [tasks.wheel]
+hide = true
 description = "Test the Installed Wheel Story"
 run = 'mise -C ../.. run test:python:wheel'
 
 [tasks.generated]
+hide = true
 description = "Check Generated Python Messages"
 run = 'uv run --no-sync --project ../../tools/python python tools/generated.py'
 
 [tasks.conformance]
+hide = true
 description = "Test Library Conformance"
 usage = 'flag "--profile <profile>" default="dev"'
 run = 'mise -C ../.. run test -- --language python --layer system --profile {{usage.profile}}'
 
 [tasks.example-test]
+hide = true
 description = "Test the Test Examples"
 dir = "examples/test"
 run = 'uv run --no-sync --project ../../../../tools/python python -m unittest discover -s tests -v'
@@ -68,11 +74,3 @@ run = 'uv run --no-sync --project ../../../../tools/python python -m unittest di
 [tasks.generate]
 description = "Generate Typed Python Protocol Packages"
 run = 'uv run --no-sync --project ../../tools/python python tools/generate.py'
-
-[tasks.unit]
-description = "Test Python SDK Units"
-run = 'uv run --no-sync --project ../../tools/python python -m unittest discover -s tests/unit -v'
-
-[tasks."test:generation"]
-description = "Compile the Generated Client and Plugin Surfaces"
-run = "mise -C ../.. run check:generated -- --language python"

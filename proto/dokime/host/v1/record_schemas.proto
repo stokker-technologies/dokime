@@ -36,7 +36,7 @@ service RecordSchemas {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // RecordSchemasGetRequest for RecordSchemas.Get.
 message RecordSchemasGetRequest {
@@ -51,8 +51,6 @@ message RecordSchemasGetResponse {
   .dokime.host.v1.RecordSchema value = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === List === //
 
 // RecordSchemasListRequest for RecordSchemas.List.
 message RecordSchemasListRequest {

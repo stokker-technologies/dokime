@@ -34,7 +34,7 @@ service Backend {
   }
 }
 
-// === Appearance === //
+// === Requests and Responses === //
 
 // BackendAppearanceRequest for Backend.Appearance.
 message BackendAppearanceRequest {
@@ -46,8 +46,6 @@ message BackendAppearanceResponse {
   .dokime.host.v1.AppearanceSnapshot appearance = 1;
   .harmos.model.v1.ReadCut resolved_at = 2;
 }
-
-// === Environment === //
 
 // BackendEnvironmentRequest for Backend.Environment.
 message BackendEnvironmentRequest {

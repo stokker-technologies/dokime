@@ -123,9 +123,7 @@ def environment() -> dict[str, str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "action", choices=("prepare", "configure", "build", "test", "check", "format", "package", "consumer", "conformance", "clean")
-    )
+    parser.add_argument("action", choices=("prepare", "build", "test", "check", "format", "package", "consumer"))
     parser.add_argument("--preset", choices=("development", "tests", "release"), default="tests")
     parser.add_argument("--target")
     parser.add_argument("--exact")
@@ -133,7 +131,6 @@ def main() -> None:
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--source", type=Path)
-    parser.add_argument("--host", type=Path)
     options = parser.parse_args()
     sdk = ROOT / "sdk/cpp"
     directory = ROOT / "target/cp" / options.preset
@@ -155,7 +152,7 @@ def main() -> None:
         command = [formatter or "clang-format", "-style={BasedOnStyle: LLVM, ColumnLimit: 140}"]
         command += ["--dry-run", "--Werror"] if options.check else ["-i"]
         command += [str(path) for path in sources]
-    elif options.action in ("configure", "check", "build"):
+    elif options.action in ("check", "build"):
         result = subprocess.run(
             ["cmake", "--preset", options.preset],
             cwd=sdk,
@@ -173,8 +170,6 @@ def main() -> None:
         command = ["cmake", "--build", "--preset", options.preset, "--parallel", "4"]
         if options.target:
             command += ["--target", options.target]
-    elif options.action == "clean":
-        command = ["cmake", "--build", "--preset", options.preset, "--target", "clean"]
     elif options.action == "test":
         pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
         if pending.strip() != "ninja: no work to do.":
@@ -216,14 +211,6 @@ def main() -> None:
             check=True,
         )
         command = ["cmake", "--build", str(consumer), "--parallel", "4"]
-    elif options.action == "conformance":
-        if options.host is None:
-            parser.error("--host Must Name the Built Reference Host")
-        command = [
-            str(options.host),
-            "--plugin",
-            str(directory / "tests" / ("dokime-conformance.exe" if os.name == "nt" else "dokime-conformance")),
-        ]
     else:
         pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
         if pending.strip() != "ninja: no work to do.":

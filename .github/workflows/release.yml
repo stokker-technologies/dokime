@@ -127,7 +127,7 @@ jobs:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
         cache-backend: ''
         cache-mode: ''
-        bootstrap: '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-packages"]'
+        bootstrap: '["mise run ci:prerequisites -- --gui-packages"]'
     - id: crates
       uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18
       if: env.CARGO_REGISTRY_TOKEN == ''
@@ -272,7 +272,7 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         REVIEW_RELEASE: 'true'
-        REVIEW_PACKAGES: '["package-PROFILE-python-any","package-PROFILE-rust-unix","package-PROFILE-rust-windows"]'
+        REVIEW_PACKAGES: '["package-PROFILE-python-any","package-PROFILE-rust-unix","package-PROFILE-rust-windows","build-docs-PROFILE-any"]'
         REVIEW_BUILDS: '["build-cli-PROFILE-windows","build-packaging-PROFILE-windows"]'
         REVIEW_REQUIRED: 'true'
     permissions:

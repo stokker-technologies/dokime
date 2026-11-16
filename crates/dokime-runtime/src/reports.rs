@@ -18,11 +18,11 @@
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
-    fs::File,
     sync::{Arc, Mutex},
 };
 
 // Third Party Imports
+use harmos_protocol::model::FileReference;
 
 // Local Imports
 use crate::{Error, RenderedDocument, Result, host::lock};
@@ -45,7 +45,7 @@ pub(crate) struct ReportManager {
 #[derive(Default)]
 struct Publication {
     closed: bool,
-    temporary: BTreeMap<String, (File, harmos_protocol::model::FileReference)>,
+    temporary: BTreeMap<String, FileReference>,
 }
 
 /* === Enums === */
@@ -80,7 +80,7 @@ impl ReportManager {
             prepared.html,
         )?)
     }
-    pub(crate) fn retain(&self, file: File, reference: harmos_protocol::model::FileReference, limit: usize) -> Result<()> {
+    pub(crate) fn retain(&self, reference: FileReference, limit: usize) -> Result<()> {
         let identifier =
             reference.metadata.as_ref().ok_or_else(|| Error::Invalid("Retain Report: Supply Its Temporary Identity".into()))?.id.clone();
         let mut state = lock(&self.state)?;
@@ -96,15 +96,15 @@ impl ReportManager {
         {
             state.temporary.remove(&first);
         }
-        state.temporary.insert(identifier, (file, reference));
+        state.temporary.insert(identifier, reference);
         Ok(())
     }
-    pub(crate) fn temporary(&self, identifier: &str) -> Result<Option<(File, harmos_protocol::model::FileReference)>> {
+    pub(crate) fn temporary(&self, identifier: &str) -> Result<Option<FileReference>> {
         let state = lock(&self.state)?;
         if state.closed {
             return Err(Error::Invalid("Read Temporary Report: Reconnect to a Running Host".into()));
         }
-        state.temporary.get(identifier).map(|(file, reference)| Ok((file.try_clone()?, reference.clone()))).transpose()
+        Ok(state.temporary.get(identifier).cloned())
     }
     pub(crate) fn shutdown(&self) -> Result<()> {
         let mut state = lock(&self.state)?;

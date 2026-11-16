@@ -11,9 +11,8 @@
 # === Imports === #
 
 # Standard Library Imports
-from __future__ import annotations
-
 import argparse
+import json
 import os
 import platform
 import re
@@ -27,7 +26,12 @@ import zipfile
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 
 # Type Checking Imports
@@ -108,30 +112,46 @@ APT_FETCH_ATTEMPTS = len(APT_RETRY_DELAYS_S) + 1
 # === Public Functions === #
 
 
+def spawn_flags(flags: int = 0) -> int:
+    """Load Shared Process Policy Before the Package Is Installed."""
+    import runpy
+
+    source = Path(__file__).resolve().parents[1] / "process/__init__.py"
+    module = runpy.run_path(str(source))
+    operation: Callable[[int], int] = module["spawn_flags"]
+    return operation(flags)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_arguments(argv)
+    if arguments.commands:
+        shell = ["pwsh", "-NoProfile", "-NonInteractive", "-Command"] if os.name == "nt" else ["bash", "-eo", "pipefail", "-c"]
+        for command in json.loads(os.environ.get("SETUP_BOOTSTRAP", "[]")):
+            subprocess.run([*shell, command], check=True, stdout=sys.stderr, creationflags=spawn_flags())
+        return 0
     if arguments.gui_packages or arguments.gui_runtime or arguments.credential_store:
         install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop, credential_store=arguments.credential_store)
     if arguments.desktop:
         if sys.platform == "win32":
             prepare_windows_desktop(Path.cwd())
         elif sys.platform != "linux":
-            raise ValueError("native desktop validation requires Windows or Linux")
+            raise ValueError("Prepare Native Prerequisites: native desktop validation requires Windows or Linux")
         else:
             prepare_linux_browser(Path.cwd())
         if sys.platform == "linux" and not os.environ.get("DISPLAY"):
             github_environment = os.environ.get("GITHUB_ENV")
             if not github_environment:
-                raise ValueError("the desktop job needs DISPLAY or GitHub's environment file")
+                raise ValueError("Prepare Native Prerequisites: the desktop job needs DISPLAY or GitHub's environment file")
             subprocess.Popen(
                 ["Xvfb", ":99", "-screen", "0", "1920x1080x24"],
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=spawn_flags(),
                 stdin=sys.stdin,
                 stdout=sys.stdout,
                 stderr=sys.stderr,
             )
-            with Path(github_environment).open("a", encoding="utf-8") as written:
-                written.write("DISPLAY=:99\n")
+            destination = Path(github_environment)
+            previous = destination.read_text(encoding="utf-8") if destination.exists() else ""
+            destination.write_text(previous + "DISPLAY=:99\n", encoding="utf-8", newline="\n")
     _step("bootstrap complete")
     return 0
 
@@ -158,6 +178,7 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="install only the session bus and keyring an isolated credential store needs.",
     )
     parser.add_argument("--desktop", action="store_true")
+    parser.add_argument("--commands", action="store_true", help="Run the Workflow's Declared Prerequisite Tasks Before Preparation")
     return parser.parse_args(argv)
 
 
@@ -198,7 +219,7 @@ def fetch_packages(
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     sleep: Callable[[float], None] = time.sleep,
 ) -> None:
-    """Retry The Package Fetch With Bounded Backoff And Preserve Mirror Diagnostics."""
+    """Retry the Package Fetch with Bounded Backoff and Preserve Mirror Diagnostics."""
     apt = [*prefix, "apt-get", "-o", f"Acquire::Retries={APT_ACQUIRE_RETRIES}"]
     commands = [
         [*apt, "-o", "APT::Update::Error-Mode=any", "update"],
@@ -216,7 +237,7 @@ def fetch_packages(
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=spawn_flags(),
                 stdin=subprocess.DEVNULL,
             )
             print(result.stdout, end="", flush=True)
@@ -227,81 +248,103 @@ def fetch_packages(
             return
         if attempt == APT_FETCH_ATTEMPTS - 1:
             diagnostics = "\n".join(failures)
-            raise RuntimeError(f"apt-get package fetch failed after {APT_FETCH_ATTEMPTS} attempts; mirror diagnostics:\n{diagnostics}")
+            raise RuntimeError(
+                f"Prepare Native Prerequisites: apt-get package fetch failed after {APT_FETCH_ATTEMPTS} attempts; mirror diagnostics:\n{diagnostics}"
+            )
         delay_s = APT_RETRY_DELAYS_S[attempt]
         _step(f"package fetch failed (exit {result.returncode}); retrying update and install in {delay_s}s")
         sleep(delay_s)
 
 
 def prepare_linux_browser(root: Path) -> Path:
-    """Reuse An Installed Browser Or Install The Pinned Chrome For Testing Build."""
+    """Reuse an Installed Browser or Install the Pinned Chrome for Testing Build."""
     selected = os.environ.get("DOKIME_E2E_CHROME")
     browser = shutil.which(selected or "google-chrome")
     if selected and browser is None:
-        raise ValueError(f"the selected report browser is unavailable: {selected}")
+        raise ValueError(f"Prepare Native Prerequisites: the selected report browser is unavailable: {selected}")
     if browser is None:
         if platform.machine().lower() not in {"x86_64", "amd64"}:
-            raise ValueError("the declared Linux desktop browser requires x86_64")
+            raise ValueError("Prepare Native Prerequisites: the declared Linux desktop browser requires x86_64")
         destination = root / "target/tooling/desktop"
         executable = destination / "chrome-linux64/chrome"
         if not executable.is_file() or _driver_version(executable) != CHROME_VERSION:
             url = f"https://storage.googleapis.com/chrome-for-testing-public/{CHROME_VERSION}/linux64/chrome-linux64.zip"
-            with tempfile.TemporaryDirectory(prefix="dokime-chrome-") as temporary:
+            temporary_directory = tempfile.TemporaryDirectory(prefix="dokime-chrome-")
+            temporary = temporary_directory.name
+            try:
                 archive = Path(temporary) / "chrome.zip"
                 urllib.request.urlretrieve(url, archive)
                 destination.mkdir(parents=True, exist_ok=True)
-                with zipfile.ZipFile(archive) as downloaded:
+                downloaded = zipfile.ZipFile(archive)
+                try:
                     for member in downloaded.infolist():
                         path = (destination / member.filename).resolve()
                         if not path.is_relative_to(destination.resolve()):
-                            raise ValueError("the browser archive contains an escaping path")
+                            raise ValueError("Prepare Native Prerequisites: the browser archive contains an escaping path")
                         downloaded.extract(member, destination)
                         if not member.is_dir():
                             path.chmod((member.external_attr >> 16) & 0o777 or 0o644)
+                finally:
+                    downloaded.close()
+            finally:
+                temporary_directory.cleanup()
         browser = str(executable.resolve())
     version = _driver_version(Path(browser))
     if not version:
-        raise ValueError(f"the report browser did not report its version: {browser}")
+        raise ValueError(f"Prepare Native Prerequisites: the report browser did not report its version: {browser}")
     os.environ["DOKIME_E2E_CHROME"] = browser
     if github_environment := os.environ.get("GITHUB_ENV"):
-        with Path(github_environment).open("a", encoding="utf-8") as written:
-            written.write(f"DOKIME_E2E_CHROME={browser}\n")
+        destination = Path(github_environment)
+        previous = destination.read_text(encoding="utf-8") if destination.exists() else ""
+        destination.write_text(previous + f"DOKIME_E2E_CHROME={browser}\n", encoding="utf-8", newline="\n")
     _step(f"Report browser uses {browser} ({version})")
     return Path(browser)
 
 
 def prepare_windows_desktop(root: Path) -> Path:
-    """Resolve WebView2 And Install Its Exact Microsoft WebDriver."""
+    """Resolve WebView2 and Install Its Exact Microsoft WebDriver."""
     version = _webview_version()
     if version is None:
-        with tempfile.TemporaryDirectory(prefix="dokime-webview-") as temporary:
+        temporary_directory = tempfile.TemporaryDirectory(prefix="dokime-webview-")
+        temporary = temporary_directory.name
+        try:
             installer = Path(temporary) / "MicrosoftEdgeWebview2Setup.exe"
             urllib.request.urlretrieve("https://go.microsoft.com/fwlink/p/?LinkId=2124703", installer)
             _run([str(installer), "/silent", "/install"])
+        finally:
+            temporary_directory.cleanup()
         version = _webview_version()
     if version is None or len(version.split(".")) != 4 or not all(part.isdigit() for part in version.split(".")):
-        raise ValueError("WebView2 did not report a valid installed runtime version")
+        raise ValueError("Prepare Native Prerequisites: WebView2 did not report a valid installed runtime version")
     destination = root / "target/tooling/desktop"
     driver = destination / "msedgedriver.exe"
     if not driver.is_file() or _driver_version(driver) != version:
-        with tempfile.TemporaryDirectory(prefix="dokime-edgedriver-") as temporary:
+        temporary_directory = tempfile.TemporaryDirectory(prefix="dokime-edgedriver-")
+        temporary = temporary_directory.name
+        try:
             archive = Path(temporary) / "edgedriver.zip"
             urllib.request.urlretrieve(f"https://msedgedriver.microsoft.com/{version}/edgedriver_win64.zip", archive)
-            with zipfile.ZipFile(archive) as downloaded:
+            downloaded = zipfile.ZipFile(archive)
+            try:
                 executable = downloaded.read("msedgedriver.exe")
+            finally:
+                downloaded.close()
             destination.mkdir(parents=True, exist_ok=True)
             staged = destination / "msedgedriver.exe.new"
             staged.write_bytes(executable)
             actual = _driver_version(staged)
             if actual != version:
                 staged.unlink()
-                raise ValueError(f"Microsoft WebDriver {actual!r} differs from WebView2 {version}")
+                raise ValueError(f"Prepare Native Prerequisites: Microsoft WebDriver {actual!r} differs from WebView2 {version}")
             staged.replace(driver)
+        finally:
+            temporary_directory.cleanup()
     _step(f"WebView2 and Microsoft WebDriver use {version}")
     github_path = os.environ.get("GITHUB_PATH")
     if github_path:
-        with Path(github_path).open("a", encoding="utf-8") as written:
-            written.write(str(destination) + "\n")
+        destination = Path(github_path)
+        previous = destination.read_text(encoding="utf-8") if destination.exists() else ""
+        destination.write_text(previous + str(destination) + "\n", encoding="utf-8", newline="\n")
     return driver
 
 
@@ -318,10 +361,13 @@ def _webview_version() -> str | None:
     for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
         for view in (winreg.KEY_WOW64_32KEY, winreg.KEY_WOW64_64KEY):
             try:
-                with winreg.OpenKey(hive, key, 0, winreg.KEY_READ | view) as installed:
+                installed = winreg.OpenKey(hive, key, 0, winreg.KEY_READ | view)
+                try:
                     version = str(winreg.QueryValueEx(installed, "pv")[0])
                     if version != "0.0.0.0":
                         return version
+                finally:
+                    winreg.CloseKey(installed)
             except FileNotFoundError:
                 continue
     return None
@@ -332,7 +378,7 @@ def _driver_version(driver: Path) -> str:
         [str(driver), "--version"],
         text=True,
         encoding="utf-8",
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
         stdin=sys.stdin,
         stderr=sys.stderr,
     )
@@ -348,7 +394,7 @@ def _package_installed(name: str) -> bool:
             text=True,
             encoding="utf-8",
             check=False,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             stdin=sys.stdin,
         ).returncode
         == 0
@@ -357,9 +403,7 @@ def _package_installed(name: str) -> bool:
 
 def _run(command: Sequence[str]) -> None:
     _step(" ".join(command))
-    subprocess.run(
-        command, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr
-    )
+    subprocess.run(command, check=True, creationflags=spawn_flags(), stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def _step(message: str) -> None:

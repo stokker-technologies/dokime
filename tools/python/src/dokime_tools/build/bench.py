@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Build Benchmark Executables And Matching Native Hosts"""
+"Build Benchmark Executables and Matching Native Hosts"
 
 # === Imports === #
 
@@ -20,7 +20,12 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import temporary
 from ..prepare import generated
@@ -29,7 +34,6 @@ from ..test import archive
 from . import paths
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -65,9 +69,12 @@ def build(
         "--message-format=json-render-diagnostics",
         *extra,
     ]
-    with temporary.directory() as staging:
+    staging_directory = temporary.Directory()
+    staging = staging_directory.path
+    try:
         raw = staging / "compiler.json"
-        with raw.open("w", encoding="utf-8") as written:
+        written = raw.open("w", encoding="utf-8")
+        try:
             subprocess.run(
                 command,
                 env=environment,
@@ -78,6 +85,8 @@ def build(
                 stdout=written,
                 check=True,
             )
+        finally:
+            written.close()
         for kind in ("bin", "bench"):
             (staging / kind).mkdir()
 
@@ -100,17 +109,19 @@ def build(
             events.append(json.dumps(event))
 
         if require_benchmark and not benchmarks:
-            raise ValueError("no benchmark target was built")
+            raise ValueError("Build Bench: no benchmark target was built")
         for kind in ("bin", "bench"):
             paths.replace(directory, staging / kind, output / kind, origin=staging)
         messages.write_text("\n".join(events) + "\n", encoding="utf-8")
         files.append(messages.relative_to(directory).as_posix())
         archive.stamp(directory, "bench", files)
+    finally:
+        staging_directory.close()
     return messages
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build Benchmarks And Matching Hosts In The Bench Profile")
+    parser = argparse.ArgumentParser(description="Build Benchmarks and Matching Hosts in the Bench Profile")
     parser.add_argument("--binary")
     parser.add_argument("extra", nargs=argparse.REMAINDER)
     options = parser.parse_args()
@@ -156,7 +167,12 @@ def main() -> None:
     messages = build(directory, ["--features", "dokime-gui/custom-protocol", *extra], selection, environment=environment)
     generated.stage("bench")
     stamp = json.loads((output / "fixtures/stamp.json").read_text(encoding="utf-8"))
-    modules = [path.relative_to(directory).as_posix() for path in (output / "generated").rglob("*") if path.is_file()]
+    modules = []
+    for modules_path in (output / "generated").rglob("*"):
+        if not (modules_path.is_file()):
+            continue
+        modules.append(modules_path.relative_to(directory).as_posix())
+
     archive.stamp(directory, "bench", [*stamp["files"], *modules], stamp["metadata"])
     print(messages)
 

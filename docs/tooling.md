@@ -23,6 +23,50 @@ The Rust host-fixture task builds and stages separate capture and publication
 boundary plugins. Each catalog declares only its own sampled streams, so a
 capture execution never samples the boundary counter's execution resources.
 
+## Python Tooling
+
+Regenerate the C++ formatter lock with
+`mise -C sdk/cpp lock pipx:clang-format@21.1.8` and commit `sdk/cpp/mise.lock`.
+All `.mise/` folders contain ignored local state and must remain untracked.
+
+The root uv workspace installs `tools/python` into the root `.venv/`. The
+`dokime_tools` package ships `py.typed`; Ruff and ty cover all its authored
+modules, including documentation generation, desktop development, release and
+test orchestration. Formatting and linting cover the complete package without
+subpackage exclusions or handpicked file lists.
+
+`ci/tasks.py` parses the public arguments. Each module under `task/` selects
+one operation's existing mise leaves, including the hidden `ci:*` tasks used
+by workflows. `mise run build -- --plan` prints the selected commands without
+receiving artifacts or compiling. Focused package plans retain their native
+Cargo commands.
+
+Release preparation, review, staging, rehearsal, tagging, publication,
+finalization and verification have separate modules under `release/`.
+`release/run.py` owns argument parsing and explicit dispatch. Registry
+transport, crate publishing, Python publishing and review evidence have their
+own modules under `release/registry/`. Package definitions, assembly, executable
+verification and installer checks have separate modules under `package/`. Test lane execution, coverage,
+benchmarks and child-process execution have separate owners under `test/`.
+Descriptor projection and each language renderer live under `build/resources/`;
+public names and C++ type mappings belong to one generation invocation.
+
+Disposable directory owners expose their path and explicit `close()` operation.
+Scratch roots, private credential stores, headless displays and build phases
+have explicit `close()` operations. Native streaming handles use short
+standard-library resource scopes where no path-level operation completes the
+work. Locks, temporary credential environment changes and staged manifest edits
+keep their rollback scopes. The pre-mise native bootstrap loads
+shared process policy by file because the tools package is not installed yet;
+installed workflow operations use regular imports.
+
+Run the tooling stories through the public selection:
+
+```sh
+mise run test -- --language python --layer integration --project tools/python
+mise run lint -- --language python
+```
+
 ## Focused Development
 
 ```sh
@@ -75,6 +119,7 @@ conflicts retain the action and cause and require an explicit retry.
 
 ```sh
 mise run generate -- --protocol
+mise run generate -- --protocol --check
 mise run generate:typescript
 mise run check:generated
 mise run check:locks
@@ -85,10 +130,13 @@ mise -C sdk/csharp run restore
 without compiling runtime-owned default values. The ordinary `generate` task still
 exports those defaults from their product owner before a full frontend build.
 
+The protocol check regenerates SDK roots in temporary storage and compares the
+complete output inventory, including obsolete outputs. It reports drift without
+rewriting sources; unrelated working-tree edits do not cause false drift.
+
 The generated checks compile permanent consumers under each SDK's tests/generation
 (tests/Generation for C#) and the desktop tests/generation. Select one with
-`check:generated --language rust|python|csharp|cpp|typescript`, or use its SDK's
-`test:generation`. These compiler contracts require no product runtime or host fixtures.
+`mise run check:generated -- --language rust|python|csharp|cpp|typescript`. These compiler contracts require no product runtime or host fixtures.
 C# uses its own `target/cs/generation` output; its normal SDK build also compiles
 the authored file-transfer consumer. Generated Python obeys
 ordinary lint and typing; only protoc's private `_pb2*` files use the existing exclusion,
@@ -97,7 +145,9 @@ and the public barrels plus compiler consumer are checked explicitly.
 `prepare:locks` refreshes Cargo and uv locks after a dependency pin change. C# uses
 `restore --refresh-lock` explicitly, then ordinary `restore` and the generation story
 use locked mode. C++ records its source archive digest and vcpkg baseline as inputs.
-The repository check includes buf, callers, public surfaces and workflow lint. Its
+The repository check includes buf, callers, SDK public surfaces and workflow lint.
+The documentation job runs `ci:docs` for guide public surfaces, then builds the site
+and checks its local links and fragments without network requests. Its
 wire-name allow-list covers private generated directories, canonical
 gRPC paths, architecture and execution-host definition maps, and Markdown link targets.
 
@@ -106,7 +156,7 @@ gRPC paths, architecture and execution-host definition maps, and Markdown link t
 The Rust host-fixture producer stages the reference host and its Python
 conformance package from the same locked library checkout. Python system and
 coverage lanes consume that stamped package, without a machine-specific source
-path. The SDK entry point selects the matching prepared profile with
+path. The hidden SDK conformance selection selects the matching prepared profile with
 `mise -C sdk/python run conformance -- --profile release`.
 
 ```sh
@@ -114,7 +164,7 @@ mise run build:host-fixtures
 mise run build:cli-fixtures
 mise run test -- --package dokime-runtime --target system
 mise run test -- --package dokime-cli --target system
-mise -C sdk/rust run sdk:test
+mise -C sdk/rust run test
 mise -C sdk/python run test
 mise -C sdk/csharp run test
 mise -C sdk/cpp run test
@@ -123,7 +173,8 @@ mise run build -- --artifact tests
 
 Host fixture production builds the Rust reference, pinned library conformance host,
 content fixture, product host and pure Python wheel;
-C# and C++ producers use their SDK tasks. `build:host-fixtures --language
+The Tests archive selects Rust and Python explicitly, independent of installed
+tool detection. C# and C++ producers run independently through their SDK tasks. `build:host-fixtures --language
 rust|python|csharp|cpp` selects one producer. C++ uses `target/cp/` with short
 generated and object paths on Windows. Its CMake 4.2 pin supports Visual Studio 18
 and uses Ninja with the native MSVC environment. Cached dependency builds resolve code
@@ -153,6 +204,21 @@ before deleting that root, including when a story unwinds.
 
 ## Desktop Integration
 
+`mise run dev -- --help` describes the entry point without generating or starting processes.
+`mise run dev` is the single entry point for interactive desktop work
+(`tools/python/src/dokime_tools/dev/desktop.py`). It runs `generate:typescript`,
+builds `plugin-obc`, `dokime` and `dokime-host`, and bundles the plugin like the
+product build does. It then installs that bundle through a short-lived
+`dokime server` on a fresh root under the system temporary directory, using a
+unique `dokime-dev-<id>` credential namespace. Finally it starts
+`tauri dev --features console` with that root and namespace. Windows owns the
+started tree through a kill-on-close job; Linux uses one session per started
+process. On exit the tool waits for every owned process to stop. It then runs
+`dokime-host --remove-credentials` for each root and deletes the folder. The
+desktop `package.json` keeps only the scripts that tasks call: `build:live`,
+`build:report` and `typecheck`, plus Vite's `dev`, which is the Tauri
+`beforeDevCommand`.
+
 The desktop native package is restored to workspace and default membership.
 Build it with `mise run build -- --package dokime-gui`; add
 `--features tauri/custom-protocol` to embed the prepared live frontend.
@@ -166,7 +232,7 @@ runtime stops, including on failure. WebView lanes are available through
 `mise run test -- --language typescript --layer system --select native-desktop`
 and the same command with `--select two-gui-remote`. Both drivers use the current
 host and SDK thermal fixture; the native-desktop lane also runs the
-[OBC](plugin-obc.md) Bench template for its exact summary tiles. Frontend unit and integration selection includes all
+[OBC](../plugins/sidecars/obc/) Exact Values template for its exact summary tiles. Frontend unit and integration selection includes all
 retained suites. PR and Nightly select native acceptance plus both WebView lanes
 on Linux and Windows; Nightly also produces and runs the desktop benchmark archive.
 
@@ -187,6 +253,34 @@ add `--check` to prove its drift. Never edit generated files.
 The protocol task also generates four-language SDK roots through the pinned
 library's descriptor table/generator; its check verifies those outputs for drift.
 Never edit generated files.
+
+## Documentation Site
+
+The website renders the guides in `docs/` in place through the Starlight project in
+`site/`, with static search and a release selector; the operations reference is
+generated from the protocol definitions and their comments. Edit guides only in
+`docs/`; each guide's first heading becomes its page title.
+
+```sh
+mise run docs:serve
+mise run docs:build
+mise run docs:build -- --release --archive
+mise run docs:image -- --archive target/docs/dokime-docs.zip
+```
+
+`docs:serve` previews the development entry with live reload. `docs:build` writes
+the development entry to `target/docs/dev/` and fails on a broken page link or
+heading anchor; `--release` builds the release line of the current version under
+`/<MAJOR.MINOR>/` instead, and `--archive` packs the entry as
+`target/docs/dokime-docs.zip`. Release staging publishes that archive as
+`dokime-docs-<version>.zip` (required for a stable release) or
+`dokime-docs-nightly.zip`. The staging owner in
+`tools/python/src/dokime_tools/release/staging.py` checks the archive entry and
+version before adding it to the shared download inventory. `docs:image` downloads
+the newest archive of each release line and the Nightly archive (it needs `GH_TOKEN`), or assembles the given archives,
+and packs `target/docs/dokime-docs-site.zip` with `versions.json` and the `latest`
+redirects. Pull requests run `Build / Documentation`; Nightly builds the archive
+beside publication and its report states whether the archive was attached.
 
 ## Build and Delivery Artifacts
 
@@ -353,9 +447,14 @@ parent-owned: after child exit, including termination, the runner removes each
 root's credentials through `dokime-host --remove-credentials` before discarding
 the root. Cleanup failures retain ownership metadata with the diagnostics.
 Existing workstation credentials outside those fresh roots are untouched.
-Native credential calls run on one dedicated process-lifetime owner thread.
+Windows native credential calls share a per-user cross-process file lock, including
+story reads: even a concurrent read can race a persistent write to an unrelated
+target and resurrect a deleted credential. Callers use
+`dokime_runtime::credentials::Entry` instead of accessing keyring directly.
 Cleanup checks absence and retains ownership when a key remains. Concurrent-host
-stories also check native absence from the calling threads after root removal.
+stories use separate processes and check native absence from their calling threads
+after root removal. External callers that do not take the product lock remain outside
+this coordination boundary.
 The desktop panic story now checks its exact access key and deliberate panic
 type; full-lane failures and post-lane native inventories remain separate proof.
 
@@ -547,6 +646,44 @@ evidence remain under `target/benchmarks/criterion/`; the task repair inventory
 also retains the focused-run observations.
 
 ## Hosted Validation
+
+`ci:impact` owns the pure path classifier and event planner in
+`tools/python/src/dokime_tools/ci/impact.py`. The check and test matrices live in
+`ci/matrices.py`; workflow routing uses only the planner's job outputs and matrices.
+Markdown files (including nested READMEs), `docs/`, `openspec/` and `site/` select
+only `Build / Documentation`, its guide surface check and deterministic local-link
+check. Mixed changes union selections. Language changes select their checks and
+stories plus downstream consumers and every required artifact producer. C# and
+C++ SDK checks and stories retain native Linux and Windows jobs; the C++ host
+equivalence story remains in Nightly.
+
+PR comparisons use merge-base to head; pushes use before to after. Complete
+NUL-delimited Git diffs include deletions and both rename sides. Unknown inputs,
+missing comparison commits, malformed or incomplete diffs select all jobs eligible
+for the event. Shared tooling, root locks/configuration, protocols, descriptors and
+workflow/action changes fan out across their dependent graph.
+
+Dev pushes select only quick checks and product builds, including Python and
+documentation products; they never produce test archives or host fixtures.
+Draft and closed reviews plan no validation jobs. Release reviews and manual full
+validation run the complete graph. Nightly requests the complete matrix without
+a diff and retains its freshness rule. `CI / Required` requires a successful planner,
+the complete declared job inventory, success for selected jobs and success or an
+explicitly planned skip for other jobs. Failed, cancelled, missing and unexpected
+skipped jobs fail Required.
+
+The public task list contains standard operations plus documentation and development
+entry points. Necessary selection leaves are hidden; redundant generation aliases
+and unused C++ wrappers are removed. SDK tests use `test -- --layer unit` for focused
+units, and starter `dev` tasks serve their examples. The expected lane inventory is
+`conventions.testing.expected_lanes` in `tools/project.toml`, independent of task names.
+`ci:bootstrap` runs declared native prerequisite tasks after mise installation and
+before project preparation. The initial pre-mise native bootstrap remains a direct
+file load because neither mise nor the installed tools package exists yet.
+`ci:send`, `ci:receive`, `ci:sign-select`, `ci:sign-package`, `ci:distribution` and
+`ci:summary` own recurring project operations used by provider steps. Tooling-only
+planning and Required preparation build no SDK or fixtures; documentation preparation
+adds only site dependencies.
 
 Pull requests and Nightly retain native Linux and Windows host/SDK validation.
 PR host fixtures select Rust/Python, and a separate PR lane builds the C# fixture

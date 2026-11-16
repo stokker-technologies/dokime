@@ -71,15 +71,7 @@ pub(super) fn exchange(state: &mut State, exchange: &ObjectExchange) -> Result<C
     if exchange.schema.position.sequence <= meta(&tx, "saved")? {
         return Err(conflict("conditional admission positions are already committed"));
     }
-    let current = tx
-        .query_row(
-            "SELECT data FROM storage_rows WHERE kind=1 AND schema_id=?1 AND item=?2 ORDER BY position DESC LIMIT 1",
-            params![exchange.value.value.schema.id.as_str(), exchange.value.value.item.as_str()],
-            |row| row.get::<_, Vec<u8>>(0),
-        )
-        .optional()
-        .map_err(db)?;
-    let current = current.as_deref().map(decode::<ObjectEntry>).transpose()?.map(|object| object.version);
+    let current = compound::current(&tx, &exchange.value.value.schema.id, &exchange.value.value.item)?;
     let outcome = if current == exchange.expected {
         rows::put_schema(&tx, &state.history, &exchange.schema)?;
         let value = &exchange.value;
@@ -91,7 +83,7 @@ pub(super) fn exchange(state: &mut State, exchange: &ObjectExchange) -> Result<C
                 kind: 1,
                 schema: Some(&value.value.schema),
                 item: Some(value.value.item.as_str()),
-                scope: None,
+                scope: value.value.scope.as_ref().map(Identifier::as_str),
                 stream: None,
                 time: None,
                 data: encode(value)?,

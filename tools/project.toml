@@ -1,3 +1,17 @@
+[conventions.testing]
+# Expected Lanes Are Independent of Task Names.
+expected_lanes = [
+  "python:integration",
+  "python:system",
+  "rust:unit",
+  "rust:integration",
+  "rust:system",
+  "rust:acceptance",
+  "typescript:system",
+  "typescript:unit",
+  "typescript:integration",
+]
+
 [conventions.testing.deadlines]
 acceptance = 1800
 integration = 240
@@ -54,6 +68,14 @@ lock_commands = [
     "--ignore-scripts",
     "--dir",
     "crates/dokime-gui",
+  ],
+  [
+    "pnpm",
+    "install",
+    "--lockfile-only",
+    "--ignore-scripts",
+    "--dir",
+    "site",
   ],
   [
     "uv",

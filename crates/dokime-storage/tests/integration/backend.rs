@@ -16,7 +16,9 @@
 /* === Imports === */
 
 use harmos_domain::Identified;
+use harmos_storage::conformance::{self, CompoundFixture, ScopeFixture};
 use harmos_storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, StoredObject};
+use harmos_storage::{StorageFuture, StorageManager, WorkerOwner};
 
 // Standard Library Imports
 
@@ -84,6 +86,21 @@ impl StoredObject for Reading {
     const RETENTION: ObjectRetention = ObjectRetention::All;
     fn key(&self) -> &String {
         &self.label
+    }
+}
+
+struct StorageWorker(tokio::sync::Mutex<Option<tokio::task::JoinHandle<harmos_storage::Result<()>>>>);
+
+impl WorkerOwner for StorageWorker {
+    fn stop(&self) -> StorageFuture<'_, ()> {
+        Box::pin(async move {
+            if let Some(task) = self.0.lock().await.take() {
+                task.await.map_err(|source| {
+                    harmos_storage::Error::backend("Join Backend Conformance Worker", harmos_storage::BackendFailure::Permanent, source)
+                })??;
+            }
+            Ok(())
+        })
     }
 }
 
@@ -201,6 +218,282 @@ fn limits() -> ReadLimits {
 }
 
 /* === Tests === */
+
+#[tokio::test]
+async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> StoryResult {
+    use harmos_storage::{
+        MutationId, MutationItem, ObjectVersionToken, RecordInput, StorageFilesystemSettings, StoragePolicy, StorageRequestSettings,
+        StorageResponseSettings, StorageSettings, StreamInput,
+    };
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let catalog = ObjectCatalog::new().entry(ObjectDefinition::of::<Reading>());
+    let (backends, _lease) = Backend::open(&store, catalog.clone())?;
+    let capacity = NonZeroUsize::new(64).unwrap();
+    let storage = StorageManager::with_catalog(
+        catalog.clone(),
+        backends,
+        StorageSettings {
+            transfer: Default::default(),
+            policy: StoragePolicy::default(),
+            request: StorageRequestSettings {
+                max_file_productions: capacity,
+                max_mutation_receipts: capacity,
+                max_pending_queries: capacity,
+                max_active_queries: capacity,
+                max_pending_write_batches: capacity,
+                max_active_file_operations: capacity,
+                max_pending_write_bytes: limits().bytes,
+            },
+            response: StorageResponseSettings {
+                batch_rows: capacity,
+                batch_bytes: limits().bytes,
+            },
+            filesystem: StorageFilesystemSettings {
+                poll_interval: std::time::Duration::from_millis(100),
+                max_entries: capacity,
+                event_capacity: capacity,
+            },
+        },
+    )?;
+    storage
+        .start_with(Arc::new(()), |mut worker| {
+            let task = tokio::spawn(async move {
+                worker.run().await?;
+                worker.cleanup().await
+            });
+            Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
+        })
+        .await?;
+
+    let value = |key: &str, value| -> StoryResult<_> {
+        let reading = Reading {
+            value,
+            label: key.into(),
+            details: None,
+            values: Vec::new(),
+            choice: Choice::Empty,
+            fraction: 0.5,
+            bytes: vec![1, 2],
+        };
+        Ok(catalog.encode(&reading, limits().bytes)?)
+    };
+    let first = value("compound-first", 10)?;
+    let record = RecordInput {
+        schema: first.schema.clone(),
+        scope: None,
+        item: Identifier::new("compound-record")?,
+        source: None,
+        source_time: None,
+        payload: first.payload.clone(),
+    };
+    let identity = MutationId {
+        window: storage.mutation_window()?.id,
+        key: Identifier::new("conformance.compound.create")?,
+    };
+    let items = vec![MutationItem::Create(first.clone()), MutationItem::Append(record.clone())];
+    let created = storage.mutate_once(&identity, items.clone()).await?;
+    let partial = StorageCursor {
+        sequence: created.position.sequence - 1,
+        ..created.position.clone()
+    };
+    let Err(harmos_storage::Error::Persistence { source }) = storage.snapshot(&partial).await else {
+        panic!("Partial Compound Cut Must Be Refused");
+    };
+    assert!(matches!(source.as_ref(), harmos_storage::Error::InvalidInput { .. }));
+    let proof = CompoundFixture {
+        first,
+        replacement: value("compound-first", 20)?,
+        second: value("compound-second", 30)?,
+        record: record.clone(),
+    };
+    conformance::compound_mutations(&storage, proof).await?;
+    let refused_identity = MutationId {
+        window: identity.window.clone(),
+        key: Identifier::new("conformance.compound.conflict")?,
+    };
+    let refused_items = vec![
+        MutationItem::Create(value("compound-second", 30)?),
+        MutationItem::Append(record),
+        MutationItem::Set {
+            expected: ObjectVersionToken::new(created.position.clone()),
+            value: value("compound-first", 20)?,
+        },
+    ];
+    let refused = storage.mutate_once(&refused_identity, refused_items.clone()).await?;
+
+    let scope = Identifier::new("conformance-scope")?;
+    let mut object = value("scoped", 42)?;
+    object.scope = Some(scope.clone());
+    let record = RecordInput {
+        schema: object.schema.clone(),
+        scope: Some(scope.clone()),
+        item: Identifier::new("scoped-record")?,
+        source: None,
+        source_time: None,
+        payload: object.payload.clone(),
+    };
+    let mut mixed = Vec::new();
+    for index in 0..6 {
+        let payload = value("mixed", index)?;
+        mixed.push(StreamInput {
+            record: RecordInput {
+                schema: object.schema.clone(),
+                scope: (index % 2 == 1).then(|| scope.clone()),
+                item: Identifier::new("mixed")?,
+                source: None,
+                source_time: None,
+                payload: payload.payload,
+            },
+            stream: Identifier::new("mixed-stream")?,
+            sequence: index + 1,
+        });
+    }
+    storage.append_samples(mixed).await?;
+    storage.flush().await?;
+    let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
+    let deleted_chunks = {
+        let mut query = connection.prepare(
+            "SELECT file FROM arrow_chunks c WHERE EXISTS(SELECT 1 FROM storage_rows r
+             WHERE r.kind=3 AND r.scope=?1 AND r.position BETWEEN c.first AND c.last)",
+        )?;
+        query.query_map([scope.as_str()], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?
+    };
+    let proof = ScopeFixture {
+        scope: scope.clone(),
+        object,
+        record: record.clone(),
+        sample: StreamInput {
+            record,
+            stream: Identifier::new("scoped-stream")?,
+            sequence: 1,
+        },
+        file: FileMetadata {
+            id: Identifier::new("scoped-file")?,
+            scope: Some(scope),
+            media_type: "application/octet-stream".into(),
+            expected_length: None,
+            expected_sha256: None,
+        },
+        bytes: b"scoped-content".to_vec(),
+    };
+    conformance::scoped_deletion(&storage, proof).await?;
+    let snapshot = storage.snapshot(&storage.get_saved_position()).await?;
+    let mut scan = ArrowScan {
+        source: ColumnSource {
+            kind: ColumnKind::Stream,
+            schema: ObjectDefinition::of::<Reading>().schema()?,
+        },
+        columns: vec!["payload.value".into()],
+        predicate: None,
+        time: None,
+        start: 0,
+        after: None,
+        limits: limits(),
+        work: limits(),
+    };
+    let mut values = Vec::new();
+    loop {
+        let page = snapshot.list_column_rows(&scan, &Cancellation::default()).await?;
+        let column = page.batch.column(0).as_any().downcast_ref::<UInt64Array>().unwrap();
+        values.extend(column.values().iter().copied());
+        if page.complete {
+            break;
+        }
+        scan.after = page.next;
+    }
+    assert_eq!(values, [0, 2, 4]);
+    drop(snapshot);
+    let settings = storage.settings().clone();
+    storage.close().await?;
+    let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
+    let chunks: i64 = connection.query_row("SELECT count(*) FROM storage_file_chunks WHERE id='scoped-file'", [], |row| row.get(0))?;
+    assert_eq!(chunks, 0);
+    for file in deleted_chunks {
+        assert!(!root.path().join("storage.arrow").join(file).exists());
+    }
+
+    // Replay the Original Receipt After Both Backend Sessions Reopen.
+    let (backends, _lease) = Backend::open(&store, catalog.clone())?;
+    let storage = StorageManager::with_catalog(catalog, backends, settings)?;
+    storage
+        .start_with(Arc::new(()), |mut worker| {
+            let task = tokio::spawn(async move {
+                worker.run().await?;
+                worker.cleanup().await
+            });
+            Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
+        })
+        .await?;
+    assert_eq!(storage.mutate_once(&identity, items).await?, created);
+    assert_eq!(storage.mutate_once(&refused_identity, refused_items).await?, refused);
+    storage.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn superseded_backend_roots_are_refused_without_changing_their_values() -> StoryResult {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    backends.primary.create_session().await?;
+    backends.primary.delete_session().await?;
+    let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
+    let prior = vec![1u8, 2, 3, 4];
+    connection.execute("UPDATE storage_meta SET value=?1 WHERE name='format'", ["superseded"])?;
+    connection.execute("INSERT INTO storage_meta VALUES('preserved',?1)", [&prior])?;
+    assert!(Backend::open(&store, ObjectCatalog::new()).is_err());
+    let saved: Vec<u8> = connection.query_row("SELECT value FROM storage_meta WHERE name='preserved'", [], |row| row.get(0))?;
+    assert_eq!(saved, prior);
+    Ok(())
+}
+
+#[tokio::test]
+async fn object_identities_stay_unique_when_their_scope_changes() -> StoryResult {
+    use harmos_storage::{IdentityKind, IdentitySelection, ObjectEntry, ObjectKey, ObjectValue, ObjectVersionToken, StoredIdentity};
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let backend = &backends.primary;
+    backend.create_session().await?;
+    let schema = schema(backend.get_history())?;
+    backend.append_schemas(StorageBatch::new(vec![schema.clone()]).into()).await?;
+    let key = ObjectKey::from_owned("object".into())?;
+    let mut entries = Vec::new();
+    for (sequence, scope) in [(2, "first"), (3, "second")] {
+        let position = StorageCursor {
+            sequence,
+            history: backend.get_history().clone(),
+        };
+        entries.push(ObjectEntry {
+            version: ObjectVersionToken::new(position.clone()),
+            position,
+            value: ObjectValue {
+                schema: schema.key.clone(),
+                item: key.clone(),
+                scope: Some(Identifier::new(scope)?),
+                payload: rows(&schema, sequence, 1, scope)?.remove(0).record.payload,
+            },
+        });
+    }
+    let at = backend.append_object_revisions(StorageBatch::new(entries)).await?;
+    let snapshot = backend.create_snapshot(&at).await?;
+    let selection = IdentitySelection {
+        kind: IdentityKind::Objects,
+        schema: Some(schema.key.id),
+    };
+    let page = ScanPage {
+        after: 0,
+        rows: limits().rows,
+        bytes: limits().bytes,
+    };
+    let identities = backend.list_identities(&snapshot, &selection, page).await?;
+    assert!(matches!(identities.as_slice(), [StoredIdentity::Object { key: saved, .. }] if saved == &key));
+    backend.delete_snapshot(&snapshot).await?;
+    backend.delete_session().await?;
+    Ok(())
+}
+
 #[tokio::test]
 async fn pinned_native_arrow_pages_keep_their_saved_cut() -> StoryResult {
     let root = tempfile::tempdir()?;
@@ -409,6 +702,7 @@ async fn conditional_objects_replay_the_original_applied_and_conflict_outcomes()
             position: position.clone(),
             version: ObjectVersionToken::new(position),
             value: ObjectValue {
+                scope: None,
                 schema: schema.key.clone(),
                 item: ObjectKey::from_owned("object".to_owned())?,
                 payload: rows(&schema, 2, 1, "first")?.remove(0).record.payload,

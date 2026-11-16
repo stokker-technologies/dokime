@@ -5,23 +5,25 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Render Shared Measured Time And Cache Summaries."""
+"Render Shared Measured Time and Cache Summaries."
 
 # === Imports === #
 
 # Standard Library Imports
-import contextlib
 import json
 import os
 import time
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -30,6 +32,25 @@ from pathlib import Path
 # === Types === #
 
 # === Classes === #
+
+
+class Phase:
+    """Record One Build Phase When Its Owner Closes It."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.started_s = time.monotonic()
+
+    def close(self) -> None:
+        destination = os.environ.get("BUILD_PHASE_FILE")
+        if not destination:
+            return
+        try:
+            with Path(destination).open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps({"name": self.name, "seconds": time.monotonic() - self.started_s}) + "\n")
+        except OSError:
+            print(f"{self.name}: phase telemetry unavailable", flush=True)
+
 
 # === Public Functions === #
 
@@ -69,27 +90,22 @@ def render(label: str, elapsed: float | None, statistics: dict | None, *, phases
                     stream.write("Compiler Cache: sccache.\n\n")
                 stream.write("| Metric | Value |\n| --- | --- |\n")
                 stream.writelines(f"| {name} | {value} |\n" for name, value in measured)
-                errors = {key: value for key, value in (statistics or {}).items() if "error" in key and isinstance(value, int) and value}
+                errors = {}
+                for errors_key, errors_value in (statistics or {}).items():
+                    if "error" not in errors_key:
+                        continue
+                    if not isinstance(errors_value, int):
+                        continue
+                    if not errors_value:
+                        continue
+                    errors[errors_key] = errors_value
+
                 if errors:
                     stream.write("\n<details><summary>Cache Diagnostics</summary>\n\n")
                     stream.write("```json\n" + json.dumps(errors, indent=2) + "\n```\n\n</details>\n")
                 stream.write("\n")
         except OSError:
             print(f"{label}: summary unavailable", flush=True)
-
-
-@contextlib.contextmanager
-def phase(name: str):
-    started = time.monotonic()
-    try:
-        yield
-    finally:
-        if destination := os.environ.get("BUILD_PHASE_FILE"):
-            try:
-                with Path(destination).open("a", encoding="utf-8") as stream:
-                    stream.write(json.dumps({"name": name, "seconds": time.monotonic() - started}) + "\n")
-            except OSError:
-                print(f"{name}: phase telemetry unavailable", flush=True)
 
 
 def phases(path: Path) -> dict[str, float]:

@@ -1,7 +1,7 @@
 # Dokime Python SDK
 
 `dokime-sdk` is a pure Python package for async clients and remote plugin authoring.
-It composes Harmos at immutable revision `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`.
+It composes Harmos at immutable revision `7fe385eacbe9a4c9a47943f6a528f97a014256ee`.
 Python connects to an existing host; the application owns the plugin endpoint and its shutdown.
 
 ## Install
@@ -103,7 +103,7 @@ declarations. `secrets` accepts SecretDeclaration values; duplicate or empty
 identifiers fail before serving. A secret read must name a declared secret, and the
 host also authorizes its trusted plugin identity and binding.
 
-Lifecycle and analysis payloads come from `dokime.plugin`. Independent lifecycle
+Lifecycle payloads come from `dokime.plugin`. Independent lifecycle
 bindings remain Protected. Use the library's `operation` decorator for additional
 operations, and pass their instance through `Plugin(operations=...)`. The SDK
 constructs an execution-owned suite instance, shares it with steps, criteria and
@@ -111,8 +111,8 @@ observers, and releases it after cleanup even when cleanup raises.
 
 Materializers are synchronous and pure. They freeze parameter-dependent steps
 and criteria without host calls. Resources remain on the suite instance and are
-never serialized. Stream callbacks retain their declared protobuf row types and
-raw analysis time axes; scalar observers use DoubleValue rows.
+never serialized. Stream callbacks retain their declared protobuf row types;
+scalar observers use DoubleValue rows.
 
 The host grants each interval stream one window at a time: `count` samples from
 `start`, one `period` apart. `@observer(interval_ms=...)` is called once per sample
@@ -195,10 +195,10 @@ mise -C sdk/python run check
 mise -C sdk/python run generate -- --check
 mise -C sdk/python run build
 mise -C sdk/python run install
-mise -C sdk/python run unit
+mise -C sdk/python run test -- --layer unit
 mise -C sdk/python run test
 mise -C sdk/python run generated
-mise -C sdk/python run test:generation
+mise run check:generated -- --language python
 mise -C sdk/python run package
 mise -C sdk/python run wheel
 ```
@@ -210,7 +210,7 @@ temporary storage and reports drift without writing committed output. `generated
 checks the installed wheel's source manifest, private descriptor set, message
 shapes, RPC cardinalities and serializers. `tools/stubs.py` checks authored public
 modules and generated resource signatures against the installed package.
-`test:generation` imports the public barrels and type-checks client and plugin
+`check:generated` imports the public barrels and type-checks client and plugin
 content calls independently of the product host, using the same lint and typing
 rules as authored code.
 

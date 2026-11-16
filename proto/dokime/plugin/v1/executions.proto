@@ -25,7 +25,7 @@ service Executions {
   rpc Cleanup(.dokime.plugin.v1.ExecutionsCleanupRequest) returns (.dokime.plugin.v1.ExecutionsCleanupResponse) {}
 }
 
-// === Initialize === //
+// === Requests and Responses === //
 
 // ExecutionsInitializeRequest for Executions.Initialize.
 message ExecutionsInitializeRequest {
@@ -36,8 +36,6 @@ message ExecutionsInitializeRequest {
 
 // ExecutionsInitializeResponse for Executions.Initialize.
 message ExecutionsInitializeResponse {}
-
-// === Cleanup === //
 
 // ExecutionsCleanupRequest for Executions.Cleanup.
 message ExecutionsCleanupRequest {

@@ -14,7 +14,9 @@
 import argparse
 import json
 import re
+import shutil
 import subprocess
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -23,9 +25,9 @@ from google.protobuf.descriptor_pb2 import FileDescriptorSet
 
 # Local Imports
 from ..process import spawn_flags
-from . import render_resources as render
-from .csharp_protocol import protocols as csharp_protocols
+from . import csharp_protocol
 from .protocol_callers import narrow_callers
+from .resources import cpp, csharp, python, rust, schema
 
 # Type Checking Imports
 
@@ -40,137 +42,216 @@ from .protocol_callers import narrow_callers
 # === Public Functions === #
 
 
-def generate(check: bool = False) -> None:
-    root = Path.cwd()
-    composition = root / "protocol/composition.toml"
+def generate(check: bool = False, *, root: Path | None = None) -> None:
+    source = root or Path.cwd()
+    output = Path(tempfile.mkdtemp())
+    try:
+        _render(source, output)
+        if check:
+            differences = compare(source, output)
+            if differences:
+                raise ValueError("Check SDK Definitions: Run mise run generate -- --protocol\n" + "\n".join(differences))
+            return
+        expected = inventory(output)
+        existing = inventory(source)
+        for relative in existing - expected:
+            (source / relative).unlink()
+        for relative in sorted(expected):
+            destination = source / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((output / relative).read_bytes())
+    finally:
+        shutil.rmtree(output)
+
+
+def inventory(root: Path) -> set[Path]:
+    """Collect This Generator's Complete Output Inventory, Including Retired Files."""
+    patterns = (
+        "sdk/python/src/dokime/_generated/**/*.py",
+        "sdk/python/src/dokime/_generated/**/*.pyi",
+        "sdk/csharp/src/Dokime/Generated/**/*.cs",
+        "sdk/cpp/include/dokime/_generated/**/*.hpp",
+        "sdk/cpp/src/generated/*.cpp",
+    )
+    files = set()
+    for pattern in patterns:
+        for path in root.glob(pattern):
+            if path.is_file():
+                files.add(path.relative_to(root))
+    names = (
+        "sdk/rust/src/exports.rs",
+        "sdk/rust/src/host.rs",
+        "sdk/rust/src/client/resources.rs",
+        "sdk/rust/src/client/types.rs",
+        "sdk/rust/src/plugin/host.rs",
+        "sdk/rust/src/plugin/host_exports.rs",
+        "sdk/rust/src/plugin/types.rs",
+        "sdk/python/src/dokime/__init__.py",
+        "sdk/python/src/dokime/client.py",
+        "sdk/python/src/dokime/plugin/__init__.py",
+        "sdk/cpp/include/dokime/messages.hpp",
+        "sdk/cpp/include/dokime/detail/messages.hpp",
+    )
+    for name in names:
+        if (root / name).is_file():
+            files.add(Path(name))
+    for path in (root / "sdk/rust/src").rglob("*.rs"):
+        if path.read_bytes().startswith(b"// @generated from protocol descriptors; do not edit."):
+            files.add(path.relative_to(root))
+    return files
+
+
+def compare(source: Path, expected: Path) -> list[str]:
+    """Report Missing, Changed and Obsolete Generated Files Without Writing."""
+    wanted = inventory(expected)
+    existing = inventory(source)
+    differences = []
+    for path in sorted(wanted - existing):
+        differences.append(f"Missing: {path.as_posix()}")
+    for path in sorted(existing - wanted):
+        differences.append(f"Obsolete: {path.as_posix()}")
+    for path in sorted(wanted & existing):
+        if (source / path).read_bytes() != (expected / path).read_bytes():
+            differences.append(f"Changed: {path.as_posix()}")
+    return differences
+
+
+# === Private Functions === #
+
+
+def _render(source: Path, root: Path) -> None:
+    composition = source / "protocol/composition.toml"
     settings = tomllib.loads(composition.read_text(encoding="utf-8"))
-    descriptors = FileDescriptorSet.FromString((root / "crates/dokime-protocol/src/descriptors.bin").read_bytes())
-    present = {file.package for file in descriptors.file}
+    descriptors = FileDescriptorSet.FromString((source / "crates/dokime-protocol/src/descriptors.bin").read_bytes())
+    present = set()
+    for file in descriptors.file:
+        present.add(file.package)
     for library in settings["libraries"]:
-        source = (composition.parent / library["descriptors"]).resolve()
-        if source != (root / "crates/dokime-protocol/src/descriptors.bin").resolve():
+        library_source = (composition.parent / library["descriptors"]).resolve()
+        if library_source != (source / "crates/dokime-protocol/src/descriptors.bin").resolve():
             raise ValueError("Compose SDK: Declare the Vendored Descriptor Artifact")
         if set(library["packages"]) - present:
-            raise ValueError("Compose SDK: A Library Package Is Missing")
+            raise ValueError("Compose SDK: Add the Missing Library Package to the Vendored Descriptors")
     narrow_callers(descriptors, settings.get("callers", {}))
-    methods = render.table(descriptors)
-    clients = [method for method in methods if method["face"] == "client"]
-    context = [method for method in methods if method["face"] == "context"]
-    for folder in ("sdk/rust/src/client", "sdk/rust/src/plugin", "sdk/python/src/dokime/_generated", "sdk/csharp/src/Dokime/Generated"):
-        (root / folder).mkdir(parents=True, exist_ok=True)
-    packages = {file.package for file in descriptors.file if file.package.startswith("dokime.")}
-    for path in (root / "crates/dokime-protocol/src/generated").glob("dokime.*.rs"):
-        if path.stem not in packages:
-            path.unlink()
-    for retired in (
-        "sdk/resources.json",
-        "sdk/python/src/dokime/generated/resources.py",
-        "sdk/python/src/dokime/generated/__init__.py",
-        "sdk/python/src/dokime/generated/py.typed",
-        "sdk/cpp/include/dokime/_generated/client_wire.hpp",
-        "sdk/cpp/include/dokime/detail/messages_wire.hpp",
+    methods = schema.table(descriptors)
+    public_names = schema.public_names(descriptors)
+    clients = []
+    context = []
+    for method in methods:
+        if method["face"] == "client":
+            clients.append(method)
+        if method["face"] == "context":
+            context.append(method)
+    for folder in (
+        "sdk/rust/src/client",
+        "sdk/rust/src/plugin",
+        "sdk/python/src/dokime/_generated",
+        "sdk/python/src/dokime/plugin",
+        "sdk/csharp/src/Dokime/Generated",
     ):
-        (root / retired).unlink(missing_ok=True)
-    render.rust_exports(root, descriptors)
-    render.rust(root, clients, target=root / "sdk/rust/src/client/resources.rs")
-    (root / "sdk/rust/src/client/client_types.rs").unlink(missing_ok=True)
-    render.rust_host(root, context)
+        (root / folder).mkdir(parents=True, exist_ok=True)
+    descriptor = root / "crates/dokime-protocol/src/descriptors.bin"
+    descriptor.parent.mkdir(parents=True)
+    descriptor.write_bytes((source / "crates/dokime-protocol/src/descriptors.bin").read_bytes())
+    rust.exports(root, descriptors)
+    rust.render(root, clients, public_names=public_names, target=root / "sdk/rust/src/client/resources.rs")
+    rust.host(root, context)
+    # The Renderer and Native Carrier Own These Internal Names; Public SDK Faces
+    # Expose Call, Client and SampleWindow Without Leaking Their Implementation Names.
     bindings = [
         "// @generated from protocol descriptors; do not edit.",
         "use crate::message::Wire;",
         "use prost_reflect::ReflectMessage;",
         "pub use crate::message::Wire as Call;",
-        "pub trait Request: ReflectMessage + Default + 'static { type Response: ReflectMessage + Default + 'static; const ID: &'static str; }",
+        "pub trait Request: ReflectMessage + Default + 'static {\n    type Response: ReflectMessage + Default + 'static;\n    const ID: &'static str;\n}",
         "impl<T: Request> harmos::OperationRequest for Wire<T> { type Response = Wire<T::Response>; const ID: &'static str = T::ID; }",
     ]
     for method in context:
-        q = render.rust_message(method["request"])
-        r = render.rust_message(method["response"])
+        request = rust.message(method["request"])
+        response = rust.message(method["response"])
         identity = f"{method['package']}.{method['service']}/{method['method']}"
-        bindings.append(f"impl Request for {q} {{ type Response = {r}; const ID: &'static str = {json.dumps(identity)}; }}")
+        bindings.append(f"impl Request for {request} {{ type Response = {response}; const ID: &'static str = {json.dumps(identity)}; }}")
     (root / "sdk/rust/src/host.rs").write_text("\n".join(bindings) + "\n", encoding="utf-8", newline="\n")
 
-    render.python_exports(root / "sdk/python/src/dokime/_generated", descriptors)
-    render.python(root / "sdk/python/src/dokime/_generated/client.py", clients, descriptors)
-    render.python_host(root / "sdk/python/src/dokime/_generated/host.py", context, descriptors)
-    render.csharp(root, clients, namespace="dokime", target=root / "sdk/csharp/src/Dokime/Generated/Client.g.cs")
-    render.csharp_host(root, context)
-    csharp_protocols(root)
-    render.cpp_exports(root, descriptors)
-    render.cpp(root, clients, namespace="dokime", target=root / "sdk/cpp/include/dokime/_generated/client.hpp")
-    render.cpp_host(root, context)
+    python.exports(root / "sdk/python/src/dokime/_generated", descriptors)
+    python.render(root / "sdk/python/src/dokime/_generated/client.py", clients, descriptors)
+    python.host(root / "sdk/python/src/dokime/_generated/host.py", context, descriptors)
+    csharp.render(root, clients, public_names=public_names, namespace="dokime", target=root / "sdk/csharp/src/Dokime/Generated/Client.g.cs")
+    csharp.host(root, context)
+    csharp_protocol.protocols(source, destination=root / "sdk/csharp/src/Dokime/Generated/Wire")
+    type_names = cpp.exports(root, descriptors)
+    cpp.render(root, clients, type_names=type_names, namespace="dokime", target=root / "sdk/cpp/include/dokime/_generated/client.hpp")
+    cpp.host(root, context, type_names)
     # Generated Public Barrel Points Hide the Wire Packages.
-    shared_names = [
-        line.split(" as ")[-1]
-        for line in (root / "sdk/python/src/dokime/_generated/shared.py").read_text().splitlines()
-        if line.startswith("from ")
-    ]
-    client_names = [
-        line.split(" as ")[-1]
-        for line in (root / "sdk/python/src/dokime/_generated/client_types.py").read_text().splitlines()
-        if line.startswith("from ")
-    ]
-    plugin_names = [
-        line.split(" as ")[-1]
-        for line in (root / "sdk/python/src/dokime/_generated/plugin_types.py").read_text().splitlines()
-        if line.startswith("from ")
-    ]
+    shared_names = []
+    for line in (root / "sdk/python/src/dokime/_generated/shared.py").read_text().splitlines():
+        if line.startswith("from "):
+            shared_names.append(line.rsplit(" import ", 1)[-1].rsplit(" as ", 1)[-1])
+    client_names = []
+    for line in (root / "sdk/python/src/dokime/_generated/client_types.py").read_text().splitlines():
+        if line.startswith("from "):
+            client_names.append(line.rsplit(" import ", 1)[-1].rsplit(" as ", 1)[-1])
+    plugin_names = []
+    for line in (root / "sdk/python/src/dokime/_generated/plugin_types.py").read_text().splitlines():
+        if line.startswith("from "):
+            plugin_names.append(line.rsplit(" import ", 1)[-1].rsplit(" as ", 1)[-1])
     root_barrel = [
         "# @generated from protocol descriptors; do not edit.",
-        "from harmos import Failure as Failure",
+        "from harmos import Failure",
     ]
-    root_barrel += [f"from ._generated.shared import {name} as {name}" for name in sorted(shared_names)]
+    for name in sorted(shared_names):
+        root_barrel.append(f"from ._generated.shared import {name}")
     root_barrel += ["", "__all__ = " + repr(["Failure", *sorted(shared_names)])]
     (root / "sdk/python/src/dokime/__init__.py").write_text("\n".join(root_barrel) + "\n", encoding="utf-8", newline="\n")
     client_barrel = ["# @generated from protocol descriptors; do not edit.", "from ._generated.client import ClientRoot as Client"]
-    client_barrel += [f"from ._generated.client_types import {name} as {name}" for name in sorted(client_names)]
+    for name in sorted(client_names):
+        client_barrel.append(f"from ._generated.client_types import {name}")
     client_barrel += ["", "__all__ = " + repr(["Client", *sorted(client_names)])]
     (root / "sdk/python/src/dokime/client.py").write_text("\n".join(client_barrel) + "\n", encoding="utf-8", newline="\n")
     plugin_barrel = [
         "# @generated from protocol descriptors; do not edit.",
-        "from .._plugin import Plugin as Plugin",
-        "from .._context import Context as Context",
-        "from .._generated.host import HostOperation as HostOperation",
-        "from .._generated.host import HostRoot as HostRoot",
+        "from .._plugin import Plugin",
+        "from .._context import Context",
+        "from .._generated.host import HostOperation",
+        "from .._generated.host import HostRoot",
         "from harmos.plugin import Window as SampleWindow",
     ]
-    plugin_barrel += [f"from .._generated.plugin_types import {name} as {name}" for name in sorted(plugin_names)]
+    for name in sorted(plugin_names):
+        plugin_barrel.append(f"from .._generated.plugin_types import {name}")
     plugin_barrel += ["", "__all__ = " + repr(["Plugin", "Context", "HostOperation", "HostRoot", "SampleWindow", *sorted(plugin_names)])]
     (root / "sdk/python/src/dokime/plugin/__init__.py").write_text("\n".join(plugin_barrel) + "\n", encoding="utf-8", newline="\n")
-    (root / "sdk/python/src/dokime/model.py").unlink(missing_ok=True)
-    paths = [
-        root / "sdk/rust/src" / name
-        for name in (
-            "exports.rs",
-            "host.rs",
-            "client/types.rs",
-            "client/resources.rs",
-            "plugin/host.rs",
-            "plugin/host_exports.rs",
-            "plugin/types.rs",
-        )
-    ]
+    paths = []
+    for name in (
+        "exports.rs",
+        "host.rs",
+        "client/types.rs",
+        "client/resources.rs",
+        "plugin/host.rs",
+        "plugin/host_exports.rs",
+        "plugin/types.rs",
+    ):
+        paths.append(root / "sdk/rust/src" / name)
     subprocess.run(
-        ["rustfmt", "--edition", "2024", "--config-path", str(root / "rustfmt.toml"), *map(str, paths)],
+        ["rustfmt", "--edition", "2024", "--config-path", str(source / "rustfmt.toml"), *map(str, paths)],
         check=True,
+        cwd=source,
         creationflags=spawn_flags(),
     )
-    python_paths = [
-        root / "sdk/python/src/dokime" / name
-        for name in (
-            "__init__.py",
-            "client.py",
-            "plugin/__init__.py",
-            "_generated/shared.py",
-            "_generated/client_types.py",
-            "_generated/plugin_types.py",
-            "_generated/host.py",
-            "_generated/client.py",
-        )
-    ]
+    python_paths = []
+    for name in (
+        "__init__.py",
+        "client.py",
+        "plugin/__init__.py",
+        "_generated/shared.py",
+        "_generated/client_types.py",
+        "_generated/plugin_types.py",
+        "_generated/host.py",
+        "_generated/client.py",
+    ):
+        python_paths.append(root / "sdk/python/src/dokime" / name)
     for path in python_paths:
-        source = re.sub(r"\bimport (\w+) as \1\b", r"import \1", path.read_text(encoding="utf-8"))
-        path.write_text(source, encoding="utf-8", newline="\n")
+        rendered = re.sub(r"\bimport (\w+) as \1\b", r"import \1", path.read_text(encoding="utf-8"))
+        path.write_text(rendered, encoding="utf-8", newline="\n")
     subprocess.run(
         [
             "uv",
@@ -180,29 +261,37 @@ def generate(check: bool = False) -> None:
             "tools/python",
             "ruff",
             "check",
+            "--config",
+            str(source / "sdk/python/ruff.toml"),
+            "--config",
+            'lint.isort.known-first-party=["dokime"]',
             "--select",
             "I,F401,RUF022",
             "--fix",
             *map(str, python_paths),
         ],
         check=True,
+        cwd=source,
         creationflags=spawn_flags(),
     )
     subprocess.run(
-        ["uv", "run", "--no-sync", "--project", "tools/python", "ruff", "format", *map(str, python_paths)],
+        [
+            "uv",
+            "run",
+            "--no-sync",
+            "--project",
+            "tools/python",
+            "ruff",
+            "format",
+            "--config",
+            str(source / "sdk/python/ruff.toml"),
+            *map(str, python_paths),
+        ],
         check=True,
+        cwd=source,
         creationflags=spawn_flags(),
     )
-    # Check Uses the Same Full Generation and Compares Against Git, Including New Outputs.
-    if check:
-        result = subprocess.run(
-            ["git", "diff", "--exit-code", "--", "crates/dokime-protocol", "sdk"], check=False, creationflags=spawn_flags()
-        )
-        if result.returncode:
-            raise ValueError("Check SDK Definitions: Regenerate and Commit the Candidate")
 
-
-# === Private Functions === #
 
 # === Entry Point === #
 
