@@ -9,9 +9,9 @@
 """Pytest Commands For Python Lanes, Coverage And Benchmarks.
 
 A Python project keeps its stories under `tests/<category>/` and its benchmarks under
-`benchmarks/<category>/`. Lanes run in the shared root `.venv/` without syncing it, so a
-lane never builds the project: the build step installs the wheel or the editable project
-first. Lane arguments after `--` are appended to pytest.
+`benchmarks/<category>/`. Lanes run in the shared root `.venv/` without syncing it: a
+focused SDK lane builds and installs the wheel first, and a prepared schedule installs the
+staged wheel before its lanes start. Lane arguments after `--` are appended to pytest.
 """
 
 # === Imports === #

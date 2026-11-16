@@ -67,7 +67,6 @@ pub(crate) struct Settings {
     pub mutation_timeout_s: u64,
     pub watch_timeout_s: u64,
     pub reconnect_delay_ms: u64,
-    pub stop_grace_s: u64,
     pub message_bytes: NonZeroUsize,
     pub retained_bytes: NonZeroUsize,
     pub stream_buffer: NonZeroUsize,
@@ -101,7 +100,6 @@ impl Default for Settings {
             mutation_timeout_s: 30,
             watch_timeout_s: 3600,
             reconnect_delay_ms: 25,
-            stop_grace_s: 30,
             message_bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
             retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
             stream_buffer: NonZeroUsize::new(8).unwrap(),
@@ -126,7 +124,6 @@ impl Settings {
             settings.read_timeout_s,
             settings.mutation_timeout_s,
             settings.watch_timeout_s,
-            settings.stop_grace_s,
             settings.telemetry_interval_ms,
         ]
         .contains(&0)
@@ -139,7 +136,6 @@ impl Settings {
         PlacementSettings {
             connect_timeout: Duration::from_secs(self.connect_timeout_s),
             reconnect_delay: Duration::from_millis(self.reconnect_delay_ms),
-            stop_grace: Duration::from_secs(self.stop_grace_s),
             stream_window: self.stream_buffer,
             message_bytes: self.message_bytes,
         }

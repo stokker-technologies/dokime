@@ -30,7 +30,7 @@ use std::{
 
 // Third Party Imports
 use criterion::{Criterion, SamplingMode};
-use tokio::{runtime::Runtime, sync::Notify};
+use tokio::runtime::Runtime;
 
 // Local Imports
 use dokime::plugin::HostOperation;
@@ -87,7 +87,6 @@ struct Capture {
 #[derive(Default)]
 struct Observed {
     count: AtomicU64,
-    published: Notify,
 }
 
 struct Fixture {
@@ -109,7 +108,7 @@ impl Fixture {
         let settings = settings();
         let operations = dokime_runtime::services::ClientSettings {
             read_timeout: settings.placement.connect_timeout,
-            mutation_timeout: settings.placement.stop_grace,
+            mutation_timeout: settings.placement.connect_timeout,
             watch_timeout: settings.placement.connect_timeout,
             max_cases: settings.placement.stream_window.get(),
             page_items: settings.placement.stream_window.get(),
@@ -172,7 +171,6 @@ pub fn serve() -> Result<()> {
         let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "readings")) {
             let observed = context.get::<Observed>()?;
             let index = observed.count.fetch_add(1, Ordering::SeqCst);
-            observed.published.notify_waiters();
             index
         } else {
             0
@@ -197,7 +195,6 @@ pub fn serve() -> Result<()> {
         let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "pulse")) {
             let observed = context.get::<Observed>()?;
             let index = observed.count.fetch_add(1, Ordering::SeqCst);
-            observed.published.notify_waiters();
             index
         } else {
             0
@@ -421,7 +418,6 @@ fn settings() -> HostSettings {
         placement: PlacementSettings {
             connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_millis(25),
-            stop_grace: Duration::from_secs(30),
             stream_window: NonZeroUsize::new(8).unwrap(),
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         },
@@ -433,15 +429,8 @@ async fn capture(context: &Context) -> Result<()> {
     context.host().prompts.create("ready".into(), "continue".into(), HashMap::new()).await?;
     let rows = context.parameters::<Capture>()?.rows;
     let observed = context.get::<Observed>()?;
+    // A Controlled Sleep Settles After Every Tick It Spans.
     context.sleep(Duration::from_millis(rows.saturating_sub(observed.count.load(Ordering::SeqCst)))).await?;
-    // The Last Tick Fires With the Sleep; Await Its Callback Without Advancing Time.
-    loop {
-        let published = observed.published.notified();
-        if observed.count.load(Ordering::SeqCst) >= rows {
-            break;
-        }
-        published.await;
-    }
     assert_eq!(observed.count.load(Ordering::SeqCst), rows, "Publish Runtime Samples: Retain the Requested Row Count");
     context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows }).await?;
     context.host().prompts.create("captured".into(), "continue".into(), HashMap::new()).await?;

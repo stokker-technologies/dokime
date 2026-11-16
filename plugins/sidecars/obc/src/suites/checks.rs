@@ -19,7 +19,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 // Third Party Imports
-use tokio::sync::Notify;
 
 // Local Imports
 use super::parameters;
@@ -56,7 +55,6 @@ pub struct Pulse {
 /// The Pulse Counter and the Host Time One Sample Takes.
 struct Pulses {
     produced: AtomicU64,
-    published: Notify,
 }
 
 /* === Enums === */
@@ -118,10 +116,7 @@ pub fn pulse_value(index: u64) -> f64 {
 /* === Private Functions === */
 
 async fn initialize(ctx: &Context) -> Result<()> {
-    ctx.set(Pulses {
-        produced: AtomicU64::new(0),
-        published: Notify::new(),
-    });
+    ctx.set(Pulses { produced: AtomicU64::new(0) });
     Ok(())
 }
 
@@ -137,16 +132,16 @@ async fn start(ctx: &Context) -> Result<()> {
 async fn stream(ctx: &Context) -> Result<()> {
     let wanted: u64 = ctx.parameter("sample_count")?;
     let pulses = ctx.get::<Pulses>()?;
-    let produced = pulses.produced.load(Ordering::Acquire);
-    let pending = u32::try_from(wanted.saturating_sub(produced)).map_err(|_| Error::Invalid("Stream Pulse: Too Many Samples".into()))?;
-    ctx.sleep(settings::sample_interval(ctx).await? * pending).await?;
-    // The Last Tick Fires With the Sleep; Await Its Sample Without Advancing Time
+    let tick = settings::sample_interval(ctx).await?;
+    // Each Sleep Spans the Ticks Due by Its End; Real-Clock Latency May Leave Some for the Next.
     loop {
-        let published = pulses.published.notified();
-        if pulses.produced.load(Ordering::Acquire) >= wanted {
+        let produced = pulses.produced.load(Ordering::Acquire);
+        let pending =
+            u32::try_from(wanted.saturating_sub(produced)).map_err(|_| Error::Invalid("Stream Pulse: Too Many Samples".into()))?;
+        if pending == 0 {
             return Ok(());
         }
-        published.await;
+        ctx.sleep(tick * pending).await?;
     }
 }
 
@@ -160,14 +155,13 @@ async fn complete(ctx: &Context) -> Result<()> {
 async fn completed(ctx: &Context) -> Result<bool> {
     let wanted: u64 = ctx.parameter("sample_count")?;
     let tolerance: f64 = ctx.parameter("tolerance_au")?;
-    // Check / Number of Rows the Run Produced
-    let (_, completed) = contracts();
-    if crate::records::last(ctx, &completed, "").await?.is_none_or(|record| record.samples < wanted) {
-        return Ok(false);
-    }
     let Some(statistics) = ctx.statistics(PULSE, "value", "").await?.statistics else {
         return Ok(false);
     };
+    // Check / Number of Saved Rows
+    if statistics.count < wanted {
+        return Ok(false);
+    }
     // Check / Saved Extremes Match the Model Over Every Saved Index
     let values = (0..statistics.count).map(pulse_value);
     let expected_min = values.clone().fold(f64::INFINITY, f64::min);
@@ -186,7 +180,6 @@ async fn sample(ctx: &Context) -> Result<Pulse> {
     }
     let pulses = ctx.get::<Pulses>()?;
     let index = pulses.produced.fetch_add(1, Ordering::AcqRel);
-    pulses.published.notify_waiters();
     Ok(Pulse {
         sample_index: index as i64,
         value: pulse_value(index),

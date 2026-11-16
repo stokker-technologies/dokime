@@ -44,8 +44,9 @@ use dokime_protocol::host::document_binding_result::Kind as DocumentBindingResul
 use dokime_protocol::host::document_frame_frame::Kind as DocumentFrameFrameKind;
 use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
 use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_runtime::PluginProcess;
 use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
-use harmos_protocol::host::{PluginManaged, PluginPlacement, PluginState, PluginValue};
+use harmos_protocol::host::{PluginManaged, PluginPlacement, PluginRemote, PluginState, PluginValue};
 
 /* === Constants === */
 
@@ -329,6 +330,50 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             let stopped = &captured["obc.charger.recovery.stopped"][0];
             assert_eq!(stopped.get_field_by_name("cycles").unwrap().as_ref(), &ReflectValue::U64(3));
             process.close().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
+    }))
+}
+
+#[test]
+fn real_clock_executions_end_passed() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Install the Packaged OBC Bundle and the Remote Thermal Plugin on a Real-Clock Host
+            let root = support::tempdir()?;
+            let credential_root = support::tempdir()?;
+            let credentials = support::CredentialStore::start(credential_root.path()).await?;
+            let mut thermal = PluginProcess::start(&support::thermal_fixture()?, true, &support::settings().placement).await?;
+            let process = HostProcess::start_with_clock(root.path(), &credentials.environment, false).await?;
+            let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, support::client_settings())?;
+            install(&client).await?;
+            let placement = PluginPlacement {
+                kind: Some(PlacementKind::Remote(PluginRemote { url: thermal.endpoint().into() })),
+            };
+            let entry = client
+                .plugins
+                .create("thermal", placement, PluginValue { enabled: true })
+                .await?
+                .entry
+                .ok_or("Add Thermal: Missing Entry")?;
+            support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
+
+            // Every Run Seals Passed; Counts and Durations Belong to the Controlled-Clock Stories
+            let limit = HashMap::from([("limit".into(), vec![Value { kind: Some(ValueKind::Number(85.0)) }])]);
+            run(&client, "thermal", "thermal.cycle", limit, Some(("yes", MapValue::default()))).await?;
+            run(&client, "obc.charger.startup", "obc.charger.startup.sequence", HashMap::new(), Some(("submit", inspection()))).await?;
+            run(&client, "obc.bench", "obc.bench.module_array", HashMap::new(), Some(("yes", MapValue::default()))).await?;
+            run(&client, "obc.checks", "obc.checks.pulse", HashMap::new(), None).await?;
+            let parameters = HashMap::from([
+                ("ac_voltage_v".into(), vec![Value { kind: Some(ValueKind::Number(253.0)) }]),
+                ("load_ohm".into(), vec![Value { kind: Some(ValueKind::Number(80.0)) }]),
+            ]);
+            run(&client, "obc.charger.steady", "obc.charger.steady.measurement", parameters, Some(("submit", inspection()))).await?;
+            run(&client, "obc.charger.protection", "obc.charger.protection.overcurrent", HashMap::new(), None).await?;
+            run(&client, "obc.charger.recovery", "obc.charger.recovery.power", HashMap::new(), None).await?;
+            process.close().await?;
+            thermal.close().await?;
             Ok::<(), Box<dyn Error>>(())
         })
         .await?

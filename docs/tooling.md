@@ -138,7 +138,10 @@ never compile plugins.
 `HARMOS_SOURCE` may select an existing checkout when preparing the C# dependency
 feed. C++ uses its pinned vcpkg checkout in mise's machine cache and FetchContent
 under `target/cp/`; no product-specific dependency-cache override is required.
-Python consumes the built pure wheel and the pinned library SDK. Python system
+Python consumes the built pure wheel and the pinned library SDK. A focused Python
+lane (`mise run test -- --language python --layer system`) builds the wheel from the
+current source and reinstalls it into the root `.venv/` before pytest; the prepared
+schedule installs the staged wheel once before its concurrent lanes start. Python system
 and coverage tasks select the conformance executable from the host fixtures.
 Linux host stories own an isolated session bus/keyring for credential storage;
 install `dbus`, `gnome-keyring` and `libglib2.0-bin`. Native unit tests run without
@@ -519,9 +522,10 @@ also retains the focused-run observations.
 ## Hosted Validation
 
 Pull requests and Nightly retain native Linux and Windows host/SDK validation.
-PR host fixtures select Rust/Python; Nightly runs the same core host lane without
-depending on C#/C++ fixture builds, and retains their equivalence stories in a
-separate lane on both platforms. All local host stories are available by target.
+PR host fixtures select Rust/Python, and a separate PR lane builds the C# fixture
+and runs its equivalence story on both platforms. Nightly runs the same core host
+lane without depending on C#/C++ fixture builds, and retains their equivalence
+stories in a separate lane on both platforms. All local host stories are available by target.
 Dev pushes run quick checks/builds; PRs run stories. Full validation belongs to
 hosted CI and Nightly after combined source
 closure. Local work uses focused proof and never substitutes Windows for Linux.

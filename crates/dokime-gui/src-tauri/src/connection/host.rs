@@ -538,7 +538,6 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
             placement: PlacementSettings {
                 connect_timeout: Duration::from_secs(30),
                 reconnect_delay: Duration::from_millis(25),
-                stop_grace: Duration::from_secs(30),
                 stream_window: stream_buffer,
                 message_bytes,
             },

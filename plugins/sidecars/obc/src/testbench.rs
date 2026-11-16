@@ -20,7 +20,6 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 // Third Party Imports
-use tokio::sync::Notify;
 
 // Local Imports
 use crate::device::{Charger, Power, Supply};
@@ -47,7 +46,6 @@ const SURVEY_POINTS: u64 = 32;
 pub struct Testbench {
     state: Mutex<State>,
     tick: Mutex<Duration>,
-    published: Notify,
 }
 
 pub struct State {
@@ -90,7 +88,6 @@ impl Testbench {
                 survey: 0,
             }),
             tick: Mutex::new(tick),
-            published: Notify::new(),
         });
         let tick = settings::sample_interval(ctx).await?;
         let bench = ctx.get::<Self>()?;
@@ -117,28 +114,25 @@ impl Testbench {
     }
 
     /// Advance Host Time Until the Observers Have Published `samples` More Ticks.
+    ///
+    /// A sleep settles after every tick due by its end: exactly the slept ticks on a controlled clock,
+    /// while real-clock firing latency can leave some due later, so the bench sleeps for the remainder.
     pub async fn wait(&self, ctx: &Context, samples: u64) -> Result<()> {
-        if samples == 0 {
-            return Ok(());
-        }
         let target = self.state().index + samples;
         let tick = *self.tick.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let total = tick.checked_mul(u32::try_from(samples).map_err(|_| Error::Invalid("Wait: Too Many Samples".into()))?);
-        ctx.sleep(total.ok_or_else(|| Error::Invalid("Wait: Duration Overflow".into()))?).await?;
-        // The Last Tick Fires With the Sleep; Await Its Sample Without Advancing Time
         loop {
-            let published = self.published.notified();
-            if self.state().index >= target {
+            let remaining = target.saturating_sub(self.state().index);
+            if remaining == 0 {
                 return Ok(());
             }
-            published.await;
+            let total = tick.checked_mul(u32::try_from(remaining).map_err(|_| Error::Invalid("Wait: Too Many Samples".into()))?);
+            ctx.sleep(total.ok_or_else(|| Error::Invalid("Wait: Duration Overflow".into()))?).await?;
         }
     }
 
-    /// Count One Published Sample and Wake Any Step Waiting for It.
+    /// Count One Published Sample.
     pub fn advance(&self) {
         self.state().index += 1;
-        self.published.notify_waiters();
     }
 }
 

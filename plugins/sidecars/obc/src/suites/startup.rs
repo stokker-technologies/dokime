@@ -382,9 +382,9 @@ async fn accepted(ctx: &Context) -> Result<bool> {
     let Some(completed) = records::last(ctx, &completed, "").await? else {
         return Ok(false);
     };
-    // Check / Rows Produced, Saved Evidence and Operator Acceptance
+    // Check / Number of Saved Rows and Operator Acceptance
     let total = bench.samples_for(ctx.parameter("duration_s")?)?;
-    Ok(completed.sample_count >= total && sample_count(ctx, SAMPLES, "").await? > 0 && completed.accepted)
+    Ok(sample_count(ctx, SAMPLES, "").await? >= total && completed.accepted)
 }
 
 async fn cleanup(ctx: &Context) -> Result<()> {

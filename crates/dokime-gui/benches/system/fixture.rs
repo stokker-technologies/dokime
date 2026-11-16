@@ -23,7 +23,7 @@ use serde_json::Value;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
-    sync::{Mutex, Notify},
+    sync::Mutex,
 };
 use tokio_stream::StreamExt;
 
@@ -113,7 +113,6 @@ impl Fixture {
                 placement: PlacementSettings {
                     connect_timeout: Duration::from_secs(30),
                     reconnect_delay: Duration::from_millis(25),
-                    stop_grace: Duration::from_secs(30),
                     stream_window: NonZeroUsize::new(8).unwrap(),
                     message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
                 },
@@ -155,7 +154,6 @@ impl Fixture {
         let placement = PlacementSettings {
             connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_millis(25),
-            stop_grace: Duration::from_secs(30),
             stream_window: NonZeroUsize::new(8).unwrap(),
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
@@ -469,15 +467,8 @@ async fn publish(context: &Context) -> Result<()> {
         let target = sequence + count;
         let history = context.get::<History>()?;
         let pending = target.saturating_sub(history.published.load(Ordering::SeqCst));
+        // A Controlled Sleep Settles After Every Tick It Spans.
         context.sleep(Duration::from_nanos(pending as u64 * sample_ns() as u64)).await?;
-        // The Last Tick Fires With the Sleep; Await Its Callback Without Advancing Time.
-        loop {
-            let published = history.changed.notified();
-            if history.published.load(Ordering::SeqCst) >= target {
-                break;
-            }
-            published.await;
-        }
         assert_eq!(history.published.load(Ordering::SeqCst), target, "Publish Benchmark History: Retain the Requested Row Count");
         sequence += count;
         let control = context.get::<PublicationControl>()?;
@@ -504,7 +495,6 @@ struct History {
     next: AtomicUsize,
     late: AtomicBool,
     published: AtomicUsize,
-    changed: Notify,
 }
 
 async fn observe(context: &Context) -> Result<Row> {
@@ -521,7 +511,6 @@ async fn observe(context: &Context) -> Result<Row> {
     let late = history.late.load(Ordering::SeqCst);
     let source_ns = ORIGIN_S as i64 * 1_000_000_000 + index as i64 * sample_ns() + if late { 4 * sample_ns() } else { 0 };
     history.published.fetch_add(1, Ordering::SeqCst);
-    history.changed.notify_waiters();
     Ok(Row {
         timestamp: source_ns as f64 / 1_000_000_000.0,
         y0: (index % 8) as f64,

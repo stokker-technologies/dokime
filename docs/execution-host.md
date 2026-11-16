@@ -390,7 +390,6 @@ read_timeout_s = 30
 mutation_timeout_s = 30
 watch_timeout_s = 3600
 reconnect_delay_ms = 25
-stop_grace_s = 30
 message_bytes = 4194304
 retained_bytes = 67108864
 stream_buffer = 8
@@ -497,8 +496,9 @@ fixtures under `target/build/<profile>/<target>/fixtures/host/`. C# includes its
 runtime. C++ resolves its pinned native graph through vcpkg and fetches the
 pinned Harmos source through CMake FetchContent. Tests never compile
 fixtures. Local Tests Build includes every available compiled SDK fixture and the
-full selection runs every story. Pull requests build Rust and Python and
-run every story except the C# and C++ equivalence stories, which run in Nightly. Nightly
+full selection runs every story. Pull requests build Rust, Python and C# fixtures,
+run every story except the C++ equivalence story, which runs in Nightly, and run the
+C# equivalence story on Linux and Windows. Nightly
 builds each language independently on Linux and Windows, caching the C++ SDK's
 pinned native dependencies and installing .NET through mise, then runs every
 story against exported artifacts. Suite failures are reported alongside the
@@ -673,7 +673,7 @@ Product builds, fixtures, native stories and both WebView lanes include it.
 
 ## Final Library Definition Contract
 
-The definitions pin Harmos at `7181b5ed33c9d2be79c38d266b0a97d838b05ed6`.
+The definitions pin Harmos at `5d601dd320edb0fc69131dc2851d789c4dd1e4c0`.
 
 ```text
 proto/dokime/
@@ -758,7 +758,7 @@ carried by the merge and are not consumer work to reimplement.
 The first column is the pre-pin wire identity or hand-bound context identity.
 Library composition rows name the library operation directly, without forwarding.
 The complete library identity/type mapping is in the pinned
-[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/7181b5ed33c9d2be79c38d266b0a97d838b05ed6/docs/architecture.md).
+[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/5d601dd320edb0fc69131dc2851d789c4dd1e4c0/docs/architecture.md).
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |
@@ -1814,8 +1814,18 @@ no product connection or invocation carrier remains. Child calls inherit the tru
 execution resources, and selected Samples publications retain that same scope.
 The ingestion consumer caches each scope's row codecs, writes the Arrow samples
 before acknowledging their ingestion, and releases its caches when the binding ends.
-Binding closure settles descendant calls and accepted ingestion before streams close
-and the execution is sealed.
+Binding opens no sample demand. The driver starts samples once initialize has
+registered the unit and stops them when stepping ends, so criteria read settled
+streams and no tick reaches the plugin after cleanup; a run that stops early still
+stops its samples before cleanup. Binding closure settles descendant calls and
+accepted ingestion before streams close and the execution is sealed. Stop and close
+each settle within `stop_grace`; a plugin that misses it leaves the execution
+Interrupted with failure evidence naming the action. `stop_grace` is not a setting:
+`dokime_runtime::STOP_GRACE` derives it as one third of the Plugins operation
+timeout (`PLUGIN_TEARDOWN`, 30 s, so 10 s), because a managed teardown settles,
+stops and then kills, each phase within `stop_grace`. The host binary, the CLI and
+the desktop all read it; the desktop offers to exit without finishing once
+`PLUGIN_TEARDOWN` plus one `stop_grace` has passed.
 The host clock owns transport deadlines and policy retry waits. Each controlled
 execution clock owns its plugin sleeps and publication cadence. Before returning
 a lifecycle call, the driver awaits quiescence at the current execution time;
@@ -1825,7 +1835,9 @@ evidence invalidates evidence cuts without rotating that native history.
 
 Production units use independent real clocks. `ControlledClock` creates a separate
 virtual clock for each execution; awaiting the library Time.Sleep drives its due
-sample ticks and their ingestion. Operator prompts hold their execution's timeline
+sample ticks and their ingestion. A scoped sleep settles after every tick of its
+unit due by its end: exactly the slept periods on a controlled clock, possibly fewer
+on the real clock, where firing latency delays later ticks. Operator prompts hold their execution's timeline
 while other executions can complete. Runtime retry delays remain owned by the
 library operation policy. Attempt evidence is observed through the library
 invocation middleware, including each actual retry.

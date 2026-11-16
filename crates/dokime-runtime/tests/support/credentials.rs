@@ -49,7 +49,7 @@ pub struct CredentialStore {
     pub environment: Vec<(&'static str, OsString)>,
 
     #[cfg(target_os = "linux")]
-    children: Vec<Child>,
+    children: Vec<(&'static str, Child)>,
 
     #[cfg(target_os = "linux")]
     _home: TempDir,
@@ -98,13 +98,15 @@ impl CredentialStore {
         #[cfg(target_os = "linux")]
         {
             use std::{
+                fs::Permissions,
                 io::{BufRead, BufReader, Error as IoError, Write},
+                os::unix::fs::PermissionsExt,
                 process::Stdio,
             };
             use tokio::process::Command;
 
-            // Isolate Every Credential and Socket Under This Story's Root
-            let home = tempfile::tempdir_in(root)?;
+            // Isolate Every Credential and Socket Under This Story's Root; the Keyring Accepts Only a 0700 Control Directory
+            let home = tempfile::Builder::new().permissions(Permissions::from_mode(0o700)).tempdir_in(root)?;
             let mut store = Self {
                 environment: ["HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"]
                     .into_iter()
@@ -123,7 +125,7 @@ impl CredentialStore {
                 .stdout(Stdio::piped())
                 .stderr(Stdio::inherit());
             store.spawn(command, "dbus")?;
-            let stdout = store.children.last_mut().unwrap().stdout.take().ok_or("Start Story Bus: Missing Readiness Pipe")?;
+            let stdout = store.children.last_mut().unwrap().1.stdout.take().ok_or("Start Story Bus: Missing Readiness Pipe")?;
             let address = tokio::task::spawn_blocking(move || {
                 let mut address = String::new();
                 BufReader::new(stdout).read_line(&mut address)?;
@@ -147,7 +149,7 @@ impl CredentialStore {
                 .stdout(Stdio::null())
                 .stderr(Stdio::inherit());
             store.spawn(command, "gnome-keyring")?;
-            store.children.last_mut().unwrap().stdin.take().unwrap().write_all(b"host-story-keyring-password")?;
+            store.children.last_mut().unwrap().1.stdin.take().unwrap().write_all(b"host-story-keyring-password")?;
             loop {
                 store.check_running()?;
                 let result = Command::from(dokime_runtime::process::command("dbus-send"))
@@ -173,17 +175,20 @@ impl CredentialStore {
     }
 
     #[cfg(target_os = "linux")]
-    fn spawn(&mut self, mut command: ProcessCommand, package: &str) -> Result<(), Box<dyn Error>> {
+    fn spawn(&mut self, mut command: ProcessCommand, package: &'static str) -> Result<(), Box<dyn Error>> {
         let child = command.spawn().map_err(|error| format!("Start Story Credential Store: Install the {package} Package: {error}"))?;
-        self.children.push(child);
+        self.children.push((package, child));
         Ok(())
     }
 
     #[cfg(target_os = "linux")]
     fn check_running(&mut self) -> Result<(), Box<dyn Error>> {
-        for child in &mut self.children {
+        for (package, child) in &mut self.children {
             if let Some(status) = child.try_wait()? {
-                return Err(format!("Story Credential Store Exited During Startup: {status}").into());
+                return Err(format!(
+                    "Start Story Credential Store: The {package} Daemon Exited During Startup ({status}); See Its Output Above"
+                )
+                .into());
             }
         }
         Ok(())
@@ -194,7 +199,7 @@ impl CredentialStore {
 impl Drop for CredentialStore {
     fn drop(&mut self) {
         // Reap Only Owned Daemons Before Removing Their Private Storage
-        for child in self.children.iter_mut().rev() {
+        for (_, child) in self.children.iter_mut().rev() {
             let _ = child.kill();
             let _ = child.wait();
         }
