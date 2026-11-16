@@ -20,12 +20,14 @@ use std::collections::BTreeMap;
 
 // Third Party Imports
 use arrow_array::{Int64Array, RecordBatch, StructArray, UInt64Array};
+use arrow_buffer::NullBuffer;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
+use super::aggregates::{self, Values};
 use super::config::PreviewSettings;
-use crate::{Error, NumericBin, NumericWindow, Store, scalar};
+use crate::{Error, NumericBin, NumericWindow, Store};
 
 /* === Constants === */
 
@@ -60,6 +62,13 @@ pub(crate) struct Bucket {
     pub(crate) mean: f64,
     pub(crate) squares: f64,
     pub(crate) scale: f64,
+}
+
+/// The Time, Position and Validity of One Chunk's Rows.
+struct Rows<'a> {
+    times: &'a [i64],
+    positions: &'a [u64],
+    nulls: Option<&'a NullBuffer>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -158,6 +167,50 @@ impl Envelope {
     }
 }
 
+impl Rows<'_> {
+    fn extend<T: Copy>(&self, envelope: &mut Envelope, values: &[T], number: impl Fn(T) -> f64, maximum: usize) -> Result<(), Error> {
+        let point = |row: usize| {
+            let value = number(values[row]);
+            (self.nulls.is_none_or(|nulls| nulls.is_valid(row)) && value.is_finite()).then(|| Point {
+                time: self.times[row] as i128,
+                position: self.positions[row],
+                value,
+            })
+        };
+        let mut row = 0;
+        while row < values.len() {
+            let Some(opening) = point(row) else {
+                row += 1;
+                continue;
+            };
+            row += 1;
+            envelope.push(opening, maximum)?;
+            // The Opening Row May Have Coarsened the Grid, So Its Bucket Is Found Again Under the Current One.
+            let key = (opening.time - envelope.origin).div_euclid(envelope.width);
+            let Some((start, end)) = key
+                .checked_mul(envelope.width)
+                .and_then(|offset| envelope.origin.checked_add(offset))
+                .and_then(|start| Some((start, start.checked_add(envelope.width)?)))
+            else {
+                continue;
+            };
+            let bucket = envelope.buckets.get_mut(&key).ok_or(Error::Corrupt("preview bucket is absent after its push"))?;
+            while row < values.len() {
+                let Some(point) = point(row) else {
+                    row += 1;
+                    continue;
+                };
+                if point.time < start || point.time >= end {
+                    break;
+                }
+                bucket.merge(Bucket::new(point))?;
+                row += 1;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Store {
     fn saved_preview(&self, window: NumericWindow<'_>, with_payload: bool) -> Result<Option<SavedPreview>, Error> {
         if self.has_projection(window)? {
@@ -233,26 +286,39 @@ pub(super) fn append(
         width: settings.bucket_interval.as_nanos() as i128,
         buckets: BTreeMap::new(),
     });
-    let column = scalar::column(batch, field)?;
-    let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
-    let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
-    let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
-    for row in 0..batch.num_rows() {
-        if let Some(value) = scalar::number(&column.value(row)?).filter(|v| v.is_finite()) {
-            envelope.push(
-                Point {
-                    time: times.value(row) as i128,
-                    position: positions.value(row),
-                    value,
-                },
-                settings.bucket_count.get(),
-            )?;
-        }
-    }
+    extend(&mut envelope, batch, field, settings.bucket_count.get())?;
     let start = envelope.buckets.first_key_value().ok_or(Error::Data("preview needs a numeric row"))?.1.first.time as i64;
     let end = envelope.buckets.last_key_value().unwrap().1.last.time as i64;
     connection.execute("INSERT INTO telemetry_previews VALUES(?1,?2,?3,?4,?5,1,?6) ON CONFLICT(file,field) DO UPDATE SET through=excluded.through,start_ns=excluded.start_ns,end_ns=excluded.end_ns,encoding=1,payload=excluded.payload",params![id,field,through as i64,start,end,postcard::to_allocvec(&envelope)?])?;
     Ok(())
+}
+
+/// Push One Chunk's Finite Values Into an Envelope in Row Order.
+///
+/// Each run of rows inside one bucket's time bounds merges straight into that bucket, so the
+/// bucket key is divided out once per run rather than once per row. A row outside the bounds,
+/// including an earlier time, takes the ordinary push, which inserts and coarsens as before.
+pub(super) fn extend(envelope: &mut Envelope, batch: &RecordBatch, field: &str, maximum: usize) -> Result<(), Error> {
+    let column = aggregates::numeric(batch, field)?;
+    let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("storage metadata differs"))?;
+    let times = metadata
+        .column_by_name("source_ns")
+        .and_then(|column| column.as_any().downcast_ref::<Int64Array>())
+        .ok_or(Error::Corrupt("time type differs"))?;
+    let positions = metadata
+        .column_by_name("position")
+        .and_then(|column| column.as_any().downcast_ref::<UInt64Array>())
+        .ok_or(Error::Corrupt("position type differs"))?;
+    let rows = Rows {
+        times: times.values(),
+        positions: positions.values(),
+        nulls: column.nulls.as_ref(),
+    };
+    match column.values {
+        Values::Signed(values) => rows.extend(envelope, values, |value| value as f64, maximum),
+        Values::Unsigned(values) => rows.extend(envelope, values, |value| value as f64, maximum),
+        Values::Float(values) => rows.extend(envelope, values, |value| value, maximum),
+    }
 }
 
 /* === Private Functions === */
