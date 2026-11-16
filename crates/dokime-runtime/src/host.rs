@@ -460,8 +460,13 @@ impl Host {
                 result = Err(dokime_storage::Error::from(source).into());
             }
         }
-        // Release the Root Once Owned Work Has Settled, Whatever Handles Remain
-        lock(&self.root_lease)?.take();
+        // Release the Root Once Owned Work Has Settled, Whatever Handles Remain. Unlock Before Closing: the
+        // System Releases a Lock Left on a Closed Handle Only Eventually, So the Next Owner Could Find It Held.
+        if let Some(lease) = lock(&self.root_lease)?.take()
+            && let Err(source) = lease.unlock()
+        {
+            result = Err(Error::Invalid(format!("Release the Root Lease: {source}")));
+        }
         result
     }
 }

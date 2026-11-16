@@ -273,7 +273,8 @@ fn remove_credentials(root: &Path, runtime_closed: bool) -> Result<(), Box<dyn E
         } else {
             lease.try_lock()?;
         }
-        drop(lease);
+        // Unlock Before Closing, So Removal Finds the Root Free.
+        lease.unlock()?;
         dokime_runtime::services::remove_credentials(root, &namespace())?;
     }
     for entry in std::fs::read_dir(root)? {

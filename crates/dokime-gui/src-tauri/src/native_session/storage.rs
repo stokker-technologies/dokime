@@ -182,7 +182,9 @@ impl StorageRoot {
 
         // Release and Remove the Lease Last
         // An open file cannot be deleted on Windows.
-        if lease.is_some() {
+        if let Some(lease) = lease {
+            // Unlock Before Closing: the System Releases a Lock Left on a Closed Handle Only Eventually.
+            let _ = lease.unlock();
             drop(lease);
             let path = self.data.join(LEASE);
             std::fs::remove_file(&path).map_err(|error| failure(&path, &error))?;
