@@ -101,7 +101,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 return self.channels == [int(channel) * int(channel) for channel in channels if isinstance(channel, int)]
 
         # Admit The Plugin Through A Real Product Host And Its Client Root.
-        mechanical = Path(__file__).resolve().parents[3] / "tests/fixtures/python/starter/host.py"
+        mechanical = Path(__file__).resolve().parents[2] / "examples/test/tests/host.py"
         host = await runpy.run_path(str(mechanical))["Host"].start(self)
         plugin = Plugin("channels", "1.0.0", suites=[Channels], requires=[], operations=Operations())
         self.assertNotIn(reading.id, {operation.id for operation in plugin.declarations().operations})

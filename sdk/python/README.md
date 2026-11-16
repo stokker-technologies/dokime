@@ -204,7 +204,7 @@ mise -C sdk/python run wheel
 ```
 
 `check` covers SDK sources, examples, tests and tooling with Ruff and the type
-checker, including the shared Python host and example story under `sdk/tests/fixtures/python`,
+checker, including the shared Python host and example story under `examples/test/tests`,
 without type ignores. `generate --check` regenerates wire bindings in
 temporary storage and reports drift without writing committed output. `generated`
 checks the installed wheel's source manifest, private descriptor set, message

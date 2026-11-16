@@ -97,7 +97,9 @@ class Host:
                 if bus.returncode is not None:
                     raise RuntimeError(f"Start SDK Credential Store: dbus-daemon Exited With {bus.returncode}; See Its Output Above")
                 if keyring.returncode is not None:
-                    raise RuntimeError(f"Start SDK Credential Store: gnome-keyring-daemon Exited With {keyring.returncode}; See Its Output Above")
+                    raise RuntimeError(
+                        f"Start SDK Credential Store: gnome-keyring-daemon Exited With {keyring.returncode}; See Its Output Above"
+                    )
                 check = await asyncio.create_subprocess_exec(
                     "dbus-send",
                     "--session",

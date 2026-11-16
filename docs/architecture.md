@@ -851,9 +851,8 @@ The final pin regenerates descriptor-derived surfaces and private wire output.
 SDK implementation/installed-consumer proof follows the SDK rows of the Final
 Library Pin table.
 
-The CLI embeds the authoritative SDK starters and includes the Python starter's
-host-driven tests from `sdk/tests/fixtures/python/starter`. The per-language
-`examples/plugin` and `examples/test` trees required by decision 0.J are not
-present yet; that example consolidation remains with the protocol regeneration.
+The CLI embeds each SDK's `examples/plugin` and `examples/test` trees as its
+starters (decision 0.J). The Python test example carries its host-driven story in
+`tests/`, so `dokime new --lang python` ships the story its `mise run test` runs.
 The C++ starter consumes the installed SDK archive with its supplied SHA-256,
 then resolves the matching native dependencies through vcpkg.
