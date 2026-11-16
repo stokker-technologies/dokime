@@ -81,13 +81,14 @@ impl Section {
     pub fn plot(self, plot: impl Into<model::Plot>) -> Self {
         let mut plot = plot.into();
         if plot.metadata.as_ref().is_none_or(|metadata| metadata.label.is_empty()) {
-            let label =
-                plot.z.as_ref().or_else(|| plot.y.first()).or(plot.x.as_ref()).map(expression_label).unwrap_or_else(|| "Plot".into());
+            let expression = plot.z.as_ref().or_else(|| plot.y.first()).or(plot.x.as_ref());
+            let label = expression.map(expression_label).unwrap_or_else(|| "Plot".into());
             let identifier = plot.metadata.as_ref().map(|metadata| metadata.identifier.clone()).filter(|identifier| !identifier.is_empty());
-            plot.metadata = Some(metadata::from_label(label));
+            let mut metadata = metadata::from_label(label);
             if let Some(identifier) = identifier {
-                plot.metadata.as_mut().expect("initialized metadata").identifier = identifier;
+                metadata.identifier = identifier;
             }
+            plot.metadata = Some(metadata);
         }
         let card = Card {
             metadata: plot.metadata.clone(),

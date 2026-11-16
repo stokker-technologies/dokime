@@ -21,14 +21,13 @@ use std::fs;
 use std::path::Path;
 
 // Third Party Imports
-use harmos_protocol::model::Callers;
-use harmos_protocol::model::Declarations;
-use harmos_protocol::model::OperationContract;
-use harmos_protocol::model::OperationPolicy;
-use harmos_protocol::model::Visibility;
+use harmos_protocol::model::{Callers, Declarations, OperationContract, OperationPolicy, Visibility};
+use harmos_protocol::plugin::InstanceGetResponse;
 use harmos_protocol::schema::method_callers;
+use heck::AsSnakeCase;
 use prost::Message;
-use prost_reflect::DynamicMessage;
+use prost_reflect::{DynamicMessage, ReflectMessage};
+use prost_types::{Duration, Timestamp};
 
 // Local Imports
 use dokime_protocol::builders;
@@ -36,19 +35,12 @@ use dokime_protocol::host::{
     CasesCreateRequest, CasesCreateResponse, EvaluatedOutcome, ExecutionDetail, ExecutionOutcome, ExecutionsGetResponse, PlannedCase,
     RegisteredSelection, RegisteredSelectionParametersEntry, ResultStatus, SelectionPlan, SelectionValues, execution_outcome,
 };
-use dokime_protocol::model::Step;
-use dokime_protocol::model::TestCase;
 use dokime_protocol::model::{
-    BarArrangement, ContourRender, Document, FieldReference, GridAxisEntry, Origin, PlotKind, PluginRun, Reduction, Section, Value,
-    XyInterval, data_expression, origin, transform_expression, value,
+    BarArrangement, ContourRender, Document, FieldReference, GridAxisEntry, Origin, PlotKind, PluginRun, Reduction, Section, Step,
+    TestCase, Value, XyInterval, data_expression, origin, transform_expression, value,
 };
 use dokime_protocol::plugin::{StepsExecuteRequest, StepsExecuteResponse};
 use dokime_protocol_generator::protocol;
-use harmos_protocol::plugin::InstanceGetResponse;
-use heck::AsSnakeCase;
-use prost_reflect::ReflectMessage;
-use prost_types::Duration;
-use prost_types::Timestamp;
 
 /* === Constants === */
 
@@ -71,36 +63,24 @@ use prost_types::Timestamp;
 /* === Tests === */
 
 #[test]
-fn retired_plot_kinds_require_explicit_replacements() {
-    for (name, number, replacement) in [
-        ("GROUPED_BAR", 3, "BAR"),
-        ("STACKED_BAR", 4, "BAR"),
-        ("DONUT", 6, "PIE"),
-        ("PARETO", 7, "BAR"),
-        ("XY_INTERVAL", 9, "XY"),
-        ("HEATMAP", 11, "CONTOUR"),
-        ("XY_VALUE_HEATMAP", 12, "CONTOUR"),
-        ("WIFI_CHANNEL_OCCUPANCY", 13, "GRID_CHART"),
-        ("BOX_SUMMARY", 16, "BOX_PLOT"),
-        ("AGGREGATE_TABLE", 17, "Summary"),
+fn plot_kind_validation_rejects_retired_and_undeclared_values() {
+    for (name, number) in [
+        ("GROUPED_BAR", 3),
+        ("STACKED_BAR", 4),
+        ("DONUT", 6),
+        ("PARETO", 7),
+        ("XY_INTERVAL", 9),
+        ("HEATMAP", 11),
+        ("XY_VALUE_HEATMAP", 12),
+        ("WIFI_CHANNEL_OCCUPANCY", 13),
+        ("BOX_SUMMARY", 16),
+        ("AGGREGATE_TABLE", 17),
+        ("UNSPECIFIED", 0),
+        ("UNKNOWN", i32::MAX),
     ] {
-        for result in [PlotKind::parse_name(name), PlotKind::from_declared_number(number)] {
-            let error = result.unwrap_err();
-            let identifiers = error.split(|character: char| !character.is_ascii_alphanumeric() && character != '_').collect::<Vec<_>>();
-            assert!(identifiers.contains(&name));
-            assert!(identifiers.contains(&replacement));
-            let option = match name {
-                "GROUPED_BAR" => Some("arrangement=grouped"),
-                "STACKED_BAR" => Some("arrangement=stacked"),
-                "DONUT" => Some("hole=0.5"),
-                "PARETO" => Some("pareto=true"),
-                "XY_INTERVAL" => Some("interval=sigma"),
-                _ => None,
-            };
-            if let Some(option) = option {
-                assert!(error.contains(option));
-            }
-        }
+        assert!(PlotKind::parse_name(name).is_err());
+        assert!(PlotKind::parse_name(&format!("PLOT_KIND_{name}")).is_err());
+        assert!(PlotKind::from_declared_number(number).is_err());
     }
     for kind in [PlotKind::Contour, PlotKind::GridChart, PlotKind::BoxPlot] {
         assert_eq!(PlotKind::parse_name(kind.as_str_name()), Ok(kind));
@@ -211,6 +191,10 @@ fn typed_plot_builders_produce_canonical_document_messages() {
         builders::Plot::contour(scan.field("value")).id("stable").label("Temperature Map").message.metadata.as_ref().unwrap().identifier,
         "stable"
     );
+    let section = Section::default().plot(builders::Plot::contour(scan.field("temperature").scale(2.0)).id("stable"));
+    let metadata = section.cards[0].metadata.as_ref().unwrap();
+    assert_eq!(metadata.identifier, "stable");
+    assert_eq!(metadata.label, "temperature");
 }
 
 #[test]

@@ -47,12 +47,13 @@ impl FieldReference {
     }
 
     pub fn field(&self, field: impl Into<String>) -> DataExpression {
+        let reference = Self {
+            identifier: self.identifier.clone(),
+            field: field.into(),
+        };
         DataExpression {
             label: String::new(),
-            kind: Some(data_expression::Kind::Stream(Self {
-                identifier: self.identifier.clone(),
-                field: field.into(),
-            })),
+            kind: Some(data_expression::Kind::Stream(reference)),
         }
     }
 }

@@ -17,12 +17,12 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-# Local Imports
+# Third Party Imports
 from dokime_tools.build import render_resources
 from dokime_tools.build.protocol_callers import narrow_callers
-
-# Third Party Imports
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
+
+# Local Imports
 
 # Type Checking Imports
 
