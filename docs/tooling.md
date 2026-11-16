@@ -390,12 +390,15 @@ all streams:
 
 At 1 kHz each 100 ms window holds 100 samples, so per-window grant, transport and
 admission dominate; at 1 MHz one window per stream carries all 20,000 samples. In
-the 128-stream 1 MHz case the observers answered all 2,560,000 samples by the
-sleep's end, but the library refused part of them: the execution ended
-Interrupted with "the shared plugin publication byte or slot capacity is full",
-keeping 67 complete streams (1,340,000 samples; 75 and 82 streams in earlier runs).
-That capacity is the library's fixed 64 MiB shared publication pool, so the case
-fails its retention check until the library admits 128 concurrent 1 MHz windows.
+the 128-stream 1 MHz case the observers answered all 2,560,000 scoped samples by
+the sleep's end, but the execution ended Interrupted with "the shared plugin
+publication byte or slot capacity is full", keeping 91 complete streams (67, 75 and
+82 in earlier runs). Before the step, the activation's unscoped connection demand,
+which runs on the host's real clock, had answered 42,556,525 samples that storage
+does not keep; their retained rows occupy the library's fixed 64 MiB shared
+publication pool. At the default 100 ms window, 128 streams at 1 MHz also need about
+100 MB for one window each, more than that pool. The case fails its retention check
+until the owner decides how idle and overloaded demand behaves.
 Storage alone retains the same 2,560,000 samples
 (`interval_batches_of_many_streams_survive_pressure_flushes`).
 

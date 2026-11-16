@@ -53,6 +53,8 @@ const CASES: [(u64, u64, u64); 6] = [
 
 /// Samples the Plugin's Window Observers Answered for Executions, Across Every Stream.
 static ANSWERED: AtomicU64 = AtomicU64::new(0);
+/// Samples Answered for the Unscoped Connection Demand, Which Storage Does Not Keep.
+static UNSCOPED: AtomicU64 = AtomicU64::new(0);
 
 /* === Macros === */
 
@@ -77,6 +79,7 @@ struct LevelColumns {
 #[harmos(package = "storage.windows.v1")]
 struct Produced {
     rows: u64,
+    unscoped: u64,
 }
 
 #[derive(dokime::Parameters)]
@@ -110,7 +113,9 @@ pub fn serve() -> Result<()> {
     for index in 0..streams {
         let stream = Stream::<Level>::new(format!("level.stream_{index:03}"), format!("Level {}", index + 1));
         let observer = Observer::window(&stream, async |context: &Context, window: &SampleWindow| {
-            if !context.execution_id().is_empty() {
+            if context.execution_id().is_empty() {
+                UNSCOPED.fetch_add(window.count, Ordering::SeqCst);
+            } else {
                 ANSWERED.fetch_add(window.count, Ordering::SeqCst);
             }
             Ok(LevelColumns {
@@ -179,16 +184,18 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                                 .filter(|entry| entry.kind == "record:produced")
                                 .filter_map(|entry| RecordsAppendRequest::decode(entry.payload.as_slice()).ok())
                                 .filter_map(|record| Produced::decode(record.payload.as_slice()).ok())
-                                .map(|produced| produced.rows)
-                                .sum::<u64>();
+                                .map(|produced| (produced.rows, produced.unscoped))
+                                .fold((0, 0), |sum, (rows, unscoped)| (sum.0 + rows, sum.1 + unscoped));
                             let mut counts = BTreeMap::<u64, usize>::new();
                             for count in stored.values() {
                                 *counts.entry(*count).or_default() += 1;
                             }
                             println!(
-                                "Retained | {} of {total} samples | {} of {streams} streams stored | streams by count {counts:?} | answered by the sleep's end {answered} | outcome {:?} | states {:?}",
+                                "Retained | {} of {total} samples | {} of {streams} streams stored | streams by count {counts:?} | answered by the sleep's end {} | unscoped answered before then {} | outcome {:?} | states {:?}",
                                 execution.samples.len(),
                                 stored.len(),
+                                answered.0,
+                                answered.1,
                                 execution.execution.outcome,
                                 completed.states,
                             );
@@ -216,7 +223,8 @@ async fn capture(context: &Context, period: Duration) -> Result<()> {
     context.sleep(span.ok_or_else(|| Error::Invalid("Capture: Duration Overflow".into()))?).await?;
     // The Record Holds How Many Samples the Observers Answered by the Sleep's End.
     let rows = ANSWERED.swap(0, Ordering::SeqCst);
-    context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows }).await?;
+    let unscoped = UNSCOPED.swap(0, Ordering::SeqCst);
+    context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows, unscoped }).await?;
     context.host().prompts.create("captured".into(), "continue".into(), Default::default()).await?;
     Ok(())
 }
