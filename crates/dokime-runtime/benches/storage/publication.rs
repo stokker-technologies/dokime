@@ -103,9 +103,8 @@ pub(super) struct Fixture {
 /* === Implementations === */
 
 impl Fixture {
-    pub(super) async fn new(endpoint: &str, template: &str, rows: usize) -> Self {
+    pub(super) async fn new(settings: HostSettings, endpoint: &str, template: &str, rows: usize) -> Self {
         let root = tempfile::tempdir().unwrap().keep();
-        let settings = settings();
         let operations = dokime_runtime::services::ClientSettings {
             read_timeout: settings.placement.connect_timeout,
             mutation_timeout: settings.placement.connect_timeout,
@@ -243,7 +242,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
             executor.block_on(async {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iterations {
-                    let fixture = Fixture::new(plugin.endpoint(), "capture", 1024).await;
+                    let fixture = Fixture::new(settings(), plugin.endpoint(), "capture", 1024).await;
                     fixture.prompt("ready").await;
                     let started = Instant::now();
                     fixture.release("ready").await;
@@ -271,7 +270,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
             executor.block_on(async {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iterations {
-                    let fixture = Fixture::new(plugin.endpoint(), "capture", 65536).await;
+                    let fixture = Fixture::new(settings(), plugin.endpoint(), "capture", 65536).await;
                     fixture.release("ready").await;
                     fixture.prompt("captured").await;
                     let started = Instant::now();
@@ -298,7 +297,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                     plugin = Some(PluginProcess::start(&std::env::current_exe().unwrap(), true, &settings().placement).await.unwrap());
                 }
                 let plugin = plugin.as_ref().unwrap();
-                let fixture = Fixture::new(plugin.endpoint(), "export", 16384).await;
+                let fixture = Fixture::new(settings(), plugin.endpoint(), "export", 16384).await;
                 fixture.release("ready").await;
                 fixture.release("captured").await;
                 let Fixture { host, root, cycle, execution } = fixture;

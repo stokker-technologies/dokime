@@ -363,43 +363,47 @@ type; full-lane failures and post-lane native inventories remain separate proof.
 
 ### Interval Window Ingestion
 
-`windows/interval_windows_stored/<streams>x<period>ns/<samples>` re-executes the
-storage benchmark binary as a remote Rust SDK plugin with 1, 16 or 128 interval
+`windows/interval_windows_stored/<clock>/<streams>x<period>ns/<samples>` re-executes
+the storage benchmark binary as a remote Rust SDK plugin with 1, 16 or 128 interval
 streams of one `double`, at 1 kHz (10,050 samples per stream) and 1 MHz (20,000
-samples per stream), each answered by a window observer. The host uses the
-controlled clock and the default `interval_window` (100 ms); both captures end
-inside a window, so the step's sleep cuts its last window early. The timed boundary
-runs from releasing the ready step to its captured prompt: host window grants,
-the observer's columns, transport, Harmos batch admission, Dokime's columnar Arrow
-admission and the produced-count record, whose evidence barrier makes every
-sample durable. Execution end and shutdown are excluded; the case reports
-samples per second through Criterion throughput and, with `--once`, a `Measured`
-line. It records figures only and checks that every sample was retained; when one
-was not, it first prints a `Retained` line with per-stream counts, the samples the
-observers answered by the sleep's end and the execution outcome.
+samples per stream), each answered by a window observer. 1 kHz streams use the host's
+default `interval_window` (100 ms), so the 1 kHz capture ends inside a window and the
+step's sleep cuts its last window early. 1 MHz streams take a 10 ms window from the
+plugin's `sample_window` Duration setting through `window_setting`, the library
+bench's 1 MHz condition. Each case runs on the controlled clock and on the real clock.
+The timed boundary runs from releasing the ready step to its captured prompt: host
+window grants, the observer's columns, transport, Harmos batch admission, Dokime's
+columnar Arrow admission and the produced-count record, whose evidence barrier makes
+every sample durable. Execution end and shutdown are excluded.
+
+The case reports stored samples per second through Criterion throughput and, with
+`--once`, a `Measured` line per iteration over five iterations and a `Median` line
+naming the clock and window. Figures are never assertions. The controlled clock must
+retain exactly the requested samples. The real clock samples from the start of the
+execution, including while the ready prompt waits, so it stores at least the
+requested span; its figure divides every stored sample by the timed span, and a
+run that stores fewer samples prints a `Retained` line with per-stream counts, the
+samples the observers answered by the sleep's end and the execution outcome.
 
 Measured on 2026-11-16 with library `efc261fe` (Windows x86-64, AMD Ryzen 9 5950X,
-bench profile, one `--once` iteration per case), in samples per second summed over
-all streams:
+bench profile, `--once`), as median stored samples per second over five iterations,
+summed over all streams:
 
-| Streams | 1 kHz, 10,050 Samples per Stream | 1 MHz, 20,000 Samples per Stream |
-| ---: | ---: | ---: |
-| 1 | 209,180 | 783,472 |
-| 16 | 474,176 | 2,182,953 |
-| 128 | 384,371 | 1,818,952 (not retained; see below) |
+| Streams | Controlled, 1 kHz, 100 ms Windows | Controlled, 1 MHz, 10 ms Windows | Real, 1 kHz, 100 ms Windows | Real, 1 MHz, 10 ms Windows |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 127,920 | 606,254 | 998 | 1,048,381 |
+| 16 | 471,929 | 1,544,325 | 16,003 | 541,527 |
+| 128 | 356,937 | 1,689,325 | 126,911 | 159,781 |
 
-At 1 kHz each 100 ms window holds 100 samples, so per-window grant, transport and
-admission dominate; at 1 MHz one window per stream carries all 20,000 samples. In
-the 128-stream 1 MHz case the observers answered all 2,560,000 scoped samples by
-the sleep's end, but the execution ended Interrupted with "the shared plugin
-publication byte or slot capacity is full", keeping 91 complete streams (67, 75 and
-82 in earlier runs). Before the step, the activation's unscoped connection demand,
-which runs on the host's real clock, had answered 42,556,525 samples that storage
-does not keep; their retained rows occupy the library's fixed 64 MiB shared
-publication pool. At the default 100 ms window, 128 streams at 1 MHz also need about
-100 MB for one window each, more than that pool. The case fails its retention check
-until the owner decides how idle and overloaded demand behaves.
-Storage alone retains the same 2,560,000 samples
+Every case retained its samples. With 10 ms windows the 128-stream 1 MHz case keeps
+all 2,560,000 samples on the controlled clock; at the 100 ms default one window per
+stream needed about 100 MB, more than the library's fixed 64 MiB shared publication
+pool, and the execution ended Interrupted. A window that overflows that pool now
+fails its execution with a stream failure naming the stream and the action
+(`window_overflow_names_its_stream`). The real clock keeps up at 1 kHz; at 1 MHz
+one stream keeps pace, while 16 and 128 streams fall behind real time and the
+step's sleep waits until every window due by its end is stored, so their figures
+vary widely between iterations. Storage alone retains the same 2,560,000 samples
 (`interval_batches_of_many_streams_survive_pressure_flushes`).
 
 ### Desktop Plot Documents
@@ -408,7 +412,11 @@ These Windows x86-64 observations were measured on 2026-11-15 with the
 library at `a8cee45c`. The desktop fixture uses a local control connection for
 producer handoff and completion. Its observer interval matches each requested
 row density over three days, including fractional-second intervals. The SDK
-observer publishes every row through the real carrier. The producer has no
+observer publishes every row through the real carrier. The fixture host grants
+ten-minute interval windows, so the three-day history takes hundreds of window
+round trips instead of one per sample (about 11 s rather than 13 minutes for
+2,073,600 rows on that machine), and a controlled sleep still cuts the live
+window at its end. The producer has no
 operator prompt gate. Drawing deadlines and input counts are unchanged.
 
 The complete matrix was attempted through focused `--once` runs at `a8cee45c`:
