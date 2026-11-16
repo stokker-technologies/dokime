@@ -9,16 +9,17 @@
 
 // Buffered Durable Arrow Writes
 //
-// A flush claims the head of every stream's pending batches, prepares each stream file in
-// parallel (concatenation, IPC encoding, moments and previews) and commits them together: it
-// writes and syncs every file in parallel, then saves one catalog transaction. Claimed rows
-// stay pending, and so visible to readers, until that transaction commits. Background rounds
-// prepare and sync without the store's locks, so admission never waits for a file sync: a
-// round writes under the locks, leaves its written batches unsynced, syncs duplicated file
-// handles, then catalogs the batches if they are still its own. Whoever holds the locks next
-// (a synchronous flush, finalization or the next round) first syncs and catalogs unsynced
-// batches itself. A synchronous flush prepares under the locks and supersedes a round still
-// preparing, whose claims it detects as stale and drops.
+// Intake (open streams, accepted positions and pending rows) has its own short lock and never
+// takes the connection or the flush lock, so admitting samples never waits for a sync; only
+// bytes over the pending bound make the admitting caller flush. A flush copies the head of every
+// stream's pending batches, prepares each stream file in parallel (concatenation, IPC encoding,
+// moments and previews) and commits them together: it writes and syncs every file, then saves
+// one catalog transaction, and only then drops the batches from intake. Claimed rows stay
+// pending, and so visible to readers, until that transaction commits. Background rounds also
+// sync without the connection: a round writes under it, leaves its batches unsynced, syncs
+// duplicated file handles, then catalogs the batches if they are still its own; whoever holds
+// the connection next first syncs and catalogs them itself. Evidence reserves its position
+// before its barrier flush, which saves only the execution's samples before that position.
 
 /* === Modules === */
 
@@ -30,7 +31,7 @@
 use std::{
     collections::BTreeMap,
     sync::{
-        Arc, Mutex, PoisonError,
+        Arc, Mutex, MutexGuard, PoisonError,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -44,7 +45,7 @@ use rusqlite::{Connection, params};
 use tokio::time::Instant;
 
 // Local Imports
-use super::{Pending, Telemetry, aggregates, aggregates::Statistics, catalog, codec::Codec, config::StorageSettings};
+use super::{Intake, Pending, Telemetry, aggregates, aggregates::Statistics, catalog, codec::Codec, config::StorageSettings};
 use crate::{Error, Execution, Result, Sample, Store, ipc};
 use harmos_protocol::model::Declarations;
 
@@ -54,7 +55,17 @@ use harmos_protocol::model::Declarations;
 
 /* === Type Aliases === */
 
+type StreamKey = (String, String);
+
 /* === Structs === */
+
+/// The Head of One Stream's Pending Batches, Copied From Intake.
+struct Head {
+    key: StreamKey,
+    codec: Arc<Codec>,
+    head: u64,
+    batches: Vec<RecordBatch>,
+}
 
 /// One Stream File's Share of a Flush: the Head of Its Pending Batches and Its Saved Statistics.
 struct Claim {
@@ -95,6 +106,18 @@ pub(super) struct Unsynced {
     prepared: Vec<Prepared>,
     files: BTreeMap<String, Written>,
     befores: Vec<(String, ipc::Checkpoint)>,
+}
+
+/// A Position Reserved for Evidence Behind a Barrier.
+///
+/// Dropped before the evidence that used it committed, it returns the position unless intake has
+/// already allocated past it, so a failed or replayed request leaves no gap.
+pub(crate) struct Reservation {
+    store: Store,
+    execution: String,
+    position: u64,
+    used: std::cell::Cell<bool>,
+    committed: std::cell::Cell<bool>,
 }
 
 /// A Background Round Between Its Writes and Its Catalog Commit.
@@ -147,10 +170,12 @@ impl Telemetry {
         self.codecs.insert(key, requested.clone());
         Ok(requested)
     }
+}
 
-    /// Whether Accepted Rows Reached the Pending Byte Bound, Which Flushes on the Admitting Caller.
+impl Intake {
+    /// Whether Accepted Rows Exceed the Pending Byte Bound, Which Flushes on the Admitting Caller.
     fn pressure(&self) -> bool {
-        self.pending.values().map(|pending| pending.bytes).sum::<usize>() >= self.settings.pending_bytes.get()
+        self.pending.values().map(|pending| pending.bytes).sum::<usize>() > self.settings.pending_bytes.get()
     }
 
     /// Whether One Stream Reached Its Flush Row Count, Which Starts a Background Round at Once.
@@ -158,22 +183,47 @@ impl Telemetry {
         self.pending.values().any(|pending| pending.rows >= self.settings.flush_rows.get())
     }
 
-    /// Claim Every Stream's Pending Batches With Their File's Saved Statistics.
-    fn claim(&self, connection: &Connection) -> Result<Vec<Claim>> {
-        self.pending
-            .iter()
-            .map(|((execution, stream), pending)| {
-                let id = catalog::identifier(execution, stream, &pending.codec.digest);
-                Ok(Claim {
-                    key: (execution.clone(), stream.clone()),
-                    statistics: Statistics::load(connection, &id, self.settings.previews)?,
-                    id,
-                    codec: pending.codec.clone(),
-                    head: head(&pending.batches)?,
-                    batches: pending.batches.clone(),
-                })
-            })
-            .collect()
+    /// The Codec of an Open Execution Stream; Only Open Streams Accept Samples.
+    fn stream(&self, execution: &str, stream: &str) -> Result<Arc<Codec>> {
+        self.streams
+            .get(&(execution.to_owned(), stream.to_owned()))
+            .cloned()
+            .ok_or(Error::Data("open the execution stream before publishing samples"))
+    }
+
+    /// The First Free Position of an Execution With Open Streams.
+    fn next(&self, execution: &str) -> Result<u64> {
+        let accepted = self.accepted.get(execution).ok_or(Error::Data("open the execution stream before publishing samples"))?;
+        accepted
+            .checked_add(1)
+            .filter(|next| *next <= i64::MAX as u64)
+            .ok_or(Error::Data("start a fresh execution before positions overflow"))
+    }
+
+    /// Copy the Head of Every Stream's Pending Batches; Behind a Fence, Only Batches Before Its Position.
+    fn claim(&self, fence: Option<(&str, u64)>) -> Result<Vec<Head>> {
+        let mut claims = Vec::with_capacity(self.pending.len());
+        for (key, pending) in &self.pending {
+            let mut batches = pending.batches.as_slice();
+            if let Some((_, position)) = fence.filter(|(execution, _)| *execution == key.0) {
+                let before = batches
+                    .iter()
+                    .map(|batch| head(std::slice::from_ref(batch)))
+                    .take_while(|first| first.as_ref().is_ok_and(|first| *first < position))
+                    .count();
+                batches = &batches[..before];
+            }
+            if batches.is_empty() {
+                continue;
+            }
+            claims.push(Head {
+                key: key.clone(),
+                codec: pending.codec.clone(),
+                head: head(batches)?,
+                batches: batches.to_vec(),
+            });
+        }
+        Ok(claims)
     }
 
     /// Whether a Prepared File's Claimed Batches Still Lead Its Stream's Pending Batches.
@@ -181,6 +231,49 @@ impl Telemetry {
         self.pending
             .get(&prepared.key)
             .is_some_and(|pending| pending.batches.len() >= prepared.batches && head(&pending.batches).ok() == Some(prepared.head))
+    }
+
+    /// Drop Cataloged Batches From the Head of Their Streams' Pending Rows.
+    fn release(&mut self, prepared: &[Prepared]) -> Result<()> {
+        for prepared in prepared {
+            let pending = self.pending.get_mut(&prepared.key).ok_or(Error::Data("restart after pending samples went missing"))?;
+            for batch in pending.batches.drain(..prepared.batches) {
+                pending.rows -= batch.num_rows();
+                pending.bytes -= bytes(&batch);
+            }
+            if pending.batches.is_empty() {
+                self.pending.remove(&prepared.key);
+            } else {
+                pending.started = Instant::now();
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Reservation {
+    /// The Reserved Position, for Evidence Inserted at It.
+    pub(crate) fn take(&self) -> u64 {
+        self.used.set(true);
+        self.position
+    }
+    /// Keep the Position Once the Transaction Holding Its Evidence Committed.
+    pub(crate) fn committed(&self) {
+        self.committed.set(true);
+    }
+}
+
+impl Drop for Reservation {
+    fn drop(&mut self) {
+        if self.used.get() && self.committed.get() {
+            return;
+        }
+        if let Ok(mut intake) = self.store.intake()
+            && let Some(accepted) = intake.accepted.get_mut(&self.execution)
+            && *accepted == self.position
+        {
+            *accepted -= 1;
+        }
     }
 }
 
@@ -222,6 +315,73 @@ impl Claim {
 }
 
 impl Store {
+    /// The Intake Lock; Holders Never Write, Sync or Query the Catalog.
+    pub(crate) fn intake(&self) -> Result<MutexGuard<'_, Intake>> {
+        self.intake.lock().map_err(|_| Error::Data("restart after the sample intake lock failed"))
+    }
+    /// Reopen Intake for the Streams a Previous Process Left Open, Continuing After Their Saved Positions.
+    pub(crate) fn restore_intake(&self) -> Result<()> {
+        let connection = self.lock()?;
+        let mut statement = connection.prepare("SELECT execution,stream FROM streams WHERE closed=0 ORDER BY execution,stream")?;
+        let open = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        drop(statement);
+        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+        let mut streams = Vec::with_capacity(open.len());
+        let mut accepted = BTreeMap::new();
+        for (execution, stream) in open {
+            if !accepted.contains_key(&execution) {
+                accepted.insert(execution.clone(), crate::store::saved_position(&connection, &execution)?);
+            }
+            let codec = telemetry.codec(&connection, &execution, &stream)?;
+            streams.push(((execution, stream), codec));
+        }
+        drop(telemetry);
+        let mut intake = self.intake()?;
+        intake.streams.extend(streams);
+        intake.accepted.extend(accepted);
+        Ok(())
+    }
+    /// Forget a Closed Execution's Position Counter; It Accepts No More Samples.
+    pub(crate) fn retire_intake(&self, execution: &str) -> Result<()> {
+        self.intake()?.accepted.remove(execution);
+        Ok(())
+    }
+    /// Reserve an Execution's Next Position for Evidence; Intake Allocates From the Same Counter.
+    pub(crate) fn reserve_position(&self, connection: &Connection, execution: &str) -> Result<u64> {
+        let saved = crate::store::saved_position(connection, execution)?;
+        let mut intake = self.intake()?;
+        let next = saved.max(intake.accepted.get(execution).copied().unwrap_or(0)) + 1;
+        if let Some(accepted) = intake.accepted.get_mut(execution) {
+            *accepted = next;
+        }
+        Ok(next)
+    }
+    /// The Last Position an Execution Allocated; a Read Session Sees Only Saved Positions.
+    pub(crate) fn accepted_position(&self, connection: &Connection, execution: &str) -> Result<u64> {
+        let saved = crate::store::saved_position(connection, execution)?;
+        if self.cancelled.is_some() {
+            return Ok(saved);
+        }
+        Ok(saved.max(self.intake()?.accepted.get(execution).copied().unwrap_or(0)))
+    }
+    /// Save Every Sample an Execution Accepted So Far and Return the Position of the Evidence After Them.
+    ///
+    /// The position is reserved first, so samples accepted while the flush syncs follow the evidence
+    /// and stay pending; intake keeps admitting throughout. The caller holds the connection until it
+    /// commits the evidence at the returned position.
+    pub(crate) fn barrier(&self, connection: &mut Connection, execution: &str) -> Result<Reservation> {
+        let reservation = Reservation {
+            store: self.clone(),
+            execution: execution.to_owned(),
+            position: self.reserve_position(connection, execution)?,
+            used: std::cell::Cell::new(false),
+            committed: std::cell::Cell::new(false),
+        };
+        self.flush_locked(connection, Some((execution, reservation.position)))?;
+        Ok(reservation)
+    }
     /// Open Execution Streams, Creating and Cataloging Each Stream's Arrow File in Parallel.
     ///
     /// Each file and its header are synced before one transaction records the streams and their empty
@@ -266,7 +426,12 @@ impl Store {
             )?;
         }
         transaction.commit()?;
-        for (_, id, _, writer) in writers {
+        let saved = crate::store::saved_position(&connection, execution)?;
+        let mut intake = self.intake()?;
+        let accepted = intake.accepted.entry(execution.to_owned()).or_insert(0);
+        *accepted = (*accepted).max(saved);
+        for (stream, id, codec, writer) in writers {
+            intake.streams.insert((execution.to_owned(), stream.to_owned()), codec);
             telemetry.writers.insert(id, writer);
         }
         Ok(())
@@ -275,19 +440,16 @@ impl Store {
         if samples.is_empty() {
             return Ok(Vec::new());
         }
-        let connection = self.lock()?;
-        crate::store::require_open(&connection, execution)?;
-        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
-        if telemetry.closed {
+        let mut intake = self.intake()?;
+        if intake.closed {
             return Err(Error::Data("open a storage session before publishing samples"));
         }
         let mut prepared = BTreeMap::<String, (Arc<Codec>, Vec<Sample>)>::new();
-        let mut position = crate::store::next_position(&connection, execution)?;
+        let mut position = intake.next(execution)?;
         let mut positions = Vec::with_capacity(samples.len());
         for sample in samples {
             if !prepared.contains_key(&sample.stream) {
-                require_stream(&connection, execution, &sample.stream)?;
-                let codec = telemetry.codec(&connection, execution, &sample.stream)?;
+                let codec = intake.stream(execution, &sample.stream)?;
                 prepared.insert(sample.stream.clone(), (codec, Vec::new()));
             }
             let mut sample = sample.clone();
@@ -302,13 +464,12 @@ impl Store {
         // Validate Every Row Before Admitting Any Part Of The Call.
         let batches =
             prepared.into_iter().map(|(stream, (codec, rows))| Ok((stream, codec.batch(&rows)?, codec))).collect::<Result<Vec<_>>>()?;
-        accept(&connection, execution, position - 1)?;
+        intake.accepted.insert(execution.to_owned(), position - 1);
         for (stream, batch, codec) in batches {
-            admit(&mut telemetry, execution, stream, codec, batch);
+            admit(&mut intake, execution, stream, codec, batch);
         }
-        let (pressure, due) = (telemetry.pressure(), telemetry.due());
-        drop(telemetry);
-        drop(connection);
+        let (pressure, due) = (intake.pressure(), intake.due());
+        drop(intake);
         self.admitted(pressure, due)?;
         Ok(positions)
     }
@@ -318,33 +479,30 @@ impl Store {
     /// sample. Every sample takes one position and the time `start + index * period`. Returns the
     /// number of samples admitted.
     pub fn sample_interval(&self, execution: &str, stream: &str, payload: &[u8], sequence: u64) -> Result<u64> {
-        let connection = self.lock()?;
-        crate::store::require_open(&connection, execution)?;
-        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
-        if telemetry.closed {
+        let mut intake = self.intake()?;
+        if intake.closed {
             return Err(Error::Data("open a storage session before publishing samples"));
         }
-        require_stream(&connection, execution, stream)?;
-        let codec = telemetry.codec(&connection, execution, stream)?;
+        let codec = intake.stream(execution, stream)?;
         let interval = codec.interval(payload)?;
         let count = interval.count as u64;
-        let first = crate::store::next_position(&connection, execution)?;
+        let first = intake.next(execution)?;
         let last = first
             .checked_add(count - 1)
             .filter(|last| *last <= i64::MAX as u64)
             .ok_or(Error::Data("start a fresh execution before positions overflow"))?;
         sequence.checked_add(count).ok_or(Error::Data("restart the stream before its sequence overflows"))?;
         let batch = codec.assemble(first, sequence, &interval)?;
-        accept(&connection, execution, last)?;
-        admit(&mut telemetry, execution, stream.to_owned(), codec, batch);
-        let (pressure, due) = (telemetry.pressure(), telemetry.due());
-        drop(telemetry);
-        drop(connection);
+        intake.accepted.insert(execution.to_owned(), last);
+        admit(&mut intake, execution, stream.to_owned(), codec, batch);
+        let (pressure, due) = (intake.pressure(), intake.due());
+        drop(intake);
         self.admitted(pressure, due)?;
         Ok(count)
     }
     fn admitted(&self, pressure: bool, due: bool) -> Result<()> {
-        // Byte Pressure Bounds Memory, So It Flushes Here; Without a Runtime No Round Can Take a Due Flush.
+        // Bytes Over the Pending Bound Flush on the Admitting Caller, the Only Wait Intake Makes for a Sync.
+        // Without a Runtime No Round Can Take a Due Flush.
         if pressure || (due && tokio::runtime::Handle::try_current().is_err()) {
             self.flush_samples()?;
         }
@@ -354,30 +512,27 @@ impl Store {
     }
     fn start_sample_flush(&self) -> Result<()> {
         let Ok(runtime) = tokio::runtime::Handle::try_current() else { return Ok(()) };
-        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
-        if telemetry.closed || telemetry.running || telemetry.pending.is_empty() {
+        let mut intake = self.intake()?;
+        if intake.closed || intake.running || intake.pending.is_empty() {
             return Ok(());
         }
-        telemetry.running = true;
+        intake.running = true;
         let store = self.clone();
         let worker = runtime.spawn(async move {
             let mut changes = store.changed.subscribe();
             loop {
                 let deadline = {
-                    let mut telemetry = match store.telemetry.lock() {
-                        Ok(t) => t,
-                        Err(_) => return,
-                    };
-                    if telemetry.closed {
-                        telemetry.running = false;
+                    let Ok(mut intake) = store.intake() else { return };
+                    if intake.closed {
+                        intake.running = false;
                         return;
                     }
-                    let interval = telemetry.settings.flush_interval;
-                    match telemetry.pending.values().map(|pending| pending.started + interval).min() {
-                        Some(_) if telemetry.due() => Instant::now(),
+                    let interval = intake.settings.flush_interval;
+                    match intake.pending.values().map(|pending| pending.started + interval).min() {
+                        Some(_) if intake.due() => Instant::now(),
                         Some(deadline) => deadline,
                         None => {
-                            telemetry.running = false;
+                            intake.running = false;
                             return;
                         }
                     }
@@ -387,25 +542,25 @@ impl Store {
                 let result = tokio::task::spawn_blocking(move || worker.flush_round()).await;
                 if !matches!(result, Ok(Ok(()))) {
                     tracing::error!(?result, "Flush Arrow Samples Failed; Saved Position Was Not Acknowledged");
-                    if let Ok(mut telemetry) = store.telemetry.lock() {
-                        telemetry.running = false;
+                    if let Ok(mut intake) = store.intake() {
+                        intake.running = false;
                     }
                     return;
                 }
             }
         });
-        telemetry.workers.retain(|worker| !worker.is_finished());
-        telemetry.workers.push(worker);
+        intake.workers.retain(|worker| !worker.is_finished());
+        intake.workers.push(worker);
         Ok(())
     }
     pub async fn shutdown_samples(&self) -> Result<()> {
         let (mut result, workers) = {
             let mut connection = self.lock()?;
             let result = self.flush_samples_locked(&mut connection);
-            let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry shutdown lock failed"))?;
-            telemetry.closed = true;
-            telemetry.running = false;
-            (result, std::mem::take(&mut telemetry.workers))
+            let mut intake = self.intake()?;
+            intake.closed = true;
+            intake.running = false;
+            (result, std::mem::take(&mut intake.workers))
         };
         self.changed.send_modify(|revision| *revision += 1);
         for worker in workers {
@@ -424,15 +579,23 @@ impl Store {
     }
     /// Flush Every Pending Row Before Returning; Its Caller Holds the Store's Connection.
     pub(crate) fn flush_samples_locked(&self, connection: &mut Connection) -> Result<()> {
+        self.flush_locked(connection, None)
+    }
+    /// Flush Pending Rows, Behind a Fence Only an Execution's Rows Before Its Position, Syncing Without Intake.
+    fn flush_locked(&self, connection: &mut Connection, fence: Option<(&str, u64)>) -> Result<()> {
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
         self.settle(connection, &mut telemetry)?;
-        if telemetry.closed && !telemetry.pending.is_empty() {
-            return Err(Error::Data("reopen storage after its failed shutdown flush"));
-        }
-        if telemetry.pending.is_empty() {
+        let claims = {
+            let intake = self.intake()?;
+            if intake.closed && !intake.pending.is_empty() {
+                return Err(Error::Data("reopen storage after its failed shutdown flush"));
+            }
+            intake.claim(fence)?
+        };
+        if claims.is_empty() {
             return Ok(());
         }
-        let prepared = prepare(telemetry.claim(connection)?, &telemetry.settings)?;
+        let prepared = prepare(load_statistics(connection, claims, &telemetry.settings)?, &telemetry.settings)?;
         let unsynced = self.write(connection, &mut telemetry, prepared)?;
         self.sync_and_catalog(connection, &mut telemetry, unsynced)
     }
@@ -448,24 +611,31 @@ impl Store {
         let (claims, settings) = {
             let mut connection = self.lock()?;
             let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
-            if telemetry.closed {
-                return Ok(None);
-            }
             self.settle(&mut connection, &mut telemetry)?;
-            if telemetry.pending.is_empty() {
+            let claims = {
+                let intake = self.intake()?;
+                if intake.closed {
+                    return Ok(None);
+                }
+                intake.claim(None)?
+            };
+            if claims.is_empty() {
                 return Ok(None);
             }
-            (telemetry.claim(&connection)?, telemetry.settings)
+            (load_statistics(&connection, claims, &telemetry.settings)?, telemetry.settings)
         };
         let prepared = prepare(claims, &settings)?;
         let mut connection = self.lock()?;
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
-        if telemetry.closed {
-            return Ok(None);
-        }
         self.settle(&mut connection, &mut telemetry)?;
         // A Synchronous Flush Since the Claim Saved These Rows Itself; Their Prepared Copies Are Dropped.
-        let prepared = prepared.into_iter().filter(|prepared| telemetry.current(prepared)).collect::<Vec<_>>();
+        let prepared = {
+            let intake = self.intake()?;
+            if intake.closed {
+                return Ok(None);
+            }
+            prepared.into_iter().filter(|prepared| intake.current(prepared)).collect::<Vec<_>>()
+        };
         if prepared.is_empty() {
             return Ok(None);
         }
@@ -620,23 +790,25 @@ impl Store {
         if let Err(error) = result.and_then(|()| Ok(transaction.commit()?)) {
             return Err(rollback(telemetry, &befores, error));
         }
-        for prepared in &prepared {
-            let pending = telemetry.pending.get_mut(&prepared.key).ok_or(Error::Data("restart after pending samples went missing"))?;
-            for batch in pending.batches.drain(..prepared.batches) {
-                pending.rows -= batch.num_rows();
-                pending.bytes -= bytes(&batch);
-            }
-            if pending.batches.is_empty() {
-                telemetry.pending.remove(&prepared.key);
-            } else {
-                pending.started = Instant::now();
-            }
-        }
+        self.intake()?.release(&prepared)?;
         self.changed.send_modify(|revision| *revision += 1);
         Ok(())
     }
+    /// Stop an Execution's Intake, Save Its Pending Rows and Close Its Stream Files.
     pub(crate) fn finalize_samples(&self, connection: &mut Connection, execution: &str) -> Result<()> {
-        self.flush_samples_locked(connection)?;
+        let closed = {
+            let mut intake = self.intake()?;
+            let keys = intake.streams.keys().filter(|(owner, _)| owner == execution).cloned().collect::<Vec<_>>();
+            keys.into_iter().filter_map(|key| intake.streams.remove_entry(&key)).collect::<Vec<_>>()
+        };
+        let result = self.flush_samples_locked(connection).and_then(|()| self.close_files(connection, execution));
+        if result.is_err() {
+            // Streams That Stay Open in the Catalog Keep Accepting Samples.
+            self.intake()?.streams.extend(closed);
+        }
+        result
+    }
+    fn close_files(&self, connection: &mut Connection, execution: &str) -> Result<()> {
         let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
         let transaction = connection.transaction()?;
         let mut query = transaction.prepare("SELECT id,stream FROM telemetry_files WHERE execution=?1 AND finalized=0 ORDER BY id")?;
@@ -697,26 +869,33 @@ fn rollback(telemetry: &mut Telemetry, befores: &[(String, ipc::Checkpoint)], er
     error
 }
 
-fn require_stream(connection: &Connection, execution: &str, stream: &str) -> Result<()> {
-    let closed: i32 =
-        connection
-            .query_row("SELECT closed FROM streams WHERE execution=?1 AND stream=?2", params![execution, stream], |row| row.get(0))?;
-    if closed != 0 {
-        return Err(Error::Data("open the execution stream before publishing samples"));
-    }
-    Ok(())
+/// Load Each Claimed File's Saved Statistics From the Catalog.
+fn load_statistics(connection: &Connection, claims: Vec<Head>, settings: &StorageSettings) -> Result<Vec<Claim>> {
+    claims
+        .into_iter()
+        .map(
+            |Head {
+                 key: (execution, stream),
+                 codec,
+                 head,
+                 batches,
+             }| {
+                let id = catalog::identifier(&execution, &stream, &codec.digest);
+                Ok(Claim {
+                    key: (execution, stream),
+                    statistics: Statistics::load(connection, &id, settings.previews)?,
+                    id,
+                    codec,
+                    head,
+                    batches,
+                })
+            },
+        )
+        .collect()
 }
 
-fn accept(connection: &Connection, execution: &str, through: u64) -> Result<()> {
-    connection.execute(
-        "INSERT INTO temp.accepted VALUES(?1,?2) ON CONFLICT(execution) DO UPDATE SET position=excluded.position",
-        params![execution, through as i64],
-    )?;
-    Ok(())
-}
-
-fn admit(telemetry: &mut Telemetry, execution: &str, stream: String, codec: Arc<Codec>, batch: RecordBatch) {
-    let pending = telemetry.pending.entry((execution.into(), stream)).or_insert_with(|| Pending {
+fn admit(intake: &mut Intake, execution: &str, stream: String, codec: Arc<Codec>, batch: RecordBatch) {
+    let pending = intake.pending.entry((execution.into(), stream)).or_insert_with(|| Pending {
         codec,
         started: Instant::now(),
         batches: Vec::new(),
@@ -799,6 +978,7 @@ pub(super) fn span(batch: &RecordBatch) -> Result<(u64, u64, i64, i64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Evidence;
     use crate::telemetry::{aggregates::Moments, config::storage_defaults, previews::Envelope};
     use dokime_protocol::model::{Import, Origin, origin};
     use harmos_protocol::model::StreamDeclaration;
@@ -961,6 +1141,141 @@ mod tests {
         require_saved_once(&store, 1)
     }
 
+    /// A Store With the Fixture Execution's Streams Open.
+    fn opened(settings: StorageSettings) -> Result<(tempfile::TempDir, Store)> {
+        let root = tempfile::tempdir()?;
+        let store = Store::open_with(root.path(), settings)?;
+        store.create(&execution())?;
+        store.open_streams("execution", &(0..STREAMS).map(stream).collect::<Vec<_>>())?;
+        Ok((root, store))
+    }
+
+    /// Releases the Sync Gate Even When a Story's Assertion Fails, So Its Parked Sync Can Finish.
+    struct Released;
+
+    impl Drop for Released {
+        fn drop(&mut self) {
+            ipc::gate::release();
+        }
+    }
+
+    /// Run `path` on Its Own Thread, Run `during` Once Its Batch Sync Is Parked, Then Let the Sync Finish.
+    fn while_syncing<T: Send>(path: impl FnOnce() -> T + Send, during: impl FnOnce()) -> T {
+        ipc::gate::hold();
+        std::thread::scope(|scope| {
+            let running = scope.spawn(path);
+            {
+                let _released = Released;
+                ipc::gate::parked();
+                during();
+            }
+            running.join().unwrap()
+        })
+    }
+
+    /// Every Sample Position of an Execution, in Order.
+    fn saved_positions(store: &Store, execution: &str) -> Result<Vec<u64>> {
+        let mut positions = store.read(execution)?.samples.iter().map(|sample| sample.position).collect::<Vec<_>>();
+        positions.sort_unstable();
+        Ok(positions)
+    }
+
+    #[test]
+    fn intake_takes_neither_the_connection_nor_the_flush_lock() -> Result<()> {
+        let (_root, store) = opened(storage_defaults())?;
+        // Seals, Closures and Catalog Commits Hold These Locks; Admission Proceeds Without Them.
+        let connection = store.lock()?;
+        let telemetry = store.telemetry.lock().unwrap();
+        store.sample_batch("execution", &samples(0))?;
+        drop(telemetry);
+        drop(connection);
+        store.flush_samples()?;
+        require_saved_once(&store, 1)
+    }
+
+    #[test]
+    fn intake_admits_while_a_synchronous_flush_syncs() -> Result<()> {
+        let (_root, store) = opened(storage_defaults())?;
+        store.sample_batch("execution", &samples(0))?;
+        while_syncing(
+            || store.flush_samples(),
+            || {
+                assert!(store.intake.try_lock().is_ok());
+                store.sample_batch("execution", &samples(1)).unwrap();
+            },
+        )?;
+        // The Flush Saved Only What It Claimed; Rows Admitted During Its Sync Stay Pending Until the Next.
+        assert_eq!(store.cut("execution")?.frontier, ROWS * STREAMS as u64);
+        store.flush_samples()?;
+        require_saved_once(&store, 2)
+    }
+
+    #[test]
+    fn evidence_follows_its_samples_while_intake_continues_during_its_sync() -> Result<()> {
+        let (_root, store) = opened(storage_defaults())?;
+        let round = ROWS * STREAMS as u64;
+        store.sample_batch("execution", &samples(0))?;
+        let evidence = Evidence {
+            kind: "note".into(),
+            ..Default::default()
+        };
+        let position = while_syncing(
+            || store.append("execution", evidence),
+            || {
+                assert!(store.intake.try_lock().is_ok());
+                store.sample_batch("execution", &samples(1)).unwrap();
+            },
+        )?;
+        // The Barrier Reserved the Evidence Position First: Earlier Samples Are Saved, Later Ones Follow It.
+        assert_eq!(position, round + 1);
+        assert_eq!(store.cut("execution")?.frontier, position);
+        assert_eq!(store.intake()?.pending.values().map(|pending| pending.rows).sum::<usize>(), round as usize);
+        store.flush_samples()?;
+        assert_eq!(saved_positions(&store, "execution")?, (1..=round).chain(round + 2..=2 * round + 1).collect::<Vec<_>>());
+        Ok(())
+    }
+
+    #[test]
+    fn finalization_stops_its_intake_while_other_executions_keep_admitting() -> Result<()> {
+        let (_root, store) = opened(storage_defaults())?;
+        let mut other = execution();
+        other.identifier = "other".into();
+        store.create(&other)?;
+        store.open_streams("other", &(0..STREAMS).map(stream).collect::<Vec<_>>())?;
+        store.sample_batch("execution", &samples(0))?;
+        while_syncing(
+            || store.close_streams("execution"),
+            || {
+                assert!(store.intake.try_lock().is_ok());
+                store.sample_batch("other", &samples(0)).unwrap();
+                assert!(store.sample_batch("execution", &samples(1)).is_err());
+            },
+        )?;
+        assert!(store.streams_closed("execution")?);
+        require_saved_once(&store, 1)?;
+        store.close_streams("other")?;
+        assert_eq!(saved_positions(&store, "other")?, (1..=ROWS * STREAMS as u64).collect::<Vec<_>>());
+        Ok(())
+    }
+
+    #[test]
+    fn byte_pressure_flushes_on_the_admitting_caller_without_the_intake_lock() -> Result<()> {
+        let mut settings = storage_defaults();
+        settings.pending_bytes = NonZeroUsize::new(1).unwrap();
+        let (_root, store) = opened(settings)?;
+        while_syncing(
+            || store.sample_batch("execution", &samples(0)),
+            || {
+                // The Pressured Caller Waits for Its Own Flush; Intake State Stays Readable and Its Rows Stay Counted.
+                let intake = store.intake.try_lock().unwrap();
+                assert_eq!(intake.pending.values().map(|pending| pending.rows).sum::<usize>(), (ROWS * STREAMS as u64) as usize);
+            },
+        )?;
+        require_saved_once(&store, 1)?;
+        store.sample_batch("execution", &samples(1))?;
+        require_saved_once(&store, 2)
+    }
+
     #[test]
     fn a_round_syncs_without_the_locks_and_the_next_flush_settles_it() -> Result<()> {
         let root = tempfile::tempdir()?;
@@ -1017,12 +1332,12 @@ mod tests {
         store.sample_batch("execution", &samples(0))?;
         let claims = {
             let connection = store.lock()?;
-            store.telemetry.lock().unwrap().claim(&connection)?
+            load_statistics(&connection, store.intake()?.claim(None)?, &settings)?
         };
         let prepared = prepare(claims, &settings)?;
         store.flush_samples()?;
         store.sample_batch("execution", &samples(1))?;
-        assert!(!prepared.iter().any(|prepared| store.telemetry.lock().unwrap().current(prepared)));
+        assert!(!prepared.iter().any(|prepared| store.intake().unwrap().current(prepared)));
         // Background Rounds Flush All Stream Files in Parallel While Rows and Synchronous Flushes Keep Arriving.
         let done = AtomicBool::new(false);
         std::thread::scope(|scope| -> Result<()> {

@@ -58,9 +58,9 @@ impl Store {
     pub fn sample_frontier(&self, execution: &str, stream: &str, after: u64, through: u64) -> Result<u64> {
         let connection = self.lock()?;
         let (saved,partial):(u64,Option<u64>)=connection.query_row("SELECT COALESCE(MAX(CASE WHEN b.last_position<=?4 THEN b.last_position END),0),MIN(CASE WHEN b.last_position>?4 THEN b.first_position END) FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1 AND f.stream=?2 AND b.last_position>?3 AND b.first_position<=?4",params![execution,stream,after as i64,through.min(i64::MAX as u64) as i64],|row|Ok((row.get::<_,i64>(0)? as u64,row.get::<_,Option<i64>>(1)?.map(|v|v as u64))))?;
-        let telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry reader lock failed"))?;
+        let intake = self.intake()?;
         let pending = if self.cancelled.is_none() {
-            telemetry
+            intake
                 .pending
                 .get(&(execution.into(), stream.into()))
                 .map(|pending| {
@@ -76,7 +76,7 @@ impl Store {
         } else {
             0
         };
-        drop(telemetry);
+        drop(intake);
         drop(connection);
         let mut frontier = saved.max(pending);
         if let Some(first) = partial {
@@ -129,7 +129,7 @@ impl Store {
             .collect::<std::result::Result<Vec<_>, _>>()?;
         drop(query);
         let tail = if self.cancelled.is_none() {
-            telemetry
+            self.intake()?
                 .pending
                 .get(&(selection.execution.into(), selection.stream.into()))
                 .map(|pending| pending.batches.iter().map(|batch| tail(batch, &selection)).collect::<Result<Vec<_>>>())
@@ -276,7 +276,7 @@ impl Store {
         self.sample_window(window)
     }
     pub fn accepted_frontier(&self, execution: &str) -> Result<u64> {
-        Ok(crate::store::next_position(&*self.lock()?, execution)?.saturating_sub(1))
+        self.accepted_position(&*self.lock()?, execution)
     }
     pub(crate) fn all_samples(&self, execution: &str, through: u64) -> Result<Vec<Sample>> {
         self.sample_window(SampleWindow {

@@ -11,6 +11,40 @@
 
 /* === Modules === */
 
+/// A Test Gate That Parks Every Batch Sync Until Released, So Stories Can Act While a Sync Is in Progress.
+#[cfg(test)]
+pub(crate) mod gate {
+    use std::sync::{Condvar, Mutex};
+
+    /// Whether Syncs Are Held, and How Many Wait at the Gate.
+    static STATE: Mutex<(bool, usize)> = Mutex::new((false, 0));
+    static CHANGED: Condvar = Condvar::new();
+
+    pub(crate) fn hold() {
+        STATE.lock().unwrap().0 = true;
+    }
+    pub(crate) fn release() {
+        STATE.lock().unwrap().0 = false;
+        CHANGED.notify_all();
+    }
+    /// Wait Until a Sync Is Parked at the Gate.
+    pub(crate) fn parked() {
+        let mut state = STATE.lock().unwrap();
+        while state.1 == 0 {
+            state = CHANGED.wait(state).unwrap();
+        }
+    }
+    pub(super) fn pass() {
+        let mut state = STATE.lock().unwrap();
+        state.1 += 1;
+        CHANGED.notify_all();
+        while state.0 {
+            state = CHANGED.wait(state).unwrap();
+        }
+        state.1 -= 1;
+    }
+}
+
 mod projection;
 
 /* === Re-Exports === */
@@ -126,6 +160,8 @@ impl SyncHandle {
         if self.fail {
             return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
         }
+        #[cfg(test)]
+        gate::pass();
         let _span = tracing::debug_span!("ingest.ipc.sync").entered();
         self.file.sync_all()?;
         Ok(())
@@ -255,6 +291,8 @@ impl Writer {
         if std::mem::take(&mut self.fail_sync) {
             return Err(Error::Io(std::io::Error::other("injected batch sync failure")));
         }
+        #[cfg(test)]
+        gate::pass();
         let _span = tracing::debug_span!("ingest.ipc.sync").entered();
         self.file.file.sync_all()?;
         Ok(())

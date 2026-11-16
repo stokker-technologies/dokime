@@ -71,6 +71,7 @@ pub struct Store {
     pub(crate) snapshot_pins: Arc<Mutex<BTreeMap<String, usize>>>,
     pub(crate) projection: Arc<Mutex<Option<crate::expressions::Projection>>>,
     pub(crate) telemetry: Arc<Mutex<crate::telemetry::Telemetry>>,
+    pub(crate) intake: Arc<Mutex<crate::telemetry::Intake>>,
     pub(crate) identity: Arc<str>,
     pub(crate) cancelled: Option<Arc<AtomicBool>>,
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
@@ -105,6 +106,7 @@ impl Store {
     }
     pub fn open_with(root: &Path, settings: StorageSettings) -> Result<Self> {
         let telemetry = crate::telemetry::Telemetry::new(settings)?;
+        let intake = crate::telemetry::Intake::new(settings);
         std::fs::create_dir_all(root)?;
         let database = root.join("execution.sqlite3");
         let exists = database.exists();
@@ -198,7 +200,6 @@ impl Store {
                 CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));", telemetry_schema=format_args!("{}{}{}",crate::telemetry::catalog::SCHEMA,crate::telemetry::aggregates::SCHEMA,crate::telemetry::previews::SCHEMA)))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
-        connection.execute_batch("CREATE TEMP TABLE accepted(execution TEXT PRIMARY KEY, position INTEGER NOT NULL)")?;
         std::fs::create_dir_all(root.join("telemetry"))?;
         crate::telemetry::catalog::collect_garbage(root, &connection)?;
         let identity_path = root.join("backend-id");
@@ -245,18 +246,21 @@ impl Store {
         if native_history.store != identity || uuid::Uuid::parse_str(&native_history.epoch).is_err() {
             return Err(Error::Incompatible(root.display().to_string()));
         }
-        Ok(Self {
+        let store = Self {
             connection: Arc::new(Mutex::new(connection)),
             database: Arc::new(database),
             snapshot_pins: Arc::new(Mutex::new(BTreeMap::new())),
             projection: Arc::new(Mutex::new(None)),
             telemetry: Arc::new(Mutex::new(telemetry)),
+            intake: Arc::new(Mutex::new(intake)),
             identity: identity.into(),
             cancelled: None,
             statistics: Arc::new(Mutex::new(HashMap::new())),
             verified: Arc::new(Mutex::new(HashMap::new())),
             changed: tokio::sync::watch::channel(0).0,
-        })
+        };
+        store.restore_intake()?;
+        Ok(store)
     }
     pub(crate) fn storage_history(&self) -> Result<History> {
         let bytes: Vec<u8> =
@@ -276,7 +280,7 @@ impl Store {
     }
     pub fn read_session(&self) -> Result<(Self, ReadCancellation)> {
         let connection = Connection::open_with_flags(self.database.as_path(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-        connection.execute_batch("CREATE TEMP TABLE accepted(execution TEXT PRIMARY KEY, position INTEGER NOT NULL); BEGIN")?;
+        connection.execute_batch("BEGIN")?;
         let interrupt = connection.get_interrupt_handle();
         let cancelled = Arc::new(AtomicBool::new(false));
         let session = Self {
@@ -285,6 +289,7 @@ impl Store {
             snapshot_pins: self.snapshot_pins.clone(),
             projection: Arc::new(Mutex::new(None)),
             telemetry: self.telemetry.clone(),
+            intake: self.intake.clone(),
             identity: self.identity.clone(),
             cancelled: Some(cancelled.clone()),
             statistics: self.statistics.clone(),
@@ -357,10 +362,12 @@ impl Store {
     }
     pub fn append(&self, execution: &str, mut evidence: Evidence) -> Result<u64> {
         let mut connection = self.lock()?;
-        self.flush_samples_locked(&mut connection)?;
+        let reserved = self.barrier(&mut connection, execution)?;
+        evidence.position = reserved.take();
         let transaction = connection.transaction()?;
-        insert_evidence(&transaction, execution, &mut evidence)?;
+        insert_evidence(&transaction, execution, &evidence)?;
         transaction.commit()?;
+        reserved.committed();
         self.changed.send_modify(|revision| *revision += 1);
         Ok(evidence.position)
     }
@@ -374,7 +381,7 @@ impl Store {
             return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));
         }
         let mut connection = self.lock()?;
-        self.flush_samples_locked(&mut connection)?;
+        let reserved = self.barrier(&mut connection, execution)?;
         let transaction = connection.transaction()?;
         let saved: Option<(Vec<u8>, i64)> = transaction
             .query_row(
@@ -389,7 +396,8 @@ impl Store {
             }
             position as u64
         } else {
-            insert_evidence(&transaction, execution, &mut evidence)?;
+            evidence.position = reserved.take();
+            insert_evidence(&transaction, execution, &evidence)?;
             transaction.execute(
                 "INSERT INTO resource_requests VALUES(?1,?2,?3,?4,?5)",
                 params![execution, operation, request_id, fingerprint, evidence.position as i64],
@@ -398,6 +406,7 @@ impl Store {
         };
         transaction.execute("INSERT OR IGNORE INTO read_positions VALUES(?1,?2)", params![execution, position as i64])?;
         transaction.commit()?;
+        reserved.committed();
         self.changed.send_modify(|revision| *revision += 1);
         let durable = Position {
             history: Some(History {
@@ -454,6 +463,7 @@ impl Store {
         value.outcome = Some(outcome);
         transaction.execute("UPDATE executions SET state=1,payload=?2 WHERE id=?1", params![execution, value.encode_to_vec()])?;
         transaction.commit()?;
+        self.retire_intake(execution)?;
         self.changed.send_modify(|revision| *revision += 1);
         self.statistics
             .lock()
@@ -517,9 +527,9 @@ impl Store {
 
 /* === Private Functions === */
 
-fn insert_evidence(transaction: &Transaction<'_>, execution: &str, evidence: &mut Evidence) -> Result<()> {
+/// Insert Evidence at the Position Its Barrier Reserved.
+fn insert_evidence(transaction: &Transaction<'_>, execution: &str, evidence: &Evidence) -> Result<()> {
     require_open(transaction, execution)?;
-    evidence.position = next_position(transaction, execution)?;
     transaction.execute(
         "INSERT INTO evidence(execution,position,payload,kind) VALUES (?1,?2,?3,?4)",
         params![execution, evidence.position as i64, evidence.encode_to_vec(), evidence.kind],
@@ -592,12 +602,6 @@ pub(crate) fn require_open(connection: &Connection, execution: &str) -> Result<(
         return Err(Error::Invalid("Start an Open Execution Before Writing Evidence".into()));
     }
     Ok(())
-}
-pub(crate) fn next_position(connection: &Connection, execution: &str) -> Result<u64> {
-    let durable = saved_position(connection, execution)?;
-    let accepted: i64 =
-        connection.query_row("SELECT COALESCE(MAX(position),0) FROM temp.accepted WHERE execution=?1", [execution], |row| row.get(0))?;
-    Ok(durable.max(accepted as u64) + 1)
 }
 pub(crate) fn saved_position(connection: &Connection, execution: &str) -> Result<u64> {
     Ok(connection.query_row("SELECT MAX(COALESCE((SELECT MAX(position) FROM evidence WHERE execution=?1),0),COALESCE((SELECT MAX(b.last_position) FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1),0))",[execution],|row|row.get::<_,i64>(0))? as u64)

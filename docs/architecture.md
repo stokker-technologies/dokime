@@ -545,13 +545,20 @@ exclude later positions.
 Flush policy is owned by `telemetry/config.rs`. A stream reaching 65,536 rows wakes the
 background round at once, and five seconds after its oldest pending row the timer does;
 the round prepares without the store's locks and drops claims a synchronous flush saved
-first. It writes under the locks, then syncs duplicated file handles without them, so
-admission on the host's stream delivery never waits for a file sync; the round catalogs
-its batches afterwards unless a flush holding the locks first synced and cataloged them,
-as every synchronous flush, finalization and later round does before claiming. Pending bytes reaching 64 MiB flush inline on the admitting caller, which bounds
-memory. Evidence barriers retain the writer connection through a synchronous flush and
-the following mutation, and shutdown flushes and closes sample admission under that
-lock. Without a runtime, a due row count also flushes inline. Host settings compose this
+first. It writes under the connection, then syncs duplicated file handles without it,
+and catalogs its batches afterwards unless a flush holding the connection first synced
+and cataloged them, as every synchronous flush, finalization and later round does before
+claiming. Intake (`telemetry.rs` `Intake`: open streams, accepted positions and pending
+rows) has its own short lock and takes neither the connection nor the flush lock, so no
+sync, catalog commit, seal or barrier ever delays admission; flushes take the intake lock
+only to copy and release pending batches. Pending bytes over 64 MiB flush inline on the
+admitting caller, the only back-pressure intake applies, which bounds memory. Evidence
+reserves its position from the same counter before its barrier, which saves the
+execution's samples before that position and leaves later ones pending; the connection
+stays held through the following mutation, and an unused reservation is returned.
+Finalization stops the execution's intake before its flush, and shutdown flushes and
+closes sample admission. The host's stream consumer (`dokime-runtime/src/streams.rs`)
+admits each delivery on a blocking task, off the async delivery loop. Without a runtime, a due row count also flushes inline. Host settings compose this
 policy; CLI configuration exposes row, interval, pending and query bounds. Shutdown wakes
 and joins every active flush worker before releasing its root. The product host runs on
 a multi-thread runtime, so a brief wait on the store's blocking locks never stalls plugin

@@ -129,9 +129,7 @@ impl Store {
         let transaction = connection.transaction()?;
         for position in positions {
             let history = position.history.as_ref().ok_or_else(|| Error::Invalid("Retain Read: Supply a History".into()))?;
-            if history.store != self.identity.as_ref()
-                || position.sequence > crate::store::next_position(&transaction, &history.epoch)?.saturating_sub(1)
-            {
+            if history.store != self.identity.as_ref() || position.sequence > self.accepted_position(&transaction, &history.epoch)? {
                 return Err(Error::Invalid("Retain Read: Use a Position in This Storage History".into()));
             }
             transaction.execute("INSERT OR IGNORE INTO read_positions VALUES (?1,?2)", params![history.epoch, position.sequence as i64])?;
@@ -194,7 +192,7 @@ impl Store {
         }
         let fingerprint = digest.finalize().to_vec();
         let mut connection = self.lock()?;
-        self.flush_samples_locked(&mut connection)?;
+        let reserved = self.barrier(&mut connection, execution)?;
         let transaction = connection.transaction()?;
         let replay: Option<(Vec<u8>, i64)> = transaction
             .query_row(
@@ -218,7 +216,7 @@ impl Store {
             if (current as u64).to_be_bytes() != expected_revision {
                 return Err(Error::Conflict(format!("Set {resource}: Get Again and Retry the Revision")));
             }
-            let position = crate::store::next_position(&transaction, execution)?;
+            let position = reserved.take();
             evidence.position = position;
             transaction.execute(
                 "INSERT INTO evidence(execution,position,payload,kind) VALUES (?1,?2,?3,?4)",
@@ -236,6 +234,7 @@ impl Store {
         };
         transaction.execute("INSERT OR IGNORE INTO read_positions VALUES (?1,?2)", params![execution, position as i64])?;
         transaction.commit()?;
+        reserved.committed();
         drop(connection);
         self.changed.send_modify(|revision| *revision += 1);
         let resolved_at = Position {

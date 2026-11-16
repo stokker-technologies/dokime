@@ -45,18 +45,35 @@ use config::StorageSettings;
 
 /* === Structs === */
 
+/// Flush State: Arrow Writers, Their Codecs and a Background Round's Unsynced Batches.
+///
+/// Flushes hold this lock, and the store's connection, while they write and sync; stream intake
+/// never takes either.
 pub(crate) struct Telemetry {
     settings: StorageSettings,
-    pending: BTreeMap<(String, String), Pending>,
     writers: BTreeMap<String, ipc::Writer>,
     codecs: BTreeMap<(String, String), Arc<Codec>>,
     /// A Background Round's Written Batches Awaiting Their Sync and Catalog Commit.
     unsynced: Option<writer::Unsynced>,
     rounds: u64,
+}
+
+/// Stream Intake: Open Streams, Accepted Positions and Pending Rows Under One Short Lock.
+///
+/// No disk write, sync or catalog query happens under this lock, so admitting samples never
+/// waits for a flush; flushes take it only to copy and release pending batches.
+pub(crate) struct Intake {
+    settings: StorageSettings,
+    pending: BTreeMap<(String, String), Pending>,
+    /// The Codec of Every Open Execution Stream; Only These Accept Samples.
+    streams: BTreeMap<(String, String), Arc<Codec>>,
+    /// The Last Position Each Execution Allocated to a Sample or Evidence.
+    accepted: BTreeMap<String, u64>,
     running: bool,
     closed: bool,
     workers: Vec<tokio::task::JoinHandle<()>>,
 }
+
 /// Accepted Rows Awaiting Their Flush, Already in Their Stored Arrow Layout.
 struct Pending {
     codec: Arc<Codec>,
@@ -83,15 +100,25 @@ impl Telemetry {
         }
         Ok(Self {
             settings,
-            pending: BTreeMap::new(),
             writers: BTreeMap::new(),
             codecs: BTreeMap::new(),
             unsynced: None,
             rounds: 0,
+        })
+    }
+}
+
+impl Intake {
+    pub(crate) fn new(settings: StorageSettings) -> Self {
+        Self {
+            settings,
+            pending: BTreeMap::new(),
+            streams: BTreeMap::new(),
+            accepted: BTreeMap::new(),
             running: false,
             closed: false,
             workers: Vec::new(),
-        })
+        }
     }
 }
 
