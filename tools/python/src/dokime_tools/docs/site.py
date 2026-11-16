@@ -184,11 +184,14 @@ def _astro(directory: Path, selected: str, *arguments: str) -> None:
     settings = policy.policy(directory, "release")
     if settings.get("provider") != "github":
         raise policy.ToolError("Build Documentation: Source Links Support the GitHub Provider Only")
+    version = policy.policy(directory, "version")["value"]
+    reference = _revision(directory) if selected == DEVELOPMENT else f"v{version}"
     environment = {
         **os.environ,
         "ASTRO_TELEMETRY_DISABLED": "1",
         "DOCS_ENTRY": selected,
-        "DOCS_SOURCE": f"https://github.com/{settings['repository']}/blob/{_revision(directory)}/",
+        # A Release Line Links To Its Tag; Review Checkouts Are Merge Commits That Do Not Outlive The Review.
+        "DOCS_SOURCE": f"https://github.com/{settings['repository']}/blob/{reference}/",
     }
     command = [executable, "--dir", SITE, "exec", "astro", *arguments]
     result = subprocess.run(command, cwd=directory, env=environment, check=False, creationflags=spawn_flags())

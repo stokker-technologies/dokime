@@ -35,11 +35,12 @@ or heading anchor. The organization logo and typefaces are referenced from `orga
 
 | Channel | Asset | Source | Site Entry |
 | --- | --- | --- | --- |
-| Stable release | `dokime-docs-<version>.zip` | the release review | `/<line>/`, and `/latest/` when newest |
+| Stable release | `dokime-docs-<version>.zip` | the release review of the tag | `/<line>/`, and `/latest/` when newest |
 | Nightly | `dokime-docs-nightly.zip` | the `dev` branch | `/dev/` |
 
 An archive holds the built entry at its root and a `docs.json` stamp naming the entry, version and
-source revision. `docs:build -- --archive` packs it as `target/docs/dokime-docs.zip`; release
+built revision. A release line links repository files at its tag; the development entry links them
+at its revision. `docs:build -- --archive` packs it as `target/docs/dokime-docs.zip`; release
 staging copies it under its channel's asset name after checking the stamp against the release, and
 the release index classifies it as `docs`. It holds the guides and the references available for its
 source, generated with the tools that source pins.
@@ -67,13 +68,13 @@ generator handles its SDK as built is verified when the SDK references are gener
 | --- | --- | --- | --- |
 | Operations and messages | protocol files and their comments | repository tooling over `buf build` | pinned `buf` 1.75.0 |
 | Rust SDK | doc comments | Rustdoc | ships with the pinned Rust toolchain |
-| Python SDK | docstrings and type stubs | Sphinx AutoAPI (static, reads `.pyi`) | 3.9.0, 2026-10-31 |
+| Python SDK | docstrings and type stubs | Sphinx AutoAPI (candidate, static analysis) | 3.9.0, 2026-10-31 |
 | C# SDK | XML documentation comments | DocFX | 2.81.0, 2026-09-25 |
 | C++ SDK | header comments | Doxygen | 1.18.0, 2026-08-13 |
 
-`protoc-gen-doc` was not adopted: its latest release (1.5.1) dates from 2022-02-18. `pdoc` was not
-adopted for Python: it imports the module instead of reading its stubs, and its latest release
-(16.0.0) dates from 2025-10-27.
+`protoc-gen-doc` was not adopted: its latest release (1.5.1) dates from 2022-02-18. For Python,
+Sphinx AutoAPI is the candidate because it analyses sources and stubs statically; `pdoc` imports the
+module and its latest release (16.0.0) dates from 2025-10-27. Stub handling is confirmed with 2.2.
 
 A native Python module is documented from its stubs, so a generator that only imports the module
 does not qualify.

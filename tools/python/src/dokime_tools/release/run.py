@@ -863,7 +863,8 @@ def _documentation(directory: Path, root: Path, tag: str, channel: str, *, requi
     entry = "dev" if channel == "nightly" else f"{major}.{minor}"
     if stamp.get("entry") != entry or (channel != "nightly" and stamp.get("version") != tag[1:]):
         raise policy.ToolError(
-            f"Stage Documentation: Archive Holds Entry {stamp.get('entry')} {stamp.get('version')}, Expected {entry} {tag[1:]}"
+            f"Stage Documentation: Archive Holds Entry {stamp.get('entry')} {stamp.get('version')}, Expected {entry} {tag[1:]}; "
+            f"Rebuild It With mise run docs:build -- {'' if channel == 'nightly' else '--release '}--archive"
         )
     destination = root / SHARED / f"dokime-docs-{'nightly' if channel == 'nightly' else tag[1:]}.zip"
     shutil.copyfile(source, destination)
