@@ -307,6 +307,8 @@ def main() -> int:
         server.stdout.read()
         if server.wait() != 0:
             raise policy.ToolError(f"Install the OBC Plugin: the Seeding Host Exited With {server.returncode}")
+        # The Reaped Host's Identifier May Be Reused; Stop Never Signals It Again.
+        owner.processes.remove(server)
 
         # Start Tauri Dev With Vite Live Reload; Closing the Window Ends It
         desktop = owner.start(
@@ -323,8 +325,10 @@ def main() -> int:
     except (policy.ToolError, OSError, subprocess.CalledProcessError) as error:
         print(f"dev: {error}", file=sys.stderr)
     finally:
-        # Clean Up Once, Even When Interrupted Again
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        # Clean Up Once, Even When Interrupted or Terminated Again
+        for name in ("SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"):
+            if hasattr(signal, name):
+                signal.signal(getattr(signal, name), signal.SIG_IGN)
         owner.stop()
         discard(root, namespace, host, environment)
         print(f"[dev] Removed {root} and the Credentials of {namespace}", flush=True)
