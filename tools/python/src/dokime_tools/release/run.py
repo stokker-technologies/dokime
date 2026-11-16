@@ -56,6 +56,8 @@ ASSETS = "target/release-assets"
 SHARED = "any"
 # Both Registry Identities Belong To The Protected Native Release Workflow.
 RELEASE_WORKFLOW = "release.yml"
+# Verbs Whose Registry Prerequisites Depend On The Channel; RELEASE_CHANNEL Carries It Through Task Chains.
+CHANNEL_VERBS = ("rehearse", "crates-dry")
 VERBS = [
     "prepare",
     "review",
@@ -673,16 +675,19 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--target", help="Rehearse native, one declared release target, or all targets; hosted runs require all.")
     parser.add_argument("--profile", choices=("dev", "release"), help="Local rehearsal package profile; defaults to release.")
     parser.add_argument("--stage-only", action="store_true", help="Local rehearsal staging without registry dry-runs.")
-    parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
+    parser.add_argument("--channel", choices=("stable", "nightly"))
     options = parser.parse_args(arguments)
     try:
+        channel = options.channel or (os.environ.get("RELEASE_CHANNEL") if options.verb in CHANNEL_VERBS else None) or "stable"
+        if channel not in ("stable", "nightly"):
+            raise policy.ToolError("Select Release Channel: Set RELEASE_CHANNEL to stable or nightly")
         run(
             policy.root(),
             options.verb,
             target=options.target,
             profile=options.profile,
             stage_only=options.stage_only,
-            channel=options.channel,
+            channel=channel,
         )
     except (policy.ToolError, OSError, ValueError, KeyError, TypeError) as error:
         print(f"release: {error}", file=sys.stderr)
@@ -693,8 +698,10 @@ def main(arguments: list[str] | None = None) -> int:
 def run(
     directory: Path, verb: str, *, target: str | None = None, profile: str | None = None, stage_only: bool = False, channel: str = "stable"
 ) -> None:
-    if verb != "rehearse" and (target is not None or profile is not None or stage_only or channel != "stable"):
-        raise policy.ToolError("Select Rehearsal: --target, --profile, --stage-only and --channel Are Supported Only by Rehearsal")
+    if verb != "rehearse" and (target is not None or profile is not None or stage_only):
+        raise policy.ToolError("Select Rehearsal: --target, --profile and --stage-only Are Supported Only by Rehearsal")
+    if verb not in CHANNEL_VERBS and channel != "stable":
+        raise policy.ToolError("Select Channel: --channel Is Supported Only by Rehearsal and the Crate Dry Run")
     settings = policy.policy(directory, "release")
     operations = {
         "prepare": prepare,
@@ -704,7 +711,7 @@ def run(
             directory, settings, target=target, profile=profile or "release", stage_only=stage_only, channel=channel
         ),
         "identity": identity,
-        "crates-dry": lambda directory, settings: registry.rehearse_crates(directory, skip_published=False),
+        "crates-dry": lambda directory, settings: registry.rehearse_crates(directory, skip_published=False, channel=channel),
         "tag": tag,
         "crates": crates,
         "publish": publish,

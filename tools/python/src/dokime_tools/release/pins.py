@@ -50,10 +50,12 @@ def check(directory: Path, *, warn: bool = False) -> bool:
     message = "release requires registry dependencies; git dependencies: " + ", ".join(names)
     if not warn:
         raise policy.ToolError(message)
-    print("::warning::" + message + "; skipping crate publication dry run")
+    # Cargo Cannot Package A Crate Whose Dependencies Resolve Only From Git, So Only That Step Is Skipped.
+    pending = "Stable Release Prerequisite Pending: " + message + "; Pin Published Registry Versions Before a Stable Release"
+    print("::warning::" + pending + "; skipping the crate publication dry run on this non-stable channel")
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(summary).open("a", encoding="utf-8") as stream:
-            stream.write("\n### Release Pin Warning\n\n" + message + "\n")
+            stream.write("\n### Release Prerequisite Pending\n\n" + pending + "\n")
     return False
 
 

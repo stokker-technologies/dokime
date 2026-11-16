@@ -368,6 +368,8 @@ def main(arguments: list[str] | None = None) -> int:
             nightly.publish(policy.root())
             return 0
         if args.dry:
+            # The Chained Crate Dry Run Reads The Channel; Only Nightly Reports Git Pins As Pending.
+            os.environ["RELEASE_CHANNEL"] = args.channel
             tasks = [("release:publish:dry", [])]
         else:
             tasks = [(f"release:publish:{stage}", []) for stage in ([args.stage] if args.stage else ["assets", "finalize"])]
