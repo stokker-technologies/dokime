@@ -45,7 +45,7 @@ use dokime_protocol::plugin::{
 };
 use dokime_storage::{Execution, ExecutionSnapshot, OutcomeCounts};
 use harmos_protocol::host::PluginEntry;
-use harmos_runtime::plugin::grpc::ScopedBinding;
+use harmos_runtime::plugin::grpc::{Error as BindingError, ScopedBinding};
 
 /* === Constants === */
 
@@ -103,7 +103,7 @@ impl ActiveRun {
     // Stop Scoped Calls and Await Accepted Ingestion; the Scope Stays Until Drop.
     async fn close(&mut self) -> Result<()> {
         let Some(binding) = self.binding.take() else { return Ok(()) };
-        binding.close().await.map_err(|source| Error::Invalid(format!("Close Execution Binding: {source}")))
+        binding.close().await.map_err(|source| settlement("Close Execution Binding", &source))
     }
 }
 impl Drop for ActiveRun {
@@ -114,6 +114,7 @@ impl Drop for ActiveRun {
         let host = release.host.clone();
         let _ = host.spawn(async move {
             if let Err(source) = binding.close().await {
+                let source = settlement("Close Abandoned Execution Binding", &source);
                 let execution = &release.execution;
                 tracing::error!(%execution, %source, "Close Abandoned Execution Binding; Inspect the Interrupted Evidence");
             }
@@ -231,6 +232,17 @@ pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str,
 }
 
 /* === Private Functions === */
+
+/// Name the Binding Action That Failed and What Resolves It.
+fn settlement(action: &str, source: &BindingError) -> Error {
+    match source {
+        BindingError::Deadline { .. } => Error::Invalid(format!(
+            "{action}: The Plugin Did Not Settle Its Samples Within stop_grace; Rebuild It on an SDK That Ends Samples When the Host \
+             Closes Demand, Then Rerun the Execution"
+        )),
+        source => Error::Invalid(format!("{action}: {source}")),
+    }
+}
 
 fn launch(
     host: ExecutionManager, identifier: String, executions: Vec<String>, prepared: Vec<(String, Origin, PluginEntry)>,
@@ -412,6 +424,7 @@ async fn drive(
         states.push(RunState::Initializing);
         host.set_run_phase(&execution, "initializing")?;
         let mut initialized = template.initialize.is_none();
+        let mut sampling = false;
         let mut evaluated = Vec::new();
         let result: Result<()> = async {
             if dispatch.cancellation.is_cancelled() {
@@ -430,6 +443,9 @@ async fn drive(
                     .await?;
                 initialized = true;
             }
+            // The Plugin Has Registered the Unit, So the Host May Now Tick Its Streams.
+            binding.start_samples().await.map_err(|source| settlement("Start Execution Samples", &source))?;
+            sampling = true;
             states.push(RunState::Stepping);
             host.set_run_phase(&execution, "stepping")?;
             while let Some((index, mut command)) = control.next(case, &dispatch.cancellation).await? {
@@ -480,6 +496,9 @@ async fn drive(
                 result?;
             }
             dispatch.resources.step.clear();
+            // Criteria Read Settled Streams: Every Granted Tick Is Committed Before Evaluation.
+            sampling = false;
+            binding.stop_samples().await.map_err(|source| settlement("Stop Execution Samples", &source))?;
             states.push(RunState::Evaluating);
             host.set_run_phase(&execution, "evaluating")?;
             for criterion in &case.criteria {
@@ -520,6 +539,12 @@ async fn drive(
         host.set_run_phase(&execution, "cleaning_up")?;
         dispatch.cancellation = CancellationToken::new();
         dispatch.resources.step.clear();
+        // A Run That Stopped Early Still Ends Its Demand Before Cleanup Ends the Unit.
+        if sampling && let Err(source) = binding.stop_samples().await {
+            termination = Termination::Interrupted;
+            let error = settlement("Stop Execution Samples", &source);
+            dispatch.resources.evidence("streams:failure", error.to_string().into_bytes(), None)?;
+        }
         if initialized && let Some(operation) = &template.cleanup {
             let cleanup = dispatch
                 .invoke::<_, ExecutionsCleanupResponse>(

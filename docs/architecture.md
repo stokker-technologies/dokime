@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `7181b5ed33c9d2be79c38d266b0a97d838b05ed6`, rather than
+[Cargo.toml](../Cargo.toml), `5d601dd320edb0fc69131dc2851d789c4dd1e4c0`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -691,7 +691,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/7181b5ed33c9d2be79c38d266b0a97d838b05ed6/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/5d601dd320edb0fc69131dc2851d789c4dd1e4c0/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -801,7 +801,7 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `7181b5ed33c9d2be79c38d266b0a97d838b05ed6`.
+The definition pass pins Harmos at `5d601dd320edb0fc69131dc2851d789c4dd1e4c0`.
 Consumer repairs follow the table below.
 The pin and generated contracts do not establish consumer compilation.
 

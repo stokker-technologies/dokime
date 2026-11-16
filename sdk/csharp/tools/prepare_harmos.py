@@ -39,7 +39,8 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision: str = "7181b5ed33c9d2be79c38d266b0a97d838b05ed6"
+revision: str = "5d601dd320edb0fc69131dc2851d789c4dd1e4c0"
+version: str = f"0.1.0-dev.{revision[:12]}"
 root: Path = Path(__file__).resolve().parents[1]
 feed: Path = root / "../../target/cs/feed"
 feed.mkdir(parents=True, exist_ok=True)
@@ -94,6 +95,10 @@ subprocess.run(
     [
         sys.argv[1],
         "pack",
+        # The Package Identity Derives From the Revision, So Changed Bytes Never Reuse a Locked Version.
+        f"-p:Version={version}",
+        f"-p:SourceRevisionId={revision}",
+        f"-p:RepositoryCommit={revision}",
         "-p:RestorePackagesWithLockFile=true",
         f"-p:NuGetLockFilePath={root / 'tools/Harmos.packages.lock.json'}",
         "-p:RestoreLockedMode=" + ("false" if "--refresh-lock" in sys.argv else "true"),

@@ -56,7 +56,6 @@ serde_json = { workspace = true }
 # Concurrency
 
 # Async
-tokio = { workspace = true }
 
 # Networking
 
