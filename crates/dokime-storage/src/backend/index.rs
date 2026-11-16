@@ -25,7 +25,6 @@ use harmos_query::columnar::ArrowScan;
 use harmos_query::columnar::Cancellation;
 use harmos_query::columnar::ColumnKind;
 use harmos_query::columnar::ColumnSource;
-use harmos_query::index as execution;
 use harmos_query::index::IndexDefinition;
 use harmos_query::index::IndexEntry;
 use harmos_query::index::IndexPage;
@@ -150,7 +149,7 @@ pub(super) fn register(
                     if row % 256 == 0 {
                         cancel.check()?;
                     }
-                    let entry = execution::entry(&page.batch, definition, row)?;
+                    let entry = harmos_query::index::entry(&page.batch, definition, row)?;
                     key_bytes = key_bytes.saturating_add(entry.key.capacity());
                     if bytes.saturating_add(key_bytes).saturating_add(entries.capacity().saturating_mul(std::mem::size_of::<IndexEntry>()))
                         > work.bytes.get()
@@ -201,7 +200,7 @@ pub(super) fn maintain(connection: &Connection, source: &ColumnSource, batch: &R
         let revision = unsigned(row, 1).map_err(db)?;
         let mut insert = connection.prepare("INSERT INTO storage_index_entries VALUES(?1,?2,?3,?4)").map_err(db)?;
         for row in 0..batch.num_rows() {
-            let entry = execution::entry(batch, &definition, row)?;
+            let entry = harmos_query::index::entry(batch, &definition, row)?;
             insert.execute(params![definition.name.as_str(), integer(revision)?, entry.key, integer(entry.position)?]).map_err(db)?;
         }
     }
@@ -242,7 +241,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &IndexRead, 
         ""
     };
     let sql = format!(
-        "SELECT i.key,i.position FROM storage_index_entries i {join} WHERE i.name=?1 AND i.revision=?2 AND i.position<=?3 AND (i.key,i.position){lower_comparison}(?4,?5) {upper_bound} {latest} ORDER BY i.key {direction},i.position {direction} LIMIT {}",
+        "SELECT i.key,i.position FROM storage_index_entries i {join} WHERE i.name=?1 AND i.revision=?2 AND i.position<=?3 AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=i.position AND d.deleted_at<=?3) AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d JOIN storage_rows r ON r.schema_id=d.schema_id AND r.item=d.item WHERE r.kind=1 AND r.position=i.position AND d.position>r.position AND d.position<=?3) AND (i.key,i.position){lower_comparison}(?4,?5) {upper_bound} {latest} ORDER BY i.key {direction},i.position {direction} LIMIT {}",
         read.limits.rows.get().saturating_add(1)
     );
     let mut query = tx.prepare(&sql).map_err(db)?;
@@ -277,7 +276,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &IndexRead, 
     counters.index_steps += query.get_status(rusqlite::StatementStatus::VmStep) as u64;
     counters.index_prepares += 1;
     state.work.set(counters);
-    Ok(execution::finish(snapshot, read, &definition, revision, candidates)?)
+    Ok(harmos_query::index::finish(snapshot, read, &definition, revision, candidates)?)
 }
 
 /* === Private Functions === */

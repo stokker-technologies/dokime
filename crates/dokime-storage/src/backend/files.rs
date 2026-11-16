@@ -53,7 +53,10 @@ pub(super) fn create(state: &State, metadata: &FileMetadata) -> Result<StagedFil
     }
     state
         .connection
-        .execute("INSERT OR IGNORE INTO storage_files VALUES(?1,?2,0,NULL)", params![metadata.id.as_str(), data])
+        .execute(
+            "INSERT OR IGNORE INTO storage_files VALUES(?1,?2,?3,0,NULL)",
+            params![metadata.id.as_str(), metadata.scope.as_ref().map(Identifier::as_str), data],
+        )
         .map_err(db)?;
     Ok(StagedFile {
         history: state.history.clone(),
