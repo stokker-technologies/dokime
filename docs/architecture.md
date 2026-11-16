@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`, rather than
+[Cargo.toml](../Cargo.toml), `82e394dac656bf6b28a31f7429360d84f1701051`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -522,16 +522,34 @@ not encode sample rows. Existing records, resources,
 files, execution metadata and reports retain their SQLite owners.
 
 `ipc.rs` and `ipc/projection.rs` restore the old append/checkpoint/footer machinery
-and bounded projected decoder. Appends synchronize files before committing their
-catalog ranges; failed appends and catalog commits restore file/hash/block
-checkpoints and publish no saved acknowledgement. Finalization appends metadata
-only and commits stream closure in the same catalog transaction. Evidence barriers
-retain the writer connection through the flush and following mutation; shutdown
-closes sample admission under that lock. Pending accepted rows form the live tail; saved cuts exclude
-later positions. Flush policy is owned by `telemetry/config.rs`: 65,536 rows or five
-seconds, pressure at 64 MiB, evidence barriers and shutdown. Host settings compose
-this policy; CLI configuration exposes row, interval, pending and query bounds.
-Shutdown wakes and joins every active timed flusher before releasing its root.
+and bounded projected decoder; `ipc::encode` builds a record batch message apart from
+any file, with the bytes a direct append writes. `Store::open_streams` creates every
+opened stream's Arrow file in parallel, syncs each header and records the streams with
+their empty file entries in one transaction; a file left without an entry by a crash
+holds no saved rows and is recovered to its verified header on the next open.
+
+A flush round (`telemetry/writer.rs`) claims the head of every stream's pending
+batches and prepares each stream file in parallel: concatenation, `flush_rows`
+chunking, IPC encoding and column-kernel moments and previews against the file's
+loaded statistics. Its commit writes and syncs every file in parallel, then saves one
+catalog transaction for all of them, so a saved position never names rows a crash
+could lose. Claimed rows stay pending, and so in the live tail, until that transaction
+commits; any failure rolls every writer back to its committed prefix and publishes no
+saved acknowledgement. Finalization appends metadata only and commits stream closure
+in the same catalog transaction. Pending accepted rows form the live tail; saved cuts
+exclude later positions.
+
+Flush policy is owned by `telemetry/config.rs`. A stream reaching 65,536 rows wakes the
+background round at once, and five seconds after its oldest pending row the timer does;
+the round prepares without the store's locks and drops claims a synchronous flush saved
+first. Pending bytes reaching 64 MiB flush inline on the admitting caller, which bounds
+memory. Evidence barriers retain the writer connection through a synchronous flush and
+the following mutation, and shutdown flushes and closes sample admission under that
+lock. Without a runtime, a due row count also flushes inline. Host settings compose this
+policy; CLI configuration exposes row, interval, pending and query bounds. Shutdown wakes
+and joins every active flush worker before releasing its root. The product host runs on
+a multi-thread runtime, so a brief wait on the store's blocking locks never stalls plugin
+transport, clients or the flush timer.
 Interval streams arrive as host-granted windows (Harmos `efc261fe`): each stored
 publication is one `harmos.batch.<row>` part with `start_unix_nanos`, `period_nanos`,
 `count` and the row's fields as columns. `Store::sample_interval` decodes that
@@ -546,7 +564,7 @@ archives, live views and the clients — reads interval samples unchanged, and
 existing roots stay readable. Device streams keep `sample_batch`, which validates
 per stream rather than per sample. Pending accepted rows are held as Arrow batches
 in their stored layout: the live tail and frontier read them by filtering positions
-and times, and flushes slice them into `flush_rows` batches with the same
+and times, and flush rounds slice them into `flush_rows` batches with the same
 file-sync-before-catalog order. Pressure and row thresholds use running counters.
 Record scans use the evidence kind/position index, including payload-free markers;
 they do not depend on a record having scalar fields.
@@ -705,7 +723,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/efc261fe9431bb3ad2fd3287ecb51a7f1d8da325/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/82e394dac656bf6b28a31f7429360d84f1701051/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -815,7 +833,7 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`.
+The definition pass pins Harmos at `82e394dac656bf6b28a31f7429360d84f1701051`.
 Consumer repairs follow the table below.
 The pin and generated contracts do not establish consumer compilation.
 
@@ -838,7 +856,11 @@ C++ `WindowObserver<Row, Columns>`), each with an optional window setting. The g
 `SampleWindow` in Rust, Python and C++ (C# passes `Harmos.Plugins.Window`), because
 `Window` already names the evidence time selection. The host
 sets `PlacementSettings::interval_window` from `interval_window_ms`
-(`dokime_runtime::INTERVAL_WINDOW` by default). `Tick` and `samples.tick` are gone
+(`dokime_runtime::INTERVAL_WINDOW` by default) and `PlacementSettings::interval_lag`
+from `interval_lag_windows` (`dokime_runtime::INTERVAL_LAG`, 10 window lengths). The
+library's `Lagging`, `PoolFull` and `WindowExceedsPool` stream failures map in
+`execution.rs` to Interrupted outcomes and `streams:failure` evidence that name the
+stream and the setting that resolves it. Dokime keeps no demand on idle plugin streams. `Tick` and `samples.tick` are gone
 from the vendored protocol and every fixture.
 
 Each of `sdk/cpp`, `sdk/csharp` and `sdk/python` owns its mise tasks and build

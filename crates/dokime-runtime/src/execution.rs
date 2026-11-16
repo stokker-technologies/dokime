@@ -46,7 +46,6 @@ use dokime_protocol::plugin::{
 use dokime_storage::{Execution, ExecutionSnapshot, OutcomeCounts};
 use harmos_protocol::host::PluginEntry;
 use harmos_runtime::plugin::grpc::{Error as BindingError, ScopedBinding};
-use harmos_runtime::streams::StreamPublicationError;
 
 /* === Constants === */
 
@@ -252,6 +251,9 @@ pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str,
 
 /// Name the Binding Action That Failed and What Resolves It.
 fn settlement(action: &str, source: &BindingError) -> Error {
+    if let Some(error) = stream_failure(action, source) {
+        return error;
+    }
     match source {
         BindingError::Deadline { .. } => Error::Invalid(format!(
             "{action}: The Plugin Did Not Settle Its Samples Within stop_grace; Rebuild It on an SDK That Ends Samples When the Host \
@@ -266,6 +268,9 @@ fn samples_settlement(action: &str, source: &BindingError, streams: &[String]) -
     if matches!(source, BindingError::Deadline { .. }) {
         return settlement(action, source);
     }
+    if let Some(error) = stream_failure(action, source) {
+        return error;
+    }
     // The Library Wraps a Failed Window Answer; Its Causes Say Why the Window Failed.
     let mut causes = vec![source.to_string()];
     let mut cause = std::error::Error::source(source);
@@ -274,13 +279,38 @@ fn samples_settlement(action: &str, source: &BindingError, streams: &[String]) -
         cause = next.source();
     }
     let streams = streams.join(", ");
-    if causes.iter().any(|cause| cause.contains(&StreamPublicationError::Capacity.to_string())) {
-        return Error::Invalid(format!(
-            "{action}: Streams {streams} Answered a Window Whose Rows Did Not Fit the Shared Plugin Publication Pool; Shorten Their \
-             Windows (the Observer's Window Setting or interval_window_ms), Lower Their Rate or Stream Count, Then Rerun the Execution"
-        ));
-    }
     Error::Invalid(format!("{action}: Streams {streams}: {}; Rerun the Execution", causes.join(": ")))
+}
+
+/// Name the Stream Whose Interval Demand Failed and the Host or Plugin Setting That Resolves It.
+///
+/// The library reports a stream that fell behind its window end, a publication pool full of rows
+/// storage has not taken in, and a window too large for that pool, possibly beneath other causes.
+fn stream_failure(action: &str, source: &BindingError) -> Option<Error> {
+    const WINDOW: &str = "Shorten Its Window (the Observer's Window Setting or interval_window_ms)";
+    let mut cause: Option<&(dyn std::error::Error + 'static)> = Some(source);
+    while let Some(current) = cause {
+        let message = match current.downcast_ref::<BindingError>() {
+            Some(BindingError::Lagging { stream, lag, limit }) => Some(format!(
+                "{action}: Stream {stream} Fell {lag:?} Behind Its Window End, Past Its Lag Limit of {limit:?}; Lower Its Rate or the \
+                 Number of Streams, {WINDOW} or Raise interval_lag_windows, Then Rerun the Execution"
+            )),
+            Some(BindingError::PoolFull { stream, bytes, rows }) => Some(format!(
+                "{action}: Stream {stream} Found the Shared Plugin Publication Pool ({bytes} Bytes, {rows} Rows) Full of Rows Storage \
+                 Has Not Taken In; Lower Its Rate or the Number of Streams, or {WINDOW}, Then Rerun the Execution"
+            )),
+            Some(BindingError::WindowExceedsPool { stream, samples, needed, bytes, rows }) => Some(format!(
+                "{action}: Stream {stream} Needs at Least {needed} Bytes for One Window of {samples} Samples, More Than the Shared \
+                 Plugin Publication Pool Holds ({bytes} Bytes, {rows} Rows); {WINDOW} or Lower Its Rate, Then Rerun the Execution"
+            )),
+            _ => None,
+        };
+        if let Some(message) = message {
+            return Some(Error::Invalid(message));
+        }
+        cause = current.source();
+    }
+    None
 }
 
 fn launch(
@@ -427,9 +457,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     let plugins = host.inner.library_plugins.get().ok_or_else(|| Error::Invalid("Start Execution: Assemble Plugins".into()))?;
     let activation = plugins.activation(&entry.name).await.map_err(|source| Error::ComposedStartup(Box::new(source)))?;
     let (time, controller) = ExecutionTime::open(host.inner.settings.clock.as_ref());
-    for stream in &case.streams {
-        host.inner.store.open_stream(&execution, stream)?;
-    }
+    host.inner.store.open_streams(&execution, &case.streams)?;
     let scope = SampleScope::new(catalog, &case.streams)?;
     lock(&host.inner.sample_scopes)?.insert(execution.clone(), scope);
     let binding =
@@ -484,7 +512,11 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                 initialized = true;
             }
             // The Plugin Has Registered the Unit, So the Host May Now Grant Its Stream Windows.
-            binding.start_samples().await.map_err(|source| samples_settlement("Start Execution Samples", &source, &case.streams))?;
+            if let Err(source) = binding.start_samples().await {
+                let error = samples_settlement("Start Execution Samples", &source, &case.streams);
+                dispatch.resources.failure("streams", &error)?;
+                return Err(error);
+            }
             sampling = true;
             states.push(RunState::Stepping);
             host.set_run_phase(&execution, "stepping")?;
@@ -518,8 +550,8 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                     )
                     .await;
                 dispatch.resources.evidence("step:end", Vec::new(), None)?;
-                if result.is_err() {
-                    dispatch.resources.evidence("step:failure", Vec::new(), None)?;
+                if let Err(error) = &result {
+                    dispatch.resources.failure("step", error)?;
                 }
                 if let Some(mut command) = command {
                     command.phase = if result.is_ok() { ExecutionCommandPhase::Completed } else { ExecutionCommandPhase::Failed } as i32;
@@ -538,7 +570,11 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
             dispatch.resources.step.clear();
             // Criteria Read Settled Streams: Every Granted Window Is Committed Before Evaluation.
             sampling = false;
-            binding.stop_samples().await.map_err(|source| samples_settlement("Stop Execution Samples", &source, &case.streams))?;
+            if let Err(source) = binding.stop_samples().await {
+                let error = samples_settlement("Stop Execution Samples", &source, &case.streams);
+                dispatch.resources.failure("streams", &error)?;
+                return Err(error);
+            }
             states.push(RunState::Evaluating);
             host.set_run_phase(&execution, "evaluating")?;
             for criterion in &case.criteria {
@@ -583,7 +619,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
         if sampling && let Err(source) = binding.stop_samples().await {
             termination = Termination::Interrupted;
             let error = samples_settlement("Stop Execution Samples", &source, &case.streams);
-            dispatch.resources.evidence("streams:failure", error.to_string().into_bytes(), None)?;
+            dispatch.resources.failure("streams", &error)?;
         }
         if initialized && let Some(operation) = &template.cleanup {
             let cleanup = dispatch
@@ -599,11 +635,11 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                 .await;
             if let Err(error) = cleanup {
                 termination = Termination::Interrupted;
-                dispatch.resources.evidence("cleanup:failure", error.to_string().into_bytes(), None)?;
+                dispatch.resources.failure("cleanup", &error)?;
             }
         }
         if let Err(error) = &result {
-            dispatch.resources.evidence("execution:failure", error.to_string().into_bytes(), None)?;
+            dispatch.resources.failure("execution", error)?;
         }
         Ok((dispatch.resources, termination, evaluated, result))
     }
@@ -627,12 +663,12 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     let mut interruption = None;
     if let Err(error) = closed {
         termination = Termination::Interrupted;
-        resources.evidence("streams:failure", error.to_string().into_bytes(), None)?;
+        resources.failure("streams", &error)?;
         interruption = Some(error.to_string());
     }
     if let Some(source) = lock(&host.inner.sample_failures)?.remove(&execution) {
         termination = Termination::Interrupted;
-        resources.evidence("streams:failure", source.clone().into_bytes(), None)?;
+        resources.failure("streams", &source)?;
         interruption.get_or_insert(source);
     }
     host.inner.store.close_streams(&execution)?;

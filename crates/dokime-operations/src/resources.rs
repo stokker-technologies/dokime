@@ -87,6 +87,18 @@ impl Resources {
         self.store.require_run_open(execution).map_err(|error| Error::Invalid(format!("{action}: {error}")))?;
         Ok(())
     }
+    /// Record That `scope` Failed as `<scope>:failure` Evidence Carrying Its Reason.
+    ///
+    /// Every failure entry names why it failed; a cause that renders empty still names what failed.
+    pub fn failure(&self, scope: &str, reason: &dyn std::fmt::Display) -> Result<u64> {
+        let reason = reason.to_string();
+        let reason = if reason.trim().is_empty() {
+            format!("Run {scope}: It Failed Without a Reported Cause; Inspect the Host Log for This Execution")
+        } else {
+            reason
+        };
+        self.evidence(&format!("{scope}:failure"), reason.into_bytes(), None)
+    }
     pub fn evidence(&self, kind: &str, payload: Vec<u8>, source_ns: Option<i64>) -> Result<u64> {
         self.check_scope(&self.execution)?;
         let receipt_ns = self.clock.now_ns();

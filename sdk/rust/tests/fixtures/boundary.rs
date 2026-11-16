@@ -69,10 +69,10 @@ struct Published {
 fn main() -> Result<()> {
     let boundary_stream = Stream::<Reading>::new("execution.boundary", "Boundary Samples");
     let boundary_observer = Observer::new(&boundary_stream, async |context: &Context| {
-        if context.execution_id().is_empty() {
+        // A Scope Samples Every Stream of the Plugin; Only the Boundary Template's Own Scope Counts Its Rows.
+        let Ok(published) = context.get::<Published>() else {
             return Ok(Reading { value: 0.0 });
-        }
-        let published = context.get::<Published>()?;
+        };
         let index = published.count.fetch_add(1, Ordering::SeqCst);
         Ok(Reading { value: index as f64 })
     })
@@ -124,6 +124,19 @@ fn main() -> Result<()> {
         .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(10)).await))
         .stream(overflow_stream)
         .observer(overflow_observer);
+    // A 1 kHz Stream Whose Observer Answers Each Window Long After Its End, So a Real-Clock Host Falls Behind.
+    let lag_stream = Stream::<Reading>::new("execution.window.lag", "Lagging Window Samples");
+    let lag_observer = Observer::window(&lag_stream, async |_: &Context, window: &SampleWindow| {
+        std::thread::sleep(Duration::from_millis(100));
+        Ok(ReadingColumns {
+            value: vec![0.0; window.count as usize],
+        })
+    })
+    .every(Duration::from_millis(1));
+    let lag = Template::new("execution.lag", "Window Lag")
+        .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(2)).await))
+        .stream(lag_stream)
+        .observer(lag_observer);
     Plugin::new("execution", "1.0.0")
         .setting(dokime::SettingDeclaration {
             name: "overflow_window".into(),
@@ -141,7 +154,7 @@ fn main() -> Result<()> {
                 value: Some(dokime::setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 10_000_000 })),
             }),
         })
-        .suite(Suite::new("execution", "Execution").template(boundary).template(windows).template(overflow))
+        .suite(Suite::new("execution", "Execution").template(boundary).template(windows).template(overflow).template(lag))
         .requires_host(HostOperation::TimeSleep)
         .serve()
 }

@@ -540,6 +540,7 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
                 reconnect_delay: Duration::from_millis(25),
                 stream_window: stream_buffer,
                 interval_window: dokime_runtime::INTERVAL_WINDOW,
+                interval_lag: dokime_runtime::INTERVAL_LAG,
                 message_bytes,
             },
         },

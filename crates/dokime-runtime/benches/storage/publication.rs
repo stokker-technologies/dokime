@@ -417,6 +417,7 @@ pub(super) fn settings() -> HostSettings {
             reconnect_delay: Duration::from_millis(25),
             stream_window: NonZeroUsize::new(8).unwrap(),
             interval_window: dokime_runtime::INTERVAL_WINDOW,
+            interval_lag: dokime_runtime::INTERVAL_LAG,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         },
         capture: dokime_runtime::CaptureSettings::default(),

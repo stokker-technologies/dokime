@@ -24,7 +24,7 @@ mise -C sdk/csharp run test:starter
 ```
 
 `restore` stages unmodified Harmos sources from revision
-`efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`, including their checked-in wire output,
+`82e394dac656bf6b28a31f7429360d84f1701051`, including their checked-in wire output,
 and packs `Harmos` into `target/cs/feed`. Set `HARMOS_SOURCE` to a local library
 checkout to read that exact revision with `git archive`; otherwise preparation
 uses its immutable source archive. Dokime references the staged `Harmos` project,

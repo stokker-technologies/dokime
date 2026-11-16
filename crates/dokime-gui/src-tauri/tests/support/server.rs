@@ -98,6 +98,7 @@ impl Fixture {
             reconnect_delay: std::time::Duration::from_millis(25),
             stream_window: std::num::NonZeroUsize::new(8).unwrap(),
             interval_window: dokime_runtime::INTERVAL_WINDOW,
+            interval_lag: dokime_runtime::INTERVAL_LAG,
             message_bytes: std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
         let plugin = dokime_runtime::PluginProcess::start(&executable, true, &placement).await.unwrap();
