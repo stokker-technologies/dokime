@@ -102,7 +102,6 @@ use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginPro
 
 use dokime_sdk::StorageTransferSettings;
 use dokime_sdk::client::document_binding_result;
-use dokime_sdk::client::document_frame_frame;
 use dokime_sdk::client::{ClientSettings, FrozenSchemaCache};
 use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Section, Suite, Suites, TestCaseTemplate};
 use dokime_storage::{Execution, Sample, Store};
