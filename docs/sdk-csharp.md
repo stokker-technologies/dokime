@@ -52,7 +52,7 @@ locally built `Dokime` and `Harmos` packages. `package` consumes the existing Re
 `build:starter -- --project /path/to/Test.csproj` selects an exported consumer.
 Each example pins the NuGet package directly and can be exported independently.
 
-`test:generation` compiles both generated public surfaces and their content calls
+`check:generated` compiles both generated public surfaces and their content calls
 in isolation under `target/cs/generation`. `build` compiles the complete solution,
 including authored file transfers. `test`, `package`, `build:examples` and
 `test:starter` exercise the SDK and its installed NuGet consumers. Real-host proof

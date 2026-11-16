@@ -64,7 +64,7 @@ def build(profile: str, language: str = "auto") -> None:
     # Build The Rust Reference And Execution Fixtures.
     if "rust" in languages:
         subprocess.run(
-            ["mise", "-C", "sdk/rust", "run", "sdk:build"],
+            ["mise", "-C", "sdk/rust", "run", "build"],
             cwd=root,
             check=True,
             creationflags=spawn_flags(),

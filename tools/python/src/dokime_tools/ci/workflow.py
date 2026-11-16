@@ -14,6 +14,8 @@
 # Standard Library Imports
 import argparse
 import os
+import subprocess
+from pathlib import Path
 
 # isort: split
 
@@ -23,6 +25,7 @@ import os
 
 # Local Imports
 from .. import policy
+from ..process import spawn_flags
 from ..release import guard
 from . import bindings, mirror, nightly_freshness, nightly_report, release_mode, required, review, transport
 
@@ -55,15 +58,54 @@ def main(arguments: list[str] | None = None) -> int:
             "release-verify",
             "rehearse",
             "bindings",
+            "send",
+            "receive",
+            "summary",
+            "sdk-check",
+            "sdk-test",
         ),
     )
     parser.add_argument("--profile", choices=("dev", "release"), default="release")
     parser.add_argument("--target")
+    parser.add_argument("--language", choices=("csharp", "cpp"))
     parser.add_argument("--stage-only", action="store_true")
     parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
     options = parser.parse_args(arguments)
-    transport.receive()
     operation = options.operation
+    if operation == "send":
+        transport.send(options.profile)
+        return 0
+    if operation == "receive":
+        transport.receive()
+        return 0
+    if operation == "summary":
+        destination = os.environ.get("GITHUB_STEP_SUMMARY")
+        if destination:
+            summary = Path(destination)
+            text = "Execution Host: Rust, Python and C# Equivalence Run on Linux and Windows; C++ Equivalence Runs in Nightly.\n"
+            previous = summary.read_text(encoding="utf-8") if summary.exists() else ""
+            summary.write_text(previous + text, encoding="utf-8", newline="\n")
+        return 0
+    if operation in {"sdk-check", "sdk-test"}:
+        if options.language is None:
+            parser.error("Select SDK: Add --language csharp or cpp")
+        tools = ["dotnet"] if options.language == "csharp" else ["cmake", "ninja", "pipx:clang-format"]
+        result = subprocess.run(["mise", "-C", f"sdk/{options.language}", "install", *tools], check=False, creationflags=spawn_flags())
+        if result.returncode:
+            return result.returncode
+        commands = ["check"] if operation == "sdk-check" else ["build", "test"]
+        if options.language == "csharp" and operation == "sdk-check":
+            commands = ["restore", "check"]
+        for command in commands:
+            result = subprocess.run(
+                ["mise", "-C", f"sdk/{options.language}", "run", command],
+                check=False,
+                creationflags=spawn_flags(),
+            )
+            if result.returncode:
+                return result.returncode
+        return 0
+    transport.receive()
     if operation == "nightly-freshness":
         nightly_freshness.run()
     elif operation == "nightly-report":

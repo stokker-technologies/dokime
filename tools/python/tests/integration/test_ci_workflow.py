@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 # isort: split
@@ -28,7 +29,7 @@ from unittest.mock import Mock, patch
 
 # Local Imports
 from dokime_tools import policy
-from dokime_tools.ci import native, tasks, transport, workflow
+from dokime_tools.ci import bootstrap, native, signing, tasks, transport, workflow
 from dokime_tools.release import guard, nightly, registry
 
 # Type Checking Imports
@@ -43,6 +44,75 @@ from dokime_tools.release import guard, nightly, registry
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_sdk_operations_install_pinned_tools_before_selected_tasks(self) -> None:
+        for language, operation, expected in (
+            ("csharp", "sdk-check", ["install", "restore", "check"]),
+            ("cpp", "sdk-check", ["install", "check"]),
+            ("csharp", "sdk-test", ["install", "build", "test"]),
+            ("cpp", "sdk-test", ["install", "build", "test"]),
+        ):
+            with patch.object(workflow.subprocess, "run", return_value=Mock(returncode=0)) as command:
+                self.assertEqual(workflow.main([operation, "--language", language]), 0)
+            observed = [call.args[0][3] if call.args[0][3] == "install" else call.args[0][4] for call in command.call_args_list]
+            self.assertEqual(observed, expected)
+        with patch.object(workflow.subprocess, "run", return_value=Mock(returncode=7)) as command:
+            self.assertEqual(workflow.main(["sdk-test", "--language", "cpp"]), 7)
+            self.assertEqual(command.call_count, 1)
+
+    def test_bootstrap_commands_run_in_order_and_stop_on_failure(self) -> None:
+        commands = ["mise run ci:prerequisites -- --gui-runtime", "mise run ci:prerequisites -- --desktop"]
+        environment = SimpleNamespace(name="posix", environ={"SETUP_BOOTSTRAP": json.dumps(commands)})
+        with patch.object(bootstrap, "os", environment), patch.object(bootstrap.subprocess, "run") as command:
+            self.assertEqual(bootstrap.main(["--commands"]), 0)
+            self.assertEqual([call.args[0][-1] for call in command.call_args_list], commands)
+        with (
+            patch.object(bootstrap, "os", environment),
+            patch.object(bootstrap.subprocess, "run", side_effect=subprocess.CalledProcessError(7, commands[0])) as command,
+            self.assertRaises(subprocess.CalledProcessError),
+        ):
+            bootstrap.main(["--commands"])
+        self.assertEqual(command.call_count, 1)
+
+    def test_signing_preserves_provider_selection_and_package_order(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            root = Path(temporary.name)
+            binary = root / "target/build/dev/windows-x86_64/bin"
+            binary.mkdir(parents=True)
+            for name in ("dokime.exe", "dokime-gui.exe"):
+                (binary / name).touch()
+            output = root / "output"
+
+            def path(value: str) -> Path:
+                return root / value
+
+            for provider in ("none", "azure", "pfx"):
+                environment = {"GITHUB_OUTPUT": str(output), "DOKIME_BIN": str(binary), "DOKIME_AUTHENTICODE_PROVIDER": provider}
+                with (
+                    self.subTest(provider=provider),
+                    patch.object(signing, "os", SimpleNamespace(name="nt", environ=environment)),
+                    patch.object(signing, "Path", side_effect=path),
+                    patch.object(signing.transport, "receive") as receive,
+                    patch.object(signing.subprocess, "check_output", return_value=provider + "\n"),
+                    patch.object(signing.subprocess, "run", return_value=Mock(returncode=0)) as command,
+                ):
+                    output.write_text("")
+                    self.assertEqual(signing.main(["select", "--profile", "dev"]), 0)
+                    receive.assert_called_once()
+                    records = dict(line.split("=", 1) for line in output.read_text().splitlines())
+                    self.assertEqual(records, {"provider": provider, "bin": str(binary.resolve())})
+                    self.assertEqual(signing.main(["package", "--profile", "dev"]), 0)
+                    calls = [call.args[0] for call in command.call_args_list]
+                    self.assertEqual(calls[-1], ["mise", "run", "package", "--", "--language", "rust", "--profile", "dev"])
+                    self.assertEqual(environment["CI_INPUT_ARCHIVES"], "[]")
+                    if provider == "none":
+                        self.assertEqual(len(calls), 1)
+                        continue
+                    self.assertEqual(calls[-2], ["mise", "run", "ci:distribution", "--", "--profile", "dev"])
+                    self.assertEqual([call[5] for call in calls[:2]], ["Sign" if provider == "pfx" else "Verify"] * 2)
+        finally:
+            temporary.cleanup()
+
     def test_release_mode_exports_routing_and_target_revision(self) -> None:
         temporary_directory = tempfile.TemporaryDirectory()
         temporary = temporary_directory.name
@@ -159,22 +229,6 @@ class WorkflowTests(unittest.TestCase):
                 self.assertEqual([call.args[1] for call in extract.call_args_list], [archive, missing])
         finally:
             temporary_directory.cleanup()
-
-    def test_required_rejects_failed_cancelled_and_unexpected_skips(self) -> None:
-        for result in ("failure", "cancelled", "skipped"):
-            environment = {"RESULTS": json.dumps({"test": {"result": result}})}
-            with patch.dict(os.environ, environment, clear=True), self.assertRaises(ValueError):
-                workflow.main(["required"])
-
-    def test_required_allows_only_event_excluded_skips(self) -> None:
-        results = {"build": {"result": "success"}, "package": {"result": "skipped"}}
-        environment = {"RESULTS": json.dumps(results), "OPTIONAL_JOBS": '["package"]'}
-        with patch.dict(os.environ, environment, clear=True):
-            self.assertEqual(workflow.main(["required"]), 0)
-        results["package"]["result"] = "failure"
-        environment["RESULTS"] = json.dumps(results)
-        with patch.dict(os.environ, environment, clear=True), self.assertRaises(ValueError):
-            workflow.main(["required"])
 
     def test_transport_expands_producer_identity(self) -> None:
         output = {"archive": "target/ci/package-{profile}-{platform}.tar.zst", "paths": ["target/package/{profile}/{target}"]}

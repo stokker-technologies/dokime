@@ -17,6 +17,6 @@ run = [
   '"{{tools.dotnet.path}}/dotnet" build Test.csproj --configuration Release --no-restore',
 ]
 
-[tasks.serve]
+[tasks.dev]
 description = "Serve the Remote Plugin"
 run = '"{{tools.dotnet.path}}/dotnet" run --project Test.csproj --configuration Release --no-build -- --remote'

@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 import argparse
+import json
 import os
 import platform
 import re
@@ -123,6 +124,11 @@ def spawn_flags(flags: int = 0) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_arguments(argv)
+    if arguments.commands:
+        shell = ["pwsh", "-NoProfile", "-NonInteractive", "-Command"] if os.name == "nt" else ["bash", "-eo", "pipefail", "-c"]
+        for command in json.loads(os.environ.get("SETUP_BOOTSTRAP", "[]")):
+            subprocess.run([*shell, command], check=True, stdout=sys.stderr, creationflags=spawn_flags())
+        return 0
     if arguments.gui_packages or arguments.gui_runtime or arguments.credential_store:
         install_gui_packages(runtime=arguments.gui_runtime, desktop=arguments.desktop, credential_store=arguments.credential_store)
     if arguments.desktop:
@@ -143,8 +149,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 stdout=sys.stdout,
                 stderr=sys.stderr,
             )
-            with Path(github_environment).open("a", encoding="utf-8") as written:
-                written.write("DISPLAY=:99\n")
+            destination = Path(github_environment)
+            previous = destination.read_text(encoding="utf-8") if destination.exists() else ""
+            destination.write_text(previous + "DISPLAY=:99\n", encoding="utf-8", newline="\n")
     _step("bootstrap complete")
     return 0
 
@@ -171,6 +178,7 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="install only the session bus and keyring an isolated credential store needs.",
     )
     parser.add_argument("--desktop", action="store_true")
+    parser.add_argument("--commands", action="store_true", help="Run the Workflow's Declared Prerequisite Tasks Before Preparation")
     return parser.parse_args(argv)
 
 
@@ -286,8 +294,9 @@ def prepare_linux_browser(root: Path) -> Path:
         raise ValueError(f"Prepare Native Prerequisites: the report browser did not report its version: {browser}")
     os.environ["DOKIME_E2E_CHROME"] = browser
     if github_environment := os.environ.get("GITHUB_ENV"):
-        with Path(github_environment).open("a", encoding="utf-8") as written:
-            written.write(f"DOKIME_E2E_CHROME={browser}\n")
+        destination = Path(github_environment)
+        previous = destination.read_text(encoding="utf-8") if destination.exists() else ""
+        destination.write_text(previous + f"DOKIME_E2E_CHROME={browser}\n", encoding="utf-8", newline="\n")
     _step(f"Report browser uses {browser} ({version})")
     return Path(browser)
 
@@ -333,8 +342,9 @@ def prepare_windows_desktop(root: Path) -> Path:
     _step(f"WebView2 and Microsoft WebDriver use {version}")
     github_path = os.environ.get("GITHUB_PATH")
     if github_path:
-        with Path(github_path).open("a", encoding="utf-8") as written:
-            written.write(str(destination) + "\n")
+        destination = Path(github_path)
+        previous = destination.read_text(encoding="utf-8") if destination.exists() else ""
+        destination.write_text(previous + str(destination) + "\n", encoding="utf-8", newline="\n")
     return driver
 
 

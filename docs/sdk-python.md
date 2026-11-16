@@ -11,7 +11,7 @@ mise -C sdk/python run generate -- --check
 mise -C sdk/python run build
 mise -C sdk/python run install
 mise -C sdk/python run check
-mise -C sdk/python run unit
+mise -C sdk/python run test -- --layer unit
 mise -C sdk/python run test
 mise -C sdk/python run generated
 mise -C sdk/python run package

@@ -90,11 +90,14 @@ def export(values: dict[str, str]) -> None:
     EXPORTED.update(values)
     os.environ.update(values)
     if destination := os.environ.get("GITHUB_ENV"):
-        with Path(destination).open("a", encoding="utf-8") as stream:
-            for name, value in values.items():
-                if "\n" in value or "\r" in value:
-                    raise ValueError(f"Prepare Native Prerequisites: invalid environment value: {name}")
-                stream.write(f"{name}={value}\n")
+        records = []
+        for name, value in values.items():
+            if "\n" in value or "\r" in value:
+                raise ValueError(f"Prepare Native Prerequisites: invalid environment value: {name}")
+            records.append(f"{name}={value}\n")
+        path = Path(destination)
+        previous = path.read_text(encoding="utf-8") if path.exists() else ""
+        path.write_text(previous + "".join(records), encoding="utf-8", newline="\n")
 
 
 def download(
@@ -136,9 +139,14 @@ def download(
     if hashlib.sha256(content).hexdigest() != checksum:
         raise ValueError(f"Prepare Native Prerequisites: pinned bootstrap archive checksum mismatch: {url}")
     # A Partial Or Interrupted Write Never Passes As The Archive.
-    with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=destination.name, suffix=".partial", delete=False) as stream:
-        stream.write(content)
-    Path(stream.name).replace(destination)
+    descriptor, name = tempfile.mkstemp(dir=destination.parent, prefix=destination.name, suffix=".partial")
+    os.close(descriptor)
+    temporary = Path(name)
+    try:
+        temporary.write_bytes(content)
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
     return content
 
 
@@ -292,11 +300,12 @@ def verify_temporary_exclusions(roots: list[Path]) -> None:
             directory_directory = tempfile.TemporaryDirectory(dir=root, prefix=prefix)
             directory = directory_directory.name
             try:
-                with tempfile.NamedTemporaryFile(dir=root, prefix=prefix, delete_on_close=False) as file:
-                    file.close()
+                descriptor, name = tempfile.mkstemp(dir=root, prefix=prefix)
+                os.close(descriptor)
+                try:
                     nested = Path(directory) / "probe.sqlite"
                     nested.write_bytes(b"")
-                    for path in (Path(directory), nested, Path(file.name)):
+                    for path in (Path(directory), nested, Path(name)):
                         print(f"Native Scanner Check: {path}", flush=True)
                         checked = subprocess.run(
                             [str(scanner), "-CheckExclusion", "-Path", str(path)],
@@ -313,6 +322,8 @@ def verify_temporary_exclusions(roots: list[Path]) -> None:
                                 creationflags=spawn_flags(),
                             )
                             raise RuntimeError(f"Prepare Native Prerequisites: native scanner exclusion does not cover {path} under {root}")
+                finally:
+                    Path(name).unlink(missing_ok=True)
             finally:
                 directory_directory.cleanup()
 
@@ -448,17 +459,20 @@ def main() -> None:
         export({name: os.environ[name] for name in ("COMPILER_CACHE_BACKEND", "COMPILER_CACHE_MODE") if os.environ.get(name)})
         rustup()
         if destination := os.environ.get("GITHUB_OUTPUT"):
-            with Path(destination).open("a", encoding="utf-8") as stream:
-                declared = json.loads(os.environ.get("CACHE_PLAN", "{}"))
-                caches = declared or default_caches(workspace, os.environ)
-                for name, cache in caches.items():
-                    for field in ("path", "key", "restore-keys"):
-                        value = cache.get(field, "")
-                        for variable in ("MISE_DATA_DIR", "MISE_ROOT_ID", "WORKSPACE_ROOT_ID", "RUNNER_IMAGE_ID", "RUST_TOOLCHAIN"):
-                            value = value.replace("<" + variable + ">", os.environ[variable])
-                        if field == "path" and not value.strip():
-                            raise ValueError(f"Prepare Native Prerequisites: cache path is empty: {name}")
-                        stream.write(f"{name}-{field}<<CACHE_VALUE\n{value}\nCACHE_VALUE\n")
+            records = []
+            declared = json.loads(os.environ.get("CACHE_PLAN", "{}"))
+            caches = declared or default_caches(workspace, os.environ)
+            for name, cache in caches.items():
+                for field in ("path", "key", "restore-keys"):
+                    value = cache.get(field, "")
+                    for variable in ("MISE_DATA_DIR", "MISE_ROOT_ID", "WORKSPACE_ROOT_ID", "RUNNER_IMAGE_ID", "RUST_TOOLCHAIN"):
+                        value = value.replace("<" + variable + ">", os.environ[variable])
+                    if field == "path" and not value.strip():
+                        raise ValueError(f"Prepare Native Prerequisites: cache path is empty: {name}")
+                    records.append(f"{name}-{field}<<CACHE_VALUE\n{value}\nCACHE_VALUE\n")
+            path = Path(destination)
+            previous = path.read_text(encoding="utf-8") if path.exists() else ""
+            path.write_text(previous + "".join(records), encoding="utf-8", newline="\n")
     finally:
         print("::endgroup::", flush=True)
     if options.roots_only:
@@ -469,13 +483,6 @@ def main() -> None:
     finally:
         print("::endgroup::", flush=True)
     subprocess.run(["zstd", "--version"], check=True, stdout=sys.stderr, creationflags=spawn_flags())
-    print("::group::" + "Project Bootstrap", flush=True)
-    try:
-        shell = ["pwsh", "-NoProfile", "-NonInteractive", "-Command"] if os.name == "nt" else ["bash", "-eo", "pipefail", "-c"]
-        for command in json.loads(os.environ.get("SETUP_BOOTSTRAP", "[]")):
-            subprocess.run([*shell, command], check=True, stdout=sys.stderr, creationflags=spawn_flags())
-    finally:
-        print("::endgroup::", flush=True)
 
 
 # === Private Functions === #

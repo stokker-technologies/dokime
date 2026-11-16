@@ -5,7 +5,34 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-'Testing Policy from `[conventions.testing]` and the Expected Lane Set.\n\nKeys, all optional:\n\n    [conventions.testing]\n    limits = { unit = 512, integration = 256, acceptance = 128, system = 64 }\n    deadlines = { unit = 30, integration = 120, acceptance = 900, system = 900 }\n    bench_regression_percent = 20\n\n    [[conventions.testing.overrides]]\n    category = "acceptance"\n    language = "rust"\n    select = "test(=cycle::runs)"\n    timeout_seconds = 300\n    reason = "Streams a full capture"\n\nLimits are story counts per layer, enforced by the source inventory. TypeScript and\nJavaScript workspace packages each have their own scope; other tests share the project scope.\nExceeding one is a curation finding in the\nindex, never a failure. Deadlines are hang guards in seconds, read from\n`tools/project.toml`. Native runners terminate hung stories; script lanes also have a\nwhole-lane process-tree guard. Completed story durations are measurements, never pass/fail\ncriteria. Rust overrides use nextest filtersets to replace selected story hang guards.\nAcceptance and system lanes receive the whole Product and Tests builds of their profile\nand target, so lanes declare no inputs.\n\nthe expected lanes are the `test:<language>:<category>` leaf tasks of `mise.toml`.\n'
+"""Testing Policy from `[conventions.testing]` and the Expected Lane Set.
+
+Keys, all optional:
+
+    [conventions.testing]
+    limits = { unit = 512, integration = 256, acceptance = 128, system = 64 }
+    deadlines = { unit = 30, integration = 120, acceptance = 900, system = 900 }
+    bench_regression_percent = 20
+
+    [[conventions.testing.overrides]]
+    category = "acceptance"
+    language = "rust"
+    select = "test(=cycle::runs)"
+    timeout_seconds = 300
+    reason = "Streams a full capture"
+
+Limits are story counts per layer, enforced by the source inventory. TypeScript and
+JavaScript workspace packages each have their own scope; other tests share the project scope.
+Exceeding one is a curation finding in the
+index, never a failure. Deadlines are hang guards in seconds, read from
+`tools/project.toml`. Native runners terminate hung stories; script lanes also have a
+whole-lane process-tree guard. Completed story durations are measurements, never pass/fail
+criteria. Rust overrides use nextest filtersets to replace selected story hang guards.
+Acceptance and system lanes receive the whole Product and Tests builds of their profile
+and target, so lanes declare no inputs.
+
+The expected lanes are declared in `conventions.testing.expected_lanes` in `tools/project.toml`.
+"""
 
 # === Imports === #
 
@@ -134,14 +161,20 @@ def load(directory: Path) -> Policy:
 
 
 def lanes(directory: Path) -> list[tuple[str, str]]:
-    """The expected `(category, language)` lanes: the `test:*:*` leaves in `mise.toml`."""
-    path = directory / "mise.toml"
-    tasks = _toml(path).get("tasks", {}) if path.is_file() else {}
+    """Read Expected Lanes Independently of the Public or Hidden Task Surface."""
+    testing = _toml(directory / "tools/project.toml").get("conventions", {}).get("testing", {})
+    declared = testing.get("expected_lanes", [])
+    if not isinstance(declared, list) or not all(isinstance(name, str) for name in declared):
+        raise TestError("Select Expected Lanes: Declare language:category Names in conventions.testing.expected_lanes")
     expected = []
-    for name in tasks:
+    for name in declared:
         parts = name.split(":")
-        if len(parts) == 3 and parts[0] == "test" and parts[2] in CATEGORIES and parts[1] in LANGUAGES:
-            expected.append((parts[2], parts[1]))
+        if len(parts) != 2 or parts[0] not in LANGUAGES or parts[1] not in CATEGORIES:
+            raise TestError(f"Select Expected Lanes: Replace Unknown Lane {name}")
+        lane = (parts[1], parts[0])
+        if lane in expected:
+            raise TestError(f"Select Expected Lanes: Remove Duplicate Lane {name}")
+        expected.append(lane)
 
     def sort_key(lane: tuple[str, str]) -> tuple:
         return (CATEGORIES.index(lane[0]), lane[1])

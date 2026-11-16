@@ -19,7 +19,7 @@ dokime new bench --lang python
 cd bench
 uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl
 mise run test
-mise run serve
+mise run dev
 ```
 
 The starter's test uses a prepared product host with a controlled clock. Set

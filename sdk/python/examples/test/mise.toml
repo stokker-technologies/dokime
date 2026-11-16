@@ -18,8 +18,8 @@ run = "uv sync"
 description = "Test the Plugin Against the Product Host"
 run = "uv run python -m unittest discover -s tests -v"
 
-# === Run === #
+# === Dev === #
 
-[tasks.serve]
+[tasks.dev]
 description = "Serve the Remote Plugin"
 run = "uv run python main.py"

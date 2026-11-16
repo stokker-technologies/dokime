@@ -42,7 +42,7 @@ jobs:
       env:
         DOKIME_BUILD_PROFILE: ${{ env.PROFILE }}
     - name: Export Python Distributions
-      run: uv run --no-sync --project tools/python python -c "import os; from dokime_tools.ci.transport import send; send(os.environ['PROFILE'])"
+      run: mise run ci:send -- --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: build-product-python-${{ env.PROFILE }}-any

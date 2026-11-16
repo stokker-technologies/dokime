@@ -177,7 +177,7 @@ class ScheduleTests(unittest.TestCase):
             tasks = "\n".join(block for block in blocks if block.startswith(('[tasks."test:', '[tasks."ci:test"]')))
             tasks = tasks.replace('[tasks."ci:test"]', "[tasks.test]")
             (directory / "tools/python/tests/integration").mkdir(parents=True)
-            (directory / "tools/project.toml").write_text("", encoding="utf-8")
+            (directory / "tools/project.toml").write_text((repository / "tools/project.toml").read_text(), encoding="utf-8")
             (directory / "tools/python/tests/integration/test_prepared.py").write_text(
                 "import pathlib, unittest\n"
                 "class Prepared(unittest.TestCase):\n"

@@ -106,7 +106,7 @@ def main() -> None:
                 ],
             ]
         elif language == "csharp":
-            commands = [["mise", "-C", "sdk/csharp", "run", "test:generation"]]
+            commands = [["mise", "-C", "sdk/csharp", "run", "check:generated"]]
         elif language == "cpp":
             commands = [["mise", "-C", "sdk/cpp", "run", "build", "--", "--preset", "tests", "--target", "dokime-generation"]]
         else:

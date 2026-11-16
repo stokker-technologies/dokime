@@ -11,24 +11,21 @@
 CARGO_BUILD_WARNINGS = "deny"
 CARGO_TARGET_DIR = "{{config_root}}/../../target"
 
-[tasks."sdk:build"]
+[tasks."build"]
 description = "Build the Rust SDK and Sample Plugin"
 run = "cargo build --locked --manifest-path tests/consumer/Cargo.toml --package dokime-rust-stories --bins"
 
-[tasks."sdk:test"]
+[tasks."test"]
 description = "Run Focused Rust SDK Journeys"
-run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml --package dokime-rust-stories --test integration"
+usage = 'flag "--layer <layer>" default="integration" { choices "unit" "integration" }'
+run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml {% if usage.layer == 'unit' %}--package dokime --package dokime-derive --lib --no-tests pass{% else %}--package dokime-rust-stories --test integration{% endif %}"
 
-[tasks."sdk:unit"]
-description = "Run Rust SDK Unit Tests"
-run = "cargo nextest run --locked --manifest-path tests/consumer/Cargo.toml --package dokime --package dokime-derive --lib --no-tests pass"
-
-[tasks."sdk:tree"]
+[tasks."check"]
 description = "Prove Protocol-Only SDK Product Dependencies"
 run = "python tools/dependency_tree.py"
 
 
-[tasks."sdk:prepare"]
+[tasks."prepare"]
 description = "Refresh the External SDK Consumer Lock"
 run = "cargo generate-lockfile --manifest-path tests/consumer/Cargo.toml"
 
@@ -40,10 +37,6 @@ run = [
   "uv run --no-sync --project ../../tools/python ruff format tools",
 ]
 
-[tasks."sdk:lint"]
+[tasks."lint"]
 description = "Lint the Focused Rust SDK and Stories"
 run = "cargo clippy --locked --manifest-path tests/consumer/Cargo.toml --package dokime --package dokime-derive --package dokime-rust-stories --all-targets"
-
-[tasks."test:generation"]
-description = "Compile the Generated Client and Plugin Surfaces"
-run = "mise -C ../.. run check:generated -- --language rust"

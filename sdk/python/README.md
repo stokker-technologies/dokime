@@ -195,10 +195,10 @@ mise -C sdk/python run check
 mise -C sdk/python run generate -- --check
 mise -C sdk/python run build
 mise -C sdk/python run install
-mise -C sdk/python run unit
+mise -C sdk/python run test -- --layer unit
 mise -C sdk/python run test
 mise -C sdk/python run generated
-mise -C sdk/python run test:generation
+mise run check:generated -- --language python
 mise -C sdk/python run package
 mise -C sdk/python run wheel
 ```
@@ -210,7 +210,7 @@ temporary storage and reports drift without writing committed output. `generated
 checks the installed wheel's source manifest, private descriptor set, message
 shapes, RPC cardinalities and serializers. `tools/stubs.py` checks authored public
 modules and generated resource signatures against the installed package.
-`test:generation` imports the public barrels and type-checks client and plugin
+`check:generated` imports the public barrels and type-checks client and plugin
 content calls independently of the product host, using the same lint and typing
 rules as authored code.
 
