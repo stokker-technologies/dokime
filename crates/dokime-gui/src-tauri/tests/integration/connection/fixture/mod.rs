@@ -157,8 +157,8 @@ impl<const KIND: u8> codegen::Service<HttpRequest> for Rpc<KIND> {
                                 }),
                                 ..Default::default()
                             }),
+                            ..Default::default()
                         }],
-                        ..Default::default()
                     };
                     server::Grpc::new(ProstCodec::<_, host::OperationsListRequest>::default()).unary(Reply(reply), request).await
                 }
