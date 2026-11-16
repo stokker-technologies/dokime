@@ -14,7 +14,6 @@
 # Standard Library Imports
 import argparse
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -44,7 +43,6 @@ def main() -> None:
     root = Path(__file__).resolve().parents[5]
     selected = [options.language] if options.language else ["rust", "python", "csharp", "cpp", "typescript"]
     for language in selected:
-        environment = dict(os.environ)
         if language == "rust":
             commands = [
                 [
@@ -126,7 +124,6 @@ def main() -> None:
             subprocess.run(
                 command,
                 cwd=root,
-                env=environment,
                 check=True,
                 stdin=sys.stdin,
                 stdout=sys.stdout,
