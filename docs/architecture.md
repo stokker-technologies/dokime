@@ -41,6 +41,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
 
 ## Invariants
 
+The [Plugin Boundary](../openspec/changes/plugin-boundary/design.md) owner decision
+of 2026-11-16 amends `operation-boundary` and `plugin-lifecycle` together. Its
+ownership changes below are locked direction, not implemented source.
+
 1. **Executors and Callers.** Protocol files are owned by the executor: model/v1
    contains exchanged values, host/v1 contains host operations and plugin/v1
    contains host-invoked plugin operations. Host methods require the library
@@ -116,8 +120,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    **Status:** locked direction (`operation-grammar`).
 
 6. **Managers Own Live Orchestration.** Create a manager only for changing live
-   state, background work or lifecycle. Library PluginManager owns entries/processes,
-   GrpcManager transport/access, StorageManager storage/transfers, ServiceManager
+   state, background work or lifecycle. Library PluginManager owns live activations/processes;
+   Dokime owns installed entries, registry/settings policy and startup load selection.
+   GrpcManager owns transport/access, StorageManager storage/transfers, ServiceManager
    status/diagnostics/clock, OperationManager dispatch/invocations, StreamManager
    streams, RecordManager capture and StateManager live state; product execution,
    prompt and report managers own their lifecycles, with capture only if recordings remain.
@@ -145,10 +150,15 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    additive host's product managers; generic library service composition remains
    locked direction under invariant 7. Media has no live recording owner here.
 
-7. **Library Machinery and Product Policy.** Reach storage through Harmos operations,
-   registering the product backend with the Harmos runtime. The library owns plugin/operation/stream/storage,
-   access/transfer/status machinery and SDKs; the product owns storage definitions,
-   objects, operations, authorization, settings/secrets stores, schemas, UI and archives.
+7. **Library Machinery and Product Policy.** Call Harmos through the typed
+   in-process facade over native operations. Dokime declares its remote operations
+   and wrappers for generic host capabilities its clients use. Harmos owns live
+   plugin/operation/stream/storage and access/transfer/status machinery, minimal
+   carrier, four-language carrier helpers, shared generation, bounded inspection
+   and generic conformance. Dokime owns plugin contracts, the four author SDKs and
+   starters, registry, installation, bundles/distribution, admission callbacks,
+   persisted settings and plugin management operations/projections, plus storage
+   definitions, objects, authorization, secrets, schemas, UI and archives.
    **Why:** The previous approach duplicated connection, dispatch and process launch;
    product-specific policy must not become generic machinery. HostValues uses a product resolver.
    Evidence archives read scoped native file histories through operations and publish
@@ -178,8 +188,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    Backend/Runtime services and product collection machinery are removed.
    `client_collects_backend_diagnostics` proves health events, redaction and ranged
    archives; `client_reads_runtime` proves status observation and stable restart identity.
-   **Status:** storage through operations and product wrappers are locked direction in
-   [Operation Boundary](../openspec/changes/operation-boundary/design.md).
+   **Status:** the ownership/facade amendments are locked direction. The following
+   composition describes landed behavior to migrate, not the target contract.
    Retained resource-view indexes use `GetObject` and create-only `SetObject` in
    `crates/dokime-operations/src/host/views.rs`; their immutable protobuf payloads use
    chunked native files, so a complete collection can exceed one response page without
@@ -222,8 +232,9 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    `credentials_leave_with_discarded_roots` proves named access and secret credentials
    are unreadable after normal and failed Windows story teardown, including without
    their publication pointers.
-   The locked definition now composes the library PluginEntry and plugins.Settings;
-   product plugin records/settings wrappers and clock operations are deleted.
+   Plugin Boundary supersedes the earlier deletion of product plugin administration:
+   Dokime owns installed records/settings and management operations. Harmos keeps
+   activation and generic clock mechanics; SDKs expose product-owned public values.
    Product plugins.Secrets is a read-only view of declared names and their
    availability. Secrets.Get admits only a calling plugin's declared names and
    reads the host-wide secret stored under exactly that identifier (owner, 2026-11-15). Administrative
@@ -338,22 +349,22 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
     and uses the embedded execution host through its native SDK connection owner.
     **Status:** locked direction (`grpc-plugins`, `operation-grammar`).
 
-15. **Generic Library and Consistent SDK Concepts.** Library protocol, SDKs and
-    conformance use generic vocabulary and remain independently usable without
-    product objects; language SDKs stay in the library. Product SDKs compose them,
-    naming the same concepts and resource hierarchy consistently across all four languages.
-    Each language ships one package for plugin development and backend clients:
-    Python dokime-sdk composed with the single harmos-sdk; audience-specific builds
-    are removed, and a codebase may install itself via main.py. The API should
-    look simple and good. Amended by the owner on 2026-11-13.
-    The Python plugin forwards independent messages and record payload types to
-    Harmos's catalog builder, which owns descriptor merging and the catalog digest.
-    **Why:** Another host must not reimplement the plugin protocol or depend on this product.
-    **Where:** [SDK ownership requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-library-owned-language-sdks),
-    [SDK inventory](../openspec/changes/operation-grammar/design.md#sdk-ownership-and-remaining-coverage-facts),
-    [product SDKs](../sdk).
-    **Proof:** No proof yet for final four-language parity/hierarchy; A13.
-    **Status:** locked direction (`operation-grammar`).
+15. **Product Author SDKs Over Shared Carrier Helpers.** Dokime owns its plugin
+    contract and the only author-facing Rust, Python, C# and C++ SDKs, registrars
+    and starters. Authors use Dokime types, attributes, namespaces and errors;
+    Harmos types and escape hatches stay internal, without import aliases.
+    Dependencies resolve automatically. Harmos owns reusable carrier helpers for
+    cancellation/windows/transport, descriptor/codegen tooling, admission mechanics
+    and generic conformance. Keep consistent concepts and resource hierarchy in all
+    four languages; product registration accumulates typed declarations without
+    plugin-type growth. No copied carrier engines or re-exported library registrar.
+    **Why:** Several products reuse runtime machinery while owning their author APIs.
+    **Where:** [Plugin Boundary](../openspec/changes/plugin-boundary/design.md),
+    `operation-boundary` D7, `plugin-lifecycle` and [SDKs](../sdk).
+    **Proof:** No proof yet; installed author consumers and generic/product
+    conformance remain implementation tasks.
+    **Status:** locked owner amendment, 2026-11-16; replaces "language SDKs stay
+    in the library" while preserving transport reuse.
 
 16. **Deterministic Stories.** Correctness tests tell one behavioral story with
     events or controlled clocks; never assert elapsed wall time, load, sampled memory,
@@ -698,11 +709,44 @@ existing root is migrated, reset or deleted. Diagnostics copy stream files too.
 
 ## Final Library Assembly and Storage Contract
 
-This definition follows invariant 7, **Library Machinery and Product Policy**.
-The former rule, "Compose library services directly, without redeclaring or forwarding
-them", prevented duplicated machinery. The locked Operation Boundary direction keeps
-that purpose while replacing direct manager access with operations and declaring
-product wrappers for the library methods used by clients.
+**Locked amendment, 2026-11-16:** the typed facade replaces manager construction
+and direct service composition (`operation-boundary`). Harmos owns register →
+admission → initialize → finalize, process/Wasm hosting, transport/reconnect/fencing,
+routing, sampling/windows, deadlines and cancellation. Its minimal carrier contains
+connection identity/revision, admission descriptors, invocation correlation with
+opaque payloads, cancellation, host calls, window/sample framing and opaque product
+sections. Descriptor/declaration digests stay generic; bundle artifact digests,
+installation, registry and settings persistence move to Dokime.
+
+Proposed API, not landed source:
+
+```rust
+setup.plugin_kind("dokime.grpc",
+    grpc::Kind::<DokimeContract>::new().admit(dokime::admit));
+let host = runtime.for_call(&ctx);
+let plugin = host.plugins().load(Load {
+    kind, placement: Managed { command }, settings,
+}).await?;
+let binding = host.plugins().bind(plugin, scope, clock).await?;
+let demand = host.plugins().start_samples(binding, streams).await?;
+```
+
+The kind supplies product admission and settings-resolution hooks; generic checks
+precede product admission and settings resolve before initialize. The registry calls
+load for each installed plugin at startup. Handles are opaque and generation-fenced;
+no `PluginBackend` trait. Move Harmos bundle code into one Dokime owner and remove
+the duplicate builder. Preserve atomicity, receipts and incompatible-root refusal
+at baseline v1 without migration or reset. Consolidate richer renderers/fixes into
+Harmos and replace `crates/dokime-runtime/src/plugin.rs` probing with bounded
+inspection. Regenerate once with the operation and lifecycle changes; output stays
+tracked. Each release ships one self-contained contracts archive with Dokime and
+Harmos carrier protos, recursive `google/*`, licenses and protoc/Buf instructions;
+packaging verifies import closure.
+
+The inventory below records current pin/composition behavior to migrate. Its backend
+method obligations remain; manager construction is not the target public API. The
+former direct-composition rule prevented duplicated machinery; product wrappers
+preserve that purpose while declaring the library methods clients use.
 Invariant 11, **Distinct Storage Guarantees**, still separates accepted live rows,
 durable cuts, projection frontiers and atomic conditional mutations. The physical
 SQLite catalog and compressed Arrow file backend remain product-owned in
@@ -764,17 +808,15 @@ The definition replaces these ownership paths:
 | --- | --- |
 | dokime.client.v1 and dokime.plugin.host.v1 | dokime.host.v1 and its nested resource packages |
 | dokime.v1 shared grab-bag values | dokime.model.v1 for exchanged values; otherwise the owning host/plugin resource |
-| Product Plugin/Plugins and plugin-settings wrappers | harmos.host.v1.Plugins and harmos.host.v1.plugins.Settings |
-| Product clock operation declarations | harmos.host.v1.Time |
+| Plugin management and persisted plugin settings | Dokime contracts, policy and SDK projections over Harmos activation/storage operations |
+| Product clock operation declarations | Harmos clock mechanics through carrier facilities; Dokime wrappers only for client needs |
 | Product generic ordered merge | harmos-query/src/merge.rs; consumer deletion is still open |
 
-Both assembly and SDK generation read `protocol/composition.toml`. It composes
-harmos.model.v1, harmos.host.v1 and harmos.plugin.v1, including nested resources,
-and narrows Operations.List/Get to CLIENTS. List is host-wide browsing; Get is
-arbitrary contract retrieval. Plugins receive their admitted requirements through
-the host, so neither discovery operation is needed by them. Invocations remains
-available for admitted peer/child calls; Time and own-entry plugins.Settings.List
-remain shared. Narrowing never widens an upstream caller set.
+At the recorded pin, assembly and SDK generation still read
+`protocol/composition.toml`. `operation-boundary` deletes it: Dokime methods own
+their audiences and descriptor-derived projections, and the runtime builder owns
+manager construction. Harmos helpers retain time, own-invocation and admitted
+discovery facilities; own settings resolve through the product kind's hook.
 
 At the pinned revision, the runtime applies this assembly before listeners or plugins start:
 
@@ -806,7 +848,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 
 | Product Modules | Required Ownership |
 | --- | --- |
-| backend.rs, store.rs, history.rs, administration.rs | Native ports, catalog transactions, stable history, original receipts and recovery-state persistence. Product plugin administration persistence is removed. |
+| backend.rs, store.rs, history.rs, administration.rs | Native ports, catalog transactions, stable history, original receipts and recovery-state persistence. Dokime plugin administration uses Harmos storage operations; the backend owns physical persistence. |
 | ipc.rs, ipc/**, telemetry/**, streams.rs, stream_* | Physical Arrow append/projection/flush/checkpoints and catalog pruning; saved/live boundaries and compressed recovery. |
 | execution.rs, cycles.rs, plans.rs, progress.rs, traceability.rs, notes.rs, report.rs | Product objects and records reached through library native operations; no new storage interface or manager. |
 | content.rs and file/upload helpers | Native staging/publication, fences, checkpoints and resumable sessions under one content owner. Wire uses library FileReference/Upload, not native backend structs. |
@@ -914,9 +956,10 @@ and consume bounded batches for record ranges, values at records, grouped record
 intervals and stream-to-stream alignment. No DataFusion or general product join
 engine is introduced.
 
-The remaining consumer migration removes direct Store paths in operations/runtime, product installation
-records, settings wrappers and clock dispatch. The definition already deletes
-product plugin service/handler modules and Store::save_plugin_administration.
+The remaining consumer migration removes direct Store paths in operations/runtime
+and duplicated clock dispatch. Plugin Boundary replaces the earlier removal of
+product installation records and settings operations: Dokime now owns that policy
+through Harmos storage operations, with no direct Store bypass.
 Keep product schemas, report publication, expression binding, durable Arrow I/O and
 all storage fault/archive stories. The existing root is never silently reset;
 formats remain at baseline v1 and incompatible development roots require an
@@ -927,19 +970,21 @@ explicit fresh path.
 ### Final Library Pin
 
 The definition pass pins Harmos at `7fe385eacbe9a4c9a47943f6a528f97a014256ee`.
-Consumer repairs follow the table below.
+The table below records consumer repairs at this pin. Plugin Boundary replaces
+direct plugin-service composition and author-facing Harmos values; product SDKs
+use carrier helpers internally and expose Dokime values only.
 The pin and generated contracts do not establish consumer compilation.
 
 | Consumer | Required Change at This Pin |
 | --- | --- |
-| Operations and Runtime | Use model/host/plugin identities, effective callers and direct library Plugins, plugins.Settings and Time composition. |
+| Operations and Runtime | Use the typed facade and registered plugin kinds; own plugin administration and method audiences in Dokime. |
 | Storage | Implement the native StorageBackend and StateBackend ports; register primary/state owners at assembly; replace the product ordered merge with harmos-query. |
 | Rust | Adopt the internal wire layout and public root/client/plugin barrels; use generated argument-based calls. |
 | Python | Resolve the pinned git dependency and regenerate private wire modules and typed client/context resources. |
 | C# | Build the local NuGet feed from the same immutable revision; use its generated public namespaces and call contexts. |
 | C++ | Fetch the same immutable source archive; compose the installed library types and generated resource tree. |
-| Command-Line Tool | Rename the candidate binary to dokime and adopt generated client calls and library plugin records. |
-| Desktop | Adopt the generated executor contracts and library plugin/settings records; preserve the concurrent plot/document repair. |
+| Command-Line Tool | Rename the candidate binary to dokime and adopt generated product client calls and product plugin records. |
+| Desktop | Adopt generated product executor/plugin/settings contracts; preserve the concurrent plot/document repair. |
 
 At `efc261fe` (windowed interval batches) every SDK wraps both observer forms: the
 one-sample observer, called once per sample of a host window, and the window

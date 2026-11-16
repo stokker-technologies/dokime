@@ -147,7 +147,7 @@ settings and calls Harmos only through the typed in-process facade over native o
 ```rust
 let harmos = runtime.for_call(&ctx);
 harmos.storage().append_samples(AppendSamples { mutation, scope, batch }).await?;
-harmos.plugins().load(PluginSource::Process(command)).await?;
+harmos.plugins().load(Load { kind, placement: Managed { command }, settings }).await?;
 ```
 
 Each facade method dispatches its Harmos operation with the registered policy; typed values
@@ -170,12 +170,14 @@ C++ SDK, stories) calls today. Candidates from the current tree:
 | Harmos Resource | Methods Used by Dokime Clients | Audience |
 | --- | --- | --- |
 | Access.Listener, Access.Pairings, Access.Certificates | Get, Set; Create, List, Delete; Create | CLIENTS |
-| Plugins | Get, List, Watch, Create, Set, Delete, Restart, Replace | CLIENTS |
-| plugins.Settings | List, Set | CLIENTS |
 | Status, status.Logs, status.TraceEvents, status.Diagnostics | Get, Watch; List, Watch; List, Watch; Get | CLIENTS |
 | Operations, Invocations | List, Get; Create, Get, Cancel, Watch | CLIENTS |
 | Schemas, Streams | List; List | CLIENTS |
 | Time | Get, Sleep | CLIENTS only if a client calls it |
+
+`plugin-boundary` moves Plugins and plugins.Settings operations, contracts and
+SDK projections to Dokime as product policy over Harmos activation/storage calls.
+They are not wrappers around a Harmos registry or installation service.
 
 Decided by the owner on 2026-11-16: wrappers declare their audience with the `callers` option
 on their own methods, and plugins reach time and their own settings through the Harmos plugin
@@ -183,21 +185,39 @@ protocol facilities and need no Dokime wrapper. A method no Dokime client calls 
 declaration plus a handler that authorizes, maps product values and calls the typed Harmos
 facade; authorization uses the existing product authorizer. Wrappers reuse the Harmos request and response messages as
 their payloads (Dokime services, Harmos messages), so no twin message is declared; the
-generated SDKs contain those messages but no Harmos service.
+generated clients contain those messages but no Harmos service. Under the later
+`plugin-boundary` amendment, reuse is internal where needed: plugin authors see
+only Dokime values and never Harmos types. Product administration payloads are
+Dokime-owned. Own-settings facilities resolve product values through the registered
+kind's hook; generic time, invocation and admitted discovery mechanics remain in
+Harmos helpers over carrier host-call frames, with no lost capability.
 
 `protocol/composition.toml`, `setup.composition`, `native::callers()`, the TOML reading in
 both SDK generators and `resource_roots.py` are deleted. Generators read
 `crates/dokime-protocol/src/descriptors.bin` and project client and plugin surfaces from the
 `callers` option on Dokime's own methods.
 
-### D7. Harmos SDK Scope (Decided by the Owner, 2026-11-16)
+### D7. Carrier Helpers and Dokime Author SDKs (Owner Amendment, 2026-11-16)
 
-Dokime's Python, C# and C++ SDKs keep building on the Harmos plugin SDKs, protocol
-generation and connection plumbing. Harmos deletes its host-client resource roots and host
-RPC client surfaces once every Harmos host operation is in-process only; Dokime's clients come
-from its own wrappers (D6), so no Dokime client depends on those roots after group 13.
+`plugin-boundary` supersedes the earlier library-owned author SDK assignment.
+Dokime owns its contract and the only author-facing Rust/Python/C#/C++ SDKs,
+registrars and starters. Harmos supplies thin internal carrier helpers for
+transport, cancellation and windows, shared descriptor/codegen tooling, supported
+guest ABI and generic conformance. Harmos types, attributes, namespaces, errors
+and escape hatches are invisible to authors; no import aliases or copied engines.
+Dependencies resolve automatically. Richer product renderers/fixes move upstream;
+one self-contained contracts archive ships per release with import-closure proof.
 
-## Risks / Trade-offs
+Harmos host-client roots and host RPC clients disappear once host operations become
+in-process only. Dokime clients derive from its declarations and wrappers (D6).
+Installation, registry, bundles, persisted settings and management operations are
+Dokime policy. The registry explicitly loads each installed plugin at startup
+through the typed facade. A registered kind supplies admission/settings-resolution
+hooks; Harmos retains the internal activation manager. No `PluginBackend` trait.
+Coordinate one final regeneration with both other changes; generated output stays
+tracked. See `plugin-boundary` for the ordered transfer and preservation rules.
+
+## Risks / Trade-Offs
 
 - [Seal clears previews, sealed full-range plots scan source data] → measure with existing
   plot benchmarks over multi-day data; report results to the owner; budgets unchanged.

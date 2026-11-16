@@ -1,12 +1,12 @@
 ## Purpose
 
-Keep Dokime on the idiomatic Harmos surface: runtime building, operation calling, backend authoring and plugin authoring, without direct use of Harmos internal crates or managers.
+Keep Dokime embedding on Harmos runtime building, typed operation calls and backend authoring, with carrier helpers internal to Dokime SDKs and no direct internal-crate or manager use.
 
 ## ADDED Requirements
 
 ### Requirement: Facade-Only Harmos Dependencies
 
-Dokime manifests SHALL depend on the Harmos host facade and SDK crates only, with no direct dependency on the Harmos domain, query, storage, operations or protocol crates.
+Dokime manifests SHALL depend on the Harmos host facade and internal carrier helpers only, with no direct dependency on Harmos domain, query, storage, operations or protocol crates. Dokime SHALL own its author SDKs and hide Harmos types from authors without import aliases.
 
 #### Scenario: Manifest Check
 

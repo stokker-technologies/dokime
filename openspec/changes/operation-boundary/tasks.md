@@ -14,6 +14,7 @@ with the fresh-root action; no migrations or compatibility code.
 
 - [ ] 1.1 Lock the source inventory against design.md Context: every direct `Store`, telemetry reader, Arrow or SQL consumer outside the backend modules; every duplicated kernel; every Harmos manager, engine and internal-crate use; every composition reader; every Harmos host operation a Dokime client calls. Accept when each item has an owning group below; record surprises in design.md before editing.
 - [ ] 1.2 Update `docs/architecture.md`: quote invariants 1, 6 and 7 and the Final Library Assembly and Storage Contract, state their purposes, and rewrite them as locked direction for storage through operations, statistics in Harmos, the stored envelope cleared at seal, the facade and product wrappers; update `docs/execution-host.md` caller mapping accordingly. Prove with `mise run check -- --repository`.
+- [x] 1.3 Amend facade/SDK scope and product management ownership for `plugin-boundary`; review both repositories' contracts and pass strict validation of the three changes. Documentation only; implementation stays open.
 
 ## 2. Adopt the Additive Harmos Revision
 
@@ -118,9 +119,9 @@ product execution ledger. Do not add a mirror notification path.
 
 ## 13. Product Wrappers and Composition Removal
 
-- [ ] 13.1 Adopt the revision that landed Harmos group 10; declare wrapper operations under `proto/dokime/host/v1` for each Harmos host method a Dokime client calls (design.md D6), each a declaration with its declared audience plus a handler that calls the typed Harmos facade; migrate desktop, CLI and SDK callers to the wrappers. Prove with stories `client_pairs_and_rotates_remote_access`, `client_reads_runtime`, `client_collects_backend_diagnostics`, `client_manages_plugin_entries` and a new story `client_reaches_only_product_wrappers` refusing direct Harmos host calls and plugin calls to client wrappers.
+- [ ] 13.1 Adopt Harmos private host operations and declare Dokime wrappers for generic capabilities its clients use (D6), with explicit audiences and typed facade handlers. Plugin management/settings are product operations owned by `plugin-boundary`, not library administration wrappers. Migrate desktop, CLI and SDK callers together; prove focused access/status/diagnostics/plugin-management stories and direct-host/wrong-caller refusal.
 - [ ] 13.2 Remove the direct `harmos-protocol` dependency once no caller uses `harmos_protocol::host` paths, taking Harmos payload values from the `harmos` SDK root, and extend the manifest dependency check to it. Prove with `mise run build -- --package dokime-protocol --check`, `mise run prepare:locks` and `mise run check -- --repository`.
-- [ ] 13.3 Delete `protocol/composition.toml`, `setup.composition` in `services/composition.rs`, `native::callers()`, the composition reading in `sdk/cpp/tools/generate.py`, `sdk/csharp/tools/generate.py` and `tools/python/src/dokime_tools/build/resource_roots.py`, and its tests; generators derive from `crates/dokime-protocol/src/descriptors.bin`. Prove with `mise run generate -- --protocol`, `mise run check:generated` and `tools/python/tests/integration/test_protocol_generation.py`.
+- [ ] 13.3 Delete `protocol/composition.toml`, `setup.composition`, `native::callers()` and composition readers/tests in SDK generators and resource roots; use the shared Harmos generator with product descriptors under `plugin-boundary`. Coordinate one final regeneration with that change and `plugin-lifecycle`; prove focused generated consumers and protocol-generation fixtures through project tasks.
 - [ ] 13.4 Update `docs/architecture.md`, `docs/execution-host.md`, the product guide and SDK READMEs for wrappers, removed composition and the new caller mapping; prove with `mise run check -- --repository`.
 
 ## 14. Integration
