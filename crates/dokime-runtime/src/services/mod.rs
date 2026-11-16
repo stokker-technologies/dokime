@@ -28,7 +28,7 @@ pub use dokime_operations::host::ClientSettings;
 /* === Imports === */
 
 // Standard Library Imports
-use harmos_runtime::operations::middleware::{Enter, Invocation, Middleware, Observation};
+use harmos_runtime::grpc::middleware::{Enter, Invocation, Middleware, Observation};
 use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};
 
 // Third Party Imports
@@ -51,6 +51,7 @@ use prost_types::Timestamp;
 use std::fs::OpenOptions;
 use std::fs::TryLockError;
 use std::num::NonZeroUsize;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{RwLock, Weak};
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -67,12 +68,17 @@ use tokio::task::JoinHandle;
 
 pub(crate) struct ClientWatches {
     active: Sender<BTreeSet<u64>>,
+    next: AtomicU64,
 }
+
+/// The Transport Call Identity of One Open Client Watch.
+struct WatchCall(u64);
 
 impl Default for ClientWatches {
     fn default() -> Self {
         Self {
             active: watch::channel(BTreeSet::new()).0,
+            next: AtomicU64::new(0),
         }
     }
 }
@@ -85,22 +91,28 @@ impl ClientWatches {
         Ok(())
     }
 }
+// A Watch Settles When Its Transport Sends the Final Status, Not When Its Handler Returns, So
+// Detaching the Listener Never Cuts a Finished Watch's Last Frames.
 impl Middleware for ClientWatches {
-    fn enter<'a>(&'a self, invocation: &'a mut Invocation) -> Enter<'a> {
+    fn enter<'a>(&'a self, call: &'a mut Invocation) -> Enter<'a> {
         Box::pin(async move {
-            let operation = invocation.operation().id.as_str();
-            if operation.starts_with("dokime.host.v1.") && operation.ends_with("/Watch") {
+            let path = call.path();
+            if path.starts_with("/dokime.host.v1.") && path.ends_with("/Watch") {
+                let watch = self.next.fetch_add(1, Ordering::Relaxed);
+                call.context_mut().insert(WatchCall(watch))?;
                 self.active.send_modify(|active| {
-                    active.insert(invocation.id().value());
+                    active.insert(watch);
                 });
             }
             Ok(())
         })
     }
-    fn observe(&self, invocation: &Invocation, _: Observation) {
-        self.active.send_modify(|active| {
-            active.remove(&invocation.id().value());
-        });
+    fn observe(&self, call: &Invocation, _: Observation) {
+        if let Some(watch) = call.context().get::<WatchCall>() {
+            self.active.send_modify(|active| {
+                active.remove(&watch.0);
+            });
+        }
     }
 }
 
@@ -138,7 +150,15 @@ impl Server {
             task.await??;
         }
         self.host.executions.shutdown().await?;
-        self.host.assembly.as_ref().expect("assembled host").client_watches.settle().await?;
+        // Every Product Watch Ends on Shutdown; a Client That Stops Reading Is Cut When the Listener Detaches.
+        let assembly = self.host.assembly.as_ref().expect("assembled host");
+        match tokio::time::timeout(assembly.close_timeout, assembly.client_watches.settle()).await {
+            Ok(settled) => settled?,
+            Err(_) => tracing::warn!(
+                timeout = ?assembly.close_timeout,
+                "Settle Client Watches: A Client Stopped Reading; Detaching the Listener Ends Its Watch"
+            ),
+        }
         if let Some(listener) = self.listener.take() {
             listener.detach().await?;
         }
@@ -224,6 +244,7 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     let mut changes = context.host.changes();
     let weak_host = Arc::downgrade(&context.host);
     let plugin_context = Arc::downgrade(&context);
+    runtime.grpc().register_middleware(assembly.client_watches.clone())?;
     runtime
         .grpc()
         .configure_access(composition::access_settings(&settings), Arc::new(access_credentials::Store::new(host.store.clone(), backend_id)))
@@ -290,8 +311,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
     };
     let binding = Arc::new(dokime_operations::native::Binding::default());
     let client_watches = Arc::new(ClientWatches::default());
-    let (runtime, backend_lease, plugins) =
-        Box::pin(composition::launch(host, root, settings, binding.clone(), client_watches.clone())).await?;
+    let (runtime, backend_lease, plugins) = Box::pin(composition::launch(host, root, settings, binding.clone())).await?;
     let status = runtime.services().configure_status(status::settings(settings, backend_id.clone()))?;
     let administration = Arc::new(Mutex::new(()));
     let catalogs = Arc::new(RwLock::new(Vec::new()));

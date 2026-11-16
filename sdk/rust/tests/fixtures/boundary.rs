@@ -56,6 +56,9 @@ struct Published {
     count: AtomicU64,
 }
 
+/// Marks the Lag Template's Scope, Whose Lagging Observer Waits Inside Each Window.
+struct Lagging;
+
 /* === Enums === */
 
 /* === Traits === */
@@ -124,16 +127,23 @@ fn main() -> Result<()> {
         .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(10)).await))
         .stream(overflow_stream)
         .observer(overflow_observer);
-    // A 1 kHz Stream Whose Observer Answers Each Window Long After Its End, So a Real-Clock Host Falls Behind.
+    // A 1 kHz Stream Whose Observer, in the Lag Template's Own Scope, Waits 100 ms of Host Time Inside Each Window: the
+    // Wait Advances a Controlled Clock While the Window Stays Unanswered, So the Stream Falls Behind Its Window End.
     let lag_stream = Stream::<Reading>::new("execution.window.lag", "Lagging Window Samples");
-    let lag_observer = Observer::window(&lag_stream, async |_: &Context, window: &SampleWindow| {
-        std::thread::sleep(Duration::from_millis(100));
+    let lag_observer = Observer::window(&lag_stream, async |context: &Context, window: &SampleWindow| {
+        if context.get::<Lagging>().is_ok() {
+            context.sleep(Duration::from_millis(100)).await?;
+        }
         Ok(ReadingColumns {
             value: vec![0.0; window.count as usize],
         })
     })
     .every(Duration::from_millis(1));
     let lag = Template::new("execution.lag", "Window Lag")
+        .initialize(async |context: &Context| {
+            context.set(Lagging);
+            Ok(())
+        })
         .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(2)).await))
         .stream(lag_stream)
         .observer(lag_observer);

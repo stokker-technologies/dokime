@@ -61,6 +61,7 @@ pub async fn handle(context: &Context, request: TraceabilityWatchRequest) -> Res
             return Err(Error::Invalid("Watch Traceability: Open a Watch with a Read Cut and No Page Token".into()));
         }
         let mut changes = context.host.store().subscribe();
+        let mut runtime = context.host.changes();
         let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer.saturating_add(1));
         let terminal =
             sender.clone().reserve_owned().await.map_err(|_| Error::Invalid("Watch Traceability: Reconnect the Observer".into()))?;
@@ -115,12 +116,21 @@ pub async fn handle(context: &Context, request: TraceabilityWatchRequest) -> Res
                     if catch_up {
                         continue;
                     }
-                    tokio::select! {
-                        _ = sender.closed() => return,
-                        changed = changes.changed() => if changed.is_err() {
-                            let _ = sender.send(Err(tonic::Status::unavailable("Watch Traceability: Storage Closed; Resynchronize"))).await;
-                            return;
-                        },
+                    if context.host.shutting_down() {
+                        return;
+                    }
+                    // The Host's Shutdown Ends the Watch Even While Storage Stays Unchanged.
+                    loop {
+                        tokio::select! {
+                            _ = sender.closed() => return,
+                            changed = changes.changed() => if changed.is_err() {
+                                let _ = sender.send(Err(tonic::Status::unavailable("Watch Traceability: Storage Closed; Resynchronize"))).await;
+                                return;
+                            } else {
+                                break
+                            },
+                            changed = runtime.changed() => if changed.is_err() || context.host.shutting_down() { return },
+                        }
                     }
                 }
             };

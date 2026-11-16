@@ -83,8 +83,6 @@ jobs:
       fail-fast: false
       matrix:
         language:
-        - rust
-        - python
         - csharp
         - cpp
     with:
@@ -355,8 +353,7 @@ jobs:
       command: test -- --artifact tests --package dokime-runtime --target system --filterset "test(csharp_plugin_matches_rust_thermal_evidence)
         or test(cpp_plugin_matches_rust_thermal_evidence)"
       bootstrap: ${{ matrix.platform == 'unix' && '["python3 tools/python/src/dokime_tools/ci/bootstrap.py --gui-runtime"]' || '[]' }}
-      archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-rust-{profile}-{platform}.tar.zst", "target/ci/build-host-python-{profile}-{platform}.tar.zst",
-        "target/ci/build-host-csharp-{profile}-{platform}.tar.zst", "target/ci/build-host-cpp-{profile}-{platform}.tar.zst"]'
+      archives: '["target/ci/build-tests-{profile}-{platform}.tar.zst", "target/ci/build-host-csharp-{profile}-{platform}.tar.zst", "target/ci/build-host-cpp-{profile}-{platform}.tar.zst"]'
       minutes: 120
       suite: execution-host-sdks
   coverage:

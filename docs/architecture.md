@@ -125,7 +125,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    **Why:** One owner must join work and settle shutdown; storage reads and pure
    rendering need no invented manager. Assembly observes native plugin changes for
    redacted diagnostics, and waits for product watches to settle after execution
-   shutdown before detaching its gRPC listener. Cycles group execution-manager tasks and
+   shutdown before detaching its gRPC listener; every product watch ends on shutdown
+   and settles when its transport sends the final status, so detaching never cuts a
+   finished watch's last frames. A client that stops reading is cut by the detach
+   after the host's close timeout (the client mutation timeout). Cycles group execution-manager tasks and
    do not own an independent scheduler.
    **Where:** [manager ownership table](../openspec/changes/operation-grammar/design.md#ownership-and-managers),
    [current Host](../crates/dokime-runtime/src/host.rs),

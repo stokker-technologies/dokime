@@ -118,7 +118,7 @@ impl Source for Clock {
 /* === Public Functions === */
 
 pub(super) async fn launch(
-    host: &Host, root: &Path, settings: &ClientSettings, binding: Arc<Binding>, client_watches: Arc<super::ClientWatches>,
+    host: &Host, root: &Path, settings: &ClientSettings, binding: Arc<Binding>,
 ) -> Result<(Arc<Runtime<Application>>, BackendLease, Manager)> {
     let source = host.settings.clock.clone();
     let store = &host.store;
@@ -206,7 +206,6 @@ pub(super) async fn launch(
     let runtime = Box::pin(Runtime::<Application>::launch_with((), Some(settings.clone()), |setup| {
         setup.resource::<Binding>(binding);
         setup.settings().operation_middleware(Arc::new(Timing));
-        setup.settings().operation_middleware(client_watches);
         setup.settings().attach_streams(Samples {
             store: store.clone(),
             failures: sample_failures,

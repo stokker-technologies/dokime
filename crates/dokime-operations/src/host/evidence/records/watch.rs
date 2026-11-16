@@ -58,6 +58,7 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 
 pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<Output<RecordsWatchResponse>> {
     let mut changes = context.host.store().subscribe();
+    let mut runtime = context.host.changes();
     let mut selection = RecordsListRequest {
         scope: request.scope,
         record_type: request.record_type,
@@ -111,9 +112,13 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
                     opening = false;
                     selection.at = None;
                     selection.page.get_or_insert_default().page_token.clear();
-                    tokio::select! {
-                        _ = sender.closed() => return Ok(()),
-                        changed = changes.changed() => if changed.is_err() { return Ok(()); }
+                    // The Host's Shutdown Ends the Watch Even While Storage Stays Unchanged.
+                    loop {
+                        tokio::select! {
+                            _ = sender.closed() => return Ok(()),
+                            changed = changes.changed() => if changed.is_err() { return Ok(()); } else { break },
+                            changed = runtime.changed() => if changed.is_err() || context.host.shutting_down() { return Ok(()); },
+                        }
                     }
                     if context.host.shutting_down() {
                         return Ok(());
