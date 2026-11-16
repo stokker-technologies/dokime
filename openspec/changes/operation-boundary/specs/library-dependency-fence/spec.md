@@ -15,12 +15,12 @@ Dokime manifests SHALL depend on the Harmos host facade and SDK crates only, wit
 
 ### Requirement: Runtime Built Through the Builder
 
-Dokime SHALL build its runtime by passing its backend pair, catalog and settings to the Harmos builder and SHALL retain only the runtime handle and an operation caller, never a Harmos manager.
+Dokime SHALL build its runtime by passing its backend pair, catalog and settings to the Harmos builder and SHALL call Harmos only through the typed in-process facade, retaining the runtime handle and never a Harmos manager.
 
 #### Scenario: Plugin Activation
 
 - **WHEN** an execution activates a plugin, binds its clock and starts its samples
-- **THEN** Dokime calls Harmos in-process operations for each step and holds no plugin manager
+- **THEN** Dokime calls the Harmos facade for each step, each call dispatching its in-process operation, and holds no plugin manager
 
 ### Requirement: Backend Through the Authoring Module
 
