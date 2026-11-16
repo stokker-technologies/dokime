@@ -89,11 +89,11 @@ struct Observed {
     count: AtomicU64,
 }
 
-struct Fixture {
-    host: Host,
-    root: std::path::PathBuf,
-    cycle: Cycle,
-    execution: String,
+pub(super) struct Fixture {
+    pub host: Host,
+    pub root: std::path::PathBuf,
+    pub cycle: Cycle,
+    pub execution: String,
 }
 
 /* === Enums === */
@@ -103,7 +103,7 @@ struct Fixture {
 /* === Implementations === */
 
 impl Fixture {
-    async fn new(endpoint: &str, template: &str, rows: usize) -> Self {
+    pub(super) async fn new(endpoint: &str, template: &str, rows: usize) -> Self {
         let root = tempfile::tempdir().unwrap().keep();
         let settings = settings();
         let operations = dokime_runtime::services::ClientSettings {
@@ -129,7 +129,7 @@ impl Fixture {
         Self { host, root, cycle, execution }
     }
 
-    async fn prompt(&self, name: &str) -> PromptRequest {
+    pub(super) async fn prompt(&self, name: &str) -> PromptRequest {
         let mut changed = self.host.changes();
         loop {
             changed.borrow_and_update();
@@ -146,7 +146,7 @@ impl Fixture {
         }
     }
 
-    async fn release(&self, name: &str) {
+    pub(super) async fn release(&self, name: &str) {
         let prompt = self.prompt(name).await;
         self.host
             .answer(
@@ -180,7 +180,7 @@ pub fn serve() -> Result<()> {
             value: (index % 1024) as f64,
         })
     })
-    .every_ms(1);
+    .every(Duration::from_millis(1));
     let template = Template::new("capture", "Capture")
         .parameters(Capture { rows: 1024 })
         .initialize(async |context: &Context| {
@@ -201,7 +201,7 @@ pub fn serve() -> Result<()> {
         };
         Ok(Pulse { value: index as f64 })
     })
-    .every_ms(1);
+    .every(Duration::from_millis(1));
     let export = Template::new("export", "Export")
         .parameters(Capture { rows: 16384 })
         .initialize(async |context: &Context| {
@@ -213,7 +213,7 @@ pub fn serve() -> Result<()> {
         .observer(observer);
     // The Spectrum's First Scheduled Sample Is Outside These Short Captures.
     let spectrum = Stream::<Pulse>::new("spectrum", "Spectrum");
-    let spectrum_observer = Observer::new(&spectrum, async |_: &Context| Ok(Pulse { value: 0.0 })).every_ms(86_400_000);
+    let spectrum_observer = Observer::new(&spectrum, async |_: &Context| Ok(Pulse { value: 0.0 })).every(Duration::from_secs(86_400));
     Plugin::new("storage.benchmark", "1.0.0")
         .suite(Suite::new("storage.benchmark", "Storage Benchmark").template(template).template(export))
         .stream(spectrum)
@@ -235,7 +235,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
     let mut plugin = None;
     super::boundary(
         "Runtime Observer Publication and Evidence Barrier, 1,024 Rows",
-        "warm host, fresh execution; release ready step, tick-driven producer encoding of 1,024 samples, plugin transport and batch admission, append produced-count record (durable evidence barrier), await captured prompt; execution end and shutdown excluded",
+        "warm host, fresh execution; release ready step, host windows answered by a one-sample producer encoding 1,024 samples, plugin transport and batch admission, append produced-count record (durable evidence barrier), await captured prompt; execution end and shutdown excluded",
     );
     group.bench_function("observer_publication_and_barrier_durable/1024", |b| {
         let plugin = plugin.get_or_insert_with(|| {
@@ -411,7 +411,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
 
 /* === Private Functions === */
 
-fn settings() -> HostSettings {
+pub(super) fn settings() -> HostSettings {
     HostSettings {
         clock: Arc::new(ControlledClock::new(1_788_220_800_000_000_000)),
         storage: storage_defaults(),
@@ -419,6 +419,7 @@ fn settings() -> HostSettings {
             connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_millis(25),
             stream_window: NonZeroUsize::new(8).unwrap(),
+            interval_window: dokime_runtime::INTERVAL_WINDOW,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         },
         capture: dokime_runtime::CaptureSettings::default(),
@@ -429,7 +430,7 @@ async fn capture(context: &Context) -> Result<()> {
     context.host().prompts.create("ready".into(), "continue".into(), HashMap::new()).await?;
     let rows = context.parameters::<Capture>()?.rows;
     let observed = context.get::<Observed>()?;
-    // A Controlled Sleep Settles After Every Tick It Spans.
+    // A Controlled Sleep Settles After Every Window Due by Its End.
     context.sleep(Duration::from_millis(rows.saturating_sub(observed.count.load(Ordering::SeqCst)))).await?;
     assert_eq!(observed.count.load(Ordering::SeqCst), rows, "Publish Runtime Samples: Retain the Requested Row Count");
     context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows }).await?;

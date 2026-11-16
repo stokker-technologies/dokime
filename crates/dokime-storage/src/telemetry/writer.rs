@@ -19,6 +19,8 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
+use arrow_array::{Array, Int64Array, RecordBatch, StructArray, UInt64Array};
+use arrow_select::concat::concat_batches;
 use prost::Message;
 use prost_reflect::DescriptorPool;
 use rusqlite::{Connection, params};
@@ -61,6 +63,11 @@ impl Telemetry {
         self.codecs.insert(key, codec.clone());
         Ok(codec)
     }
+    /// Whether Accepted Rows Reached the Pending Byte Pressure or One Stream's Flush Row Count.
+    fn flush_due(&self) -> bool {
+        self.pending.values().map(|pending| pending.bytes).sum::<usize>() >= self.settings.pending_bytes.get()
+            || self.pending.values().any(|pending| pending.rows >= self.settings.flush_rows.get())
+    }
 }
 impl Store {
     pub fn sample_batch(&self, execution: &str, samples: &[Sample]) -> Result<Vec<u64>> {
@@ -77,52 +84,71 @@ impl Store {
         let mut position = crate::store::next_position(&connection, execution)?;
         let mut positions = Vec::with_capacity(samples.len());
         for sample in samples {
-            let closed: i32 = connection.query_row(
-                "SELECT closed FROM streams WHERE execution=?1 AND stream=?2",
-                params![execution, sample.stream],
-                |row| row.get(0),
-            )?;
-            if closed != 0 {
-                return Err(Error::Data("open the execution stream before publishing samples"));
+            if !prepared.contains_key(&sample.stream) {
+                require_stream(&connection, execution, &sample.stream)?;
+                let codec = telemetry.codec(&connection, execution, &sample.stream)?;
+                prepared.insert(sample.stream.clone(), (codec, Vec::new()));
             }
-            let codec = telemetry.codec(&connection, execution, &sample.stream)?;
             let mut sample = sample.clone();
             sample.position = position;
-            // Validate Every Row Before Admitting Any Part Of The Call.
-            prepared.entry(sample.stream.clone()).or_insert_with(|| (codec, Vec::new())).1.push(sample);
             positions.push(position);
+            prepared.get_mut(&sample.stream).unwrap().1.push(sample);
             position = position
                 .checked_add(1)
                 .filter(|p| *p <= i64::MAX as u64)
                 .ok_or(Error::Data("start a fresh execution before positions overflow"))?;
         }
-        for (codec, rows) in prepared.values() {
-            codec.batch(rows)?;
+        // Validate Every Row Before Admitting Any Part Of The Call.
+        let batches =
+            prepared.into_iter().map(|(stream, (codec, rows))| Ok((stream, codec.batch(&rows)?, codec))).collect::<Result<Vec<_>>>()?;
+        accept(&connection, execution, position - 1)?;
+        for (stream, batch, codec) in batches {
+            admit(&mut telemetry, execution, stream, codec, batch);
         }
-        connection.execute(
-            "INSERT INTO temp.accepted VALUES(?1,?2) ON CONFLICT(execution) DO UPDATE SET position=excluded.position",
-            params![execution, position as i64 - 1],
-        )?;
-        for (stream, (codec, rows)) in prepared {
-            let pending = telemetry.pending.entry((execution.into(), stream)).or_insert_with(|| Pending {
-                codec,
-                started: Instant::now(),
-                samples: Vec::new(),
-            });
-            pending.samples.extend(rows);
-        }
-        let pressure =
-            telemetry.pending.values().map(|pending| pending.samples.iter().map(|row| row.row.len() + 64).sum::<usize>()).sum::<usize>()
-                >= telemetry.settings.pending_bytes.get();
-        let full = telemetry.pending.values().any(|pending| pending.samples.len() >= telemetry.settings.flush_rows.get());
+        let flush = telemetry.flush_due();
         drop(telemetry);
         drop(connection);
-        if pressure || full {
+        self.admitted(flush)?;
+        Ok(positions)
+    }
+    /// Admit One Stored Interval Batch Row as Consecutive Samples, Columns Straight Into Arrow.
+    ///
+    /// `payload` is the host's stored `harmos.batch.<row>` encoding; `sequence` numbers its first
+    /// sample. Every sample takes one position and the time `start + index * period`. Returns the
+    /// number of samples admitted.
+    pub fn sample_interval(&self, execution: &str, stream: &str, payload: &[u8], sequence: u64) -> Result<u64> {
+        let connection = self.lock()?;
+        crate::store::require_open(&connection, execution)?;
+        let mut telemetry = self.telemetry.lock().map_err(|_| Error::Data("restart after the telemetry writer lock failed"))?;
+        if telemetry.closed {
+            return Err(Error::Data("open a storage session before publishing samples"));
+        }
+        require_stream(&connection, execution, stream)?;
+        let codec = telemetry.codec(&connection, execution, stream)?;
+        let interval = codec.interval(payload)?;
+        let count = interval.count as u64;
+        let first = crate::store::next_position(&connection, execution)?;
+        let last = first
+            .checked_add(count - 1)
+            .filter(|last| *last <= i64::MAX as u64)
+            .ok_or(Error::Data("start a fresh execution before positions overflow"))?;
+        sequence.checked_add(count).ok_or(Error::Data("restart the stream before its sequence overflows"))?;
+        let batch = codec.assemble(first, sequence, &interval)?;
+        accept(&connection, execution, last)?;
+        admit(&mut telemetry, execution, stream.to_owned(), codec, batch);
+        let flush = telemetry.flush_due();
+        drop(telemetry);
+        drop(connection);
+        self.admitted(flush)?;
+        Ok(count)
+    }
+    fn admitted(&self, flush: bool) -> Result<()> {
+        if flush {
             self.flush_samples()?;
         }
         self.start_sample_flush()?;
         self.changed.send_modify(|revision| *revision += 1);
-        Ok(positions)
+        Ok(())
     }
     fn start_sample_flush(&self) -> Result<()> {
         let Ok(runtime) = tokio::runtime::Handle::try_current() else { return Ok(()) };
@@ -205,7 +231,10 @@ impl Store {
             for (execution, stream) in keys {
                 let pending = &telemetry.pending[&(execution.clone(), stream.clone())];
                 let codec = pending.codec.clone();
-                let samples = pending.samples.clone();
+                let samples = match pending.batches.as_slice() {
+                    [batch] => batch.clone(),
+                    batches => concat_batches(&codec.schema, batches)?,
+                };
                 let id = catalog::identifier(&execution, &stream, &codec.digest);
                 let path = catalog::path(root, &id)?;
                 if let std::collections::btree_map::Entry::Vacant(entry) = telemetry.writers.entry(id.clone()) {
@@ -231,11 +260,12 @@ impl Store {
                     "INSERT OR IGNORE INTO telemetry_files VALUES(?1,?2,?3,?4,?5,?6,0,0,?5,?7)",
                     params![id, execution, stream, codec.digest, header.end as i64, header.hash, writer.digest().as_slice()],
                 )?;
-                for samples in samples.chunks(rows_per_batch) {
-                    let batch = codec.batch(samples)?;
+                for offset in (0..samples.num_rows()).step_by(rows_per_batch) {
+                    let batch = samples.slice(offset, rows_per_batch.min(samples.num_rows() - offset));
+                    let (first, last, start, end) = span(&batch)?;
                     let index = writer.append(&batch)?;
                     let checkpoint = writer.checkpoint();
-                    super::aggregates::append(&transaction, &id, index.offset, &batch, samples, previews)?;
+                    super::aggregates::append(&transaction, &id, index.offset, &batch, previews)?;
                     transaction.execute(
                         "INSERT INTO telemetry_batches VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
                         params![
@@ -245,10 +275,10 @@ impl Store {
                             index.body_bytes as i64,
                             index.rows as i64,
                             index.sha256.as_slice(),
-                            samples.iter().map(|s| s.source_ns).min().unwrap(),
-                            samples.iter().map(|s| s.source_ns).max().unwrap(),
-                            samples.first().unwrap().position as i64,
-                            samples.last().unwrap().position as i64
+                            start,
+                            end,
+                            first as i64,
+                            last as i64
                         ],
                     )?;
                     transaction.execute(
@@ -323,5 +353,56 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn require_stream(connection: &Connection, execution: &str, stream: &str) -> Result<()> {
+    let closed: i32 =
+        connection
+            .query_row("SELECT closed FROM streams WHERE execution=?1 AND stream=?2", params![execution, stream], |row| row.get(0))?;
+    if closed != 0 {
+        return Err(Error::Data("open the execution stream before publishing samples"));
+    }
+    Ok(())
+}
+
+fn accept(connection: &Connection, execution: &str, through: u64) -> Result<()> {
+    connection.execute(
+        "INSERT INTO temp.accepted VALUES(?1,?2) ON CONFLICT(execution) DO UPDATE SET position=excluded.position",
+        params![execution, through as i64],
+    )?;
+    Ok(())
+}
+
+fn admit(telemetry: &mut Telemetry, execution: &str, stream: String, codec: Arc<Codec>, batch: RecordBatch) {
+    let pending = telemetry.pending.entry((execution.into(), stream)).or_insert_with(|| Pending {
+        codec,
+        started: Instant::now(),
+        batches: Vec::new(),
+        rows: 0,
+        bytes: 0,
+    });
+    pending.rows += batch.num_rows();
+    // Count the Bytes the Rows Use, Not Buffer Capacity, So Small Device Admissions Keep the Byte Bound Meaningful.
+    pending.bytes += batch.columns().iter().map(|column| column.to_data().get_slice_memory_size().unwrap_or_default()).sum::<usize>();
+    pending.batches.push(batch);
+}
+
+/// The First and Last Positions and the Earliest and Latest Source Times of a Stored Batch.
+pub(super) fn span(batch: &RecordBatch) -> Result<(u64, u64, i64, i64)> {
+    let storage = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("storage metadata differs"))?;
+    let positions = storage
+        .column_by_name("position")
+        .and_then(|column| column.as_any().downcast_ref::<UInt64Array>())
+        .ok_or(Error::Corrupt("position type differs"))?;
+    let times = storage
+        .column_by_name("source_ns")
+        .and_then(|column| column.as_any().downcast_ref::<Int64Array>())
+        .ok_or(Error::Corrupt("time type differs"))?;
+    let (Some(first), Some(last)) = (positions.values().first(), positions.values().last()) else {
+        return Err(Error::Data("flush a nonempty sample batch"));
+    };
+    let start = times.values().iter().copied().min().unwrap();
+    let end = times.values().iter().copied().max().unwrap();
+    Ok((*first, *last, start, end))
+}
 
 /* === Tests === */

@@ -30,7 +30,7 @@ use prost_types::{Duration as ProtoDuration, Timestamp};
 use crate::context::{Execution, Local, LocalHost};
 use crate::operation::FutureResult;
 use crate::plugin::DeclarationTypes;
-use crate::stream::Sampler;
+use crate::stream::{SampleWindow, Sampler};
 use crate::template::Parts;
 use crate::wire::host::evidence::{
     CapturedRecord, LogsAppendRequest, LogsAppendResponse, RecordsAppendRequest, RecordsAppendResponse, RecordsListRequest,
@@ -150,6 +150,7 @@ struct State {
     now_ns: i64,
     step: String,
     due_ns: Vec<i64>,
+    sequences: Vec<u64>,
     records: Vec<Recorded>,
     samples: Vec<Sampled>,
     logs: Vec<Logged>,
@@ -247,17 +248,17 @@ impl Harness {
             case = materialize(case, &resolved)?;
         }
 
-        // Observers of the Case's Streams Tick at Their First Due Interval.
+        // Observers of the Case's Streams Sample From Their First Due Interval.
         let mut observers = Vec::new();
         for sampler in owned.into_iter().chain(samplers) {
             if !case.streams.contains(&sampler.stream) || observers.iter().any(|(known, _): &(Sampler, i64)| known.stream == sampler.stream)
             {
                 continue;
             }
-            let Some(interval_ms) = sampler.interval_ms else {
-                return Err(Error::Invalid(format!("Test Template: Give Observer {} a Fixed Interval With every_ms", sampler.stream)));
+            let Some(interval) = sampler.interval else {
+                return Err(Error::Invalid(format!("Test Template: Give Observer {} a Fixed Interval With every", sampler.stream)));
             };
-            let interval_ns = i64::try_from(interval_ms).unwrap_or(i64::MAX).saturating_mul(1_000_000).max(1);
+            let interval_ns = i64::try_from(interval.as_nanos()).unwrap_or(i64::MAX).max(1);
             observers.push((sampler, interval_ns));
         }
         let origin = Origin {
@@ -270,6 +271,7 @@ impl Harness {
         };
         let execution = Execution::new(case.clone(), origin);
         let due_ns = observers.iter().map(|(_, interval_ns)| self.origin_ns.saturating_add(*interval_ns)).collect();
+        let sequences = vec![0; observers.len()];
         let host = Arc::new_cyclic(|me| Memory {
             me: me.clone(),
             execution: execution.clone(),
@@ -279,6 +281,7 @@ impl Harness {
             observers,
             state: Mutex::new(State {
                 now_ns: self.origin_ns,
+                sequences,
                 due_ns,
                 ..State::default()
             }),
@@ -441,22 +444,27 @@ impl Memory {
         Context::local(Local { host, scope: EXECUTION.into(), attempt }, self.execution.clone())
     }
 
-    // Advance Virtual Time, Ticking Each Due Observer Before the Wait Settles.
+    // Advance Virtual Time; Before the Wait Settles, Each Observer Answers One Window of Every Sample Due by Its End.
     async fn advance(&self, duration_ns: i64) -> Result<()> {
-        let target = self.state.lock().map_err(|_| poisoned())?.now_ns.saturating_add(duration_ns.max(0));
-        loop {
-            let (index, due, step) = {
-                let mut state = self.state.lock().map_err(|_| poisoned())?;
-                let next = state.due_ns.iter().copied().enumerate().filter(|(_, due)| *due <= target).min_by_key(|(_, due)| *due);
-                let Some((index, due)) = next else {
-                    state.now_ns = target;
-                    return Ok(());
-                };
-                state.now_ns = due;
-                state.due_ns[index] = due.saturating_add(self.observers[index].1);
-                (index, due, state.step.clone())
-            };
-            let sampler = &self.observers[index].0;
+        let (step, grants) = {
+            let mut state = self.state.lock().map_err(|_| poisoned())?;
+            let target = state.now_ns.saturating_add(duration_ns.max(0));
+            state.now_ns = target;
+            let mut grants = Vec::new();
+            for (index, (_, period)) in self.observers.iter().enumerate() {
+                let first = state.due_ns[index];
+                if first > target {
+                    continue;
+                }
+                let count = (target - first) / period + 1;
+                state.due_ns[index] = first.saturating_add(count.saturating_mul(*period));
+                grants.push((index, first, count as u64, state.sequences[index] + 1));
+                state.sequences[index] += count as u64;
+            }
+            (state.step.clone(), grants)
+        };
+        for (index, first, count, sequence) in grants {
+            let (sampler, period) = &self.observers[index];
             let host: Arc<dyn LocalHost> = self.me.upgrade().ok_or_else(poisoned)?;
             let context = Context::local(
                 Local {
@@ -466,14 +474,27 @@ impl Memory {
                 },
                 self.execution.clone(),
             );
-            let payload = sampler.sample.execute(&context).await?;
-            self.state.lock().map_err(|_| poisoned())?.samples.push(Sampled {
-                stream: sampler.stream.clone(),
-                step,
-                payload,
-                at_ns: due,
-            });
+            let window = SampleWindow {
+                start: timestamp(first),
+                period: prost_types::Duration {
+                    seconds: period / 1_000_000_000,
+                    nanos: (period % 1_000_000_000) as i32,
+                },
+                count,
+                sequence,
+            };
+            let rows = sampler.sample.rows(&context, &window).await?;
+            let mut state = self.state.lock().map_err(|_| poisoned())?;
+            for (offset, payload) in rows.into_iter().enumerate() {
+                state.samples.push(Sampled {
+                    stream: sampler.stream.clone(),
+                    step: step.clone(),
+                    payload,
+                    at_ns: first.saturating_add((offset as i64).saturating_mul(*period)),
+                });
+            }
         }
+        Ok(())
     }
 
     async fn dispatch(&self, operation: &'static str, request: Vec<u8>) -> Result<Vec<u8>> {

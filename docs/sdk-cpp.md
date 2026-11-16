@@ -2,7 +2,7 @@
 
 `sdk/cpp` is a C++20 SDK. `Dokime::Cpp` composes the product's descriptor-derived
 client tree, plugin authoring, document builders and public payload barrels with
-Harmos revision `5d601dd320edb0fc69131dc2851d789c4dd1e4c0`.
+Harmos revision `efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`.
 CMake consumes the pinned library archive's own targets and installable package;
 protobuf and gRPC use the same vcpkg graph for both SDKs.
 
@@ -142,8 +142,14 @@ reading a secret uses the scoped host resource. The library owns plugin settings
 and time. There is no second product plugin record or clock declaration.
 
 `Stream<Row>` composes the library stream; `Observer<Row>` combines a stream,
-`Context&` sampling function and protobuf duration. Host ticks drive sampling,
-with no SDK sampling thread or wall-clock timer. Observers may run before
+`Context&` sampling function, protobuf duration, optional interval setting and
+optional `window_setting`. The host grants each interval stream one window at a
+time and the SDK calls the function once per sample of it. `WindowObserver<Row,
+Columns>` takes `Columns(Context&, const SampleWindow&)` and answers the whole window with
+a columns message that repeats every row field; it suits high-rate streams.
+`window_setting` names a plugin Duration setting that replaces the host's
+`interval_window_ms` for that stream. Host windows drive sampling, with no SDK
+sampling thread or wall-clock timer. Interval rows hold one value per field. Observers may run before
 initialization, so they must tolerate unavailable execution resources. Shared
 resource contents own their synchronization.
 

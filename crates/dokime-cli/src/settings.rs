@@ -33,7 +33,7 @@ use crate::Result;
 use dokime::client::{CallOptions, ClientSettings as RpcClientSettings};
 use dokime::{Client, StorageTransferSettings};
 use dokime_runtime::{
-    CaptureSettings, ControlledClock, HostSettings, PlacementSettings, SchedulerClock,
+    CaptureSettings, ControlledClock, HostSettings, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
     services::{ClientSettings, WallClock},
 };
 
@@ -67,6 +67,7 @@ pub(crate) struct Settings {
     pub mutation_timeout_s: u64,
     pub watch_timeout_s: u64,
     pub reconnect_delay_ms: u64,
+    pub interval_window_ms: u64,
     pub message_bytes: NonZeroUsize,
     pub retained_bytes: NonZeroUsize,
     pub stream_buffer: NonZeroUsize,
@@ -100,6 +101,7 @@ impl Default for Settings {
             mutation_timeout_s: 30,
             watch_timeout_s: 3600,
             reconnect_delay_ms: 25,
+            interval_window_ms: INTERVAL_WINDOW.as_millis() as u64,
             message_bytes: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
             retained_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
             stream_buffer: NonZeroUsize::new(8).unwrap(),
@@ -130,6 +132,9 @@ impl Settings {
         {
             return Err("Configure Positive Host and Client Timeouts".into());
         }
+        if settings.interval_window_ms == 0 {
+            return Err("Configure a Positive interval_window_ms".into());
+        }
         Ok(settings)
     }
     pub fn placement(&self) -> PlacementSettings {
@@ -137,6 +142,7 @@ impl Settings {
             connect_timeout: Duration::from_secs(self.connect_timeout_s),
             reconnect_delay: Duration::from_millis(self.reconnect_delay_ms),
             stream_window: self.stream_buffer,
+            interval_window: Duration::from_millis(self.interval_window_ms),
             message_bytes: self.message_bytes,
         }
     }

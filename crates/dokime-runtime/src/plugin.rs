@@ -40,6 +40,11 @@ const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
 pub const PLUGIN_TEARDOWN: Duration = <Delete as ProtobufOperation>::POLICY.timeout;
 /// The Bound of Each Teardown Phase: Settle, Stop and Exit, Then Kill and Reap.
 pub const STOP_GRACE: Duration = PLUGIN_TEARDOWN.checked_div(3).unwrap();
+/// The Default Interval Window: How Much Sampling Time One Host Grant Covers.
+///
+/// Longer windows batch more samples per message and stored row; shorter ones deliver live
+/// samples sooner. A stream whose observer names a window setting takes that plugin setting instead.
+pub const INTERVAL_WINDOW: Duration = Duration::from_millis(100);
 
 /* === Macros === */
 
@@ -52,6 +57,8 @@ pub struct PlacementSettings {
     pub connect_timeout: Duration,
     pub reconnect_delay: Duration,
     pub stream_window: NonZeroUsize,
+    /// Sampling Time One Interval Window Covers, Unless a Stream's Window Setting Overrides It.
+    pub interval_window: Duration,
     pub message_bytes: NonZeroUsize,
 }
 

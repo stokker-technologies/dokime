@@ -19,7 +19,13 @@ var template = new Template("thermal.cycle", "Thermal Cycle")
     .Resource(context => Task.FromResult<IAsyncDisposable>(new Bench(context.Parameters["limit"].Number)))
     .Initialize(async context => await context.LogAsync(Severity.Info, "Initialized"))
     .Observer(new Observer<Temperature>(temperature, new Duration { Seconds = 1 }, context => Task.FromResult(new Temperature { Celsius = context.Resource<Bench>().Limit - 1 })))
-    .Observer(new Observer<Counter>(counter, new Duration { Nanos = 1_000_000 }, context => Task.FromResult(new Counter { Value = 1_152_921_504_606_847_975 })))
+    // A 1 kHz Stream Answers Each Host Window at Once.
+    .Observer(new WindowObserver<Counter, CounterColumns>(counter, new Duration { Nanos = 1_000_000 }, (context, window) =>
+    {
+      var columns = new CounterColumns();
+      columns.Value.AddRange(Enumerable.Repeat(1_152_921_504_606_847_975UL, checked((int)window.Count)));
+      return Task.FromResult(columns);
+    }))
     .Step(new Step("ramp", "Ramp to Target", async context =>
     {
       var current = await context.Host.Executions.Progress.Get();

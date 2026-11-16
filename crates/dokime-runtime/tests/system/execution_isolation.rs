@@ -280,24 +280,9 @@ impl Instance for ScopeProbe {
         let mut input = request.into_inner();
         let (send, receive) = tokio::sync::mpsc::channel(1);
         tokio::spawn(async move {
-            use harmos_protocol::plugin::instance_samples_request::Frame;
-            let mut sequence = 0;
-            while let Ok(Some(request)) = input.message().await {
-                if let Some(Frame::Tick(tick)) = request.frame {
-                    sequence += 1;
-                    let response = InstanceSamplesResponse {
-                        samples: vec![harmos_protocol::plugin::Sample {
-                            sequence,
-                            at: tick.at,
-                            row: harmos_protocol::model::Position { history: None, sequence: u64::MAX }.encode_to_vec(),
-                        }],
-                        ..Default::default()
-                    };
-                    if send.send(Ok(response)).await.is_err() {
-                        return;
-                    }
-                }
-            }
+            // The Probe's Device Stream Publishes Nothing Itself; Steps Seed Its Evidence Directly.
+            while let Ok(Some(_)) = input.message().await {}
+            drop(send);
         });
         Ok(Response::new(ReceiverStream::new(receive)))
     }

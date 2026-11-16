@@ -49,7 +49,7 @@ pub fn declarations() -> [SettingDeclaration; 2] {
         SettingDeclaration {
             name: SAMPLE_INTERVAL.into(),
             title: "Sample Interval".into(),
-            description: "Host time between two observer samples; the simulated model advances one sample per tick.".into(),
+            description: "Host time between two observer samples; the simulated model advances one step per sample.".into(),
             default: Some(SettingValue {
                 value: Some(setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 1_000_000 })),
             }),

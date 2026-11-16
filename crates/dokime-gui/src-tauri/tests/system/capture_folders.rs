@@ -217,6 +217,7 @@ fn capture_folders_persist_and_apply_to_the_built_in_host() -> Result<(), Box<dy
             connect_timeout: Duration::from_secs(30),
             reconnect_delay: Duration::from_millis(25),
             stream_window: NonZeroUsize::new(8).unwrap(),
+            interval_window: dokime_runtime::INTERVAL_WINDOW,
             message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
         };
         let mut plugin = PluginProcess::start(&dokime_gui::test_support::fixture("dokime-rust-capture"), true, &placement).await?;

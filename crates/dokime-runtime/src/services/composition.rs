@@ -179,6 +179,7 @@ pub(super) async fn launch(
                 reconnect_delay: placement.reconnect_delay,
                 stop_grace: crate::STOP_GRACE,
                 stream_window: placement.stream_window,
+                interval_window: placement.interval_window,
             },
             bundle: Default::default(),
             entries: capacity,

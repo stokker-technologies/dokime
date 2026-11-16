@@ -74,6 +74,8 @@ pub(crate) struct SampleScope {
 struct SampleRow {
     descriptor: MessageDescriptor,
     codec: Option<JsonCodec>,
+    /// Interval Streams Store `harmos.batch` Rows of Columns; Device Streams Store One Row per Sample.
+    interval: bool,
     sequence: u64,
 }
 
@@ -234,7 +236,16 @@ impl SampleScope {
             let descriptor = pool
                 .get_message_by_name(&declaration.row)
                 .ok_or_else(|| Error::Invalid(format!("Open Sample Scope: Declare Row {}", declaration.row)))?;
-            selected.insert(stream.clone(), SampleRow { descriptor, codec: None, sequence: 0 });
+            let interval = declaration.interval.is_some() || !declaration.interval_setting.is_empty();
+            selected.insert(
+                stream.clone(),
+                SampleRow {
+                    descriptor,
+                    codec: None,
+                    interval,
+                    sequence: 0,
+                },
+            );
         }
         Ok(Self { streams: selected })
     }
@@ -248,6 +259,11 @@ impl Samples {
         let mut scopes = self.scopes.lock().map_err(|source| Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
         let scope = scopes.get_mut(execution).ok_or_else(|| Error::Invalid("Ingest Sample Scope: Retain Its Execution Binding".into()))?;
         let Some(stream) = scope.streams.get_mut(definition.id()) else { return Ok(()) };
+        if stream.interval {
+            // One Stored Batch Row Holds Consecutive Samples; Storage Expands It Column by Column.
+            stream.sequence += self.store.sample_interval(execution, definition.id(), &publication.payload, stream.sequence + 1)?;
+            return Ok(());
+        }
         if stream.codec.is_none() {
             let schema = definition.schema();
             let view = schema.view(schema.root).map_err(|source| Error::Invalid(format!("Decode Sample Schema: {source}")))?;

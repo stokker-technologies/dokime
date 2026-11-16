@@ -29,10 +29,11 @@ pub use reader::BatchSelection;
 use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
+use arrow_array::RecordBatch;
 use tokio::time::Instant;
 
 // Local Imports
-use crate::{Error, Result, Sample, ipc};
+use crate::{Error, Result, ipc};
 use codec::Codec;
 use config::StorageSettings;
 
@@ -53,10 +54,13 @@ pub(crate) struct Telemetry {
     closed: bool,
     workers: Vec<tokio::task::JoinHandle<()>>,
 }
+/// Accepted Rows Awaiting Their Flush, Already in Their Stored Arrow Layout.
 struct Pending {
     codec: Arc<Codec>,
     started: Instant,
-    samples: Vec<Sample>,
+    batches: Vec<RecordBatch>,
+    rows: usize,
+    bytes: usize,
 }
 
 /* === Enums === */

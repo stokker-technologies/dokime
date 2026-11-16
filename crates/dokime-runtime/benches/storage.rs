@@ -13,6 +13,8 @@
 
 #[path = "storage/publication.rs"]
 mod publication;
+#[path = "storage/windows.rs"]
+mod windows;
 
 /* === Re-Exports === */
 
@@ -387,7 +389,11 @@ fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
 }
 fn main() {
     if std::env::args().any(|argument| argument == "--remote") {
-        publication::serve().unwrap();
+        if windows::selected() {
+            windows::serve().unwrap();
+        } else {
+            publication::serve().unwrap();
+        }
         return;
     }
     let executor = Builder::new_current_thread().enable_all().build().unwrap();
@@ -612,6 +618,7 @@ fn main() {
     }
     group.finish();
     publication::benchmark(&mut criterion, &executor);
+    windows::benchmark(&mut criterion, &executor);
     criterion.final_summary();
 }
 

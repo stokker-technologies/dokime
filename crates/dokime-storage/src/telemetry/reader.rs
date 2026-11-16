@@ -63,7 +63,15 @@ impl Store {
             telemetry
                 .pending
                 .get(&(execution.into(), stream.into()))
-                .and_then(|p| p.samples.iter().filter(|s| s.position > after && s.position <= through).map(|s| s.position).max())
+                .map(|pending| {
+                    pending
+                        .batches
+                        .iter()
+                        .flat_map(|batch| positions(batch).values().iter().copied())
+                        .filter(|position| *position > after && *position <= through)
+                        .max()
+                        .unwrap_or(0)
+                })
                 .unwrap_or(0)
         } else {
             0
@@ -124,19 +132,8 @@ impl Store {
             telemetry
                 .pending
                 .get(&(selection.execution.into(), selection.stream.into()))
-                .map(|pending| {
-                    pending
-                        .samples
-                        .iter()
-                        .filter(|sample| {
-                            sample.position > selection.after
-                                && sample.position <= selection.through
-                                && sample.source_ns >= selection.start_ns
-                                && sample.source_ns <= selection.end_ns
-                        })
-                        .cloned()
-                        .collect::<Vec<_>>()
-                })
+                .map(|pending| pending.batches.iter().map(|batch| tail(batch, &selection)).collect::<Result<Vec<_>>>())
+                .transpose()?
                 .unwrap_or_default()
         } else {
             Vec::new()
@@ -168,8 +165,16 @@ impl Store {
         let projection = ipc::Projection::new(codec.schema.clone(), &["position", "source_ns", "receipt_ns", "sequence"], &keys)?;
         let path = catalog::path(self.database.parent().unwrap(), &id)?;
         let mut pending = Vec::new();
-        for rows in tail.chunks(self.storage_settings()?.flush_rows.get()) {
-            let batch = codec.batch(rows)?;
+        let rows = self.storage_settings()?.flush_rows.get();
+        let chunks = tail
+            .iter()
+            .filter(|batch| batch.num_rows() > 0)
+            .flat_map(|batch| {
+                (0..batch.num_rows()).step_by(rows).map(move |offset| batch.slice(offset, rows.min(batch.num_rows() - offset)))
+            })
+            .collect::<Vec<_>>();
+        for batch in chunks {
+            let end_ns = super::writer::span(&batch)?.3;
             let values = batch.column(1).as_any().downcast_ref::<StructArray>().unwrap();
             let selected = values
                 .fields()
@@ -178,10 +183,11 @@ impl Store {
                 .filter(|(_, f)| keys.contains(f.name()))
                 .map(|(i, f)| (f.clone(), values.column(i).clone()))
                 .collect::<Vec<_>>();
-            let values = if selected.is_empty() { StructArray::new_empty_fields(rows.len(), None) } else { StructArray::from(selected) };
+            let values =
+                if selected.is_empty() { StructArray::new_empty_fields(batch.num_rows(), None) } else { StructArray::from(selected) };
             let batch =
                 RecordBatch::try_from_iter(vec![("_storage", batch.column(0).clone()), ("values", std::sync::Arc::new(values) as _)])?;
-            pending.push((batch, rows.iter().map(|row| row.source_ns).max().unwrap()));
+            pending.push((batch, end_ns));
         }
         if latest {
             for (batch, _) in pending.drain(..) {
@@ -289,5 +295,28 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn positions(batch: &RecordBatch) -> &UInt64Array {
+    let storage = batch.column(0).as_any().downcast_ref::<StructArray>().expect("pending rows keep their storage layout");
+    storage.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap()
+}
+
+/// The Accepted Rows of One Pending Batch Inside a Selection's Positions and Source Times.
+fn tail(batch: &RecordBatch, selection: &BatchSelection<'_>) -> Result<RecordBatch> {
+    let storage = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("metadata layout differs"))?;
+    let times = storage.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
+    let selected = positions(batch)
+        .values()
+        .iter()
+        .zip(times.values().iter())
+        .map(|(position, time)| {
+            *position > selection.after && *position <= selection.through && (selection.start_ns..=selection.end_ns).contains(time)
+        })
+        .collect::<BooleanArray>();
+    if selected.true_count() == batch.num_rows() {
+        return Ok(batch.clone());
+    }
+    Ok(filter_record_batch(batch, &selected)?)
+}
 
 /* === Tests === */

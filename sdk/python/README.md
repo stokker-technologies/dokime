@@ -1,7 +1,7 @@
 # Dokime Python SDK
 
 `dokime-sdk` is a pure Python package for async clients and remote plugin authoring.
-It composes Harmos at immutable revision `5d601dd320edb0fc69131dc2851d789c4dd1e4c0`.
+It composes Harmos at immutable revision `efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`.
 Python connects to an existing host; the application owns the plugin endpoint and its shutdown.
 
 ## Install
@@ -113,6 +113,26 @@ Materializers are synchronous and pure. They freeze parameter-dependent steps
 and criteria without host calls. Resources remain on the suite instance and are
 never serialized. Stream callbacks retain their declared protobuf row types and
 raw analysis time axes; scalar observers use DoubleValue rows.
+
+The host grants each interval stream one window at a time: `count` samples from
+`start`, one `period` apart. `@observer(interval_ms=...)` is called once per sample
+of a window; `@window_observer(columns=..., interval_ms=...)` receives the context and
+the `SampleWindow` and returns a columns message that repeats every row field, which suits
+high-rate streams. `interval_ms` may be fractional (`0.001` is 1 MHz).
+`window_setting` names a plugin duration setting that replaces the host's window
+length for that stream. Interval rows hold one value per field.
+
+```python
+from dokime.authoring import stream, window_observer
+from dokime.plugin import Context, SampleWindow
+
+
+class Bench:
+    @stream("Exact Counter", identifier="bench.counter", row=Counter)
+    @window_observer(columns=CounterColumns, interval_ms=1, window_setting="counter_window")
+    def counter(self, ctx: Context, window: SampleWindow) -> CounterColumns:
+        return CounterColumns(value=[1] * window.count)
+```
 
 ## Call the Host
 

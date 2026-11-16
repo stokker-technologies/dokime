@@ -22,10 +22,14 @@ served over gRPC like the SDK examples.
 | Charger Recovery | `obc.charger.recovery.power` | Replay paired outage durations and recovery limits; clear the latch and restart each time |
 | Bench | `obc.bench.module_array` | Ten power modules with ten channels each and the exact revenue meter register |
 
-Samples come from observers that answer the host's ticks. Steps change the
-charger (energize, load, fault, clear) and advance host time with `ctx.sleep`;
-each tick advances the model by the template's Simulation Sample Interval, or by
-the tick itself when **Pace Samples in Real Time** is set. The observer cadence is
+Samples come from observers that answer the host's interval windows. Steps change
+the charger (energize, load, fault, clear) and advance host time with `ctx.sleep`;
+each sample advances the model by the template's Simulation Sample Interval, or by
+the sample interval itself when **Pace Samples in Real Time** is set. The charger
+suites keep one-sample observers because each sample depends on the state steps
+set between samples. The Bench module array answers whole windows: each module
+computes sample `i` of a window from the charger at that sample's model time, and the
+meter advances the model by the window's sample count. The observer cadence is
 the plugin setting **Sample Interval** (1 ms by default). Under a controlled host
 clock a run is exact: the default start-up case saves 20 samples, 10 before the
 inspection prompt. **Observe Until Stopped** keeps the start-up measurement

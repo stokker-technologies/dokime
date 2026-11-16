@@ -35,11 +35,24 @@ struct HostRoot;
 enum class HostOperation;
 using Parameters = google::protobuf::Map<std::string, Value>;
 template <class T> using Stream = harmos::plugin::Stream<T>;
+// One Host Grant: Sample i Is Due at start + i * period. Window Names the Evidence Time Selection.
+using SampleWindow = harmos::plugin::Window;
+// Samples One Row per Call; Each Host Window Calls It Once per Sample, in Order.
 template <class T> struct Observer {
   Stream<T> stream;
   std::function<T(Context &)> sample;
   google::protobuf::Duration interval;
   std::string interval_setting;
+  // A Plugin Duration Setting That Replaces the Host's Window Length for This Stream.
+  std::string window_setting;
+};
+// Answers a Whole Host Window per Call; C Repeats Every Field of T With One Value per Sample.
+template <class T, class C> struct WindowObserver {
+  Stream<T> stream;
+  std::function<C(Context &, const SampleWindow &)> sample;
+  google::protobuf::Duration interval;
+  std::string interval_setting;
+  std::string window_setting;
 };
 
 namespace detail {

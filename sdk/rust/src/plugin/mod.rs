@@ -22,7 +22,7 @@ pub use crate::context::Context;
 pub use crate::operation::Operation;
 pub use crate::prompt::Prompt;
 pub use crate::record::Record;
-pub use crate::stream::{Observer, Stream};
+pub use crate::stream::{Observer, SampleWindow, Stream};
 pub use crate::suite::Suite;
 pub use crate::template::{Criterion, Step, Template};
 pub use harmos::plugin::Publisher;

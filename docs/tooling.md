@@ -315,19 +315,19 @@ They are historical multi-sample ranges, not statistical comparisons with one ru
 | Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | 99.126 | Earlier single-row carrier: 174.858 |
 | Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | 170.798 | Earlier single-row carrier: 27.696 |
 
-The runtime and desktop fixtures use the real SDK observer and its tick-driven
-Samples protocol. Each tick receives exactly one sample with that tick's
-timestamp and the next sequence. The former proxy carrier is removed.
+The runtime and desktop fixtures use the real SDK observers and the windowed
+Samples protocol: the host grants each interval stream a window of samples and
+the plugin answers it with columns. The runtime table rows above were measured on
+the earlier per-sample tick carrier and are not comparable with window figures.
 Runtime fixtures declare a 1 ms interval. Desktop fixtures declare an exact
 duration setting for their intended three-day density. Each producer sleeps once
-for its requested rows and then awaits the final tick's callback without another
-host call, because that tick fires at the same controlled instant as the sleep.
-The empty spectrum is scheduled daily, outside these short runtime captures;
-an idle device carrier would prevent virtual-clock
+for its requested rows; the sleep settles after every window due by its end, so no
+final callback wait remains. The empty spectrum is scheduled daily, outside these
+short runtime captures; an idle device carrier would prevent virtual-clock
 settlement. Desktop rows retain three days of source values in their timestamp
 field, including late-source offsets. Live and late commands publish eight real
-ticks and samples. Each SDK process remains owned until cleanup. No
-product test hook or separate storage-admission path exists.
+samples. Each SDK process remains owned until cleanup. No product test hook or
+separate storage-admission path exists.
 
 Direct storage ingest measured 127,668 rows/s for admission and 120,143 rows/s
 through durable flush, compared with 122,438 and 108,908 rows/s in the previous
@@ -361,35 +361,21 @@ stories also check native absence from the calling threads after root removal.
 The desktop panic story now checks its exact access key and deliberate panic
 type; full-lane failures and post-lane native inventories remain separate proof.
 
-### Per-Tick Observer Cost
+### Interval Window Ingestion
 
-Measured on 2026-11-15 at `69c7d052e` with library `7181b5ed` (Windows x86-64,
-bench profile) by temporary timing around the controlled-clock advance, the
-product sample consumer, every storage backend call and every evidence append
-while running `runtime/observer_publication_and_barrier_durable/1024`.
+`windows/interval_windows_stored/<streams>x<period>ns/<samples>` re-executes the
+storage benchmark binary as a remote Rust SDK plugin with 1, 16 or 128 interval
+streams of one `double`, at 1 kHz (10,000 samples per stream) and 1 MHz (20,000
+samples per stream), each answered by a window observer. The host uses the
+controlled clock and the default `interval_window` (100 ms). The timed boundary
+runs from releasing the ready step to its captured prompt: host window grants,
+the observer's columns, transport, Harmos batch admission, Dokime's columnar Arrow
+admission and the produced-count record, whose evidence barrier makes every
+sample durable. Execution end and shutdown are excluded; the case reports
+samples per second through Criterion throughput and, with `--once`, a `Measured`
+line. It records figures only and asserts that every sample was retained.
 
-| Phase per Controlled Advance | Time |
-| --- | ---: |
-| Whole advance (1,023 advances, 6,858 ms) | 6.7 ms |
-| Tick admission to the plugin's `Time.Get` child call | 1.3–1.8 ms |
-| `Time.Get` child call, admission to settlement | 1.0–1.6 ms |
-| Child settlement to `samples.tick` settlement | 0.2 ms |
-| Product sample consumer (`Samples::drain`) | 0.09 ms |
-| Storage backend calls and evidence appends | none per tick |
-
-No per-tick durable commit, catalog transaction or product refresh occurs; the
-cost is the library's tick path. Each interval stream sleeps to its tick, then
-invokes `samples.tick` as a full native operation over the plugin's Samples
-stream and waits for that sample before scheduling the next tick
-(`harmos-runtime/src/plugin/grpc/publish.rs:337-357` at `7181b5ed`). An observer
-that reads the clock adds a second full child-call round trip. Library pull
-request 258 (`af8b9a0c`) changes binding teardown and clock-wait admission, not
-this per-tick path.
-
-On the real clock, the boundary fixture's 1 ms observer published 5,000 rows in
-10,614 ms (dev profile): one execution sustains about 470 samples per second, and
-tick times stretch to 10,517 ms of source time instead of 5,000 ms. A 1 ms
-observer therefore does not keep up in real time.
+WINDOW_FIGURES
 
 ### Desktop Plot Documents
 

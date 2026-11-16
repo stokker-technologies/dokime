@@ -4,3 +4,5 @@ message Temperature { double celsius = 1; }
 message Door { bool closed = 1; }
 
 message Counter { uint64 value = 1; }
+// One Window of the Counter, One Value per Sample.
+message CounterColumns { repeated uint64 value = 1; }

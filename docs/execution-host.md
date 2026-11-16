@@ -53,10 +53,10 @@ suite at `sdk/rust/examples/thermal.rs`.
 
 The host requires explicit `HostSettings`: placement bounds and a
 `SchedulerClock`. `ControlledClock` advances only through requested waits.
-Observer ticks due before a plugin's host sleep ends have committed their samples
-when the sleep settles. A tick due at the same controlled instant fires together
-with the sleep and settles independently, so a step that needs that tick's
-observer state awaits the tick's callback after its sleep.
+Observer samples due by the end of a plugin's host sleep have been answered and
+committed when the sleep settles: the sleep's end grants each stream of the
+execution one window of every sample due by then, including a sample due at the
+same controlled instant.
 Prompt arrival and cancellation use events, with no wall-clock sleeps.
 
 ## Serve Client gRPC
@@ -390,6 +390,7 @@ read_timeout_s = 30
 mutation_timeout_s = 30
 watch_timeout_s = 3600
 reconnect_delay_ms = 25
+interval_window_ms = 100
 message_bytes = 4194304
 retained_bytes = 67108864
 stream_buffer = 8
@@ -400,6 +401,17 @@ capture_files = 64
 capture_bytes = 268435456
 captures = 256
 ```
+
+`interval_window_ms` is the sampling time one interval window covers
+(`PlacementSettings::interval_window`, default `dokime_runtime::INTERVAL_WINDOW`,
+100 ms). The host grants each interval stream one window at a time and the plugin
+answers it with columns, so a longer window stores more samples per message and
+batch row, and a shorter one shows live samples sooner. The number of samples in a
+window follows from its length and the stream's interval; it is never set directly.
+A stream overrides the host window through a plugin Duration setting named by its
+observer's window setting (Rust `.window_setting("window")`, Python
+`window_setting="window"`, C# `windowSetting: "window"`, C++ `.window_setting("window")`);
+the plugin's settings then edit it per stream like any other plugin setting.
 
 Materialized case files contain the authoritative `PreviewSelectionReply`
 protobuf, preserving frozen origins. `--parameters PATH` reads a JSON object
@@ -673,7 +685,7 @@ Product builds, fixtures, native stories and both WebView lanes include it.
 
 ## Final Library Definition Contract
 
-The definitions pin Harmos at `5d601dd320edb0fc69131dc2851d789c4dd1e4c0`.
+The definitions pin Harmos at `efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`.
 
 ```text
 proto/dokime/
@@ -758,7 +770,7 @@ carried by the merge and are not consumer work to reimplement.
 The first column is the pre-pin wire identity or hand-bound context identity.
 Library composition rows name the library operation directly, without forwarding.
 The complete library identity/type mapping is in the pinned
-[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/5d601dd320edb0fc69131dc2851d789c4dd1e4c0/docs/architecture.md).
+[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/efc261fe9431bb3ad2fd3287ecb51a7f1d8da325/docs/architecture.md).
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |
@@ -1814,9 +1826,17 @@ no product connection or invocation carrier remains. Child calls inherit the tru
 execution resources, and selected Samples publications retain that same scope.
 The ingestion consumer caches each scope's row codecs, writes the Arrow samples
 before acknowledging their ingestion, and releases its caches when the binding ends.
+An interval stream's publication is one stored `harmos.batch.<row>` part: storage
+decodes its columns straight into the row's Arrow arrays and gives sample `i` the
+time `start_unix_nanos + i * period_nanos`, the next position and the next sequence,
+so the Arrow layout, its readers and existing roots are unchanged. Device streams
+keep one publication per sample. A finished run reads back only its execution metadata and outcome;
+`Cycle::wait` reads each sealed execution's evidence and samples only for a caller
+that awaits the cycle, so a long multi-stream run never materializes its samples
+when it ends.
 Binding opens no sample demand. The driver starts samples once initialize has
 registered the unit and stops them when stepping ends, so criteria read settled
-streams and no tick reaches the plugin after cleanup; a run that stops early still
+streams and no window reaches the plugin after cleanup; a run that stops early still
 stops its samples before cleanup. Binding closure settles descendant calls and
 accepted ingestion before streams close and the execution is sealed. Stop and close
 each settle within `stop_grace`; a plugin that misses it leaves the execution
@@ -1835,9 +1855,11 @@ evidence invalidates evidence cuts without rotating that native history.
 
 Production units use independent real clocks. `ControlledClock` creates a separate
 virtual clock for each execution; awaiting the library Time.Sleep drives its due
-sample ticks and their ingestion. A scoped sleep settles after every tick of its
-unit due by its end: exactly the slept periods on a controlled clock, possibly fewer
-on the real clock, where firing latency delays later ticks. Operator prompts hold their execution's timeline
+sample windows and their ingestion. A scoped sleep settles after every window of its
+unit whose samples are due by its end: exactly the slept periods on a controlled
+clock; on the real clock every sample due by its end, plus any that fall due while
+the grant reads the clock, because the wait's end grants the windows due by then
+instead of waiting for a timer. Operator prompts hold their execution's timeline
 while other executions can complete. Runtime retry delays remain owned by the
 library operation policy. Attempt evidence is observed through the library
 invocation middleware, including each actual retry.
@@ -1890,7 +1912,7 @@ Native primary and state backends share the product root and history identity.
 | Prompts and answers | Product Store transactions | Atomic answer acceptance, evidence publication and durable waiter recovery. |
 | Evidence records and metadata | Product Store transactions | Shared compound mutation with execution lifecycle and retained read cuts. |
 | Execution deletion | Product Store transactions | Atomic scope deletion with a durable receipt and retained-reader guarantees. |
-| Samples | Product Arrow ingestion and registered native backend | Scoped capture must preserve source times, ordered ticks and the execution evidence frontier. |
+| Samples | Product Arrow ingestion and registered native backend | Scoped capture must preserve per-sample source times on the window grid, sample order and the execution evidence frontier. |
 | Files and uploads | Library native file operations through the registered backend | No product file-transfer store or wire twin. |
 | Logical execution-file metadata and retained references | Product Store transactions | Logical paths select original native file references; replacement retains previous immutable bytes and cuts. |
 | Artifact metadata and retained file references | Product Store transactions | Atomic execution-open admission, metadata publication and the original mutation receipt; file bytes remain native. |

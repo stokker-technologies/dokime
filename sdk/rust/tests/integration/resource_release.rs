@@ -31,9 +31,7 @@ use dokime::plugin::ExecutionsInitializeRequest;
 use dokime::plugin::ExecutionsInitializeResponse;
 use dokime::plugin::TestCasesMaterializeRequest;
 use dokime::plugin::TestCasesMaterializeResponse;
-use harmos_protocol::plugin::InstanceSamplesRequest;
-use harmos_protocol::plugin::Tick;
-use harmos_protocol::plugin::instance_samples_request::Frame as InstanceSamplesRequestFrame;
+use harmos_protocol::plugin::Window;
 
 /* === Constants === */
 
@@ -42,6 +40,15 @@ use harmos_protocol::plugin::instance_samples_request::Frame as InstanceSamplesR
 /* === Type Aliases === */
 
 /* === Structs === */
+
+// The Fixture's Resource State Row, One Value per Sample.
+#[derive(dokime::Message)]
+#[harmos(package = "resources.v1")]
+struct ResourceStateColumns {
+    before: Vec<bool>,
+    present: Vec<bool>,
+    dropped: Vec<u64>,
+}
 
 /* === Enums === */
 
@@ -86,13 +93,17 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
         origin: Some(origin.clone()),
     };
     process.invoke("resources.case.initialize", "retained", request).await?.finish::<ExecutionsInitializeResponse>().await?;
-    let (ticks, mut samples) = process.publish("resources.state", "retained").await?;
-    let at = prost_types::Timestamp { seconds: 100, nanos: 0 };
-    ticks
-        .send(InstanceSamplesRequest {
-            frame: Some(InstanceSamplesRequestFrame::Tick(Tick { at: Some(at) })),
-        })
-        .await?;
+    let (grants, mut samples) = process.publish("resources.state", "retained").await?;
+    let window = Window {
+        start: Some(prost_types::Timestamp { seconds: 100, nanos: 0 }),
+        period: Some(prost_types::Duration { seconds: 1, nanos: 0 }),
+        count: 1,
+        sequence: 1,
+    };
+    let answer = tokio::spawn(async move {
+        let columns = Process::window(&grants, &mut samples, window).await.map_err(|error| error.to_string());
+        (columns, grants, samples)
+    });
     process.invoke("resources.observer_ready", "", ()).await?.finish::<()>().await?;
 
     // Complete Derived Cleanup While the Observer Still Holds Its Call Context.
@@ -106,13 +117,19 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
 
     // Release the Device Read and See That the Store Was Emptied, Not Merely Unregistered.
     process.invoke("resources.release_observer", "", ()).await?.finish::<()>().await?;
-    let sample = samples.message().await?.ok_or("Missing Resource State")?.samples.remove(0);
-    let state = <ResourceState as dokime::encoding::Message>::decode(sample.row.as_slice())?;
+    let (columns, grants, mut samples) = answer.await?;
+    let columns = <ResourceStateColumns as dokime::encoding::Message>::decode(columns?.as_slice())?;
+    assert_eq!((columns.before.len(), columns.present.len(), columns.dropped.len()), (1, 1, 1));
+    // The Window's Only Sample Is the State the Released Device Read Observed.
+    let state = ResourceState {
+        before: columns.before[0],
+        present: columns.present[0],
+        dropped: columns.dropped[0],
+    };
     assert!(state.before);
     assert!(!state.present);
     assert_eq!(state.dropped, 1);
-    assert_eq!(sample.at, Some(at));
-    drop(ticks);
+    drop(grants);
     assert!(samples.message().await?.is_none());
     process.stop(false).await?;
     Ok(())

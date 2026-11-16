@@ -24,6 +24,7 @@ use dokime::RetryPolicy;
 use dokime::prelude::*;
 use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind, PromptArchetype, Section, Severity, card, value};
 use prost_types::Duration as ProtoDuration;
+use std::time::Duration;
 
 /* === Constants === */
 
@@ -57,6 +58,13 @@ struct Counter {
     value: u64,
 }
 
+// One Window of the Counter, One Value per Sample.
+#[derive(dokime::Message)]
+#[harmos(package = "thermal")]
+struct CounterColumns {
+    value: Vec<u64>,
+}
+
 struct Bench {
     limit: f64,
 }
@@ -73,9 +81,10 @@ struct Bench {
 
 fn main() -> Result<()> {
     let temperature = Stream::<Temperature>::new("thermal.temperature", "Temperature [°C]");
-    let observer = Observer::new(&temperature, read_temperature).every_ms(1000);
+    let observer = Observer::new(&temperature, read_temperature).every(Duration::from_secs(1));
     let counter = Stream::<Counter>::new("thermal.counter", "Exact Counter");
-    let counter_observer = Observer::new(&counter, read_counter).every_ms(1);
+    // A 1 kHz Stream Answers Each Host Window at Once.
+    let counter_observer = Observer::window(&counter, read_counter).every(Duration::from_millis(1));
     let door = Record::<Door>::new("thermal.door", "Door Check");
     let prompt = Prompt::new("thermal.door", "Door Check", "Is the Door Closed?")
         .archetype(PromptArchetype::Confirmation)
@@ -167,8 +176,11 @@ async fn hold(ctx: &Context) -> Result<()> {
     ctx.progress(2, 2, "Hold").await
 }
 
-async fn read_counter(_: &Context) -> Result<Counter> {
-    Ok(Counter { value: 1_152_921_504_606_847_975 })
+async fn read_counter(_: &Context, window: &SampleWindow) -> Result<CounterColumns> {
+    let samples = usize::try_from(window.count).map_err(|_| Error::Invalid("Read Counter: Shorten the Window".into()))?;
+    Ok(CounterColumns {
+        value: vec![1_152_921_504_606_847_975; samples],
+    })
 }
 
 async fn read_temperature(ctx: &Context) -> Result<Temperature> {

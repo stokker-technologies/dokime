@@ -42,10 +42,10 @@ const SURVEY_POINTS: u64 = 32;
 
 /* === Structs === */
 
-/// One Execution's Bench. Observers Sample It on Host Ticks; Steps Drive It.
+/// One Execution's Bench. Observers Sample It in Host Windows; Steps Drive It.
 pub struct Testbench {
     state: Mutex<State>,
-    tick: Mutex<Duration>,
+    interval: Mutex<Duration>,
 }
 
 pub struct State {
@@ -75,25 +75,25 @@ impl Testbench {
         if step_s.is_some_and(|step_s| !step_s.is_finite() || step_s <= 0.0) {
             return Err(Error::Invalid("Open Testbench: Choose a Positive Sample Interval".into()));
         }
-        // Observers May Tick Before the Settings Read Returns, So the Bench Exists First
-        let tick = Duration::from_millis(1);
+        // Observers May Sample Before the Settings Read Returns, So the Bench Exists First
+        let interval = Duration::from_millis(1);
         ctx.set(Self {
             state: Mutex::new(State {
                 charger: Charger::new(supply)?,
                 index: 0,
-                step_s: step_s.unwrap_or(tick.as_secs_f64()),
+                step_s: step_s.unwrap_or(interval.as_secs_f64()),
                 origin_s: 0.0,
                 label: "idle",
                 sequence: None,
                 survey: 0,
             }),
-            tick: Mutex::new(tick),
+            interval: Mutex::new(interval),
         });
-        let tick = settings::sample_interval(ctx).await?;
+        let interval = settings::sample_interval(ctx).await?;
         let bench = ctx.get::<Self>()?;
-        *bench.tick.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = tick;
+        *bench.interval.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = interval;
         if step_s.is_none() {
-            bench.state().step_s = tick.as_secs_f64();
+            bench.state().step_s = interval.as_secs_f64();
         }
         Ok(())
     }
@@ -113,38 +113,48 @@ impl Testbench {
         Ok(samples as u64)
     }
 
-    /// Advance Host Time Until the Observers Have Published `samples` More Ticks.
+    /// Advance Host Time Until the Observers Have Published `samples` More Samples.
     ///
-    /// A sleep settles after every tick due by its end: exactly the slept ticks on a controlled clock,
+    /// A sleep settles after every sample due by its end: exactly the slept samples on a controlled clock,
     /// while real-clock firing latency can leave some due later, so the bench sleeps for the remainder.
     pub async fn wait(&self, ctx: &Context, samples: u64) -> Result<()> {
         let target = self.state().index + samples;
-        let tick = *self.tick.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let interval = *self.interval.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         loop {
             let remaining = target.saturating_sub(self.state().index);
             if remaining == 0 {
                 return Ok(());
             }
-            let total = tick.checked_mul(u32::try_from(remaining).map_err(|_| Error::Invalid("Wait: Too Many Samples".into()))?);
+            let total = interval.checked_mul(u32::try_from(remaining).map_err(|_| Error::Invalid("Wait: Too Many Samples".into()))?);
             ctx.sleep(total.ok_or_else(|| Error::Invalid("Wait: Duration Overflow".into()))?).await?;
         }
     }
 
     /// Count One Published Sample.
     pub fn advance(&self) {
-        self.state().index += 1;
+        self.advance_by(1);
+    }
+
+    /// Count a Window of Published Samples.
+    pub fn advance_by(&self, samples: u64) {
+        self.state().index += samples;
     }
 }
 
 impl State {
     pub fn now_s(&self) -> f64 {
-        self.origin_s + self.index as f64 * self.step_s
+        self.time_s(self.index)
+    }
+
+    /// The Model Time of the Sample With This Zero-Based Index.
+    pub fn time_s(&self, index: u64) -> f64 {
+        self.origin_s + index as f64 * self.step_s
     }
 }
 
 /* === Public Functions === */
 
-/// Whether This Execution's Case Captures a Stream; the Host Ticks Every Plugin Observer.
+/// Whether This Execution's Case Captures a Stream; the Host Samples Every Plugin Observer.
 pub fn captures(ctx: &Context, stream: &str) -> bool {
     !ctx.execution_id().is_empty() && ctx.test_case().is_ok_and(|case| case.streams.iter().any(|captured| captured == stream))
 }

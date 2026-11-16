@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `5d601dd320edb0fc69131dc2851d789c4dd1e4c0`, rather than
+[Cargo.toml](../Cargo.toml), `efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -480,6 +480,7 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
 | Captured shapes, product-owned root compatibility (2026-11-08) | Preserve old evidence across plugin changes; refuse only unreadable product state. | [derive-data-shape-versions](../openspec/changes/archive/2026-11-08-derive-data-shape-versions/design.md) |
 | Retain the earliest durable inverse (recorded 2026-11-12) | Restore original state after cancellation, repetition or crash. | [operation-grammar](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-durable-external-effect-restoration) |
 | Deterministic story redesign (2026-11-10) | Correctness must be independent of workstation timing and load. | [test-stories](../openspec/changes/test-stories/design.md) |
+| Windowed interval batches stored expanded (2026-11-16) | Plugins answer host windows with columns; storage expands each part column-wise at admission, so Arrow readers and roots need no change. | [Arrow File Storage](#arrow-file-storage) |
 
 ## Product File Ownership
 
@@ -531,9 +532,22 @@ later positions. Flush policy is owned by `telemetry/config.rs`: 65,536 rows or 
 seconds, pressure at 64 MiB, evidence barriers and shutdown. Host settings compose
 this policy; CLI configuration exposes row, interval, pending and query bounds.
 Shutdown wakes and joins every active timed flusher before releasing its root.
-The host admits each tick response through one `sample_batch` call after validating
-its sequence and source timestamps. Batching preserves every producer sample,
-including late source times, and retains the same file-sync-before-catalog order.
+Interval streams arrive as host-granted windows (Harmos `efc261fe`): each stored
+publication is one `harmos.batch.<row>` part with `start_unix_nanos`, `period_nanos`,
+`count` and the row's fields as columns. `Store::sample_interval` decodes that
+Postcard part column by column straight into the frozen row's Arrow arrays, with no
+per-sample protobuf, JSON or dynamic-message work, and generates per-sample
+`source_ns = start + i * period` (also `receipt_ns`), consecutive positions and the
+stream's next sequences. Telemetry files therefore keep one Arrow row per sample
+with explicit time, position and sequence columns (about 32 bytes of metadata per
+sample before compression), so every reader — evidence queries, criteria
+statistics, plots, tiles, summaries, frequency selection, the time merge, exports,
+archives, live views and the clients — reads interval samples unchanged, and
+existing roots stay readable. Device streams keep `sample_batch`, which validates
+per stream rather than per sample. Pending accepted rows are held as Arrow batches
+in their stored layout: the live tail and frontier read them by filtering positions
+and times, and flushes slice them into `flush_rows` batches with the same
+file-sync-before-catalog order. Pressure and row thresholds use running counters.
 Record scans use the evidence kind/position index, including payload-free markers;
 they do not depend on a record having scalar fields.
 
@@ -691,7 +705,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/5d601dd320edb0fc69131dc2851d789c4dd1e4c0/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/efc261fe9431bb3ad2fd3287ecb51a7f1d8da325/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -801,7 +815,7 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `5d601dd320edb0fc69131dc2851d789c4dd1e4c0`.
+The definition pass pins Harmos at `efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`.
 Consumer repairs follow the table below.
 The pin and generated contracts do not establish consumer compilation.
 
@@ -815,6 +829,17 @@ The pin and generated contracts do not establish consumer compilation.
 | C++ | Fetch the same immutable source archive; compose the installed library types and generated resource tree. |
 | Command-Line Tool | Rename the candidate binary to dokime and adopt generated client calls and library plugin records. |
 | Desktop | Adopt the generated executor contracts and library plugin/settings records; preserve the concurrent plot/document repair. |
+
+At `efc261fe` (windowed interval batches) every SDK wraps both observer forms: the
+one-sample observer, called once per sample of a host window, and the window
+observer, which returns a columns message mirroring the row (Rust
+`Observer::window`, Python `@window_observer`, C# `WindowObserver<Row, Columns>`,
+C++ `WindowObserver<Row, Columns>`), each with an optional window setting. The grant is
+`SampleWindow` in Rust, Python and C++ (C# passes `Harmos.Plugins.Window`), because
+`Window` already names the evidence time selection. The host
+sets `PlacementSettings::interval_window` from `interval_window_ms`
+(`dokime_runtime::INTERVAL_WINDOW` by default). `Tick` and `samples.tick` are gone
+from the vendored protocol and every fixture.
 
 Each of `sdk/cpp`, `sdk/csharp` and `sdk/python` owns its mise tasks and build
 recipes. Repository host-fixture tooling calls those entry points; fixtures live

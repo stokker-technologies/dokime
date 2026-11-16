@@ -10,7 +10,7 @@ using TransportContext = Harmos.Plugins.Context;
 
 namespace Dokime.Plugins;
 
-/// <summary>One scoped plugin invocation or host tick, with execution-owned resources.</summary>
+/// <summary>One scoped plugin invocation or observer sample, with execution-owned resources.</summary>
 public sealed class Context
 {
   private readonly object? resource;

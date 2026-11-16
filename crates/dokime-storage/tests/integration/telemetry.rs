@@ -703,3 +703,75 @@ fn typed_map_and_list_columns_survive_finalization_and_restart() -> Result<()> {
     assert_eq!(actual, values);
     Ok(())
 }
+
+/// The Host's Stored `harmos.batch` Encoding of `fixture.Row` Columns, Field by Field.
+fn interval(start_ns: i64, period_ns: u64, values: &[u64], labels: &[&str]) -> Vec<u8> {
+    use harmos_domain::message::postcard::Value;
+    let mut payload = Vec::new();
+    start_ns.write(&mut payload);
+    period_ns.write(&mut payload);
+    (values.len() as u64).write(&mut payload);
+    1_u8.write(&mut payload);
+    values.len().write(&mut payload);
+    for value in values {
+        value.write(&mut payload);
+    }
+    labels.len().write(&mut payload);
+    for label in labels {
+        label.to_string().write(&mut payload);
+    }
+    payload
+}
+
+#[test]
+fn interval_batches_store_one_row_per_sample_on_their_grid() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.open_stream("execution", "readings")?;
+    let window = |through| SampleWindow {
+        execution: "execution",
+        streams: &[],
+        after: &[],
+        through,
+        start_ns: i64::MIN,
+        end_ns: i64::MAX,
+        latest: false,
+        limit: NonZeroUsize::new(64).unwrap(),
+    };
+    let observed = |samples: Vec<dokime_storage::Sample>| {
+        samples
+            .into_iter()
+            .map(|sample| {
+                let row = Row::decode(sample.row.as_slice()).unwrap();
+                (sample.position, sample.sequence, sample.source_ns, row.value, row.label)
+            })
+            .collect::<Vec<_>>()
+    };
+
+    // One Batch Row Becomes Three Accepted Samples at Its Start Plus Whole Periods.
+    let first = interval(1_000, 10, &[7, 8, u64::MAX], &["a", "b", "c"]);
+    assert_eq!(store.sample_interval("execution", "readings", &first, 1)?, 3);
+    let expected = vec![(1, 1, 1_000, 7, "a".to_owned()), (2, 2, 1_010, 8, "b".to_owned()), (3, 3, 1_020, u64::MAX, "c".to_owned())];
+    assert_eq!(observed(store.live_sample_window(window(0))?), expected);
+    assert_eq!(store.cut("execution")?.frontier, 0);
+
+    // A Malformed Batch Admits Nothing; the Next Batch Continues Positions and Sequence.
+    let short = interval(1_030, 10, &[9, 10], &["d"]);
+    assert!(store.sample_interval("execution", "readings", &short, 4).is_err());
+    assert_eq!(store.accepted_frontier("execution")?, 3);
+    let second = interval(1_030, 10, &[9, 10], &["d", "e"]);
+    assert_eq!(store.sample_interval("execution", "readings", &second, 4)?, 2);
+
+    // Flushed Rows Read Back Unchanged Across Reopening.
+    store.flush_samples()?;
+    let saved = store.cut("execution")?.frontier;
+    assert_eq!(saved, 5);
+    drop(store);
+    let reopened = Store::open(root.path())?;
+    let mut expected = expected;
+    expected.push((4, 4, 1_030, 9, "d".to_owned()));
+    expected.push((5, 5, 1_040, 10, "e".to_owned()));
+    assert_eq!(observed(reopened.sample_window(window(saved))?), expected);
+    Ok(())
+}

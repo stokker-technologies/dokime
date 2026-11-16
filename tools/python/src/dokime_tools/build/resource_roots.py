@@ -132,9 +132,10 @@ def generate(check: bool = False) -> None:
         "from .._context import Context as Context",
         "from .._generated.host import HostOperation as HostOperation",
         "from .._generated.host import HostRoot as HostRoot",
+        "from harmos.plugin import Window as SampleWindow",
     ]
     plugin_barrel += [f"from .._generated.plugin_types import {name} as {name}" for name in sorted(plugin_names)]
-    plugin_barrel += ["", "__all__ = " + repr(["Plugin", "Context", "HostOperation", "HostRoot", *sorted(plugin_names)])]
+    plugin_barrel += ["", "__all__ = " + repr(["Plugin", "Context", "HostOperation", "HostRoot", "SampleWindow", *sorted(plugin_names)])]
     (root / "sdk/python/src/dokime/plugin/__init__.py").write_text("\n".join(plugin_barrel) + "\n", encoding="utf-8", newline="\n")
     (root / "sdk/python/src/dokime/model.py").unlink(missing_ok=True)
     paths = [

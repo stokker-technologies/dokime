@@ -69,7 +69,7 @@ fn main() -> Result<()> {
         let index = published.count.fetch_add(1, Ordering::SeqCst);
         Ok(Reading { value: index as f64 })
     })
-    .every_ms(1);
+    .every(std::time::Duration::from_millis(1));
     let boundary = Template::new("execution.boundary", "Publication Boundary")
         .parameters(CaptureRows { rows: 1024 })
         .initialize(async |context: &Context| {
@@ -77,7 +77,7 @@ fn main() -> Result<()> {
             Ok(())
         })
         .step(Step::new("Capture", async |context: &Context| {
-            // A Scoped Sleep Settles After Every Tick Due by Its End, So It Spans the Remaining Rows.
+            // A Scoped Sleep Settles After Every Window Due by Its End, So It Spans the Remaining Rows.
             let rows = context.parameters::<CaptureRows>()?.rows;
             let published = context.get::<Published>()?;
             context.sleep(Duration::from_millis(rows.saturating_sub(published.count.load(Ordering::SeqCst)))).await

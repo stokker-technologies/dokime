@@ -20,7 +20,6 @@ internal sealed class Wire(CallInvoker calls)
 
   internal sealed record Description(string Id, Timestamp StartedAt, Declarations Declarations);
   internal sealed record Child(string Operation, ByteString Payload);
-  internal sealed record Sample(Timestamp At, ByteString Row);
 
   private static MessageDescriptor Descriptor(string name)
   {
@@ -98,23 +97,26 @@ internal sealed class Wire(CallInvoker calls)
     throw new InvalidOperationException("Invoke: Missing Unary Operation Response");
   }
 
-  internal async Task<IReadOnlyList<Sample>> TickAsync(string stream, string scope, Timestamp at)
+  /// <summary>Grant One Interval Window and Return the Columns of Its Single Answering Part.</summary>
+  internal async Task<ByteString> WindowAsync(string stream, string scope, Timestamp start, Duration period, ulong count)
   {
     using var call = calls.AsyncDuplexStreamingCall(Method(MethodType.DuplexStreaming, "Samples"), null, new CallOptions());
     var selection = Frame("SamplesSelection", ("stream", stream), ("scope", scope));
     await call.RequestStream.WriteAsync(Frame("InstanceSamplesRequest", ("open", selection)).ToByteString());
-    var tick = Frame("Tick", ("at", at));
-    await call.RequestStream.WriteAsync(Frame("InstanceSamplesRequest", ("tick", tick)).ToByteString());
+    var window = Frame("Window", ("start", start), ("period", period), ("count", count), ("sequence", 1ul));
+    await call.RequestStream.WriteAsync(Frame("InstanceSamplesRequest", ("window", window)).ToByteString());
     if (!await call.ResponseStream.MoveNext())
-      throw new InvalidOperationException("Tick Observer: Missing Sample Response");
+      throw new InvalidOperationException("Answer Window: Missing Sample Batch");
     var frame = Descriptor("InstanceSamplesResponse").Parser.ParseFrom(call.ResponseStream.Current);
-    var samples = Field<IEnumerable>(frame, "samples").Cast<IMessage>()
-        .Select(sample => new Sample(Field<Timestamp>(sample, "at"), Field<ByteString>(sample, "row"))).ToList();
+    var batch = Field<IMessage?>(frame, "batch") ?? throw new InvalidOperationException("Answer Window: Expected a Sample Batch");
+    if (Field<ulong>(batch, "offset") != 0 || Field<ulong>(batch, "count") != count || !Field<bool>(batch, "last"))
+      throw new InvalidOperationException("Answer Window: Expected One Complete Part");
+    var columns = Field<ByteString>(batch, "columns");
     await call.RequestStream.CompleteAsync();
     while (await call.ResponseStream.MoveNext())
     {
     }
-    return samples;
+    return columns;
   }
 
   internal async Task StopAsync()

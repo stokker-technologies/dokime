@@ -58,7 +58,14 @@ use harmos_runtime::plugin::grpc::{Error as BindingError, ScopedBinding};
 pub struct Cycle {
     pub identifier: String,
     pub executions: Vec<String>,
-    result: Receiver<Result<CycleResult>>,
+    store: dokime_storage::Store,
+    result: Receiver<Result<Completed>>,
+}
+/// What a Finished Cycle Task Reports; Evidence Is Read Only When a Caller Waits for It.
+struct Completed {
+    executions: Vec<String>,
+    states: Vec<RunState>,
+    counts: OutcomeCounts,
 }
 #[derive(Debug)]
 pub struct CycleResult {
@@ -95,8 +102,17 @@ pub enum RunState {
 /* === Implementations === */
 
 impl Cycle {
+    /// Await the Cycle and Read Each Execution's Sealed Evidence, Including Every Sample.
+    ///
+    /// The run itself never materializes its samples; only this caller-requested read does.
     pub async fn wait(self) -> Result<CycleResult> {
-        self.result.await.map_err(|_| Error::Invalid("Wait for Cycle: Inspect the Failed Execution Task".into()))?
+        let completed = self.result.await.map_err(|_| Error::Invalid("Wait for Cycle: Inspect the Failed Execution Task".into()))??;
+        let executions = completed.executions.iter().map(|execution| Ok(self.store.read(execution)?)).collect::<Result<Vec<_>>>()?;
+        Ok(CycleResult {
+            executions,
+            states: completed.states,
+            counts: completed.counts,
+        })
     }
 }
 impl ActiveRun {
@@ -249,6 +265,7 @@ fn launch(
 ) -> Result<Cycle> {
     host.track(&executions)?;
     let (send, result) = oneshot::channel();
+    let store = host.inner.store.clone();
     let owner = host.clone();
     let observed = executions.clone();
     owner.spawn(async move {
@@ -302,14 +319,16 @@ fn launch(
                 return Err(error);
             }
             finished.sort_by_key(|(index, _)| *index);
-            let mut snapshots = Vec::new();
+            let mut executions = Vec::new();
+            let mut outcomes = Vec::new();
             let mut states = Vec::new();
-            for (_, (snapshot, execution_states)) in finished {
-                snapshots.push(snapshot);
+            for (_, (execution, execution_states)) in finished {
+                outcomes.extend(host.inner.store.cut(&execution)?.execution.outcome);
+                executions.push(execution);
                 states.extend(execution_states);
             }
-            let counts = OutcomeCounts::from_outcomes(snapshots.iter().filter_map(|snapshot| snapshot.execution.outcome.as_ref()));
-            Ok(CycleResult { executions: snapshots, states, counts })
+            let counts = OutcomeCounts::from_outcomes(outcomes.iter());
+            Ok(Completed { executions, states, counts })
         }
         .await;
         // Settle Every Admitted Execution Even If a Worker Failed to Join
@@ -348,12 +367,10 @@ fn launch(
         }
         let _ = send.send(result);
     })?;
-    Ok(Cycle { identifier, executions, result })
+    Ok(Cycle { identifier, executions, store, result })
 }
 
-async fn drive(
-    host: ExecutionManager, execution: String, origin: Origin, entry: PluginEntry,
-) -> Result<(ExecutionSnapshot, Vec<RunState>)> {
+async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry: PluginEntry) -> Result<(String, Vec<RunState>)> {
     let mut states = Vec::new();
     let mut active = ActiveRun {
         binding: None,
@@ -443,7 +460,7 @@ async fn drive(
                     .await?;
                 initialized = true;
             }
-            // The Plugin Has Registered the Unit, So the Host May Now Tick Its Streams.
+            // The Plugin Has Registered the Unit, So the Host May Now Grant Its Stream Windows.
             binding.start_samples().await.map_err(|source| settlement("Start Execution Samples", &source))?;
             sampling = true;
             states.push(RunState::Stepping);
@@ -496,7 +513,7 @@ async fn drive(
                 result?;
             }
             dispatch.resources.step.clear();
-            // Criteria Read Settled Streams: Every Granted Tick Is Committed Before Evaluation.
+            // Criteria Read Settled Streams: Every Granted Window Is Committed Before Evaluation.
             sampling = false;
             binding.stop_samples().await.map_err(|source| settlement("Stop Execution Samples", &source))?;
             states.push(RunState::Evaluating);
@@ -616,7 +633,7 @@ async fn drive(
         _ => RunState::Finished,
     });
     tracing::info!(execution = %execution, ?termination, "Sealed Execution");
-    Ok((host.inner.store.read(&execution)?, states))
+    Ok((execution, states))
 }
 
 /* === Tests === */

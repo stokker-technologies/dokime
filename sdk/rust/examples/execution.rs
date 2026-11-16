@@ -75,7 +75,7 @@ struct Bench {
 
 fn main() -> Result<()> {
     let reading = Stream::<Reading>::new("execution.reading", "Reading");
-    let observer = Observer::new(&reading, read).every_ms(1000);
+    let observer = Observer::new(&reading, read).every(std::time::Duration::from_secs(1));
     let plot = Plot {
         kind: PlotKind::TimeSeries as i32,
         y: vec![FieldReference::new("execution.reading").field("value")],

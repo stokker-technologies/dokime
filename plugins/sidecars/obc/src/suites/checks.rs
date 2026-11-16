@@ -132,8 +132,8 @@ async fn start(ctx: &Context) -> Result<()> {
 async fn stream(ctx: &Context) -> Result<()> {
     let wanted: u64 = ctx.parameter("sample_count")?;
     let pulses = ctx.get::<Pulses>()?;
-    let tick = settings::sample_interval(ctx).await?;
-    // Each Sleep Spans the Ticks Due by Its End; Real-Clock Latency May Leave Some for the Next.
+    let interval = settings::sample_interval(ctx).await?;
+    // Each Sleep Spans the Samples Due by Its End; Real-Clock Latency May Leave Some for the Next.
     loop {
         let produced = pulses.produced.load(Ordering::Acquire);
         let pending =
@@ -141,7 +141,7 @@ async fn stream(ctx: &Context) -> Result<()> {
         if pending == 0 {
             return Ok(());
         }
-        ctx.sleep(tick * pending).await?;
+        ctx.sleep(interval * pending).await?;
     }
 }
 

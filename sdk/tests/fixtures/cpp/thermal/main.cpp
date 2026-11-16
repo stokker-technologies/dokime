@@ -13,8 +13,10 @@ using dokime::plugin::Context;
 using dokime::plugin::metadata;
 using dokime::plugin::Observer;
 using dokime::plugin::Plugin;
+using dokime::plugin::SampleWindow;
 using dokime::plugin::Stream;
 using dokime::plugin::Template;
+using dokime::plugin::WindowObserver;
 using google::protobuf::Duration;
 using harmos::plugin::decode;
 using std::exception;
@@ -23,6 +25,7 @@ using std::make_shared;
 using std::move;
 using std::string;
 using thermal::v1::Counter;
+using thermal::v1::CounterColumns;
 using thermal::v1::Door;
 using thermal::v1::Temperature;
 
@@ -99,17 +102,21 @@ int main(int argc, char **argv) {
                                      return sample;
                                    },
                                    {},
+                                   {},
                                    {}};
     observer.interval.set_seconds(1);
     Stream<Counter> counter("thermal.counter");
-    Observer<Counter> counter_observer{counter,
-                                       [](Context &) {
-                                         Counter sample;
-                                         sample.set_value(1152921504606847975ULL);
-                                         return sample;
-                                       },
-                                       {},
-                                       {}};
+    // A 1 kHz Stream Answers Each Host Window at Once.
+    WindowObserver<Counter, CounterColumns> counter_observer{counter,
+                                                             [](Context &, const SampleWindow &window) {
+                                                               CounterColumns columns;
+                                                               for (std::uint64_t index = 0; index < window.count; ++index)
+                                                                 columns.add_value(1152921504606847975ULL);
+                                                               return columns;
+                                                             },
+                                                             {},
+                                                             {},
+                                                             {}};
     counter_observer.interval.set_nanos(1000000);
     RecordContract door;
     *door.mutable_metadata() = metadata("thermal.door", "Door Check");

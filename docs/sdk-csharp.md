@@ -24,7 +24,7 @@ mise -C sdk/csharp run test:starter
 ```
 
 `restore` stages unmodified Harmos sources from revision
-`5d601dd320edb0fc69131dc2851d789c4dd1e4c0`, including their checked-in wire output,
+`efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`, including their checked-in wire output,
 and packs `Harmos` into `target/cs/feed`. Set `HARMOS_SOURCE` to a local library
 checkout to read that exact revision with `git archive`; otherwise preparation
 uses its immutable source archive. Dokime references the resulting NuGet package.
@@ -77,7 +77,7 @@ Public operation example is in `examples/Plugin`, and the application client is
 in `examples/Client`. These examples are also the command-line tool's starter
 sources. Each uses public namespaces.
 
-`Template` composes ordered steps, criteria, streams, host-ticked observers,
+`Template` composes ordered steps, criteria, streams, window-sampled observers,
 parameters, documents and execution-owned resources. Materialization is pure.
 Initialization, cleanup, step and criterion bindings are independently Protected;
 clients do not receive them in their resource tree. Cleanup releases owned
@@ -85,7 +85,24 @@ resources even if the authored cleanup fails. Shutdown drains remaining resource
 
 A step's `OperationPolicy` owns retry counts and intervals; set `ReplaySafe` when
 retries are allowed. Lifecycle callbacks accept independent policy declarations.
-Observer intervals come from their declaration or named setting. Time and waits
+Observer intervals come from their declaration or named setting. The host grants
+each interval stream one window at a time (`count` samples from `Start`, one
+`Period` apart). `Observer<Row>` is called once per sample of a window;
+`WindowObserver<Row, Columns>` answers the whole window with a columns message that
+repeats every row field, which suits high-rate streams:
+
+```csharp
+template.Observer(new WindowObserver<Counter, CounterColumns>(counter, new Duration { Nanos = 1_000_000 }, (context, window) =>
+{
+  var columns = new CounterColumns();
+  columns.Value.AddRange(Enumerable.Repeat(1UL, checked((int)window.Count)));
+  return Task.FromResult(columns);
+}, windowSetting: "counter_window"));
+```
+
+The window length is the host's `interval_window_ms`; `windowSetting` names a
+plugin Duration setting that replaces it for one stream. Interval rows hold one
+value per field; repeated, map, oneof and `optional` fields are refused. Time and waits
 use `context.Host.Time.Get()` and `.Sleep(duration)`, with the host's controlled
 clock during stories. No SDK convenience supplies a retry interval or deadline.
 
@@ -174,8 +191,8 @@ canonical values and clone their inputs.
 `test` runs SDK-local client and plugin journeys plus document builders.
 They cover authentication and per-call context, retained descriptor pages,
 materialization, Protected lifecycle bindings, scoped records, explicit observer
-ticks, evidence evaluation and resource release. Internal carrier descriptors
-stay in the test harness. Scenario time uses host ticks and awaited conditions.
+windows, evidence evaluation and resource release. Internal carrier descriptors
+stay in the test harness. Scenario time uses host windows and awaited conditions.
 
 `test:starter` selects the installed Test example and exercises managed shutdown.
 Set `DOKIME_STARTER` to another prepared example executable when needed.

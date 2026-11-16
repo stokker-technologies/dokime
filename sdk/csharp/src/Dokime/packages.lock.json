@@ -30,9 +30,9 @@
       },
       "Harmos": {
         "type": "Direct",
-        "requested": "[0.1.0-dev.5d601dd320ed, 0.1.0-dev.5d601dd320ed]",
-        "resolved": "0.1.0-dev.5d601dd320ed",
-        "contentHash": "1HW0hRvC8D1kjhuq+63Kp4/fin+q3i7U3HHbHdcsry1+2pReRwUniN12Xse8aTtEC2XRVNcEz92cQ++UQdREug==",
+        "requested": "[0.1.0-dev.efc261fe9431, 0.1.0-dev.efc261fe9431]",
+        "resolved": "0.1.0-dev.efc261fe9431",
+        "contentHash": "w3mSNKiN53Qm6Pg6dNafoNJSUVH7c1kDRY+HWih8cemIqu8r/6pYZ4J/I4JC9MCwWtHuPTMHtzp806Z0j5tMGg==",
         "dependencies": {
           "Google.Protobuf": "3.36.2",
           "Grpc.AspNetCore": "2.76.0",

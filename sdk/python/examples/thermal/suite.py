@@ -3,8 +3,8 @@ from typing import cast
 from google.protobuf.message import Message
 
 from dokime import Parameter, Prompt, PromptDefinitions
-from dokime.authoring import Record, Suite, Template, criterion, observer, step, stream
-from dokime.plugin import Context, Plugin
+from dokime.authoring import Record, Suite, Template, criterion, observer, step, stream, window_observer
+from dokime.plugin import Context, Plugin, SampleWindow
 
 # SPDX-License-Identifier: Apache-2.0
 """The Same Thermal Procedure as Every SDK."""
@@ -15,14 +15,14 @@ from dokime.plugin import HostOperation
 
 
 # Protobuf Types Belong to the Fixture, Not to the SDK.
-def row_type(name: str, field: str, kind: int) -> type[Message]:
+def row_type(name: str, field: str, kind: int, *, repeated: bool = False) -> type[Message]:
     definition = descriptor_pb2.FileDescriptorProto(name=f"thermal/{name}.proto", package="thermal", syntax="proto3")
     row = definition.message_type.add(name=name)
     row.field.add(
         name=field,
         number=1,
         type=cast(descriptor_pb2.FieldDescriptorProto.Type, kind),
-        label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL,
+        label=descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED if repeated else descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL,
     )
     pool = descriptor_pool.Default()
     pool.Add(definition)
@@ -31,6 +31,7 @@ def row_type(name: str, field: str, kind: int) -> type[Message]:
 
 Temperature = row_type("Temperature", "celsius", descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE)
 Counter = row_type("Counter", "value", descriptor_pb2.FieldDescriptorProto.TYPE_UINT64)
+CounterColumns = row_type("CounterColumns", "value", descriptor_pb2.FieldDescriptorProto.TYPE_UINT64, repeated=True)
 Door = row_type("Door", "closed", descriptor_pb2.FieldDescriptorProto.TYPE_BOOL)
 
 
@@ -58,10 +59,11 @@ class Thermal:
     def temperature(self, ctx: Context) -> Message:
         return Temperature(celsius=self.limit - 1.0)
 
+    # A 1 kHz Stream Answers Each Host Window at Once.
     @stream("Exact Counter", identifier="thermal.counter", row=Counter)
-    @observer(interval_ms=1)
-    def counter(self, ctx: Context) -> Message:
-        return Counter(value=1_152_921_504_606_847_975)
+    @window_observer(columns=CounterColumns, interval_ms=1)
+    def counter(self, ctx: Context, window: SampleWindow) -> Message:
+        return CounterColumns(value=[1_152_921_504_606_847_975] * window.count)
 
     @criterion("Temperature Within Limit", identifier="within_limit")
     async def within_limit(self, ctx: Context) -> bool:
