@@ -399,6 +399,12 @@ samples per second over five iterations, summed over all streams:
 | 16 | 285,284 | 7,848,604 | 16,000 | Interrupted 5 of 5 (lag) |
 | 128 | 638,007 | 6,614,664 | 128,004 | Interrupted 5 of 5 (lag) |
 
+A same-session comparison of the controlled cases, one level-3 pass then one level-1
+pass, measured level 1 against level 3 at 315,534 / 322,063, 358,535 / 357,762 and
+700,462 / 686,906 samples/s at 1 kHz and 3,026,428 / 2,630,852, 8,479,683 / 8,172,305
+and 7,449,759 / 7,074,111 at 1 MHz for 1, 16 and 128 streams. The full run's lower
+16-stream 1 kHz figure is run-to-run variance, not a level-1 cost.
+
 Every controlled case retained exactly its samples, and every other real-clock 1 kHz
 run and the single 1 MHz stream completed with at least the requested span. The first
 single-stream real 1 kHz iteration ended Interrupted after 5,901 samples with a stream
