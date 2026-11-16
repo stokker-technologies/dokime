@@ -39,8 +39,9 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   `crates/dokime-storage/src/backend/compound.rs`. Product callers still need
   their coupled cutover; retaining two writers or
   adding a mirror is not an acceptable intermediate design. Independent retained
-  view payloads in `host/views.rs` now use Harmos object operations; their evidence
-  cut issuance remains coupled to the product ledger.
+  views in `host/views.rs` now use Harmos objects for immutable file indexes and native
+  file operations for complete protobuf payloads, including collections larger than one
+  response bound. Their evidence cut issuance remains coupled to the product ledger.
 - The native backend commits compound effects and applied/refused receipts together,
   refuses partial compound cuts, and implements object/scoped tombstones with retained
   reads and file reclamation. Harmos's public backend conformance kit runs in

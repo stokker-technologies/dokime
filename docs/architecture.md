@@ -180,8 +180,10 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    archives; `client_reads_runtime` proves status observation and stable restart identity.
    **Status:** storage through operations and product wrappers are locked direction in
    [Operation Boundary](../openspec/changes/operation-boundary/design.md).
-   Retained resource-view payloads use `GetObject` and create-only `SetObject` in
-   `crates/dokime-operations/src/host/views.rs`. Their product evidence cuts still use
+   Retained resource-view indexes use `GetObject` and create-only `SetObject` in
+   `crates/dokime-operations/src/host/views.rs`; their immutable protobuf payloads use
+   chunked native files, so a complete collection can exceed one response page without
+   exceeding an object or transfer bound. Their product evidence cuts still use
    the execution ledger. Access, Status, native transfers and library plugin entries are composed.
    Executions bind the admitted activation once per unit with a trusted scope and
    independent clock; lifecycle dispatch uses the library operation manager. Scoped
@@ -740,8 +742,10 @@ mutation and object/scoped deletion. Their coupled product cutover remains open;
 offline/minimal-assembly storage operations, expression transforms scale/offset/contains,
 consolidated statistics, the bucket-summary kernel and the typed facade remain
 upstream gaps.
-Independent retained-view payloads use Harmos objects, retaining the first value
-published for a product cut. No mirror, fallback reader or dual write is introduced.
+Independent retained views use immutable native files and object indexes, retaining
+the first file published for a product cut. Pages keep their existing response bounds;
+the complete collection is stored and read through bounded native file operations.
+No mirror, fallback reader or dual write is introduced.
 Prepared reports persist their document, execution seal and native file reference
 through Harmos objects. Their HTML stays in the native file and publication reads
 it through `GetFileBytes`; the final product report transaction still awaits the

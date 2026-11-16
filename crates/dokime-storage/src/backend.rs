@@ -185,7 +185,7 @@ impl Backend {
         if version == 1 {
             let format: Option<String> =
                 connection.query_row("SELECT value FROM storage_meta WHERE name='format'", [], |row| row.get(0)).optional().map_err(db)?;
-            if format.as_deref() != Some("dokime.compound-arrow.v1") {
+            if format.as_deref() != Some("dokime.operations-files.v1") {
                 return Err(incompatible());
             }
 
@@ -241,7 +241,7 @@ impl Backend {
         if stored.as_ref().is_some_and(|stored| stored != &encoded) {
             return Err(incompatible());
         }
-        tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('format','dokime.compound-arrow.v1')", []).map_err(db)?;
+        tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('format','dokime.operations-files.v1')", []).map_err(db)?;
         tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('history',?1)", [&encoded]).map_err(db)?;
         tx.execute_batch("INSERT OR IGNORE INTO storage_meta VALUES('deletion_generation','0'); INSERT OR IGNORE INTO storage_meta VALUES('recovery_written','0'); INSERT OR IGNORE INTO storage_meta VALUES('recovery_saved','0'); INSERT OR IGNORE INTO storage_meta VALUES('saved','0'); INSERT OR IGNORE INTO storage_meta VALUES('floor','0'); INSERT OR IGNORE INTO storage_meta VALUES('object_receipt_floor','0'); PRAGMA user_version=1;").map_err(db)?;
         tx.commit().map_err(db)?;
