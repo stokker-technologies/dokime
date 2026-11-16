@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Check Selected-Workflow Access Before Opening A Release Review."""
+"Check Selected-Workflow Access Before Opening a Release Review."
 
 # === Imports === #
 
@@ -15,11 +15,16 @@ import json
 import os
 import subprocess
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
-from ..process import spawn_flags
 from .. import policy
-from ..release.run import release_tag
+from ..process import spawn_flags
+from ..release.context import release_tag
 
 # Type Checking Imports
 
@@ -47,24 +52,34 @@ def main() -> None:
     groups = None
     references = [os.environ["GITHUB_REF"], "refs/heads/release/" + release_tag(policy.root())]
     for workflow, requirements in workflows.items():
-        labels = {label for platform, roles in requirements.items() if platform != "nightly" for label in roles.values()}
+        labels = set()
+        for labels_platform, labels_roles in requirements.items():
+            if labels_platform == "nightly":
+                continue
+            for labels_label in labels_roles.values():
+                labels.add(labels_label)
+
         for required in sorted(labels):
             if required.startswith(("ubuntu-", "windows-", "macos-")):
                 continue
             if groups is None:
-                groups = [group for page in _pages(f"orgs/{organization}/actions/runner-groups") for group in page["runner_groups"]]
+                groups = []
+                for groups_page in _pages(f"orgs/{organization}/actions/runner-groups"):
+                    groups.extend(groups_page["runner_groups"])
+
             eligible = []
             for group in groups:
-                runners = [
-                    runner
-                    for page in _pages(f"orgs/{organization}/actions/runner-groups/{group['id']}/runners")
-                    for runner in page["runners"]
-                ]
+                runners = []
+                for runners_page in _pages(f"orgs/{organization}/actions/runner-groups/{group['id']}/runners"):
+                    runners.extend(runners_page["runners"])
+
                 if any(required in {label["name"] for label in runner["labels"]} for runner in runners):
                     eligible.append(group)
             for reference in references:
                 if not any(permitted(group, repository, workflow, reference) for group in eligible):
-                    raise RuntimeError(f"runner group allowlist does not permit {workflow}@{reference} with labels {required}")
+                    raise RuntimeError(
+                        f"Run Runners Tests: runner group allowlist does not permit {workflow}@{reference} with labels {required}"
+                    )
 
 
 # === Private Functions === #

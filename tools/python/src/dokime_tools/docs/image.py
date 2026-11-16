@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Assemble The Published Documentation Archives Into One Site Image"""
+"""Assemble the Published Documentation Archives into One Site Image"""
 
 # === Imports === #
 
@@ -20,7 +20,12 @@ import sys
 import zipfile
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import policy
 from ..release import layout, notices, registry
@@ -47,10 +52,10 @@ STABLE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 
 
 def download(directory: Path) -> list[Path]:
-    """Fetch The Newest Archive Of Each Stable Release Line And The Nightly Archive."""
+    """Fetch the Newest Archive of Each Stable Release Line and the Nightly Archive."""
     settings = policy.policy(directory, "release")
     selected: dict[str, tuple[tuple[int, ...], str, str]] = {}
-    for release in registry.pages(settings, "releases"):
+    for release in registry.provider.pages(settings, "releases"):
         names = {asset.get("name") for asset in release.get("assets", [])}
         tag = release.get("tag_name", "")
         if release.get("draft"):
@@ -79,14 +84,15 @@ def download(directory: Path) -> list[Path]:
 
 
 def assemble(archives: list[Path], output: Path) -> list[dict]:
-    """Unpack Each Archive Under Its Entry, Then Write The Selector Entries And The latest Redirects."""
+    """Unpack Each Archive Under Its Entry, Then Write the Selector Entries and the latest Redirects."""
     if output.exists():
         shutil.rmtree(output)
     output.mkdir(parents=True)
     releases: dict[str, tuple[int, ...]] = {}
     development = None
     for archive in archives:
-        with zipfile.ZipFile(archive) as source:
+        source = zipfile.ZipFile(archive)
+        try:
             stamp = json.loads(source.read(site.STAMP))
             entry, version = stamp["entry"], stamp["version"]
             matched = STABLE.fullmatch(version)
@@ -101,6 +107,8 @@ def assemble(archives: list[Path], output: Path) -> list[dict]:
             else:
                 releases[entry] = tuple(int(part) for part in matched.groups())
             _extract(source, output / entry)
+        finally:
+            source.close()
     ordered = sorted(releases, key=lambda line: releases[line], reverse=True)
     entries = []
     if ordered:
@@ -147,7 +155,7 @@ def _extract(source: zipfile.ZipFile, destination: Path) -> None:
 
 
 def _redirects(entry: Path, latest: Path, target: str) -> None:
-    """Point Every Page Of The Newest Release Line Under latest/ At The Same Page Of That Line."""
+    """Point Every Page of the Newest Release Line Under latest/ at the Same Page of That Line."""
     for page in sorted(entry.rglob("*.html")):
         relative = page.relative_to(entry).as_posix()
         location = target + relative.removesuffix("index.html")

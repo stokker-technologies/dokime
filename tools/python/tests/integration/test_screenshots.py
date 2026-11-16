@@ -20,7 +20,12 @@ import zlib
 from pathlib import Path
 from unittest.mock import patch
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools import policy
 from dokime_tools.screenshots import run
@@ -37,8 +42,10 @@ from dokime_tools.screenshots import run
 
 
 class ScreenshotSet(unittest.TestCase):
-    def test_published_set_rejects_missing_corrupt_and_inconsistent_assets(self):
-        with tempfile.TemporaryDirectory() as temporary:
+    def test_published_set_rejects_missing_corrupt_and_inconsistent_assets(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        temporary = temporary_directory.name
+        try:
             root = Path(temporary)
             folder = root / "docs/screenshots"
             folder.mkdir(parents=True)
@@ -93,6 +100,8 @@ class ScreenshotSet(unittest.TestCase):
                     run.check(root)
                 (folder / "old-scene.png").unlink()
                 run.check(root)
+        finally:
+            temporary_directory.cleanup()
 
 
 # === Public Functions === #

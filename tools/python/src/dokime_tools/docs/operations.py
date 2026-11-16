@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Generate The Operations Reference From The Protocol Definitions And Their Comments"""
+"""Generate the Operations Reference from the Protocol Definitions and Their Comments"""
 
 # === Imports === #
 
@@ -17,6 +17,8 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
 from google.protobuf.descriptor_pb2 import (
     DescriptorProto,
@@ -25,6 +27,8 @@ from google.protobuf.descriptor_pb2 import (
     FileDescriptorProto,
     FileDescriptorSet,
 )
+
+# isort: split
 
 # Local Imports
 from .. import policy
@@ -69,11 +73,15 @@ METHODS = VALUES = 2
 
 
 def generate(directory: Path) -> Path:
-    """Write One Page Per Protocol Package And An Overview Under target/docs/generated/."""
-    with tempfile.TemporaryDirectory() as scratch:
+    """Write One Page per Protocol Package and an Overview Under target/docs/generated/."""
+    scratch_directory = tempfile.TemporaryDirectory()
+    scratch = scratch_directory.name
+    try:
         image = Path(scratch) / "protocol.binpb"
         policy.execute(directory, ["buf", "build", "--as-file-descriptor-set", "-o", str(image)])
         descriptors = FileDescriptorSet.FromString(image.read_bytes())
+    finally:
+        scratch_directory.cleanup()
     callers = protocol_callers.caller_options(descriptors)
     composition = tomllib.loads((directory / "protocol/composition.toml").read_text(encoding="utf-8"))
     callers.update(composition.get("callers", {}))
@@ -99,7 +107,7 @@ def generate(directory: Path) -> Path:
 
 
 def page(package: str, files: list[FileDescriptorProto], owners: dict, callers: dict[str, str], order: int) -> str:
-    """One Package: Its Services With Their Operations, Then Its Messages And Enums."""
+    """One Package: Its Services with Their Operations, Then Its Messages and Enums."""
     lines = _frontmatter(package, f"Operations and messages of the {package} protocol package.", order)
     services = [(file, index, service) for file in files for index, service in enumerate(file.service)]
     if services:
@@ -186,7 +194,7 @@ def _frontmatter(title: str, description: str, order: int) -> list[str]:
 
 
 def _definitions(file: FileDescriptorProto) -> list[tuple[str, DescriptorProto | EnumDescriptorProto, tuple[int, ...]]]:
-    """Every Message And Enum Of A File With Its Package-Relative Name And Source Path."""
+    """Every Message and Enum of a File with Its Package-Relative Name and Source Path."""
     result: list[tuple[str, DescriptorProto | EnumDescriptorProto, tuple[int, ...]]] = []
 
     def visit(message: DescriptorProto, name: str, path: tuple[int, ...]) -> None:
@@ -254,7 +262,7 @@ def _cell(text: str | None) -> str:
 
 
 def _anchor(heading: str) -> str:
-    """The Heading Identifier The Site Assigns, Following GitHub Slugging."""
+    """The Heading Identifier the Site Assigns, Following GitHub Slugging."""
     return re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
 
 

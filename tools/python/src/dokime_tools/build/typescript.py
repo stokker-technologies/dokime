@@ -14,7 +14,12 @@
 # Standard Library Imports
 import subprocess
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools.build import configuration, frontend, organization
 from dokime_tools.prepare import generated
@@ -34,19 +39,20 @@ from dokime_tools.process import spawn_flags
 
 
 def build(profile: str) -> list[str]:
-    """Generate The GUI Modules From The Product Build And Build The Live Frontend."""
+    """Generate the GUI Modules From the Product Build and Build the Live Frontend."""
     generated.prepare()
     generated.stage(profile)
     organization.generate_icons()
     subprocess.run(["pnpm", "run", "typecheck"], cwd=frontend.WEB_ROOT, check=True, creationflags=spawn_flags())
     web = frontend.build(profile)
     frontend.build_report([])
-    files = [
-        path
-        for directory in (configuration.ROOT / "target/generated/typescript", configuration.ROOT / "target/generated/host", web)
-        for path in directory.rglob("*")
-        if path.is_file()
-    ]
+    files = []
+    for files_directory in (configuration.ROOT / "target/generated/typescript", configuration.ROOT / "target/generated/host", web):
+        for files_path in files_directory.rglob("*"):
+            if not (files_path.is_file()):
+                continue
+            files.append(files_path)
+
     return configuration.relative(files)
 
 

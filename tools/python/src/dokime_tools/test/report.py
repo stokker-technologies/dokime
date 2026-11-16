@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Read And Preserve Native JUnit Reports."""
+"Read and Preserve Native JUnit Reports."
 
 # === Imports === #
 
@@ -20,7 +20,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from xml.etree import ElementTree
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from ..build import paths
 from . import policy
@@ -60,9 +65,9 @@ class Case:
 def native_directory(root: Path, relative: Path) -> Path:
     path = root / relative
     if not path.resolve().is_relative_to(root.resolve()):
-        raise policy.TestError("native report directory escapes the repository")
+        raise policy.TestError("Run Report Tests: native report directory escapes the repository")
     if any(item.is_symlink() or item.is_junction() for item in (path, *path.parents) if item.is_relative_to(root)):
-        raise policy.TestError("native report directory must not contain links")
+        raise policy.TestError("Run Report Tests: native report directory must not contain links")
     path.mkdir(parents=True, exist_ok=True)
     return path.resolve()
 
@@ -70,13 +75,13 @@ def native_directory(root: Path, relative: Path) -> Path:
 def location(directory: Path, profile: str, key: str) -> Path:
     parts = key.split("-")
     if parts[-1] not in policy.LANGUAGES:
-        raise policy.TestError("unknown report language")
+        raise policy.TestError("Run Report Tests: unknown report language")
     if parts[0] == "coverage" and len(parts) in (2, 3):
         if len(parts) == 3 and parts[1] not in policy.CATEGORIES:
-            raise policy.TestError("unknown coverage layer")
+            raise policy.TestError("Run Report Tests: unknown coverage layer")
         return paths.output(directory, "tests", profile).joinpath("coverage", parts[-1], *parts[1:-1])
     if len(parts) != 2 or parts[0] not in policy.CATEGORIES:
-        raise policy.TestError("unknown report layer")
+        raise policy.TestError("Run Report Tests: unknown report layer")
     return paths.output(directory, "tests", profile) / key
 
 
@@ -96,9 +101,14 @@ def cases(text: str, category: str, language: str, package: str) -> list[Case]:
         selected = category
         if language == "python" and category == "coverage":
             parts = (node.get("file") or suite).replace("\\", "/").replace(".", "/").split("/")
-            layers = [layer for layer in policy.CATEGORIES if layer in parts]
+            layers = []
+            for layers_layer in policy.CATEGORIES:
+                if layers_layer not in parts:
+                    continue
+                layers.append(layers_layer)
+
             if len(layers) != 1:
-                raise policy.TestError(f"native Python coverage report does not identify one test layer: {suite}::{name}")
+                raise policy.TestError(f"Run Report Tests: native Python coverage report does not identify one test layer: {suite}::{name}")
             selected = layers[0]
         found.append(Case(selected, language, owner, suite, name, outcome, seconds))
     return found
@@ -113,7 +123,12 @@ def merge(texts: Sequence[str]) -> str:
             merged.append(root)
             continue
         merged.extend(child for child in root if child.tag == "testsuite")
-        orphans = [child for child in root if child.tag == "testcase"]
+        orphans = []
+        for orphans_child in root:
+            if orphans_child.tag != "testcase":
+                continue
+            orphans.append(orphans_child)
+
         if orphans:
             wrapper = ElementTree.SubElement(merged, "testsuite", name=root.get("name", ""))
             wrapper.extend(orphans)
@@ -143,7 +158,8 @@ def locked(directory: Path) -> Generator[None]:
     """Serialize read-modify-write of the shared evidence files across lanes."""
     path = directory / LOCK
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+b") as handle:
+    handle = path.open("a+b")
+    try:
         if sys.platform == "win32":
             import msvcrt
 
@@ -161,6 +177,8 @@ def locked(directory: Path) -> Generator[None]:
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
             else:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        handle.close()
 
 
 # === Private Functions === #
@@ -170,7 +188,7 @@ def _parse(text: str) -> ElementTree.Element:
     try:
         return ElementTree.fromstring(text)
     except ElementTree.ParseError as error:
-        raise policy.TestError(f"invalid JUnit report: {error}") from error
+        raise policy.TestError(f"Run Report Tests: invalid JUnit report: {error}") from error
 
 
 def _testcases(root: ElementTree.Element) -> Iterator[tuple[str, ElementTree.Element]]:

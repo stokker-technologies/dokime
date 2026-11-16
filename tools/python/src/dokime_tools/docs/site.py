@@ -6,13 +6,12 @@
 #
 # ***
 
-"""Build Or Preview One Documentation Entry From The Current Checkout"""
+"""Build or Preview One Documentation Entry from the Current Checkout"""
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
-import html.parser
 import os
 import re
 import shutil
@@ -20,9 +19,15 @@ import subprocess
 import sys
 import urllib.parse
 import zipfile
+from html.parser import HTMLParser
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import policy
 from ..process import spawn_flags
@@ -47,11 +52,28 @@ EPOCH = (1980, 1, 1, 0, 0, 0)
 
 # === Classes === #
 
+
+class _Collector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.identifiers: set[str] = set()
+        self.references: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        if values.get("id"):
+            self.identifiers.add(values["id"] or "")
+        if tag in {"a", "link"} and values.get("href"):
+            self.references.append(values["href"] or "")
+        if tag in {"img", "script"} and values.get("src"):
+            self.references.append(values["src"] or "")
+
+
 # === Public Functions === #
 
 
 def entry(directory: Path, *, release: bool) -> str:
-    """The Release Line Of The Current Version, Or The Development Entry."""
+    """The Release Line of the Current Version, or the Development Entry."""
     if not release:
         return DEVELOPMENT
     value = policy.policy(directory, "version").get("value", "")
@@ -62,7 +84,7 @@ def entry(directory: Path, *, release: bool) -> str:
 
 
 def build(directory: Path, *, release: bool = False, archive: bool = False) -> Path:
-    """Generate References, Build The Entry Into target/docs/<entry>/ And Check Its Links."""
+    """Generate References, Build the Entry into target/docs/<entry>/ and Check Its Links."""
     selected = entry(directory, release=release)
     operations.generate(directory)
     output = policy.inside(directory, f"{OUTPUT}/{selected}")
@@ -81,13 +103,13 @@ def build(directory: Path, *, release: bool = False, archive: bool = False) -> P
 
 
 def serve(directory: Path) -> None:
-    """Preview The Development Entry With Live Reload Of The Maintained Guides."""
+    """Preview the Development Entry with Live Reload of the Maintained Guides."""
     operations.generate(directory)
     _astro(directory, DEVELOPMENT, "dev", "--host", "127.0.0.1")
 
 
 def links(output: Path, base: str) -> list[str]:
-    """Every Same-Site Link Or Fragment Whose Page Or Heading Does Not Exist."""
+    """Every Same-Site Link or Fragment Whose Page or Heading Does Not Exist."""
     pages: dict[Path, set[str]] = {}
 
     def identifiers(page: Path) -> set[str]:
@@ -113,21 +135,24 @@ def links(output: Path, base: str) -> list[str]:
                     continue
                 resolved = output / path.removeprefix(base) if path.startswith("/") else page.parent / path
                 target = resolved / "index.html" if path.endswith("/") or resolved.is_dir() else resolved
-            if (
-                not target.is_file()
-                or parsed.fragment
+            missing_page = not target.is_file()
+            missing_heading = (
+                not missing_page
+                and bool(parsed.fragment)
                 and target.suffix == ".html"
                 and urllib.parse.unquote(parsed.fragment) not in identifiers(target)
-            ):
+            )
+            if missing_page or missing_heading:
                 broken.append(f"{page.relative_to(output).as_posix()}: {reference}")
     return broken
 
 
 def pack(output: Path, destination: Path) -> None:
-    """Archive One Built Entry With Its Pages At The Archive Root."""
+    """Archive One Built Entry with Its Pages at the Archive Root."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(".tmp")
-    with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    archive = zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED)
+    try:
         for path in sorted(output.rglob("*")):
             if path.is_symlink():
                 raise policy.ToolError(f"Archive Documentation: Linked Output: {path}")
@@ -136,6 +161,8 @@ def pack(output: Path, destination: Path) -> None:
                 member.compress_type = zipfile.ZIP_DEFLATED
                 member.external_attr = 0o644 << 16
                 archive.writestr(member, path.read_bytes())
+    finally:
+        archive.close()
     temporary.replace(destination)
 
 
@@ -160,24 +187,8 @@ def main(arguments: list[str] | None = None) -> int:
 # === Private Functions === #
 
 
-class _Collector(html.parser.HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.identifiers: set[str] = set()
-        self.references: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        values = dict(attrs)
-        if values.get("id"):
-            self.identifiers.add(values["id"] or "")
-        if tag in {"a", "link"} and values.get("href"):
-            self.references.append(values["href"] or "")
-        if tag in {"img", "script"} and values.get("src"):
-            self.references.append(values["src"] or "")
-
-
 def _astro(directory: Path, selected: str, *arguments: str) -> None:
-    """Run Astro For One Entry; The Site Configuration Writes It To target/docs/<entry>/."""
+    """Run Astro for One Entry; the Site Configuration Writes It to target/docs/<entry>/."""
     executable = shutil.which("pnpm")
     if executable is None:
         raise policy.ToolError("Build Documentation: pnpm Is Not Installed; Run mise install")

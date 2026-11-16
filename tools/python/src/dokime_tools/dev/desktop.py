@@ -11,6 +11,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import argparse
 import ctypes
 import os
 import shutil
@@ -25,7 +26,12 @@ from ctypes import wintypes
 from pathlib import Path
 from typing import Any
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools import policy
 from dokime_tools.build import cargo, configuration
@@ -110,7 +116,7 @@ class Owner:
             raise OSError(ctypes.get_last_error(), "Own the Desktop Processes: Configure Job")
 
     def start(self, command: Sequence[str | Path], **options: Any) -> subprocess.Popen:
-        """Start a Process Whose Descendants Stay Owned From Their First Instruction."""
+        """Start a Process Whose Descendants Stay Owned from Their First Instruction."""
         if os.name != "nt":
             process = subprocess.Popen([str(part) for part in command], start_new_session=True, **options)
             self.processes.append(process)
@@ -199,7 +205,9 @@ def discard(root: Path, namespace: str, host: Path, environment: Mapping[str, st
     shutil.rmtree(root)
 
 
-def main() -> int:
+def main(arguments: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.parse_args(arguments)
     extension = ".exe" if os.name == "nt" else ""
 
     # Generate the Desktop Messages and Settings the Frontend Imports

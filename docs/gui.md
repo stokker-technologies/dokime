@@ -16,7 +16,7 @@ and `src/report`.
 ## Development
 
 `mise run dev` starts the desktop with Tauri dev and Vite live reload. It
-generates the desktop messages, builds the [OBC](plugin-obc.md) plugin, and
+generates the desktop messages, builds the [OBC](../plugins/sidecars/obc/) plugin, and
 creates a disposable application root under the system temporary directory with
 a unique credential namespace. The OBC bundle is installed into that root before
 the window opens. The tool sets `DOKIME_APPLICATION_ROOT` and

@@ -7,7 +7,7 @@
 # ***
 
 
-"""Preserve Attached Consoles And Keep Headless Child Processes Hidden."""
+"Preserve Attached Consoles and Keep Headless Child Processes Hidden."
 
 # === Imports === #
 
@@ -16,12 +16,15 @@ import ctypes
 import os
 import subprocess
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
