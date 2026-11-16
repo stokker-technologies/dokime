@@ -51,11 +51,11 @@ pub use secrets::store::{register_redactions, remove_root_secrets};
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, future::Future, sync::Arc, time::Duration};
+use std::{collections::HashMap, fs::File, future::Future, result, sync::Arc, time::Duration};
 
 // Third Party Imports
 use async_trait::async_trait;
-use harmos_protocol::model as h;
+use harmos_protocol::model;
 use prost::Message;
 use tokio::sync::watch;
 
@@ -86,8 +86,6 @@ use harmos_runtime::operations::{NativeOperation, OperationManager};
 use prost_reflect::ReflectMessage;
 use prost_types::FileDescriptorSet;
 use prost_types::Timestamp;
-use std::fs::File;
-use std::result::Result as StandardResult;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Code, Status};
@@ -101,7 +99,7 @@ const MAX_PAGE_ITEMS: usize = 500;
 
 /* === Type Aliases === */
 
-pub type Output<T> = ReceiverStream<StandardResult<T, Status>>;
+pub type Output<T> = ReceiverStream<result::Result<T, Status>>;
 
 /* === Structs === */
 
@@ -173,8 +171,8 @@ pub trait Host: Send + Sync {
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
     fn render_report(&self, subject: &ReportSubject, document_id: &str, at: Option<&ReadCut>) -> Result<(File, ReportMetadata)>;
-    fn retain_report(&self, file: File, reference: FileReference) -> Result<()>;
-    fn temporary_report(&self, identifier: &str) -> Result<Option<(File, FileReference)>>;
+    fn retain_report(&self, reference: FileReference) -> Result<()>;
+    fn temporary_report(&self, identifier: &str) -> Result<Option<FileReference>>;
     fn publish_report(&self, prepared: Report) -> Result<Report>;
     async fn analyze(
         &self, plugin: &str, operation: &str, request: dokime_protocol::plugin::AnalysesComputeRequest,
@@ -195,13 +193,13 @@ pub trait Host: Send + Sync {
 /* === Implementations === */
 
 impl Context {
-    pub fn authorize(&self, action: &str, caller: h::Callers) -> StandardResult<(), Failure> {
+    pub fn authorize(&self, action: &str, caller: model::Callers) -> result::Result<(), Failure> {
         if let Some(method) = self.operations.grpc_methods().into_iter().find(|method| method.contract.operation().id.as_str() == action) {
             let allowed = matches!(
                 (method.callers, caller),
-                (h::Callers::All, h::Callers::Clients | h::Callers::Plugins)
-                    | (h::Callers::Clients, h::Callers::Clients)
-                    | (h::Callers::Plugins, h::Callers::Plugins)
+                (model::Callers::All, model::Callers::Clients | model::Callers::Plugins)
+                    | (model::Callers::Clients, model::Callers::Clients)
+                    | (model::Callers::Plugins, model::Callers::Plugins)
             );
             if !allowed {
                 return Err(Failure::wrong_caller(action));
@@ -232,7 +230,7 @@ pub fn declaration<Q: ReflectMessage + Default, R: ReflectMessage + Default>(id:
     let types = FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?;
     let mut contract = crate::declaration::<Q, R>(id, types)?;
     let timeout = prost_types::Duration::try_from(timeout).map_err(|error| Error::Invalid(error.to_string()))?;
-    contract.policy = Some(h::OperationPolicy {
+    contract.policy = Some(model::OperationPolicy {
         timeout: Some(timeout),
         attempt_timeout: Some(timeout),
         ..Default::default()

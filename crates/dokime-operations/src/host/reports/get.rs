@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::io::Write;
 
 // Third Party Imports
 
@@ -61,7 +62,7 @@ pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<Rep
             crate::host::views::hex(&crate::host::paging::bytes(&ReportsGetRequest { at: None, ..request.clone() }))
         );
         let (mut reply, cut) = crate::host::views::read(context, &resource, request.at.as_ref(), async {
-            if let Some((_, reference)) = context.host.temporary_report(&request.name)? {
+            if let Some(reference) = context.host.temporary_report(&request.name)? {
                 return Ok(ReportsGetResponse {
                     file: Some(reference),
                     report: None,
@@ -81,7 +82,6 @@ pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<Rep
                 .ok_or_else(|| Error::NotFound("Get Report: Publish the Selected Report First".into()))?;
             let cut = context.host.store().metadata(execution)?;
             let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Get Report: {error}")))?;
-            use std::io::Write;
             file.write_all(&report.html).map_err(|error| Error::Invalid(format!("Get Report: {error}")))?;
             let (_, length, digest) = crate::host::content::transfer::temporary(
                 file.try_clone().map_err(|error| Error::Invalid(format!("Get Report: {error}")))?,
@@ -151,7 +151,7 @@ pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<Rep
                     return Err(source);
                 }
             };
-            context.host.retain_report(file, reference.clone())?;
+            context.host.retain_report(reference.clone())?;
             Ok(ReportsGetResponse {
                 report: Some(ReportMetadata {
                     test_cycle_id: cut.execution.cycle,

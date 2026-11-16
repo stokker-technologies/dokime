@@ -18,19 +18,18 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::{FileMetadata, OperationContract, ReadCut};
 
 // Local Imports
+use super::PreparedReport;
 use crate::host::ClientSettings;
 use crate::host::files::uploads::{append, create, delete, publish};
+use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::ReportsCreateResponse;
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
-use dokime_storage::Report;
-use harmos_protocol::model::FileMetadata;
-use harmos_protocol::model::OperationContract;
-use harmos_protocol::model::ReadCut;
 
 /* === Constants === */
 
@@ -56,7 +55,7 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<ReportsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let subject = request.subject.as_ref().ok_or_else(|| Error::Invalid("Create Report: Select Its Execution or Cycle".into()))?;
-        let (mut file, metadata) = context.host.render_report(subject, &request.document_id, request.at.as_ref())?;
+        let (file, metadata) = context.host.render_report(subject, &request.document_id, request.at.as_ref())?;
         let (retained, length, digest) = crate::host::content::transfer::temporary(
             file.try_clone().map_err(|error| Error::Invalid(format!("Create Report: {error}")))?,
         )?;
@@ -128,28 +127,20 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
         };
 
         if let Some(execution) = &metadata.test_execution_id {
-            use std::io::{Read, Seek};
-            file.rewind().map_err(|error| Error::Invalid(format!("Create Report: {error}")))?;
-            let mut html = Vec::new();
-            file.read_to_end(&mut html).map_err(|error| Error::Invalid(format!("Create Report: {error}")))?;
             let scope = DocumentScope {
                 cycle_id: metadata.test_cycle_id.clone(),
                 execution_id: execution.clone(),
             };
             let (document, cut) = context.host.current_document(&scope, &request.document_id)?;
-            context.host.store().save_administration(
-                &name,
-                &Report {
-                    execution: execution.clone(),
-                    identifier: name.clone(),
-                    execution_seal: cut.seal,
-                    document: Some(document),
-                    html,
-                    seal: reference.sha256.clone(),
-                },
-            )?;
+            let prepared = PreparedReport {
+                execution: execution.clone(),
+                execution_seal: cut.seal,
+                document: Some(document),
+                file: Some(reference.clone()),
+            };
+            administration::retain(context, &name, &prepared).await?;
         }
-        context.host.retain_report(retained, reference.clone())?;
+        context.host.retain_report(reference.clone())?;
         let position = context.host.store().evidence_position(None)?;
         Ok(ReportsCreateResponse {
             report: Some(metadata),
