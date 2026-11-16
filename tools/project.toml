@@ -56,6 +56,14 @@ lock_commands = [
     "crates/dokime-gui",
   ],
   [
+    "pnpm",
+    "install",
+    "--lockfile-only",
+    "--ignore-scripts",
+    "--dir",
+    "site",
+  ],
+  [
     "uv",
     "lock",
   ],

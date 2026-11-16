@@ -188,6 +188,32 @@ The protocol task also generates four-language SDK roots through the pinned
 library's descriptor table/generator; its check verifies those outputs for drift.
 Never edit generated files.
 
+## Documentation Site
+
+The website renders the guides in `docs/` in place through the Starlight project in
+`site/`, with static search and a release selector; the operations reference is
+generated from the protocol definitions and their comments. Edit guides only in
+`docs/`; each guide's first heading becomes its page title.
+
+```sh
+mise run docs:serve
+mise run docs:build
+mise run docs:build -- --release --archive
+mise run docs:image -- --archive target/docs/dokime-docs.zip
+```
+
+`docs:serve` previews the development entry with live reload. `docs:build` writes
+the development entry to `target/docs/dev/` and fails on a broken page link or
+heading anchor; `--release` builds the release line of the current version under
+`/<MAJOR.MINOR>/` instead, and `--archive` packs the entry as
+`target/docs/dokime-docs.zip`. Release staging publishes that archive as
+`dokime-docs-<version>.zip` (required for a stable release) or
+`dokime-docs-nightly.zip`. `docs:image` downloads the newest archive of each release
+line and the Nightly archive (it needs `GH_TOKEN`), or assembles the given archives,
+and packs `target/docs/dokime-docs-site.zip` with `versions.json` and the `latest`
+redirects. Pull requests run `Build / Documentation`; Nightly builds the archive
+beside publication and its report states whether the archive was attached.
+
 ## Build and Delivery Artifacts
 
 `mise run build` produces the current host/CLI workspace. Tests Build produces
