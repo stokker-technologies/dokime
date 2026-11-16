@@ -207,7 +207,8 @@ impl StreamConsumer<Application> for Samples {
             let mut failures = self.failures.lock().expect("sample failure lock is healthy");
             for (execution, _) in scopes.iter().filter(|(_, scope)| scope.streams.contains_key(definition.id())) {
                 let action = format!(
-                    "Ingest Execution Samples: stream {} lost publications before storage read them; rerun the execution",
+                    "Ingest Execution Samples: Stream {} Lost Rows Before Storage Read Them; Shorten Its Window or Lower Its Rate, Then \
+                     Rerun the Execution",
                     definition.id()
                 );
                 tracing::error!(%execution, %action, "Ingest Execution Samples");
@@ -224,7 +225,8 @@ impl StreamConsumer<Application> for Samples {
                     .and_then(|context| serde_json::from_str::<Value>(context).ok())
                     .and_then(|context| context["scope"].as_str().map(str::to_owned));
                 if let Some(scope) = scope {
-                    self.failures.lock().expect("sample failure lock is healthy").insert(scope, source.to_string());
+                    let action = format!("Ingest Execution Samples: Stream {}: {source}; Rerun the Execution", definition.id());
+                    self.failures.lock().expect("sample failure lock is healthy").insert(scope, action);
                 }
                 tracing::error!(%source, "Ingest Execution Samples");
             }

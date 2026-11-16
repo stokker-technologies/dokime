@@ -66,6 +66,7 @@ mod storage_root_admission;
 #[path = "../support/mod.rs"]
 mod support;
 mod thermal_suite_survives_host_restart;
+mod window_overflow_names_its_stream;
 mod window_setting_overrides_host_window;
 
 /* === Re-Exports === */

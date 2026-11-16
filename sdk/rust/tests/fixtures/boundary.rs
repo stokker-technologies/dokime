@@ -110,7 +110,28 @@ fn main() -> Result<()> {
         .observer(host_observer)
         .stream(setting_stream)
         .observer(setting_observer);
+    // One 1 MHz Window Holding More Rows Than the Shared Plugin Publication Pool Admits at Once.
+    let overflow_stream = Stream::<Reading>::new("execution.window.overflow", "Overflow Window Samples");
+    let overflow_observer = Observer::window(&overflow_stream, async |_: &Context, window: &SampleWindow| {
+        Ok(ReadingColumns {
+            value: vec![0.0; window.count as usize],
+        })
+    })
+    .every(Duration::from_micros(1))
+    .window_setting("overflow_window");
+    let overflow = Template::new("execution.overflow", "Window Overflow")
+        .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(10)).await))
+        .stream(overflow_stream)
+        .observer(overflow_observer);
     Plugin::new("execution", "1.0.0")
+        .setting(dokime::SettingDeclaration {
+            name: "overflow_window".into(),
+            title: "Overflow Window".into(),
+            description: "Sampling time one window of the overflow stream covers".into(),
+            default: Some(dokime::SettingValue {
+                value: Some(dokime::setting_value::Value::Duration(prost_types::Duration { seconds: 10, nanos: 0 })),
+            }),
+        })
         .setting(dokime::SettingDeclaration {
             name: "sample_window".into(),
             title: "Sample Window".into(),
@@ -119,7 +140,7 @@ fn main() -> Result<()> {
                 value: Some(dokime::setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 10_000_000 })),
             }),
         })
-        .suite(Suite::new("execution", "Execution").template(boundary).template(windows))
+        .suite(Suite::new("execution", "Execution").template(boundary).template(windows).template(overflow))
         .requires_host(HostOperation::TimeSleep)
         .serve()
 }
