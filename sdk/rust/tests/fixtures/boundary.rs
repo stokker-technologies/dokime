@@ -38,6 +38,13 @@ struct Reading {
     value: f64,
 }
 
+/// One Granted Window of Readings, Each Holding the Window's Sample Count.
+#[derive(dokime::Message)]
+#[harmos(package = "execution")]
+struct ReadingColumns {
+    value: Vec<f64>,
+}
+
 #[derive(dokime::Parameters)]
 #[harmos(package = "execution")]
 struct CaptureRows {
@@ -84,8 +91,35 @@ fn main() -> Result<()> {
         }))
         .stream(boundary_stream)
         .observer(boundary_observer);
+    // Two Window Observers at 1 kHz: One Takes the Host Window, One Its Plugin Duration Setting.
+    let granted = async |_: &Context, window: &SampleWindow| {
+        Ok(ReadingColumns {
+            value: vec![window.count as f64; window.count as usize],
+        })
+    };
+    let host_stream = Stream::<Reading>::new("execution.window.host", "Host Window Samples");
+    let host_observer = Observer::window(&host_stream, granted).every(Duration::from_millis(1));
+    let setting_stream = Stream::<Reading>::new("execution.window.setting", "Setting Window Samples");
+    let setting_observer = Observer::window(&setting_stream, granted).every(Duration::from_millis(1)).window_setting("sample_window");
+    let windows = Template::new("execution.windows", "Window Override")
+        .parameters(CaptureRows { rows: 1000 })
+        .step(Step::new("Capture", async |context: &Context| {
+            context.sleep(Duration::from_millis(context.parameters::<CaptureRows>()?.rows)).await
+        }))
+        .stream(host_stream)
+        .observer(host_observer)
+        .stream(setting_stream)
+        .observer(setting_observer);
     Plugin::new("execution", "1.0.0")
-        .suite(Suite::new("execution", "Execution").template(boundary))
+        .setting(dokime::SettingDeclaration {
+            name: "sample_window".into(),
+            title: "Sample Window".into(),
+            description: "Sampling time one window of the setting stream covers".into(),
+            default: Some(dokime::SettingValue {
+                value: Some(dokime::setting_value::Value::Duration(prost_types::Duration { seconds: 0, nanos: 10_000_000 })),
+            }),
+        })
+        .suite(Suite::new("execution", "Execution").template(boundary).template(windows))
         .requires_host(HostOperation::TimeSleep)
         .serve()
 }
