@@ -2,7 +2,7 @@
 
 ## 1. Contract
 
-- [ ] 1.1 Lock the source inventory for grouped choices, traceability and declared field metadata: interface, runtime, plugin declarations, tests and guidance. Review the archived plot-kinds contract; remaining grid/playback consumer proof is owned by grpc-plugins, without duplicating that work.
+- [ ] 1.1 Lock the source inventory for grouped choices, traceability and declared field metadata: interface, runtime, plugin declarations, tests and guidance. Review the current plot/query contract; inherited plot-kind and grid/playback consumer obligations are owned by grpc-plugins, without duplicating that work.
 
 ## 2. Other Domain Knowledge
 

@@ -33,7 +33,7 @@
 
 ## Workflow Follow-Up
 
-- The archived plot-kinds change records delivered kind contracts; grpc-plugins retains unfinished grid/report playback consumer proof. Completed transport remains a dependency.
+- grpc-plugins owns the inherited plot-kind cleanup, two-dimensional contour binning, grid frames, loaded-data playback and report/SDK/plugin consumer obligations. The former plot-kinds change is absent from this checkout; this reference is not proof that its work was delivered.
 - Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
 - Run only focused tasks until combined source closure; final native proof remains separate.
 
