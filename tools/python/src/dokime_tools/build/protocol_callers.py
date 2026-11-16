@@ -22,9 +22,10 @@ from pathlib import Path
 from typing import Any, cast
 
 # Third Party Imports
-from google.protobuf import descriptor_pool, message_factory
+from google.protobuf import message_factory
 from google.protobuf.descriptor import EnumDescriptor, FieldDescriptor
 from google.protobuf.descriptor_pb2 import FileDescriptorSet, MethodDescriptorProto
+from google.protobuf.descriptor_pool import DescriptorPool
 
 # Local Imports
 from ..process import spawn_flags
@@ -157,8 +158,8 @@ def check_public_surfaces(root: Path) -> None:
 # === Private Functions === #
 
 
-def _descriptor_pool(descriptors: FileDescriptorSet) -> descriptor_pool.DescriptorPool:
-    pool = descriptor_pool.DescriptorPool()
+def _descriptor_pool(descriptors: FileDescriptorSet) -> DescriptorPool:
+    pool = DescriptorPool()
     pending = {file.name: file for file in descriptors.file}
     while pending:
         ready = [file for file in pending.values() if all(name not in pending for name in file.dependency)]
@@ -180,7 +181,7 @@ def _host_methods(descriptors: FileDescriptorSet) -> Iterator[tuple[str, MethodD
                 yield identity, method
 
 
-def _caller_extension(pool: descriptor_pool.DescriptorPool) -> tuple[FieldDescriptor, EnumDescriptor]:
+def _caller_extension(pool: DescriptorPool) -> tuple[FieldDescriptor, EnumDescriptor]:
     try:
         extension = pool.FindExtensionByName("harmos.model.v1.callers")
     except KeyError as error:
@@ -190,7 +191,7 @@ def _caller_extension(pool: descriptor_pool.DescriptorPool) -> tuple[FieldDescri
     return extension, extension.enum_type
 
 
-def _caller_options(descriptors: FileDescriptorSet, pool: descriptor_pool.DescriptorPool) -> dict[str, str]:
+def _caller_options(descriptors: FileDescriptorSet, pool: DescriptorPool) -> dict[str, str]:
     result: dict[str, str] = {}
     methods = list(_host_methods(descriptors))
     if not methods:
