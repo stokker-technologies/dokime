@@ -110,7 +110,7 @@ impl Fixture {
         // Start the Desktop's Current Embedded Host
         let settings = ConnectionSettings {
             host: HostSettings {
-                credentials: dokime_gui::test_support::credentials(),
+                credentials: credentials(),
                 capture: dokime_runtime::CaptureSettings::default(),
                 clock: Arc::new(ControlledClock::new(ORIGIN_S as i64 * 1_000_000_000)),
                 storage: storage_defaults(),
@@ -372,6 +372,15 @@ pub fn sample_ns() -> i64 {
 }
 
 /* === Private Functions === */
+
+/// The Bench Run's Credential Namespace, Which the Runner Names and Removes; Otherwise This Process's Own.
+fn credentials() -> dokime_runtime::CredentialNamespace {
+    let namespace = std::env::var("DOKIME_CREDENTIAL_NAMESPACE").unwrap_or_else(|_| {
+        let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+        format!("dokime-bench-{}-{unique}", std::process::id())
+    });
+    dokime_runtime::CredentialNamespace::new(namespace).expect("Name the Bench Credential Namespace")
+}
 
 fn document(count: usize) -> Document {
     let kinds = [
