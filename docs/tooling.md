@@ -1,7 +1,8 @@
 # Repository Tooling
 
 Use `mise tasks` to discover entry points, with arguments after `--`. Preparation
-installs the root `.venv/` and frontend dependencies. `prepare --without-frontend`
+installs the root `.venv/`, builds the Python SDK wheel and installs it there, and
+installs frontend dependencies. `prepare --without-frontend`
 prepares SDK-only jobs without requiring Node or pnpm. Build, test and checks use
 project tasks; compiler caches belong to the workstation.
 

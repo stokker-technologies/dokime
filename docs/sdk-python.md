@@ -19,8 +19,9 @@ mise -C sdk/python run wheel
 mise -C sdk/python run example-test
 ```
 
-Build exports a pure wheel and source distribution under
-`target/build/dev/any/python`. Package verifies those existing bytes and copies
+Prepare synchronizes the root `.venv`, then builds and installs the SDK wheel into
+it, so stories that run the SDK work after any prepare. Build exports a pure wheel
+and source distribution under `target/build/dev/any/python`. Package verifies those existing bytes and copies
 them to `target/package/dev/any/python`. SDK tooling uses the repository root
 `.venv`. Generation checking uses temporary output and leaves committed files untouched.
 Check includes typing and formatting for the shared Python host fixture and example

@@ -10,7 +10,7 @@
 
 [tasks.prepare]
 description = "Prepare the Python Environment"
-run = 'uv sync --locked --all-groups --project ../../tools/python'
+run = ['uv sync --locked --all-groups --project ../../tools/python', { task = "build" }, { task = "install" }]
 
 [tasks.format]
 description = "Format the Python SDK"
