@@ -899,3 +899,31 @@ starters (decision 0.J). The Python test example carries its host-driven story i
 `tests/`, so `dokime new --lang python` ships the story its `mise run test` runs.
 The C++ starter consumes the installed SDK archive with its supplied SHA-256,
 then resolves the matching native dependencies through vcpkg.
+
+## Reference Plugin Authoring
+
+`plugins/sidecars/obc/src/lib.rs` composes global `catalog()` entry points. Its
+canonical Rust layout is maintained in the
+[authoring skill](../.claude/skills/dokime-authoring/SKILL.md): root entry points and
+settings, private device state/clock/locks behind `device::Bench`, plugin-lived
+manual operations, genuinely shared measurement/charger-event/inspection catalogs,
+and one complete file per template beneath each suite. A device folder does not
+extend a bench's lifetime: template initialization creates it in execution context,
+cleanup powers it down and execution disposal releases it.
+
+The OBC suite IDs are `obc.steady_state`, `obc.transient` and `obc.benchmark`.
+Template IDs append `single_phase`/`three_phase`, `startup`/`overcurrent`/`overvoltage`,
+or `streams`/`plots`/`observers`/`exact_values`, respectively. Resistance and reactance
+set the steady-state impedance and phase. Balanced three-phase input uses per-phase
+RMS quantities and three times the single-phase real power; DC power follows total
+input and conversion efficiency. Overvoltage and overcurrent both latch protection
+and refuse restart. Plot families and the thermal survey belong to the plot
+benchmark; exact unsigned meter values belong to their independent benchmark.
+The retired recovery/check suites and plugin analysis registration have no aliases.
+Today's SDK lifecycle verbs remain unchanged.
+
+Rust parameter/plot/card conveniences are implemented with the protocol-owned
+messages in `crates/dokime-protocol/src/builders.rs` and accepted by value through
+the Rust SDK. Python, C# and C++ provide equivalent number/count/flag/sweep/list,
+line plot and card helpers. Generated messages remain tracked and are never edited
+by hand. No protocol shape or storage format changes are needed for this layout.

@@ -45,8 +45,10 @@ const INRUSH_S: f64 = 0.02;
 pub struct Supply {
     pub voltage_rms_v: f64,
     pub load_ohm: f64,
+    pub reactance_ohm: f64,
+    pub phases: u32,
+    pub voltage_limit_v: f64,
     pub frequency_hz: f64,
-    pub phase_deg: f64,
     pub current_limit_a: f64,
 }
 
@@ -65,7 +67,7 @@ pub struct Reading {
     pub dc_current_a: f64,
 }
 
-/// A Deterministic Charger: Inrush, Phase Lag, Overcurrent Latch and Power Loss.
+/// A Deterministic Charger: Inrush, Phase Lag, Overcurrent and Overvoltage Latches.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Charger {
     pub supply: Supply,
@@ -87,7 +89,7 @@ pub enum Power {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fault {
     Overcurrent,
-    PowerLoss,
+    Overvoltage,
 }
 
 /* === Traits === */
@@ -99,8 +101,10 @@ impl Default for Supply {
         Self {
             voltage_rms_v: 230.0,
             load_ohm: 100.0,
+            reactance_ohm: 0.0,
+            phases: 1,
+            voltage_limit_v: 270.0,
             frequency_hz: 50.0,
-            phase_deg: 15.0,
             current_limit_a: 5.0,
         }
     }
@@ -108,17 +112,16 @@ impl Default for Supply {
 
 impl Supply {
     pub fn validate(self) -> Result<Self> {
-        let valid = (0.0..=300.0).contains(&self.voltage_rms_v)
-            && self.load_ohm.is_finite()
-            && self.load_ohm > 0.0
-            && (1.0..=1000.0).contains(&self.frequency_hz)
-            && self.phase_deg.abs() < 90.0
+        let voltage_valid = (0.0..=300.0).contains(&self.voltage_rms_v);
+        let impedance_valid = self.load_ohm.is_finite() && self.load_ohm > 0.0 && self.reactance_ohm.is_finite();
+        let phases_valid = matches!(self.phases, 1 | 3);
+        let frequency_valid = (1.0..=1000.0).contains(&self.frequency_hz);
+        let protection_valid = self.voltage_limit_v.is_finite()
+            && self.voltage_limit_v > 0.0
             && self.current_limit_a.is_finite()
             && self.current_limit_a > 0.0;
-        if !valid {
-            return Err(Error::Invalid(
-                "Initialize Charger: Choose 0–300 V, a Positive Load, 1–1000 Hz, a Phase Below 90° and a Positive Current Limit".into(),
-            ));
+        if !(voltage_valid && impedance_valid && phases_valid && frequency_valid && protection_valid) {
+            return Err(Error::Invalid("Initialize Charger: Choose 0–300 V, Positive Resistance, Finite Reactance, One or Three Phases, 1–1000 Hz and Positive Protection Limits".into()));
         }
         Ok(self)
     }
@@ -128,7 +131,7 @@ impl Fault {
     pub fn name(self) -> &'static str {
         match self {
             Self::Overcurrent => "overcurrent",
-            Self::PowerLoss => "power_loss",
+            Self::Overvoltage => "overvoltage",
         }
     }
 }
@@ -167,21 +170,19 @@ impl Charger {
         Ok(())
     }
 
-    pub fn inject(&mut self, fault: Fault) {
+    /// Apply a New Supply Voltage and Evaluate Protection Immediately.
+    pub fn set_voltage(&mut self, voltage_rms_v: f64, at_s: f64) -> Result<()> {
+        self.supply = Supply { voltage_rms_v, ..self.supply }.validate()?;
+        self.protect(at_s);
+        Ok(())
+    }
+
+    fn inject(&mut self, fault: Fault) {
         self.fault = Some(fault);
         self.power = Power::Faulted;
     }
 
-    pub fn clear(&mut self) {
-        self.fault = None;
-        self.power = Power::Off;
-    }
-
-    pub fn restart_blocked(&self) -> bool {
-        self.fault.is_some()
-    }
-
-    /// Sample the Charger, Latching Overcurrent First.
+    /// Sample the Charger, Latching Protection First.
     pub fn sample(&mut self, elapsed_s: f64) -> Reading {
         self.protect(elapsed_s);
         self.reading(elapsed_s)
@@ -193,8 +194,8 @@ impl Charger {
         let voltage_rms_v = if powered { self.supply.voltage_rms_v } else { 0.0 };
         let current_rms_a = if powered { self.drawn_a(elapsed_s) } else { 0.0 };
         let angle = TAU * self.supply.frequency_hz * elapsed_s;
-        let lag = self.supply.phase_deg.to_radians();
-        let input_power_w = voltage_rms_v * current_rms_a * lag.cos();
+        let lag = self.supply.reactance_ohm.atan2(self.supply.load_ohm);
+        let input_power_w = f64::from(self.supply.phases) * voltage_rms_v * current_rms_a * lag.cos();
         let dc_voltage_v = if powered { DC_VOLTAGE_V } else { 0.0 };
         Reading {
             elapsed_s,
@@ -203,7 +204,7 @@ impl Charger {
             voltage_rms_v,
             current_rms_a,
             frequency_hz: self.supply.frequency_hz,
-            phase_deg: self.supply.phase_deg,
+            phase_deg: lag.to_degrees(),
             input_power_w,
             dc_voltage_v,
             dc_current_a: if powered { input_power_w * EFFICIENCY / DC_VOLTAGE_V } else { 0.0 },
@@ -212,11 +213,16 @@ impl Charger {
 
     fn drawn_a(&self, elapsed_s: f64) -> f64 {
         let since = (elapsed_s - self.energized_s).max(0.0);
-        self.supply.voltage_rms_v / self.supply.load_ohm * (1.0 + 0.5 * (-since / INRUSH_S).exp())
+        self.supply.voltage_rms_v / self.supply.load_ohm.hypot(self.supply.reactance_ohm) * (1.0 + 0.5 * (-since / INRUSH_S).exp())
     }
 
     fn protect(&mut self, at_s: f64) {
-        if self.power == Power::Running && self.drawn_a(at_s) > self.supply.current_limit_a {
+        if self.power != Power::Running {
+            return;
+        }
+        if self.supply.voltage_rms_v > self.supply.voltage_limit_v {
+            self.inject(Fault::Overvoltage);
+        } else if self.drawn_a(at_s) > self.supply.current_limit_a {
             self.inject(Fault::Overcurrent);
         }
     }

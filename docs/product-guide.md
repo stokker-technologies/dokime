@@ -200,7 +200,7 @@ Other operation grammar and library composition slices remain locked work.
 ## Examples
 
 - [Rust Thermal Suite](../sdk/rust/examples/thermal.rs) and [Rust SDK Guide](rust-sdk.md).
-- [OBC Charger Testbench](plugin-obc.md): the shipped charger plugin, including the Bench scale suite.
+- [OBC Reference Plugin](../plugins/sidecars/obc/): steady-state, transient and independent benchmark templates; [authoring guidance](../.claude/skills/dokime-authoring/SKILL.md).
 - [Python Starter](../sdk/python/examples/starter/) and [Python SDK](../sdk/python/README.md).
 - [C# Starter](../sdk/csharp/starter/) and [C# SDK Guide](sdk-csharp.md).
 - [C++ Starter](../sdk/cpp/starter/) and [C++ SDK Guide](sdk-cpp.md).
