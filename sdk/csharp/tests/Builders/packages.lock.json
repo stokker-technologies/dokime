@@ -161,7 +161,15 @@
           "Google.Protobuf": "[3.36.2, )",
           "Grpc.AspNetCore": "[2.76.0, )",
           "Grpc.Net.Client": "[2.76.0, )",
-          "Harmos": "[0.1.0-dev.efc261fe9431, 0.1.0-dev.efc261fe9431]"
+          "Harmos": "[0.1.0-dev.efc261fe9431, )"
+        }
+      },
+      "harmos": {
+        "type": "Project",
+        "dependencies": {
+          "Google.Protobuf": "[3.36.2, )",
+          "Grpc.AspNetCore": "[2.76.0, )",
+          "Grpc.Net.Client": "[2.76.0, )"
         }
       },
       "Google.Protobuf": {
@@ -196,17 +204,6 @@
         "requested": "[2.76.0, )",
         "resolved": "2.76.0",
         "contentHash": "goRzYZVMgQtyLvkWdgTnPycg49hlNxnMkqGGgR3l7nCOm0bUh0YeAneiJ9JFk3XLgF4suQUdETYkl2Mg/TBr0w=="
-      },
-      "Harmos": {
-        "type": "CentralTransitive",
-        "requested": "[0.1.0-dev.efc261fe9431, 0.1.0-dev.efc261fe9431]",
-        "resolved": "0.1.0-dev.efc261fe9431",
-        "contentHash": "w3mSNKiN53Qm6Pg6dNafoNJSUVH7c1kDRY+HWih8cemIqu8r/6pYZ4J/I4JC9MCwWtHuPTMHtzp806Z0j5tMGg==",
-        "dependencies": {
-          "Google.Protobuf": "3.36.2",
-          "Grpc.AspNetCore": "2.76.0",
-          "Grpc.Net.Client": "2.76.0"
-        }
       }
     }
   }

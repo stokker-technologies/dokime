@@ -91,22 +91,25 @@ else:
         members.close()
 
 shutil.copyfile(root / "tools/Harmos.csproj", output / "Harmos.csproj")
+# The Package Identity Derives From the Revision; Solution Projects Reference This Staged Project.
+properties: list[str] = [
+    f"<Version>{version}</Version>",
+    f"<SourceRevisionId>{revision}</SourceRevisionId>",
+    f"<RepositoryCommit>{revision}</RepositoryCommit>",
+    "<UseArtifactsOutput>true</UseArtifactsOutput>",
+    "<ArtifactsPath>$(MSBuildThisFileDirectory)../harmos</ArtifactsPath>",
+]
+(output / "Directory.Build.props").write_bytes(
+    "".join(["<Project>", "<PropertyGroup>", *properties, "</PropertyGroup>", "</Project>"]).encode("utf-8")
+)
 subprocess.run(
     [
         sys.argv[1],
         "pack",
-        # The Package Identity Derives From the Revision, So Changed Bytes Never Reuse a Locked Version.
-        f"-p:Version={version}",
-        f"-p:SourceRevisionId={revision}",
-        f"-p:RepositoryCommit={revision}",
-        "-p:RestorePackagesWithLockFile=true",
-        f"-p:NuGetLockFilePath={root / 'tools/Harmos.packages.lock.json'}",
         "-p:RestoreLockedMode=" + ("false" if "--refresh-lock" in sys.argv else "true"),
         str(output / "Harmos.csproj"),
         "--configuration",
         "Release",
-        "--artifacts-path",
-        str(output.parent / "harmos"),
         "--output",
         str(feed.resolve()),
     ],

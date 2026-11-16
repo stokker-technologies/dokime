@@ -5,10 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <!-- The Revision Feed Must Reproduce the Bytes Recorded by Consumer Locks. -->
     <!-- tools/prepare_harmos.py Derives Version, SourceRevisionId and RepositoryCommit From Its One Revision. -->
-    <Deterministic>true</Deterministic>
-    <DeterministicTimestamp>2000-01-01T00:00:00Z</DeterministicTimestamp>
+    <!-- Source Pinned by Revision Is Not Content-Locked: Consumers Reference This Project, Not Its Package. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath>$(MSBuildProjectDirectory)/../../../sdk/csharp/tools/Harmos.packages.lock.json</NuGetLockFilePath>
+    <RestorePackagesPath>$(MSBuildProjectDirectory)/../packages</RestorePackagesPath>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <PathMap>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/..'))=/_/harmos</PathMap>
     <PackageId>Harmos</PackageId>

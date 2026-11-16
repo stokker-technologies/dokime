@@ -27,7 +27,9 @@ mise -C sdk/csharp run test:starter
 `efc261fe9431bb3ad2fd3287ecb51a7f1d8da325`, including their checked-in wire output,
 and packs `Harmos` into `target/cs/feed`. Set `HARMOS_SOURCE` to a local library
 checkout to read that exact revision with `git archive`; otherwise preparation
-uses its immutable source archive. Dokime references the resulting NuGet package.
+uses its immutable source archive. Dokime references the staged `Harmos` project,
+so the solution builds the library as its own assembly; the packed `Dokime`
+declares the matching `Harmos` package, which exported consumers restore from the feed.
 It does not compile library sources into the product assembly.
 The conformance project links the same revision's test fixture sources and model
 definitions from that staging directory; they remain outside the NuGet assembly.
@@ -39,11 +41,13 @@ inventory. It never rewrites that inventory. `build` requires this comparison.
 The SDK does not compile the checked-in wire inventory again with `Grpc.Tools`.
 
 Compiler outputs and restored package caches live under `target/cs`. Dependency
-locks are tracked beside their owning projects, including the immutable source-feed
+locks are tracked beside their owning projects, including the staged library's
 lock under tools. `restore --refresh-lock` refreshes them explicitly; ordinary
-restore and feed preparation use locked mode. The source feed uses native
-NuGet deterministic timestamps and compiler path mapping so repeated packs retain
-the content hash recorded by these locks. `package` consumes the existing Release build.
+restore and feed preparation use locked mode. Packages built locally from source
+are never content-locked: NuGet's pack output differs between Linux and Windows,
+so the pinned revision, not a package hash, fixes the library's content. Locks
+therefore record `Harmos` as a project, and exported consumers re-evaluate the
+locally built `Dokime` and `Harmos` packages. `package` consumes the existing Release build.
 `build:examples` restores the three standalone consumers against that feed.
 `build:starter -- --project /path/to/Test.csproj` selects an exported consumer.
 Each example pins the NuGet package directly and can be exported independently.

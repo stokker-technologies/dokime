@@ -12,7 +12,7 @@
     <InternalsVisibleTo Include="Stories" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <None Include="$(RepoRoot)docs/sdk-csharp.md" Pack="true" PackagePath="/" />
-    <PackageReference Include="Harmos" />
+    <ProjectReference Include="$(RepoRoot)target/cs/h/Harmos.csproj" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Google.Protobuf" />
     <PackageReference Include="Grpc.Net.Client" />
