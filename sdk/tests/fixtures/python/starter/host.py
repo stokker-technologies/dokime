@@ -55,14 +55,17 @@ class Host:
             home = Path(host.root.name) / "credentials"
             home.mkdir(mode=0o700)
             host.environment.update({key: str(home) for key in ("HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR")})
-            bus = await asyncio.create_subprocess_exec(
-                "dbus-daemon",
-                "--session",
-                "--nofork",
-                "--print-address=1",
-                env=host.environment,
-                stdout=asyncio.subprocess.PIPE,
-            )
+            try:
+                bus = await asyncio.create_subprocess_exec(
+                    "dbus-daemon",
+                    "--session",
+                    "--nofork",
+                    "--print-address=1",
+                    env=host.environment,
+                    stdout=asyncio.subprocess.PIPE,
+                )
+            except FileNotFoundError as error:
+                raise RuntimeError("Start SDK Credential Store: Install the dbus Package") from error
             host.children.append(bus)
             if bus.stdout is None:
                 raise RuntimeError("Start SDK Credential Store: dbus-daemon Started Without an Output Pipe")
@@ -70,17 +73,20 @@ class Host:
             if not address:
                 raise RuntimeError("Start SDK Credential Store: dbus-daemon Exited Before Announcing Its Address")
             host.environment["DBUS_SESSION_BUS_ADDRESS"] = address
-            keyring = await asyncio.create_subprocess_exec(
-                "gnome-keyring-daemon",
-                "--foreground",
-                "--components=secrets",
-                "--unlock",
-                "--control-directory",
-                str(home),
-                env=host.environment,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.DEVNULL,
-            )
+            try:
+                keyring = await asyncio.create_subprocess_exec(
+                    "gnome-keyring-daemon",
+                    "--foreground",
+                    "--components=secrets",
+                    "--unlock",
+                    "--control-directory",
+                    str(home),
+                    env=host.environment,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.DEVNULL,
+                )
+            except FileNotFoundError as error:
+                raise RuntimeError("Start SDK Credential Store: Install the gnome-keyring Package") from error
             host.children.append(keyring)
             if keyring.stdin is None:
                 raise RuntimeError("Start SDK Credential Store: The Keyring Started Without an Input Pipe")
@@ -88,8 +94,10 @@ class Host:
             await keyring.stdin.drain()
             keyring.stdin.close()
             while True:
-                if bus.returncode is not None or keyring.returncode is not None:
-                    raise RuntimeError("Start SDK Credential Store: An Owned Daemon Exited")
+                if bus.returncode is not None:
+                    raise RuntimeError(f"Start SDK Credential Store: dbus-daemon Exited With {bus.returncode}; See Its Output Above")
+                if keyring.returncode is not None:
+                    raise RuntimeError(f"Start SDK Credential Store: gnome-keyring-daemon Exited With {keyring.returncode}; See Its Output Above")
                 check = await asyncio.create_subprocess_exec(
                     "dbus-send",
                     "--session",
