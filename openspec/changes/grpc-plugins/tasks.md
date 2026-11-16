@@ -284,6 +284,10 @@ earlier initialization-deadline failure. Native Linux proof remains hosted.
 - Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
 - This change owns the execution model before manager construction; imported-executions depends on it and follows the SDK wave and storage-interface for admission, draft publication and SDK/report integration.
 - Start `storage-interface` only after wave 5: benchmark before/after with multi-day data, extend Harmos storage first, then extract `dokime-storage`; no storage extension or extraction in the gRPC waves.
+- Parked by the owner: batch-native stream storage, one row per window instead of per sample, which changes the Arrow layout and every reader.
+  Measured state: 128 streams at 1 kHz are met, storage takes about 5M samples/s at 128 streams, and 128 streams at 1 MHz in real time fail fast.
+- Parked by the owner: stream decimation and downsampling, keeping previews and aggregates at full rate and raw samples at a lower rate or around events.
+  Measured state: 128 streams at 1 kHz are met, storage takes about 5M samples/s at 128 streams, and 128 streams at 1 MHz in real time fail fast.
 - Run only focused tasks until combined source closure; final native proof remains separate.
 
 ## Combined Tree Integration
