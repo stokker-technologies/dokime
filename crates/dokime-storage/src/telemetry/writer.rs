@@ -449,6 +449,11 @@ impl Store {
         let mut openings = Vec::new();
         for prepared in prepared.iter().filter(|prepared| !telemetry.writers.contains_key(&prepared.id)) {
             let path = catalog::path(root, &prepared.id)?;
+            let cataloged: bool =
+                connection.query_row("SELECT EXISTS(SELECT 1 FROM telemetry_files WHERE id=?1)", [&prepared.id], |row| row.get(0))?;
+            if !cataloged {
+                return Err(Error::Data("start a fresh execution: this stream opened before streams created their files"));
+            }
             let saved = (catalog::indices(connection, &prepared.id)?, catalog::checkpoint(connection, &prepared.id)?);
             openings.push((prepared.id.clone(), prepared.codec.schema.clone(), path, saved));
         }
