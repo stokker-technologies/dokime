@@ -389,34 +389,24 @@ controlled run that loses a sample, prints a `Retained` line with per-stream cou
 the samples the observers answered by the sleep's end, the execution outcome and its
 failure evidence.
 
-Measured on 2026-11-16 at `170e08f63` with library `82e394da` (Windows x86-64, AMD
+Measured on 2026-11-16 at `befdc27d8` with library `a14c724f` (Windows x86-64, AMD
 Ryzen 9 5950X, bench profile, `--once`, ZSTD level 1 stream batches), as median stored
 samples per second over five iterations, summed over all streams:
 
 | Streams | Controlled, 1 kHz, 100 ms Windows | Controlled, 1 MHz, 10 ms Windows | Real, 1 kHz, 100 ms Windows | Real, 1 MHz, 10 ms Windows |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 319,089 | 3,157,532 | 1,000 | 1,048,990 |
-| 16 | 285,284 | 7,848,604 | 16,000 | Interrupted 5 of 5 (lag) |
-| 128 | 638,007 | 6,614,664 | 128,004 | Interrupted 5 of 5 (lag) |
+| 1 | 425,553 | 3,120,169 | 1,000 | 1,064,373 |
+| 16 | 433,150 | 9,047,059 | 15,996 | Interrupted 5 of 5 (lag) |
+| 128 | 1,214,286 | 9,897,189 | 128,020 | Interrupted 5 of 5 (lag) |
 
-A same-session comparison of the controlled cases, one level-3 pass then one level-1
-pass, measured level 1 against level 3 at 315,534 / 322,063, 358,535 / 357,762 and
-700,462 / 686,906 samples/s at 1 kHz and 3,026,428 / 2,630,852, 8,479,683 / 8,172,305
-and 7,449,759 / 7,074,111 at 1 MHz for 1, 16 and 128 streams. The full run's lower
-16-stream 1 kHz figure is run-to-run variance, not a level-1 cost.
-
-Every controlled case retained exactly its samples, and every real-clock 1 kHz run and
-the single 1 MHz stream completed with at least the requested span. The table's
-single-stream real 1 kHz figure is from a rerun after background flush rounds stopped
-syncing Arrow files under the store's locks: before that, admission waited for each
-round's sync, and the first iteration after the 128-stream 1 MHz case ended Interrupted
-after 5,901 samples with a stream window full of rows its ingest had not taken in. That
-rerun followed the controlled 128-stream 1 MHz case, which measured a median of 8,903,362
-samples/s. 16 and 128 streams at 1 MHz cannot
-keep up with real time: each execution failed fast and ended Interrupted with a stream
-failure naming the stream and the action, a stream that fell more than ten window
-lengths behind (`Lagging`). Their stored rates (about 5.4 and 21.5 million samples per
-second) cover only the span before the failure, so they are not sustained figures.
+Stream intake has its own lock and never waits for a file sync, a catalog commit or an
+evidence barrier. Every controlled case retained exactly its samples, and every
+real-clock 1 kHz run and the single 1 MHz stream completed with at least the requested
+span. 16 and 128 streams at 1 MHz cannot keep up with real time: each execution failed
+fast and ended Interrupted with a stream failure naming the stream and the action, a
+stream that fell more than ten window lengths behind (`Lagging`). Their stored rates
+(about 6.9 and 13.3 million samples per second) cover only the span before the failure,
+so they are not sustained figures.
 These real-clock failures are measurements, not tests. The deterministic stories run on
 the controlled clock: `window_lag_names_its_stream` proves the `Lagging` refusal with an
 observer that waits on host time inside each window, and

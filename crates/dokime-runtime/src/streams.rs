@@ -68,6 +68,13 @@ pub(crate) struct Samples {
     pub scopes: Arc<Mutex<HashMap<String, SampleScope>>>,
 }
 
+/// The Storage Side of One Delivery, Moved Off the Async Delivery Task.
+struct Intake {
+    store: Store,
+    failures: Arc<Mutex<HashMap<String, String>>>,
+    scopes: Arc<Mutex<HashMap<String, SampleScope>>>,
+}
+
 pub(crate) struct SampleScope {
     streams: HashMap<String, SampleRow>,
 }
@@ -201,37 +208,24 @@ impl StreamConsumer<Application> for Samples {
         self.cursor
     }
     async fn drain(&mut self, batch: Batch<Application>) -> Cursor {
-        // A Delivery That Lost Rows Before Storage Read Them Fails Every Execution Sampling That Stream.
-        for definition in batch.incomplete() {
+        let reaches = batch.reaches();
+        let intake = Intake {
+            store: self.store.clone(),
+            failures: self.failures.clone(),
+            scopes: self.scopes.clone(),
+        };
+        // Storage Admission Takes Locks and Can Flush Under Byte Pressure, So It Runs Off the Async Delivery Task.
+        if let Err(error) = tokio::task::spawn_blocking(move || intake.drain(&batch)).await {
+            // A Delivery Whose Admission Failed Lost Its Rows, So Every Sampling Execution Fails.
             let scopes = self.scopes.lock().expect("sample scope lock is healthy");
             let mut failures = self.failures.lock().expect("sample failure lock is healthy");
-            for (execution, _) in scopes.iter().filter(|(_, scope)| scope.streams.contains_key(definition.id())) {
-                let action = format!(
-                    "Ingest Execution Samples: Stream {} Lost Rows Before Storage Read Them; Shorten Its Window or Lower Its Rate, Then \
-                     Rerun the Execution",
-                    definition.id()
-                );
-                tracing::error!(%execution, %action, "Ingest Execution Samples");
+            for execution in scopes.keys() {
+                let action = "Ingest Execution Samples: Storage Admission Failed; See the Host Log, Then Rerun the Execution".to_owned();
+                tracing::error!(%execution, %error, "Ingest Execution Samples");
                 failures.insert(execution.clone(), action);
             }
         }
-        for (definition, _, publication) in batch.publications() {
-            let result = self.ingest(definition, publication.value);
-            if let Err(source) = result {
-                let scope = publication
-                    .value
-                    .context
-                    .as_ref()
-                    .and_then(|context| serde_json::from_str::<Value>(context).ok())
-                    .and_then(|context| context["scope"].as_str().map(str::to_owned));
-                if let Some(scope) = scope {
-                    let action = format!("Ingest Execution Samples: Stream {}: {source}; Rerun the Execution", definition.id());
-                    self.failures.lock().expect("sample failure lock is healthy").insert(scope, action);
-                }
-                tracing::error!(%source, "Ingest Execution Samples");
-            }
-        }
-        self.cursor = batch.reaches();
+        self.cursor = reaches;
         self.cursor
     }
 }
@@ -266,8 +260,40 @@ impl SampleScope {
     }
 }
 
-impl Samples {
-    fn ingest(&mut self, definition: &Definition, publication: &PublicationRow) -> HostResult<()> {
+impl Intake {
+    fn drain(&self, batch: &Batch<Application>) {
+        // A Delivery That Lost Rows Before Storage Read Them Fails Every Execution Sampling That Stream.
+        for definition in batch.incomplete() {
+            let scopes = self.scopes.lock().expect("sample scope lock is healthy");
+            let mut failures = self.failures.lock().expect("sample failure lock is healthy");
+            for (execution, _) in scopes.iter().filter(|(_, scope)| scope.streams.contains_key(definition.id())) {
+                let action = format!(
+                    "Ingest Execution Samples: Stream {} Lost Rows Before Storage Read Them; Shorten Its Window or Lower Its Rate, Then \
+                     Rerun the Execution",
+                    definition.id()
+                );
+                tracing::error!(%execution, %action, "Ingest Execution Samples");
+                failures.insert(execution.clone(), action);
+            }
+        }
+        for (definition, _, publication) in batch.publications() {
+            let result = self.ingest(definition, publication.value);
+            if let Err(source) = result {
+                let scope = publication
+                    .value
+                    .context
+                    .as_ref()
+                    .and_then(|context| serde_json::from_str::<Value>(context).ok())
+                    .and_then(|context| context["scope"].as_str().map(str::to_owned));
+                if let Some(scope) = scope {
+                    let action = format!("Ingest Execution Samples: Stream {}: {source}; Rerun the Execution", definition.id());
+                    self.failures.lock().expect("sample failure lock is healthy").insert(scope, action);
+                }
+                tracing::error!(%source, "Ingest Execution Samples");
+            }
+        }
+    }
+    fn ingest(&self, definition: &Definition, publication: &PublicationRow) -> HostResult<()> {
         let Some(context) = &publication.context else { return Ok(()) };
         let context: Value = serde_json::from_str(context).map_err(|source| Error::Invalid(format!("Ingest Sample Scope: {source}")))?;
         let Some(execution) = context["scope"].as_str() else { return Ok(()) };

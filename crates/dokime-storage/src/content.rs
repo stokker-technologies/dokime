@@ -29,7 +29,7 @@ use sha2::{Digest, Sha256};
 use tempfile::TempPath;
 
 // Local Imports
-use crate::{Error, Evidence, Result, Store, store::next_position};
+use crate::{Error, Evidence, Result, Store};
 use dokime_protocol::host::content::ArtifactsCreateRequest;
 use dokime_protocol::host::content::ArtifactsCreateResponse;
 use dokime_protocol::host::content::ExecutionFileMetadata;
@@ -107,7 +107,7 @@ impl Store {
             .collect::<String>();
         let key = format!("artifact/{identifier}");
         let mut connection = self.lock()?;
-        self.flush_samples_locked(&mut connection)?;
+        let reserved = self.barrier(&mut connection, execution)?;
         let transaction = connection.transaction()?;
         let replay: Option<(Vec<u8>, i64)> = transaction
             .query_row(
@@ -145,8 +145,8 @@ impl Store {
                 artifact: Some(artifact.clone()),
             };
             transaction.execute("INSERT INTO administration VALUES(?1,?2)", params![key, stored.encode_to_vec()])?;
-            let sequence = next_position(&transaction, execution)?;
-            append_reference(&transaction, execution, "artifact:metadata", artifact.encode_to_vec())?;
+            let sequence = reserved.take();
+            append_reference(&transaction, execution, sequence, "artifact:metadata", artifact.encode_to_vec())?;
             transaction.execute(
                 "INSERT INTO resource_requests VALUES(?1,?2,?3,?4,?5)",
                 params![execution, operation, request.request_id, fingerprint, sequence as i64],
@@ -154,6 +154,7 @@ impl Store {
             (artifact, sequence)
         };
         transaction.commit()?;
+        reserved.committed();
         self.changed.send_modify(|revision| *revision += 1);
         let position = Position {
             history: Some(History {
@@ -206,15 +207,16 @@ impl Store {
             file: Some(file),
         };
         let mut connection = self.lock()?;
-        self.flush_samples_locked(&mut connection)?;
+        let reserved = self.barrier(&mut connection, execution)?;
         let transaction = connection.transaction()?;
         require_open(&transaction, execution)?;
         transaction.execute(
             "INSERT INTO administration(id,payload) VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
             params![key, stored.encode_to_vec()],
         )?;
-        append_reference(&transaction, execution, "file:metadata", metadata.encode_to_vec())?;
+        append_reference(&transaction, execution, reserved.take(), "file:metadata", metadata.encode_to_vec())?;
         transaction.commit()?;
+        reserved.committed();
         self.changed.send_modify(|revision| *revision += 1);
         Ok(())
     }
@@ -450,9 +452,9 @@ fn require_open(connection: &Connection, execution: &str) -> Result<()> {
     Ok(())
 }
 
-fn append_reference(connection: &Connection, execution: &str, kind: &str, payload: Vec<u8>) -> Result<()> {
+fn append_reference(connection: &Connection, execution: &str, position: u64, kind: &str, payload: Vec<u8>) -> Result<()> {
     let evidence = Evidence {
-        position: next_position(connection, execution)?,
+        position,
         kind: kind.into(),
         payload,
         ..Default::default()

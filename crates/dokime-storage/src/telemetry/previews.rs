@@ -232,7 +232,7 @@ impl Store {
         if window.after != 0 || window.through < through || window.start_ns > preview.start_ns || window.end_ns < preview.end_ns {
             return Ok(None);
         }
-        let accepted = crate::store::next_position(&connection, window.execution)?.saturating_sub(1);
+        let accepted = self.accepted_position(&connection, window.execution)?;
         let saved = crate::store::saved_position(&connection, window.execution)?;
         if window.through > saved && accepted > saved {
             return Ok(None);
