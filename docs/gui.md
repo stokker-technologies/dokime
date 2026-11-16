@@ -280,6 +280,19 @@ running capture keeps the roots it opened with. An attached host keeps its own
 `capture_roots` configuration. The story is
 `src-tauri/tests/system/capture_folders.rs`.
 
+## Interval Sampling
+
+**Settings → Interval Sampling** edits the built-in host's **Interval Window [ms]**
+and **Interval Lag [windows]**, the desktop's `interval_window_ms` and
+`interval_lag_windows` (see `docs/execution-host.md`). The desktop saves them in
+`interval-settings.json` under its application root (`src-tauri/src/interval_settings.rs`);
+an absent file means the runtime defaults `INTERVAL_WINDOW` and `INTERVAL_LAG`.
+Both take whole numbers of at least 1, checked in the section before saving and again
+natively. `native_session::backend::Backend::settings` places them in the owned
+host's `PlacementSettings` when that host starts, so a saved edit applies at the
+next start of the built-in host; an attached host keeps its own configuration.
+`src-tauri/tests/integration/interval_settings.rs` proves edits reach that placement.
+
 ## Cycles and Saved Executions
 
 The host owns planning, execution lifecycle, frozen origins and durable evidence.

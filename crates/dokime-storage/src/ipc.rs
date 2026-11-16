@@ -47,6 +47,9 @@ use super::{Error, Result};
 
 /* === Constants === */
 
+/// ZSTD Level for Stream Batches.
+const ZSTD_LEVEL: i32 = 1;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -408,7 +411,9 @@ fn read_buffer(path: &Path, index: &BatchIndex) -> Result<Buffer> {
 }
 
 fn options() -> Result<IpcWriteOptions> {
-    Ok(IpcWriteOptions::try_new(8, false, MetadataVersion::V5)?.try_with_compression(Some(arrow_ipc::CompressionType::ZSTD))?)
+    Ok(IpcWriteOptions::try_new(8, false, MetadataVersion::V5)?
+        .try_with_compression(Some(arrow_ipc::CompressionType::ZSTD))?
+        .try_with_compression_level(Some(ZSTD_LEVEL))?)
 }
 
 fn hash_state(bytes: &[u8]) -> Result<Sha256> {

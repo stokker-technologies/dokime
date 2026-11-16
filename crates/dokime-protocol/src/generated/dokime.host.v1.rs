@@ -12273,8 +12273,6 @@ pub struct ApplicationSettings {
     pub telemetry: ::core::option::Option<TelemetryPreferences>,
     #[prost(message, optional, tag = "5")]
     pub listener: ::core::option::Option<RemoteListenerSettings>,
-    #[prost(message, optional, tag = "6")]
-    pub plugins: ::core::option::Option<PluginPreferences>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -12385,12 +12383,6 @@ pub struct ManualRefresh {}
 #[allow(clippy::all)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OnDemandRefresh {}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct PluginPreferences {
-    #[prost(uint32, tag = "1")]
-    pub startup_timeout_s: u32,
-}
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RemoteListenerSettings {

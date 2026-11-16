@@ -10,9 +10,9 @@ Use Python 3.13 or newer. From the repository root:
 
 ```sh
 mise -C sdk/python run prepare
-mise -C sdk/python run build
-mise -C sdk/python run install
 ```
+
+Prepare synchronizes the repository's `.venv/`, then builds the wheel and installs it there.
 
 Consumers install the built wheel with `uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl`.
 The wheel depends on `grpcio`, `protobuf` and the pinned Harmos SDK. Building it needs no Rust compiler.

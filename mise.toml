@@ -73,6 +73,8 @@ usage = 'flag "--refresh-lock" help="Refresh the Python Workspace Lock Before Sy
 run = [
   "{% if usage.refresh_lock %}uv lock{% endif %}",
   "uv sync --locked --all-groups",
+  { task = "build:python" },
+  "mise -C sdk/python run install",
   "{% if not usage.without_frontend %}pnpm --dir crates/dokime-gui install --frozen-lockfile{% endif %}",
 ]
 

@@ -1,7 +1,8 @@
 # Repository Tooling
 
 Use `mise tasks` to discover entry points, with arguments after `--`. Preparation
-installs the root `.venv/` and frontend dependencies. `prepare --without-frontend`
+installs the root `.venv/`, builds the Python SDK wheel and installs it there, and
+installs frontend dependencies. `prepare --without-frontend`
 prepares SDK-only jobs without requiring Node or pnpm. Build, test and checks use
 project tasks; compiler caches belong to the workstation.
 
@@ -286,40 +287,36 @@ deviation tile is removed. Full-decode diagnostics consume all fields of every r
 the LTTB window case uses the product query that must decode all selected rows.
 
 The following Windows x86-64 observations were measured on this workstation
-(AMD Ryzen 9 5950X) on 2026-11-15 with default storage settings and one iteration
-per case in the bench profile, in milliseconds. The 18 storage/document cases
-completed; the runtime figures below identify the earlier carrier separately.
-The three runtime cases were measured separately at `8fb9f3f3c` with library
-`7181b5ed`; each retained exactly its requested rows. Publication settles every
-controlled 1 ms tick before the next one, so it is not comparable with the earlier
-single-row carrier. Native boundaries and observations are retained under
-`target/benchmarks/storage/`.
-Old ranges are the recorded cards-and-plots measurements at `43875c422` in
-`docs/product-guide.md`; only the matching warm summary/plot workloads share them.
-They are historical multi-sample ranges, not statistical comparisons with one run.
+(AMD Ryzen 9 5950X) on 2026-11-16 at `170e08f63` with library `82e394da`, default
+storage settings and ZSTD level 1 stream batches, in milliseconds. Each figure is the
+median of five `--once` passes in the bench profile, one iteration per case and pass;
+every case completed and each runtime case retained exactly its requested rows.
+Native boundaries and observations are retained under `target/benchmarks/storage/`.
+The previous column is the single 2026-11-15 iteration this table replaces: storage
+then encoded at ZSTD level 3 and flushed on the admitting caller, and the runtime
+cases ran on the earlier per-sample tick carrier, so those rows are not comparable.
 
-| Case | Timed Boundary | State | This Machine, ms | Comparable Old Figure, ms |
-| --- | --- | --- | ---: | --- |
-| Store Admission and Flush, 1,024 | Prepared protobuf batch, direct admission and durable flush; first file creation when absent | Open store | 10.172 | No comparable old figure |
-| Window Preview, 1,000,000 | Saved preview bins, summary and bounded points | Warm / cold | 0.653 / 3.411 | No comparable old figure |
-| Window Full Scan LTTB, 1,000,000 | Preview summary, full selected-row decode and 1,500-point LTTB payload | Warm / cold | 171.856 / 190.483 | No comparable old figure |
-| Stream Finalize, 65,536 | Close stream files and join sample workers; durable | Warm | 1.134 | No comparable old figure |
-| Minimal Archive in Memory, 16,384 | Current archive into a `Vec`; no report or output sync | Warm | 5.929 | No comparable old figure |
-| Store Ingest Admission, 1,000,000 | Generate/encode phase, ordinal and value; admit in 4,096-row storage batches; automatic flushes included, last tail not necessarily durable | Fresh empty store | 7,832.789 | 8,167.407 on 2026-11-14 |
-| Store Ingest and Flush, 1,000,000 | Same generation/admission plus explicit durable flush; shutdown excluded | Fresh empty store | 8,323.425 | 9,182.036 on 2026-11-14 |
-| Median and Plot, 1,000,000 | Five summary tiles, exact median and one plot payload | Warm / cold | 149.882 / 129.962 | 356.91–367.41 warm; no comparable old cold figure |
-| Three-Day Document, 307,200 | Five tiles and 30 plot payloads/presentation | Warm / cold | 24.588 / 27.853 | No comparable old figure |
-| Three-Day Document, 1,536,000 | Same document at original density | Warm / cold | 35.895 / 31.670 | No comparable old figure |
-| Three-Day Document, 3,072,000 | Same document at original density | Warm / cold | 27.459 / 29.248 | 39.359–43.803 warm; no comparable old cold figure |
-| Document Full Decode, 3,072,000 | All fields of all 30 streams, consuming decoded buffers; no previews/rendering | Warm | 539.972 | No comparable old figure |
-| Runtime Observer Publication and Evidence Barrier, 1,024 | Release prepared step, SDK observation/transport/admission, produced-count record and captured prompt; end/shutdown excluded | Warm host, fresh execution | 5,289.888 | Earlier single-row carrier: 347.964; retired batched carrier was invalid |
-| Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | 99.126 | Earlier single-row carrier: 174.858 |
-| Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | 170.798 | Earlier single-row carrier: 27.696 |
+| Case | Timed Boundary | State | Median, ms | Previous, ms |
+| --- | --- | --- | ---: | ---: |
+| Store Admission and Flush, 1,024 | Prepared protobuf batch, direct admission and durable flush; first file creation when absent | Open store | 3.413 | 10.172 |
+| Window Preview, 1,000,000 | Saved preview bins, summary and bounded points | Warm / cold | 0.671 / 2.022 | 0.653 / 3.411 |
+| Window Full Scan LTTB, 1,000,000 | Preview summary, full selected-row decode and 1,500-point LTTB payload | Warm / cold | 160.498 / 170.362 | 171.856 / 190.483 |
+| Stream Finalize, 65,536 | Close stream files and join sample workers; durable | Warm | 0.850 | 1.134 |
+| Minimal Archive in Memory, 16,384 | Current archive into a `Vec`; no report or output sync | Warm | 5.496 | 5.929 |
+| Store Ingest Admission, 1,000,000 | Generate/encode phase, ordinal and value; admit in 4,096-row storage batches; background flushes included, last tail not necessarily durable | Fresh empty store | 590.849 | 7,832.789 |
+| Store Ingest and Flush, 1,000,000 | Same generation/admission plus explicit durable flush; shutdown excluded | Fresh empty store | 579.026 | 8,323.425 |
+| Median and Plot, 1,000,000 | Five summary tiles, exact median and one plot payload | Warm / cold | 124.753 / 125.748 | 149.882 / 129.962 |
+| Three-Day Document, 307,200 | Five tiles and 30 plot payloads/presentation | Warm / cold | 24.562 / 26.285 | 24.588 / 27.853 |
+| Three-Day Document, 1,536,000 | Same document at original density | Warm / cold | 24.677 / 26.983 | 35.895 / 31.670 |
+| Three-Day Document, 3,072,000 | Same document at original density | Warm / cold | 26.978 / 28.756 | 27.459 / 29.248 |
+| Document Full Decode, 3,072,000 | All fields of all 30 streams, consuming decoded buffers; no previews/rendering | Warm | 492.886 | 539.972 |
+| Runtime Observer Publication and Evidence Barrier, 1,024 | Release prepared step, SDK observation/transport/admission, produced-count record and captured prompt; end/shutdown excluded | Warm host, fresh execution | 2,225.324 | 5,289.888 (tick carrier) |
+| Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | 79.798 | 99.126 (tick carrier) |
+| Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | 20.072 | 170.798 (tick carrier) |
 
 The runtime and desktop fixtures use the real SDK observers and the windowed
 Samples protocol: the host grants each interval stream a window of samples and
-the plugin answers it with columns. The runtime table rows above were measured on
-the earlier per-sample tick carrier and are not comparable with window figures.
+the plugin answers it with columns. The runtime rows above use that window carrier.
 Runtime fixtures declare a 1 ms interval. Desktop fixtures declare an exact
 duration setting for their intended three-day density. Each producer sleeps once
 for its requested rows; the sleep settles after every window due by its end, so no
@@ -330,9 +327,9 @@ field, including late-source offsets. Live and late commands publish eight real
 samples. Each SDK process remains owned until cleanup. No product test hook or
 separate storage-admission path exists.
 
-Direct storage ingest measured 127,668 rows/s for admission and 120,143 rows/s
-through durable flush, compared with 122,438 and 108,908 rows/s in the previous
-guide. These storage API batches are independent of plugin protocol messages.
+Direct storage ingest measured 1,692,479 rows/s for admission and 1,727,038 rows/s
+through durable flush, compared with 127,668 and 120,143 rows/s on 2026-11-15.
+These storage API batches are independent of plugin protocol messages.
 
 The current host has no public flush-only operation for an active execution;
 runtime publication therefore crosses the ordinary produced-count record barrier,
@@ -392,26 +389,33 @@ controlled run that loses a sample, prints a `Retained` line with per-stream cou
 the samples the observers answered by the sleep's end, the execution outcome and its
 failure evidence.
 
-Measured on 2026-11-16 with library `82e394da` (Windows x86-64, AMD Ryzen 9 5950X,
-bench profile, `--once`), as median stored samples per second over five iterations,
-summed over all streams:
+Measured on 2026-11-16 at `170e08f63` with library `82e394da` (Windows x86-64, AMD
+Ryzen 9 5950X, bench profile, `--once`, ZSTD level 1 stream batches), as median stored
+samples per second over five iterations, summed over all streams:
 
 | Streams | Controlled, 1 kHz, 100 ms Windows | Controlled, 1 MHz, 10 ms Windows | Real, 1 kHz, 100 ms Windows | Real, 1 MHz, 10 ms Windows |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 327,171 | 2,460,890 | 1,000 | 1,079,981 |
-| 16 | 369,108 | 7,927,258 | 15,999 | Interrupted 5 of 5 (lag) |
-| 128 | 674,234 | 7,425,052 | 127,985 | Interrupted 5 of 5 (3 lag, 2 full pool) |
+| 1 | 319,089 | 3,157,532 | 1,000 (1 of 5 Interrupted, full window) | 1,048,990 |
+| 16 | 285,284 | 7,848,604 | 16,000 | Interrupted 5 of 5 (lag) |
+| 128 | 638,007 | 6,614,664 | 128,004 | Interrupted 5 of 5 (lag) |
 
-Every controlled case retained exactly its samples, and every real-clock 1 kHz run and
-the single 1 MHz stream completed with at least the requested span. 16 and 128 streams
-at 1 MHz cannot keep up with real time: each execution failed fast and ended
-Interrupted with a stream failure naming the stream and the action, a stream that fell
-more than ten window lengths behind (`Lagging`) or, twice at 128 streams, a shared
-publication pool full of rows storage had not taken in (`PoolFull`). Their stored
-rates (about 7.2 and 15.9 million samples per second) cover only the span before the
-failure, so they are not sustained figures. `window_lag_names_its_stream` and
-`window_overflow_names_its_stream` prove those refusals. Storage alone retains 128
-streams of 20,000 samples (`interval_batches_of_many_streams_survive_pressure_flushes`).
+A same-session comparison of the controlled cases, one level-3 pass then one level-1
+pass, measured level 1 against level 3 at 315,534 / 322,063, 358,535 / 357,762 and
+700,462 / 686,906 samples/s at 1 kHz and 3,026,428 / 2,630,852, 8,479,683 / 8,172,305
+and 7,449,759 / 7,074,111 at 1 MHz for 1, 16 and 128 streams. The full run's lower
+16-stream 1 kHz figure is run-to-run variance, not a level-1 cost.
+
+Every controlled case retained exactly its samples, and every other real-clock 1 kHz
+run and the single 1 MHz stream completed with at least the requested span. The first
+single-stream real 1 kHz iteration ended Interrupted after 5,901 samples with a stream
+window full of rows its ingest had not taken in. 16 and 128 streams at 1 MHz cannot
+keep up with real time: each execution failed fast and ended Interrupted with a stream
+failure naming the stream and the action, a stream that fell more than ten window
+lengths behind (`Lagging`). Their stored rates (about 5.4 and 21.5 million samples per
+second) cover only the span before the failure, so they are not sustained figures.
+`window_lag_names_its_stream` and `window_overflow_names_its_stream` prove those
+refusals. Storage alone retains 128 streams of 20,000 samples
+(`interval_batches_of_many_streams_survive_pressure_flushes`).
 
 ### Desktop Plot Documents
 

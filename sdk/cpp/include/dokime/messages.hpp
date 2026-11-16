@@ -907,7 +907,6 @@ using HostCardMetrics = ::dokime::detail::ClientHostCardMetrics;
 using HostCardStatus = ::dokime::detail::ClientHostCardStatus;
 using ManualRefresh = ::dokime::detail::ClientManualRefresh;
 using OnDemandRefresh = ::dokime::detail::ClientOnDemandRefresh;
-using PluginPreferences = ::dokime::detail::ClientPluginPreferences;
 using RemoteListenerSettings = ::dokime::detail::ClientRemoteListenerSettings;
 using ReportDefaults = ::dokime::detail::ClientReportDefaults;
 using SettingsCard = ::dokime::detail::ClientSettingsCard;

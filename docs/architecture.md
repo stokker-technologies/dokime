@@ -857,7 +857,8 @@ C++ `WindowObserver<Row, Columns>`), each with an optional window setting. The g
 `Window` already names the evidence time selection. The host
 sets `PlacementSettings::interval_window` from `interval_window_ms`
 (`dokime_runtime::INTERVAL_WINDOW` by default) and `PlacementSettings::interval_lag`
-from `interval_lag_windows` (`dokime_runtime::INTERVAL_LAG`, 10 window lengths). The
+from `interval_lag_windows` (`dokime_runtime::INTERVAL_LAG`, 10 window lengths); the
+desktop's built-in host reads both from its Interval Sampling settings at start. The
 library's `Lagging`, `PoolFull` and `WindowExceedsPool` stream failures map in
 `execution.rs` to Interrupted outcomes and `streams:failure` evidence that name the
 stream and the setting that resolves it. Dokime keeps no demand on idle plugin streams. `Tick` and `samples.tick` are gone

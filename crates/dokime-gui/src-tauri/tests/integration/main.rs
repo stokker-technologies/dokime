@@ -16,6 +16,7 @@ mod app;
 mod connection;
 mod host;
 mod http;
+mod interval_settings;
 mod native_session;
 mod parameters;
 mod rpc;

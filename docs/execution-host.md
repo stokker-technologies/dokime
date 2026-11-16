@@ -277,8 +277,6 @@ Build prerequisites and run the client stories through the focused task:
 ```powershell
 mise run build:host-fixtures
 mise -C sdk/python run prepare
-mise -C sdk/python run build
-mise -C sdk/python run install
 mise run test -- --package dokime-runtime --target system --exact client_runs_thermal_suite_over_grpc::client_runs_thermal_suite_over_grpc
 mise run test -- --package dokime-runtime --target system --exact python_client_runs_thermal_suite_over_grpc::python_client_runs_thermal_suite_over_grpc
 ```
@@ -1380,7 +1378,6 @@ frames have no replacement wrapper: use the composed library record and Files up
 | `dokime.client.v1.HostCardTone` | `dokime.host.v1.HostCardTone` |
 | `dokime.client.v1.ManualRefresh` | `dokime.host.v1.ManualRefresh` |
 | `dokime.client.v1.OnDemandRefresh` | `dokime.host.v1.OnDemandRefresh` |
-| `dokime.client.v1.PluginPreferences` | `dokime.host.v1.PluginPreferences` |
 | `dokime.client.v1.RemoteListenerSettings` | `dokime.host.v1.RemoteListenerSettings` |
 | `dokime.client.v1.ReportDefaults` | `dokime.host.v1.ReportDefaults` |
 | `dokime.client.v1.SettingsCard` | `dokime.host.v1.SettingsCard` |

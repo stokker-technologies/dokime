@@ -14,7 +14,7 @@
 /* === Imports === */
 
 use super::{BackendDiagnostics, DesktopSessionError as Error};
-use crate::connection::host::{self, Connection, Error as HostError};
+use crate::connection::host::{self, Connection, ConnectionSettings, Error as HostError};
 use dokime_runtime::Error as RuntimeError;
 use std::path::PathBuf;
 
@@ -31,6 +31,7 @@ pub struct Backend {
     pub root: PathBuf,
     pub log: Option<PathBuf>,
     pub capture_folders: Option<PathBuf>,
+    pub interval_settings: Option<PathBuf>,
 }
 
 /* === Enums === */
@@ -41,7 +42,12 @@ pub struct Backend {
 
 impl Backend {
     pub fn new(root: PathBuf) -> Self {
-        Self { root, log: None, capture_folders: None }
+        Self {
+            root,
+            log: None,
+            capture_folders: None,
+            interval_settings: None,
+        }
     }
 
     pub fn with_log(mut self, log: Option<PathBuf>) -> Self {
@@ -54,15 +60,29 @@ impl Backend {
         self.capture_folders = Some(file);
         self
     }
+
+    /// Starts the host with the interval window and lag bound saved in this file.
+    pub fn with_interval_settings(mut self, file: PathBuf) -> Self {
+        self.interval_settings = Some(file);
+        self
+    }
+
+    /// The connection settings the owned host starts with, including the saved desktop settings.
+    pub fn settings(&self) -> ConnectionSettings {
+        let mut settings = host::desktop_settings();
+        settings.host.capture.roots = self.capture_folders.as_deref().map(crate::capture_folders::roots).unwrap_or_default();
+        if let Some(file) = &self.interval_settings {
+            crate::interval_settings::resolve(file).apply(&mut settings.host.placement);
+        }
+        settings
+    }
 }
 
 /* === Public Functions === */
 
 pub async fn start(backend: &Backend, mut on_phase: impl FnMut(&str) + Send) -> Result<(Connection, String), Error> {
     on_phase("starting");
-    let mut settings = host::desktop_settings();
-    settings.host.capture.roots = backend.capture_folders.as_deref().map(crate::capture_folders::roots).unwrap_or_default();
-    let mut connection = Connection::new(settings).map_err(|error| failure(backend, error))?;
+    let mut connection = Connection::new(backend.settings()).map_err(|error| failure(backend, error))?;
     let session = connection.start(&backend.root).await.map_err(|error| failure(backend, error))?;
     tracing::info!(endpoint = session.endpoint(), root = %backend.root.display(), "Execution Host Ready");
     Ok((connection, session.endpoint().to_owned()))

@@ -126,20 +126,18 @@ class ApplicationAppearance(_message.Message):
     def __init__(self, theme_mode: _Optional[_Union[ThemeMode, str]] = ..., theme_family: _Optional[str] = ..., density: _Optional[_Union[Density, str]] = ...) -> None: ...
 
 class ApplicationSettings(_message.Message):
-    __slots__ = ("appearance", "report", "client", "telemetry", "listener", "plugins")
+    __slots__ = ("appearance", "report", "client", "telemetry", "listener")
     APPEARANCE_FIELD_NUMBER: _ClassVar[int]
     REPORT_FIELD_NUMBER: _ClassVar[int]
     CLIENT_FIELD_NUMBER: _ClassVar[int]
     TELEMETRY_FIELD_NUMBER: _ClassVar[int]
     LISTENER_FIELD_NUMBER: _ClassVar[int]
-    PLUGINS_FIELD_NUMBER: _ClassVar[int]
     appearance: ApplicationAppearance
     report: ReportDefaults
     client: ClientPreferences
     telemetry: TelemetryPreferences
     listener: RemoteListenerSettings
-    plugins: PluginPreferences
-    def __init__(self, appearance: _Optional[_Union[ApplicationAppearance, _Mapping]] = ..., report: _Optional[_Union[ReportDefaults, _Mapping]] = ..., client: _Optional[_Union[ClientPreferences, _Mapping]] = ..., telemetry: _Optional[_Union[TelemetryPreferences, _Mapping]] = ..., listener: _Optional[_Union[RemoteListenerSettings, _Mapping]] = ..., plugins: _Optional[_Union[PluginPreferences, _Mapping]] = ...) -> None: ...
+    def __init__(self, appearance: _Optional[_Union[ApplicationAppearance, _Mapping]] = ..., report: _Optional[_Union[ReportDefaults, _Mapping]] = ..., client: _Optional[_Union[ClientPreferences, _Mapping]] = ..., telemetry: _Optional[_Union[TelemetryPreferences, _Mapping]] = ..., listener: _Optional[_Union[RemoteListenerSettings, _Mapping]] = ...) -> None: ...
 
 class BootstrapPaths(_message.Message):
     __slots__ = ("application", "storage", "plugins", "logs")
@@ -242,12 +240,6 @@ class ManualRefresh(_message.Message):
 class OnDemandRefresh(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
-
-class PluginPreferences(_message.Message):
-    __slots__ = ("startup_timeout_s",)
-    STARTUP_TIMEOUT_S_FIELD_NUMBER: _ClassVar[int]
-    startup_timeout_s: int
-    def __init__(self, startup_timeout_s: _Optional[int] = ...) -> None: ...
 
 class RemoteListenerSettings(_message.Message):
     __slots__ = ("enabled", "address", "tls_enabled", "authentication_enabled", "certificate_names")

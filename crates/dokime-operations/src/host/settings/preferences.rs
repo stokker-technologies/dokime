@@ -27,7 +27,6 @@ use dokime_protocol::host::ApplicationAppearance;
 use dokime_protocol::host::ApplicationSettings;
 use dokime_protocol::host::ClientPreferences;
 use dokime_protocol::host::Density;
-use dokime_protocol::host::PluginPreferences;
 use dokime_protocol::host::ReportDefaults;
 use dokime_protocol::host::SettingsGetResponse;
 use dokime_protocol::host::TelemetryPreferences;
@@ -75,7 +74,6 @@ pub(crate) fn initial() -> SettingsGetResponse {
             }),
             telemetry: Some(TelemetryPreferences { interval_ms: 1000 }),
             listener: None,
-            plugins: Some(PluginPreferences { startup_timeout_s: 60 }),
         }),
         resolved_at: None,
     }
@@ -118,10 +116,6 @@ pub(crate) fn validate(settings: &ApplicationSettings) -> Result<()> {
     duration(client.request_timeout_ms)?;
     let telemetry = settings.telemetry.as_ref().ok_or_else(|| invalid("Supply Telemetry Preferences"))?;
     duration(telemetry.interval_ms)?;
-    let plugins = settings.plugins.as_ref().ok_or_else(|| invalid("Supply Plugin Preferences"))?;
-    if !(1..=3600).contains(&plugins.startup_timeout_s) {
-        return Err(invalid("Choose a Plugin Startup Timeout from 1 to 3600 Seconds"));
-    }
     if settings.listener.is_some() {
         return Err(invalid("Configure the Listener Through Access.Listener.Set"));
     }

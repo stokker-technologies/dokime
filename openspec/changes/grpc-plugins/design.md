@@ -850,7 +850,7 @@ Execution detail and execution-service lists join Store::execution_presentation;
 Sealed execution detail has no boot-scoped observation cursor, preserving exact restart reads; runtime observation and live detail carry process cursors separately.
 - Local and remote listeners share one client-service route composer; the remote listener applies one bearer-key authorization layer to every route. Durable remote and managed plugin-entry commits advance the same runtime revision so existing observation streams wake after administration changes.
 
-- Each managed or remote connection reads the saved PluginPreferences for startup; client operation deadlines remain owned by ClientSettings.
+- Plugin startup is bounded by the deadline of the Harmos operation that loads and initializes the plugin, configured like other operation deadlines; no plugin preference sets it. Client operation deadlines remain owned by ClientSettings.
 - Stop grace is fixed, not a preference: `dokime_runtime::STOP_GRACE` derives it as one third of the Plugins operation timeout (`PLUGIN_TEARDOWN`), because a managed teardown settles, stops and then kills, each phase within stop grace, so the whole teardown (up to three stop graces) fits inside the Plugins timeout.
 
 - Availability is refreshed on demand through bounded fresh-connection Describe handshakes, serialized with registry mutations; stopped or changed processes remain visible while admitted catalogs exclude them.

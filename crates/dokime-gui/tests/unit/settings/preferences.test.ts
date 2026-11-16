@@ -80,7 +80,6 @@ function snapshot(): PreferencesSnapshot {
         authentication_enabled: false,
         certificate_names: ["fixture.local", "127.0.0.1"],
       },
-      plugins: { startup_timeout_s: 75 },
     },
   };
 }
@@ -173,17 +172,6 @@ test("Advanced Reveals Additional Preference Fields", () => {
     assert.ok(advanced.includes(`value="${value}"`), value);
 });
 
-test("Plugins Section Edits Only the Backend Plugin Startup Budget", () => {
-  const simple = renderToStaticMarkup(createElement(ApplicationPreferences, { section: "plugins" }));
-  const advanced = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true, section: "plugins" }));
-  const elsewhere = renderToStaticMarkup(createElement(ApplicationPreferences, { advanced: true }));
-  assert.ok(simple.includes('id="backend-plugins.startup_timeout_s"'));
-  assert.ok(simple.includes('value="75"'));
-  for (const id of ["local-appearance.theme_mode", "backend-report.plot_points", "backend-listener.enabled"])
-    assert.ok(!advanced.includes(`id="${id}"`), id);
-  assert.ok(!elsewhere.includes('id="backend-plugins.startup_timeout_s"'));
-});
-
 test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
   for (const scope of ["local", "backend"] as const) {
     renderToStaticMarkup(createElement(SavePreferencesProbe, { scope }));
@@ -197,7 +185,6 @@ test("Scoped Saves Send All Fields and the Reviewed Revision", async () => {
     } else {
       settings.report = { ...settings.report, plot_points: 4000, plot_downsample: "raw" };
       settings.telemetry.interval_ms = 200;
-      settings.plugins = { startup_timeout_s: 120 };
       settings.listener = {
         enabled: false,
         address: "0.0.0.0:8766",
@@ -411,17 +398,7 @@ test("Numeric Preferences Preserve Typing While Earlier Autosaves Complete", asy
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
-  const render = () =>
-    act(async () =>
-      root.render(
-        createElement(
-          "div",
-          null,
-          createElement(ApplicationPreferences, { advanced: true }),
-          createElement(ApplicationPreferences, { advanced: true, section: "plugins" }),
-        ),
-      ),
-    );
+  const render = () => act(async () => root.render(createElement("div", null, createElement(ApplicationPreferences, { advanced: true }))));
   await render();
   const inputs = [...host.querySelectorAll<HTMLInputElement>('input[type="number"]')];
   assert.ok(inputs.length > 0);

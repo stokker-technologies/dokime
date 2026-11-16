@@ -17,6 +17,7 @@ pub mod bindings;
 pub mod capture_folders;
 pub mod connection;
 mod error;
+pub mod interval_settings;
 pub mod native_session;
 pub mod parameters;
 pub mod paths;
