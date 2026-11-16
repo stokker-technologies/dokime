@@ -201,6 +201,19 @@ impl StreamConsumer<Application> for Samples {
         self.cursor
     }
     async fn drain(&mut self, batch: Batch<Application>) -> Cursor {
+        // A Delivery That Lost Rows Before Storage Read Them Fails Every Execution Sampling That Stream.
+        for definition in batch.incomplete() {
+            let scopes = self.scopes.lock().expect("sample scope lock is healthy");
+            let mut failures = self.failures.lock().expect("sample failure lock is healthy");
+            for (execution, _) in scopes.iter().filter(|(_, scope)| scope.streams.contains_key(definition.id())) {
+                let action = format!(
+                    "Ingest Execution Samples: stream {} lost publications before storage read them; rerun the execution",
+                    definition.id()
+                );
+                tracing::error!(%execution, %action, "Ingest Execution Samples");
+                failures.insert(execution.clone(), action);
+            }
+        }
         for (definition, _, publication) in batch.publications() {
             let result = self.ingest(definition, publication.value);
             if let Err(source) = result {

@@ -97,7 +97,7 @@ pub fn serve() -> Result<()> {
         .parameters(Capture { rows: 1 })
         .step(Step::new("Capture", async move |context: &Context| capture(context, period).await));
     for index in 0..streams {
-        let stream = Stream::<Level>::new(format!("level.{index:03}"), format!("Level {}", index + 1));
+        let stream = Stream::<Level>::new(format!("level.stream_{index:03}"), format!("Level {}", index + 1));
         let observer = Observer::window(&stream, async |_: &Context, window: &SampleWindow| {
             Ok(LevelColumns {
                 value: (0..window.count).map(|offset| ((window.sequence + offset) % 1024) as f64).collect(),

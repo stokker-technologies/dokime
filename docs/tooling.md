@@ -375,7 +375,24 @@ sample durable. Execution end and shutdown are excluded; the case reports
 samples per second through Criterion throughput and, with `--once`, a `Measured`
 line. It records figures only and asserts that every sample was retained.
 
-WINDOW_FIGURES
+Measured on 2026-11-16 at `97c366f06` with library `efc261fe` (Windows x86-64, AMD
+Ryzen 9 5950X, bench profile, one `--once` iteration per case), in samples per
+second summed over all streams:
+
+| Streams | 1 kHz, 10,000 Samples per Stream | 1 MHz, 20,000 Samples per Stream |
+| ---: | ---: | ---: |
+| 1 | 226,233 | 807,823 |
+| 16 | 500,297 | 2,199,183 |
+| 128 | 504,471 | 3,703,743 (not retained; see below) |
+
+At 1 kHz each 100 ms window holds 100 samples, so per-window grant, transport and
+admission dominate; at 1 MHz one window per stream carries all 20,000 samples. The
+128-stream 1 MHz case completed its boundary but retained only 1,500,000 and then
+1,640,000 of 2,560,000 samples in two runs: whole streams were missing, with no
+ingestion error and no incomplete delivery reported. Storage alone retains the same
+2,560,000 samples (`interval_batches_of_many_streams_survive_pressure_flushes`), so
+the loss lies between scoped sample start and the step's 20 ms controlled sleep;
+it is an open defect, and the case keeps failing its retention check until fixed.
 
 ### Desktop Plot Documents
 

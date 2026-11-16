@@ -59,6 +59,7 @@ use dokime_protocol::model::data_expression;
 use dokime_protocol::model::transform_expression;
 use dokime_protocol::model::value;
 use harmos_protocol::model::Declarations;
+use harmos_protocol::model::StreamDeclaration;
 
 /* === Constants === */
 
@@ -773,5 +774,34 @@ fn interval_batches_store_one_row_per_sample_on_their_grid() -> Result<()> {
     expected.push((4, 4, 1_030, 9, "d".to_owned()));
     expected.push((5, 5, 1_040, 10, "e".to_owned()));
     assert_eq!(observed(reopened.sample_window(window(saved))?), expected);
+    Ok(())
+}
+
+#[test]
+fn interval_batches_of_many_streams_survive_pressure_flushes() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let mut execution = fixture::execution();
+    let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+    let row = catalog.streams[0].row.clone();
+    catalog.streams = (0..128)
+        .map(|index| StreamDeclaration {
+            id: format!("level.stream_{index:03}"),
+            row: row.clone(),
+            ..Default::default()
+        })
+        .collect();
+    execution.catalog = catalog.encode_to_vec();
+    store.create(&execution)?;
+    let labels = vec![""; 20_000];
+    let values = (0..20_000).collect::<Vec<u64>>();
+    for index in 0..128 {
+        let stream = format!("level.stream_{index:03}");
+        store.open_stream("execution", &stream)?;
+        let payload = interval(index * 1_000, 1_000, &values, &labels);
+        assert_eq!(store.sample_interval("execution", &stream, &payload, 1)?, 20_000);
+    }
+    store.flush_samples()?;
+    assert_eq!(store.read("execution")?.samples.len(), 128 * 20_000);
     Ok(())
 }
