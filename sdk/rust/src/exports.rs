@@ -34,11 +34,6 @@ pub use crate::wire::host::files::UploadsResumeResponse as FilesUploadsResumeRes
 pub use crate::wire::host::output;
 pub use crate::wire::model::Aggregate;
 pub use crate::wire::model::AggregateExpression;
-pub use crate::wire::model::Analyses;
-pub use crate::wire::model::Analysis;
-pub use crate::wire::model::AnalysisOutput;
-pub use crate::wire::model::AnalysisSelection;
-pub use crate::wire::model::AnalysisValues;
 pub use crate::wire::model::AnswerBinaryPredicate;
 pub use crate::wire::model::AnswerOperator;
 pub use crate::wire::model::AnswerPredicate;

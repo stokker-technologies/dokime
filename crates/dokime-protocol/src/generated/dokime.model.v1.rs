@@ -296,335 +296,6 @@ impl FilterOperator {
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Metadata {
-    #[prost(string, tag = "1")]
-    pub identifier: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub label: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub description: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag = "4")]
-    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(map = "string, message", tag = "5")]
-    pub attributes: ::std::collections::HashMap<::prost::alloc::string::String, Value>,
-    #[prost(message, optional, tag = "6")]
-    pub created_at: ::core::option::Option<::prost_types::Timestamp>,
-    #[prost(message, optional, tag = "7")]
-    pub updated_at: ::core::option::Option<::prost_types::Timestamp>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Parameter {
-    #[prost(message, optional, tag = "1")]
-    pub metadata: ::core::option::Option<Metadata>,
-    #[prost(enumeration = "ValueType", tag = "2")]
-    pub r#type: i32,
-    #[prost(string, tag = "3")]
-    pub unit: ::prost::alloc::string::String,
-    #[prost(bool, tag = "4")]
-    pub required: bool,
-    #[prost(string, tag = "5")]
-    pub group: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "6")]
-    pub expression: ::core::option::Option<ParameterExpression>,
-    #[prost(message, repeated, tag = "7")]
-    pub choices: ::prost::alloc::vec::Vec<Value>,
-    #[prost(double, optional, tag = "8")]
-    pub min: ::core::option::Option<f64>,
-    #[prost(double, optional, tag = "9")]
-    pub max: ::core::option::Option<f64>,
-    #[prost(message, optional, tag = "10")]
-    pub expansion: ::core::option::Option<ParameterExpansion>,
-    #[prost(enumeration = "ValueType", tag = "11")]
-    pub element_type: i32,
-    #[prost(uint32, optional, tag = "12")]
-    pub min_items: ::core::option::Option<u32>,
-    #[prost(uint32, optional, tag = "13")]
-    pub max_items: ::core::option::Option<u32>,
-    #[prost(bool, tag = "14")]
-    pub runtime_writable: bool,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ParameterExpansion {
-    #[prost(oneof = "parameter_expansion::Kind", tags = "1, 2, 3")]
-    pub kind: ::core::option::Option<parameter_expansion::Kind>,
-}
-/// Nested message and enum types in `ParameterExpansion`.
-pub mod parameter_expansion {
-    #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
-    pub enum Kind {
-        #[prost(bool, tag = "1")]
-        Single(bool),
-        #[prost(bool, tag = "2")]
-        Cartesian(bool),
-        #[prost(string, tag = "3")]
-        Zip(::prost::alloc::string::String),
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ParameterExpression {
-    #[prost(oneof = "parameter_expression::Kind", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
-    pub kind: ::core::option::Option<parameter_expression::Kind>,
-}
-/// Nested message and enum types in `ParameterExpression`.
-pub mod parameter_expression {
-    #[allow(clippy::all)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Kind {
-        #[prost(message, tag = "1")]
-        Literal(super::Value),
-        #[prost(message, tag = "2")]
-        Array(super::ParameterExpressions),
-        #[prost(message, tag = "3")]
-        Range(super::IntegerRange),
-        #[prost(message, tag = "4")]
-        Arange(super::NumberRange),
-        #[prost(message, tag = "5")]
-        Linspace(super::LinearSpace),
-        #[prost(string, tag = "6")]
-        Reference(::prost::alloc::string::String),
-        #[prost(message, tag = "7")]
-        DynamicDefault(::prost::alloc::boxed::Box<super::DynamicDefault>),
-        #[prost(message, tag = "8")]
-        Unary(::prost::alloc::boxed::Box<super::ParameterUnary>),
-        #[prost(message, tag = "9")]
-        Binary(::prost::alloc::boxed::Box<super::ParameterBinary>),
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ParameterExpressions {
-    #[prost(message, repeated, tag = "1")]
-    pub values: ::prost::alloc::vec::Vec<ParameterExpression>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct IntegerRange {
-    #[prost(sint64, tag = "1")]
-    pub start: i64,
-    #[prost(sint64, tag = "2")]
-    pub stop: i64,
-    #[prost(sint64, tag = "3")]
-    pub step: i64,
-}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct NumberRange {
-    #[prost(double, tag = "1")]
-    pub start: f64,
-    #[prost(double, tag = "2")]
-    pub stop: f64,
-    #[prost(double, tag = "3")]
-    pub step: f64,
-}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct LinearSpace {
-    #[prost(double, tag = "1")]
-    pub start: f64,
-    #[prost(double, tag = "2")]
-    pub stop: f64,
-    #[prost(uint64, tag = "3")]
-    pub count: u64,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct DynamicDefault {
-    #[prost(enumeration = "DynamicDefaultKey", tag = "1")]
-    pub key: i32,
-    #[prost(message, optional, boxed, tag = "2")]
-    pub fallback: ::core::option::Option<
-        ::prost::alloc::boxed::Box<ParameterExpression>,
-    >,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ParameterUnary {
-    #[prost(enumeration = "ParameterUnaryOperator", tag = "1")]
-    pub operator: i32,
-    #[prost(message, optional, boxed, tag = "2")]
-    pub value: ::core::option::Option<::prost::alloc::boxed::Box<ParameterExpression>>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ParameterBinary {
-    #[prost(enumeration = "ParameterBinaryOperator", tag = "1")]
-    pub operator: i32,
-    #[prost(message, optional, boxed, tag = "2")]
-    pub left: ::core::option::Option<::prost::alloc::boxed::Box<ParameterExpression>>,
-    #[prost(message, optional, boxed, tag = "3")]
-    pub right: ::core::option::Option<::prost::alloc::boxed::Box<ParameterExpression>>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FileParameter {
-    #[prost(message, optional, tag = "1")]
-    pub metadata: ::core::option::Option<Metadata>,
-    #[prost(string, optional, tag = "2")]
-    pub default_value: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(bool, tag = "3")]
-    pub required: bool,
-    #[prost(string, repeated, tag = "4")]
-    pub media_types: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum DynamicDefaultKey {
-    Unspecified = 0,
-    OperatorName = 1,
-    OperatorEmail = 2,
-}
-impl DynamicDefaultKey {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            Self::Unspecified => "DYNAMIC_DEFAULT_KEY_UNSPECIFIED",
-            Self::OperatorName => "DYNAMIC_DEFAULT_KEY_OPERATOR_NAME",
-            Self::OperatorEmail => "DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "DYNAMIC_DEFAULT_KEY_UNSPECIFIED" => Some(Self::Unspecified),
-            "DYNAMIC_DEFAULT_KEY_OPERATOR_NAME" => Some(Self::OperatorName),
-            "DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL" => Some(Self::OperatorEmail),
-            _ => None,
-        }
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum ParameterUnaryOperator {
-    Unspecified = 0,
-    Negate = 1,
-}
-impl ParameterUnaryOperator {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            Self::Unspecified => "PARAMETER_UNARY_OPERATOR_UNSPECIFIED",
-            Self::Negate => "PARAMETER_UNARY_OPERATOR_NEGATE",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "PARAMETER_UNARY_OPERATOR_UNSPECIFIED" => Some(Self::Unspecified),
-            "PARAMETER_UNARY_OPERATOR_NEGATE" => Some(Self::Negate),
-            _ => None,
-        }
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum ParameterBinaryOperator {
-    Unspecified = 0,
-    Add = 1,
-    Subtract = 2,
-    Multiply = 3,
-    Divide = 4,
-}
-impl ParameterBinaryOperator {
-    /// String value of the enum field names used in the ProtoBuf definition.
-    ///
-    /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            Self::Unspecified => "PARAMETER_BINARY_OPERATOR_UNSPECIFIED",
-            Self::Add => "PARAMETER_BINARY_OPERATOR_ADD",
-            Self::Subtract => "PARAMETER_BINARY_OPERATOR_SUBTRACT",
-            Self::Multiply => "PARAMETER_BINARY_OPERATOR_MULTIPLY",
-            Self::Divide => "PARAMETER_BINARY_OPERATOR_DIVIDE",
-        }
-    }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "PARAMETER_BINARY_OPERATOR_UNSPECIFIED" => Some(Self::Unspecified),
-            "PARAMETER_BINARY_OPERATOR_ADD" => Some(Self::Add),
-            "PARAMETER_BINARY_OPERATOR_SUBTRACT" => Some(Self::Subtract),
-            "PARAMETER_BINARY_OPERATOR_MULTIPLY" => Some(Self::Multiply),
-            "PARAMETER_BINARY_OPERATOR_DIVIDE" => Some(Self::Divide),
-            _ => None,
-        }
-    }
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Analyses {
-    #[prost(message, repeated, tag = "1")]
-    pub analyses: ::prost::alloc::vec::Vec<Analysis>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Analysis {
-    #[prost(message, optional, tag = "1")]
-    pub metadata: ::core::option::Option<Metadata>,
-    #[prost(uint32, tag = "2")]
-    pub version: u32,
-    #[prost(message, repeated, tag = "3")]
-    pub parameters: ::prost::alloc::vec::Vec<Parameter>,
-    #[prost(message, repeated, tag = "4")]
-    pub outputs: ::prost::alloc::vec::Vec<AnalysisOutput>,
-    #[prost(uint32, tag = "5")]
-    pub max_samples: u32,
-    #[prost(uint32, tag = "6")]
-    pub max_output_values: u32,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AnalysisOutput {
-    #[prost(message, optional, tag = "1")]
-    pub metadata: ::core::option::Option<Metadata>,
-    #[prost(string, tag = "2")]
-    pub unit: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub axis: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub axis_unit: ::prost::alloc::string::String,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AnalysisSelection {
-    #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
-    #[prost(uint32, tag = "2")]
-    pub version: u32,
-    #[prost(message, optional, tag = "3")]
-    pub parameters: ::core::option::Option<MapValue>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AnalysisValues {
-    #[prost(string, tag = "1")]
-    pub key: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub unit: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub axis_unit: ::prost::alloc::string::String,
-    #[prost(double, repeated, tag = "4")]
-    pub axis: ::prost::alloc::vec::Vec<f64>,
-    #[prost(double, repeated, tag = "5")]
-    pub values: ::prost::alloc::vec::Vec<f64>,
-    #[prost(uint32, repeated, tag = "6")]
-    pub display_indices: ::prost::alloc::vec::Vec<u32>,
-}
-#[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct EvidenceCondition {
     #[prost(oneof = "evidence_condition::Kind", tags = "1, 2, 3, 4")]
     pub kind: ::core::option::Option<evidence_condition::Kind>,
@@ -879,6 +550,24 @@ impl ArtifactState {
             _ => None,
         }
     }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Metadata {
+    #[prost(string, tag = "1")]
+    pub identifier: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub label: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub description: ::prost::alloc::string::String,
+    #[prost(string, repeated, tag = "4")]
+    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(map = "string, message", tag = "5")]
+    pub attributes: ::std::collections::HashMap<::prost::alloc::string::String, Value>,
+    #[prost(message, optional, tag = "6")]
+    pub created_at: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag = "7")]
+    pub updated_at: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2217,6 +1906,257 @@ impl AnswerOperator {
             "ANSWER_OPERATOR_CONTAINS" => Some(Self::Contains),
             "ANSWER_OPERATOR_STARTS_WITH" => Some(Self::StartsWith),
             "ANSWER_OPERATOR_ENDS_WITH" => Some(Self::EndsWith),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Parameter {
+    #[prost(message, optional, tag = "1")]
+    pub metadata: ::core::option::Option<Metadata>,
+    #[prost(enumeration = "ValueType", tag = "2")]
+    pub r#type: i32,
+    #[prost(string, tag = "3")]
+    pub unit: ::prost::alloc::string::String,
+    #[prost(bool, tag = "4")]
+    pub required: bool,
+    #[prost(string, tag = "5")]
+    pub group: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "6")]
+    pub expression: ::core::option::Option<ParameterExpression>,
+    #[prost(message, repeated, tag = "7")]
+    pub choices: ::prost::alloc::vec::Vec<Value>,
+    #[prost(double, optional, tag = "8")]
+    pub min: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "9")]
+    pub max: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "10")]
+    pub expansion: ::core::option::Option<ParameterExpansion>,
+    #[prost(enumeration = "ValueType", tag = "11")]
+    pub element_type: i32,
+    #[prost(uint32, optional, tag = "12")]
+    pub min_items: ::core::option::Option<u32>,
+    #[prost(uint32, optional, tag = "13")]
+    pub max_items: ::core::option::Option<u32>,
+    #[prost(bool, tag = "14")]
+    pub runtime_writable: bool,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ParameterExpansion {
+    #[prost(oneof = "parameter_expansion::Kind", tags = "1, 2, 3")]
+    pub kind: ::core::option::Option<parameter_expansion::Kind>,
+}
+/// Nested message and enum types in `ParameterExpansion`.
+pub mod parameter_expansion {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Kind {
+        #[prost(bool, tag = "1")]
+        Single(bool),
+        #[prost(bool, tag = "2")]
+        Cartesian(bool),
+        #[prost(string, tag = "3")]
+        Zip(::prost::alloc::string::String),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ParameterExpression {
+    #[prost(oneof = "parameter_expression::Kind", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
+    pub kind: ::core::option::Option<parameter_expression::Kind>,
+}
+/// Nested message and enum types in `ParameterExpression`.
+pub mod parameter_expression {
+    #[allow(clippy::all)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Kind {
+        #[prost(message, tag = "1")]
+        Literal(super::Value),
+        #[prost(message, tag = "2")]
+        Array(super::ParameterExpressions),
+        #[prost(message, tag = "3")]
+        Range(super::IntegerRange),
+        #[prost(message, tag = "4")]
+        Arange(super::NumberRange),
+        #[prost(message, tag = "5")]
+        Linspace(super::LinearSpace),
+        #[prost(string, tag = "6")]
+        Reference(::prost::alloc::string::String),
+        #[prost(message, tag = "7")]
+        DynamicDefault(::prost::alloc::boxed::Box<super::DynamicDefault>),
+        #[prost(message, tag = "8")]
+        Unary(::prost::alloc::boxed::Box<super::ParameterUnary>),
+        #[prost(message, tag = "9")]
+        Binary(::prost::alloc::boxed::Box<super::ParameterBinary>),
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ParameterExpressions {
+    #[prost(message, repeated, tag = "1")]
+    pub values: ::prost::alloc::vec::Vec<ParameterExpression>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct IntegerRange {
+    #[prost(sint64, tag = "1")]
+    pub start: i64,
+    #[prost(sint64, tag = "2")]
+    pub stop: i64,
+    #[prost(sint64, tag = "3")]
+    pub step: i64,
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct NumberRange {
+    #[prost(double, tag = "1")]
+    pub start: f64,
+    #[prost(double, tag = "2")]
+    pub stop: f64,
+    #[prost(double, tag = "3")]
+    pub step: f64,
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct LinearSpace {
+    #[prost(double, tag = "1")]
+    pub start: f64,
+    #[prost(double, tag = "2")]
+    pub stop: f64,
+    #[prost(uint64, tag = "3")]
+    pub count: u64,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DynamicDefault {
+    #[prost(enumeration = "DynamicDefaultKey", tag = "1")]
+    pub key: i32,
+    #[prost(message, optional, boxed, tag = "2")]
+    pub fallback: ::core::option::Option<
+        ::prost::alloc::boxed::Box<ParameterExpression>,
+    >,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ParameterUnary {
+    #[prost(enumeration = "ParameterUnaryOperator", tag = "1")]
+    pub operator: i32,
+    #[prost(message, optional, boxed, tag = "2")]
+    pub value: ::core::option::Option<::prost::alloc::boxed::Box<ParameterExpression>>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ParameterBinary {
+    #[prost(enumeration = "ParameterBinaryOperator", tag = "1")]
+    pub operator: i32,
+    #[prost(message, optional, boxed, tag = "2")]
+    pub left: ::core::option::Option<::prost::alloc::boxed::Box<ParameterExpression>>,
+    #[prost(message, optional, boxed, tag = "3")]
+    pub right: ::core::option::Option<::prost::alloc::boxed::Box<ParameterExpression>>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FileParameter {
+    #[prost(message, optional, tag = "1")]
+    pub metadata: ::core::option::Option<Metadata>,
+    #[prost(string, optional, tag = "2")]
+    pub default_value: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, tag = "3")]
+    pub required: bool,
+    #[prost(string, repeated, tag = "4")]
+    pub media_types: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum DynamicDefaultKey {
+    Unspecified = 0,
+    OperatorName = 1,
+    OperatorEmail = 2,
+}
+impl DynamicDefaultKey {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "DYNAMIC_DEFAULT_KEY_UNSPECIFIED",
+            Self::OperatorName => "DYNAMIC_DEFAULT_KEY_OPERATOR_NAME",
+            Self::OperatorEmail => "DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "DYNAMIC_DEFAULT_KEY_UNSPECIFIED" => Some(Self::Unspecified),
+            "DYNAMIC_DEFAULT_KEY_OPERATOR_NAME" => Some(Self::OperatorName),
+            "DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL" => Some(Self::OperatorEmail),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ParameterUnaryOperator {
+    Unspecified = 0,
+    Negate = 1,
+}
+impl ParameterUnaryOperator {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "PARAMETER_UNARY_OPERATOR_UNSPECIFIED",
+            Self::Negate => "PARAMETER_UNARY_OPERATOR_NEGATE",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "PARAMETER_UNARY_OPERATOR_UNSPECIFIED" => Some(Self::Unspecified),
+            "PARAMETER_UNARY_OPERATOR_NEGATE" => Some(Self::Negate),
+            _ => None,
+        }
+    }
+}
+#[allow(clippy::all)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ParameterBinaryOperator {
+    Unspecified = 0,
+    Add = 1,
+    Subtract = 2,
+    Multiply = 3,
+    Divide = 4,
+}
+impl ParameterBinaryOperator {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "PARAMETER_BINARY_OPERATOR_UNSPECIFIED",
+            Self::Add => "PARAMETER_BINARY_OPERATOR_ADD",
+            Self::Subtract => "PARAMETER_BINARY_OPERATOR_SUBTRACT",
+            Self::Multiply => "PARAMETER_BINARY_OPERATOR_MULTIPLY",
+            Self::Divide => "PARAMETER_BINARY_OPERATOR_DIVIDE",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "PARAMETER_BINARY_OPERATOR_UNSPECIFIED" => Some(Self::Unspecified),
+            "PARAMETER_BINARY_OPERATOR_ADD" => Some(Self::Add),
+            "PARAMETER_BINARY_OPERATOR_SUBTRACT" => Some(Self::Subtract),
+            "PARAMETER_BINARY_OPERATOR_MULTIPLY" => Some(Self::Multiply),
+            "PARAMETER_BINARY_OPERATOR_DIVIDE" => Some(Self::Divide),
             _ => None,
         }
     }

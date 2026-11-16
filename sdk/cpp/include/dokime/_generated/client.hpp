@@ -10,10 +10,6 @@ struct AggregatesGetOptions {
   std::optional<::harmos::ReadCut> at;
   std::shared_ptr<grpc::ClientContext> context;
 };
-struct AnalysesListOptions {
-  std::optional<::harmos::ReadCut> at;
-  std::shared_ptr<grpc::ClientContext> context;
-};
 struct CyclesGetOptions {
   std::optional<::harmos::Position> at;
   std::shared_ptr<grpc::ClientContext> context;
@@ -1743,23 +1739,6 @@ struct AggregatesResource {
     return response;
   }
 };
-struct AnalysesResource {
-  std::shared_ptr<grpc::Channel> channel;
-  explicit AnalysesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::AnalysesListResponse list(client::AnalysesListOptions options = {}) {
-    detail::AnalysesListRequest request;
-    if (options.at) {
-      *request.mutable_at() = *options.at;
-    }
-    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::AnalysesListResponse response;
-    const auto status = detail::AnalysesListService::NewStub(channel)->List(context.get(), request, &response);
-    if (!status.ok()) {
-      throw std::runtime_error("Call analyses.list: " + status.error_message());
-    }
-    return response;
-  }
-};
 struct BackendResource {
   std::shared_ptr<grpc::Channel> channel;
   BackendOverviewResource overview;
@@ -3128,7 +3107,6 @@ struct TimeResource {
 struct Client {
   AccessResource access;
   AggregatesResource aggregates;
-  AnalysesResource analyses;
   BackendResource backend;
   CasesResource cases;
   ContentResource content;
@@ -3156,11 +3134,11 @@ struct Client {
   SuitesResource suites;
   TimeResource time;
   explicit Client(std::shared_ptr<grpc::Channel> channel)
-      : access(channel), aggregates(channel), analyses(channel), backend(channel), cases(channel), content(channel), cycles(channel),
-        documents(channel), evidence(channel), executions(channel), files(channel), invocations(channel), media(channel),
-        operations(channel), plots(channel), plugins(channel), prompt_definitions(channel), prompts(channel), record_schemas(channel),
-        reports(channel), schemas(channel), secrets(channel), settings(channel), status(channel), storage(channel), stream_schemas(channel),
-        streams(channel), suites(channel), time(channel) {}
+      : access(channel), aggregates(channel), backend(channel), cases(channel), content(channel), cycles(channel), documents(channel),
+        evidence(channel), executions(channel), files(channel), invocations(channel), media(channel), operations(channel), plots(channel),
+        plugins(channel), prompt_definitions(channel), prompts(channel), record_schemas(channel), reports(channel), schemas(channel),
+        secrets(channel), settings(channel), status(channel), storage(channel), stream_schemas(channel), streams(channel), suites(channel),
+        time(channel) {}
   static Client connect(std::string address, const ::harmos::StorageTransferSettings &transfer = {},
                         std::optional<int> message_bytes = {}) {
     const auto maximum = ::harmos::transfer_message_bytes(transfer, message_bytes);

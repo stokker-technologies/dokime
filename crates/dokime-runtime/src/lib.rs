@@ -19,7 +19,6 @@ mod error;
 mod execution;
 mod execution_manager;
 mod host;
-mod plot_analysis;
 mod plot_html;
 mod plugin;
 pub mod process;

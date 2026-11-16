@@ -108,7 +108,6 @@ from dokime._wire.host.v1.record_schemas_pb2 import (
     Schema,
 )
 from dokime._wire.host.v1.secrets_pb2 import SecretsGetResponse, SecretWritable
-from dokime._wire.model.v1.analyses_pb2 import Analyses, Analysis, AnalysisOutput, AnalysisSelection, AnalysisValues
 from dokime._wire.model.v1.documents_pb2 import (
     EVIDENCE_CARD_ARTIFACTS,
     EVIDENCE_CARD_CRITERIA,
@@ -457,16 +456,6 @@ SecretWritable.__module__ = "dokime"
 SecretWritable.__qualname__ = "SecretWritable"
 SecretsGetResponse.__module__ = "dokime"
 SecretsGetResponse.__qualname__ = "SecretsGetResponse"
-Analyses.__module__ = "dokime"
-Analyses.__qualname__ = "Analyses"
-Analysis.__module__ = "dokime"
-Analysis.__qualname__ = "Analysis"
-AnalysisOutput.__module__ = "dokime"
-AnalysisOutput.__qualname__ = "AnalysisOutput"
-AnalysisSelection.__module__ = "dokime"
-AnalysisSelection.__qualname__ = "AnalysisSelection"
-AnalysisValues.__module__ = "dokime"
-AnalysisValues.__qualname__ = "AnalysisValues"
 Card.__module__ = "dokime"
 Card.__qualname__ = "Card"
 CardLayout.__module__ = "dokime"
@@ -834,11 +823,6 @@ __all__ = [
     "XY_INTERVAL_UNSPECIFIED",
     "Aggregate",
     "AggregateExpression",
-    "Analyses",
-    "Analysis",
-    "AnalysisOutput",
-    "AnalysisSelection",
-    "AnalysisValues",
     "AnswerBinaryPredicate",
     "AnswerOperator",
     "AnswerPredicate",

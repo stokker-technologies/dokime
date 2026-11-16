@@ -447,7 +447,7 @@ instead of versioned JSON blobs.
 | Today | Becomes |
 | --- | --- |
 | `dokime.suites` | `dokime.v1` suites: templates, parameters, files, documents |
-| `dokime.records`, `dokime.analyses`, `dokime.settings`, `dokime.run-start` | Typed `dokime.v1` messages |
+| `dokime.records`, `dokime.settings`, `dokime.run-start` | Typed `dokime.v1` messages |
 | `dokime.telemetry` | Folded into the plugin's stream declarations |
 | `dokime.listeners` | Typed `dokime.v1` message. Plugin-wide record listeners are operations the host calls and stay; only delivery into a running template is removed |
 
@@ -793,7 +793,6 @@ Client access and its security are the separate change
 
 - Published report seals bind exact stored protobuf document bytes; verification excludes only the derived ID/seal fields and never re-encodes decoded maps.
 
-- Analysis operations use their metadata ID and unary `AnalysisRequest`/`AnalysisResponse`; inputs are bounded raw columns with typed parameters, and outputs must match declared axes, units and aggregate limits.
 - Raw windows refuse excess samples; LTTB ranks candidates inside SQLite and returns only selected vertices. Encoded snapshot budgets coarsen complete buckets and retain the original selection identity.
 - Document repeat pages use bounded distinct-value reads, typed-value hashes for instance IDs and epoch/document/selection/frontier-bound continuations; changed preferences require restarting the capture.
 - Repeated plot requests use the concrete card ID; saved preferences use the authored plot ID across its repeat instances. Cycle captures are cacheable only when every retained member is sealed.
@@ -1095,7 +1094,7 @@ not serve new operations or migrate the existing catalog readers.
   digest, catalog and process start time. A managed placement names its installed
   bundle; a remote placement names its URL. The description is absent before
   first connection and retained while unavailable.
-- Catalog section payloads are `Suites`, `RecordContracts`, `Analyses`,
+- Catalog section payloads are `Suites`, `RecordContracts`,
   `SettingsCatalog`, `RunStart` and `Listeners`, identified by their fully
   qualified protobuf names. Record types name their message in Harmos catalog
   descriptors. Run-start retains operation plus serialized request; listeners
@@ -1146,8 +1145,6 @@ SDK builders and draft/report publication follow the SDK wave and
 The combined data/execution/administration host uses one v1 storage table inventory and refuses incompatible existing roots with backup and explicit reset guidance. The CLI consumes served report streams without publication; remote bearer authentication covers data services through the same route composer as administration and execution. Query ListExecutions joins the shared case/archive presentation; held Query and Media operations and unfinished plot/document variants remain explicit in tasks.md.
 
 Duplicate note mutation identities retain ALREADY_EXISTS; optimistic administration revision conflicts retain ABORTED. The storage errors distinguish these meanings before transport projection. History deletion removes chunked content, derived data indexes, plot preferences and execution notes atomically with the sealed execution.
-
-Plot analysis dispatch resolves the ready provider by its frozen Description.id; the administration entry UUID identifies placement and is never passed to the native invocation registry.
 
 ## Open Questions
 

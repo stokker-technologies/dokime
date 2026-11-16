@@ -153,6 +153,20 @@ before deleting that root, including when a story unwinds.
 
 ## Desktop Integration
 
+`mise run dev` is the single entry point for interactive desktop work
+(`tools/python/src/dokime_tools/dev/desktop.py`). It runs `generate:typescript`,
+builds `plugin-obc`, `dokime` and `dokime-host`, and bundles the plugin like the
+product build does. It then installs that bundle through a short-lived
+`dokime server` on a fresh root under the system temporary directory, using a
+unique `dokime-dev-<id>` credential namespace. Finally it starts
+`tauri dev --features console` with that root and namespace. Windows owns the
+started tree through a kill-on-close job; Linux uses one session per started
+process. On exit the tool waits for every owned process to stop. It then runs
+`dokime-host --remove-credentials` for each root and deletes the folder. The
+desktop `package.json` keeps only the scripts that tasks call: `build:live`,
+`build:report` and `typecheck`, plus Vite's `dev`, which is the Tauri
+`beforeDevCommand`.
+
 The desktop native package is restored to workspace and default membership.
 Build it with `mise run build -- --package dokime-gui`; add
 `--features tauri/custom-protocol` to embed the prepared live frontend.

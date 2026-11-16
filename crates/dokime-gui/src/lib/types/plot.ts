@@ -9,7 +9,6 @@
 
 import type { SeriesSummary, StatsSummary } from "../statistics";
 import type { JsonObject } from "../types";
-import type { ParameterDefinition } from "./test";
 import type {
   PlotCartesianFrame as NativePlotCartesianFrame,
   PlotCartesianSeriesFrame as NativePlotCartesianSeriesFrame,
@@ -204,7 +203,6 @@ export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_poin
   Partial<Pick<NativePlotPayload, "series_by" | "window_s" | "x_format" | "run_started_at" | "cycle_started_at">> & {
     context?: JsonObject | null;
     series: PlotSeries[];
-    computed?: EvidenceAnalysisResult | null;
     analysis?: PlotAnalysis | null;
     cartesian?: PlotCartesianFrame | null;
     markers?: PlotMarker[];
@@ -222,53 +220,4 @@ export type PlotPayloadEnvelope = Omit<NativePlotPayloadEnvelope, "payload" | "d
 
 export type PlotPayloadStreamMessage = PlotPayloadEnvelope & {
   kind: PlotPayloadStreamKind;
-};
-
-/** GUI projections of the admitted numerical analysis catalog and results. */
-export type EvidenceAnalysisDefinition = {
-  id: string;
-  version: number;
-  label: string;
-  description: string;
-  parameters: ParameterDefinition[];
-  outputs: { key: string; label: string; unit?: string; axis?: { key: string; unit?: string } }[];
-  maxSamples: number;
-  maxOutputValues: number;
-};
-
-export type EvidenceAnalysisSelection = {
-  id: string;
-  version: number;
-  parameters: Record<string, unknown>;
-};
-
-export type EvidenceAnalysisResult = {
-  definition: Omit<EvidenceAnalysisDefinition, "parameters"> & { parameters?: unknown[] };
-  selection: EvidenceAnalysisSelection;
-  source: {
-    store: string;
-    epoch: string;
-    position: string;
-    stream: string;
-    scope: import("../types").RecordScope | null;
-    windowS?: number;
-    fields: string[];
-    xKey: string;
-  };
-  series: {
-    key: string;
-    label: string;
-    origin?: string;
-    inputSamples: number;
-    firstAxis: number;
-    lastAxis: number;
-    outputs: {
-      key: string;
-      unit: string;
-      axisUnit: string;
-      displayIndices?: number[];
-      axis: number[];
-      values: number[];
-    }[];
-  }[];
 };

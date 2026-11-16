@@ -152,6 +152,12 @@ run = "{{vars.tools}} dokime_tools.ci.workflow release-tag"
 description = "Verify Published Release Assets and Installers"
 run = "{{vars.tools}} dokime_tools.ci.workflow release-verify"
 
+# === Dev === #
+
+[tasks.dev]
+description = "Start the Desktop with Live Reload and the OBC Plugin on a Disposable Root"
+run = "{{vars.tools}} dokime_tools.dev.desktop"
+
 # === Internal Steps === #
 
 [tasks."format:python"]

@@ -11,7 +11,6 @@
 
 /* === Modules === */
 
-pub mod analyses;
 pub mod catalog;
 pub mod device;
 pub mod evidence;
@@ -54,7 +53,7 @@ pub const IDENTIFIER: &str = "obc";
 
 /* === Public Functions === */
 
-/// Compose the Complete Plugin: Suites, Records, Prompts, Settings, Analysis and Manual Device.
+/// Compose the Complete Plugin: Suites, Records, Prompts, Settings and Manual Device.
 pub fn plugin() -> Result<Plugin<impl DeclarationTypes>> {
     let manual = Arc::new(operations::Manual::new()?);
     let [read, set_power] = manual.operations();
@@ -65,7 +64,6 @@ pub fn plugin() -> Result<Plugin<impl DeclarationTypes>> {
         .suite(suites::protection::suite())
         .suite(suites::recovery::suite())
         .suite(suites::bench::suite())
-        .analysis(analyses::ripple(), analyses::compute_ripple)
         .operation(read)
         .operation(set_power)
         .on_stop(move || manual.power_down());

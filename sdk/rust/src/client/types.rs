@@ -2,7 +2,6 @@
 pub use crate::wire::host::AbsoluteTimeFormat;
 pub use crate::wire::host::AggregateReply;
 pub use crate::wire::host::AggregatesGetResponse;
-pub use crate::wire::host::AnalysesListResponse;
 pub use crate::wire::host::AppearanceAssetMetadata;
 pub use crate::wire::host::AppearanceAssetReference;
 pub use crate::wire::host::AppearanceFailure;
@@ -296,9 +295,6 @@ pub use crate::wire::host::media::CapturesStopResponse as MediaCapturesStopRespo
 pub use crate::wire::host::media::CapturesWatchResponse as MediaCapturesWatchResponse;
 pub use crate::wire::host::media::RecordingAudio as MediaRecordingAudio;
 pub use crate::wire::host::media::RecordingProgress as MediaRecordingProgress;
-pub use crate::wire::host::plots::AnalysisComputation as PlotsAnalysisComputation;
-pub use crate::wire::host::plots::AnalysisEvidence as PlotsAnalysisEvidence;
-pub use crate::wire::host::plots::AnalysisSeries as PlotsAnalysisSeries;
 pub use crate::wire::host::plots::ContourGrid as PlotsContourGrid;
 pub use crate::wire::host::plots::GridCell as PlotsGridCell;
 pub use crate::wire::host::plots::GridFrame as PlotsGridFrame;
