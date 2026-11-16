@@ -353,9 +353,14 @@ parent-owned: after child exit, including termination, the runner removes each
 root's credentials through `dokime-host --remove-credentials` before discarding
 the root. Cleanup failures retain ownership metadata with the diagnostics.
 Existing workstation credentials outside those fresh roots are untouched.
-Native credential calls run on one dedicated process-lifetime owner thread.
+Windows native credential calls share a per-user cross-process file lock, including
+story reads: even a concurrent read can race a persistent write to an unrelated
+target and resurrect a deleted credential. Callers use
+`dokime_runtime::credentials::Entry` instead of accessing keyring directly.
 Cleanup checks absence and retains ownership when a key remains. Concurrent-host
-stories also check native absence from the calling threads after root removal.
+stories use separate processes and check native absence from their calling threads
+after root removal. External callers that do not take the product lock remain outside
+this coordination boundary.
 The desktop panic story now checks its exact access key and deliberate panic
 type; full-lane failures and post-lane native inventories remain separate proof.
 
