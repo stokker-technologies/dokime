@@ -413,8 +413,11 @@ keep up with real time: each execution failed fast and ended Interrupted with a 
 failure naming the stream and the action, a stream that fell more than ten window
 lengths behind (`Lagging`). Their stored rates (about 5.4 and 21.5 million samples per
 second) cover only the span before the failure, so they are not sustained figures.
-`window_lag_names_its_stream` and `window_overflow_names_its_stream` prove those
-refusals. Storage alone retains 128 streams of 20,000 samples
+These real-clock failures are measurements, not tests. The deterministic stories run on
+the controlled clock: `window_lag_names_its_stream` proves the `Lagging` refusal with an
+observer that waits on host time inside each window, and
+`window_overflow_names_its_stream` refuses a window larger than the shared publication
+pool. Storage alone retains 128 streams of 20,000 samples
 (`interval_batches_of_many_streams_survive_pressure_flushes`).
 
 ### Desktop Plot Documents
