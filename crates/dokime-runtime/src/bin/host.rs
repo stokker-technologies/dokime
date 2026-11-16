@@ -27,6 +27,7 @@ use std::{
 
 // Third Party Imports
 use tokio::io::AsyncReadExt;
+use tracing::instrument::WithSubscriber;
 
 // Local Imports
 use dokime_runtime::{
@@ -109,7 +110,10 @@ async fn main() -> Result<(), Box<dyn StdError>> {
         stream_buffer: 8,
     };
     use tracing_subscriber::prelude::*;
-    let server = services::serve(endpoint, &root, host_settings, settings).await?;
+    // Startup Failures Reach Standard Error With Their Cause Before the Status Layer Exists.
+    let startup = tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr).with_filter(tracing::level_filters::LevelFilter::ERROR));
+    let server = services::serve(endpoint, &root, host_settings, settings).with_subscriber(startup).await?;
     tracing::subscriber::set_global_default(tracing_subscriber::registry().with(filter).with(server.status().layer()))?;
     tracing::info!("Execution Host Is Ready");
     println!("http://{}", server.endpoint());

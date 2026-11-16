@@ -138,7 +138,7 @@ impl Store {
 
 impl CredentialStore for Store {
     fn load(&self) -> Pending<'_, Option<Credentials>> {
-        Box::pin(async move {
+        Box::pin(logged("Load Access Credentials", async move {
             let _guard = self.commit.lock().map_err(|_| std::io::Error::other("Load Access Credentials: Store Lock Failed"))?;
             let Some(value) = self.storage.administration::<Snapshot>("access")? else { return Ok(None) };
             let private_key = Zeroizing::new(self.key(&value.key_slot)?.get_password()?);
@@ -158,10 +158,10 @@ impl CredentialStore for Store {
                     })
                     .collect(),
             }))
-        })
+        }))
     }
     fn commit(&self, expected_revision: u64, value: Credentials) -> Pending<'_, ()> {
-        Box::pin(async move {
+        Box::pin(logged("Commit Access Credentials", async move {
             let _guard = self.commit.lock().map_err(|_| std::io::Error::other("Commit Access Credentials: Store Lock Failed"))?;
             let previous = self.storage.administration::<Snapshot>("access")?;
             if previous.as_ref().map_or(0, |value| value.revision) != expected_revision {
@@ -214,12 +214,21 @@ impl CredentialStore for Store {
                 tracing::warn!(%error, "Remove Retired Access Key: Retained Its Cleanup Intent");
             }
             Ok(())
-        })
+        }))
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/// The Library Reports Only That the Credential Store Was Unavailable; the Host Log Keeps the Cause.
+async fn logged<T, E: std::fmt::Display>(action: &'static str, work: impl Future<Output = Result<T, E>>) -> Result<T, E> {
+    let result = work.await;
+    if let Err(error) = &result {
+        tracing::error!(%error, "{action}");
+    }
+    result
+}
 
 /* === Tests === */
