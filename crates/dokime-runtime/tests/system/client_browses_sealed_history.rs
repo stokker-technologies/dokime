@@ -302,7 +302,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                 request.at = page.resolved_at;
                 request.page.as_mut().unwrap().page_token = page.next_page_token;
             }
-            assert_eq!(samples.len(), 2);
+            assert_eq!(samples.len(), 2, "Sample the Hold at 1 s and 2 s: {samples:?}");
 
             // Cycle and Execution Pages Retain Their Selection Across Later Presentation Edits.
             let first = cycles

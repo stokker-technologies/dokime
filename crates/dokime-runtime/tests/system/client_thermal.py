@@ -187,7 +187,11 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
             False,
         )
         assert all(sample.WhichOneof("kind") == "raw" for sample in samples.samples)
-        assert [sample.raw.timestamp.seconds for sample in samples.samples] == [1, 2]
+        times = [
+            (sample.raw.timestamp.seconds, sample.raw.timestamp.nanos)
+            for sample in samples.samples
+        ]
+        assert times == [(1, 0), (2, 0)], f"Sample the Hold at 1 s and 2 s: {times}"
         assert all(sample.raw.payload for sample in samples.samples)
         assert all(
             sample.raw.values.values["celsius"].number == 84.0

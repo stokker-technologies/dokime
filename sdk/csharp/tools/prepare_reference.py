@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Stage the reference host from the immutable Harmos source revision."""
+"""Stage and build the reference host from the immutable Harmos source revision."""
 
 # === Imports === #
 
@@ -38,7 +38,10 @@ from pathlib import Path
 # === Entry Point === #
 
 revision: str = "a14c724f522b56f1770a1d4328c29f4d3a69a9e5"
-output: Path = Path(__file__).resolve().parents[1] / "../../target/cs/reference"
+# Each Revision Stages and Builds Apart: Cargo Fingerprints Path Sources by Location and Time, So a Shared Source
+# or Target Directory Could Reuse Another Revision's Artifacts.
+target: Path = (Path(__file__).resolve().parents[1] / "../../target").resolve()
+output: Path = target / "cs/reference" / revision
 output.mkdir(parents=True, exist_ok=True)
 source: str | None = os.environ.get("HARMOS_SOURCE")
 if source:
@@ -62,3 +65,23 @@ else:
                 members.extract(member, output, filter="data")
     finally:
         members.close()
+subprocess.run(
+    [
+        "cargo",
+        "install",
+        "--path",
+        str(output / "tools/conformance"),
+        "--locked",
+        "--debug",
+        "--force",
+        "--root",
+        str(target / "reference-host"),
+        "--bin",
+        "harmos-conformance",
+        "--jobs",
+        "1",
+        "--target-dir",
+        str(target / "reference-host/build" / revision),
+    ],
+    check=True,
+)
