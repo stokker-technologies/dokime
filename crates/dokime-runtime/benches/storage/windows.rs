@@ -210,7 +210,8 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                                 println!("Measured | {:.0} samples/s | {kept} samples", kept as f64 / taken.as_secs_f64());
                             }
                             let retained = kept == total;
-                            if clock == "controlled" && !retained || clock == "real" && kept < total {
+                            // Real-Clock Runs Always Report Their Outcome; a Controlled Run Reports Only a Loss.
+                            if clock == "real" || !retained {
                                 // Report Where Samples Went Missing Before Refusing the Case.
                                 let mut stored = BTreeMap::<&str, u64>::new();
                                 for sample in &execution.samples {
@@ -228,8 +229,14 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                                 for count in stored.values() {
                                     *counts.entry(*count).or_default() += 1;
                                 }
+                                let failures = execution
+                                    .evidence
+                                    .iter()
+                                    .filter(|entry| entry.kind.ends_with(":failure"))
+                                    .map(|entry| String::from_utf8_lossy(&entry.payload).into_owned())
+                                    .collect::<Vec<_>>();
                                 println!(
-                                    "Retained | {} of {total} samples | {} of {streams} streams stored | streams by count {counts:?} | answered by the sleep's end {} | unscoped answered before then {} | outcome {:?} | states {:?}",
+                                    "Retained | {} of {total} samples | {} of {streams} streams stored | streams by count {counts:?} | answered by the sleep's end {} | unscoped answered before then {} | outcome {:?} | failures {failures:?} | states {:?}",
                                     execution.samples.len(),
                                     stored.len(),
                                     answered.0,

@@ -381,29 +381,34 @@ The case reports stored samples per second through Criterion throughput and, wit
 naming the clock and window. Figures are never assertions. The controlled clock must
 retain exactly the requested samples. The real clock samples from the start of the
 execution, including while the ready prompt waits, so it stores at least the
-requested span; its figure divides every stored sample by the timed span, and a
-run that stores fewer samples prints a `Retained` line with per-stream counts, the
-samples the observers answered by the sleep's end and the execution outcome.
+requested span; its figure divides every stored sample by the timed span. Real-time
+overload is a measured outcome, not a refusal: every real-clock run, and any
+controlled run that loses a sample, prints a `Retained` line with per-stream counts,
+the samples the observers answered by the sleep's end, the execution outcome and its
+failure evidence.
 
 Measured on 2026-11-16 with library `efc261fe` (Windows x86-64, AMD Ryzen 9 5950X,
 bench profile, `--once`), as median stored samples per second over five iterations,
-summed over all streams:
+summed over all streams; the real-clock columns come from a second run whose
+outcomes were inspected:
 
 | Streams | Controlled, 1 kHz, 100 ms Windows | Controlled, 1 MHz, 10 ms Windows | Real, 1 kHz, 100 ms Windows | Real, 1 MHz, 10 ms Windows |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 127,920 | 606,254 | 998 | 1,048,381 |
-| 16 | 471,929 | 1,544,325 | 16,003 | 541,527 |
-| 128 | 356,937 | 1,689,325 | 126,911 | 159,781 |
+| 1 | 127,920 | 606,254 | 999 | 1,043,108 |
+| 16 | 471,929 | 1,544,325 | 16,005 | 1,823,046 (3 of 5 Interrupted) |
+| 128 | 356,937 | 1,689,325 | 128,004 | 438,445 (5 of 5 Interrupted) |
 
-Every case retained its samples. With 10 ms windows the 128-stream 1 MHz case keeps
-all 2,560,000 samples on the controlled clock; at the 100 ms default one window per
-stream needed about 100 MB, more than the library's fixed 64 MiB shared publication
-pool, and the execution ended Interrupted. A window that overflows that pool now
-fails its execution with a stream failure naming the stream and the action
-(`window_overflow_names_its_stream`). The real clock keeps up at 1 kHz; at 1 MHz
-one stream keeps pace, while 16 and 128 streams fall behind real time and the
-step's sleep waits until every window due by its end is stored, so their figures
-vary widely between iterations. Storage alone retains the same 2,560,000 samples
+Every controlled case retained exactly its samples. With 10 ms windows the
+128-stream 1 MHz case keeps all 2,560,000 samples on the controlled clock; at the
+100 ms default one window per stream needed about 100 MB, more than the library's
+fixed 64 MiB shared publication pool, and the execution ended Interrupted. On the
+real clock every 1 kHz run and the single 1 MHz stream completed with at least the
+requested span. 16 and 128 streams at 1 MHz fall behind real time: their windows
+overflow that pool, and the executions end Interrupted with a stream failure that
+names the streams and says to shorten their windows or lower their rate (or that a
+named stream lost rows before storage read them), so those figures vary widely
+between iterations. `window_overflow_names_its_stream` proves that refusal on the
+controlled clock. Storage alone retains the same 2,560,000 samples
 (`interval_batches_of_many_streams_survive_pressure_flushes`).
 
 ### Desktop Plot Documents
