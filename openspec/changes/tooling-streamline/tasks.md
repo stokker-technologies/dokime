@@ -11,7 +11,7 @@
 - [x] 2.2 Merge generation into `generate` and route organization/report preparation through build and package paths.
 - [x] 2.3 Remove every `CARGO_INCREMENTAL` setting from `mise.toml` and tooling and set it once in the workflows.
 - [ ] 2.4 Delete superseded language/layer task leaves and migrate their callers; retain only the agreed public entry points and necessary workflow transport operations.
-- [ ] 2.5 Remove PyO3 wheel, binding and native fixture tasks and jobs when the pure Python SDK lands; replace them with pure-package proof, coordinated with `grpc-plugins` 4.3 and 5.3.
+- [x] 2.5 Native Python/PyO3 package, binding and fixture tasks are removed; the pure SDK wheel/build and focused stories replace them. Retained native task proof stays in section 5.
 
 ## 3. Tooling
 
@@ -33,7 +33,7 @@
 
 ## Workflow Follow-Up
 
-- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Integrate with the other open changes on the combined feature candidate in the order in its design.
 - Run only focused tasks until combined source closure; final native proof remains separate.
 
 ## Build Measurements

@@ -3,7 +3,7 @@
 ## 1. Contract
 
 - [ ] 1.1 Record a baseline on Windows and Linux for a windowed live plot and a zoom over the three-day, thirty-plot workload: query time, bytes sent and redraw time.
-  - Measurement owner: `crates/dokime-server/benches/plots/`, target `integration-plots`. Build with `mise run build -- --artifact bench --binary integration-plots`, then run `mise run bench -- --language rust --layer integration --binary integration-plots --refresh-baseline`. Refresh seeds native Criterion `dev` files for this implementation; it does not create historical before-change evidence.
+  - Measurement owner: the re-authored runtime/storage plot benchmarks tracked by grpc-plugins; select the current binary through project tasks. Build with `mise run build -- --artifact bench --binary integration-plots`, then run `mise run bench -- --language rust --layer integration --binary integration-plots --refresh-baseline`. Refresh seeds native Criterion `dev` files for this implementation; it does not create historical before-change evidence.
   - Fixture: 259,200 rows at 1 Hz from `2026-01-01T00:00:00Z`, one stream with thirty numeric columns and thirty distinct time-series requests (7,776,000 values). Values and identifiers are deterministic. Live viewport: the last six hours; zoom: thirty seconds ending two minutes before the final sample; both use a 960-pixel panel. Fixture ingestion and flushing are outside the measurements. Default operation policies and storage settings are unchanged. Criterion uses ten flat samples, following the existing heavy storage/runtime benchmarks; each query sample includes all thirty requests.
   - Query measurements cover one sequential pass of thirty independent live `Watch` requests through their drawing snapshots, including request cloning, local gRPC transport, response encoding and client decode. The timer stops at snapshot arrival; watch closing is outside it. Exact statistics use the production independent path and are not awaited. Reported byte counts are drawing-frame protobuf bodies, excluding pending/statistics/control frames and gRPC/HTTP/2 framing. Interface decode covers protobuf decode plus the production native-frame adapter across thirty separate watch snapshots. Delta application calls the production retained-frame owner for thirty late-sample bucket replacements captured one plot at a time, replaying the same delta against the original snapshot each iteration. Vite/Node startup and pipe round trips are outside these interface timings. After query measurements, each separate watch receives one additional fixed late sample at a half-second offset; its snapshot frontier includes the earlier plots' late samples. These measure interface frame processing in Node; canvas redraw is not measured.
   - A single thirty-plot unary reply at this viewport exceeds the default transport limit. The benchmark measures thirty independent live watch requests, preserving the panel width, data density and all operation limits. The unary grouped-reply limitation is not a timing result.
@@ -25,14 +25,19 @@
 
 ## 4. Final Validation
 
-- [ ] 4.1 Run focused plot query, watch and interface tests, and repeat the baseline of task 1.1 with the results recorded beside it.
+- [ ] 4.1 Run focused plot query, watch and interface proof on the final candidate and obtain native Linux results. Retain available comparable benchmark evidence; report missing historical measurements without reconstructing them.
   - [x] Windows focused proof: runtime and server window-summary/bucket-delta tests, interface plot tests and the four-case after-change benchmark.
   - [x] Run formatting, Rust and repository checks, and focused Python tooling proof.
   - [x] Windows fixed-cost follow-up: exact Rust selections, deterministic SQLite work and decoder-reuse guards, format, Rust and repository checks.
-  - [ ] Complete Linux proof and the before-change comparison run. Interface decode and retained-frame update are measured through the existing Vite harness; canvas redraw needs a browser measurement and is outside this bench.
+  - [ ] Complete Linux correctness proof and a comparable after-change run; compare any available historical baseline without inventing missing results. Interface decode and retained-frame update are measured through the Vite harness; canvas redraw needs a browser measurement and is outside this bench.
 
 ## Workflow Follow-Up
 
-- `plot-kinds` owns kind cleanup, two-dimensional contour binning, grid frames and playback with their report/SDK/plugin consumers; the completed transport work here remains its dependency.
+- The archived plot-kinds change records delivered kind contracts; grpc-plugins retains unfinished grid/report playback consumer proof. Completed transport remains a dependency.
 - Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
 - Run only focused tasks until combined source closure; final native proof remains separate.
+
+## Reconciled Ownership
+
+- [x] 2.5 Superseded by [operation-boundary tasks 8–9](../operation-boundary/tasks.md): Harmos owns moments, statistics, downsampling and bucket merge; Dokime retains product signal algorithms and presentation.
+- [ ] 4.2 Reconcile archive deltas for plot-pipeline and Representative Scaling Benchmark with the current main specifications; preserve their remaining transport, correctness and benchmark obligations.

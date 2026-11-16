@@ -27,12 +27,12 @@ Nightly `benchmarks.json`, never in timing assertions.
 
 ## 3. One Scoped Change Source
 
-- [ ] 3.1 Consolidate plot/card invalidation on Harmos progress/follow facilities with scope, stream/schema or record dependencies, time range and readable frontier; separate accepted-live and durable progress, remove superseded broadcasters and broad state/stream wakeups, and recover gaps through frontier comparison. Prove out-of-scope, unselected-field and filter-excluded samples do not requery unaffected plots. Record wakeups, irrelevant queries, coalescing and CPU before/after.
+- [ ] 3.1 Use Harmos row watches through operation-boundary 10.1 for scoped durable storage change feeds; retain plot/card dependency filtering, accepted-live versus durable progress, gap recovery and removal of redundant GUI wakeups here. Prove unaffected plots do not requery and measure actual wakeups/coalescing/CPU.
 - [ ] 3.2 Refresh affected visible cards from saved telemetry without a state transition, preserving prior content and frozen report cuts. Prove late samples, schema/record changes, sealing, reconnect and another client's edit; record sample-to-card freshness, refetch counts and frontier recovery latency before/after.
 
 ## 4. Coarser Preview Resolutions
 
-- [ ] 4.1 Extend the existing preview owner with coarser stored resolutions, snapshot-consistent coverage and late-update replacement; prove raw parity at fixed cuts, partial edges, uncovered ranges and older cuts after newer writes. Preserve explicit telemetry bucket intervals. Record six-hour/three-day p50/p95, buckets decoded, raw rows/bytes read, ingest throughput/cost and memory before/after.
+- [ ] 4.1 Build coarser stored preview resolutions only through the Harmos bucket-summary transform and product operation owned by operation-boundary 9.1; no product merge kernel. Prove fixed-cut/raw parity, late replacement, partial edges, missing coverage and older cuts; honor envelope/preview clearing at seal and reconstruct sealed plots through Harmos operations. Record the native before/after measurements without changing budgets.
 
 ## 5. Measured Refresh Policy by Kind
 
@@ -45,10 +45,14 @@ Nightly `benchmarks.json`, never in timing assertions.
 ## 7. Statistics and Bounded Fallback Reduction
 
 - [ ] 7.1 Coalesce statistics only for affected visible plots independently of drawing. Prove unchanged/off-screen plots issue no statistics work and drawing never awaits it. Record statistics query counts, exact-median cost, summary age and drawing interference before/after.
-- [ ] 7.2 Remove full-selection collection from spilled/stored fallback frame projections, using bounded streaming reducers and admitted exact spill where needed; migrate consumers and remove superseded collection paths. Prove exact raw parity, typed exhaustion and cancellation. Record peak memory versus increasing selected rows at fixed frame/buffer budgets, spill bytes, query p50/p95 and cancellation latency before/after.
+- [ ] 7.2 Remove full-selection fallback collection through bounded Harmos query transforms under operation-boundary 8–9; keep product frame projection bounded. Prove raw parity, typed exhaustion and cancellation, and measure memory/spill/query cost with increasing rows under unchanged configured bounds.
 - [ ] 7.3 Update affected README, product/query/tooling guidance and benchmark documentation for landed behavior; reconcile protocol/generated consumers and removals. Use step 1's final per-kind stage measurements to verify documented performance claims rather than introducing prose assertions.
 
 ## 8. Final Validation and Delivery
 
 - [ ] 8.1 After all source items and targeted proof close, strictly validate all affected OpenSpec changes and run configured focused plot/card/query/GUI checks through project tasks; keep deterministic correctness proof separate from measured timing/resource observations.
 - [ ] 8.2 After authorized delivery, obtain native Windows/Linux hosted and Nightly proof of the complete 30/100-plot matrix and `benchmarks.json`; compare every step with baseline, report regressions, failures and pending evidence, and repair affected source before claiming completion.
+
+## Archive Reconciliation
+
+- [ ] 8.3 Reconcile the plot-refresh Atomic Timed Watch Revisions, document-query-evaluation Representative Scaling Benchmark and plot-pipeline deltas with the current main specifications before archive; preserve visible scheduling, scaling, transport and cut-consistency obligations.

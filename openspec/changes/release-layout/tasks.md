@@ -54,3 +54,7 @@ missing, and draft/public download bytes are hashed against the upload manifest.
 `docs/tooling.md#harmos-alignment` records the present shared contracts from the
 read-only Harmos comparison; its tooling remains separately owned. Every package
 download honors `build-run || github.run_id`, including Windows Rust inputs.
+
+## Publication Proof
+
+- [ ] 3.2 Verify Windows signing credentials/provider configuration, signed updater artifacts and Authenticode policy against the packaged installers; verify the exact published bytes, attestations and checksums. NSIS/DEB/RPM assembly and signing workflow wiring already exist; do not duplicate them.

@@ -31,5 +31,9 @@
 
 ## Workflow Follow-Up
 
-- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Integrate with the other open changes on the combined feature candidate in the order in its design.
 - Run only focused tasks until combined source closure; final native proof remains separate.
+
+## Archive Reconciliation
+
+- [ ] 4.2 Reconcile organization-installers and organization-packs deltas with the main specifications before archive; required capabilities absent from main need valid additions, preserving branded/default packaged and report proof.

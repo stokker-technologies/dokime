@@ -32,3 +32,7 @@
 
 - Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
 - Run only focused tasks until combined source closure; final native proof remains separate.
+
+## Reported Regression Repairs
+
+- [ ] 4.4 Repair the owner-reported Windows `credentials_leave_with_discarded_roots` flake in the runtime system story. Prove root-qualified credential ownership and awaited disposal deterministically, preserving user-owned credentials and original assertions; obtain native Windows proof without sleeps, retries or relaxed operation deadlines. Storage-operation migration remains owned by operation-boundary 3.1.

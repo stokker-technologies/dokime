@@ -1,5 +1,8 @@
 # Imported Executions
 
+Scheduling: this change follows the first stable release. Its remaining contracts,
+implementation and proof stay owned here; it is not part of that release.
+
 ## Why
 
 Scripts already parse and process measurement files. They need to retain that

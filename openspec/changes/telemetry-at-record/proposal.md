@@ -1,5 +1,8 @@
 # Telemetry at Record
 
+Scheduling: this change follows the first stable release. Its remaining contracts,
+implementation and proof stay owned here; it is not part of that release.
+
 Status: proposed on 2026-11-09; semantics locked by the owner on 2026-11-09;
 deferred until the owner schedules it.
 
@@ -24,7 +27,8 @@ new record field, and historical executions never gain the answer.
   record and `per_case` compose with it like they do with `time_between`.
 - Like `time_between`, `at` is row-local: a repeated section whose value,
   order or filter uses it is refused at validation, naming the section.
-- Evaluation merges the two time-ordered inputs in one pass, so live and
+- Evaluation composes Harmos time-merge operations under operation-boundary;
+  no product merge kernel is introduced. Live and
   sealed evidence behave identically and the linear record evaluation
   requirement holds.
 - Wire: one new `DataTransform` variant (`at`, with `record_type` and optional

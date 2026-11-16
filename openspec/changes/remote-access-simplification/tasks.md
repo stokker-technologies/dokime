@@ -19,5 +19,5 @@
 
 ## Workflow Follow-Up
 
-- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
+- Integrate with the other open changes on the combined feature candidate in the order in its design.
 - Run only focused tasks until combined source closure; final native proof remains separate.

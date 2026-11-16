@@ -1,18 +1,14 @@
 # Operation Grammar Design
 
-Status: locked by the owner on 2026-11-12
-Boundary, managers and nested resources locked by the owner on 2026-11-12
-Naming rule amended by the owner on 2026-11-12: bare verbs on the service's resource
-Separation by audience locked by the owner on 2026-11-12
-Three visibility levels locked by the owner on 2026-11-12
-Paging, SDK packaging, transfers and durable lag amended by the owner on 2026-11-13
+## Current Contract Ownership
 
-The paging scope and default unary transfer limits in the operation contracts
-were amended by the owner on 2026-11-13.
-
-Target decisions are Owner.
-Current-source observations are not target decisions.
-See proposal.md for the decision register and motivation.
+The owner decisions of 2026-11-16 in [operation-boundary](../operation-boundary/proposal.md)
+replace earlier direct Store access, manager/wire composition and product aggregation
+in this document; its tasks own the replacement, not this change's historical mechanisms.
+Unchecked plugin-lifecycle transfers in grpc-plugins and operation-grammar retain
+register/initialize/finalize, catalog(), template-scoped prompts/records, harmonized
+names and plugin analysis removal until explicitly inventoried there. Generated
+protocol output stays tracked pending the owner's decision.
 
 ## Context
 

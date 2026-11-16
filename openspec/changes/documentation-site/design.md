@@ -14,7 +14,7 @@
 /versions.json               the entries the selector offers, newest first
 ```
 
-The selector offers `latest`, each supported release and `dev`. `latest` resolves to the newest
+The selector offers `latest`, each supported release line at its latest patch and `dev`. `latest` resolves to the newest
 stable release; a prerelease or Nightly never becomes `latest`.
 
 ## Archives
@@ -46,8 +46,9 @@ They are not converted into site pages.
 | C# SDK | XML documentation comments | DocFX |
 | C++ SDK | header comments | Doxygen |
 
-A native Python module is documented from its stubs, so a generator that only imports the module
-does not qualify.
+The Python SDK is a pure package with generated protocol messages and type stubs.
+Verify that its reference generator covers both the authored API and generated public surface;
+no native Python module is required.
 
 ## Tasks
 

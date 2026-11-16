@@ -97,3 +97,7 @@
 - [x] 3.16 Adopt the validated Hub release asset profile selector through provider-disabled rendering of root and starter tooling, declaring only the Python source archive release-only. Preserve canonical development wheel-only builds and mandatory release source-archive verification. Targeted proof using the actual declaration verifies development selection and release missing/present archive behavior; the affected dry-verification job remains in 2.8.
 - [x] 3.17 Diagnose and repair the Windows `content::large_artifact_buffering` timeout through its artifact-transfer implementation or deterministic fixture setup. Preserve the workload, bounded-buffering assertions and 120-second deadline; validate the affected native integration path on the repaired candidate.
 - [x] 3.18 Integrate the committed storage optimization handoff and reconcile provisional hashing implementations with focused proof; use the combined branch inventory.
+
+## Archive Reconciliation
+
+- [ ] 2.9 Reconcile the ci-migration delta for Separate Executable Publication with the current main specification before archive; preserve the executable publication contract and remaining hosted proof.

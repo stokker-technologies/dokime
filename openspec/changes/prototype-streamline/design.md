@@ -1,6 +1,14 @@
 # Prototype Streamline Design
 
-Capability requirements for the backend registry, accounting removal, runtime revision snapshots, desktop feedback and upstream decoder retention live under `specs/`. Later locked changes supersede only the overlapping contracts identified in proposal.md; tasks.md records source/proof status and current ownership.
+## Current Contract Ownership
+
+The owner decisions of 2026-11-16 in [operation-boundary](../operation-boundary/proposal.md)
+replace earlier direct Store access, manager/wire composition and product aggregation
+in this document; its tasks own the replacement, not this change's historical mechanisms.
+Unchecked plugin-lifecycle transfers in grpc-plugins and operation-grammar retain
+register/initialize/finalize, catalog(), template-scoped prompts/records, harmonized
+names and plugin analysis removal until explicitly inventoried there. Generated
+protocol output stays tracked pending the owner's decision.
 
 ## Settings Contract
 
