@@ -13,6 +13,21 @@ and `src/report`.
 - Vitest stories are one file per production-domain workflow. Extend the story
   that owns a behavior instead of adding a file per widget.
 
+## Development
+
+`mise run dev` starts the desktop with Tauri dev and Vite live reload. It
+generates the desktop messages, builds the [OBC](plugin-obc.md) plugin, and
+creates a disposable application root under the system temporary directory with
+a unique credential namespace. The OBC bundle is installed into that root before
+the window opens. The tool sets `DOKIME_APPLICATION_ROOT` and
+`DOKIME_CREDENTIAL_NAMESPACE` for the run and clears `DOKIME_OUTPUT_ROOT` and
+`DOKIME_REMOTE`, so the desktop never opens the operator's data, credentials or
+saved remote host. Closing the window, pressing Ctrl+C or a failure stops every
+process the run started. It then removes the namespace's credentials and deletes
+the root. If credential removal fails, the root is kept and its path and
+namespace are printed. Run `mise run prepare` once beforehand to install the
+frontend dependencies.
+
 ## Host Connection
 
 The desktop has one native SDK connection owner. The WebView sends generation-fenced
