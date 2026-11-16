@@ -33,7 +33,7 @@ from .. import policy, temporary
 from ..build import paths, wheel
 from ..docs import site
 from ..package.changelog import notes
-from . import context, layout, notices, reports, sbom
+from . import context, contracts, layout, notices, reports, sbom
 
 # Type Checking Imports
 
@@ -53,7 +53,9 @@ def assets(directory: Path, settings: dict, selected: str, tag: str, profile: st
     """The Declared Release Downloads of One Target, From Its Existing Package of the Profile."""
     profile = policy.profile() if profile is None else profile
     result = []
-    tools = [{**item, "kind": "tool"} for item in dokime_tools.package.definition.packaged(directory, profile, selected)]
+    tools = []
+    for item in dokime_tools.package.definition.packaged(directory, profile, selected):
+        tools.append({**item, "kind": "tool"})
     declared = settings.get("assets", []) + tools
     for definition in declared:
         profiles = definition.get("profiles", ["dev", "release"])
@@ -104,12 +106,14 @@ def stage(
     """Copy Each Target's Release Downloads Into Its target/release-assets/<target>/ and Their SHA256SUMS Into any/."""
     profile = policy.profile() if profile is None else profile
     root = context.root(directory)
-    distributions = [
-        paths.output(directory, "package", profile, selected)
-        / "rust"
-        / f"{settings['product']}-distribution-{tag[1:]}-{layout.triple(directory, settings, selected)}.zip"
-        for selected in targets
-    ]
+    distributions = []
+    for selected in targets:
+        distribution = (
+            paths.output(directory, "package", profile, selected)
+            / "rust"
+            / f"{settings['product']}-distribution-{tag[1:]}-{layout.triple(directory, settings, selected)}.zip"
+        )
+        distributions.append(distribution)
     packaged_notices = notices.packaged(distributions)
     # Only the staged targets and the shared checksums are replaced; another target's staging stays untouched.
     for owned in [*targets, context.SHARED]:
@@ -192,12 +196,7 @@ def stage(
             raise policy.ToolError("Stage Release: Export Release Protocol: No Protocol Definitions Were Produced")
         if missing:
             raise policy.ToolError(f"Stage Release: Export Release Protocol: Missing Definitions: {', '.join(missing)}")
-        archive = zipfile.ZipFile(protocol, "w", compression=zipfile.ZIP_DEFLATED)
-        try:
-            for source in sources:
-                archive.write(source, source.relative_to(exported).as_posix())
-        finally:
-            archive.close()
+        contracts.package(exported, protocol)
     finally:
         temporary_root_directory.close()
     files.append(describe(root, protocol))

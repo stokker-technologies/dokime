@@ -34,7 +34,7 @@ service PromptDefinitions {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // PromptDefinitionsGetRequest for PromptDefinitions.Get.
 message PromptDefinitionsGetRequest {
@@ -49,8 +49,6 @@ message PromptDefinitionsGetResponse {
   .dokime.model.v1.Prompt value = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === List === //
 
 // PromptDefinitionsListRequest for PromptDefinitions.List.
 message PromptDefinitionsListRequest {

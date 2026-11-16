@@ -51,7 +51,7 @@ service Uploads {
   }
 }
 
-// === Create === //
+// === Requests and Responses === //
 
 // UploadsCreateRequest for Uploads.Create.
 message UploadsCreateRequest {
@@ -66,8 +66,6 @@ message UploadsCreateResponse {
   uint64 chunk_bytes = 3;
   uint64 message_bytes = 4;
 }
-
-// === Get === //
 
 // UploadsGetRequest for Uploads.Get.
 message UploadsGetRequest {
@@ -84,8 +82,6 @@ message UploadsGetResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
 
-// === Resume === //
-
 // UploadsResumeRequest for Uploads.Resume.
 message UploadsResumeRequest {
   .harmos.model.v1.Upload upload = 1;
@@ -99,8 +95,6 @@ message UploadsResumeResponse {
   uint64 chunk_bytes = 3;
   uint64 message_bytes = 4;
 }
-
-// === Append === //
 
 // UploadsAppendRequest for Uploads.Append.
 message UploadsAppendRequest {
@@ -116,8 +110,6 @@ message UploadsAppendResponse {
   .harmos.model.v1.Receipt receipt = 2;
 }
 
-// === Publish === //
-
 // UploadsPublishRequest for Uploads.Publish.
 message UploadsPublishRequest {
   .harmos.model.v1.Upload upload = 1;
@@ -131,8 +123,6 @@ message UploadsPublishResponse {
   .harmos.model.v1.FileReference upload = 1;
   .harmos.model.v1.Receipt receipt = 2;
 }
-
-// === Delete === //
 
 // UploadsDeleteRequest for Uploads.Delete.
 message UploadsDeleteRequest {

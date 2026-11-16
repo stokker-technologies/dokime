@@ -34,7 +34,7 @@ service StreamSchemas {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // StreamSchemasGetRequest for StreamSchemas.Get.
 message StreamSchemasGetRequest {
@@ -49,8 +49,6 @@ message StreamSchemasGetResponse {
   .dokime.host.v1.TelemetrySchema value = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === List === //
 
 // StreamSchemasListRequest for StreamSchemas.List.
 message StreamSchemasListRequest {

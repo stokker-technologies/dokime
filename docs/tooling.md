@@ -25,10 +25,9 @@ capture execution never samples the boundary counter's execution resources.
 
 ## Python Tooling
 
-The C++ formatter lock includes its native dependency payload under
-`sdk/cpp/.mise/locks/pipx-clang-format/21.1.8/`. Regenerate it with
-`mise -C sdk/cpp lock pipx:clang-format@21.1.8` and commit its `pyproject.toml`,
-`uv.lock` and the matching `mise.lock` together; other `.mise/` state stays ignored.
+Regenerate the C++ formatter lock with
+`mise -C sdk/cpp lock pipx:clang-format@21.1.8` and commit `sdk/cpp/mise.lock`.
+All `.mise/` folders contain ignored local state and must remain untracked.
 
 The root uv workspace installs `tools/python` into the root `.venv/`. The
 `dokime_tools` package ships `py.typed`; Ruff and ty cover all its authored
@@ -120,6 +119,7 @@ conflicts retain the action and cause and require an explicit retry.
 
 ```sh
 mise run generate -- --protocol
+mise run generate -- --protocol --check
 mise run generate:typescript
 mise run check:generated
 mise run check:locks
@@ -129,6 +129,10 @@ mise -C sdk/csharp run restore
 `generate:typescript` regenerates schemas, dispatch and declared preference types
 without compiling runtime-owned default values. The ordinary `generate` task still
 exports those defaults from their product owner before a full frontend build.
+
+The protocol check regenerates SDK roots in temporary storage and compares the
+complete output inventory, including obsolete outputs. It reports drift without
+rewriting sources; unrelated working-tree edits do not cause false drift.
 
 The generated checks compile permanent consumers under each SDK's tests/generation
 (tests/Generation for C#) and the desktop tests/generation. Select one with

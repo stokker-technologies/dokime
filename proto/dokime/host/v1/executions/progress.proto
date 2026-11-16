@@ -39,7 +39,7 @@ service Progress {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // ProgressGetRequest for Progress.Get.
 // Clients supply the execution name. Plugins may omit it and may name only their own execution.
@@ -55,8 +55,6 @@ message ProgressGetResponse {
   .harmos.model.v1.Position resolved_at = 3;
 }
 
-// === Watch === //
-
 // ProgressWatchRequest for Progress.Watch.
 message ProgressWatchRequest {
   string name = 1;
@@ -71,8 +69,6 @@ message ProgressWatchResponse {
   string phase = 4;
   bool finished = 5;
 }
-
-// === Set === //
 
 // ProgressSetRequest for Progress.Set.
 message ProgressSetRequest {

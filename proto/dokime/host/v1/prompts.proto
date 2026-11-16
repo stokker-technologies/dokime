@@ -47,7 +47,7 @@ service Prompts {
   }
 }
 
-// === Get === //
+// === Requests and Responses === //
 
 // PromptsGetRequest for Prompts.Get.
 message PromptsGetRequest {
@@ -60,8 +60,6 @@ message PromptsGetResponse {
   .dokime.host.v1.PromptView prompt = 1;
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
-
-// === List === //
 
 // PromptsListRequest for Prompts.List.
 message PromptsListRequest {
@@ -80,8 +78,6 @@ message PromptsListResponse {
   string next_page_token = 91;
 }
 
-// === Watch === //
-
 // PromptsWatchRequest for Prompts.Watch.
 message PromptsWatchRequest {
   string parent = 1;
@@ -99,8 +95,6 @@ message PromptsWatchResponse {
   bool opening = 91;
   .harmos.model.v1.Failure resync_required = 92;
 }
-
-// === Create === //
 
 // PromptsCreateRequest for Prompts.Create.
 message PromptsCreateRequest {

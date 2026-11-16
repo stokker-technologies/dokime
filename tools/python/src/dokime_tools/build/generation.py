@@ -48,17 +48,25 @@ def main() -> None:
     selected = [options.language] if options.language else ["rust", "python", "csharp", "cpp", "typescript"]
     for language in selected:
         if language == "rust":
-            subprocess.run(
-                ["mise", "run", "build", "--", "--cargo", "check", "--locked", "--offline", "--package", "dokime", "--test", "generation"],
-                cwd=root,
-                check=True,
-                stdin=sys.stdin,
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-                creationflags=spawn_flags(),
-            )
+            commands = [
+                [
+                    "mise",
+                    "run",
+                    "build",
+                    "--",
+                    "--cargo",
+                    "check",
+                    "--locked",
+                    "--offline",
+                    "--package",
+                    "dokime",
+                    "--test",
+                    "generation",
+                ]
+            ]
         elif language == "python":
-            subprocess.run(
+            # The Compiler Story Consumes the Wheel Installed by sdk/python's Install Task.
+            commands = [
                 [
                     "uv",
                     "run",
@@ -69,14 +77,6 @@ def main() -> None:
                     "-c",
                     "import runpy; runpy.run_path('sdk/python/tests/generation/test_surface.py')",
                 ],
-                cwd=root,
-                check=True,
-                stdin=sys.stdin,
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-                creationflags=spawn_flags(),
-            )
-            subprocess.run(
                 [
                     "uv",
                     "run",
@@ -88,14 +88,6 @@ def main() -> None:
                     "sdk/python/src/dokime",
                     "sdk/python/tests/generation",
                 ],
-                cwd=root,
-                check=True,
-                stdin=sys.stdin,
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-                creationflags=spawn_flags(),
-            )
-            subprocess.run(
                 [
                     "uv",
                     "run",
@@ -112,33 +104,11 @@ def main() -> None:
                     "sdk/python/src/dokime/_generated",
                     "sdk/python/tests/generation",
                 ],
-                cwd=root,
-                check=True,
-                stdin=sys.stdin,
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-                creationflags=spawn_flags(),
-            )
+            ]
         elif language == "csharp":
-            subprocess.run(
-                ["mise", "-C", "sdk/csharp", "run", "check:generated"],
-                cwd=root,
-                check=True,
-                stdin=sys.stdin,
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-                creationflags=spawn_flags(),
-            )
+            commands = [["mise", "-C", "sdk/csharp", "run", "check:generated"]]
         elif language == "cpp":
-            subprocess.run(
-                ["mise", "-C", "sdk/cpp", "run", "build", "--", "--preset", "tests", "--target", "dokime-generation"],
-                cwd=root,
-                check=True,
-                stdin=sys.stdin,
-                stdout=sys.stdout,
-                stderr=sys.stderr,
-                creationflags=spawn_flags(),
-            )
+            commands = [["mise", "-C", "sdk/cpp", "run", "build", "--", "--preset", "tests", "--target", "dokime-generation"]]
         else:
             configuration = {
                 "extends": str(root / "crates/dokime-gui/tsconfig.json"),
@@ -151,8 +121,12 @@ def main() -> None:
             output = root / "target/generated/typescript-story.json"
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(json.dumps(configuration), encoding="utf-8")
+            commands = [["pnpm", "--dir", "crates/dokime-gui", "exec", "tsc", "--project", str(output)]]
+
+        # Compile the Selected Surface and Its Language Checks.
+        for command in commands:
             subprocess.run(
-                ["pnpm", "--dir", "crates/dokime-gui", "exec", "tsc", "--project", str(output)],
+                command,
                 cwd=root,
                 check=True,
                 stdin=sys.stdin,

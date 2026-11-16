@@ -46,8 +46,13 @@ def main() -> None:
     composition = tomllib.loads((root / "protocol/composition.toml").read_text(encoding="utf-8"))
     narrow_callers(descriptors, composition.get("callers", {}))
     methods = schema.table(descriptors)
-    clients = [method for method in methods if method["face"] == "client"]
-    plugins = [method for method in methods if method["face"] == "context"]
+    clients = []
+    plugins = []
+    for method in methods:
+        if method["face"] == "client":
+            clients.append(method)
+        if method["face"] == "context":
+            plugins.append(method)
     directory = tempfile.TemporaryDirectory(prefix="dokime-cpp-generation-")
     try:
         staging = Path(directory.name)

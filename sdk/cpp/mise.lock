@@ -100,4 +100,4 @@ url_api = "https://api.github.com/repos/ninja-build/ninja/releases/assets/318863
 version = "21.1.8"
 backend = "pipx:clang-format"
 specifiers = ["21.1.8"]
-uv = { path = ".mise/locks/pipx-clang-format/21.1.8", digest = "sha256:29c324d81ef20de84578fdc9275f82e465eb3903791ee523208fdf04d92d739e" }
+uv = { path = ".mise/locks/pipx-clang-format/21.1.8", digest = "sha256:a97e84613d8c7e0bdb089c15ab0a0dc367c27543422623a19ae6f3a4f8c6d1dc" }

@@ -220,6 +220,11 @@ class StageTests(unittest.TestCase):
                             path.parent.mkdir(parents=True)
                             path.write_text('syntax = "proto3";')
 
+                        for name in ("README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"):
+                            path = exported / name
+                            path.parent.mkdir(parents=True, exist_ok=True)
+                            path.write_text("exported support file")
+
                     source = root / "input/latest.json"
                     source.parent.mkdir()
                     source.write_text(json.dumps(feed))
@@ -273,13 +278,19 @@ class StageTests(unittest.TestCase):
                         expected.update({"dokime-reports-0.1.3.zip", "benchmarks.json", "dokime-docs-nightly.zip"})
                     else:
                         expected.add("dokime-docs-0.1.3.zip")
-                    self.assertEqual({item["name"] for item in files}, expected)
+                    names = set()
+                    for item in files:
+                        names.add(item["name"])
+                    self.assertEqual(names, expected)
                     document = json.loads((staged / context.SHARED / context.INDEX).read_text())
                     self.assertEqual(document["platforms"], feed["platforms"])
                     self.assertEqual(document["plugins"], {"format_version": 2, "plugins": []})
                     manifest = document["downloads"]
                     self.assertEqual((manifest["channel"], manifest["tag"]), (channel, "v0.1.3" if channel == "stable" else "nightly"))
-                    self.assertEqual({item["name"] for item in manifest["artifacts"]}, expected - {"release.json", "SHA256SUMS"})
+                    artifact_names = set()
+                    for item in manifest["artifacts"]:
+                        artifact_names.add(item["name"])
+                    self.assertEqual(artifact_names, expected - {"release.json", "SHA256SUMS"})
                     archive = zipfile.ZipFile(staged / context.SHARED / "dokime-compliance-0.1.3.zip")
                     try:
                         self.assertIn("NOTICE", archive.namelist())
@@ -290,10 +301,15 @@ class StageTests(unittest.TestCase):
                         archive.close()
                     archive = zipfile.ZipFile(staged / context.SHARED / "dokime-proto-0.1.3.zip")
                     try:
-                        self.assertEqual(set(archive.namelist()), protocol_sources)
+                        self.assertEqual(
+                            set(archive.namelist()),
+                            protocol_sources | {"README.md", "buf.yaml", "licenses/Apache-2.0.txt", "licenses/Protobuf.txt"},
+                        )
                     finally:
                         archive.close()
-                    inventory = {item["name"]: item for item in layout.uploads(root, staged=True)}
+                    inventory = {}
+                    for item in layout.uploads(root, staged=True):
+                        inventory[item["name"]] = item
                     staging.checksums(staged / context.SHARED / context.SUMS, inventory)
             finally:
                 directory_directory.cleanup()

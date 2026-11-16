@@ -56,17 +56,26 @@ class NightlyReportTests(unittest.TestCase):
                 output = root / "target/nightly-reports" / suite
                 output.mkdir(parents=True)
                 rows = [(suite + "/fast", 10.0, 20.0), (suite + "/regressed", 40.0, 20.0), (suite + "/seeded", 1.0, None)]
-                policy.write_json(output / f"benchmarks-rust-{suite}.json", reports.measurements(rows, "rust/" + suite, "a" * 40, 15))
+                with mock.patch.object(reports.paths, "target", return_value="windows-x86_64"):
+                    measurements = reports.measurements(rows, "rust/" + suite, "a" * 40, 15)
+                policy.write_json(output / f"benchmarks-rust-{suite}.json", measurements)
             coverage = root / "target/nightly-reports/coverage/rust/coverage.xml"
             coverage.parent.mkdir(parents=True)
             coverage.write_text('<coverage line-rate="0.75"/>')
             outputs = reports.stage(root, shared, "0.1.3")
-            self.assertEqual({path.name for path in outputs}, {"benchmarks.json", "dokime-reports-0.1.3.zip"})
+            names = set()
+            for path in outputs:
+                names.add(path.name)
+            self.assertEqual(names, {"benchmarks.json", "dokime-reports-0.1.3.zip"})
             values = json.loads((shared / "benchmarks.json").read_text())["benchmarks"]
             self.assertEqual(len(values), 12)
-            self.assertEqual(
-                {row["lane"] for row in values}, {"rust/" + suite for suite in ("unit", "integration", "integration-plots", "system")}
-            )
+            lanes = set()
+            for row in values:
+                lanes.add(row["lane"])
+            expected = set()
+            for suite in ("unit", "integration", "integration-plots", "system"):
+                expected.add("rust/" + suite)
+            self.assertEqual(lanes, expected)
             self.assertTrue(all(row["unit"] == "ns" and row["revision"] == "a" * 40 for row in values))
             summary = json.loads((shared / "reports.json").read_text())
             self.assertEqual(summary["coverage"][0]["line_percent"], 75.0)
@@ -93,18 +102,26 @@ class NightlyReportTests(unittest.TestCase):
                 for lane in ("rust/integration", "rust/system"):
                     output = root / "target/nightly-reports" / platform / lane
                     output.mkdir(parents=True)
-                    rows = [(f"crates/example/window_{state}/10", value, None) for state, value in (("warm", 10), ("cold", 20))]
+                    rows = []
+                    for state, value in (("warm", 10), ("cold", 20)):
+                        rows.append((f"crates/example/window_{state}/10", value, None))
+                    boundaries = {}
+                    for name, _, _ in rows:
+                        boundaries[name] = "store read through reduced points"
                     with mock.patch.object(reports.paths, "target", return_value=platform):
-                        summary = reports.measurements(
-                            rows, lane, "a" * 40, 15, boundaries={name: "store read through reduced points" for name, _, _ in rows}
-                        )
+                        summary = reports.measurements(rows, lane, "a" * 40, 15, boundaries=boundaries)
                     policy.write_json(output / "benchmarks-window.json", summary)
             reports.stage(root, shared, "0.1.3")
             published = json.loads((shared / "reports.json").read_text())
             values = published["benchmarks"]
             self.assertEqual(len(values), 8)
-            self.assertEqual(len({(row["suite"], row["name"]) for row in values}), 8)
-            self.assertEqual({row["state"] for row in values}, {"cold", "warm"})
+            identities = set()
+            states = set()
+            for row in values:
+                identities.add((row["suite"], row["name"]))
+                states.add(row["state"])
+            self.assertEqual(len(identities), 8)
+            self.assertEqual(states, {"cold", "warm"})
             notes = reports.table(published, {}, "https://example.test/run")
             for row in values:
                 self.assertIn(f"{row['suite']} / {row['case']}", notes)
