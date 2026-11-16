@@ -222,6 +222,17 @@ native_commands! {
         (folders: Vec<String>) -> Result<Vec<String>, crate::app::settings::DesktopSettingsError>
         => crate::app::settings::desktop_capture_folders_write;
 
+    async desktop_interval_settings_read
+        [state: tauri::State<'_, crate::app::settings::DesktopSettingsState>]
+        () -> Result<crate::interval_settings::IntervalSettings, crate::app::settings::DesktopSettingsError>
+        => crate::app::settings::desktop_interval_settings_read;
+
+    // Save the interval window and lag bound the owned local host starts with.
+    async desktop_interval_settings_write
+        [state: tauri::State<'_, crate::app::settings::DesktopSettingsState>]
+        (settings: crate::interval_settings::IntervalSettings) -> Result<crate::interval_settings::IntervalSettings, crate::app::settings::DesktopSettingsError>
+        => crate::app::settings::desktop_interval_settings_write;
+
     async desktop_updates_status
         [state: tauri::State<'_, crate::app::updates::UpdateState>]
         () -> Result<crate::app::updates::UpdateStatus, String>
