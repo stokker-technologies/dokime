@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{collections::BTreeSet, env, fs};
 use std::{error::Error, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 // Third Party Imports
@@ -94,6 +95,7 @@ use tokio_stream::StreamExt;
 
 use dokime_gui::connection::host::{Connection, ConnectionSettings};
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
+use dokime_gui::test_support;
 use dokime_protocol::host::plots::{PlotDomain, SnapshotsListResponse, SnapshotsWatchResponse};
 use dokime_protocol::host::{DocumentsWatchRequest, DocumentsWatchResponse};
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
@@ -129,7 +131,7 @@ use prost_types::FileDescriptorSet;
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
-            credentials: dokime_gui::test_support::credentials(),
+            credentials: test_support::credentials(),
             capture: dokime_runtime::CaptureSettings::default(),
             clock: Arc::new(ControlledClock::new(0)),
             storage: storage_defaults(),
@@ -165,9 +167,9 @@ fn settings() -> ConnectionSettings {
 
 #[test]
 fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Result<(), Box<dyn Error>> {
-    dokime_gui::test_support::run(async {
+    test_support::run(async {
         // Freeze a Large Authored Document and Three Days of Evidence.
-        let root = dokime_gui::test_support::tempdir()?;
+        let root = test_support::tempdir()?;
         let store = Store::open(root.path())?;
         let plots = (0..65)
             .map(|index| Plot {
@@ -375,12 +377,11 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
 
 #[test]
 fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
-    dokime_gui::test_support::run(async {
-        let executable =
-            std::env::var_os("DOKIME_OBC_PLUGIN").map(PathBuf::from).unwrap_or_else(|| dokime_gui::test_support::fixture("plugin-obc"));
+    test_support::run(async {
+        let executable = env::var_os("DOKIME_OBC_PLUGIN").map(PathBuf::from).unwrap_or_else(|| test_support::fixture("plugin-obc"));
         let configuration = settings();
         let mut plugin = PluginProcess::start(&executable, true, &configuration.host.placement).await?;
-        let root = dokime_gui::test_support::tempdir()?;
+        let root = test_support::tempdir()?;
         let mut owner = Connection::new(configuration)?;
         let result = async {
             // Admit the Prepared Plugin and Read Its Top-Level Suite Resource.
@@ -579,8 +580,8 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                     let viewer = viewer.clone();
                     let group = group.to_vec();
                     readers.spawn(async move {
-                        let expected = group.iter().map(|plot| plot.plot_id.clone().unwrap()).collect::<std::collections::BTreeSet<_>>();
-                        let mut data = std::collections::BTreeSet::new();
+                        let expected = group.iter().map(|plot| plot.plot_id.clone().unwrap()).collect::<BTreeSet<_>>();
+                        let mut data = BTreeSet::new();
                         let mut watch = viewer
                             .watch_raw(
                                 "/dokime.host.v1.plots.Snapshots/Watch",
@@ -805,7 +806,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             )
             .await?;
             assert!(exported.is_some());
-            assert_eq!(std::fs::read(destination)?, bytes);
+            assert_eq!(fs::read(destination)?, bytes);
             active.disconnect().map_err(|error| format!("{error:?}"))?;
             Ok::<(), Box<dyn Error>>(())
         }

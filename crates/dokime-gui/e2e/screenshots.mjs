@@ -325,7 +325,7 @@ try {
       async () => {
         await session.goto("/library");
         await session.clickCss('details:has(table[aria-label="Benchmark"]) > summary');
-        await session.clickCss('table[aria-label="Benchmark"] tbody tr');
+        await session.clickCss('table[aria-label="Benchmark"] tbody tr[data-row-id="obc.benchmark::obc.benchmark.plots"]');
         await until("template parameters", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
       },
     );
@@ -518,7 +518,7 @@ try {
         async () => {
           await session.goto("/library");
           await session.clickCss('details:has(table[aria-label="Benchmark"]) > summary');
-          await session.clickCss('table[aria-label="Benchmark"] tbody tr');
+          await session.clickCss('table[aria-label="Benchmark"] tbody tr[data-row-id="obc.benchmark::obc.benchmark.plots"]');
           await until("template parameters", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
         },
       );

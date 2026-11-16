@@ -21,7 +21,7 @@
 
 // Local Imports
 use dokime::plugin::{Context, DeclarationTypes, Plugin, Record};
-use dokime::{Error, Message, Result};
+use dokime::{Error, Message, Result, encoding};
 
 /* === Constants === */
 
@@ -101,7 +101,7 @@ pub async fn last<T: Message>(ctx: &Context, record: &Record<T>, step: &str) -> 
     let records = ctx.records(record.identifier(), step, 0).await?;
     records
         .last
-        .map(|captured| <T as dokime::encoding::Message>::decode(captured.payload.as_slice()))
+        .map(|captured| <T as encoding::Message>::decode(captured.payload.as_slice()))
         .transpose()
         .map_err(|error| Error::Invalid(format!("Read {}: {error}", record.identifier())))
 }

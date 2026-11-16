@@ -18,6 +18,7 @@
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
+use std::fs;
 
 // Third Party Imports
 use prost_reflect::{self, DescriptorPool, DynamicMessage};
@@ -71,7 +72,7 @@ const REGISTER: u64 = 1_152_921_504_606_847_975;
 
 /// Install the Packaged Bundle Through a Verified Managed Upload and Await Its Ready Entry.
 async fn install(client: &Client) -> Result<(), Box<dyn Error>> {
-    let archive = std::fs::read(support::obc_bundle()?)?;
+    let archive = fs::read(support::obc_bundle()?)?;
     let content = upload(client, archive.clone()).await?;
     let placement = PluginPlacement {
         kind: Some(plugin_placement::Kind::Managed(PluginManaged {
