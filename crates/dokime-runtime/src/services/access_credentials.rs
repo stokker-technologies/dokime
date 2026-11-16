@@ -19,7 +19,7 @@
 use std::sync::Mutex;
 
 // Third Party Imports
-use dokime_operations::host::credentials::Entry;
+use dokime_operations::host::credentials::{CredentialNamespace, Entry};
 use harmos_runtime::grpc::access::{CredentialStore, Credentials, Pairing, Pending};
 use prost::Message;
 use zeroize::Zeroizing;
@@ -30,7 +30,8 @@ use harmos_protocol::host::access::ListenerValue;
 
 /* === Constants === */
 
-const SERVICE: &str = "dokime.access";
+/// The Credential Owner Name of Access Keys Inside the Host's Namespace.
+const OWNER: &str = "access";
 
 /* === Macros === */
 
@@ -41,6 +42,7 @@ const SERVICE: &str = "dokime.access";
 pub(super) struct Store {
     storage: dokime_storage::Store,
     host_id: String,
+    service: String,
     commit: Mutex<()>,
 }
 
@@ -90,11 +92,16 @@ struct KeySlots {
 /* === Implementations === */
 
 impl Store {
-    pub(super) fn new(storage: dokime_storage::Store, host_id: String) -> Self {
-        Self { storage, host_id, commit: Mutex::new(()) }
+    pub(super) fn new(storage: dokime_storage::Store, host_id: String, namespace: &CredentialNamespace) -> Self {
+        Self {
+            storage,
+            host_id,
+            service: namespace.service(OWNER),
+            commit: Mutex::new(()),
+        }
     }
     fn key(&self, slot: &str) -> Result<Entry, keyring::Error> {
-        Entry::new(SERVICE, &format!("{}:{slot}", self.host_id))
+        Entry::new(&self.service, &format!("{}:{slot}", self.host_id))
     }
 
     pub(super) fn remove(&self) -> crate::Result<()> {

@@ -19,13 +19,14 @@
 use std::{
     future::Future,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 // Third Party Imports
 use futures_util::FutureExt;
 
 // Local Imports
+use dokime_runtime::CredentialNamespace;
 
 /* === Constants === */
 
@@ -105,6 +106,23 @@ pub fn run<T>(story: impl Future<Output = T>) -> T {
     }
 }
 
+/// The Story Process's Own Credential Namespace, So Stories Never Touch the Operator's Credentials.
+///
+/// A harness that removes credentials from another process names the namespace in
+/// `DOKIME_CREDENTIAL_NAMESPACE`; otherwise each story process uses a unique one.
+pub fn credentials() -> CredentialNamespace {
+    static NAMESPACE: OnceLock<CredentialNamespace> = OnceLock::new();
+    NAMESPACE
+        .get_or_init(|| {
+            let namespace = std::env::var("DOKIME_CREDENTIAL_NAMESPACE").unwrap_or_else(|_| {
+                let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+                format!("dokime-story-{}-{unique}", std::process::id())
+            });
+            CredentialNamespace::new(namespace).expect("Name the Story Credential Namespace")
+        })
+        .clone()
+}
+
 pub fn tempdir() -> std::io::Result<Root> {
     ROOTS
         .try_with(|roots| {
@@ -126,7 +144,7 @@ fn remove_credentials(root: &Path) -> std::io::Result<()> {
     let mut pending = vec![root.to_owned()];
     while let Some(directory) = pending.pop() {
         if directory.join("backend-id").is_file() {
-            dokime_runtime::services::remove_credentials(&directory)
+            dokime_runtime::services::remove_credentials(&directory, &credentials())
                 .map_err(|error| std::io::Error::other(format!("Remove Credentials at {}: {error}", directory.display())))?;
         }
         for entry in std::fs::read_dir(directory)? {

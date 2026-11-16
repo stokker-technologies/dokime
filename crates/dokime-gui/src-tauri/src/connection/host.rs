@@ -530,8 +530,22 @@ pub(crate) fn desktop_settings() -> ConnectionSettings {
     #[cfg(not(feature = "testing"))]
     let clock = Arc::new(WallClock);
 
+    // Testing Builds Keep Their Credentials in the Story's Own Namespace.
+    #[cfg(feature = "testing")]
+    let credentials = crate::test_support::credentials();
+
+    // DOKIME_CREDENTIAL_NAMESPACE Configures the Desktop's Namespace, Default `dokime`.
+    #[cfg(not(feature = "testing"))]
+    let credentials = match std::env::var("DOKIME_CREDENTIAL_NAMESPACE") {
+        Ok(namespace) => {
+            dokime_runtime::CredentialNamespace::new(namespace).expect("Start the Desktop: Correct DOKIME_CREDENTIAL_NAMESPACE")
+        }
+        Err(_) => dokime_runtime::CredentialNamespace::default(),
+    };
+
     ConnectionSettings {
         host: HostSettings {
+            credentials,
             capture: dokime_runtime::CaptureSettings::default(),
             storage: dokime_runtime::storage_defaults(),
             clock,

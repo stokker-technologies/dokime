@@ -59,6 +59,13 @@ async fn main() -> std::process::ExitCode {
             return std::process::ExitCode::from(2);
         }
     };
+    if let Some(namespace) = cli.credential_namespace {
+        settings.credential_namespace = namespace;
+        if let Err(error) = settings.credentials() {
+            eprintln!("Read Configuration: {error}");
+            return std::process::ExitCode::from(2);
+        }
+    }
     settings.remote = cli.remote.or_else(|| {
         if cli.endpoint.is_none() { std::env::var_os("DOKIME_REMOTE").filter(|value| !value.is_empty()).map(Into::into) } else { None }
     });

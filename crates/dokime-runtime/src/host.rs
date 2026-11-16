@@ -33,6 +33,7 @@ use tokio::sync::watch::Receiver;
 // Local Imports
 use crate::ExecutionCapabilities;
 use crate::{CaptureSettings, Cycle, Error, PlacementSettings, Result, SchedulerClock};
+use dokime_operations::host::credentials::CredentialNamespace;
 use dokime_protocol::host::ExecutionControls;
 use dokime_protocol::host::ExecutionMode;
 use dokime_protocol::host::PromptsCreateRequest;
@@ -64,6 +65,8 @@ pub struct HostSettings {
     pub storage: StorageSettings,
     pub clock: Arc<dyn SchedulerClock>,
     pub capture: CaptureSettings,
+    /// The Prefix of Every Native Credential the Host Owns; Default `dokime`.
+    pub credentials: CredentialNamespace,
 }
 #[derive(Clone)]
 pub struct Host {

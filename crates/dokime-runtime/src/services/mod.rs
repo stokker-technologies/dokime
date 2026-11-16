@@ -40,6 +40,7 @@ use crate::{Error, Host, HostSettings, Result};
 use composition::Application;
 use dokime_operations::host::Context;
 use dokime_operations::host::HostIdentity;
+use dokime_operations::host::credentials::CredentialNamespace;
 use dokime_protocol::host::RemoteListenerSettings;
 use dokime_protocol::host::SettingsGetResponse;
 use dokime_storage::Store;
@@ -199,8 +200,9 @@ pub fn initial_preferences() -> SettingsGetResponse {
 }
 
 /// Remove Protected Values Before Explicitly Discarding a Storage Root.
-/// The Host Must Be Stopped; Evidence and the Root Itself Are Retained.
-pub fn remove_credentials(root: &Path) -> Result<()> {
+/// The Host Must Be Stopped; Evidence and the Root Itself Are Retained. Only Entries Inside `namespace`, the
+/// Namespace the Root's Host Ran With, Are Removed.
+pub fn remove_credentials(root: &Path, namespace: &CredentialNamespace) -> Result<()> {
     if !root.join("backend-id").is_file() {
         return Ok(());
     }
@@ -213,10 +215,10 @@ pub fn remove_credentials(root: &Path) -> Result<()> {
     let host_id = std::fs::read_to_string(root.join("backend-id"))?;
     let storage = Store::open(root)?;
     // A Copied Folder Carries the Identity and Catalogs, Never the Native Owner Claim.
-    root_claim::require_owner(root, &storage)?;
-    dokime_operations::host::remove_root_secrets(&storage)?;
-    access_credentials::Store::new(storage, host_id.clone()).remove()?;
-    root_claim::release(root, &host_id)?;
+    root_claim::require_owner(root, &storage, namespace)?;
+    dokime_operations::host::remove_root_secrets(&storage, namespace)?;
+    access_credentials::Store::new(storage, host_id.clone(), namespace).remove()?;
+    root_claim::release(root, &host_id, namespace)?;
     Ok(())
 }
 
@@ -247,7 +249,10 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     runtime.grpc().register_middleware(assembly.client_watches.clone())?;
     runtime
         .grpc()
-        .configure_access(composition::access_settings(&settings), Arc::new(access_credentials::Store::new(host.store.clone(), backend_id)))
+        .configure_access(
+            composition::access_settings(&settings),
+            Arc::new(access_credentials::Store::new(host.store.clone(), backend_id, &host.settings.credentials)),
+        )
         .await?;
     let mut transport = composition::transport(&settings);
     transport.address = endpoint;
@@ -296,7 +301,7 @@ pub(crate) struct Assembly {
 }
 
 pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings) -> Result<Assembly> {
-    root_claim::claim(root, &host.store)?;
+    root_claim::claim(root, &host.store, &host.settings.credentials)?;
     let backend_id = host.store.identity().to_owned();
     let identity = HostIdentity {
         backend_id: backend_id.clone(),

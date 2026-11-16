@@ -130,9 +130,11 @@ pub(crate) async fn run(command: Command, settings: Settings) -> Result<()> {
             // The Copy Never Reads or Removes the Original's Native Credentials
             dokime_runtime::services::detach_credentials(&copy)?;
         }
-        let host = dokime_runtime::Host::open(&copy, settings.host(true), settings.services()).await?;
+        let host = dokime_runtime::Host::open(&copy, settings.host(true)?, settings.services()).await?;
         host.shutdown().await?;
         drop(host);
+        // The Scratch Copy Releases the Claim It Took at Open; Detached, It Holds No Other Credential.
+        dokime_runtime::services::remove_credentials(&copy, &settings.credentials()?)?;
         drop(lease);
         report["checks"].as_array_mut().unwrap().push("open_close_scratch_host".into());
         Ok(())

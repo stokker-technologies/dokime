@@ -253,7 +253,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                             // Real-Time Overload Is a Measured Outcome; the Controlled Clock Must Retain Every Sample.
                             assert!(clock == "real" || retained, "Store Interval Windows: Retain Every Sample");
                             fixture.host.shutdown().await.unwrap();
-                            services::remove_credentials(fixture.root.as_path()).unwrap();
+                            services::remove_credentials(fixture.root.as_path(), &super::publication::credentials()).unwrap();
                         }
                         super::report(elapsed, measured)
                     })

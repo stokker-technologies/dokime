@@ -84,6 +84,7 @@ use harmos_protocol::host::{StatusGetRequest, StatusGetResponse};
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
+            credentials: dokime_gui::test_support::credentials(),
             capture: dokime_runtime::CaptureSettings::default(),
             storage: dokime_runtime::storage_defaults(),
             clock: Arc::new(ControlledClock::new(0)),
@@ -614,14 +615,23 @@ fn failed_story_cleanup() {
             let store = dokime_storage::Store::open(root.path()).unwrap();
             let pointer: AccessPointer = store.administration("access").unwrap().unwrap();
             let name = format!("{}:{}", store.identity(), pointer.key_slot);
-            assert!(!keyring::Entry::new("dokime.access", &name).unwrap().get_password().unwrap().is_empty());
+            assert!(
+                !keyring::Entry::new(&dokime_gui::test_support::credentials().service("access"), &name)
+                    .unwrap()
+                    .get_password()
+                    .unwrap()
+                    .is_empty()
+            );
             *recorded.lock().unwrap() = name;
             drop(store);
             std::panic::panic_any(StoryFailure);
         })
     });
     assert!(failure.unwrap_err().is::<StoryFailure>());
-    let removed = keyring::Entry::new("dokime.access", &credential.lock().unwrap()).unwrap().get_password().map(drop);
+    let removed = keyring::Entry::new(&dokime_gui::test_support::credentials().service("access"), &credential.lock().unwrap())
+        .unwrap()
+        .get_password()
+        .map(drop);
     assert!(matches!(removed, Err(keyring::Error::NoEntry)), "Remove Failed Story Credential: {removed:?}");
     assert!(!path.lock().unwrap().exists());
 }

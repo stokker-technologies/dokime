@@ -128,6 +128,7 @@ use prost_types::FileDescriptorSet;
 fn settings() -> ConnectionSettings {
     ConnectionSettings {
         host: HostSettings {
+            credentials: dokime_gui::test_support::credentials(),
             capture: dokime_runtime::CaptureSettings::default(),
             clock: Arc::new(ControlledClock::new(0)),
             storage: storage_defaults(),

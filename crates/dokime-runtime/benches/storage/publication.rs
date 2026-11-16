@@ -255,7 +255,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                     let completed = fixture.cycle.wait().await.unwrap();
                     assert_eq!(completed.executions[0].samples.len(), 1024, "Prepare Runtime Publication: Retain Every Sample");
                     fixture.host.shutdown().await.unwrap();
-                    services::remove_credentials(fixture.root.as_path()).unwrap();
+                    services::remove_credentials(fixture.root.as_path(), &credentials()).unwrap();
                 }
                 super::report(elapsed, iterations)
             })
@@ -281,7 +281,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                     let completed = fixture.cycle.wait().await.unwrap();
                     fixture.host.shutdown().await.unwrap();
                     elapsed += started.elapsed();
-                    services::remove_credentials(fixture.root.as_path()).unwrap();
+                    services::remove_credentials(fixture.root.as_path(), &credentials()).unwrap();
                     assert_eq!(completed.executions[0].samples.len(), 65536, "Prepare Runtime Shutdown: Retain Every Sample");
                 }
                 super::report(elapsed, iterations)
@@ -401,7 +401,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
     });
     if let Some((server, root, _, _, _)) = export {
         executor.block_on(server.close()).unwrap();
-        services::remove_credentials(root.as_path()).unwrap();
+        services::remove_credentials(root.as_path(), &credentials()).unwrap();
     }
     group.finish();
     if let Some(mut plugin) = plugin {
@@ -411,8 +411,21 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
 
 /* === Private Functions === */
 
+/// This Bench Process's Own Credential Namespace, So Benches Never Touch the Operator's Credentials.
+pub(super) fn credentials() -> dokime_runtime::CredentialNamespace {
+    static NAMESPACE: std::sync::OnceLock<dokime_runtime::CredentialNamespace> = std::sync::OnceLock::new();
+    NAMESPACE
+        .get_or_init(|| {
+            let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+            dokime_runtime::CredentialNamespace::new(format!("dokime-bench-{}-{unique}", std::process::id()))
+                .expect("Name the Bench Credential Namespace")
+        })
+        .clone()
+}
+
 pub(super) fn settings() -> HostSettings {
     HostSettings {
+        credentials: credentials(),
         clock: Arc::new(ControlledClock::new(1_788_220_800_000_000_000)),
         storage: storage_defaults(),
         placement: PlacementSettings {

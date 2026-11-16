@@ -138,6 +138,9 @@ impl ClientHost for State {
             logs: self.root.join("logs").to_string_lossy().into_owned(),
         }
     }
+    fn credential_namespace(&self) -> dokime_operations::host::credentials::CredentialNamespace {
+        self.host.settings.credentials.clone()
+    }
     fn identity(&self) -> HostIdentity {
         self.identity.clone()
     }

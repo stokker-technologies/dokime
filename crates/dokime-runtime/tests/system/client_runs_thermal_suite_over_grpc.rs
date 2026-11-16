@@ -87,7 +87,10 @@ impl HostProcess {
     }
     pub(super) async fn start_with_clock(root: &Path, environment: &[(&str, OsString)], controlled: bool) -> Result<Self, Box<dyn Error>> {
         let mut command = Command::from(dokime_runtime::process::command(super::support::host_fixture()?));
-        command.envs(environment.iter().cloned()).args(["--endpoint", "127.0.0.1:0", "--storage"]).arg(root);
+        command
+            .envs(environment.iter().cloned())
+            .args(["--credential-namespace", super::support::namespace().as_str(), "--endpoint", "127.0.0.1:0", "--storage"])
+            .arg(root);
         if controlled {
             command.arg("--controlled-clock");
         }

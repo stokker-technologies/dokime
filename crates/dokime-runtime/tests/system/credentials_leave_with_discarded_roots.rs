@@ -87,14 +87,20 @@ fn concurrent_hosts_remove_native_credentials_on_their_owner_thread() {
                         let store = Store::open(root.path()).unwrap();
                         let pointer: AccessPointer = store.administration("access").unwrap().unwrap();
                         let name = format!("{}:{}", store.identity(), pointer.key_slot);
-                        assert!(!keyring::Entry::new("dokime.access", &name).unwrap().get_password().unwrap().is_empty());
+                        assert!(
+                            !keyring::Entry::new(&super::support::namespace().service("access"), &name)
+                                .unwrap()
+                                .get_password()
+                                .unwrap()
+                                .is_empty()
+                        );
                         tokio::task::spawn_blocking(move || barrier.wait()).await.unwrap();
                         server.close().await.unwrap();
                         drop(store);
                         drop(root);
                         // This Guard Deliberately Reads From the Calling Thread, Outside the Owner.
                         assert!(matches!(
-                            keyring::Entry::new("dokime.access", &name).unwrap().get_password(),
+                            keyring::Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password(),
                             Err(keyring::Error::NoEntry)
                         ));
                         name
@@ -105,7 +111,10 @@ fn concurrent_hosts_remove_native_credentials_on_their_owner_thread() {
         workers.into_iter().map(|worker| worker.join().unwrap()).collect::<Vec<_>>()
     });
     for name in names {
-        assert!(matches!(keyring::Entry::new("dokime.access", &name).unwrap().get_password(), Err(keyring::Error::NoEntry)));
+        assert!(matches!(
+            keyring::Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password(),
+            Err(keyring::Error::NoEntry)
+        ));
     }
 }
 
@@ -121,7 +130,7 @@ fn failed_live_story_removes_its_access_credential() {
             let pointer: AccessPointer = store.administration("access").unwrap().unwrap();
             let host_id = std::fs::read_to_string(root.path().join("backend-id")).unwrap();
             let name = format!("{host_id}:{}", pointer.key_slot);
-            let credential = keyring::Entry::new("dokime.access", &name).unwrap();
+            let credential = keyring::Entry::new(&super::support::namespace().service("access"), &name).unwrap();
             assert!(!credential.get_password().unwrap().is_empty());
             *recorded.lock().unwrap() = Some((name, root.path().to_owned()));
             panic!("Simulated Failure With a Live Host");
@@ -129,7 +138,10 @@ fn failed_live_story_removes_its_access_credential() {
     });
     assert!(failure.is_err());
     let (name, root) = created.lock().unwrap().take().expect("The Story Created Its Credential Before Failing");
-    assert!(matches!(keyring::Entry::new("dokime.access", &name).unwrap().get_password(), Err(keyring::Error::NoEntry)));
+    assert!(matches!(
+        keyring::Entry::new(&super::support::namespace().service("access"), &name).unwrap().get_password(),
+        Err(keyring::Error::NoEntry)
+    ));
     assert!(!root.exists());
 }
 
@@ -168,11 +180,12 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
                 let store = Store::open(root.path())?;
                 let pointer: AccessPointer = store.administration("access")?.ok_or("Read Access Credential: Missing Publication")?;
                 let host_id = std::fs::read_to_string(root.path().join("backend-id"))?;
-                let entry = keyring::Entry::new("dokime.access", &format!("{host_id}:{}", pointer.key_slot))?;
+                let entry =
+                    keyring::Entry::new(&super::support::namespace().service("access"), &format!("{host_id}:{}", pointer.key_slot))?;
                 assert!(!entry.get_password()?.is_empty());
                 let pointer: SecretPointer = store.administration("secrets")?.ok_or("Read Secret Credential: Missing Publication")?;
                 let secret = keyring::Entry::new(
-                    "dokime.shared-secrets",
+                    &super::support::namespace().service("shared-secrets"),
                     &format!("{host_id}:{}", pointer.entries.first().ok_or("Read Secret Credential: Missing Slot")?.slot),
                 )?;
                 assert_eq!(secret.get_password()?, value);
@@ -184,7 +197,8 @@ fn credentials_leave_with_discarded_roots() -> Result<(), Box<dyn Error>> {
                 let store = Store::open(&nested)?;
                 let pointer: AccessPointer = store.administration("access")?.ok_or("Read Nested Credential: Missing Publication")?;
                 let host_id = std::fs::read_to_string(nested.join("backend-id"))?;
-                let nested_entry = keyring::Entry::new("dokime.access", &format!("{host_id}:{}", pointer.key_slot))?;
+                let nested_entry =
+                    keyring::Entry::new(&super::support::namespace().service("access"), &format!("{host_id}:{}", pointer.key_slot))?;
                 assert!(!nested_entry.get_password()?.is_empty());
                 drop(store);
                 child.close().await?;
@@ -273,17 +287,17 @@ fn copied_roots_never_remove_the_original_credentials() -> Result<(), Box<dyn Er
             let store = Store::open(root.path())?;
             let host_id = store.identity().to_owned();
             let access: AccessPointer = store.administration("access")?.ok_or("Read Access Credential: Missing Publication")?;
-            let access = keyring::Entry::new("dokime.access", &format!("{host_id}:{}", access.key_slot))?;
+            let access = keyring::Entry::new(&super::support::namespace().service("access"), &format!("{host_id}:{}", access.key_slot))?;
             let pointer: SecretPointer = store.administration("secrets")?.ok_or("Read Secret Credential: Missing Publication")?;
             let slot = &pointer.entries.first().ok_or("Read Secret Credential: Missing Slot")?.slot;
-            let secret = keyring::Entry::new("dokime.shared-secrets", &format!("{host_id}:{slot}"))?;
+            let secret = keyring::Entry::new(&super::support::namespace().service("shared-secrets"), &format!("{host_id}:{slot}"))?;
             drop(store);
 
             // A Full Folder Copy Carries the Identity and Catalogs but Cannot Remove or Use Them
             let copy = super::support::tempdir()?;
             copy_folder(root.path(), copy.path())?;
             assert_eq!(std::fs::read_to_string(copy.path().join("backend-id"))?, host_id);
-            assert!(dokime_runtime::services::remove_credentials(copy.path()).is_err());
+            assert!(dokime_runtime::services::remove_credentials(copy.path(), &super::support::namespace()).is_err());
             let opened = dokime_runtime::services::serve(
                 "127.0.0.1:0".parse()?,
                 copy.path(),
@@ -299,7 +313,7 @@ fn copied_roots_never_remove_the_original_credentials() -> Result<(), Box<dyn Er
             dokime_runtime::services::detach_credentials(copy.path())?;
             drop(copy);
             assert_eq!(secret.get_password()?, value);
-            dokime_runtime::services::remove_credentials(root.path())?;
+            dokime_runtime::services::remove_credentials(root.path(), &super::support::namespace())?;
             assert!(matches!(access.get_password(), Err(keyring::Error::NoEntry)));
             assert!(matches!(secret.get_password(), Err(keyring::Error::NoEntry)));
             Ok::<(), Box<dyn Error>>(())

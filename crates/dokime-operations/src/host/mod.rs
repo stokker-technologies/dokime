@@ -167,6 +167,7 @@ pub trait Host: Send + Sync {
     fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt>;
     fn now_ns(&self) -> i64;
     fn identity(&self) -> HostIdentity;
+    fn credential_namespace(&self) -> credentials::CredentialNamespace;
     fn bootstrap_paths(&self) -> BootstrapPaths;
     fn register_sensitive(&self, value: &str) -> Result<()>;
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;

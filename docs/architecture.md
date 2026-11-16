@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `a14c724f522b56f1770a1d4328c29f4d3a69a9e5`, rather than
+[Cargo.toml](../Cargo.toml), `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -182,9 +182,12 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    original native file references in the execution transaction. Retired SQL file
    byte objects and writers are removed; incompatible development roots are preserved
    and refused at baseline v1. Final combined validation remains a separate obligation.
-   Explicit root disposal removes access and secret credentials through their
-   product owners after the root lease is released, while ordinary shutdown keeps
-   them for restart. Owners journal credential slots before native writes, so
+   Every native credential lives under the host's credential namespace
+   (`HostSettings::credentials`, default `dokime`), whose owners are `root`, `access`
+   and `shared-secrets`; stories, benchmarks and end-to-end runs each use their own
+   namespace. Explicit root disposal removes access and secret credentials through their
+   product owners after the root lease is released, inside the namespace the root ran
+   under, while ordinary shutdown keeps them for restart. Owners journal credential slots before native writes, so
    interrupted publication and failed retired-key removal retain cleanup ownership.
    Opening a root claims its backend identity for that folder in the native store
    (`services/root_claim.rs`). A folder copy carries `backend-id` and catalogs but
@@ -736,7 +739,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/a14c724f522b56f1770a1d4328c29f4d3a69a9e5/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/640c73959d2a5ee65015afc617c0f3f2b4ca9f6c/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -846,7 +849,7 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `a14c724f522b56f1770a1d4328c29f4d3a69a9e5`.
+The definition pass pins Harmos at `640c73959d2a5ee65015afc617c0f3f2b4ca9f6c`.
 Consumer repairs follow the table below.
 The pin and generated contracts do not establish consumer compilation.
 

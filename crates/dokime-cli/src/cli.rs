@@ -44,6 +44,9 @@ pub(crate) struct Cli {
     #[arg(long, global = true, help = "TOML Configuration File")]
     pub config: Option<PathBuf>,
 
+    #[arg(long, global = true, help = "Native Credential Namespace, Overriding credential_namespace")]
+    pub credential_namespace: Option<String>,
+
     #[command(subcommand)]
     pub command: Command,
 }
