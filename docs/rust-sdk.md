@@ -31,8 +31,8 @@ fn main() -> Result<()> {
 
 Private operations stay inside their plugin, Protected operations admit host
 calls, and Public operations can be discovered and bound by clients. Requirements
-describe dependencies; they do not grant access. Suite lifecycle and analysis
-adapters retain independent Protected operation identities and authored policies.
+describe dependencies; they do not grant access. Suite lifecycle adapters retain
+independent Protected operation identities and authored policies.
 
 ## Examples and New Projects
 
@@ -121,8 +121,7 @@ through host waits; no SDK retry loop or wall-clock wait drives execution. A sco
 sleep settles after every observer window due by its end has been answered and
 stored, so a step that sleeps for `n` intervals finds `n` more samples saved.
 Observer intervals and retry timing belong to declared settings and operation
-policies. `Operation::analysis` adapts typed analysis requests and responses while
-retaining raw sample axes and outputs.
+policies.
 
 ## Observers and Interval Windows
 
@@ -217,8 +216,8 @@ Statistics and plot summaries carry typed `Value` fields, including exact totals
 and sums. `ExactNumber` retains sign, decimal numerator and denominator without
 floating conversion. `FromValue` extracts it losslessly; floating extraction
 refuses an exact value. Drawing coordinates, standard deviation and RMS remain
-floating point. Analysis helpers preserve source-time axes; document replies keep
-pending bindings, result summaries and card completion states.
+floating point. Document replies keep pending bindings, result summaries and
+card completion states.
 
 ## Focused Proof
 

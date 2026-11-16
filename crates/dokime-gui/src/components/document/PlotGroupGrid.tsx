@@ -17,7 +17,6 @@ import { type ComponentProps, memo, type ReactNode, useEffect, useId, useMemo, u
 
 import { documentPlotGroupDescription, documentPlotSpec, type PlotCardSpec } from "@/lib/document-plots";
 import type { DocumentViewPlot, HubRecord, JsonObject, TelemetryStream } from "@/lib/types";
-import { AnalysisResult } from "@/plots/AnalysisResult";
 import { PiePlot } from "@/plots/catalog/PiePlot";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { BoxPlot } from "@/plots/catalog/BoxPlot";
@@ -286,16 +285,6 @@ function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotVi
   if (plot.stateLabel === STREAM_ERROR) {
     return <PlotPlaceholder title={plot.title} actions={actions} {...plotPlaceholderText(plot)} />;
   }
-  if (plot.computed)
-    return (
-      <AnalysisResult
-        key={plot.computed.selection.id}
-        result={plot.computed}
-        title={plot.title}
-        stateLabel={plot.stateLabel}
-        stateDetail={plot.stateDetail}
-      />
-    );
   if (plot.analysis?.kind === "error") {
     return <PlotPlaceholder title={plot.title} {...plotUnavailableText(plot.analysis.message)} />;
   }

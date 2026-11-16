@@ -5,20 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js --host 127.0.0.1",
-    "build": "pnpm run build:live && pnpm run build:report",
     "build:live": "uv run --no-sync python -m dokime_tools.build.frontend live",
     "build:report": "uv run --no-sync python -m dokime_tools.build.frontend report",
-    "build:report:watch": "uv run --no-sync python -m dokime_tools.build.desktop watch-report",
-    "check": "biome ci . && pnpm run typecheck",
-    "check:assets": "uv run --no-sync python -m dokime_tools.build.frontend assets",
-    "format": "biome format --write .",
-    "lint": "biome lint .",
-    "test": "node ./node_modules/vitest/vitest.mjs run",
-    "test:e2e": "node e2e/native-desktop.mjs",
-    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
-    "preview": "node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1",
-    "tauri": "node ./node_modules/@tauri-apps/cli/tauri.js",
-    "tauri:dev": "uv run --no-sync python -m dokime_tools.build.desktop"
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.16.0",

@@ -192,7 +192,7 @@ class WorkflowTests(unittest.TestCase):
     def test_compiler_cache_ignores_unrelated_tools_but_tracks_rust_and_crates(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            for name in ("mise.lock", "Cargo.lock", "uv.lock", "crates/dokime-gui/pnpm-lock.yaml"):
+            for name in ("mise.lock", "Cargo.lock", "uv.lock", "crates/dokime-gui/pnpm-lock.yaml", "site/pnpm-lock.yaml"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("original", encoding="utf-8")

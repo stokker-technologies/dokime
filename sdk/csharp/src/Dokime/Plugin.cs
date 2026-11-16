@@ -6,7 +6,6 @@ using Dokime.Plugins;
 using Google.Protobuf;
 using Harmos.Plugins;
 using Harmos;
-using ModelAnalyses = Dokime.Analyses;
 using ModelCriterion = Dokime.Criterion;
 using ModelStep = Dokime.Step;
 using ModelSuite = Dokime.Suite;
@@ -22,7 +21,6 @@ public sealed partial class Plugin(string identifier, string version, params Sui
   private readonly ConcurrentDictionary<string, Lazy<Task<ExecutionResource>>> resources = new();
   private readonly RecordContracts records = new();
   private readonly SecretsDeclarations secrets = new();
-  private readonly ModelAnalyses analyses = new();
   private bool built;
 
   public Plugin Setting(string name, SettingValue defaultValue, string title = "", string description = "")
@@ -45,28 +43,6 @@ public sealed partial class Plugin(string identifier, string version, params Sui
       Metadata = new Metadata { Identifier = name, Label = label },
       Required = required
     });
-    return this;
-  }
-
-  public Plugin Analysis(Analysis definition,
-      Func<Context, AnalysisSamples, MapValue, Task<IReadOnlyList<AnalysisValues>>> compute,
-      OperationPolicy? policy = null)
-  {
-    if (built)
-      throw new InvalidOperationException("Declare Analysis: Plugin Is Already Built");
-    var declaration = definition.Clone();
-    var operation = declaration.Metadata.Identifier;
-    if (analyses.Analyses_.Any(item => item.Metadata.Identifier == operation))
-      throw new ArgumentException($"Declare Analysis: Duplicate Identifier {operation}");
-    analyses.Analyses_.Add(declaration);
-    transport.Operation(new Operation<AnalysesComputeRequest, AnalysesComputeResponse>(operation, Visibility.Protected, policy),
-        async (raw, request) =>
-        {
-          var outputs = await compute(new Context(raw, new TestCase()), request.Samples, request.Parameters);
-          var response = new AnalysesComputeResponse();
-          response.Outputs.AddRange(outputs.Select(output => output.Clone()));
-          return response;
-        });
     return this;
   }
 
@@ -116,8 +92,6 @@ public sealed partial class Plugin(string identifier, string version, params Sui
       transport.Section(records);
     if (secrets.Secrets.Count > 0)
       transport.Section(secrets);
-    if (analyses.Analyses_.Count > 0)
-      transport.Section(analyses);
     transport.OnStop(DisposeResourcesAsync);
     built = true;
     return transport;

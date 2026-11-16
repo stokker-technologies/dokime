@@ -3,12 +3,11 @@ use super::{Error, Session};
 use dokime_protocol::host;
 use harmos_protocol as library;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [238, 81, 94, 203, 149, 88, 88, 177, 179, 238, 249, 167, 177, 28, 151, 5, 239, 19, 23, 202, 254, 236, 182, 99, 214, 208, 96, 76, 126, 49, 253, 52];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [223, 125, 135, 226, 195, 206, 214, 46, 91, 84, 108, 75, 29, 125, 86, 221, 96, 60, 204, 150, 217, 116, 13, 48, 217, 211, 194, 116, 3, 250, 230, 244];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {
         "/dokime.host.v1.Aggregates/Get" => Box::pin(session.call::<host::AggregatesGetRequest, host::AggregatesGetResponse>("/dokime.host.v1.Aggregates/Get", payload)).await,
-        "/dokime.host.v1.Analyses/List" => Box::pin(session.call::<host::AnalysesListRequest, host::AnalysesListResponse>("/dokime.host.v1.Analyses/List", payload)).await,
         "/dokime.host.v1.Backend/Appearance" => Box::pin(session.call::<host::BackendAppearanceRequest, host::BackendAppearanceResponse>("/dokime.host.v1.Backend/Appearance", payload)).await,
         "/dokime.host.v1.Cases/Create" => Box::pin(session.call::<host::CasesCreateRequest, host::CasesCreateResponse>("/dokime.host.v1.Cases/Create", payload)).await,
         "/dokime.host.v1.Cases/Delete" => Box::pin(session.call::<host::CasesDeleteRequest, host::CasesDeleteResponse>("/dokime.host.v1.Cases/Delete", payload)).await,

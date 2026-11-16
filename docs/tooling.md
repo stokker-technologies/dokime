@@ -153,6 +153,20 @@ before deleting that root, including when a story unwinds.
 
 ## Desktop Integration
 
+`mise run dev` is the single entry point for interactive desktop work
+(`tools/python/src/dokime_tools/dev/desktop.py`). It runs `generate:typescript`,
+builds `plugin-obc`, `dokime` and `dokime-host`, and bundles the plugin like the
+product build does. It then installs that bundle through a short-lived
+`dokime server` on a fresh root under the system temporary directory, using a
+unique `dokime-dev-<id>` credential namespace. Finally it starts
+`tauri dev --features console` with that root and namespace. Windows owns the
+started tree through a kill-on-close job; Linux uses one session per started
+process. On exit the tool waits for every owned process to stop. It then runs
+`dokime-host --remove-credentials` for each root and deletes the folder. The
+desktop `package.json` keeps only the scripts that tasks call: `build:live`,
+`build:report` and `typecheck`, plus Vite's `dev`, which is the Tauri
+`beforeDevCommand`.
+
 The desktop native package is restored to workspace and default membership.
 Build it with `mise run build -- --package dokime-gui`; add
 `--features tauri/custom-protocol` to embed the prepared live frontend.
@@ -187,6 +201,32 @@ add `--check` to prove its drift. Never edit generated files.
 The protocol task also generates four-language SDK roots through the pinned
 library's descriptor table/generator; its check verifies those outputs for drift.
 Never edit generated files.
+
+## Documentation Site
+
+The website renders the guides in `docs/` in place through the Starlight project in
+`site/`, with static search and a release selector; the operations reference is
+generated from the protocol definitions and their comments. Edit guides only in
+`docs/`; each guide's first heading becomes its page title.
+
+```sh
+mise run docs:serve
+mise run docs:build
+mise run docs:build -- --release --archive
+mise run docs:image -- --archive target/docs/dokime-docs.zip
+```
+
+`docs:serve` previews the development entry with live reload. `docs:build` writes
+the development entry to `target/docs/dev/` and fails on a broken page link or
+heading anchor; `--release` builds the release line of the current version under
+`/<MAJOR.MINOR>/` instead, and `--archive` packs the entry as
+`target/docs/dokime-docs.zip`. Release staging publishes that archive as
+`dokime-docs-<version>.zip` (required for a stable release) or
+`dokime-docs-nightly.zip`. `docs:image` downloads the newest archive of each release
+line and the Nightly archive (it needs `GH_TOKEN`), or assembles the given archives,
+and packs `target/docs/dokime-docs-site.zip` with `versions.json` and the `latest`
+redirects. Pull requests run `Build / Documentation`; Nightly builds the archive
+beside publication and its report states whether the archive was attached.
 
 ## Build and Delivery Artifacts
 

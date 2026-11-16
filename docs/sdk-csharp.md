@@ -134,11 +134,6 @@ restricted to the trusted execution. `Context.CallAsync` and `.WatchAsync` also
 support explicitly declared instrument operations, preserving cancellation and
 scope through the pinned library.
 
-`Plugin.Analysis` registers one Protected computation with raw `AnalysisSamples`
-axes, values and units. It returns typed `AnalysisValues`, including full raw axes
-and independent display indices. No analysis convenience converts those axes to
-plot drawing coordinates.
-
 ## Use the Client
 
 ```csharp

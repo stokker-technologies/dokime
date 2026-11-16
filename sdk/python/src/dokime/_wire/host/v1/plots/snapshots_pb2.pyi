@@ -1,5 +1,4 @@
 from dokime._wire.host.v1 import record_schemas_pb2 as _record_schemas_pb2
-from dokime._wire.model.v1 import analyses_pb2 as _analyses_pb2
 from dokime._wire.model.v1 import evidence_pb2 as _evidence_pb2
 from dokime._wire.model.v1 import expressions_pb2 as _expressions_pb2
 from dokime._wire.model.v1 import plots_pb2 as _plots_pb2
@@ -82,56 +81,6 @@ class SnapshotsWatchResponse(_message.Message):
     opening: bool
     resync_required: _failure_pb2.Failure
     def __init__(self, updates: _Optional[_Iterable[_Union[PlotStreamUpdate, _Mapping]]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., opening: _Optional[bool] = ..., resync_required: _Optional[_Union[_failure_pb2.Failure, _Mapping]] = ...) -> None: ...
-
-class AnalysisComputation(_message.Message):
-    __slots__ = ("definition", "selection", "source", "series")
-    DEFINITION_FIELD_NUMBER: _ClassVar[int]
-    SELECTION_FIELD_NUMBER: _ClassVar[int]
-    SOURCE_FIELD_NUMBER: _ClassVar[int]
-    SERIES_FIELD_NUMBER: _ClassVar[int]
-    definition: _analyses_pb2.Analysis
-    selection: _analyses_pb2.AnalysisSelection
-    source: AnalysisEvidence
-    series: _containers.RepeatedCompositeFieldContainer[AnalysisSeries]
-    def __init__(self, definition: _Optional[_Union[_analyses_pb2.Analysis, _Mapping]] = ..., selection: _Optional[_Union[_analyses_pb2.AnalysisSelection, _Mapping]] = ..., source: _Optional[_Union[AnalysisEvidence, _Mapping]] = ..., series: _Optional[_Iterable[_Union[AnalysisSeries, _Mapping]]] = ...) -> None: ...
-
-class AnalysisEvidence(_message.Message):
-    __slots__ = ("store", "epoch", "position", "stream", "scope", "window_s", "fields", "x_key")
-    STORE_FIELD_NUMBER: _ClassVar[int]
-    EPOCH_FIELD_NUMBER: _ClassVar[int]
-    POSITION_FIELD_NUMBER: _ClassVar[int]
-    STREAM_FIELD_NUMBER: _ClassVar[int]
-    SCOPE_FIELD_NUMBER: _ClassVar[int]
-    WINDOW_S_FIELD_NUMBER: _ClassVar[int]
-    FIELDS_FIELD_NUMBER: _ClassVar[int]
-    X_KEY_FIELD_NUMBER: _ClassVar[int]
-    store: str
-    epoch: str
-    position: int
-    stream: str
-    scope: _evidence_pb2.EvidenceScope
-    window_s: float
-    fields: _containers.RepeatedScalarFieldContainer[str]
-    x_key: str
-    def __init__(self, store: _Optional[str] = ..., epoch: _Optional[str] = ..., position: _Optional[int] = ..., stream: _Optional[str] = ..., scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., window_s: _Optional[float] = ..., fields: _Optional[_Iterable[str]] = ..., x_key: _Optional[str] = ...) -> None: ...
-
-class AnalysisSeries(_message.Message):
-    __slots__ = ("key", "label", "origin", "input_samples", "first_axis", "last_axis", "outputs")
-    KEY_FIELD_NUMBER: _ClassVar[int]
-    LABEL_FIELD_NUMBER: _ClassVar[int]
-    ORIGIN_FIELD_NUMBER: _ClassVar[int]
-    INPUT_SAMPLES_FIELD_NUMBER: _ClassVar[int]
-    FIRST_AXIS_FIELD_NUMBER: _ClassVar[int]
-    LAST_AXIS_FIELD_NUMBER: _ClassVar[int]
-    OUTPUTS_FIELD_NUMBER: _ClassVar[int]
-    key: str
-    label: str
-    origin: str
-    input_samples: int
-    first_axis: float
-    last_axis: float
-    outputs: _containers.RepeatedCompositeFieldContainer[_analyses_pb2.AnalysisValues]
-    def __init__(self, key: _Optional[str] = ..., label: _Optional[str] = ..., origin: _Optional[str] = ..., input_samples: _Optional[int] = ..., first_axis: _Optional[float] = ..., last_axis: _Optional[float] = ..., outputs: _Optional[_Iterable[_Union[_analyses_pb2.AnalysisValues, _Mapping]]] = ...) -> None: ...
 
 class ContourGrid(_message.Message):
     __slots__ = ("columns", "rows", "x_edges", "y_edges", "values", "valid")
@@ -366,7 +315,7 @@ class PlotMarker(_message.Message):
     def __init__(self, x: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., label: _Optional[str] = ..., record_type: _Optional[str] = ..., color: _Optional[str] = ...) -> None: ...
 
 class PlotPayload(_message.Message):
-    __slots__ = ("stream", "x_key", "series_by", "context", "series", "frame", "markers", "max_points", "window_s", "generated_at", "x_format", "run_started_at", "cycle_started_at", "analysis", "computed", "summaries", "bucket_width_s", "bucket_window", "replaced_buckets")
+    __slots__ = ("stream", "x_key", "series_by", "context", "series", "frame", "markers", "max_points", "window_s", "generated_at", "x_format", "run_started_at", "cycle_started_at", "analysis", "summaries", "bucket_width_s", "bucket_window", "replaced_buckets")
     STREAM_FIELD_NUMBER: _ClassVar[int]
     X_KEY_FIELD_NUMBER: _ClassVar[int]
     SERIES_BY_FIELD_NUMBER: _ClassVar[int]
@@ -381,7 +330,6 @@ class PlotPayload(_message.Message):
     RUN_STARTED_AT_FIELD_NUMBER: _ClassVar[int]
     CYCLE_STARTED_AT_FIELD_NUMBER: _ClassVar[int]
     ANALYSIS_FIELD_NUMBER: _ClassVar[int]
-    COMPUTED_FIELD_NUMBER: _ClassVar[int]
     SUMMARIES_FIELD_NUMBER: _ClassVar[int]
     BUCKET_WIDTH_S_FIELD_NUMBER: _ClassVar[int]
     BUCKET_WINDOW_FIELD_NUMBER: _ClassVar[int]
@@ -400,12 +348,11 @@ class PlotPayload(_message.Message):
     run_started_at: str
     cycle_started_at: str
     analysis: PlotAnalysis
-    computed: AnalysisComputation
     summaries: _containers.RepeatedCompositeFieldContainer[PlotSeriesSummary]
     bucket_width_s: float
     bucket_window: PlotWindow
     replaced_buckets: _containers.RepeatedScalarFieldContainer[float]
-    def __init__(self, stream: _Optional[str] = ..., x_key: _Optional[str] = ..., series_by: _Optional[str] = ..., context: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., series: _Optional[_Iterable[_Union[PlotSeries, _Mapping]]] = ..., frame: _Optional[_Union[PlotFrame, _Mapping]] = ..., markers: _Optional[_Iterable[_Union[PlotMarker, _Mapping]]] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ..., generated_at: _Optional[str] = ..., x_format: _Optional[_Union[_record_schemas_pb2.ValueFormat, _Mapping]] = ..., run_started_at: _Optional[str] = ..., cycle_started_at: _Optional[str] = ..., analysis: _Optional[_Union[PlotAnalysis, _Mapping]] = ..., computed: _Optional[_Union[AnalysisComputation, _Mapping]] = ..., summaries: _Optional[_Iterable[_Union[PlotSeriesSummary, _Mapping]]] = ..., bucket_width_s: _Optional[float] = ..., bucket_window: _Optional[_Union[PlotWindow, _Mapping]] = ..., replaced_buckets: _Optional[_Iterable[float]] = ...) -> None: ...
+    def __init__(self, stream: _Optional[str] = ..., x_key: _Optional[str] = ..., series_by: _Optional[str] = ..., context: _Optional[_Union[_scalar_pb2.Value, _Mapping]] = ..., series: _Optional[_Iterable[_Union[PlotSeries, _Mapping]]] = ..., frame: _Optional[_Union[PlotFrame, _Mapping]] = ..., markers: _Optional[_Iterable[_Union[PlotMarker, _Mapping]]] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ..., generated_at: _Optional[str] = ..., x_format: _Optional[_Union[_record_schemas_pb2.ValueFormat, _Mapping]] = ..., run_started_at: _Optional[str] = ..., cycle_started_at: _Optional[str] = ..., analysis: _Optional[_Union[PlotAnalysis, _Mapping]] = ..., summaries: _Optional[_Iterable[_Union[PlotSeriesSummary, _Mapping]]] = ..., bucket_width_s: _Optional[float] = ..., bucket_window: _Optional[_Union[PlotWindow, _Mapping]] = ..., replaced_buckets: _Optional[_Iterable[float]] = ...) -> None: ...
 
 class PlotPayloadDiagnostics(_message.Message):
     __slots__ = ("examined_rows", "resolution_nanos", "series_count", "point_count", "raw_point_count", "downsampled", "max_points", "window_s")
@@ -504,7 +451,7 @@ class PlotStreamUpdate(_message.Message):
     def __init__(self, kind: _Optional[_Union[PlotStreamKind, str]] = ..., envelope: _Optional[_Union[PlotEnvelope, _Mapping]] = ...) -> None: ...
 
 class PlotRequest(_message.Message):
-    __slots__ = ("arrangement", "pareto", "hole", "xy_interval", "grid", "reduction", "render", "y_viewport", "panel_height", "plot_id", "plot_type", "style", "x_scale", "y_scale", "stream", "y_keys", "marker_record_types", "filters", "x_key", "series_by", "x_expression", "y_expressions", "series_by_expression", "z_stream", "z_field", "unit", "max_points", "window_s", "scope", "technique", "z_expression", "fft", "interval", "histogram", "analysis", "summary_window", "viewport", "panel_width", "at")
+    __slots__ = ("arrangement", "pareto", "hole", "xy_interval", "grid", "reduction", "render", "y_viewport", "panel_height", "plot_id", "plot_type", "style", "x_scale", "y_scale", "stream", "y_keys", "marker_record_types", "filters", "x_key", "series_by", "x_expression", "y_expressions", "series_by_expression", "z_stream", "z_field", "unit", "max_points", "window_s", "scope", "technique", "z_expression", "fft", "interval", "histogram", "summary_window", "viewport", "panel_width", "at")
     ARRANGEMENT_FIELD_NUMBER: _ClassVar[int]
     PARETO_FIELD_NUMBER: _ClassVar[int]
     HOLE_FIELD_NUMBER: _ClassVar[int]
@@ -539,7 +486,6 @@ class PlotRequest(_message.Message):
     FFT_FIELD_NUMBER: _ClassVar[int]
     INTERVAL_FIELD_NUMBER: _ClassVar[int]
     HISTOGRAM_FIELD_NUMBER: _ClassVar[int]
-    ANALYSIS_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_WINDOW_FIELD_NUMBER: _ClassVar[int]
     VIEWPORT_FIELD_NUMBER: _ClassVar[int]
     PANEL_WIDTH_FIELD_NUMBER: _ClassVar[int]
@@ -578,12 +524,11 @@ class PlotRequest(_message.Message):
     fft: _plots_pb2.PlotFftOptions
     interval: _plots_pb2.PlotIntervalOptions
     histogram: _plots_pb2.PlotHistogramOptions
-    analysis: _analyses_pb2.AnalysisSelection
     summary_window: PlotWindow
     viewport: PlotWindow
     panel_width: int
     at: _position_pb2.ReadCut
-    def __init__(self, arrangement: _Optional[_Union[_plots_pb2.BarArrangement, str]] = ..., pareto: _Optional[bool] = ..., hole: _Optional[float] = ..., xy_interval: _Optional[_Union[_plots_pb2.XyInterval, str]] = ..., grid: _Optional[_Union[_plots_pb2.GridDefinition, _Mapping]] = ..., reduction: _Optional[_Union[_plots_pb2.Reduction, str]] = ..., render: _Optional[_Union[_plots_pb2.ContourRender, str]] = ..., y_viewport: _Optional[_Union[PlotWindow, _Mapping]] = ..., panel_height: _Optional[int] = ..., plot_id: _Optional[str] = ..., plot_type: _Optional[_Union[_plots_pb2.PlotKind, str]] = ..., style: _Optional[_Union[_plots_pb2.LineStyle, str]] = ..., x_scale: _Optional[_Union[_plots_pb2.AxisScale, str]] = ..., y_scale: _Optional[_Union[_plots_pb2.AxisScale, str]] = ..., stream: _Optional[str] = ..., y_keys: _Optional[_Iterable[str]] = ..., marker_record_types: _Optional[_Iterable[str]] = ..., filters: _Optional[_Iterable[_Union[_plots_pb2.PlotFilter, _Mapping]]] = ..., x_key: _Optional[str] = ..., series_by: _Optional[str] = ..., x_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., y_expressions: _Optional[_Iterable[_Union[_expressions_pb2.DataExpression, _Mapping]]] = ..., series_by_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., z_stream: _Optional[str] = ..., z_field: _Optional[str] = ..., unit: _Optional[str] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ..., scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., technique: _Optional[_Union[_plots_pb2.Downsample, str]] = ..., z_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., fft: _Optional[_Union[_plots_pb2.PlotFftOptions, _Mapping]] = ..., interval: _Optional[_Union[_plots_pb2.PlotIntervalOptions, _Mapping]] = ..., histogram: _Optional[_Union[_plots_pb2.PlotHistogramOptions, _Mapping]] = ..., analysis: _Optional[_Union[_analyses_pb2.AnalysisSelection, _Mapping]] = ..., summary_window: _Optional[_Union[PlotWindow, _Mapping]] = ..., viewport: _Optional[_Union[PlotWindow, _Mapping]] = ..., panel_width: _Optional[int] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
+    def __init__(self, arrangement: _Optional[_Union[_plots_pb2.BarArrangement, str]] = ..., pareto: _Optional[bool] = ..., hole: _Optional[float] = ..., xy_interval: _Optional[_Union[_plots_pb2.XyInterval, str]] = ..., grid: _Optional[_Union[_plots_pb2.GridDefinition, _Mapping]] = ..., reduction: _Optional[_Union[_plots_pb2.Reduction, str]] = ..., render: _Optional[_Union[_plots_pb2.ContourRender, str]] = ..., y_viewport: _Optional[_Union[PlotWindow, _Mapping]] = ..., panel_height: _Optional[int] = ..., plot_id: _Optional[str] = ..., plot_type: _Optional[_Union[_plots_pb2.PlotKind, str]] = ..., style: _Optional[_Union[_plots_pb2.LineStyle, str]] = ..., x_scale: _Optional[_Union[_plots_pb2.AxisScale, str]] = ..., y_scale: _Optional[_Union[_plots_pb2.AxisScale, str]] = ..., stream: _Optional[str] = ..., y_keys: _Optional[_Iterable[str]] = ..., marker_record_types: _Optional[_Iterable[str]] = ..., filters: _Optional[_Iterable[_Union[_plots_pb2.PlotFilter, _Mapping]]] = ..., x_key: _Optional[str] = ..., series_by: _Optional[str] = ..., x_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., y_expressions: _Optional[_Iterable[_Union[_expressions_pb2.DataExpression, _Mapping]]] = ..., series_by_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., z_stream: _Optional[str] = ..., z_field: _Optional[str] = ..., unit: _Optional[str] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ..., scope: _Optional[_Union[_evidence_pb2.EvidenceScope, _Mapping]] = ..., technique: _Optional[_Union[_plots_pb2.Downsample, str]] = ..., z_expression: _Optional[_Union[_expressions_pb2.DataExpression, _Mapping]] = ..., fft: _Optional[_Union[_plots_pb2.PlotFftOptions, _Mapping]] = ..., interval: _Optional[_Union[_plots_pb2.PlotIntervalOptions, _Mapping]] = ..., histogram: _Optional[_Union[_plots_pb2.PlotHistogramOptions, _Mapping]] = ..., summary_window: _Optional[_Union[PlotWindow, _Mapping]] = ..., viewport: _Optional[_Union[PlotWindow, _Mapping]] = ..., panel_width: _Optional[int] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 class PlotWindow(_message.Message):
     __slots__ = ("to",)

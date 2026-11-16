@@ -44,9 +44,6 @@ import type {
   DocumentPlotType,
   DocumentSigmaInterval,
   DocumentViewPlot,
-  EvidenceAnalysisDefinition,
-  EvidenceAnalysisResult,
-  EvidenceAnalysisSelection,
   PlotAnalysis,
   PlotCartesianFrame,
   PlotMarker,
@@ -58,15 +55,7 @@ import type {
   RecordScope,
 } from "@/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
-import { mapParameter } from "@/lib/host/suites";
-import {
-  jsonToNativeValue,
-  mapNativeValueFormat,
-  nativeEvidenceScope,
-  nativeValuesToJson,
-  nativeValueToJson,
-  recordScopeFromNative,
-} from "@/lib/host/values";
+import { jsonToNativeValue, mapNativeValueFormat, nativeEvidenceScope, nativeValueToJson } from "@/lib/host/values";
 import type { StatisticValue } from "@/lib/statistics";
 import { NativeApiLimitError, NATIVE_MAX_PAGES, safeNumber } from "./native-values";
 
@@ -76,8 +65,6 @@ type PlotRequest = Wire<HostPlotRequest>;
 type PlotEnvelope = Wire<Awaited<ReturnType<typeof rpc.plotsSnapshotsList>>>["envelopes"][number];
 type DataExpression = NonNullable<PlotRequest["xExpression"]>;
 type NativePlotPayload = NonNullable<PlotEnvelope["payload"]>;
-type NativeAnalysisComputation = NonNullable<NativePlotPayload["computed"]>;
-type NativeAnalysisDefinition = NonNullable<NativeAnalysisComputation["definition"]>;
 type NativePlotAnalysis = NonNullable<NativePlotPayload["analysis"]>;
 type NativePlotFrame = NonNullable<NativePlotPayload["frame"]>;
 type NativePlotMarker = NativePlotPayload["markers"][number];
@@ -127,7 +114,6 @@ export type PlotPayloadRequestInput = {
   xScale?: DocumentAxisScale | null;
   yScale?: DocumentAxisScale | null;
   fft?: DocumentFftOptions;
-  analysis?: EvidenceAnalysisSelection | null;
   interval?: DocumentSigmaInterval;
   histogram?: DocumentHistogramOptions;
   zExpression?: DocumentDataExpression | null;
@@ -210,15 +196,6 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
     yViewport: input.yViewport,
 
     ...(input.plotId == null ? {} : { plotId: input.plotId }),
-    analysis: input.analysis
-      ? {
-          id: input.analysis.id,
-          version: input.analysis.version,
-          parameters: {
-            values: Object.fromEntries(Object.entries(input.analysis.parameters).map(([key, value]) => [key, jsonToNativeValue(value)])),
-          },
-        }
-      : undefined,
     plotType: plotType(input.plotType),
     style: {
       line: LineStyle.LINE,
@@ -659,7 +636,6 @@ function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlo
       };
     }),
     analysis: mapNativePlotAnalysis(payload.analysis),
-    computed: mapNativeComputation(payload.computed),
     cartesian: points ? null : mapNativeCartesianFrame(payload.frame),
     markers: payload.markers.map(mapNativePlotMarker),
     max_points: safeNumber(payload.maxPoints, "Plots payload max_points"),
@@ -951,63 +927,4 @@ function normalizeCancellation(error: unknown, session: SessionIdentity, signal?
 
 function abortError(): DOMException {
   return new DOMException("Native plot request cancelled.", "AbortError");
-}
-
-function mapNativeAnalysisDefinition(value: NativeAnalysisDefinition): EvidenceAnalysisDefinition {
-  return {
-    id: value.metadata?.identifier ?? "",
-    version: value.version,
-    label: value.metadata?.label ?? "",
-    description: value.metadata?.description ?? "",
-    parameters: value.parameters.map(mapParameter),
-    outputs: value.outputs.map((output) => ({
-      key: output.metadata?.identifier ?? "",
-      label: output.metadata?.label ?? "",
-      unit: output.unit,
-      axis: output.axis ? { key: output.axis, unit: output.axisUnit } : undefined,
-    })),
-    maxSamples: value.maxSamples,
-    maxOutputValues: value.maxOutputValues,
-  };
-}
-
-function mapNativeComputation(value?: NativeAnalysisComputation): EvidenceAnalysisResult | null {
-  if (!value) return null;
-  if (!value.definition || !value.selection || !value.source) {
-    throw new Error("Native analysis result is missing its definition or provenance.");
-  }
-  return {
-    definition: mapNativeAnalysisDefinition(value.definition),
-    selection: {
-      id: value.selection.id,
-      version: value.selection.version,
-      parameters: nativeValuesToJson(value.selection.parameters?.values),
-    },
-    source: {
-      store: value.source.store,
-      epoch: value.source.epoch,
-      position: value.source.position.toString(),
-      stream: value.source.stream,
-      scope: recordScopeFromNative(value.source.scope),
-      windowS: value.source.windowS,
-      fields: [...value.source.fields],
-      xKey: value.source.xKey,
-    },
-    series: value.series.map((series) => ({
-      key: series.key,
-      label: series.label,
-      origin: series.origin,
-      inputSamples: safeNumber(series.inputSamples, "analysis input samples"),
-      firstAxis: series.firstAxis,
-      lastAxis: series.lastAxis,
-      outputs: series.outputs.map((output) => ({
-        key: output.key,
-        unit: output.unit,
-        axisUnit: output.axisUnit,
-        displayIndices: [...output.displayIndices],
-        axis: [...output.axis],
-        values: [...output.values],
-      })),
-    })),
-  };
 }

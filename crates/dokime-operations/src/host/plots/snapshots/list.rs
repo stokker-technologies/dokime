@@ -139,23 +139,7 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
 }
 
 /* === Private Functions === */
-pub(crate) async fn query_one(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
-    if request.analysis.is_some() {
-        return crate::host::plots::analysis::query(context, request).await;
-    }
-    query_base(context, request).await
-}
-pub(crate) async fn query_base(context: &Context, request: PlotRequest) -> Result<PlotEnvelope> {
-    Ok(query_batch(context, vec![request]).await?.remove(0))
-}
 async fn query_batch(context: &Context, requests: Vec<PlotRequest>) -> Result<Vec<PlotEnvelope>> {
-    if requests.iter().any(|request| request.analysis.is_some()) {
-        let mut output = Vec::new();
-        for request in requests {
-            output.push(Box::pin(query_one(context, request)).await?);
-        }
-        return Ok(output);
-    }
     let (store, _cancel_on_drop) = context.host.store().read_session()?;
     let context = context.clone();
     task::spawn_blocking(move || {
@@ -333,9 +317,6 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     }
     if !request.filters.is_empty() {
         return Err(Error::Invalid("Query Plot: Select an Unfiltered Stream Window".into()));
-    }
-    if request.analysis.is_some() {
-        return Err(Error::Invalid("Query Plot: Use a Built-In Reduction Until Plugin Analysis Invocation Is Connected".into()));
     }
     if request.z_stream.as_ref().is_some_and(|selected| selected != &stream.id) {
         return Err(Error::Invalid("Query Plot: Select Coordinate Columns from One Stream".into()));
