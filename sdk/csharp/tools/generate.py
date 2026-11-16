@@ -16,10 +16,11 @@ import tomllib
 from pathlib import Path
 from typing import cast
 
+from dokime_tools.build import render_resources
+
 # Local Imports
 from dokime_tools.build.csharp_protocol import protocols
 from dokime_tools.build.protocol_callers import narrow_callers
-from dokime_tools.build import render_resources
 
 # Third Party Imports
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
