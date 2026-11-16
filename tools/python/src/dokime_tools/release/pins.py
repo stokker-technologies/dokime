@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Reject Git Dependencies For Releases And Report Them In Nightly."""
+"Reject Git Dependencies for Releases and Report Them in Nightly."
 
 # === Imports === #
 
@@ -14,7 +14,12 @@ import json
 import os
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import policy
 

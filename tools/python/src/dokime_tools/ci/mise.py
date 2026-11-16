@@ -15,11 +15,15 @@ import sys
 import tomllib
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -37,7 +41,12 @@ def forms(definition: object) -> list[str]:
     if table is None:
         runs = [("run", definition)]
     else:
-        runs = [(name, table[name]) for name in ("run", "run_windows") if name in table]
+        runs = []
+        for runs_name in ("run", "run_windows"):
+            if runs_name not in table:
+                continue
+            runs.append((runs_name, table[runs_name]))
+
     findings = []
     commands = []
     for name, run in runs:
@@ -88,24 +97,28 @@ def check(root: Path) -> list[str]:
     tasks = {}
     configuration = document.get("task_config", {})
     if not isinstance(configuration, dict):
-        raise TypeError("task_config must be a table")
+        raise TypeError("Check Task Configuration: task_config must be a table")
     includes = configuration.get("includes", [])
     if not isinstance(includes, list):
-        raise TypeError("task_config.includes must be an array of paths")
+        raise TypeError("Check Task Configuration: task_config.includes must be an array of paths")
     for relative in includes:
         if not isinstance(relative, str) or not relative.strip():
-            raise ValueError("task_config.includes must contain paths")
+            raise ValueError("Check Task Configuration: task_config.includes must contain paths")
         path = (root / relative).resolve()
         if not path.is_relative_to(root):
-            raise ValueError("included Mise tasks must stay inside the repository")
+            raise ValueError("Check Task Configuration: included Mise tasks must stay inside the repository")
         if not path.is_file():
-            raise ValueError("task_config.includes must name TOML files")
+            raise ValueError("Check Task Configuration: task_config.includes must name TOML files")
         tasks.update(tomllib.loads(path.read_text(encoding="utf-8")))
     project = document.get("tasks", {})
     if not isinstance(project, dict):
-        raise TypeError("tasks must be a table")
+        raise TypeError("Check Task Configuration: tasks must be a table")
     tasks.update(project)
-    findings = [f"mise.toml: task {task}: {finding}" for task, definition in tasks.items() for finding in forms(definition)]
+    findings = []
+    for findings_task, findings_definition in tasks.items():
+        for findings_finding in forms(findings_definition):
+            findings.append(f"mise.toml: task {findings_task}: {findings_finding}")
+
     return findings
 
 

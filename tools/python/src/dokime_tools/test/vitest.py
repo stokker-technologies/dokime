@@ -6,14 +6,7 @@
 #
 # ***
 
-"""Script Test Commands For TypeScript And JavaScript Lanes.
-
-The lane passes its whole command after `--`. Two placeholders are expanded in every
-argument: `{junit}` becomes the JUnit report path the runner reads, `{timeout_ms}` the lane
-per-story hang guard in milliseconds, for example:
-
-    -- pnpm exec vitest run --reporter=junit --outputFile={junit} --testTimeout={timeout_ms}
-"""
+"Script Test Commands for TypeScript and JavaScript Lanes.\n\nthe lane passes its whole command after `--`. Two placeholders are expanded in every\nargument: `{junit}` becomes the JUnit report path the runner reads, `{timeout_ms}` the lane\nper-story hang guard in milliseconds, for example:\n\n    -- pnpm exec vitest run --reporter=junit --outputFile={junit} --testTimeout={timeout_ms}\n"
 
 # === Imports === #
 
@@ -21,7 +14,12 @@ per-story hang guard in milliseconds, for example:
 from collections.abc import Sequence
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from . import policy
 
@@ -43,9 +41,9 @@ TIMEOUT = "{timeout_ms}"
 
 def run(arguments: Sequence[str], junit: Path, deadline: int) -> list[str]:
     if not arguments:
-        raise policy.TestError("script lanes pass their test command after --")
+        raise policy.TestError("Run Vitest Tests: script lanes pass their test command after --")
     if not any(JUNIT in argument for argument in arguments):
-        raise policy.TestError(f"the script command must write JUnit to {JUNIT}")
+        raise policy.TestError(f"Run Vitest Tests: the script command must write JUnit to {JUNIT}")
     return [argument.replace(JUNIT, str(junit)).replace(TIMEOUT, str(deadline * 1000)) for argument in arguments]
 
 

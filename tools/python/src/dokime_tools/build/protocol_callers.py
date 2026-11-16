@@ -19,15 +19,18 @@ import tempfile
 from pathlib import Path
 from typing import Any, cast
 
+# isort: split
+
 # Third Party Imports
 from google.protobuf import descriptor_pool, message_factory
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
+
+# isort: split
 
 # Local Imports
 from ..process import spawn_flags
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -45,9 +48,14 @@ def caller_options(descriptors: FileDescriptorSet) -> dict[str, str]:
     pool = descriptor_pool.DescriptorPool()
     pending = {file.name: file for file in descriptors.file}
     while pending:
-        ready = [file for file in pending.values() if all(name not in pending for name in file.dependency)]
+        ready = []
+        for ready_file in pending.values():
+            if not (all(name not in pending for name in ready_file.dependency)):
+                continue
+            ready.append(ready_file)
+
         if not ready:
-            raise ValueError("Protocol Callers: Unresolved Descriptor Dependencies")
+            raise ValueError("Build Protocol Callers: Protocol Callers: Unresolved Descriptor Dependencies")
         for file in ready:
             pool.AddSerializedFile(file.SerializeToString())
             del pending[file.name]
@@ -61,15 +69,15 @@ def caller_options(descriptors: FileDescriptorSet) -> dict[str, str]:
                 try:
                     extension = pool.FindExtensionByName("harmos.model.v1.callers")
                 except KeyError as error:
-                    raise ValueError(f"Protocol Callers: {identity} Has No Callers Declaration") from error
+                    raise ValueError(f"Build Protocol Callers: Protocol Callers: {identity} Has No Callers Declaration") from error
                 if extension.enum_type is None:
-                    raise ValueError("Protocol Callers: Option Must Be an Enum")
+                    raise ValueError("Build Protocol Callers: Protocol Callers: Option Must Be an Enum")
                 options = cast(Any, message_factory.GetMessageClass(pool.FindMessageTypeByName("google.protobuf.MethodOptions"))())
                 options.ParseFromString(method.options.SerializeToString())
                 value = options.Extensions[extension]
                 allowed = extension.enum_type.values_by_number.get(value)
                 if not options.HasExtension(extension) or allowed is None or allowed.name not in {"CLIENTS", "PLUGINS", "ALL"}:
-                    raise ValueError(f"Protocol Callers: {identity} Requires CLIENTS, PLUGINS or ALL")
+                    raise ValueError(f"Build Protocol Callers: Protocol Callers: {identity} Requires CLIENTS, PLUGINS or ALL")
                 result[identity] = allowed.name
     return result
 
@@ -81,18 +89,23 @@ def narrow_callers(descriptors: FileDescriptorSet, overrides: dict[str, str]) ->
     for identity, selected in overrides.items():
         original = declared.get(identity)
         if original is None or selected not in audiences or not audiences[selected] <= audiences[original]:
-            raise ValueError(f"Narrow {identity}: Callers Must Be a Subset of the Declaration")
+            raise ValueError(f"Build Protocol Callers: Narrow {identity}: Callers Must Be a Subset of the Declaration")
     # The Extension Number and Its Definition Are Owned by the Descriptor, Not This Tool.
     pool = descriptor_pool.DescriptorPool()
     pending = {file.name: file for file in descriptors.file}
     while pending:
-        ready = [file for file in pending.values() if all(name not in pending for name in file.dependency)]
+        ready = []
+        for ready_file in pending.values():
+            if not (all(name not in pending for name in ready_file.dependency)):
+                continue
+            ready.append(ready_file)
+
         for file in ready:
             pool.AddSerializedFile(file.SerializeToString())
             del pending[file.name]
     extension = pool.FindExtensionByName("harmos.model.v1.callers")
     if extension.enum_type is None:
-        raise ValueError("Protocol Callers: Option Must Be an Enum")
+        raise ValueError("Build Protocol Callers: Protocol Callers: Option Must Be an Enum")
     options_type = message_factory.GetMessageClass(pool.FindMessageTypeByName("google.protobuf.MethodOptions"))
     for file in descriptors.file:
         for service in file.service:
@@ -107,11 +120,15 @@ def narrow_callers(descriptors: FileDescriptorSet, overrides: dict[str, str]) ->
 
 def main() -> None:
     check_public_surfaces(Path(__file__).resolve().parents[5])
-    with tempfile.TemporaryDirectory() as scratch:
+    scratch_directory = tempfile.TemporaryDirectory()
+    scratch = scratch_directory.name
+    try:
         output = Path(scratch) / "descriptors.bin"
         subprocess.run(["buf", "build", "--as-file-descriptor-set", "-o", str(output)], check=True, creationflags=spawn_flags())
         methods = caller_options(FileDescriptorSet.FromString(output.read_bytes()))
         print(f"Protocol Callers: {len(methods)} Annotated Operations")
+    finally:
+        scratch_directory.cleanup()
 
 
 def check_public_surfaces(root: Path) -> None:
@@ -127,19 +144,22 @@ def check_public_surfaces(root: Path) -> None:
     candidates = [root / "README.md", *sorted((root / "docs").glob("*.md"))]
     candidates += sorted((root / "sdk/cpp/include").rglob("*.hpp"))
     candidates += sorted((root / "sdk/cpp/examples").glob("*/generated/*.hpp"))
-    candidates += [
-        path
-        for path in (root / "sdk/python/src/dokime").rglob("*")
-        if path.suffix in {".py", ".pyi"}
-        and not any(part.startswith("_") for part in path.relative_to(root / "sdk/python/src/dokime").parts[:-1])
-        and (not path.name.startswith("_") or path.name == "__init__.py")
-    ]
+    candidates_items = []
+    for candidates_path in (root / "sdk/python/src/dokime").rglob("*"):
+        if candidates_path.suffix not in {".py", ".pyi"}:
+            continue
+        if any(part.startswith("_") for part in candidates_path.relative_to(root / "sdk/python/src/dokime").parts[:-1]):
+            continue
+        if not (not candidates_path.name.startswith("_") or candidates_path.name == "__init__.py"):
+            continue
+        candidates_items.append(candidates_path)
+    candidates += candidates_items
     findings = []
     for path in candidates:
         relative = path.relative_to(root)
-        if relative.as_posix() in {"docs/architecture.md", "docs/execution-host.md"} or any(
-            part in {"detail", "_generated", "_wire"} for part in relative.parts
-        ):
+        if relative.as_posix() in {"docs/architecture.md", "docs/execution-host.md"}:
+            continue
+        if any(part in {"detail", "_generated", "_wire"} for part in relative.parts):
             continue
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             line = grpc_path.sub("", line)
@@ -153,9 +173,9 @@ def check_public_surfaces(root: Path) -> None:
         if not path.is_file():
             continue
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if not isinstance(node, ast.Assign) or not any(
-                isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets
-            ):
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets):
                 continue
             if not isinstance(node.value, (ast.List, ast.Tuple)):
                 raise TypeError(f"Check Public Exports: {path} Must Declare Its Names Explicitly")

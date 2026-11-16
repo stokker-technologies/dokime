@@ -21,8 +21,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
+import dokime_tools.test.policy
 from dokime_tools.build import configuration, paths
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import archive
@@ -63,7 +69,9 @@ def build(profile: str, language: str = "rust") -> None:
     environment.pop("VIRTUAL_ENV", None)
     environment.pop("PYTHONPATH", None)
     if language == "rust":
-        with tempfile.TemporaryDirectory(prefix="dokime-cli-") as scratch:
+        scratch_directory = tempfile.TemporaryDirectory(prefix="dokime-cli-")
+        scratch = scratch_directory.name
+        try:
             project = Path(scratch) / "rust"
             example = project / "test"
 
@@ -102,16 +110,23 @@ def build(profile: str, language: str = "rust") -> None:
             print(result.stderr, flush=True)
             result.check_returncode()
             shutil.copytree(project, output / "rust", dirs_exist_ok=True)
+        finally:
+            scratch_directory.cleanup()
         shutil.copy2(root / "target/debug" / f"dokime-example-test{extension}", output / f"dokime-example-test{extension}")
     else:
-        with tempfile.TemporaryDirectory(prefix="dokime-cli-") as scratch:
+        scratch_directory = tempfile.TemporaryDirectory(prefix="dokime-cli-")
+        scratch = scratch_directory.name
+        try:
             project = Path(scratch) / language
             example = project / ("Test" if language == "csharp" else "test")
             arguments = [str(cli), "new", str(project), "--lang", language]
             if language == "cpp":
                 sdk = root / "target/cp/tests/dokime-cpp.tar.gz"
-                with sdk.open("rb") as archive_file:
+                archive_file = sdk.open("rb")
+                try:
                     digest = hashlib.file_digest(archive_file, "sha256").hexdigest()
+                finally:
+                    archive_file.close()
                 arguments += ["--sdk-url", sdk.as_posix(), "--sdk-sha256", digest]
             subprocess.run(
                 arguments,
@@ -134,8 +149,11 @@ def build(profile: str, language: str = "rust") -> None:
             )
             if language == "python":
                 wheel = next((paths.output(root, "build", profile, "any") / "python").glob("*.whl"))
-                with (example / "pyproject.toml").open("a", encoding="utf-8") as manifest:
+                manifest = (example / "pyproject.toml").open("a", encoding="utf-8")
+                try:
                     manifest.write(f"\n[tool.uv.sources]\ndokime-sdk = {{ path = {json.dumps(wheel.as_posix())} }}\n")
+                finally:
+                    manifest.close()
                 environment["DOKIME_TEST_HOST"] = str(paths.output(root, "build", profile) / "fixtures/host" / f"dokime-host{extension}")
                 subprocess.run(
                     ["mise", "-C", str(example), "run", "build"],
@@ -216,6 +234,8 @@ def build(profile: str, language: str = "rust") -> None:
                     if artifact.suffix in (".exe", ".dll") or artifact.name == "dokime-plugin":
                         shutil.copy2(artifact, output / "cpp" / artifact.name)
             shutil.copytree(project, output / language / "source", ignore=shutil.ignore_patterns(".venv", "bin", "obj"), dirs_exist_ok=True)
+        finally:
+            scratch_directory.cleanup()
 
     # Extend the Portable Tests Fixture Inventory.
     stamp = paths.output(root, "build", profile) / "fixtures/stamp.json"
@@ -230,7 +250,7 @@ def build(profile: str, language: str = "rust") -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=configuration.PROFILES, default="dev")
+    parser.add_argument("--profile", choices=dokime_tools.test.policy.PROFILES, default="dev")
     parser.add_argument("--language", choices=("rust", "python", "csharp", "cpp"), default="rust")
     options = parser.parse_args()
     build(options.profile, options.language)

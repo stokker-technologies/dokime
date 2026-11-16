@@ -150,7 +150,6 @@ run = [
   "{{vars.python}} ruff format sdk/python{% if usage.check %} --check{% endif %}",
   "{{vars.python}} ruff check --select I,F401,PYI{% if not usage.check %} --fix{% endif %} tools/python",
   "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
-  "{{vars.python}} ruff format --no-force-exclude tools/python/src/dokime_tools/test tools/python/src/dokime_tools/release{% if usage.check %} --check{% endif %}",
 ]
 
 [tasks."format:rust"]
@@ -182,8 +181,6 @@ run = [
   "{{vars.python}} ruff check sdk/python",
   "{{vars.python}} ruff check tools/python",
   "{{vars.python}} ty check --project tools/python",
-  "{{vars.python}} ruff check --no-force-exclude tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py tools/python/src/dokime_tools/test/wheel.py tools/python/src/dokime_tools/test/arrow_archive.py",
-  '{{vars.python}} ty check --project tools/python --config "src.exclude = []" tools/python/src/dokime_tools/test/run.py tools/python/src/dokime_tools/test/traces.py tools/python/src/dokime_tools/test/pytest.py tools/python/src/dokime_tools/test/schedule.py tools/python/src/dokime_tools/test/archive.py tools/python/src/dokime_tools/test/nextest.py tools/python/src/dokime_tools/test/focused.py',
 ]
 
 [tasks."lint:rust"]
@@ -326,7 +323,7 @@ flag "--project <project>" default="sdk/python"
 flag "--select <select>"
 '''
 run = [
-  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language python --project {{usage.project}}{% elif usage.project == "tools/python" %}{{vars.python}} python -m unittest discover -s tools/python/tests/integration {% if usage.select %}-k "{{usage.select}}"{% endif %}{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
+  '''{% if usage.prepared %}{{vars.tools}} dokime_tools.test.schedule --lane --profile {{usage.profile}} --category integration --language python --project {{usage.project}}{% elif usage.project == "tools/python" %}{{vars.python}} python -m unittest discover -s tools/python/tests/integration -t tools/python {% if usage.select %}-k "{{usage.select}}"{% endif %}{% else %}{{vars.tools}} dokime_tools.test.python --profile {{usage.profile}} --category integration {% if usage.select %}-- -k "{{usage.select}}"{% endif %}{% endif %}''',
 ]
 
 [tasks."test:python:system"]

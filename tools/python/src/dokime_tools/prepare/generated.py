@@ -7,7 +7,7 @@
 # ***
 
 
-"""Generate And Transfer Frontend Protobuf Modules."""
+"Generate and Transfer Frontend Protobuf Modules."
 
 # === Imports === #
 
@@ -16,20 +16,27 @@ import argparse
 import subprocess
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools.build import cargo, paths
 from dokime_tools.package.staging import sync_output
 
-# Type Checking Imports
+from ..build import configuration
+from ..process import spawn_flags
 
+# Type Checking Imports
 
 # === Public Exports === #
 
 # === Constants === #
 
-ROOT = Path(__file__).resolve().parents[5]
-MODULES = ROOT / "target/generated/typescript"
+
+MODULES = configuration.ROOT / "target/generated/typescript"
 
 # === Types === #
 
@@ -41,37 +48,45 @@ MODULES = ROOT / "target/generated/typescript"
 def prepare() -> None:
     """Generate Frontend Message Modules From The Checked-In Protocol Descriptor."""
     status = cargo.focused(
-        ROOT,
+        configuration.ROOT,
         "run",
-        ["--locked", "--package", "dokime-gui", "--example", "export_preferences", "--", str(ROOT / "target/generated/preferences")],
+        [
+            "--locked",
+            "--package",
+            "dokime-gui",
+            "--example",
+            "export_preferences",
+            "--",
+            str(configuration.ROOT / "target/generated/preferences"),
+        ],
     )
     if status:
         raise SystemExit(status)
     subprocess.run(
-        ["node", str(ROOT / "tools/typescript/generate.mjs")],
-        cwd=ROOT,
+        ["node", str(configuration.ROOT / "tools/typescript/generate.mjs")],
+        cwd=configuration.ROOT,
         check=True,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
     )
     subprocess.run(
-        ["mise", "-C", str(ROOT / "crates/dokime-gui"), "run", "generate:host-frontend"],
-        cwd=ROOT,
+        ["mise", "-C", str(configuration.ROOT / "crates/dokime-gui"), "run", "generate:host-frontend"],
+        cwd=configuration.ROOT,
         check=True,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        creationflags=spawn_flags(),
     )
 
 
 def stage(profile: str) -> Path:
     """Copy The Freshly Generated Modules Into The Build Output."""
-    staged = paths.output(ROOT, "build", profile) / "generated/typescript"
+    staged = paths.output(configuration.ROOT, "build", profile) / "generated/typescript"
     sync_output(MODULES, staged)
-    sync_output(ROOT / "target/generated/host", staged.parent / "host")
+    sync_output(configuration.ROOT / "target/generated/host", staged.parent / "host")
     return staged
 
 
 def restore(profile: str) -> None:
     """Replace The GUI's Generated Modules With The Staged Build Output."""
-    output = paths.output(ROOT, "build", profile)
+    output = paths.output(configuration.ROOT, "build", profile)
     staged = output / "generated/typescript"
     if not staged.is_dir():
         raise SystemExit(f"missing Product generated modules {staged}; run `mise run build`")
@@ -79,7 +94,7 @@ def restore(profile: str) -> None:
     if not host.is_dir():
         raise SystemExit(f"missing Product host modules {host}; run `mise run build -- --language typescript`")
     sync_output(staged, MODULES)
-    sync_output(host, ROOT / "target/generated/host")
+    sync_output(host, configuration.ROOT / "target/generated/host")
 
 
 def main() -> int:

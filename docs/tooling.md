@@ -23,6 +23,45 @@ The Rust host-fixture task builds and stages separate capture and publication
 boundary plugins. Each catalog declares only its own sampled streams, so a
 capture execution never samples the boundary counter's execution resources.
 
+## Python Tooling
+
+The root uv workspace installs `tools/python` into the root `.venv/`. The
+`dokime_tools` package ships `py.typed`; Ruff and ty cover all its authored
+modules, including release and test orchestration. Formatting and linting cover the complete package without subpackage
+exclusions or handpicked file lists.
+
+`ci/tasks.py` parses the public arguments. Each module under `task/` selects
+one operation's existing mise leaves, including the hidden `ci:*` tasks used
+by workflows. `mise run build -- --plan` prints the selected commands without
+receiving artifacts or compiling. Focused package plans retain their native
+Cargo commands.
+
+Release preparation, review, staging, rehearsal, tagging, publication,
+finalization and verification have separate modules under `release/`.
+`release/run.py` owns argument parsing and explicit dispatch. Registry
+transport, crate publishing, Python publishing and review evidence have their
+own modules under `release/registry/`. Package definitions, assembly, executable
+verification and installer checks have separate modules under `package/`. Test lane execution, coverage,
+benchmarks and child-process execution have separate owners under `test/`.
+Descriptor projection and each language renderer live under `build/resources/`;
+public names and C++ type mappings belong to one generation invocation.
+
+Disposable directory owners expose their path and explicit `close()` operation.
+Scratch roots, private credential stores, headless displays and build phases
+have explicit `close()` operations. Native streaming handles use short
+standard-library resource scopes where no path-level operation completes the
+work. Locks, temporary credential environment changes and staged manifest edits
+keep their rollback scopes. The pre-mise native bootstrap loads
+shared process policy by file because the tools package is not installed yet;
+installed workflow operations use regular imports.
+
+Run the tooling stories through the public selection:
+
+```sh
+mise run test -- --language python --layer integration --project tools/python
+mise run lint -- --language python
+```
+
 ## Focused Development
 
 ```sh

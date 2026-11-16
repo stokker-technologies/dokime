@@ -6,14 +6,19 @@
 #
 # ***
 
-"""Hold A Hub Temporary Directory For Native Fixture Consumers"""
+"Hold a Hub Temporary Directory for Native Fixture Consumers"
 
 # === Imports === #
 
 # Standard Library Imports
 import sys
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import temporary
 
@@ -32,9 +37,13 @@ from .. import temporary
 
 def main() -> None:
     """Keep The Canonical Owner Alive Until Its Native Consumer Closes Stdin."""
-    with temporary.directory() as directory:
+    directory_directory = temporary.Directory()
+    directory = directory_directory.path
+    try:
         print(directory, flush=True)
         sys.stdin.buffer.read()
+    finally:
+        directory_directory.close()
 
 
 # === Private Functions === #

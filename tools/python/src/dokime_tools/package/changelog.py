@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Stage Generated Release Notes For Distribution"""
+"Stage Generated Release Notes for Distribution"
 
 # === Imports === #
 
@@ -13,10 +13,16 @@
 import json
 import re
 import tomllib
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from .. import policy
 
@@ -44,7 +50,7 @@ def notes(directory: Path, tag: str, *, tagged: bool | None = None) -> str:
 
 
 @contextmanager
-def staged(directory: Path, packages: dict):
+def staged(directory: Path, packages: dict) -> Generator[None]:
     """Temporarily Include Generated Notes In Every Published Crate, Restoring All Inputs."""
     originals = {}
     try:
@@ -54,7 +60,7 @@ def staged(directory: Path, packages: dict):
             document = tomllib.loads(original.decode("utf-8"))
             changelog = manifest.parent / "CHANGELOG.md"
             if changelog.is_symlink():
-                raise policy.ToolError("refusing linked crate changelog")
+                raise policy.ToolError("Package Product: refusing linked crate changelog")
             originals[changelog] = changelog.read_bytes() if changelog.exists() else None
             changelog.write_text(notes(directory, "v" + package["version"]), encoding="utf-8", newline="\n")
 
@@ -65,12 +71,17 @@ def staged(directory: Path, packages: dict):
             if include is None:
                 command = ["cargo", "package", "--list", "--allow-dirty", "--package", package["name"]]
                 listing = policy.execute(directory, command, capture=True)
-                include = [name.replace("\\", "/") for name in listing.splitlines() if name != "Cargo.toml.orig"]
+                include = []
+                for include_name in listing.splitlines():
+                    if include_name == "Cargo.toml.orig":
+                        continue
+                    include.append(include_name.replace("\\", "/"))
+
             include = [*include, "CHANGELOG.md"] if "CHANGELOG.md" not in include else include
             text = original.decode("utf-8")
             match = re.search(r"(?ms)^\[package\]\s*\n(.*?)(?=^\[|\Z)", text)
             if match is None:
-                raise policy.ToolError("crate has no package table")
+                raise policy.ToolError("Package Product: crate has no package table")
             body = match.group(1)
             body = re.sub(r"(?ms)^include\s*=\s*\[.*?\][^\n]*\n?", "", body)
             body = re.sub(r"(?ms)^exclude\s*=\s*\[.*?\][^\n]*\n?", "", body)

@@ -5,34 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
-"""Testing Policy From `[conventions.testing]` And The Expected Lane Set.
-
-Keys, all optional:
-
-    [conventions.testing]
-    limits = { unit = 512, integration = 256, acceptance = 128, system = 64 }
-    deadlines = { unit = 30, integration = 120, acceptance = 900, system = 900 }
-    bench_regression_percent = 20
-
-    [[conventions.testing.overrides]]
-    category = "acceptance"
-    language = "rust"
-    select = "test(=cycle::runs)"
-    timeout_seconds = 300
-    reason = "Streams a full capture"
-
-Limits are story counts per layer, enforced by the source inventory. TypeScript and
-JavaScript workspace packages each have their own scope; other tests share the project scope.
-Exceeding one is a curation finding in the
-index, never a failure. Deadlines are hang guards in seconds, read from
-`tools/project.toml`. Native runners terminate hung stories; script lanes also have a
-whole-lane process-tree guard. Completed story durations are measurements, never pass/fail
-criteria. Rust overrides use nextest filtersets to replace selected story hang guards.
-Acceptance and system lanes receive the whole Product and Tests builds of their profile
-and target, so lanes declare no inputs.
-
-The expected lanes are the `test:<language>:<category>` leaf tasks of `mise.toml`.
-"""
+'Testing Policy from `[conventions.testing]` and the Expected Lane Set.\n\nKeys, all optional:\n\n    [conventions.testing]\n    limits = { unit = 512, integration = 256, acceptance = 128, system = 64 }\n    deadlines = { unit = 30, integration = 120, acceptance = 900, system = 900 }\n    bench_regression_percent = 20\n\n    [[conventions.testing.overrides]]\n    category = "acceptance"\n    language = "rust"\n    select = "test(=cycle::runs)"\n    timeout_seconds = 300\n    reason = "Streams a full capture"\n\nLimits are story counts per layer, enforced by the source inventory. TypeScript and\nJavaScript workspace packages each have their own scope; other tests share the project scope.\nExceeding one is a curation finding in the\nindex, never a failure. Deadlines are hang guards in seconds, read from\n`tools/project.toml`. Native runners terminate hung stories; script lanes also have a\nwhole-lane process-tree guard. Completed story durations are measurements, never pass/fail\ncriteria. Rust overrides use nextest filtersets to replace selected story hang guards.\nAcceptance and system lanes receive the whole Product and Tests builds of their profile\nand target, so lanes declare no inputs.\n\nthe expected lanes are the `test:<language>:<category>` leaf tasks of `mise.toml`.\n'
 
 # === Imports === #
 
@@ -43,7 +16,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 
@@ -95,7 +72,14 @@ class Policy:
         return self.deadlines[category] * (COVERAGE_FACTOR if coverage else 1)
 
     def selected(self, category: str, language: str) -> list[Override]:
-        return [entry for entry in self.overrides if entry.category == category and entry.language == language]
+        selected_items = []
+        for selected_entry in self.overrides:
+            if selected_entry.category != category:
+                continue
+            if selected_entry.language != language:
+                continue
+            selected_items.append(selected_entry)
+        return selected_items
 
 
 # === Public Functions === #
@@ -107,21 +91,26 @@ def root(start: Path | None = None) -> Path:
     for candidate in (current, *current.parents):
         if (candidate / "tools/project.toml").is_file():
             return candidate
-    raise TestError("no project policy file found above the working directory")
+    raise TestError("Run Policy Tests: no project policy file found above the working directory")
 
 
 def load(directory: Path) -> Policy:
     document = _toml(directory / "tools/project.toml")
     testing = document.get("conventions", {}).get("testing", {})
     if not isinstance(testing, dict):
-        raise TestError("[conventions.testing] must be a table")
+        raise TestError("Run Policy Tests: [conventions.testing] must be a table")
 
     limits = _numbers(testing.get("limits", {}), "limits", LIMITS, 0)
     deadlines = _numbers(testing.get("deadlines", {}), "deadlines", DEADLINES, MINIMUM_TIMEOUT)
-    retired = [key for key in ("hosts", "lanes") if key in testing]
+    retired = []
+    for retired_key in ("hosts", "lanes"):
+        if retired_key not in testing:
+            continue
+        retired.append(retired_key)
+
     if retired:
         raise TestError(
-            f"conventions.testing.{retired[0]} is retired; acceptance and system lanes receive the whole Product and Tests builds"
+            f"Run Policy Tests: conventions.testing.{retired[0]} is retired; acceptance and system lanes receive the whole Product and Tests builds"
         )
 
     overrides = []
@@ -129,13 +118,13 @@ def load(directory: Path) -> Policy:
         if not isinstance(entry, dict) or set(entry) != OVERRIDE_KEYS:
             raise TestError("each override declares " + ", ".join(sorted(OVERRIDE_KEYS)))
         if entry["category"] not in CATEGORIES or entry["language"] not in LANGUAGES:
-            raise TestError(f"override names an unknown lane: {entry}")
+            raise TestError(f"Run Policy Tests: override names an unknown lane: {entry}")
         if not _positive(entry["timeout_seconds"], MINIMUM_TIMEOUT) or not str(entry["reason"]).strip():
-            raise TestError(f"override needs a timeout of at least 30 seconds and a reason: {entry}")
+            raise TestError(f"Run Policy Tests: override needs a timeout of at least 30 seconds and a reason: {entry}")
         overrides.append(Override(**entry))
     threshold = testing.get("bench_regression_percent", 20)
     if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not math.isfinite(threshold) or threshold <= 0:
-        raise TestError("bench_regression_percent must be finite and positive")
+        raise TestError("Run Policy Tests: bench_regression_percent must be finite and positive")
     return Policy(
         limits,
         deadlines,
@@ -153,7 +142,11 @@ def lanes(directory: Path) -> list[tuple[str, str]]:
         parts = name.split(":")
         if len(parts) == 3 and parts[0] == "test" and parts[2] in CATEGORIES and parts[1] in LANGUAGES:
             expected.append((parts[2], parts[1]))
-    return sorted(expected, key=lambda lane: (CATEGORIES.index(lane[0]), lane[1]))
+
+    def sort_key(lane: tuple[str, str]) -> tuple:
+        return (CATEGORIES.index(lane[0]), lane[1])
+
+    return sorted(expected, key=sort_key)
 
 
 # === Private Functions === #
@@ -163,14 +156,14 @@ def _toml(path: Path) -> dict[str, Any]:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
-        raise TestError(f"read {path.name}: {error}") from error
+        raise TestError(f"Run Policy Tests: read {path.name}: {error}") from error
 
 
 def _numbers(value: object, name: str, defaults: dict[str, int], minimum: int) -> dict[str, int]:
     if not isinstance(value, dict) or not set(value) <= set(defaults):
-        raise TestError(f"conventions.testing.{name} keys are {', '.join(defaults)}")
+        raise TestError(f"Run Policy Tests: conventions.testing.{name} keys are {', '.join(defaults)}")
     if not all(_positive(number, minimum) for number in value.values()):
-        raise TestError(f"conventions.testing.{name} values must be integers >= {minimum}")
+        raise TestError(f"Run Policy Tests: conventions.testing.{name} values must be integers >= {minimum}")
     return {**defaults, **value}
 
 

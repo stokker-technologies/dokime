@@ -16,7 +16,11 @@ import shutil
 import stat
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
 
 # Local Imports
 
@@ -37,17 +41,17 @@ def clear_output(path: Path) -> None:
     """Prepare One Owned Output Without Following A Directory Link."""
     _ensure_directory(path.parent)
     if path.is_symlink():
-        raise ValueError(f"owned output must not be a symlink: {path}")
+        raise ValueError(f"Package Product: owned output must not be a symlink: {path}")
     _remove(path)
 
 
 def stage_file(source: Path, destination: Path) -> None:
     metadata = source.lstat()
     if not stat.S_ISREG(metadata.st_mode):
-        raise ValueError(f"staged resource must be a regular file: {source}")
+        raise ValueError(f"Package Product: staged resource must be a regular file: {source}")
     _ensure_directory(destination.parent)
     if destination.is_symlink():
-        raise ValueError(f"staged destination must not be a symlink: {destination}")
+        raise ValueError(f"Package Product: staged destination must not be a symlink: {destination}")
     if destination.exists() and destination.is_file() and source.read_bytes() == destination.read_bytes():
         _permissions(source, destination)
         return
@@ -60,7 +64,7 @@ def sync_output(source: Path, destination: Path) -> None:
     source = source.absolute()
     destination = destination.absolute()
     if source == destination or source in destination.parents or destination in source.parents:
-        raise ValueError("build output roots must be separate directories")
+        raise ValueError("Package Product: build output roots must be separate directories")
     _ensure_directory(source, create=False)
     _ensure_directory(destination)
     sources = _tree(source, allow_links=False)
@@ -68,10 +72,18 @@ def sync_output(source: Path, destination: Path) -> None:
     # Validate the Complete Projection Before Pruning
     for relative in sources.keys() & destinations.keys():
         if destinations[relative] == "symlink":
-            raise ValueError(f"build output destination contains an unsafe entry: {destination / relative}")
-    for relative in sorted(destinations.keys() - sources.keys(), key=lambda p: len(p.parts), reverse=True):
+            raise ValueError(f"Package Product: build output destination contains an unsafe entry: {destination / relative}")
+
+    def sort_key(p: Path) -> int:
+        return len(p.parts)
+
+    for relative in sorted(destinations.keys() - sources.keys(), key=sort_key, reverse=True):
         _remove(destination / relative)
-    for relative in sorted(sources, key=lambda p: (len(p.parts), str(p))):
+
+    def sort_key(p: Path) -> tuple:
+        return (len(p.parts), str(p))
+
+    for relative in sorted(sources, key=sort_key):
         src = source / relative
         dst = destination / relative
         if sources[relative] == "directory":
@@ -89,14 +101,14 @@ def sync_output(source: Path, destination: Path) -> None:
 def _ensure_directory(path: Path, *, create: bool = True) -> None:
     for parent in reversed([path, *path.parents]):
         if parent.is_symlink():
-            raise ValueError(f"directory must not be a symlink: {parent}")
+            raise ValueError(f"Package Product: directory must not be a symlink: {parent}")
         if parent.exists():
             if not parent.is_dir():
-                raise ValueError(f"must be a directory: {parent}")
+                raise ValueError(f"Package Product: must be a directory: {parent}")
         elif create:
             parent.mkdir()
         else:
-            raise ValueError(f"directory is missing: {parent}")
+            raise ValueError(f"Package Product: directory is missing: {parent}")
 
 
 def _tree(root: Path, *, allow_links: bool) -> dict[Path, str]:
@@ -108,7 +120,7 @@ def _tree(root: Path, *, allow_links: bool) -> dict[Path, str]:
             relative = path.relative_to(root)
             if stat.S_ISLNK(mode):
                 if not allow_links:
-                    raise ValueError(f"build output source contains a symlink: {path}")
+                    raise ValueError(f"Package Product: build output source contains a symlink: {path}")
                 entries[relative] = "symlink"
             elif stat.S_ISDIR(mode):
                 entries[relative] = "directory"
@@ -116,7 +128,7 @@ def _tree(root: Path, *, allow_links: bool) -> dict[Path, str]:
             elif stat.S_ISREG(mode):
                 entries[relative] = "file"
             else:
-                raise ValueError(f"build output contains an unsupported entry: {path}")
+                raise ValueError(f"Package Product: build output contains an unsupported entry: {path}")
 
     visit(root)
     return entries

@@ -6,7 +6,7 @@
 #
 # ***
 
-"""Build The Shared Test Archive And Its Fixtures Without Replacing Product Exports"""
+"Build the Shared Test Archive and Its Fixtures Without Replacing Product Exports"
 
 # === Imports === #
 
@@ -19,10 +19,18 @@ import sys
 from pathlib import Path
 from time import perf_counter
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
-from dokime_tools.build import cargo, configuration, frontend, paths
+import dokime_tools.test.policy
+from dokime_tools.build import cargo, configuration, paths
 from dokime_tools.test import archive, policy
+
+from ...process import spawn_flags
 
 # Type Checking Imports
 
@@ -30,7 +38,6 @@ from dokime_tools.test import archive, policy
 
 # === Constants === #
 
-ROOT = frontend.ROOT
 
 # === Types === #
 
@@ -41,30 +48,33 @@ ROOT = frontend.ROOT
 
 def build(profile: str, *, timings: bool = False) -> list[str]:
     """Compile The Independent Canonical Test Archive And Its Metadata."""
-    if profile not in configuration.PROFILES:
-        raise ValueError("test archives require dev or release")
+    if profile not in dokime_tools.test.policy.PROFILES:
+        raise ValueError("Build Tests: test archives require dev or release")
 
     # Compile Test Targets Through The Shared Archive Owner.
     started = perf_counter()
     print(f"[build:tests] Archive started profile={profile}", flush=True)
-    built = cargo.archive(ROOT, profile, extra=["--features", "dokime-gui/testing", *(["--timings"] if timings else [])])
+    built = cargo.archive(configuration.ROOT, profile, extra=["--features", "dokime-gui/testing", *(["--timings"] if timings else [])])
     print(f"[build:tests] Archive finished in {perf_counter() - started:.2f}s", flush=True)
 
     metadata = built.with_name("metadata.json")
-    with metadata.open("w", encoding="utf-8") as written:
+    written = metadata.open("w", encoding="utf-8")
+    try:
         command = ["cargo", "metadata", "--locked", "--format-version", "1"]
         subprocess.run(
             command,
-            cwd=ROOT,
+            cwd=configuration.ROOT,
             stdout=written,
             check=True,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            creationflags=spawn_flags(),
             stdin=sys.stdin,
             stderr=sys.stderr,
         )
+    finally:
+        written.close()
     messages = built.with_name("compiler.json")
     staged = [built, messages, metadata]
-    output = paths.output(ROOT, "build", profile)
+    output = paths.output(configuration.ROOT, "build", profile)
     # Transfer The Pinned Native Protobuf Compiler With The Archived Tests.
     document = json.loads(metadata.read_text(encoding="utf-8"))
     platform = {"linux-x86_64": "linux-x86_64", "windows-x86_64": "win32"}[paths.target()]
@@ -73,15 +83,20 @@ def build(profile: str, *, timings: bool = False) -> list[str]:
     source = Path(package["manifest_path"]).parent
     destination = output / "fixtures/inputs/vendor" / f"{prefix}-{package['version']}"
     shutil.copytree(source, destination, dirs_exist_ok=True)
-    staged += [path for path in destination.rglob("*") if path.is_file()]
+    staged_items = []
+    for staged_path in destination.rglob("*"):
+        if not (staged_path.is_file()):
+            continue
+        staged_items.append(staged_path)
+    staged += staged_items
     names = configuration.relative(staged)
-    archive.stamp(ROOT, profile, names)
+    archive.stamp(configuration.ROOT, profile, names)
     return names
 
 
 def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=configuration.PROFILES, default="dev")
+    parser.add_argument("--profile", choices=dokime_tools.test.policy.PROFILES, default="dev")
     parser.add_argument("--timings", action="store_true")
     options = parser.parse_args(arguments)
     try:

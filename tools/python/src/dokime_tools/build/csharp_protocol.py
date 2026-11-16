@@ -18,7 +18,12 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from ..process import spawn_flags
 
@@ -48,7 +53,8 @@ def protocols(
     """Keep Wire Requests and Carriers Internal; Give Payloads Their Public Namespace."""
     from google.protobuf.descriptor_pb2 import FileDescriptorSet
 
-    from .render_resources import csharp_message, table
+    from .resources.csharp import message
+    from .resources.schema import table
 
     descriptors = descriptors or root / "crates/dokime-protocol/src/descriptors.bin"
     schema = FileDescriptorSet.FromString(descriptors.read_bytes())
@@ -82,7 +88,7 @@ def protocols(
                 command += [f"--plugin=protoc-gen-grpc={plugin}", f"--grpc_out={output}", "--grpc_opt=internal_access"]
             subprocess.run([*command, file.name], check=True, creationflags=spawn_flags())
             for path in output.glob("*.cs"):
-                source = csharp_message(path.read_text(encoding="utf-8"))
+                source = message(path.read_text(encoding="utf-8"))
                 if namespace_override is not None:
                     source = source.replace("namespace Harmos.Clients {", f"namespace {namespace_override} {{")
                     source = source.replace("global::Harmos.Clients.", f"global::{namespace_override}.")
@@ -91,7 +97,7 @@ def protocols(
                 if path.name.endswith("Grpc.cs"):
                     source = source.replace("namespace Harmos.Plugins {", "namespace Harmos.Internal.Host {")
                     source = source.replace("namespace Harmos.Clients {", "namespace Harmos.Internal.Client {")
-                    namespace = csharp_message(file.options.csharp_namespace)
+                    namespace = message(file.options.csharp_namespace)
                     if namespace.endswith(".Clients"):
                         source = source.replace(
                             f"namespace {namespace} {{", f"namespace {namespace.removesuffix('.Clients')}.Internal.Client {{"

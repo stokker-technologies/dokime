@@ -13,7 +13,12 @@
 
 # Standard Library Imports
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from dokime_tools.build import configuration, wheel
 
@@ -23,7 +28,6 @@ from dokime_tools.build import configuration, wheel
 
 # === Constants === #
 
-ROOT = configuration.ROOT
 
 # === Types === #
 
@@ -34,7 +38,7 @@ ROOT = configuration.ROOT
 
 def build(profile: str) -> list[str]:
     """Build The Pure Python SDK Wheel."""
-    distributions = wheel.build(ROOT, profile)
+    distributions = wheel.build(configuration.ROOT, profile)
     return configuration.relative(distributions)
 
 

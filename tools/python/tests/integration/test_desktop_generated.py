@@ -17,10 +17,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from dokime_tools.prepare import generated
+# isort: split
 
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
+from dokime_tools.prepare import generated
 
 # Type Checking Imports
 
@@ -34,9 +38,11 @@ from dokime_tools.prepare import generated
 
 
 class DesktopMessageGenerationTests(unittest.TestCase):
-    def test_projects_canonical_preferences_and_native_commands(self):
+    def test_projects_canonical_preferences_and_native_commands(self) -> None:
         root = Path(__file__).resolve().parents[4]
-        with tempfile.TemporaryDirectory(prefix="desktop-generation-") as scratch:
+        scratch_directory = tempfile.TemporaryDirectory(prefix="desktop-generation-")
+        scratch = scratch_directory.name
+        try:
             directory = Path(scratch)
             fixture = directory / "preferences.bin"
             subprocess.run(
@@ -83,9 +89,13 @@ writeFileSync(process.argv[1], toBinary(type, value));
             commands = (output / "native-preferences.ts").read_text(encoding="utf-8")
             self.assertIn("update: number[]", commands)
             self.assertIn("invoke<ArrayBuffer>", commands)
+        finally:
+            scratch_directory.cleanup()
 
-    def test_product_round_trip_keeps_both_message_roots(self):
-        with tempfile.TemporaryDirectory(prefix="desktop-product-modules-") as scratch:
+    def test_product_round_trip_keeps_both_message_roots(self) -> None:
+        scratch_directory = tempfile.TemporaryDirectory(prefix="desktop-product-modules-")
+        scratch = scratch_directory.name
+        try:
             root = Path(scratch)
             modules = root / "target/generated/typescript"
             host = root / "target/generated/host"
@@ -93,7 +103,7 @@ writeFileSync(process.argv[1], toBinary(type, value));
             host.mkdir()
             (modules / "preferences.ts").write_text("export const revision = 7;", encoding="utf-8")
             (host / "client.ts").write_text("export const revision = 11;", encoding="utf-8")
-            with patch.object(generated, "ROOT", root), patch.object(generated, "MODULES", modules):
+            with patch.object(generated.configuration, "ROOT", root), patch.object(generated, "MODULES", modules):
                 staged = generated.stage("dev")
                 (modules / "preferences.ts").unlink()
                 (host / "client.ts").unlink()
@@ -105,6 +115,8 @@ writeFileSync(process.argv[1], toBinary(type, value));
                 with self.assertRaises(SystemExit):
                     generated.restore("dev")
                 self.assertTrue((modules / "preferences.ts").is_file())
+        finally:
+            scratch_directory.cleanup()
 
 
 # === Public Functions === #

@@ -7,13 +7,14 @@
 # ***
 
 
-"""Prepare Shared Inputs And Collect Results For The Native Mise Test Graph."""
+"Prepare Shared Inputs and Collect Results for the Native Mise Test Graph."
 
 # === Imports === #
 
 # Standard Library Imports
 import argparse
 import json
+import operator
 import os
 import shutil
 import subprocess
@@ -23,7 +24,12 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
+# isort: split
+
 # Third Party Imports
+
+# isort: split
+
 # Local Imports
 from ..build import paths
 from ..prepare import generated
@@ -31,7 +37,6 @@ from ..process import spawn_flags
 from . import archive, policy, report
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -87,9 +92,9 @@ def command(category: str, language: str, profile: str, workers: int, archive_di
                 f"--maxWorkers={workers}",
             ]
         else:
-            raise policy.TestError(f"no native command for {category}-{language}")
+            raise policy.TestError(f"Run Schedule Tests: no native command for {category}-{language}")
     else:
-        raise policy.TestError(f"no native command for {category}-{language}")
+        raise policy.TestError(f"Run Schedule Tests: no native command for {category}-{language}")
     return arguments + (["--", *extra] if extra else [])
 
 
@@ -98,7 +103,7 @@ def prepare(directory: Path, profile: str) -> None:
     started = time.perf_counter()
     lanes = policy.lanes(directory)
     if not lanes:
-        raise policy.TestError("no declared test lanes")
+        raise policy.TestError("Run Schedule Tests: no declared test lanes")
     worker_pools = sum(
         language == "rust" or language == "typescript" and category != "system" or language == "python" and category == "integration"
         for category, language in lanes
@@ -164,12 +169,12 @@ def finish(directory: Path, profile: str) -> int:
             print(f"FAIL  {key}: missing lane result", file=sys.stderr)
             continue
         rows.append(json.loads(result.read_text(encoding="utf-8")))
-    context["lanes"] = sorted(rows, key=lambda row: row["lane"])
+    context["lanes"] = sorted(rows, key=operator.itemgetter("lane"))
     context["execution_seconds"] = time.time() - context.pop("execution_started")
     context["total_seconds"] = context["preparation_seconds"] + context["execution_seconds"]
     extracted = Path(context.pop("archive_directory"))
     if extracted.resolve().parent != destination.resolve() or not extracted.name.startswith("inputs-"):
-        raise policy.TestError("prepared archive escapes its owned report directory")
+        raise policy.TestError("Run Schedule Tests: prepared archive escapes its owned report directory")
     shutil.rmtree(extracted)
     report.dump(destination / "time-summary.json", context)
     lines = ["# Concurrent Test Execution", "", "| Lane | Exit | Seconds | Log |", "| --- | ---: | ---: | --- |"]
@@ -213,7 +218,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
 def _lane(directory: Path, key: str, arguments: Sequence[str], destination: Path, environment: dict[str, str]) -> dict:
     started = time.perf_counter()
     log = destination / f"{key}.log"
-    with log.open("w", encoding="utf-8") as output:
+    output = log.open("w", encoding="utf-8")
+    try:
         try:
             status = subprocess.run(
                 arguments, cwd=directory, env=environment, stdout=output, stderr=subprocess.STDOUT, creationflags=spawn_flags(), check=False
@@ -221,6 +227,8 @@ def _lane(directory: Path, key: str, arguments: Sequence[str], destination: Path
         except OSError as error:
             output.write(str(error) + "\n")
             status = 1
+    finally:
+        output.close()
     return {
         "lane": key,
         "exit_code": status,
