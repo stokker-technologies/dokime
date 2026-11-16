@@ -198,6 +198,8 @@ Paging, SDK packaging, transfers and durable lag were amended by the owner on
    a remaining or unreadable key preserves the root for cleanup. Access and shared
    secret owners submit native creation, reads and removal to one dedicated
    process-lifetime credential thread, including root reopen and explicit discard.
+   Root leases are unlocked before their handles close, since a lock left on a
+   closed handle is released only eventually.
    Concurrent-host stories retain independent calling-thread absence assertions.
    Native test and benchmark runners retain child scratch ownership and remove
    root credentials after child exit, including termination, before deleting scratch.

@@ -246,8 +246,8 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 _ => panic!("Expected Raw Samples"),
             })
             .collect::<Vec<_>>();
-        assert_eq!(raw.len(), 2);
-        assert_eq!(raw.iter().map(|sample| sample.timestamp.unwrap().seconds).collect::<Vec<_>>(), vec![1, 2]);
+        let times = raw.iter().map(|sample| sample.timestamp.map(|at| (at.seconds, at.nanos))).collect::<Vec<_>>();
+        assert_eq!(times, [Some((1, 0)), Some((2, 0))], "Sample the Hold at 1 s and 2 s: {raw:?}");
         assert!(raw.iter().all(|sample| !sample.payload.is_empty()));
         assert!(raw.iter().all(|sample| sample.values.as_ref().unwrap().values["celsius"].kind == Some(ValueKind::Number(84.0))));
         // Ingestion Settles Before the Seal: the First Statistics Read Counts Every Sample.

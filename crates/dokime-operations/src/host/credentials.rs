@@ -139,7 +139,7 @@ impl Entry {
         let (send, receive) = mpsc::sync_channel(1);
         owner
             .send(Box::new(move || {
-                let result = exclusive(|| keyring::Entry::new(&service, &account).and_then(operation));
+                let result = keyring::Entry::new(&service, &account).and_then(operation);
                 let _ = send.send(result);
             }))
             .map_err(|error| {
@@ -154,28 +154,5 @@ impl Entry {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-/// Run One Native Credential Call While No Other Process of This User Runs One.
-///
-/// The operating system store keeps one credential set per user; concurrent writes and removals from
-/// several processes can lose one another's update, so a removed entry reappears or a write fails. One
-/// per-user lock file orders every call across hosts, the CLI and the desktop.
-fn exclusive<T>(call: impl FnOnce() -> keyring::Result<T>) -> keyring::Result<T> {
-    let failed = |error: std::io::Error| {
-        keyring::Error::PlatformFailure(Box::new(std::io::Error::other(format!("Order Native Credential Calls: {error}"))))
-    };
-    let lock = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(std::env::temp_dir().join("dokime-credentials.lock"))
-        .map_err(failed)?;
-    lock.lock().map_err(failed)?;
-    let result = call();
-    // Release Before Closing: the System Releases a Lock Left on a Closed Handle Only Eventually.
-    lock.unlock().map_err(failed)?;
-    result
-}
 
 /* === Tests === */
