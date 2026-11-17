@@ -81,12 +81,17 @@ use harmos_protocol::host::InvocationsGetRequest;
 use harmos_protocol::host::InvocationsGetResponse;
 use harmos_protocol::host::InvocationsWatchRequest;
 use harmos_protocol::host::InvocationsWatchResponse;
+use harmos_protocol::host::OperationsGetRequest;
+use harmos_protocol::host::OperationsGetResponse;
+use harmos_protocol::host::OperationsListRequest;
+use harmos_protocol::host::OperationsListResponse;
 use harmos_protocol::host::TimeGetRequest;
 use harmos_protocol::host::TimeGetResponse;
 use harmos_protocol::host::TimeSleepRequest;
 use harmos_protocol::host::TimeSleepResponse;
 use harmos_protocol::host::plugins::SettingsListRequest;
 use harmos_protocol::host::plugins::SettingsListResponse;
+use harmos_protocol::model::DiscoveredOperation;
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::FileReference;
 use harmos_protocol::model::InstanceState;
@@ -131,6 +136,8 @@ pub enum HostOperation {
     InvocationsGet,
     InvocationsCancel,
     InvocationsWatch,
+    OperationsList,
+    OperationsGet,
     PluginsSettingsList,
     TimeGet,
     TimeSleep,
@@ -170,6 +177,8 @@ impl Plugin {
             HostOperation::InvocationsGet => self.requires::<InvocationsGetRequest>(),
             HostOperation::InvocationsCancel => self.requires::<InvocationsCancelRequest>(),
             HostOperation::InvocationsWatch => self.requires::<InvocationsWatchRequest>(),
+            HostOperation::OperationsList => self.requires::<OperationsListRequest>(),
+            HostOperation::OperationsGet => self.requires::<OperationsGetRequest>(),
             HostOperation::PluginsSettingsList => self.requires::<SettingsListRequest>(),
             HostOperation::TimeGet => self.requires::<TimeGetRequest>(),
             HostOperation::TimeSleep => self.requires::<TimeSleepRequest>(),
@@ -191,6 +200,7 @@ pub struct HostRoot {
     pub executions: HostExecutionsResource,
     pub files: HostFilesResource,
     pub invocations: HostInvocationsResource,
+    pub operations: HostOperationsResource,
     pub plugins: HostPluginsResource,
     pub prompts: HostPromptsResource,
     pub secrets: HostSecretsResource,
@@ -207,6 +217,7 @@ impl HostRoot {
             executions: HostExecutionsResource::new(context.clone()),
             files: HostFilesResource::new(context.clone()),
             invocations: HostInvocationsResource::new(context.clone()),
+            operations: HostOperationsResource::new(context.clone()),
             plugins: HostPluginsResource::new(context.clone()),
             prompts: HostPromptsResource::new(context.clone()),
             secrets: HostSecretsResource::new(context.clone()),
@@ -409,6 +420,14 @@ impl HostInvocationsWatch {
         };
         response.invocation.map(Some).ok_or_else(|| Error::Invalid("Read InvocationsWatch: Missing Payload".into()))
     }
+}
+#[derive(Default)]
+pub struct HostOperationsListOptions {
+    pub policy: Option<OperationPolicy>,
+}
+#[derive(Default)]
+pub struct HostOperationsGetOptions {
+    pub policy: Option<OperationPolicy>,
 }
 #[derive(Default)]
 pub struct HostPluginsSettingsListOptions {
@@ -1003,6 +1022,31 @@ impl HostInvocationsResource {
         Ok(HostInvocationsWatch {
             incoming: self.context.watch(request, max_item_bytes).await?,
         })
+    }
+}
+#[derive(Clone)]
+pub struct HostOperationsResource {
+    context: Context,
+}
+impl HostOperationsResource {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+    pub async fn list(&self) -> Result<Vec<DiscoveredOperation>> {
+        self.list_with(HostOperationsListOptions::default()).await
+    }
+    pub async fn list_with(&self, options: HostOperationsListOptions) -> Result<Vec<DiscoveredOperation>> {
+        let request = OperationsListRequest {};
+        let response: OperationsListResponse = self.context.call_with(request, options.policy).await?;
+        Ok(response.operations)
+    }
+    pub async fn get(&self, id: String) -> Result<DiscoveredOperation> {
+        self.get_with(id, HostOperationsGetOptions::default()).await
+    }
+    pub async fn get_with(&self, id: String, options: HostOperationsGetOptions) -> Result<DiscoveredOperation> {
+        let request = OperationsGetRequest { id };
+        let response: OperationsGetResponse = self.context.call_with(request, options.policy).await?;
+        response.operation.ok_or_else(|| Error::Invalid("Read OperationsGet: Missing Payload".into()))
     }
 }
 #[derive(Clone)]

@@ -11,11 +11,11 @@
 # === Imports === #
 
 # Standard Library Imports
+import argparse
 import io
 import os
 import shutil
 import subprocess
-import sys
 import tarfile
 import urllib.request
 import zipfile
@@ -39,7 +39,13 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision: str = "ee16bf8a70152b82c881dcccf5f0108a5a859091"
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("dotnet")
+parser.add_argument("--configuration", choices=("Debug", "Release"), default="Release")
+parser.add_argument("--refresh-lock", action="store_true")
+arguments = parser.parse_args()
+
+revision: str = "c2cfb153ab136159f07741d1061fcb3a1191e86c"
 version: str = f"0.1.0-dev.{revision[:12]}"
 root: Path = Path(__file__).resolve().parents[1]
 feed: Path = root / "../../target/cs/feed"
@@ -104,12 +110,12 @@ properties: list[str] = [
 )
 subprocess.run(
     [
-        sys.argv[1],
+        arguments.dotnet,
         "pack",
-        "-p:RestoreLockedMode=" + ("false" if "--refresh-lock" in sys.argv else "true"),
+        "-p:RestoreLockedMode=" + ("false" if arguments.refresh_lock else "true"),
         str(output / "Harmos.csproj"),
         "--configuration",
-        "Release",
+        arguments.configuration,
         "--output",
         str(feed.resolve()),
     ],
@@ -117,7 +123,7 @@ subprocess.run(
 )
 
 # Explicit Lock Refresh Retires Only This SDK's Owned Library Package Caches.
-if "--refresh-lock" in sys.argv:
+if arguments.refresh_lock:
     for relative in ("packages/harmos", "generation/packages/harmos"):
         cache = (output.parent / relative).resolve()
         if not cache.is_relative_to(output.parent):

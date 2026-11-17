@@ -37,7 +37,7 @@ class Parameter:
     """Compose an Owned Parameter and Pass build() to a Template."""
 
     def __init__(self, identifier: str, label: str, kind: str) -> None:
-        self.message = dokime.Parameter(metadata=dokime.Metadata(identifier=identifier, label=label), type=dokime.ValueType.Value(kind))
+        self.message = dokime.Parameter(metadata=dokime.Metadata(identifier=identifier, label=label), type=kind)
 
     @classmethod
     def number(cls, identifier: str, label: str) -> "Parameter":
@@ -62,7 +62,7 @@ class Parameter:
     @classmethod
     def numbers(cls, identifier: str, label: str, values: Iterable[float]) -> "Parameter":
         result = cls(identifier, label, "VALUE_TYPE_LIST")
-        result.message.element_type = dokime.ValueType.Value("VALUE_TYPE_NUMBER")
+        result.message.element_type = dokime.VALUE_TYPE_NUMBER
         result.default([float(value) for value in values])
         return result
 
@@ -75,7 +75,7 @@ class Parameter:
             if not isinstance(value, int) or isinstance(value, bool) or value < 0:
                 raise ValueError("Set Count Default: Choose an Unsigned Integer")
             literal = dokime.Value(unsigned_integer=value)
-        elif self.message.type == dokime.ValueType.Value("VALUE_TYPE_NUMBER"):
+        elif self.message.type == dokime.VALUE_TYPE_NUMBER:
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 raise ValueError("Set Number Default: Choose a Number")
             literal = dokime.Value(number=float(value))

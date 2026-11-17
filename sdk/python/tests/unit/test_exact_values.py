@@ -18,7 +18,7 @@ from unittest import TestCase
 # Third Party Imports
 # Local Imports
 from dokime import Statistics, Value
-from dokime.client import PlotsPlotColumn
+from dokime.client import PlotColumn
 from dokime.values import decode, encode
 
 # Type Checking Imports
@@ -52,8 +52,8 @@ class ExactValuesStory(TestCase):
 
     def test_plot_totals_do_not_use_drawing_coordinates(self) -> None:
         totals = [2**64 - 1, Fraction(2**90 + 1, 7)]
-        column = PlotsPlotColumn(totals=[encode(value) for value in totals])
-        reopened = PlotsPlotColumn.FromString(column.SerializeToString())
+        column = PlotColumn(totals=[encode(value) for value in totals])
+        reopened = PlotColumn.FromString(column.SerializeToString())
         self.assertEqual([decode(value) for value in reopened.totals], totals)
         self.assertEqual(list(reopened.y), [])
 

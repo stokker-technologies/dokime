@@ -22,7 +22,7 @@ from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, Plu
 from host import Host
 from suite import plugin
 
-from dokime import EvidenceCapturedRecordSelection, EvidenceRecordScope, MapValue, Metadata, Window
+from dokime import CapturedRecordSelection, MapValue, Metadata, RecordScope, model
 from dokime.client import (
     RESULT_STATUS_PASSED,
     ExecutionBinding,
@@ -89,7 +89,7 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
 
         # Inspect Acknowledged Evidence After The Host Has Run Cleanup.
         records = await host.client.evidence.records.list(
-            EvidenceRecordScope(execution=execution_id), "example.confirmation", [], Window(), "", EvidenceCapturedRecordSelection()
+            RecordScope(execution=execution_id), "example.confirmation", [], model.Window(), "", CapturedRecordSelection()
         )
         self.assertEqual(len(records.records), 1)
         self.assertTrue(all(BoolValue.FromString(record.payload).value for record in records.records))

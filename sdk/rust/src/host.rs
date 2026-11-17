@@ -1,6 +1,5 @@
 // @generated from protocol descriptors; do not edit.
-use crate::message::Wire;
-pub use crate::message::Wire as Call;
+pub use crate::message::Wire;
 use prost_reflect::ReflectMessage;
 pub trait Request: ReflectMessage + Default + 'static {
     type Response: ReflectMessage + Default + 'static;
@@ -137,6 +136,14 @@ impl Request for harmos_protocol::host::InvocationsCancelRequest {
 impl Request for harmos_protocol::host::InvocationsWatchRequest {
     type Response = harmos_protocol::host::InvocationsWatchResponse;
     const ID: &'static str = "harmos.host.v1.Invocations/Watch";
+}
+impl Request for harmos_protocol::host::OperationsListRequest {
+    type Response = harmos_protocol::host::OperationsListResponse;
+    const ID: &'static str = "harmos.host.v1.Operations/List";
+}
+impl Request for harmos_protocol::host::OperationsGetRequest {
+    type Response = harmos_protocol::host::OperationsGetResponse;
+    const ID: &'static str = "harmos.host.v1.Operations/Get";
 }
 impl Request for harmos_protocol::host::plugins::SettingsListRequest {
     type Response = harmos_protocol::host::plugins::SettingsListResponse;

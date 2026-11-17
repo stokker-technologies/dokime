@@ -36,13 +36,13 @@ pub mod testing;
 
 /* === Re-Exports === */
 
+pub use ::harmos::OperationRequest;
 pub use client::{Client, ClientSettings};
 use context::Context;
 pub use data::FromValue;
 pub use dokime_derive::{Message, Parameters, Record, Row, Settings};
 pub use error::{Error, Result};
 pub use exports::*;
-pub use harmos::OperationRequest;
 
 use plugin::Plugin;
 use record::Record;
@@ -56,7 +56,6 @@ use stream::{Observer, Stream};
 extern crate self as dokime;
 
 // Local Imports
-use harmos::Message as HarmosMessage;
 
 /* === Constants === */
 
@@ -71,11 +70,11 @@ use harmos::Message as HarmosMessage;
 /* === Traits === */
 
 // Protobuf Data with the Harmos Descriptor Contract.
-pub trait Message: HarmosMessage {}
+pub trait Message: ::harmos::Message {}
 
 /* === Implementations === */
 
-impl<T: HarmosMessage> Message for T {}
+impl<T: ::harmos::Message> Message for T {}
 
 /* === Public Functions === */
 
@@ -88,8 +87,8 @@ pub mod encoding {
 
     /* === Re-Exports === */
 
-    pub use harmos::Message as ContractMessage;
-    pub use harmos::encoding::*;
+    pub use ::harmos::Message as ContractMessage;
+    pub use ::harmos::encoding::*;
 
     /* === Imports === */
 

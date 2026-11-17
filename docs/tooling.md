@@ -60,16 +60,36 @@ Grpc.Tools path and request selector policy to
 analysis, the four language renderers, output inventory/drift and C# wire
 projection. SDK C++ and C# generation checks use the same product configuration and complete
 shared SDK inventory; both restore the C# protocol compiler without compiling it.
-`build/protocol_callers.py` retains product public-surface policy; caller option
-decoding comes from `harmos_tools.source.protocol`.
+`build/protocol_callers.py` retains product public-surface checking; caller option
+decoding uses `harmos_tools.source.protocol`. The shared checker accepts product
+namespace and path configuration, but scans private `_generated` C++ headers that
+the product checker excludes, so it is not a drop-in replacement. Both currently
+reject repeated namespace exports introduced by the new barrels; that policy
+needs an owner decision before the surface check can pass.
 
-The current pinned shared `sdk.generate` still requires `composition`, and emits
-`Wire as Call`, `ClientRoot as Client` and `Window as SampleWindow`. Removing those
-renames requires adopting a library revision with the corrected generator; do not
-post-process generated output or restore local renderers. The shared public-surface
-checker also lacks a product namespace parameter, so product policy remains local.
-`protocol/composition.toml` remains required by the pinned generator, runtime
-composition and desktop host-binding generator.
+The pin at `c2cfb153ab136159f07741d1061fcb3a1191e86c` removes generated barrel
+renames. Callers use original names and qualify collisions by their unversioned
+namespace. Python exposes `dokime.client.ClientRoot`, `dokime.plugin.Window` and
+`dokime.model.Window`; the last is the evidence selection, independent of the
+plugin sampling grant. `sdk.generate` consumes descriptors and product
+configuration without a composition file. `protocol/composition.toml` still has
+runtime and desktop host-binding readers.
+
+The Python wire compiler remains product-owned because its `surface.pb`,
+`sources.json`, package markers and check-only comparison are required by wheel
+and installed-consumer checks; shared `python_protocol.generate` does not emit
+that complete inventory. The operations reference renderer remains product-owned
+because the shared renderer labels host operations Product-Defined instead of
+preserving their descriptor-declared caller audiences. These implementations are not drop-in
+replacements at this pin. Shared subprocess console policy remains a separate
+owner decision.
+
+Generated C++ compilation passes at this pin. Python compilation still requires
+regenerated library exports for `FailureError` and `model.Failure`; Rust requires
+the matching library `model::Failure` export and shared renderer fixes for host
+and storage resource collisions. C# requires preservation of protobuf camel-case
+property names such as `StepId`, `MaximumSeconds`, `CycleId` and `ExecutionId`.
+These failures remain open; generated output is not patched by hand.
 
 Disposable directory owners expose their path and explicit `close()` operation.
 Scratch roots, private credential stores, headless displays and build phases

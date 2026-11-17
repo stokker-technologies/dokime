@@ -11,6 +11,7 @@ pub use host::{
     HostFilesUploadsCreateOptions, HostFilesUploadsDeleteOptions, HostFilesUploadsGetOptions, HostFilesUploadsPublishOptions,
     HostFilesUploadsResource, HostFilesUploadsResumeOptions, HostFilesWatch, HostFilesWatchOptions, HostInvocationsCancelOptions,
     HostInvocationsGetOptions, HostInvocationsResource, HostInvocationsWatch, HostInvocationsWatchOptions, HostOperation,
-    HostPluginsResource, HostPluginsSettingsListOptions, HostPluginsSettingsResource, HostPromptsCreateOptions, HostPromptsResource,
-    HostRoot, HostSecretsGetOptions, HostSecretsResource, HostTimeGetOptions, HostTimeResource, HostTimeSleepOptions,
+    HostOperationsGetOptions, HostOperationsListOptions, HostOperationsResource, HostPluginsResource, HostPluginsSettingsListOptions,
+    HostPluginsSettingsResource, HostPromptsCreateOptions, HostPromptsResource, HostRoot, HostSecretsGetOptions, HostSecretsResource,
+    HostTimeGetOptions, HostTimeResource, HostTimeSleepOptions,
 };

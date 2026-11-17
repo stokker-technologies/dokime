@@ -1733,19 +1733,19 @@ generated-server checks also compare canonical registered gRPC service names.
 exists and its caller annotation matches the mapping above, including the six
 harmonized operations in item 0.M. Model values and host replies used by both
 callers have one root barrel home. In Rust and Python this moves
-EvidenceStatisticsResponse, EvidenceRecordsListResponse, EvidenceRecordScope,
-EvidenceCapturedRecordSelection and ContentArtifactsCreateResponse out of their
+EvidenceStatisticsResponse, RecordsListResponse, RecordScope,
+CapturedRecordSelection and ArtifactsCreateResponse out of their
 caller-specific barrels. Use the generated name rather than adding an alias.
 C# uses the field's canonical namespace.
 The severity value at wire number 4 is now SEVERITY_FAILURE (Rust Severity::Failure,
 C# Severity.Failure), avoiding the Windows SDK's SEVERITY_ERROR macro. C++ reserved
 operation words become `delete_`, `export_` and `import_` on generated methods.
 
-Python construction is `dokime.client.Client`; plugin authoring is
+Python construction is `dokime.client.ClientRoot`; plugin authoring is
 `dokime.plugin.{Plugin,Context}`. Both surfaces compose only their effective callers;
 no inheritance restores operations removed by narrowing. The client implementation
 lives under `_generated/client.py`; the retired `generated` tree and resources.json
-have no producer. Generated Python passes the authored lint rules and typing;
+have no producer. Generated Python remains subject to the authored checks and typing;
 only protoc's private `_pb2*` files retain the existing exclusion, while their public
 barrels and generation consumer are type-checked.
 

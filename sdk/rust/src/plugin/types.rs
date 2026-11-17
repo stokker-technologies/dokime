@@ -7,18 +7,17 @@ pub use crate::wire::host::EffectsGetResponse;
 pub use crate::wire::host::EffectsSetResponse;
 pub use crate::wire::host::FilesCaptureResponse;
 pub use crate::wire::host::PromptsCreateResponse;
-pub use crate::wire::host::evidence::LogsAppendResponse as EvidenceLogsAppendResponse;
-pub use crate::wire::host::evidence::RecordsAppendResponse as EvidenceRecordsAppendResponse;
-pub use crate::wire::host::evidence::TraceabilitySetResponse as EvidenceTraceabilitySetResponse;
-pub use crate::wire::host::executions::ProgressSetResponse as ExecutionsProgressSetResponse;
-pub use crate::wire::host::files::CaptureMode as FilesCaptureMode;
-pub use crate::wire::host::files::CapturesStartResponse as FilesCapturesStartResponse;
-pub use crate::wire::host::files::CapturesStopResponse as FilesCapturesStopResponse;
-pub use crate::wire::host::files::LineField as FilesLineField;
-pub use crate::wire::host::files::LineMarker as FilesLineMarker;
-pub use crate::wire::host::files::LineMatcher as FilesLineMatcher;
-pub use crate::wire::host::files::MirrorCapture as FilesMirrorCapture;
-pub use crate::wire::host::files::StreamCapture as FilesStreamCapture;
+pub use crate::wire::host::evidence::LogsAppendResponse;
+pub use crate::wire::host::evidence::RecordsAppendResponse;
+pub use crate::wire::host::evidence::TraceabilitySetResponse;
+pub use crate::wire::host::executions::ProgressSetResponse;
+pub use crate::wire::host::files::CaptureMode;
+pub use crate::wire::host::files::CapturesStartResponse;
+pub use crate::wire::host::files::LineField;
+pub use crate::wire::host::files::LineMarker;
+pub use crate::wire::host::files::LineMatcher;
+pub use crate::wire::host::files::MirrorCapture;
+pub use crate::wire::host::files::StreamCapture;
 pub use crate::wire::host::files::capture_mode;
 pub use crate::wire::plugin::CriteriaEvaluateRequest;
 pub use crate::wire::plugin::CriteriaEvaluateResponse;
@@ -30,3 +29,8 @@ pub use crate::wire::plugin::StepsExecuteRequest;
 pub use crate::wire::plugin::StepsExecuteResponse;
 pub use crate::wire::plugin::TestCasesMaterializeRequest;
 pub use crate::wire::plugin::TestCasesMaterializeResponse;
+pub mod host {
+    pub mod files {
+        pub use crate::wire::host::files::CapturesStopResponse;
+    }
+}

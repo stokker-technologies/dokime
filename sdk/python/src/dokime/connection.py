@@ -33,7 +33,7 @@ from grpc.aio import (
 )
 
 # Local Imports
-from .client import Client
+from .client import ClientRoot
 
 # Type Checking Imports
 
@@ -105,7 +105,7 @@ async def connect(
     certificate_pem: str | None = None,
     access_key: str | None = None,
     expected_backend_id: str | None = None,
-) -> Client:
+) -> ClientRoot:
     selected = str(target or os.environ.get("DOKIME_REMOTE", ""))
     if not selected:
         raise ValueError("Connect: Name an Endpoint or Pairing File, or Set DOKIME_REMOTE")
@@ -137,7 +137,7 @@ async def connect(
         if certificate_pem:
             raise ValueError("Connect: HTTP Cannot Carry a Certificate")
         channel = insecure_channel(endpoint.netloc, interceptors=interceptors)
-    client = Client(channel)
+    client = ClientRoot(channel)
     client._owned_channel = channel
     try:
         if expected_backend_id:

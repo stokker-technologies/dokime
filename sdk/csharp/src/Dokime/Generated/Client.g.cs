@@ -1,23 +1,9 @@
 // @generated from protocol descriptors; do not edit.
 #nullable enable
-using Dokime;
-using Dokime.Clients;
-using Dokime.Clients.BackendResources;
-using Dokime.Clients.ContentResources;
-using Dokime.Clients.EvidenceResources;
-using Dokime.Clients.ExecutionsResources;
-using Dokime.Clients.FilesResources;
-using Dokime.Clients.MediaResources;
-using Dokime.Clients.PlotsResources;
-using Dokime.Clients.PluginsResources;
-using Dokime.Clients.PromptsResources;
-using Dokime.Clients.StorageResources;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Grpc.Net.Client;
-using Harmos;
-using Harmos.Clients;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -126,11 +112,11 @@ public sealed class AccessListenerResource
   {
     this.invoker = invoker;
   }
-  public async Task<ListenerGetResponse> Get(CallOptions context = default)
+  public async Task<global::Harmos.Clients.ListenerGetResponse> Get(CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Access.Listener.Get(context);
   }
-  public async Task<ListenerSetResponse> Set(ListenerValue value, ByteString expectedRevision, CallOptions context = default)
+  public async Task<global::Harmos.Clients.ListenerSetResponse> Set(global::Harmos.Clients.ListenerValue value, ByteString expectedRevision, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Access.Listener.Set(value, expectedRevision, context);
   }
@@ -142,15 +128,15 @@ public sealed class AccessPairingsResource
   {
     this.invoker = invoker;
   }
-  public async Task<PairingsCreateResponse> Create(string label, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PairingsCreateResponse> Create(string label, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Access.Pairings.Create(label, context);
   }
-  public async Task<PairingsListResponse> List(Position? at = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PairingsListResponse> List(global::Harmos.Position? at = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Access.Pairings.List(at, context);
   }
-  public async Task<PairingsDeleteResponse> Delete(string name, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PairingsDeleteResponse> Delete(string name, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Access.Pairings.Delete(name, context);
   }
@@ -162,9 +148,9 @@ public sealed class AggregatesResource
   {
     this.invoker = invoker;
   }
-  public async Task<AggregatesGetResponse> Get(QuerySource source, IReadOnlyList<QueryFilter> filters, IReadOnlyList<string> groupBy, IReadOnlyList<QueryAggregate> aggregates, uint limit, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.AggregatesGetResponse> Get(global::Dokime.Clients.QuerySource source, IReadOnlyList<global::Dokime.Clients.QueryFilter> filters, IReadOnlyList<string> groupBy, IReadOnlyList<global::Dokime.Clients.QueryAggregate> aggregates, uint limit, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new AggregatesGetRequest
+    var request = new global::Dokime.Clients.AggregatesGetRequest
     {
       Source = source,
       Limit = limit,
@@ -176,11 +162,11 @@ public sealed class AggregatesResource
     {
       request.At = at;
     }
-    var method = new Method<AggregatesGetRequest, AggregatesGetResponse>(MethodType.Unary, "dokime.host.v1.Aggregates", "Get",
-        Marshallers.Create<AggregatesGetRequest>(value => value.ToByteArray(), bytes => AggregatesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<AggregatesGetResponse>(value => value.ToByteArray(), bytes => AggregatesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.AggregatesGetRequest, global::Dokime.Clients.AggregatesGetResponse>(MethodType.Unary, "dokime.host.v1.Aggregates", "Get",
+        Marshallers.Create<global::Dokime.Clients.AggregatesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.AggregatesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.AggregatesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.AggregatesGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    AggregatesGetResponse response;
+    global::Dokime.Clients.AggregatesGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -201,20 +187,20 @@ public sealed class BackendResource
     this.invoker = invoker;
     Overview = new BackendOverviewResource(invoker);
   }
-  public async Task<BackendAppearanceResponse> Appearance(ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.BackendAppearanceResponse> Appearance(global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new BackendAppearanceRequest
+    var request = new global::Dokime.Clients.BackendAppearanceRequest
     {
     };
     if (at is not null)
     {
       request.At = at;
     }
-    var method = new Method<BackendAppearanceRequest, BackendAppearanceResponse>(MethodType.Unary, "dokime.host.v1.Backend", "Appearance",
-        Marshallers.Create<BackendAppearanceRequest>(value => value.ToByteArray(), bytes => BackendAppearanceRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<BackendAppearanceResponse>(value => value.ToByteArray(), bytes => BackendAppearanceResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.BackendAppearanceRequest, global::Dokime.Clients.BackendAppearanceResponse>(MethodType.Unary, "dokime.host.v1.Backend", "Appearance",
+        Marshallers.Create<global::Dokime.Clients.BackendAppearanceRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.BackendAppearanceRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.BackendAppearanceResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.BackendAppearanceResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    BackendAppearanceResponse response;
+    global::Dokime.Clients.BackendAppearanceResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -233,20 +219,20 @@ public sealed class BackendOverviewResource
   {
     this.invoker = invoker;
   }
-  public async Task<OverviewGetResponse> Get(ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.BackendResources.OverviewGetResponse> Get(global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new OverviewGetRequest
+    var request = new global::Dokime.Clients.BackendResources.OverviewGetRequest
     {
     };
     if (at is not null)
     {
       request.At = at;
     }
-    var method = new Method<OverviewGetRequest, OverviewGetResponse>(MethodType.Unary, "dokime.host.v1.backend.Overview", "Get",
-        Marshallers.Create<OverviewGetRequest>(value => value.ToByteArray(), bytes => OverviewGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<OverviewGetResponse>(value => value.ToByteArray(), bytes => OverviewGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.BackendResources.OverviewGetRequest, global::Dokime.Clients.BackendResources.OverviewGetResponse>(MethodType.Unary, "dokime.host.v1.backend.Overview", "Get",
+        Marshallers.Create<global::Dokime.Clients.BackendResources.OverviewGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.BackendResources.OverviewGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.BackendResources.OverviewGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.BackendResources.OverviewGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    OverviewGetResponse response;
+    global::Dokime.Clients.BackendResources.OverviewGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -257,18 +243,18 @@ public sealed class BackendOverviewResource
     }
     return response;
   }
-  public async IAsyncEnumerable<OverviewWatchResponse> Watch(ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.BackendResources.OverviewWatchResponse> Watch(global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new OverviewWatchRequest
+    var request = new global::Dokime.Clients.BackendResources.OverviewWatchRequest
     {
     };
     if (at is not null)
     {
       request.At = at;
     }
-    var method = new Method<OverviewWatchRequest, OverviewWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.backend.Overview", "Watch",
-        Marshallers.Create<OverviewWatchRequest>(value => value.ToByteArray(), bytes => OverviewWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<OverviewWatchResponse>(value => value.ToByteArray(), bytes => OverviewWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.BackendResources.OverviewWatchRequest, global::Dokime.Clients.BackendResources.OverviewWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.backend.Overview", "Watch",
+        Marshallers.Create<global::Dokime.Clients.BackendResources.OverviewWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.BackendResources.OverviewWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.BackendResources.OverviewWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.BackendResources.OverviewWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -298,19 +284,19 @@ public sealed class CasesResource
   {
     this.invoker = invoker;
   }
-  public async Task<CasesCreateResponse> Create(SelectionPlan plan, bool validateOnly, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.CasesCreateResponse> Create(global::Dokime.Clients.SelectionPlan plan, bool validateOnly, string? requestId = null, CallOptions context = default)
   {
-    var request = new CasesCreateRequest
+    var request = new global::Dokime.Clients.CasesCreateRequest
     {
       Plan = plan,
       ValidateOnly = validateOnly,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<CasesCreateRequest, CasesCreateResponse>(MethodType.Unary, "dokime.host.v1.Cases", "Create",
-        Marshallers.Create<CasesCreateRequest>(value => value.ToByteArray(), bytes => CasesCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CasesCreateResponse>(value => value.ToByteArray(), bytes => CasesCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CasesCreateRequest, global::Dokime.Clients.CasesCreateResponse>(MethodType.Unary, "dokime.host.v1.Cases", "Create",
+        Marshallers.Create<global::Dokime.Clients.CasesCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CasesCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CasesCreateResponse response;
+    global::Dokime.Clients.CasesCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -321,9 +307,9 @@ public sealed class CasesResource
     }
     return response;
   }
-  public async Task<CasesGetResponse> Get(string name, string parent, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.CasesGetResponse> Get(string name, string parent, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new CasesGetRequest
+    var request = new global::Dokime.Clients.CasesGetRequest
     {
       Name = name,
       Parent = parent,
@@ -332,11 +318,11 @@ public sealed class CasesResource
     {
       request.At = at;
     }
-    var method = new Method<CasesGetRequest, CasesGetResponse>(MethodType.Unary, "dokime.host.v1.Cases", "Get",
-        Marshallers.Create<CasesGetRequest>(value => value.ToByteArray(), bytes => CasesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CasesGetResponse>(value => value.ToByteArray(), bytes => CasesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CasesGetRequest, global::Dokime.Clients.CasesGetResponse>(MethodType.Unary, "dokime.host.v1.Cases", "Get",
+        Marshallers.Create<global::Dokime.Clients.CasesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CasesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CasesGetResponse response;
+    global::Dokime.Clients.CasesGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -347,9 +333,9 @@ public sealed class CasesResource
     }
     return response;
   }
-  public async Task<CasesListResponse> List(string parent, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.CasesListResponse> List(string parent, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new CasesListRequest
+    var request = new global::Dokime.Clients.CasesListRequest
     {
       Parent = parent,
     };
@@ -357,11 +343,11 @@ public sealed class CasesResource
     {
       request.At = at;
     }
-    var method = new Method<CasesListRequest, CasesListResponse>(MethodType.Unary, "dokime.host.v1.Cases", "List",
-        Marshallers.Create<CasesListRequest>(value => value.ToByteArray(), bytes => CasesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CasesListResponse>(value => value.ToByteArray(), bytes => CasesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CasesListRequest, global::Dokime.Clients.CasesListResponse>(MethodType.Unary, "dokime.host.v1.Cases", "List",
+        Marshallers.Create<global::Dokime.Clients.CasesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CasesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CasesListResponse response;
+    global::Dokime.Clients.CasesListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -372,9 +358,9 @@ public sealed class CasesResource
     }
     return response;
   }
-  public async IAsyncEnumerable<CasesWatchResponse> Watch(string parent, ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.CasesWatchResponse> Watch(string parent, global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new CasesWatchRequest
+    var request = new global::Dokime.Clients.CasesWatchRequest
     {
       Parent = parent,
     };
@@ -382,9 +368,9 @@ public sealed class CasesResource
     {
       request.At = at;
     }
-    var method = new Method<CasesWatchRequest, CasesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Cases", "Watch",
-        Marshallers.Create<CasesWatchRequest>(value => value.ToByteArray(), bytes => CasesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CasesWatchResponse>(value => value.ToByteArray(), bytes => CasesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CasesWatchRequest, global::Dokime.Clients.CasesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Cases", "Watch",
+        Marshallers.Create<global::Dokime.Clients.CasesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CasesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -406,19 +392,19 @@ public sealed class CasesResource
       yield return response;
     }
   }
-  public async Task<Receipt> Delete(string name, string parent, string? requestId = null, CallOptions context = default)
+  public async Task<global::Harmos.Receipt> Delete(string name, string parent, string? requestId = null, CallOptions context = default)
   {
-    var request = new CasesDeleteRequest
+    var request = new global::Dokime.Clients.CasesDeleteRequest
     {
       Name = name,
       Parent = parent,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<CasesDeleteRequest, CasesDeleteResponse>(MethodType.Unary, "dokime.host.v1.Cases", "Delete",
-        Marshallers.Create<CasesDeleteRequest>(value => value.ToByteArray(), bytes => CasesDeleteRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CasesDeleteResponse>(value => value.ToByteArray(), bytes => CasesDeleteResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CasesDeleteRequest, global::Dokime.Clients.CasesDeleteResponse>(MethodType.Unary, "dokime.host.v1.Cases", "Delete",
+        Marshallers.Create<global::Dokime.Clients.CasesDeleteRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesDeleteRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CasesDeleteResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesDeleteResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CasesDeleteResponse response;
+    global::Dokime.Clients.CasesDeleteResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -429,9 +415,9 @@ public sealed class CasesResource
     }
     return response.Receipt ?? throw new InvalidOperationException("Read Cases.Delete: Missing Payload");
   }
-  public async Task<CasesParametersResponse> Parameters(string name, string parent, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.CasesParametersResponse> Parameters(string name, string parent, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new CasesParametersRequest
+    var request = new global::Dokime.Clients.CasesParametersRequest
     {
       Name = name,
       Parent = parent,
@@ -440,11 +426,11 @@ public sealed class CasesResource
     {
       request.At = at;
     }
-    var method = new Method<CasesParametersRequest, CasesParametersResponse>(MethodType.Unary, "dokime.host.v1.Cases", "Parameters",
-        Marshallers.Create<CasesParametersRequest>(value => value.ToByteArray(), bytes => CasesParametersRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CasesParametersResponse>(value => value.ToByteArray(), bytes => CasesParametersResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CasesParametersRequest, global::Dokime.Clients.CasesParametersResponse>(MethodType.Unary, "dokime.host.v1.Cases", "Parameters",
+        Marshallers.Create<global::Dokime.Clients.CasesParametersRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesParametersRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CasesParametersResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CasesParametersResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CasesParametersResponse response;
+    global::Dokime.Clients.CasesParametersResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -473,9 +459,9 @@ public sealed class ContentArtifactsResource
   {
     this.invoker = invoker;
   }
-  public async Task<ArtifactsGetResponse> Get(string name, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ContentResources.ArtifactsGetResponse> Get(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new ArtifactsGetRequest
+    var request = new global::Dokime.Clients.ContentResources.ArtifactsGetRequest
     {
       Name = name,
     };
@@ -483,11 +469,11 @@ public sealed class ContentArtifactsResource
     {
       request.At = at;
     }
-    var method = new Method<ArtifactsGetRequest, ArtifactsGetResponse>(MethodType.Unary, "dokime.host.v1.content.Artifacts", "Get",
-        Marshallers.Create<ArtifactsGetRequest>(value => value.ToByteArray(), bytes => ArtifactsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ArtifactsGetResponse>(value => value.ToByteArray(), bytes => ArtifactsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ContentResources.ArtifactsGetRequest, global::Dokime.Clients.ContentResources.ArtifactsGetResponse>(MethodType.Unary, "dokime.host.v1.content.Artifacts", "Get",
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ArtifactsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ArtifactsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ArtifactsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ArtifactsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ArtifactsGetResponse response;
+    global::Dokime.Clients.ContentResources.ArtifactsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -498,9 +484,9 @@ public sealed class ContentArtifactsResource
     }
     return response;
   }
-  public async Task<ArtifactsCreateResponse> Create(FileReference file, string filename, string contentType, ArtifactScope? scope = null, string? requestId = null, Metadata? metadata = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ContentResources.ArtifactsCreateResponse> Create(global::Harmos.FileReference file, string filename, string contentType, global::Dokime.ArtifactScope? scope = null, string? requestId = null, global::Dokime.Metadata? metadata = null, CallOptions context = default)
   {
-    var request = new ArtifactsCreateRequest
+    var request = new global::Dokime.Clients.ContentResources.ArtifactsCreateRequest
     {
       File = file,
       Filename = filename,
@@ -515,11 +501,11 @@ public sealed class ContentArtifactsResource
     {
       request.Metadata = metadata;
     }
-    var method = new Method<ArtifactsCreateRequest, ArtifactsCreateResponse>(MethodType.Unary, "dokime.host.v1.content.Artifacts", "Create",
-        Marshallers.Create<ArtifactsCreateRequest>(value => value.ToByteArray(), bytes => ArtifactsCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ArtifactsCreateResponse>(value => value.ToByteArray(), bytes => ArtifactsCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ContentResources.ArtifactsCreateRequest, global::Dokime.Clients.ContentResources.ArtifactsCreateResponse>(MethodType.Unary, "dokime.host.v1.content.Artifacts", "Create",
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ArtifactsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ArtifactsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ArtifactsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ArtifactsCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ArtifactsCreateResponse response;
+    global::Dokime.Clients.ContentResources.ArtifactsCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -530,9 +516,9 @@ public sealed class ContentArtifactsResource
     }
     return response;
   }
-  public async Task<ArtifactsListResponse> List(ArtifactScope scope, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ContentResources.ArtifactsListResponse> List(global::Dokime.ArtifactScope scope, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new ArtifactsListRequest
+    var request = new global::Dokime.Clients.ContentResources.ArtifactsListRequest
     {
       Scope = scope,
     };
@@ -544,11 +530,11 @@ public sealed class ContentArtifactsResource
     {
       request.Page = page;
     }
-    var method = new Method<ArtifactsListRequest, ArtifactsListResponse>(MethodType.Unary, "dokime.host.v1.content.Artifacts", "List",
-        Marshallers.Create<ArtifactsListRequest>(value => value.ToByteArray(), bytes => ArtifactsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ArtifactsListResponse>(value => value.ToByteArray(), bytes => ArtifactsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ContentResources.ArtifactsListRequest, global::Dokime.Clients.ContentResources.ArtifactsListResponse>(MethodType.Unary, "dokime.host.v1.content.Artifacts", "List",
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ArtifactsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ArtifactsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ArtifactsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ArtifactsListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ArtifactsListResponse response;
+    global::Dokime.Clients.ContentResources.ArtifactsListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -559,9 +545,9 @@ public sealed class ContentArtifactsResource
     }
     return response;
   }
-  public async IAsyncEnumerable<ArtifactsWatchResponse> Watch(ArtifactScope scope, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.ContentResources.ArtifactsWatchResponse> Watch(global::Dokime.ArtifactScope scope, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new ArtifactsWatchRequest
+    var request = new global::Dokime.Clients.ContentResources.ArtifactsWatchRequest
     {
       Scope = scope,
     };
@@ -573,9 +559,9 @@ public sealed class ContentArtifactsResource
     {
       request.Page = page;
     }
-    var method = new Method<ArtifactsWatchRequest, ArtifactsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.content.Artifacts", "Watch",
-        Marshallers.Create<ArtifactsWatchRequest>(value => value.ToByteArray(), bytes => ArtifactsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ArtifactsWatchResponse>(value => value.ToByteArray(), bytes => ArtifactsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ContentResources.ArtifactsWatchRequest, global::Dokime.Clients.ContentResources.ArtifactsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.content.Artifacts", "Watch",
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ArtifactsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ArtifactsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ArtifactsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ArtifactsWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -605,9 +591,9 @@ public sealed class ContentExecutionFilesResource
   {
     this.invoker = invoker;
   }
-  public async Task<ExecutionFilesGetResponse> Get(string parent, string name, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse> Get(string parent, string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new ExecutionFilesGetRequest
+    var request = new global::Dokime.Clients.ContentResources.ExecutionFilesGetRequest
     {
       Parent = parent,
       Name = name,
@@ -616,11 +602,11 @@ public sealed class ContentExecutionFilesResource
     {
       request.At = at;
     }
-    var method = new Method<ExecutionFilesGetRequest, ExecutionFilesGetResponse>(MethodType.Unary, "dokime.host.v1.content.ExecutionFiles", "Get",
-        Marshallers.Create<ExecutionFilesGetRequest>(value => value.ToByteArray(), bytes => ExecutionFilesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionFilesGetResponse>(value => value.ToByteArray(), bytes => ExecutionFilesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ContentResources.ExecutionFilesGetRequest, global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse>(MethodType.Unary, "dokime.host.v1.content.ExecutionFiles", "Get",
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ExecutionFilesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ExecutionFilesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionFilesGetResponse response;
+    global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -631,9 +617,9 @@ public sealed class ContentExecutionFilesResource
     }
     return response;
   }
-  public async Task<ExecutionFilesListResponse> List(string parent, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ContentResources.ExecutionFilesListResponse> List(string parent, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new ExecutionFilesListRequest
+    var request = new global::Dokime.Clients.ContentResources.ExecutionFilesListRequest
     {
       Parent = parent,
     };
@@ -645,11 +631,11 @@ public sealed class ContentExecutionFilesResource
     {
       request.Page = page;
     }
-    var method = new Method<ExecutionFilesListRequest, ExecutionFilesListResponse>(MethodType.Unary, "dokime.host.v1.content.ExecutionFiles", "List",
-        Marshallers.Create<ExecutionFilesListRequest>(value => value.ToByteArray(), bytes => ExecutionFilesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionFilesListResponse>(value => value.ToByteArray(), bytes => ExecutionFilesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ContentResources.ExecutionFilesListRequest, global::Dokime.Clients.ContentResources.ExecutionFilesListResponse>(MethodType.Unary, "dokime.host.v1.content.ExecutionFiles", "List",
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ExecutionFilesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ExecutionFilesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ExecutionFilesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ExecutionFilesListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionFilesListResponse response;
+    global::Dokime.Clients.ContentResources.ExecutionFilesListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -660,9 +646,9 @@ public sealed class ContentExecutionFilesResource
     }
     return response;
   }
-  public async IAsyncEnumerable<ExecutionFilesWatchResponse> Watch(string parent, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.ContentResources.ExecutionFilesWatchResponse> Watch(string parent, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new ExecutionFilesWatchRequest
+    var request = new global::Dokime.Clients.ContentResources.ExecutionFilesWatchRequest
     {
       Parent = parent,
     };
@@ -674,9 +660,9 @@ public sealed class ContentExecutionFilesResource
     {
       request.Page = page;
     }
-    var method = new Method<ExecutionFilesWatchRequest, ExecutionFilesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.content.ExecutionFiles", "Watch",
-        Marshallers.Create<ExecutionFilesWatchRequest>(value => value.ToByteArray(), bytes => ExecutionFilesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionFilesWatchResponse>(value => value.ToByteArray(), bytes => ExecutionFilesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ContentResources.ExecutionFilesWatchRequest, global::Dokime.Clients.ContentResources.ExecutionFilesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.content.ExecutionFiles", "Watch",
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ExecutionFilesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ExecutionFilesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ContentResources.ExecutionFilesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ContentResources.ExecutionFilesWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -706,9 +692,9 @@ public sealed class CyclesResource
   {
     this.invoker = invoker;
   }
-  public async Task<CyclesGetResponse> Get(string name, Position? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.CyclesGetResponse> Get(string name, global::Harmos.Position? at = null, CallOptions context = default)
   {
-    var request = new CyclesGetRequest
+    var request = new global::Dokime.Clients.CyclesGetRequest
     {
       Name = name,
     };
@@ -716,11 +702,11 @@ public sealed class CyclesResource
     {
       request.At = at;
     }
-    var method = new Method<CyclesGetRequest, CyclesGetResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "Get",
-        Marshallers.Create<CyclesGetRequest>(value => value.ToByteArray(), bytes => CyclesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CyclesGetResponse>(value => value.ToByteArray(), bytes => CyclesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CyclesGetRequest, global::Dokime.Clients.CyclesGetResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "Get",
+        Marshallers.Create<global::Dokime.Clients.CyclesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CyclesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CyclesGetResponse response;
+    global::Dokime.Clients.CyclesGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -731,20 +717,20 @@ public sealed class CyclesResource
     }
     return response;
   }
-  public async Task<CyclesSetResponse> Set(string name, CycleWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.CyclesSetResponse> Set(string name, global::Dokime.Clients.CycleWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new CyclesSetRequest
+    var request = new global::Dokime.Clients.CyclesSetRequest
     {
       Name = name,
       Value = value,
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<CyclesSetRequest, CyclesSetResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "Set",
-        Marshallers.Create<CyclesSetRequest>(value => value.ToByteArray(), bytes => CyclesSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CyclesSetResponse>(value => value.ToByteArray(), bytes => CyclesSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CyclesSetRequest, global::Dokime.Clients.CyclesSetResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "Set",
+        Marshallers.Create<global::Dokime.Clients.CyclesSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CyclesSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesSetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CyclesSetResponse response;
+    global::Dokime.Clients.CyclesSetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -755,9 +741,9 @@ public sealed class CyclesResource
     }
     return response;
   }
-  public async Task<CyclesListResponse> List(CycleSelection selection, CycleFilter filter, CycleOrder order, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.CyclesListResponse> List(global::Dokime.Clients.CycleSelection selection, global::Dokime.Clients.CycleFilter filter, global::Dokime.Clients.CycleOrder order, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new CyclesListRequest
+    var request = new global::Dokime.Clients.CyclesListRequest
     {
       Selection = selection,
       Filter = filter,
@@ -771,11 +757,11 @@ public sealed class CyclesResource
     {
       request.Page = page;
     }
-    var method = new Method<CyclesListRequest, CyclesListResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "List",
-        Marshallers.Create<CyclesListRequest>(value => value.ToByteArray(), bytes => CyclesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CyclesListResponse>(value => value.ToByteArray(), bytes => CyclesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CyclesListRequest, global::Dokime.Clients.CyclesListResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "List",
+        Marshallers.Create<global::Dokime.Clients.CyclesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CyclesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CyclesListResponse response;
+    global::Dokime.Clients.CyclesListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -786,9 +772,9 @@ public sealed class CyclesResource
     }
     return response;
   }
-  public async IAsyncEnumerable<CyclesWatchResponse> Watch(CycleSelection selection, CycleFilter filter, CycleOrder order, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.CyclesWatchResponse> Watch(global::Dokime.Clients.CycleSelection selection, global::Dokime.Clients.CycleFilter filter, global::Dokime.Clients.CycleOrder order, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new CyclesWatchRequest
+    var request = new global::Dokime.Clients.CyclesWatchRequest
     {
       Selection = selection,
       Filter = filter,
@@ -802,9 +788,9 @@ public sealed class CyclesResource
     {
       request.Page = page;
     }
-    var method = new Method<CyclesWatchRequest, CyclesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Cycles", "Watch",
-        Marshallers.Create<CyclesWatchRequest>(value => value.ToByteArray(), bytes => CyclesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CyclesWatchResponse>(value => value.ToByteArray(), bytes => CyclesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CyclesWatchRequest, global::Dokime.Clients.CyclesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Cycles", "Watch",
+        Marshallers.Create<global::Dokime.Clients.CyclesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CyclesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -826,9 +812,9 @@ public sealed class CyclesResource
       yield return response;
     }
   }
-  public async Task<CyclesCreateResponse> Create(IReadOnlyList<Origin> origins, Metadata metadata, bool continueAutomatically, string sourceCycle, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.CyclesCreateResponse> Create(IReadOnlyList<global::Dokime.Origin> origins, global::Dokime.Metadata metadata, bool continueAutomatically, string sourceCycle, string? requestId = null, CallOptions context = default)
   {
-    var request = new CyclesCreateRequest
+    var request = new global::Dokime.Clients.CyclesCreateRequest
     {
       Metadata = metadata,
       ContinueAutomatically = continueAutomatically,
@@ -836,11 +822,11 @@ public sealed class CyclesResource
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
     request.Origins.Add(origins);
-    var method = new Method<CyclesCreateRequest, CyclesCreateResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "Create",
-        Marshallers.Create<CyclesCreateRequest>(value => value.ToByteArray(), bytes => CyclesCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CyclesCreateResponse>(value => value.ToByteArray(), bytes => CyclesCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CyclesCreateRequest, global::Dokime.Clients.CyclesCreateResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "Create",
+        Marshallers.Create<global::Dokime.Clients.CyclesCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CyclesCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CyclesCreateResponse response;
+    global::Dokime.Clients.CyclesCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -851,18 +837,18 @@ public sealed class CyclesResource
     }
     return response;
   }
-  public async Task<CyclesSealResponse> Seal(string name, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.CyclesSealResponse> Seal(string name, string? requestId = null, CallOptions context = default)
   {
-    var request = new CyclesSealRequest
+    var request = new global::Dokime.Clients.CyclesSealRequest
     {
       Name = name,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<CyclesSealRequest, CyclesSealResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "Seal",
-        Marshallers.Create<CyclesSealRequest>(value => value.ToByteArray(), bytes => CyclesSealRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CyclesSealResponse>(value => value.ToByteArray(), bytes => CyclesSealResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.CyclesSealRequest, global::Dokime.Clients.CyclesSealResponse>(MethodType.Unary, "dokime.host.v1.Cycles", "Seal",
+        Marshallers.Create<global::Dokime.Clients.CyclesSealRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesSealRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.CyclesSealResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.CyclesSealResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CyclesSealResponse response;
+    global::Dokime.Clients.CyclesSealResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -881,9 +867,9 @@ public sealed class DocumentsResource
   {
     this.invoker = invoker;
   }
-  public async Task<DocumentsGetResponse> Get(DocumentScope scope, string documentId, bool structureOnly, IReadOnlyList<string> cardIds, string pageToken, ulong maxBytes, uint maxFrames, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.DocumentsGetResponse> Get(global::Dokime.Clients.DocumentScope scope, string documentId, bool structureOnly, IReadOnlyList<string> cardIds, string pageToken, ulong maxBytes, uint maxFrames, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new DocumentsGetRequest
+    var request = new global::Dokime.Clients.DocumentsGetRequest
     {
       Scope = scope,
       DocumentId = documentId,
@@ -897,11 +883,11 @@ public sealed class DocumentsResource
     {
       request.At = at;
     }
-    var method = new Method<DocumentsGetRequest, DocumentsGetResponse>(MethodType.Unary, "dokime.host.v1.Documents", "Get",
-        Marshallers.Create<DocumentsGetRequest>(value => value.ToByteArray(), bytes => DocumentsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DocumentsGetResponse>(value => value.ToByteArray(), bytes => DocumentsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.DocumentsGetRequest, global::Dokime.Clients.DocumentsGetResponse>(MethodType.Unary, "dokime.host.v1.Documents", "Get",
+        Marshallers.Create<global::Dokime.Clients.DocumentsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.DocumentsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.DocumentsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.DocumentsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DocumentsGetResponse response;
+    global::Dokime.Clients.DocumentsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -912,9 +898,9 @@ public sealed class DocumentsResource
     }
     return response;
   }
-  public async IAsyncEnumerable<DocumentsWatchResponse> Watch(DocumentScope scope, string documentId, bool structureOnly, IReadOnlyList<string> cardIds, string pageToken, ulong maxBytes, uint maxFrames, ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.DocumentsWatchResponse> Watch(global::Dokime.Clients.DocumentScope scope, string documentId, bool structureOnly, IReadOnlyList<string> cardIds, string pageToken, ulong maxBytes, uint maxFrames, global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new DocumentsWatchRequest
+    var request = new global::Dokime.Clients.DocumentsWatchRequest
     {
       Scope = scope,
       DocumentId = documentId,
@@ -928,9 +914,9 @@ public sealed class DocumentsResource
     {
       request.At = at;
     }
-    var method = new Method<DocumentsWatchRequest, DocumentsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Documents", "Watch",
-        Marshallers.Create<DocumentsWatchRequest>(value => value.ToByteArray(), bytes => DocumentsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DocumentsWatchResponse>(value => value.ToByteArray(), bytes => DocumentsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.DocumentsWatchRequest, global::Dokime.Clients.DocumentsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Documents", "Watch",
+        Marshallers.Create<global::Dokime.Clients.DocumentsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.DocumentsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.DocumentsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.DocumentsWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -970,9 +956,9 @@ public sealed class EvidenceResource
     Samples = new EvidenceSamplesResource(invoker);
     Traceability = new EvidenceTraceabilityResource(invoker);
   }
-  public async Task<EvidenceStatisticsResponse> Statistics(string stream, IReadOnlyList<uint> versions, Window between, IReadOnlyList<Output> outputs, string field, string step, EvidenceScope? scope = null, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceStatisticsResponse> Statistics(string stream, IReadOnlyList<uint> versions, global::Dokime.Window between, IReadOnlyList<global::Dokime.Clients.Output> outputs, string field, string step, global::Dokime.EvidenceScope? scope = null, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new EvidenceStatisticsRequest
+    var request = new global::Dokime.Clients.EvidenceStatisticsRequest
     {
       Stream = stream,
       Between = between,
@@ -989,11 +975,11 @@ public sealed class EvidenceResource
     {
       request.At = at;
     }
-    var method = new Method<EvidenceStatisticsRequest, EvidenceStatisticsResponse>(MethodType.Unary, "dokime.host.v1.Evidence", "Statistics",
-        Marshallers.Create<EvidenceStatisticsRequest>(value => value.ToByteArray(), bytes => EvidenceStatisticsRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<EvidenceStatisticsResponse>(value => value.ToByteArray(), bytes => EvidenceStatisticsResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceStatisticsRequest, global::Dokime.Clients.EvidenceStatisticsResponse>(MethodType.Unary, "dokime.host.v1.Evidence", "Statistics",
+        Marshallers.Create<global::Dokime.Clients.EvidenceStatisticsRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceStatisticsRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceStatisticsResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceStatisticsResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    EvidenceStatisticsResponse response;
+    global::Dokime.Clients.EvidenceStatisticsResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1004,9 +990,9 @@ public sealed class EvidenceResource
     }
     return response;
   }
-  public async Task<EvidenceArchiveResponse> Archive(EvidenceSubject subject, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceArchiveResponse> Archive(global::Dokime.Clients.EvidenceSubject subject, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new EvidenceArchiveRequest
+    var request = new global::Dokime.Clients.EvidenceArchiveRequest
     {
       Subject = subject,
     };
@@ -1014,11 +1000,11 @@ public sealed class EvidenceResource
     {
       request.At = at;
     }
-    var method = new Method<EvidenceArchiveRequest, EvidenceArchiveResponse>(MethodType.Unary, "dokime.host.v1.Evidence", "Archive",
-        Marshallers.Create<EvidenceArchiveRequest>(value => value.ToByteArray(), bytes => EvidenceArchiveRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<EvidenceArchiveResponse>(value => value.ToByteArray(), bytes => EvidenceArchiveResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceArchiveRequest, global::Dokime.Clients.EvidenceArchiveResponse>(MethodType.Unary, "dokime.host.v1.Evidence", "Archive",
+        Marshallers.Create<global::Dokime.Clients.EvidenceArchiveRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceArchiveRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceArchiveResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceArchiveResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    EvidenceArchiveResponse response;
+    global::Dokime.Clients.EvidenceArchiveResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1037,9 +1023,9 @@ public sealed class EvidenceHealthEventsResource
   {
     this.invoker = invoker;
   }
-  public async Task<HealthEventsListResponse> List(AnnotationSelection selection, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceResources.HealthEventsListResponse> List(global::Dokime.Clients.EvidenceResources.AnnotationSelection selection, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new HealthEventsListRequest
+    var request = new global::Dokime.Clients.EvidenceResources.HealthEventsListRequest
     {
       Selection = selection,
     };
@@ -1051,11 +1037,11 @@ public sealed class EvidenceHealthEventsResource
     {
       request.Page = page;
     }
-    var method = new Method<HealthEventsListRequest, HealthEventsListResponse>(MethodType.Unary, "dokime.host.v1.evidence.HealthEvents", "List",
-        Marshallers.Create<HealthEventsListRequest>(value => value.ToByteArray(), bytes => HealthEventsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<HealthEventsListResponse>(value => value.ToByteArray(), bytes => HealthEventsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.HealthEventsListRequest, global::Dokime.Clients.EvidenceResources.HealthEventsListResponse>(MethodType.Unary, "dokime.host.v1.evidence.HealthEvents", "List",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.HealthEventsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.HealthEventsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.HealthEventsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.HealthEventsListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    HealthEventsListResponse response;
+    global::Dokime.Clients.EvidenceResources.HealthEventsListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1066,9 +1052,9 @@ public sealed class EvidenceHealthEventsResource
     }
     return response;
   }
-  public async IAsyncEnumerable<HealthEventsWatchResponse> Watch(AnnotationSelection selection, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.EvidenceResources.HealthEventsWatchResponse> Watch(global::Dokime.Clients.EvidenceResources.AnnotationSelection selection, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new HealthEventsWatchRequest
+    var request = new global::Dokime.Clients.EvidenceResources.HealthEventsWatchRequest
     {
       Selection = selection,
     };
@@ -1080,9 +1066,9 @@ public sealed class EvidenceHealthEventsResource
     {
       request.Page = page;
     }
-    var method = new Method<HealthEventsWatchRequest, HealthEventsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.HealthEvents", "Watch",
-        Marshallers.Create<HealthEventsWatchRequest>(value => value.ToByteArray(), bytes => HealthEventsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<HealthEventsWatchResponse>(value => value.ToByteArray(), bytes => HealthEventsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.HealthEventsWatchRequest, global::Dokime.Clients.EvidenceResources.HealthEventsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.HealthEvents", "Watch",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.HealthEventsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.HealthEventsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.HealthEventsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.HealthEventsWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -1112,9 +1098,9 @@ public sealed class EvidenceNotesResource
   {
     this.invoker = invoker;
   }
-  public async Task<NotesGetResponse> Get(string name, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceResources.NotesGetResponse> Get(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new NotesGetRequest
+    var request = new global::Dokime.Clients.EvidenceResources.NotesGetRequest
     {
       Name = name,
     };
@@ -1122,11 +1108,11 @@ public sealed class EvidenceNotesResource
     {
       request.At = at;
     }
-    var method = new Method<NotesGetRequest, NotesGetResponse>(MethodType.Unary, "dokime.host.v1.evidence.Notes", "Get",
-        Marshallers.Create<NotesGetRequest>(value => value.ToByteArray(), bytes => NotesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<NotesGetResponse>(value => value.ToByteArray(), bytes => NotesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.NotesGetRequest, global::Dokime.Clients.EvidenceResources.NotesGetResponse>(MethodType.Unary, "dokime.host.v1.evidence.Notes", "Get",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    NotesGetResponse response;
+    global::Dokime.Clients.EvidenceResources.NotesGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1137,20 +1123,20 @@ public sealed class EvidenceNotesResource
     }
     return response;
   }
-  public async Task<NotesSetResponse> Set(string name, NoteWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceResources.NotesSetResponse> Set(string name, global::Dokime.Clients.EvidenceResources.NoteWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new NotesSetRequest
+    var request = new global::Dokime.Clients.EvidenceResources.NotesSetRequest
     {
       Name = name,
       Value = value,
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<NotesSetRequest, NotesSetResponse>(MethodType.Unary, "dokime.host.v1.evidence.Notes", "Set",
-        Marshallers.Create<NotesSetRequest>(value => value.ToByteArray(), bytes => NotesSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<NotesSetResponse>(value => value.ToByteArray(), bytes => NotesSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.NotesSetRequest, global::Dokime.Clients.EvidenceResources.NotesSetResponse>(MethodType.Unary, "dokime.host.v1.evidence.Notes", "Set",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesSetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    NotesSetResponse response;
+    global::Dokime.Clients.EvidenceResources.NotesSetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1161,9 +1147,9 @@ public sealed class EvidenceNotesResource
     }
     return response;
   }
-  public async Task<NotesListResponse> List(AnnotationSelection selection, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceResources.NotesListResponse> List(global::Dokime.Clients.EvidenceResources.AnnotationSelection selection, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new NotesListRequest
+    var request = new global::Dokime.Clients.EvidenceResources.NotesListRequest
     {
       Selection = selection,
     };
@@ -1175,11 +1161,11 @@ public sealed class EvidenceNotesResource
     {
       request.Page = page;
     }
-    var method = new Method<NotesListRequest, NotesListResponse>(MethodType.Unary, "dokime.host.v1.evidence.Notes", "List",
-        Marshallers.Create<NotesListRequest>(value => value.ToByteArray(), bytes => NotesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<NotesListResponse>(value => value.ToByteArray(), bytes => NotesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.NotesListRequest, global::Dokime.Clients.EvidenceResources.NotesListResponse>(MethodType.Unary, "dokime.host.v1.evidence.Notes", "List",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    NotesListResponse response;
+    global::Dokime.Clients.EvidenceResources.NotesListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1190,9 +1176,9 @@ public sealed class EvidenceNotesResource
     }
     return response;
   }
-  public async IAsyncEnumerable<NotesWatchResponse> Watch(AnnotationSelection selection, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.EvidenceResources.NotesWatchResponse> Watch(global::Dokime.Clients.EvidenceResources.AnnotationSelection selection, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new NotesWatchRequest
+    var request = new global::Dokime.Clients.EvidenceResources.NotesWatchRequest
     {
       Selection = selection,
     };
@@ -1204,9 +1190,9 @@ public sealed class EvidenceNotesResource
     {
       request.Page = page;
     }
-    var method = new Method<NotesWatchRequest, NotesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.Notes", "Watch",
-        Marshallers.Create<NotesWatchRequest>(value => value.ToByteArray(), bytes => NotesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<NotesWatchResponse>(value => value.ToByteArray(), bytes => NotesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.NotesWatchRequest, global::Dokime.Clients.EvidenceResources.NotesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.Notes", "Watch",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -1228,19 +1214,19 @@ public sealed class EvidenceNotesResource
       yield return response;
     }
   }
-  public async Task<NotesCreateResponse> Create(AnnotationOwner owner, NoteWritable value, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceResources.NotesCreateResponse> Create(global::Dokime.Clients.EvidenceResources.AnnotationOwner owner, global::Dokime.Clients.EvidenceResources.NoteWritable value, string? requestId = null, CallOptions context = default)
   {
-    var request = new NotesCreateRequest
+    var request = new global::Dokime.Clients.EvidenceResources.NotesCreateRequest
     {
       Owner = owner,
       Value = value,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<NotesCreateRequest, NotesCreateResponse>(MethodType.Unary, "dokime.host.v1.evidence.Notes", "Create",
-        Marshallers.Create<NotesCreateRequest>(value => value.ToByteArray(), bytes => NotesCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<NotesCreateResponse>(value => value.ToByteArray(), bytes => NotesCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.NotesCreateRequest, global::Dokime.Clients.EvidenceResources.NotesCreateResponse>(MethodType.Unary, "dokime.host.v1.evidence.Notes", "Create",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.NotesCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.NotesCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    NotesCreateResponse response;
+    global::Dokime.Clients.EvidenceResources.NotesCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1259,9 +1245,9 @@ public sealed class EvidenceRecordsResource
   {
     this.invoker = invoker;
   }
-  public async Task<RecordsListResponse> List(string recordType, IReadOnlyList<uint> versions, Window between, string step, CapturedRecordSelection selection, RecordScope? scope = null, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceResources.RecordsListResponse> List(string recordType, IReadOnlyList<uint> versions, global::Dokime.Window between, string step, global::Dokime.Clients.EvidenceResources.CapturedRecordSelection selection, global::Dokime.Clients.EvidenceResources.RecordScope? scope = null, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new RecordsListRequest
+    var request = new global::Dokime.Clients.EvidenceResources.RecordsListRequest
     {
       RecordType = recordType,
       Between = between,
@@ -1281,11 +1267,11 @@ public sealed class EvidenceRecordsResource
     {
       request.Page = page;
     }
-    var method = new Method<RecordsListRequest, RecordsListResponse>(MethodType.Unary, "dokime.host.v1.evidence.Records", "List",
-        Marshallers.Create<RecordsListRequest>(value => value.ToByteArray(), bytes => RecordsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<RecordsListResponse>(value => value.ToByteArray(), bytes => RecordsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.RecordsListRequest, global::Dokime.Clients.EvidenceResources.RecordsListResponse>(MethodType.Unary, "dokime.host.v1.evidence.Records", "List",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.RecordsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.RecordsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.RecordsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.RecordsListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    RecordsListResponse response;
+    global::Dokime.Clients.EvidenceResources.RecordsListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1296,9 +1282,9 @@ public sealed class EvidenceRecordsResource
     }
     return response;
   }
-  public async IAsyncEnumerable<RecordsWatchResponse> Watch(RecordScope scope, string recordType, IReadOnlyList<uint> versions, Window between, string step, CapturedRecordSelection selection, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.EvidenceResources.RecordsWatchResponse> Watch(global::Dokime.Clients.EvidenceResources.RecordScope scope, string recordType, IReadOnlyList<uint> versions, global::Dokime.Window between, string step, global::Dokime.Clients.EvidenceResources.CapturedRecordSelection selection, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new RecordsWatchRequest
+    var request = new global::Dokime.Clients.EvidenceResources.RecordsWatchRequest
     {
       Scope = scope,
       RecordType = recordType,
@@ -1315,9 +1301,9 @@ public sealed class EvidenceRecordsResource
     {
       request.Page = page;
     }
-    var method = new Method<RecordsWatchRequest, RecordsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.Records", "Watch",
-        Marshallers.Create<RecordsWatchRequest>(value => value.ToByteArray(), bytes => RecordsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<RecordsWatchResponse>(value => value.ToByteArray(), bytes => RecordsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.RecordsWatchRequest, global::Dokime.Clients.EvidenceResources.RecordsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.Records", "Watch",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.RecordsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.RecordsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.RecordsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.RecordsWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -1347,9 +1333,9 @@ public sealed class EvidenceSamplesResource
   {
     this.invoker = invoker;
   }
-  public async Task<SamplesListResponse> List(EvidenceScope scope, IReadOnlyList<string> streams, IReadOnlyList<uint> versions, IReadOnlyList<string> fields, IReadOnlyList<string> sources, IReadOnlyList<string> signals, Window between, BucketRequest bucket, bool latest, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceResources.SamplesListResponse> List(global::Dokime.EvidenceScope scope, IReadOnlyList<string> streams, IReadOnlyList<uint> versions, IReadOnlyList<string> fields, IReadOnlyList<string> sources, IReadOnlyList<string> signals, global::Dokime.Window between, global::Dokime.Clients.EvidenceResources.BucketRequest bucket, bool latest, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new SamplesListRequest
+    var request = new global::Dokime.Clients.EvidenceResources.SamplesListRequest
     {
       Scope = scope,
       Between = between,
@@ -1369,11 +1355,11 @@ public sealed class EvidenceSamplesResource
     {
       request.Page = page;
     }
-    var method = new Method<SamplesListRequest, SamplesListResponse>(MethodType.Unary, "dokime.host.v1.evidence.Samples", "List",
-        Marshallers.Create<SamplesListRequest>(value => value.ToByteArray(), bytes => SamplesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SamplesListResponse>(value => value.ToByteArray(), bytes => SamplesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.SamplesListRequest, global::Dokime.Clients.EvidenceResources.SamplesListResponse>(MethodType.Unary, "dokime.host.v1.evidence.Samples", "List",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.SamplesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.SamplesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.SamplesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.SamplesListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SamplesListResponse response;
+    global::Dokime.Clients.EvidenceResources.SamplesListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1384,9 +1370,9 @@ public sealed class EvidenceSamplesResource
     }
     return response;
   }
-  public async IAsyncEnumerable<SamplesWatchResponse> Watch(EvidenceScope scope, IReadOnlyList<string> streams, IReadOnlyList<uint> versions, IReadOnlyList<string> fields, IReadOnlyList<string> sources, IReadOnlyList<string> signals, Window between, BucketRequest bucket, bool latest, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.EvidenceResources.SamplesWatchResponse> Watch(global::Dokime.EvidenceScope scope, IReadOnlyList<string> streams, IReadOnlyList<uint> versions, IReadOnlyList<string> fields, IReadOnlyList<string> sources, IReadOnlyList<string> signals, global::Dokime.Window between, global::Dokime.Clients.EvidenceResources.BucketRequest bucket, bool latest, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new SamplesWatchRequest
+    var request = new global::Dokime.Clients.EvidenceResources.SamplesWatchRequest
     {
       Scope = scope,
       Between = between,
@@ -1406,9 +1392,9 @@ public sealed class EvidenceSamplesResource
     {
       request.Page = page;
     }
-    var method = new Method<SamplesWatchRequest, SamplesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.Samples", "Watch",
-        Marshallers.Create<SamplesWatchRequest>(value => value.ToByteArray(), bytes => SamplesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SamplesWatchResponse>(value => value.ToByteArray(), bytes => SamplesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.SamplesWatchRequest, global::Dokime.Clients.EvidenceResources.SamplesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.Samples", "Watch",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.SamplesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.SamplesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.SamplesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.SamplesWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -1438,9 +1424,9 @@ public sealed class EvidenceTraceabilityResource
   {
     this.invoker = invoker;
   }
-  public async Task<TraceabilityGetResponse> Get(EvidenceScope? scope = null, PageRequest? page = null, ReadCut? at = null, string? entry = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse> Get(global::Dokime.EvidenceScope? scope = null, global::Harmos.PageRequest? page = null, global::Harmos.ReadCut? at = null, string? entry = null, CallOptions context = default)
   {
-    var request = new TraceabilityGetRequest
+    var request = new global::Dokime.Clients.EvidenceResources.TraceabilityGetRequest
     {
     };
     if (scope is not null)
@@ -1459,11 +1445,11 @@ public sealed class EvidenceTraceabilityResource
     {
       request.Entry = entry;
     }
-    var method = new Method<TraceabilityGetRequest, TraceabilityGetResponse>(MethodType.Unary, "dokime.host.v1.evidence.Traceability", "Get",
-        Marshallers.Create<TraceabilityGetRequest>(value => value.ToByteArray(), bytes => TraceabilityGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<TraceabilityGetResponse>(value => value.ToByteArray(), bytes => TraceabilityGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.TraceabilityGetRequest, global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse>(MethodType.Unary, "dokime.host.v1.evidence.Traceability", "Get",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.TraceabilityGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.TraceabilityGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    TraceabilityGetResponse response;
+    global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1474,9 +1460,9 @@ public sealed class EvidenceTraceabilityResource
     }
     return response;
   }
-  public async IAsyncEnumerable<TraceabilityWatchResponse> Watch(EvidenceScope scope, PageRequest? page = null, ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.EvidenceResources.TraceabilityWatchResponse> Watch(global::Dokime.EvidenceScope scope, global::Harmos.PageRequest? page = null, global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new TraceabilityWatchRequest
+    var request = new global::Dokime.Clients.EvidenceResources.TraceabilityWatchRequest
     {
       Scope = scope,
     };
@@ -1488,9 +1474,9 @@ public sealed class EvidenceTraceabilityResource
     {
       request.At = at;
     }
-    var method = new Method<TraceabilityWatchRequest, TraceabilityWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.Traceability", "Watch",
-        Marshallers.Create<TraceabilityWatchRequest>(value => value.ToByteArray(), bytes => TraceabilityWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<TraceabilityWatchResponse>(value => value.ToByteArray(), bytes => TraceabilityWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.EvidenceResources.TraceabilityWatchRequest, global::Dokime.Clients.EvidenceResources.TraceabilityWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.evidence.Traceability", "Watch",
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.TraceabilityWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.TraceabilityWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.EvidenceResources.TraceabilityWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.EvidenceResources.TraceabilityWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -1526,9 +1512,9 @@ public sealed class ExecutionsResource
     Progress = new ExecutionsProgressResource(invoker);
     Schemas = new ExecutionsSchemasResource(invoker);
   }
-  public async Task<ExecutionsGetResponse> Get(string name, Position? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsGetResponse> Get(string name, global::Harmos.Position? at = null, CallOptions context = default)
   {
-    var request = new ExecutionsGetRequest
+    var request = new global::Dokime.Clients.ExecutionsGetRequest
     {
       Name = name,
     };
@@ -1536,11 +1522,11 @@ public sealed class ExecutionsResource
     {
       request.At = at;
     }
-    var method = new Method<ExecutionsGetRequest, ExecutionsGetResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Get",
-        Marshallers.Create<ExecutionsGetRequest>(value => value.ToByteArray(), bytes => ExecutionsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsGetResponse>(value => value.ToByteArray(), bytes => ExecutionsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsGetRequest, global::Dokime.Clients.ExecutionsGetResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Get",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsGetResponse response;
+    global::Dokime.Clients.ExecutionsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1551,20 +1537,20 @@ public sealed class ExecutionsResource
     }
     return response;
   }
-  public async Task<ExecutionsSetResponse> Set(string name, ExecutionWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsSetResponse> Set(string name, global::Dokime.Clients.ExecutionWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new ExecutionsSetRequest
+    var request = new global::Dokime.Clients.ExecutionsSetRequest
     {
       Name = name,
       Value = value,
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<ExecutionsSetRequest, ExecutionsSetResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Set",
-        Marshallers.Create<ExecutionsSetRequest>(value => value.ToByteArray(), bytes => ExecutionsSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsSetResponse>(value => value.ToByteArray(), bytes => ExecutionsSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsSetRequest, global::Dokime.Clients.ExecutionsSetResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Set",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsSetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsSetResponse response;
+    global::Dokime.Clients.ExecutionsSetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1575,9 +1561,9 @@ public sealed class ExecutionsResource
     }
     return response;
   }
-  public async Task<ExecutionsListResponse> List(string parent, ExecutionSelection selection, ExecutionFilter filter, ExecutionOrder order, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsListResponse> List(string parent, global::Dokime.Clients.ExecutionSelection selection, global::Dokime.Clients.ExecutionFilter filter, global::Dokime.Clients.ExecutionOrder order, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new ExecutionsListRequest
+    var request = new global::Dokime.Clients.ExecutionsListRequest
     {
       Parent = parent,
       Selection = selection,
@@ -1592,11 +1578,11 @@ public sealed class ExecutionsResource
     {
       request.Page = page;
     }
-    var method = new Method<ExecutionsListRequest, ExecutionsListResponse>(MethodType.Unary, "dokime.host.v1.Executions", "List",
-        Marshallers.Create<ExecutionsListRequest>(value => value.ToByteArray(), bytes => ExecutionsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsListResponse>(value => value.ToByteArray(), bytes => ExecutionsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsListRequest, global::Dokime.Clients.ExecutionsListResponse>(MethodType.Unary, "dokime.host.v1.Executions", "List",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsListResponse response;
+    global::Dokime.Clients.ExecutionsListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1607,9 +1593,9 @@ public sealed class ExecutionsResource
     }
     return response;
   }
-  public async IAsyncEnumerable<ExecutionsWatchResponse> Watch(string parent, ExecutionSelection selection, ExecutionFilter filter, ExecutionOrder order, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.ExecutionsWatchResponse> Watch(string parent, global::Dokime.Clients.ExecutionSelection selection, global::Dokime.Clients.ExecutionFilter filter, global::Dokime.Clients.ExecutionOrder order, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new ExecutionsWatchRequest
+    var request = new global::Dokime.Clients.ExecutionsWatchRequest
     {
       Parent = parent,
       Selection = selection,
@@ -1624,9 +1610,9 @@ public sealed class ExecutionsResource
     {
       request.Page = page;
     }
-    var method = new Method<ExecutionsWatchRequest, ExecutionsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Executions", "Watch",
-        Marshallers.Create<ExecutionsWatchRequest>(value => value.ToByteArray(), bytes => ExecutionsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsWatchResponse>(value => value.ToByteArray(), bytes => ExecutionsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsWatchRequest, global::Dokime.Clients.ExecutionsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Executions", "Watch",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -1648,19 +1634,19 @@ public sealed class ExecutionsResource
       yield return response;
     }
   }
-  public async Task<ExecutionsCreateResponse> Create(string parent, IReadOnlyList<ExecutionBinding> executions, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsCreateResponse> Create(string parent, IReadOnlyList<global::Dokime.Clients.ExecutionBinding> executions, string? requestId = null, CallOptions context = default)
   {
-    var request = new ExecutionsCreateRequest
+    var request = new global::Dokime.Clients.ExecutionsCreateRequest
     {
       Parent = parent,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
     request.Executions.Add(executions);
-    var method = new Method<ExecutionsCreateRequest, ExecutionsCreateResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Create",
-        Marshallers.Create<ExecutionsCreateRequest>(value => value.ToByteArray(), bytes => ExecutionsCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsCreateResponse>(value => value.ToByteArray(), bytes => ExecutionsCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsCreateRequest, global::Dokime.Clients.ExecutionsCreateResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Create",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsCreateResponse response;
+    global::Dokime.Clients.ExecutionsCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1671,19 +1657,19 @@ public sealed class ExecutionsResource
     }
     return response;
   }
-  public async Task<ExecutionsStartResponse> Start(string name, ExecutionMode mode, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsStartResponse> Start(string name, global::Dokime.Clients.ExecutionMode mode, string? requestId = null, CallOptions context = default)
   {
-    var request = new ExecutionsStartRequest
+    var request = new global::Dokime.Clients.ExecutionsStartRequest
     {
       Name = name,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
       Mode = mode,
     };
-    var method = new Method<ExecutionsStartRequest, ExecutionsStartResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Start",
-        Marshallers.Create<ExecutionsStartRequest>(value => value.ToByteArray(), bytes => ExecutionsStartRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsStartResponse>(value => value.ToByteArray(), bytes => ExecutionsStartResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsStartRequest, global::Dokime.Clients.ExecutionsStartResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Start",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsStartRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsStartRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsStartResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsStartResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsStartResponse response;
+    global::Dokime.Clients.ExecutionsStartResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1694,18 +1680,18 @@ public sealed class ExecutionsResource
     }
     return response;
   }
-  public async Task<ExecutionsStopResponse> Stop(string name, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsStopResponse> Stop(string name, string? requestId = null, CallOptions context = default)
   {
-    var request = new ExecutionsStopRequest
+    var request = new global::Dokime.Clients.ExecutionsStopRequest
     {
       Name = name,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<ExecutionsStopRequest, ExecutionsStopResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Stop",
-        Marshallers.Create<ExecutionsStopRequest>(value => value.ToByteArray(), bytes => ExecutionsStopRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsStopResponse>(value => value.ToByteArray(), bytes => ExecutionsStopResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsStopRequest, global::Dokime.Clients.ExecutionsStopResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Stop",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsStopRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsStopRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsStopResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsStopResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsStopResponse response;
+    global::Dokime.Clients.ExecutionsStopResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1716,18 +1702,18 @@ public sealed class ExecutionsResource
     }
     return response;
   }
-  public async Task<ExecutionsCancelResponse> Cancel(string name, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsCancelResponse> Cancel(string name, string? requestId = null, CallOptions context = default)
   {
-    var request = new ExecutionsCancelRequest
+    var request = new global::Dokime.Clients.ExecutionsCancelRequest
     {
       Name = name,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<ExecutionsCancelRequest, ExecutionsCancelResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Cancel",
-        Marshallers.Create<ExecutionsCancelRequest>(value => value.ToByteArray(), bytes => ExecutionsCancelRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsCancelResponse>(value => value.ToByteArray(), bytes => ExecutionsCancelResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsCancelRequest, global::Dokime.Clients.ExecutionsCancelResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Cancel",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsCancelRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsCancelRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsCancelResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsCancelResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsCancelResponse response;
+    global::Dokime.Clients.ExecutionsCancelResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1738,18 +1724,18 @@ public sealed class ExecutionsResource
     }
     return response;
   }
-  public async Task<ExecutionsDeleteResponse> Delete(string name, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsDeleteResponse> Delete(string name, string? requestId = null, CallOptions context = default)
   {
-    var request = new ExecutionsDeleteRequest
+    var request = new global::Dokime.Clients.ExecutionsDeleteRequest
     {
       Name = name,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<ExecutionsDeleteRequest, ExecutionsDeleteResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Delete",
-        Marshallers.Create<ExecutionsDeleteRequest>(value => value.ToByteArray(), bytes => ExecutionsDeleteRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsDeleteResponse>(value => value.ToByteArray(), bytes => ExecutionsDeleteResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsDeleteRequest, global::Dokime.Clients.ExecutionsDeleteResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Delete",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsDeleteRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsDeleteRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsDeleteResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsDeleteResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsDeleteResponse response;
+    global::Dokime.Clients.ExecutionsDeleteResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1760,9 +1746,9 @@ public sealed class ExecutionsResource
     }
     return response;
   }
-  public async Task<ExecutionsParametersResponse> Parameters(string name, ExecutionParameterSet set, Position? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsParametersResponse> Parameters(string name, global::Dokime.Clients.ExecutionParameterSet set, global::Harmos.Position? at = null, CallOptions context = default)
   {
-    var request = new ExecutionsParametersRequest
+    var request = new global::Dokime.Clients.ExecutionsParametersRequest
     {
       Name = name,
       Set = set,
@@ -1771,11 +1757,11 @@ public sealed class ExecutionsResource
     {
       request.At = at;
     }
-    var method = new Method<ExecutionsParametersRequest, ExecutionsParametersResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Parameters",
-        Marshallers.Create<ExecutionsParametersRequest>(value => value.ToByteArray(), bytes => ExecutionsParametersRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsParametersResponse>(value => value.ToByteArray(), bytes => ExecutionsParametersResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsParametersRequest, global::Dokime.Clients.ExecutionsParametersResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Parameters",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsParametersRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsParametersRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsParametersResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsParametersResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsParametersResponse response;
+    global::Dokime.Clients.ExecutionsParametersResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1786,9 +1772,9 @@ public sealed class ExecutionsResource
     }
     return response;
   }
-  public async Task<ExecutionsStepsResponse> Steps(string name, Position? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsStepsResponse> Steps(string name, global::Harmos.Position? at = null, CallOptions context = default)
   {
-    var request = new ExecutionsStepsRequest
+    var request = new global::Dokime.Clients.ExecutionsStepsRequest
     {
       Name = name,
     };
@@ -1796,11 +1782,11 @@ public sealed class ExecutionsResource
     {
       request.At = at;
     }
-    var method = new Method<ExecutionsStepsRequest, ExecutionsStepsResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Steps",
-        Marshallers.Create<ExecutionsStepsRequest>(value => value.ToByteArray(), bytes => ExecutionsStepsRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ExecutionsStepsResponse>(value => value.ToByteArray(), bytes => ExecutionsStepsResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsStepsRequest, global::Dokime.Clients.ExecutionsStepsResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Steps",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsStepsRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsStepsRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsStepsResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsStepsResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ExecutionsStepsResponse response;
+    global::Dokime.Clients.ExecutionsStepsResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1819,9 +1805,9 @@ public sealed class ExecutionsCommandsResource
   {
     this.invoker = invoker;
   }
-  public async Task<CommandsGetResponse> Get(string name, string parent, Position? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsResources.CommandsGetResponse> Get(string name, string parent, global::Harmos.Position? at = null, CallOptions context = default)
   {
-    var request = new CommandsGetRequest
+    var request = new global::Dokime.Clients.ExecutionsResources.CommandsGetRequest
     {
       Name = name,
       Parent = parent,
@@ -1830,11 +1816,11 @@ public sealed class ExecutionsCommandsResource
     {
       request.At = at;
     }
-    var method = new Method<CommandsGetRequest, CommandsGetResponse>(MethodType.Unary, "dokime.host.v1.executions.Commands", "Get",
-        Marshallers.Create<CommandsGetRequest>(value => value.ToByteArray(), bytes => CommandsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CommandsGetResponse>(value => value.ToByteArray(), bytes => CommandsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsResources.CommandsGetRequest, global::Dokime.Clients.ExecutionsResources.CommandsGetResponse>(MethodType.Unary, "dokime.host.v1.executions.Commands", "Get",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.CommandsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.CommandsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.CommandsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.CommandsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CommandsGetResponse response;
+    global::Dokime.Clients.ExecutionsResources.CommandsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1845,9 +1831,9 @@ public sealed class ExecutionsCommandsResource
     }
     return response;
   }
-  public async Task<CommandsCreateResponse> Create(string parent, string commandId, ExecutionCommandAction action, string? requestId = null, string? stepId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsResources.CommandsCreateResponse> Create(string parent, string commandId, global::Dokime.Clients.ExecutionsResources.ExecutionCommandAction action, string? requestId = null, string? stepId = null, CallOptions context = default)
   {
-    var request = new CommandsCreateRequest
+    var request = new global::Dokime.Clients.ExecutionsResources.CommandsCreateRequest
     {
       Parent = parent,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
@@ -1858,11 +1844,11 @@ public sealed class ExecutionsCommandsResource
     {
       request.Stepid = stepId;
     }
-    var method = new Method<CommandsCreateRequest, CommandsCreateResponse>(MethodType.Unary, "dokime.host.v1.executions.Commands", "Create",
-        Marshallers.Create<CommandsCreateRequest>(value => value.ToByteArray(), bytes => CommandsCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CommandsCreateResponse>(value => value.ToByteArray(), bytes => CommandsCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsResources.CommandsCreateRequest, global::Dokime.Clients.ExecutionsResources.CommandsCreateResponse>(MethodType.Unary, "dokime.host.v1.executions.Commands", "Create",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.CommandsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.CommandsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.CommandsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.CommandsCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CommandsCreateResponse response;
+    global::Dokime.Clients.ExecutionsResources.CommandsCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1881,9 +1867,9 @@ public sealed class ExecutionsProgressResource
   {
     this.invoker = invoker;
   }
-  public async Task<ProgressGetResponse> Get(string? name = null, Position? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsResources.ProgressGetResponse> Get(string? name = null, global::Harmos.Position? at = null, CallOptions context = default)
   {
-    var request = new ProgressGetRequest
+    var request = new global::Dokime.Clients.ExecutionsResources.ProgressGetRequest
     {
     };
     if (name is not null)
@@ -1894,11 +1880,11 @@ public sealed class ExecutionsProgressResource
     {
       request.At = at;
     }
-    var method = new Method<ProgressGetRequest, ProgressGetResponse>(MethodType.Unary, "dokime.host.v1.executions.Progress", "Get",
-        Marshallers.Create<ProgressGetRequest>(value => value.ToByteArray(), bytes => ProgressGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ProgressGetResponse>(value => value.ToByteArray(), bytes => ProgressGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsResources.ProgressGetRequest, global::Dokime.Clients.ExecutionsResources.ProgressGetResponse>(MethodType.Unary, "dokime.host.v1.executions.Progress", "Get",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.ProgressGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.ProgressGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.ProgressGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.ProgressGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ProgressGetResponse response;
+    global::Dokime.Clients.ExecutionsResources.ProgressGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1909,9 +1895,9 @@ public sealed class ExecutionsProgressResource
     }
     return response;
   }
-  public async IAsyncEnumerable<ProgressWatchResponse> Watch(string name, Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.ExecutionsResources.ProgressWatchResponse> Watch(string name, global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new ProgressWatchRequest
+    var request = new global::Dokime.Clients.ExecutionsResources.ProgressWatchRequest
     {
       Name = name,
     };
@@ -1919,9 +1905,9 @@ public sealed class ExecutionsProgressResource
     {
       request.At = at;
     }
-    var method = new Method<ProgressWatchRequest, ProgressWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.executions.Progress", "Watch",
-        Marshallers.Create<ProgressWatchRequest>(value => value.ToByteArray(), bytes => ProgressWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ProgressWatchResponse>(value => value.ToByteArray(), bytes => ProgressWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsResources.ProgressWatchRequest, global::Dokime.Clients.ExecutionsResources.ProgressWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.executions.Progress", "Watch",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.ProgressWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.ProgressWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.ProgressWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.ProgressWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -1951,9 +1937,9 @@ public sealed class ExecutionsSchemasResource
   {
     this.invoker = invoker;
   }
-  public async Task<SchemasGetResponse> Get(string name, Position? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ExecutionsResources.SchemasGetResponse> Get(string name, global::Harmos.Position? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new SchemasGetRequest
+    var request = new global::Dokime.Clients.ExecutionsResources.SchemasGetRequest
     {
       Name = name,
     };
@@ -1965,11 +1951,11 @@ public sealed class ExecutionsSchemasResource
     {
       request.Page = page;
     }
-    var method = new Method<SchemasGetRequest, SchemasGetResponse>(MethodType.Unary, "dokime.host.v1.executions.Schemas", "Get",
-        Marshallers.Create<SchemasGetRequest>(value => value.ToByteArray(), bytes => SchemasGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SchemasGetResponse>(value => value.ToByteArray(), bytes => SchemasGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ExecutionsResources.SchemasGetRequest, global::Dokime.Clients.ExecutionsResources.SchemasGetResponse>(MethodType.Unary, "dokime.host.v1.executions.Schemas", "Get",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.SchemasGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.SchemasGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsResources.SchemasGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.SchemasGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SchemasGetResponse response;
+    global::Dokime.Clients.ExecutionsResources.SchemasGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -1990,9 +1976,9 @@ public sealed class FilesResource
     this.invoker = invoker;
     Uploads = new FilesUploadsResource(invoker);
   }
-  public async Task<FilesGetResponse> Get(FileReference file, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.FilesGetResponse> Get(global::Harmos.FileReference file, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new FilesGetRequest
+    var request = new global::Dokime.Clients.FilesGetRequest
     {
       File = file,
     };
@@ -2000,11 +1986,11 @@ public sealed class FilesResource
     {
       request.At = at;
     }
-    var method = new Method<FilesGetRequest, FilesGetResponse>(MethodType.Unary, "dokime.host.v1.Files", "Get",
-        Marshallers.Create<FilesGetRequest>(value => value.ToByteArray(), bytes => FilesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<FilesGetResponse>(value => value.ToByteArray(), bytes => FilesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesGetRequest, global::Dokime.Clients.FilesGetResponse>(MethodType.Unary, "dokime.host.v1.Files", "Get",
+        Marshallers.Create<global::Dokime.Clients.FilesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    FilesGetResponse response;
+    global::Dokime.Clients.FilesGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2015,9 +2001,9 @@ public sealed class FilesResource
     }
     return response;
   }
-  public async Task<FilesReadResponse> Read(FileReference file, ulong offset, ulong maxBytes, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.FilesReadResponse> Read(global::Harmos.FileReference file, ulong offset, ulong maxBytes, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new FilesReadRequest
+    var request = new global::Dokime.Clients.FilesReadRequest
     {
       File = file,
       Offset = offset,
@@ -2027,11 +2013,11 @@ public sealed class FilesResource
     {
       request.At = at;
     }
-    var method = new Method<FilesReadRequest, FilesReadResponse>(MethodType.Unary, "dokime.host.v1.Files", "Read",
-        Marshallers.Create<FilesReadRequest>(value => value.ToByteArray(), bytes => FilesReadRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<FilesReadResponse>(value => value.ToByteArray(), bytes => FilesReadResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesReadRequest, global::Dokime.Clients.FilesReadResponse>(MethodType.Unary, "dokime.host.v1.Files", "Read",
+        Marshallers.Create<global::Dokime.Clients.FilesReadRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesReadRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesReadResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesReadResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    FilesReadResponse response;
+    global::Dokime.Clients.FilesReadResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2042,9 +2028,9 @@ public sealed class FilesResource
     }
     return response;
   }
-  public async IAsyncEnumerable<FilesWatchResponse> Watch(ulong offset, FileReference? file = null, Upload? upload = null, ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.FilesWatchResponse> Watch(ulong offset, global::Harmos.FileReference? file = null, global::Harmos.Upload? upload = null, global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new FilesWatchRequest
+    var request = new global::Dokime.Clients.FilesWatchRequest
     {
       Offset = offset,
     };
@@ -2060,9 +2046,9 @@ public sealed class FilesResource
     {
       request.At = at;
     }
-    var method = new Method<FilesWatchRequest, FilesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Files", "Watch",
-        Marshallers.Create<FilesWatchRequest>(value => value.ToByteArray(), bytes => FilesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<FilesWatchResponse>(value => value.ToByteArray(), bytes => FilesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesWatchRequest, global::Dokime.Clients.FilesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Files", "Watch",
+        Marshallers.Create<global::Dokime.Clients.FilesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -2084,18 +2070,18 @@ public sealed class FilesResource
       yield return response;
     }
   }
-  public async Task<Receipt> Delete(FileReference file, string? requestId = null, CallOptions context = default)
+  public async Task<global::Harmos.Receipt> Delete(global::Harmos.FileReference file, string? requestId = null, CallOptions context = default)
   {
-    var request = new FilesDeleteRequest
+    var request = new global::Dokime.Clients.FilesDeleteRequest
     {
       File = file,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<FilesDeleteRequest, FilesDeleteResponse>(MethodType.Unary, "dokime.host.v1.Files", "Delete",
-        Marshallers.Create<FilesDeleteRequest>(value => value.ToByteArray(), bytes => FilesDeleteRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<FilesDeleteResponse>(value => value.ToByteArray(), bytes => FilesDeleteResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesDeleteRequest, global::Dokime.Clients.FilesDeleteResponse>(MethodType.Unary, "dokime.host.v1.Files", "Delete",
+        Marshallers.Create<global::Dokime.Clients.FilesDeleteRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesDeleteRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesDeleteResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesDeleteResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    FilesDeleteResponse response;
+    global::Dokime.Clients.FilesDeleteResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2114,18 +2100,18 @@ public sealed class FilesUploadsResource
   {
     this.invoker = invoker;
   }
-  public async Task<UploadsCreateResponse> Create(FileMetadata metadata, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.FilesResources.UploadsCreateResponse> Create(global::Harmos.FileMetadata metadata, string? requestId = null, CallOptions context = default)
   {
-    var request = new UploadsCreateRequest
+    var request = new global::Dokime.Clients.FilesResources.UploadsCreateRequest
     {
       Metadata = metadata,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<UploadsCreateRequest, UploadsCreateResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Create",
-        Marshallers.Create<UploadsCreateRequest>(value => value.ToByteArray(), bytes => UploadsCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<UploadsCreateResponse>(value => value.ToByteArray(), bytes => UploadsCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesResources.UploadsCreateRequest, global::Dokime.Clients.FilesResources.UploadsCreateResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Create",
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    UploadsCreateResponse response;
+    global::Dokime.Clients.FilesResources.UploadsCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2136,9 +2122,9 @@ public sealed class FilesUploadsResource
     }
     return response;
   }
-  public async Task<UploadsGetResponse> Get(Upload upload, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.FilesResources.UploadsGetResponse> Get(global::Harmos.Upload upload, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new UploadsGetRequest
+    var request = new global::Dokime.Clients.FilesResources.UploadsGetRequest
     {
       Upload = upload,
     };
@@ -2146,11 +2132,11 @@ public sealed class FilesUploadsResource
     {
       request.At = at;
     }
-    var method = new Method<UploadsGetRequest, UploadsGetResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Get",
-        Marshallers.Create<UploadsGetRequest>(value => value.ToByteArray(), bytes => UploadsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<UploadsGetResponse>(value => value.ToByteArray(), bytes => UploadsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesResources.UploadsGetRequest, global::Dokime.Clients.FilesResources.UploadsGetResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Get",
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    UploadsGetResponse response;
+    global::Dokime.Clients.FilesResources.UploadsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2161,18 +2147,18 @@ public sealed class FilesUploadsResource
     }
     return response;
   }
-  public async Task<UploadsResumeResponse> Resume(Upload upload, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.FilesResources.UploadsResumeResponse> Resume(global::Harmos.Upload upload, string? requestId = null, CallOptions context = default)
   {
-    var request = new UploadsResumeRequest
+    var request = new global::Dokime.Clients.FilesResources.UploadsResumeRequest
     {
       Upload = upload,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<UploadsResumeRequest, UploadsResumeResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Resume",
-        Marshallers.Create<UploadsResumeRequest>(value => value.ToByteArray(), bytes => UploadsResumeRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<UploadsResumeResponse>(value => value.ToByteArray(), bytes => UploadsResumeResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesResources.UploadsResumeRequest, global::Dokime.Clients.FilesResources.UploadsResumeResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Resume",
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsResumeRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsResumeRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsResumeResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsResumeResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    UploadsResumeResponse response;
+    global::Dokime.Clients.FilesResources.UploadsResumeResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2183,20 +2169,20 @@ public sealed class FilesUploadsResource
     }
     return response;
   }
-  public async Task<UploadsAppendResponse> Append(Upload upload, ulong offset, ByteString data, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.FilesResources.UploadsAppendResponse> Append(global::Harmos.Upload upload, ulong offset, ByteString data, string? requestId = null, CallOptions context = default)
   {
-    var request = new UploadsAppendRequest
+    var request = new global::Dokime.Clients.FilesResources.UploadsAppendRequest
     {
       Upload = upload,
       Offset = offset,
       Data = data,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<UploadsAppendRequest, UploadsAppendResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Append",
-        Marshallers.Create<UploadsAppendRequest>(value => value.ToByteArray(), bytes => UploadsAppendRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<UploadsAppendResponse>(value => value.ToByteArray(), bytes => UploadsAppendResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesResources.UploadsAppendRequest, global::Dokime.Clients.FilesResources.UploadsAppendResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Append",
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsAppendRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsAppendRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsAppendResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsAppendResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    UploadsAppendResponse response;
+    global::Dokime.Clients.FilesResources.UploadsAppendResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2207,20 +2193,20 @@ public sealed class FilesUploadsResource
     }
     return response;
   }
-  public async Task<UploadsPublishResponse> Publish(Upload upload, ulong length, ByteString sha256, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.FilesResources.UploadsPublishResponse> Publish(global::Harmos.Upload upload, ulong length, ByteString sha256, string? requestId = null, CallOptions context = default)
   {
-    var request = new UploadsPublishRequest
+    var request = new global::Dokime.Clients.FilesResources.UploadsPublishRequest
     {
       Upload = upload,
       Length = length,
       Sha256 = sha256,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<UploadsPublishRequest, UploadsPublishResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Publish",
-        Marshallers.Create<UploadsPublishRequest>(value => value.ToByteArray(), bytes => UploadsPublishRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<UploadsPublishResponse>(value => value.ToByteArray(), bytes => UploadsPublishResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesResources.UploadsPublishRequest, global::Dokime.Clients.FilesResources.UploadsPublishResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Publish",
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsPublishRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsPublishRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsPublishResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsPublishResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    UploadsPublishResponse response;
+    global::Dokime.Clients.FilesResources.UploadsPublishResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2231,18 +2217,18 @@ public sealed class FilesUploadsResource
     }
     return response;
   }
-  public async Task<UploadsDeleteResponse> Delete(Upload upload, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.FilesResources.UploadsDeleteResponse> Delete(global::Harmos.Upload upload, string? requestId = null, CallOptions context = default)
   {
-    var request = new UploadsDeleteRequest
+    var request = new global::Dokime.Clients.FilesResources.UploadsDeleteRequest
     {
       Upload = upload,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<UploadsDeleteRequest, UploadsDeleteResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Delete",
-        Marshallers.Create<UploadsDeleteRequest>(value => value.ToByteArray(), bytes => UploadsDeleteRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<UploadsDeleteResponse>(value => value.ToByteArray(), bytes => UploadsDeleteResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.FilesResources.UploadsDeleteRequest, global::Dokime.Clients.FilesResources.UploadsDeleteResponse>(MethodType.Unary, "dokime.host.v1.files.Uploads", "Delete",
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsDeleteRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsDeleteRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.FilesResources.UploadsDeleteResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.FilesResources.UploadsDeleteResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    UploadsDeleteResponse response;
+    global::Dokime.Clients.FilesResources.UploadsDeleteResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2265,15 +2251,15 @@ public sealed class InvocationsResource
   {
     return await new Harmos.Client(invoker).Invocations.Create(operation, fingerprint, payload, context);
   }
-  public async Task<InstanceState> Get(ulong instance, CallOptions context = default)
+  public async Task<global::Harmos.InstanceState> Get(ulong instance, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Invocations.Get(instance, context);
   }
-  public async Task<InstanceState> Cancel(ulong instance, string reason, CallOptions context = default)
+  public async Task<global::Harmos.InstanceState> Cancel(ulong instance, string reason, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Invocations.Cancel(instance, reason, context);
   }
-  public async IAsyncEnumerable<InstanceState> Watch(ulong instance, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Harmos.InstanceState> Watch(ulong instance, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
     await foreach (var response in new Harmos.Client(invoker).Invocations.Watch(instance, context, cancellationToken)) { yield return response; }
   }
@@ -2293,9 +2279,9 @@ public sealed class MediaCapturesResource
   {
     this.invoker = invoker;
   }
-  public async Task<CapturesCreateResponse> Create(ArtifactScope scope, CaptureKind kind, RecordingAudio audio, uint? input = null, uint? camera = null, uint? display = null, uint? maximumSeconds = null, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.MediaResources.CapturesCreateResponse> Create(global::Dokime.ArtifactScope scope, global::Dokime.Clients.MediaResources.CaptureKind kind, global::Dokime.Clients.MediaResources.RecordingAudio audio, uint? input = null, uint? camera = null, uint? display = null, uint? maximumSeconds = null, string? requestId = null, CallOptions context = default)
   {
-    var request = new CapturesCreateRequest
+    var request = new global::Dokime.Clients.MediaResources.CapturesCreateRequest
     {
       Scope = scope,
       Kind = kind,
@@ -2318,11 +2304,11 @@ public sealed class MediaCapturesResource
     {
       request.Maximumseconds = maximumSeconds.Value;
     }
-    var method = new Method<CapturesCreateRequest, CapturesCreateResponse>(MethodType.Unary, "dokime.host.v1.media.Captures", "Create",
-        Marshallers.Create<CapturesCreateRequest>(value => value.ToByteArray(), bytes => CapturesCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CapturesCreateResponse>(value => value.ToByteArray(), bytes => CapturesCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.MediaResources.CapturesCreateRequest, global::Dokime.Clients.MediaResources.CapturesCreateResponse>(MethodType.Unary, "dokime.host.v1.media.Captures", "Create",
+        Marshallers.Create<global::Dokime.Clients.MediaResources.CapturesCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.MediaResources.CapturesCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.MediaResources.CapturesCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.MediaResources.CapturesCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CapturesCreateResponse response;
+    global::Dokime.Clients.MediaResources.CapturesCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2333,9 +2319,9 @@ public sealed class MediaCapturesResource
     }
     return response;
   }
-  public async Task<CapturesGetResponse> Get(string name, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.MediaResources.CapturesGetResponse> Get(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new CapturesGetRequest
+    var request = new global::Dokime.Clients.MediaResources.CapturesGetRequest
     {
       Name = name,
     };
@@ -2343,11 +2329,11 @@ public sealed class MediaCapturesResource
     {
       request.At = at;
     }
-    var method = new Method<CapturesGetRequest, CapturesGetResponse>(MethodType.Unary, "dokime.host.v1.media.Captures", "Get",
-        Marshallers.Create<CapturesGetRequest>(value => value.ToByteArray(), bytes => CapturesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CapturesGetResponse>(value => value.ToByteArray(), bytes => CapturesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.MediaResources.CapturesGetRequest, global::Dokime.Clients.MediaResources.CapturesGetResponse>(MethodType.Unary, "dokime.host.v1.media.Captures", "Get",
+        Marshallers.Create<global::Dokime.Clients.MediaResources.CapturesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.MediaResources.CapturesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.MediaResources.CapturesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.MediaResources.CapturesGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CapturesGetResponse response;
+    global::Dokime.Clients.MediaResources.CapturesGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2358,9 +2344,9 @@ public sealed class MediaCapturesResource
     }
     return response;
   }
-  public async IAsyncEnumerable<CapturesWatchResponse> Watch(string name, ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.MediaResources.CapturesWatchResponse> Watch(string name, global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new CapturesWatchRequest
+    var request = new global::Dokime.Clients.MediaResources.CapturesWatchRequest
     {
       Name = name,
     };
@@ -2368,9 +2354,9 @@ public sealed class MediaCapturesResource
     {
       request.At = at;
     }
-    var method = new Method<CapturesWatchRequest, CapturesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.media.Captures", "Watch",
-        Marshallers.Create<CapturesWatchRequest>(value => value.ToByteArray(), bytes => CapturesWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CapturesWatchResponse>(value => value.ToByteArray(), bytes => CapturesWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.MediaResources.CapturesWatchRequest, global::Dokime.Clients.MediaResources.CapturesWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.media.Captures", "Watch",
+        Marshallers.Create<global::Dokime.Clients.MediaResources.CapturesWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.MediaResources.CapturesWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.MediaResources.CapturesWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.MediaResources.CapturesWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -2392,18 +2378,18 @@ public sealed class MediaCapturesResource
       yield return response;
     }
   }
-  public async Task<CapturesStopResponse> Stop(string name, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.MediaResources.CapturesStopResponse> Stop(string name, string? requestId = null, CallOptions context = default)
   {
-    var request = new CapturesStopRequest
+    var request = new global::Dokime.Clients.MediaResources.CapturesStopRequest
     {
       Name = name,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<CapturesStopRequest, CapturesStopResponse>(MethodType.Unary, "dokime.host.v1.media.Captures", "Stop",
-        Marshallers.Create<CapturesStopRequest>(value => value.ToByteArray(), bytes => CapturesStopRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<CapturesStopResponse>(value => value.ToByteArray(), bytes => CapturesStopResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.MediaResources.CapturesStopRequest, global::Dokime.Clients.MediaResources.CapturesStopResponse>(MethodType.Unary, "dokime.host.v1.media.Captures", "Stop",
+        Marshallers.Create<global::Dokime.Clients.MediaResources.CapturesStopRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.MediaResources.CapturesStopRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.MediaResources.CapturesStopResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.MediaResources.CapturesStopResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    CapturesStopResponse response;
+    global::Dokime.Clients.MediaResources.CapturesStopResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2422,11 +2408,11 @@ public sealed class OperationsResource
   {
     this.invoker = invoker;
   }
-  public async Task<IReadOnlyList<DiscoveredOperation>> List(CallOptions context = default)
+  public async Task<IReadOnlyList<global::Harmos.DiscoveredOperation>> List(CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Operations.List(context);
   }
-  public async Task<DiscoveredOperation> Get(string id, CallOptions context = default)
+  public async Task<global::Harmos.DiscoveredOperation> Get(string id, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Operations.Get(id, context);
   }
@@ -2448,7 +2434,7 @@ public sealed class PlotsSettingsResource
   {
     this.invoker = invoker;
   }
-  public async Task<global::Dokime.Clients.PlotsResources.SettingsGetResponse> Get(DocumentScope scope, string documentId, string plotId, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PlotsResources.SettingsGetResponse> Get(global::Dokime.Clients.DocumentScope scope, string documentId, string plotId, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
     var request = new global::Dokime.Clients.PlotsResources.SettingsGetRequest
     {
@@ -2475,7 +2461,7 @@ public sealed class PlotsSettingsResource
     }
     return response;
   }
-  public async Task<global::Dokime.Clients.PlotsResources.SettingsSetResponse> Set(DocumentScope scope, string documentId, string plotId, PlotSettingsValue value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PlotsResources.SettingsSetResponse> Set(global::Dokime.Clients.DocumentScope scope, string documentId, string plotId, global::Dokime.Clients.PlotsResources.PlotSettingsValue value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
     var request = new global::Dokime.Clients.PlotsResources.SettingsSetRequest
     {
@@ -2509,9 +2495,9 @@ public sealed class PlotsSnapshotsResource
   {
     this.invoker = invoker;
   }
-  public async Task<SnapshotsListResponse> List(IReadOnlyList<PlotRequest> requests, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PlotsResources.SnapshotsListResponse> List(IReadOnlyList<global::Dokime.Clients.PlotsResources.PlotRequest> requests, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new SnapshotsListRequest
+    var request = new global::Dokime.Clients.PlotsResources.SnapshotsListRequest
     {
     };
     request.Requests.Add(requests);
@@ -2523,11 +2509,11 @@ public sealed class PlotsSnapshotsResource
     {
       request.Page = page;
     }
-    var method = new Method<SnapshotsListRequest, SnapshotsListResponse>(MethodType.Unary, "dokime.host.v1.plots.Snapshots", "List",
-        Marshallers.Create<SnapshotsListRequest>(value => value.ToByteArray(), bytes => SnapshotsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SnapshotsListResponse>(value => value.ToByteArray(), bytes => SnapshotsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PlotsResources.SnapshotsListRequest, global::Dokime.Clients.PlotsResources.SnapshotsListResponse>(MethodType.Unary, "dokime.host.v1.plots.Snapshots", "List",
+        Marshallers.Create<global::Dokime.Clients.PlotsResources.SnapshotsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PlotsResources.SnapshotsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PlotsResources.SnapshotsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PlotsResources.SnapshotsListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SnapshotsListResponse response;
+    global::Dokime.Clients.PlotsResources.SnapshotsListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2538,9 +2524,9 @@ public sealed class PlotsSnapshotsResource
     }
     return response;
   }
-  public async IAsyncEnumerable<SnapshotsWatchResponse> Watch(IReadOnlyList<PlotRequest> requests, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.PlotsResources.SnapshotsWatchResponse> Watch(IReadOnlyList<global::Dokime.Clients.PlotsResources.PlotRequest> requests, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new SnapshotsWatchRequest
+    var request = new global::Dokime.Clients.PlotsResources.SnapshotsWatchRequest
     {
     };
     request.Requests.Add(requests);
@@ -2552,9 +2538,9 @@ public sealed class PlotsSnapshotsResource
     {
       request.Page = page;
     }
-    var method = new Method<SnapshotsWatchRequest, SnapshotsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.plots.Snapshots", "Watch",
-        Marshallers.Create<SnapshotsWatchRequest>(value => value.ToByteArray(), bytes => SnapshotsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SnapshotsWatchResponse>(value => value.ToByteArray(), bytes => SnapshotsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PlotsResources.SnapshotsWatchRequest, global::Dokime.Clients.PlotsResources.SnapshotsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.plots.Snapshots", "Watch",
+        Marshallers.Create<global::Dokime.Clients.PlotsResources.SnapshotsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PlotsResources.SnapshotsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PlotsResources.SnapshotsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PlotsResources.SnapshotsWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -2588,35 +2574,35 @@ public sealed class PluginsResource
     Secrets = new PluginsSecretsResource(invoker);
     Settings = new PluginsSettingsResource(invoker);
   }
-  public async Task<PluginsGetResponse> Get(string name, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PluginsGetResponse> Get(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.Get(name, at, context);
   }
-  public async Task<PluginsListResponse> List(ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PluginsListResponse> List(global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.List(at, context);
   }
-  public async IAsyncEnumerable<PluginsWatchResponse> Watch(string? name = null, ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Harmos.Clients.PluginsWatchResponse> Watch(string? name = null, global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
     await foreach (var response in new Harmos.Client(invoker).Plugins.Watch(name, at, context, cancellationToken)) { yield return response; }
   }
-  public async Task<PluginsCreateResponse> Create(string name, PluginPlacement placement, PluginValue value, string? requestId = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PluginsCreateResponse> Create(string name, global::Harmos.Clients.PluginPlacement placement, global::Harmos.Clients.PluginValue value, string? requestId = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.Create(name, placement, value, requestId, context);
   }
-  public async Task<PluginsSetResponse> Set(string name, PluginValue value, ByteString expectedRevision, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PluginsSetResponse> Set(string name, global::Harmos.Clients.PluginValue value, ByteString expectedRevision, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.Set(name, value, expectedRevision, context);
   }
-  public async Task<Receipt> Delete(string name, ByteString expectedRevision, CallOptions context = default)
+  public async Task<global::Harmos.Receipt> Delete(string name, ByteString expectedRevision, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.Delete(name, expectedRevision, context);
   }
-  public async Task<PluginEntry> Restart(string name, ByteString expectedRevision, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PluginEntry> Restart(string name, ByteString expectedRevision, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.Restart(name, expectedRevision, context);
   }
-  public async Task<PluginsReplaceResponse> Replace(string name, PluginPlacement placement, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.PluginsReplaceResponse> Replace(string name, global::Harmos.Clients.PluginPlacement placement, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.Replace(name, placement, expectedRevision, requestId, context);
   }
@@ -2628,7 +2614,7 @@ public sealed class PluginsSecretsResource
   {
     this.invoker = invoker;
   }
-  public async Task<global::Dokime.Clients.PluginsResources.SecretsListResponse> List(string? name = null, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PluginsResources.SecretsListResponse> List(string? name = null, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
     var request = new global::Dokime.Clients.PluginsResources.SecretsListRequest
     {
@@ -2664,11 +2650,11 @@ public sealed class PluginsSettingsResource
   {
     this.invoker = invoker;
   }
-  public async Task<SettingsListResponse> List(string name, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.SettingsListResponse> List(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.Settings.List(name, at, context);
   }
-  public async Task<global::Harmos.Clients.SettingsSetResponse> Set(string name, SettingValues value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.SettingsSetResponse> Set(string name, global::Harmos.SettingValues value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.Settings.Set(name, value, expectedRevision, requestId, context);
   }
@@ -2680,9 +2666,9 @@ public sealed class PromptDefinitionsResource
   {
     this.invoker = invoker;
   }
-  public async Task<PromptDefinitionsGetResponse> Get(string name, string parent, uint schemaVersion, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PromptDefinitionsGetResponse> Get(string name, string parent, uint schemaVersion, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new PromptDefinitionsGetRequest
+    var request = new global::Dokime.Clients.PromptDefinitionsGetRequest
     {
       Name = name,
       Parent = parent,
@@ -2692,11 +2678,11 @@ public sealed class PromptDefinitionsResource
     {
       request.At = at;
     }
-    var method = new Method<PromptDefinitionsGetRequest, PromptDefinitionsGetResponse>(MethodType.Unary, "dokime.host.v1.PromptDefinitions", "Get",
-        Marshallers.Create<PromptDefinitionsGetRequest>(value => value.ToByteArray(), bytes => PromptDefinitionsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<PromptDefinitionsGetResponse>(value => value.ToByteArray(), bytes => PromptDefinitionsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PromptDefinitionsGetRequest, global::Dokime.Clients.PromptDefinitionsGetResponse>(MethodType.Unary, "dokime.host.v1.PromptDefinitions", "Get",
+        Marshallers.Create<global::Dokime.Clients.PromptDefinitionsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptDefinitionsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PromptDefinitionsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptDefinitionsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    PromptDefinitionsGetResponse response;
+    global::Dokime.Clients.PromptDefinitionsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2707,9 +2693,9 @@ public sealed class PromptDefinitionsResource
     }
     return response;
   }
-  public async Task<PromptDefinitionsListResponse> List(string parent, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PromptDefinitionsListResponse> List(string parent, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new PromptDefinitionsListRequest
+    var request = new global::Dokime.Clients.PromptDefinitionsListRequest
     {
       Parent = parent,
     };
@@ -2717,11 +2703,11 @@ public sealed class PromptDefinitionsResource
     {
       request.At = at;
     }
-    var method = new Method<PromptDefinitionsListRequest, PromptDefinitionsListResponse>(MethodType.Unary, "dokime.host.v1.PromptDefinitions", "List",
-        Marshallers.Create<PromptDefinitionsListRequest>(value => value.ToByteArray(), bytes => PromptDefinitionsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<PromptDefinitionsListResponse>(value => value.ToByteArray(), bytes => PromptDefinitionsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PromptDefinitionsListRequest, global::Dokime.Clients.PromptDefinitionsListResponse>(MethodType.Unary, "dokime.host.v1.PromptDefinitions", "List",
+        Marshallers.Create<global::Dokime.Clients.PromptDefinitionsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptDefinitionsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PromptDefinitionsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptDefinitionsListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    PromptDefinitionsListResponse response;
+    global::Dokime.Clients.PromptDefinitionsListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2742,9 +2728,9 @@ public sealed class PromptsResource
     this.invoker = invoker;
     Answers = new PromptsAnswersResource(invoker);
   }
-  public async Task<PromptsGetResponse> Get(string name, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PromptsGetResponse> Get(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new PromptsGetRequest
+    var request = new global::Dokime.Clients.PromptsGetRequest
     {
       Name = name,
     };
@@ -2752,11 +2738,11 @@ public sealed class PromptsResource
     {
       request.At = at;
     }
-    var method = new Method<PromptsGetRequest, PromptsGetResponse>(MethodType.Unary, "dokime.host.v1.Prompts", "Get",
-        Marshallers.Create<PromptsGetRequest>(value => value.ToByteArray(), bytes => PromptsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<PromptsGetResponse>(value => value.ToByteArray(), bytes => PromptsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PromptsGetRequest, global::Dokime.Clients.PromptsGetResponse>(MethodType.Unary, "dokime.host.v1.Prompts", "Get",
+        Marshallers.Create<global::Dokime.Clients.PromptsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PromptsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    PromptsGetResponse response;
+    global::Dokime.Clients.PromptsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2767,9 +2753,9 @@ public sealed class PromptsResource
     }
     return response;
   }
-  public async Task<PromptsListResponse> List(string parent, bool pendingOnly, string? cycleId = null, string? executionId = null, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PromptsListResponse> List(string parent, bool pendingOnly, string? cycleId = null, string? executionId = null, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
-    var request = new PromptsListRequest
+    var request = new global::Dokime.Clients.PromptsListRequest
     {
       Parent = parent,
       PendingOnly = pendingOnly,
@@ -2790,11 +2776,11 @@ public sealed class PromptsResource
     {
       request.Page = page;
     }
-    var method = new Method<PromptsListRequest, PromptsListResponse>(MethodType.Unary, "dokime.host.v1.Prompts", "List",
-        Marshallers.Create<PromptsListRequest>(value => value.ToByteArray(), bytes => PromptsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<PromptsListResponse>(value => value.ToByteArray(), bytes => PromptsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PromptsListRequest, global::Dokime.Clients.PromptsListResponse>(MethodType.Unary, "dokime.host.v1.Prompts", "List",
+        Marshallers.Create<global::Dokime.Clients.PromptsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PromptsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptsListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    PromptsListResponse response;
+    global::Dokime.Clients.PromptsListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2805,9 +2791,9 @@ public sealed class PromptsResource
     }
     return response;
   }
-  public async IAsyncEnumerable<PromptsWatchResponse> Watch(string parent, bool pendingOnly, string? cycleId = null, string? executionId = null, ReadCut? at = null, PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.PromptsWatchResponse> Watch(string parent, bool pendingOnly, string? cycleId = null, string? executionId = null, global::Harmos.ReadCut? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new PromptsWatchRequest
+    var request = new global::Dokime.Clients.PromptsWatchRequest
     {
       Parent = parent,
       PendingOnly = pendingOnly,
@@ -2828,9 +2814,9 @@ public sealed class PromptsResource
     {
       request.Page = page;
     }
-    var method = new Method<PromptsWatchRequest, PromptsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Prompts", "Watch",
-        Marshallers.Create<PromptsWatchRequest>(value => value.ToByteArray(), bytes => PromptsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<PromptsWatchResponse>(value => value.ToByteArray(), bytes => PromptsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PromptsWatchRequest, global::Dokime.Clients.PromptsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Prompts", "Watch",
+        Marshallers.Create<global::Dokime.Clients.PromptsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PromptsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptsWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -2860,9 +2846,9 @@ public sealed class PromptsAnswersResource
   {
     this.invoker = invoker;
   }
-  public async Task<AnswersCreateResponse> Create(string parent, string action, MapValue values, bool accepted, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PromptsResources.AnswersCreateResponse> Create(string parent, string action, global::Dokime.MapValue values, bool accepted, string? requestId = null, CallOptions context = default)
   {
-    var request = new AnswersCreateRequest
+    var request = new global::Dokime.Clients.PromptsResources.AnswersCreateRequest
     {
       Parent = parent,
       Action = action,
@@ -2870,11 +2856,11 @@ public sealed class PromptsAnswersResource
       Accepted = accepted,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<AnswersCreateRequest, AnswersCreateResponse>(MethodType.Unary, "dokime.host.v1.prompts.Answers", "Create",
-        Marshallers.Create<AnswersCreateRequest>(value => value.ToByteArray(), bytes => AnswersCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<AnswersCreateResponse>(value => value.ToByteArray(), bytes => AnswersCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PromptsResources.AnswersCreateRequest, global::Dokime.Clients.PromptsResources.AnswersCreateResponse>(MethodType.Unary, "dokime.host.v1.prompts.Answers", "Create",
+        Marshallers.Create<global::Dokime.Clients.PromptsResources.AnswersCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptsResources.AnswersCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PromptsResources.AnswersCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PromptsResources.AnswersCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    AnswersCreateResponse response;
+    global::Dokime.Clients.PromptsResources.AnswersCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2893,9 +2879,9 @@ public sealed class RecordSchemasResource
   {
     this.invoker = invoker;
   }
-  public async Task<RecordSchemasGetResponse> Get(string name, string parent, uint schemaVersion, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.RecordSchemasGetResponse> Get(string name, string parent, uint schemaVersion, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new RecordSchemasGetRequest
+    var request = new global::Dokime.Clients.RecordSchemasGetRequest
     {
       Name = name,
       Parent = parent,
@@ -2905,11 +2891,11 @@ public sealed class RecordSchemasResource
     {
       request.At = at;
     }
-    var method = new Method<RecordSchemasGetRequest, RecordSchemasGetResponse>(MethodType.Unary, "dokime.host.v1.RecordSchemas", "Get",
-        Marshallers.Create<RecordSchemasGetRequest>(value => value.ToByteArray(), bytes => RecordSchemasGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<RecordSchemasGetResponse>(value => value.ToByteArray(), bytes => RecordSchemasGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.RecordSchemasGetRequest, global::Dokime.Clients.RecordSchemasGetResponse>(MethodType.Unary, "dokime.host.v1.RecordSchemas", "Get",
+        Marshallers.Create<global::Dokime.Clients.RecordSchemasGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.RecordSchemasGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.RecordSchemasGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.RecordSchemasGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    RecordSchemasGetResponse response;
+    global::Dokime.Clients.RecordSchemasGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2920,9 +2906,9 @@ public sealed class RecordSchemasResource
     }
     return response;
   }
-  public async Task<RecordSchemasListResponse> List(string parent, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.RecordSchemasListResponse> List(string parent, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new RecordSchemasListRequest
+    var request = new global::Dokime.Clients.RecordSchemasListRequest
     {
       Parent = parent,
     };
@@ -2930,11 +2916,11 @@ public sealed class RecordSchemasResource
     {
       request.At = at;
     }
-    var method = new Method<RecordSchemasListRequest, RecordSchemasListResponse>(MethodType.Unary, "dokime.host.v1.RecordSchemas", "List",
-        Marshallers.Create<RecordSchemasListRequest>(value => value.ToByteArray(), bytes => RecordSchemasListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<RecordSchemasListResponse>(value => value.ToByteArray(), bytes => RecordSchemasListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.RecordSchemasListRequest, global::Dokime.Clients.RecordSchemasListResponse>(MethodType.Unary, "dokime.host.v1.RecordSchemas", "List",
+        Marshallers.Create<global::Dokime.Clients.RecordSchemasListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.RecordSchemasListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.RecordSchemasListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.RecordSchemasListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    RecordSchemasListResponse response;
+    global::Dokime.Clients.RecordSchemasListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2953,9 +2939,9 @@ public sealed class ReportsResource
   {
     this.invoker = invoker;
   }
-  public async Task<ReportsGetResponse> Get(ReportSubject subject, string name, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ReportsGetResponse> Get(global::Dokime.Clients.ReportSubject subject, string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new ReportsGetRequest
+    var request = new global::Dokime.Clients.ReportsGetRequest
     {
       Subject = subject,
       Name = name,
@@ -2964,11 +2950,11 @@ public sealed class ReportsResource
     {
       request.At = at;
     }
-    var method = new Method<ReportsGetRequest, ReportsGetResponse>(MethodType.Unary, "dokime.host.v1.Reports", "Get",
-        Marshallers.Create<ReportsGetRequest>(value => value.ToByteArray(), bytes => ReportsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ReportsGetResponse>(value => value.ToByteArray(), bytes => ReportsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ReportsGetRequest, global::Dokime.Clients.ReportsGetResponse>(MethodType.Unary, "dokime.host.v1.Reports", "Get",
+        Marshallers.Create<global::Dokime.Clients.ReportsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ReportsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ReportsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ReportsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ReportsGetResponse response;
+    global::Dokime.Clients.ReportsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2979,9 +2965,9 @@ public sealed class ReportsResource
     }
     return response;
   }
-  public async Task<ReportsCreateResponse> Create(ReportSubject subject, string documentId, ReadCut? at = null, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ReportsCreateResponse> Create(global::Dokime.Clients.ReportSubject subject, string documentId, global::Harmos.ReadCut? at = null, string? requestId = null, CallOptions context = default)
   {
-    var request = new ReportsCreateRequest
+    var request = new global::Dokime.Clients.ReportsCreateRequest
     {
       Subject = subject,
       DocumentId = documentId,
@@ -2991,11 +2977,11 @@ public sealed class ReportsResource
     {
       request.At = at;
     }
-    var method = new Method<ReportsCreateRequest, ReportsCreateResponse>(MethodType.Unary, "dokime.host.v1.Reports", "Create",
-        Marshallers.Create<ReportsCreateRequest>(value => value.ToByteArray(), bytes => ReportsCreateRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ReportsCreateResponse>(value => value.ToByteArray(), bytes => ReportsCreateResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ReportsCreateRequest, global::Dokime.Clients.ReportsCreateResponse>(MethodType.Unary, "dokime.host.v1.Reports", "Create",
+        Marshallers.Create<global::Dokime.Clients.ReportsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ReportsCreateRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ReportsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ReportsCreateResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ReportsCreateResponse response;
+    global::Dokime.Clients.ReportsCreateResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3006,20 +2992,20 @@ public sealed class ReportsResource
     }
     return response;
   }
-  public async Task<ReportsPublishResponse> Publish(string name, ReportSubject subject, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ReportsPublishResponse> Publish(string name, global::Dokime.Clients.ReportSubject subject, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new ReportsPublishRequest
+    var request = new global::Dokime.Clients.ReportsPublishRequest
     {
       Name = name,
       Subject = subject,
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<ReportsPublishRequest, ReportsPublishResponse>(MethodType.Unary, "dokime.host.v1.Reports", "Publish",
-        Marshallers.Create<ReportsPublishRequest>(value => value.ToByteArray(), bytes => ReportsPublishRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<ReportsPublishResponse>(value => value.ToByteArray(), bytes => ReportsPublishResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.ReportsPublishRequest, global::Dokime.Clients.ReportsPublishResponse>(MethodType.Unary, "dokime.host.v1.Reports", "Publish",
+        Marshallers.Create<global::Dokime.Clients.ReportsPublishRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ReportsPublishRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ReportsPublishResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ReportsPublishResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    ReportsPublishResponse response;
+    global::Dokime.Clients.ReportsPublishResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3038,7 +3024,7 @@ public sealed class SchemasResource
   {
     this.invoker = invoker;
   }
-  public async Task<IReadOnlyList<SchemaDescription>> List(string? schema = null, CallOptions context = default)
+  public async Task<IReadOnlyList<global::Harmos.Clients.SchemaDescription>> List(string? schema = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Schemas.List(schema, context);
   }
@@ -3050,9 +3036,9 @@ public sealed class SecretsResource
   {
     this.invoker = invoker;
   }
-  public async Task<SecretsGetResponse> Get(string name, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SecretsGetResponse> Get(string name, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new SecretsGetRequest
+    var request = new global::Dokime.Clients.SecretsGetRequest
     {
       Name = name,
     };
@@ -3060,11 +3046,11 @@ public sealed class SecretsResource
     {
       request.At = at;
     }
-    var method = new Method<SecretsGetRequest, SecretsGetResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Get",
-        Marshallers.Create<SecretsGetRequest>(value => value.ToByteArray(), bytes => SecretsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SecretsGetResponse>(value => value.ToByteArray(), bytes => SecretsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SecretsGetRequest, global::Dokime.Clients.SecretsGetResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Get",
+        Marshallers.Create<global::Dokime.Clients.SecretsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SecretsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SecretsGetResponse response;
+    global::Dokime.Clients.SecretsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3075,20 +3061,20 @@ public sealed class SecretsResource
     }
     return response;
   }
-  public async Task<SecretsSetResponse> Set(string name, SecretWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SecretsSetResponse> Set(string name, global::Dokime.Clients.SecretWritable value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new SecretsSetRequest
+    var request = new global::Dokime.Clients.SecretsSetRequest
     {
       Name = name,
       Value = value,
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<SecretsSetRequest, SecretsSetResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Set",
-        Marshallers.Create<SecretsSetRequest>(value => value.ToByteArray(), bytes => SecretsSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SecretsSetResponse>(value => value.ToByteArray(), bytes => SecretsSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SecretsSetRequest, global::Dokime.Clients.SecretsSetResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Set",
+        Marshallers.Create<global::Dokime.Clients.SecretsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SecretsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsSetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SecretsSetResponse response;
+    global::Dokime.Clients.SecretsSetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3099,7 +3085,7 @@ public sealed class SecretsResource
     }
     return response;
   }
-  public async Task<global::Dokime.Clients.SecretsListResponse> List(ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SecretsListResponse> List(global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
     var request = new global::Dokime.Clients.SecretsListRequest
     {
@@ -3123,18 +3109,18 @@ public sealed class SecretsResource
     }
     return response;
   }
-  public async IAsyncEnumerable<SecretsWatchResponse> Watch(ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Dokime.Clients.SecretsWatchResponse> Watch(global::Harmos.ReadCut? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
-    var request = new SecretsWatchRequest
+    var request = new global::Dokime.Clients.SecretsWatchRequest
     {
     };
     if (at is not null)
     {
       request.At = at;
     }
-    var method = new Method<SecretsWatchRequest, SecretsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Secrets", "Watch",
-        Marshallers.Create<SecretsWatchRequest>(value => value.ToByteArray(), bytes => SecretsWatchRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SecretsWatchResponse>(value => value.ToByteArray(), bytes => SecretsWatchResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SecretsWatchRequest, global::Dokime.Clients.SecretsWatchResponse>(MethodType.ServerStreaming, "dokime.host.v1.Secrets", "Watch",
+        Marshallers.Create<global::Dokime.Clients.SecretsWatchRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsWatchRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SecretsWatchResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsWatchResponse.Parser.ParseFrom(bytes)));
     using var linked = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
     using var call = invoker.AsyncServerStreamingCall(method, null, context.WithCancellationToken(linked.Token), request);
     while (true)
@@ -3156,19 +3142,19 @@ public sealed class SecretsResource
       yield return response;
     }
   }
-  public async Task<SecretsDeleteResponse> Delete(IReadOnlyList<string> names, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SecretsDeleteResponse> Delete(IReadOnlyList<string> names, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new SecretsDeleteRequest
+    var request = new global::Dokime.Clients.SecretsDeleteRequest
     {
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
     request.Names.Add(names);
-    var method = new Method<SecretsDeleteRequest, SecretsDeleteResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Delete",
-        Marshallers.Create<SecretsDeleteRequest>(value => value.ToByteArray(), bytes => SecretsDeleteRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SecretsDeleteResponse>(value => value.ToByteArray(), bytes => SecretsDeleteResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SecretsDeleteRequest, global::Dokime.Clients.SecretsDeleteResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Delete",
+        Marshallers.Create<global::Dokime.Clients.SecretsDeleteRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsDeleteRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SecretsDeleteResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsDeleteResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SecretsDeleteResponse response;
+    global::Dokime.Clients.SecretsDeleteResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3179,9 +3165,9 @@ public sealed class SecretsResource
     }
     return response;
   }
-  public async Task<SecretsExportResponse> Export(IReadOnlyList<string> names, ulong generation, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SecretsExportResponse> Export(IReadOnlyList<string> names, ulong generation, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new SecretsExportRequest
+    var request = new global::Dokime.Clients.SecretsExportRequest
     {
       Generation = generation,
     };
@@ -3190,11 +3176,11 @@ public sealed class SecretsResource
     {
       request.At = at;
     }
-    var method = new Method<SecretsExportRequest, SecretsExportResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Export",
-        Marshallers.Create<SecretsExportRequest>(value => value.ToByteArray(), bytes => SecretsExportRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SecretsExportResponse>(value => value.ToByteArray(), bytes => SecretsExportResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SecretsExportRequest, global::Dokime.Clients.SecretsExportResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Export",
+        Marshallers.Create<global::Dokime.Clients.SecretsExportRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsExportRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SecretsExportResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsExportResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SecretsExportResponse response;
+    global::Dokime.Clients.SecretsExportResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3205,9 +3191,9 @@ public sealed class SecretsResource
     }
     return response;
   }
-  public async Task<SecretsImportResponse> Import(ByteString data, IReadOnlyList<SecretImportChoice> choices, ulong generation, bool validateOnly, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SecretsImportResponse> Import(ByteString data, IReadOnlyList<global::Dokime.Clients.SecretImportChoice> choices, ulong generation, bool validateOnly, string? requestId = null, CallOptions context = default)
   {
-    var request = new SecretsImportRequest
+    var request = new global::Dokime.Clients.SecretsImportRequest
     {
       Data = data,
       Generation = generation,
@@ -3215,11 +3201,11 @@ public sealed class SecretsResource
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
     request.Choices.Add(choices);
-    var method = new Method<SecretsImportRequest, SecretsImportResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Import",
-        Marshallers.Create<SecretsImportRequest>(value => value.ToByteArray(), bytes => SecretsImportRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SecretsImportResponse>(value => value.ToByteArray(), bytes => SecretsImportResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SecretsImportRequest, global::Dokime.Clients.SecretsImportResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "Import",
+        Marshallers.Create<global::Dokime.Clients.SecretsImportRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsImportRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SecretsImportResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsImportResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SecretsImportResponse response;
+    global::Dokime.Clients.SecretsImportResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3238,7 +3224,7 @@ public sealed class SettingsResource
   {
     this.invoker = invoker;
   }
-  public async Task<global::Dokime.Clients.SettingsGetResponse> Get(ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SettingsGetResponse> Get(global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
     var request = new global::Dokime.Clients.SettingsGetRequest
     {
@@ -3262,7 +3248,7 @@ public sealed class SettingsResource
     }
     return response;
   }
-  public async Task<global::Dokime.Clients.SettingsSetResponse> Set(ApplicationSettings value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SettingsSetResponse> Set(global::Dokime.Clients.ApplicationSettings value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
     var request = new global::Dokime.Clients.SettingsSetRequest
     {
@@ -3285,20 +3271,20 @@ public sealed class SettingsResource
     }
     return response;
   }
-  public async Task<SettingsSchemaResponse> Schema(ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SettingsSchemaResponse> Schema(global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new SettingsSchemaRequest
+    var request = new global::Dokime.Clients.SettingsSchemaRequest
     {
     };
     if (at is not null)
     {
       request.At = at;
     }
-    var method = new Method<SettingsSchemaRequest, SettingsSchemaResponse>(MethodType.Unary, "dokime.host.v1.Settings", "Schema",
-        Marshallers.Create<SettingsSchemaRequest>(value => value.ToByteArray(), bytes => SettingsSchemaRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SettingsSchemaResponse>(value => value.ToByteArray(), bytes => SettingsSchemaResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SettingsSchemaRequest, global::Dokime.Clients.SettingsSchemaResponse>(MethodType.Unary, "dokime.host.v1.Settings", "Schema",
+        Marshallers.Create<global::Dokime.Clients.SettingsSchemaRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SettingsSchemaRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SettingsSchemaResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SettingsSchemaResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SettingsSchemaResponse response;
+    global::Dokime.Clients.SettingsSchemaResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3323,11 +3309,11 @@ public sealed class StatusResource
     Logs = new StatusLogsResource(invoker);
     TraceEvents = new StatusTraceEventsResource(invoker);
   }
-  public async Task<StatusGetResponse> Get(CallOptions context = default)
+  public async Task<global::Harmos.Clients.StatusGetResponse> Get(CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Status.Get(context);
   }
-  public async IAsyncEnumerable<StatusWatchResponse> Watch(Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Harmos.Clients.StatusWatchResponse> Watch(global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
     await foreach (var response in new Harmos.Client(invoker).Status.Watch(at, context, cancellationToken)) { yield return response; }
   }
@@ -3339,7 +3325,7 @@ public sealed class StatusDiagnosticsResource
   {
     this.invoker = invoker;
   }
-  public async Task<DiagnosticsGetResponse> Get(string name, ulong offset, ulong maxBytes, CallOptions context = default)
+  public async Task<global::Harmos.Clients.DiagnosticsGetResponse> Get(string name, ulong offset, ulong maxBytes, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Status.Diagnostics.Get(name, offset, maxBytes, context);
   }
@@ -3351,11 +3337,11 @@ public sealed class StatusLogsResource
   {
     this.invoker = invoker;
   }
-  public async Task<LogsListResponse> List(Position? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.LogsListResponse> List(global::Harmos.Position? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Status.Logs.List(at, page, context);
   }
-  public async IAsyncEnumerable<LogsWatchResponse> Watch(ulong maxBytes, uint maxEvents, Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Harmos.Clients.LogsWatchResponse> Watch(ulong maxBytes, uint maxEvents, global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
     await foreach (var response in new Harmos.Client(invoker).Status.Logs.Watch(maxBytes, maxEvents, at, context, cancellationToken)) { yield return response; }
   }
@@ -3367,11 +3353,11 @@ public sealed class StatusTraceEventsResource
   {
     this.invoker = invoker;
   }
-  public async Task<TraceEventsListResponse> List(Position? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.TraceEventsListResponse> List(global::Harmos.Position? at = null, global::Harmos.PageRequest? page = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Status.TraceEvents.List(at, page, context);
   }
-  public async IAsyncEnumerable<TraceEventsWatchResponse> Watch(ulong maxBytes, uint maxEvents, Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+  public async IAsyncEnumerable<global::Harmos.Clients.TraceEventsWatchResponse> Watch(ulong maxBytes, uint maxEvents, global::Harmos.Position? at = null, CallOptions context = default, [EnumeratorCancellation] CancellationToken cancellationToken = default)
   {
     await foreach (var response in new Harmos.Client(invoker).Status.TraceEvents.Watch(maxBytes, maxEvents, at, context, cancellationToken)) { yield return response; }
   }
@@ -3391,20 +3377,20 @@ public sealed class StorageSourcesResource
   {
     this.invoker = invoker;
   }
-  public async Task<SourcesGetResponse> Get(ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.StorageResources.SourcesGetResponse> Get(global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new SourcesGetRequest
+    var request = new global::Dokime.Clients.StorageResources.SourcesGetRequest
     {
     };
     if (at is not null)
     {
       request.At = at;
     }
-    var method = new Method<SourcesGetRequest, SourcesGetResponse>(MethodType.Unary, "dokime.host.v1.storage.Sources", "Get",
-        Marshallers.Create<SourcesGetRequest>(value => value.ToByteArray(), bytes => SourcesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SourcesGetResponse>(value => value.ToByteArray(), bytes => SourcesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.StorageResources.SourcesGetRequest, global::Dokime.Clients.StorageResources.SourcesGetResponse>(MethodType.Unary, "dokime.host.v1.storage.Sources", "Get",
+        Marshallers.Create<global::Dokime.Clients.StorageResources.SourcesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StorageResources.SourcesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.StorageResources.SourcesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StorageResources.SourcesGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SourcesGetResponse response;
+    global::Dokime.Clients.StorageResources.SourcesGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3415,19 +3401,19 @@ public sealed class StorageSourcesResource
     }
     return response;
   }
-  public async Task<SourcesSetResponse> Set(StorageSources value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.StorageResources.SourcesSetResponse> Set(global::Dokime.Clients.StorageResources.StorageSources value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new SourcesSetRequest
+    var request = new global::Dokime.Clients.StorageResources.SourcesSetRequest
     {
       Value = value,
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<SourcesSetRequest, SourcesSetResponse>(MethodType.Unary, "dokime.host.v1.storage.Sources", "Set",
-        Marshallers.Create<SourcesSetRequest>(value => value.ToByteArray(), bytes => SourcesSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SourcesSetResponse>(value => value.ToByteArray(), bytes => SourcesSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.StorageResources.SourcesSetRequest, global::Dokime.Clients.StorageResources.SourcesSetResponse>(MethodType.Unary, "dokime.host.v1.storage.Sources", "Set",
+        Marshallers.Create<global::Dokime.Clients.StorageResources.SourcesSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StorageResources.SourcesSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.StorageResources.SourcesSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StorageResources.SourcesSetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SourcesSetResponse response;
+    global::Dokime.Clients.StorageResources.SourcesSetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3446,9 +3432,9 @@ public sealed class StreamSchemasResource
   {
     this.invoker = invoker;
   }
-  public async Task<StreamSchemasGetResponse> Get(string name, string parent, uint schemaVersion, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.StreamSchemasGetResponse> Get(string name, string parent, uint schemaVersion, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new StreamSchemasGetRequest
+    var request = new global::Dokime.Clients.StreamSchemasGetRequest
     {
       Name = name,
       Parent = parent,
@@ -3458,11 +3444,11 @@ public sealed class StreamSchemasResource
     {
       request.At = at;
     }
-    var method = new Method<StreamSchemasGetRequest, StreamSchemasGetResponse>(MethodType.Unary, "dokime.host.v1.StreamSchemas", "Get",
-        Marshallers.Create<StreamSchemasGetRequest>(value => value.ToByteArray(), bytes => StreamSchemasGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<StreamSchemasGetResponse>(value => value.ToByteArray(), bytes => StreamSchemasGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.StreamSchemasGetRequest, global::Dokime.Clients.StreamSchemasGetResponse>(MethodType.Unary, "dokime.host.v1.StreamSchemas", "Get",
+        Marshallers.Create<global::Dokime.Clients.StreamSchemasGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StreamSchemasGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.StreamSchemasGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StreamSchemasGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    StreamSchemasGetResponse response;
+    global::Dokime.Clients.StreamSchemasGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3473,9 +3459,9 @@ public sealed class StreamSchemasResource
     }
     return response;
   }
-  public async Task<StreamSchemasListResponse> List(string parent, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.StreamSchemasListResponse> List(string parent, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new StreamSchemasListRequest
+    var request = new global::Dokime.Clients.StreamSchemasListRequest
     {
       Parent = parent,
     };
@@ -3483,11 +3469,11 @@ public sealed class StreamSchemasResource
     {
       request.At = at;
     }
-    var method = new Method<StreamSchemasListRequest, StreamSchemasListResponse>(MethodType.Unary, "dokime.host.v1.StreamSchemas", "List",
-        Marshallers.Create<StreamSchemasListRequest>(value => value.ToByteArray(), bytes => StreamSchemasListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<StreamSchemasListResponse>(value => value.ToByteArray(), bytes => StreamSchemasListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.StreamSchemasListRequest, global::Dokime.Clients.StreamSchemasListResponse>(MethodType.Unary, "dokime.host.v1.StreamSchemas", "List",
+        Marshallers.Create<global::Dokime.Clients.StreamSchemasListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StreamSchemasListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.StreamSchemasListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.StreamSchemasListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    StreamSchemasListResponse response;
+    global::Dokime.Clients.StreamSchemasListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3506,7 +3492,7 @@ public sealed class StreamsResource
   {
     this.invoker = invoker;
   }
-  public async Task<IReadOnlyList<StreamIdentity>> List(string? schema = null, CallOptions context = default)
+  public async Task<IReadOnlyList<global::Harmos.Clients.StreamIdentity>> List(string? schema = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Streams.List(schema, context);
   }
@@ -3518,9 +3504,9 @@ public sealed class SuitesResource
   {
     this.invoker = invoker;
   }
-  public async Task<SuitesGetResponse> Get(string name, string parent, uint schemaVersion, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SuitesGetResponse> Get(string name, string parent, uint schemaVersion, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new SuitesGetRequest
+    var request = new global::Dokime.Clients.SuitesGetRequest
     {
       Name = name,
       Parent = parent,
@@ -3530,11 +3516,11 @@ public sealed class SuitesResource
     {
       request.At = at;
     }
-    var method = new Method<SuitesGetRequest, SuitesGetResponse>(MethodType.Unary, "dokime.host.v1.Suites", "Get",
-        Marshallers.Create<SuitesGetRequest>(value => value.ToByteArray(), bytes => SuitesGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SuitesGetResponse>(value => value.ToByteArray(), bytes => SuitesGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SuitesGetRequest, global::Dokime.Clients.SuitesGetResponse>(MethodType.Unary, "dokime.host.v1.Suites", "Get",
+        Marshallers.Create<global::Dokime.Clients.SuitesGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SuitesGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SuitesGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SuitesGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SuitesGetResponse response;
+    global::Dokime.Clients.SuitesGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3545,9 +3531,9 @@ public sealed class SuitesResource
     }
     return response;
   }
-  public async Task<SuitesListResponse> List(string parent, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SuitesListResponse> List(string parent, global::Harmos.ReadCut? at = null, CallOptions context = default)
   {
-    var request = new SuitesListRequest
+    var request = new global::Dokime.Clients.SuitesListRequest
     {
       Parent = parent,
     };
@@ -3555,11 +3541,11 @@ public sealed class SuitesResource
     {
       request.At = at;
     }
-    var method = new Method<SuitesListRequest, SuitesListResponse>(MethodType.Unary, "dokime.host.v1.Suites", "List",
-        Marshallers.Create<SuitesListRequest>(value => value.ToByteArray(), bytes => SuitesListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<SuitesListResponse>(value => value.ToByteArray(), bytes => SuitesListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SuitesListRequest, global::Dokime.Clients.SuitesListResponse>(MethodType.Unary, "dokime.host.v1.Suites", "List",
+        Marshallers.Create<global::Dokime.Clients.SuitesListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SuitesListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SuitesListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SuitesListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    SuitesListResponse response;
+    global::Dokime.Clients.SuitesListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3578,11 +3564,11 @@ public sealed class TimeResource
   {
     this.invoker = invoker;
   }
-  public async Task<Timestamp> Get(CallOptions context = default)
+  public async Task<global::Google.Protobuf.WellKnownTypes.Timestamp> Get(CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Time.Get(context);
   }
-  public async Task<TimeSleepResponse> Sleep(Duration duration, CallOptions context = default)
+  public async Task<global::Harmos.Clients.TimeSleepResponse> Sleep(global::Google.Protobuf.WellKnownTypes.Duration duration, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Time.Sleep(duration, context);
   }

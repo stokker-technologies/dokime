@@ -22,7 +22,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 // Third Party Imports
 
 // Local Imports
-use dokime::plugin::{FilesCaptureMode, FilesStreamCapture, capture_mode};
+use dokime::plugin::{CaptureMode, StreamCapture, capture_mode};
 use dokime::prelude::*;
 use dokime::{FileLocation, FileRule, FileRuleAction, FileSelection, FileSource, file_location, file_source};
 
@@ -140,8 +140,8 @@ async fn copy(ctx: &Context) -> Result<()> {
 
 async fn start(ctx: &Context) -> Result<()> {
     let device = ctx.parameters::<Device>()?;
-    let mode = FilesCaptureMode {
-        kind: Some(capture_mode::Kind::Stream(FilesStreamCapture::default())),
+    let mode = CaptureMode {
+        kind: Some(capture_mode::Kind::Stream(StreamCapture::default())),
     };
     let capture_id = ctx.host().files.captures.start(tree(&device.root), "window".into(), mode).await?;
     ctx.get::<Running>()?.0.store(capture_id, Ordering::SeqCst);

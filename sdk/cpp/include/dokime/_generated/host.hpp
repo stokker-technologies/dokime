@@ -34,6 +34,8 @@ enum class HostOperation {
   InvocationsGet,
   InvocationsCancel,
   InvocationsWatch,
+  OperationsList,
+  OperationsGet,
   PluginsSettingsList,
   TimeGet,
   TimeSleep,
@@ -49,7 +51,7 @@ struct HostContentArtifactsCreateOptions {
   std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostDocumentsAppendPartsOptions {
-  std::optional<::dokime::Section> subsection;
+  std::optional<::dokime::model::Section> subsection;
   std::optional<::dokime::Card> card;
   std::optional<std::string> request_id;
   std::optional<::harmos::OperationPolicy> policy;
@@ -71,7 +73,7 @@ struct HostEvidenceLogsAppendOptions {
   std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostEvidenceRecordsListOptions {
-  std::optional<::dokime::EvidenceRecordScope> scope;
+  std::optional<::dokime::RecordScope> scope;
   std::optional<::harmos::ReadCut> at;
   std::optional<::harmos::PageRequest> page;
   std::optional<::harmos::OperationPolicy> policy;
@@ -152,7 +154,7 @@ struct HostFilesWatchOptions {
 };
 class HostFilesWatch {
 public:
-  explicit HostFilesWatch(std::function<std::optional<::dokime::FilesWatchResponse>()> next) : next_(std::move(next)) {}
+  explicit HostFilesWatch(std::function<std::optional<::dokime::FilesWatchResponse>()> next_value) : next_(std::move(next_value)) {}
   std::optional<::dokime::FilesWatchResponse> next() {
     return next_();
   }
@@ -184,13 +186,19 @@ struct HostInvocationsCancelOptions {
 struct HostInvocationsWatchOptions {};
 class HostInvocationsWatch {
 public:
-  explicit HostInvocationsWatch(std::function<std::optional<::harmos::InstanceState>()> next) : next_(std::move(next)) {}
+  explicit HostInvocationsWatch(std::function<std::optional<::harmos::InstanceState>()> next_value) : next_(std::move(next_value)) {}
   std::optional<::harmos::InstanceState> next() {
     return next_();
   }
 
 private:
   std::function<std::optional<::harmos::InstanceState>()> next_;
+};
+struct HostOperationsListOptions {
+  std::optional<::harmos::OperationPolicy> policy;
+};
+struct HostOperationsGetOptions {
+  std::optional<::harmos::OperationPolicy> policy;
 };
 struct HostPluginsSettingsListOptions {
   std::optional<std::string> name;
@@ -205,63 +213,69 @@ struct HostTimeSleepOptions {
 };
 struct HostTimeResource {
   Context context;
-  HostTimeResource(Context value) : context(value) {}
+  HostTimeResource(Context context_value) : context(context_value) {}
   ::google::protobuf::Timestamp get(HostTimeGetOptions options = {});
   ::harmos::host::v1::TimeSleepResponse sleep(const ::google::protobuf::Duration &duration, HostTimeSleepOptions options = {});
 };
 struct HostSecretsResource {
   Context context;
-  HostSecretsResource(Context value) : context(value) {}
+  HostSecretsResource(Context context_value) : context(context_value) {}
   ::dokime::SecretsGetResponse get(const std::string &name, HostSecretsGetOptions options = {});
 };
 struct HostPromptsResource {
   Context context;
-  HostPromptsResource(Context value) : context(value) {}
+  HostPromptsResource(Context context_value) : context(context_value) {}
   ::dokime::plugin::PromptsCreateResponse create(const std::string &prompt, const std::string &prompt_type,
                                                  const std::map<std::string, ::dokime::Value> &values,
                                                  HostPromptsCreateOptions options = {});
 };
 struct HostPluginsSettingsResource {
   Context context;
-  HostPluginsSettingsResource(Context value) : context(value) {}
+  HostPluginsSettingsResource(Context context_value) : context(context_value) {}
   ::harmos::host::v1::plugins::SettingsListResponse list(HostPluginsSettingsListOptions options = {});
 };
 struct HostPluginsResource {
   Context context;
   HostPluginsSettingsResource settings;
-  HostPluginsResource(Context value) : context(value), settings(value) {}
+  HostPluginsResource(Context context_value) : context(context_value), settings(context_value) {}
+};
+struct HostOperationsResource {
+  Context context;
+  HostOperationsResource(Context context_value) : context(context_value) {}
+  std::vector<::harmos::DiscoveredOperation> list(HostOperationsListOptions options = {});
+  ::harmos::DiscoveredOperation get(const std::string &id, HostOperationsGetOptions options = {});
 };
 struct HostInvocationsResource {
   Context context;
-  HostInvocationsResource(Context value) : context(value) {}
+  HostInvocationsResource(Context context_value) : context(context_value) {}
   ::harmos::InstanceState get(const std::uint64_t &instance, HostInvocationsGetOptions options = {});
   ::harmos::InstanceState cancel(const std::uint64_t &instance, const std::string &reason, HostInvocationsCancelOptions options = {});
   HostInvocationsWatch watch(const std::uint64_t &instance, std::size_t max_item_bytes, HostInvocationsWatchOptions options = {});
 };
 struct HostFilesUploadsResource {
   Context context;
-  HostFilesUploadsResource(Context value) : context(value) {}
-  ::dokime::FilesUploadsCreateResponse create(const ::harmos::FileMetadata &metadata, HostFilesUploadsCreateOptions options = {});
-  ::dokime::FilesUploadsGetResponse get(const ::harmos::Upload &upload, HostFilesUploadsGetOptions options = {});
-  ::dokime::FilesUploadsResumeResponse resume(const ::harmos::Upload &upload, HostFilesUploadsResumeOptions options = {});
-  ::dokime::FilesUploadsAppendResponse append(const ::harmos::Upload &upload, const std::uint64_t &offset, const std::string &data,
-                                              HostFilesUploadsAppendOptions options = {});
-  ::dokime::FilesUploadsPublishResponse publish(const ::harmos::Upload &upload, const std::uint64_t &length, const std::string &sha256,
-                                                HostFilesUploadsPublishOptions options = {});
-  ::dokime::FilesUploadsDeleteResponse delete_(const ::harmos::Upload &upload, HostFilesUploadsDeleteOptions options = {});
+  HostFilesUploadsResource(Context context_value) : context(context_value) {}
+  ::dokime::UploadsCreateResponse create(const ::harmos::FileMetadata &metadata, HostFilesUploadsCreateOptions options = {});
+  ::dokime::UploadsGetResponse get(const ::harmos::Upload &upload, HostFilesUploadsGetOptions options = {});
+  ::dokime::UploadsResumeResponse resume(const ::harmos::Upload &upload, HostFilesUploadsResumeOptions options = {});
+  ::dokime::UploadsAppendResponse append(const ::harmos::Upload &upload, const std::uint64_t &offset, const std::string &data,
+                                         HostFilesUploadsAppendOptions options = {});
+  ::dokime::UploadsPublishResponse publish(const ::harmos::Upload &upload, const std::uint64_t &length, const std::string &sha256,
+                                           HostFilesUploadsPublishOptions options = {});
+  ::dokime::UploadsDeleteResponse delete_(const ::harmos::Upload &upload, HostFilesUploadsDeleteOptions options = {});
 };
 struct HostFilesCapturesResource {
   Context context;
-  HostFilesCapturesResource(Context value) : context(value) {}
-  std::uint64_t start(const ::dokime::FileSource &source, const std::string &output, const ::dokime::plugin::FilesCaptureMode &mode,
+  HostFilesCapturesResource(Context context_value) : context(context_value) {}
+  std::uint64_t start(const ::dokime::FileSource &source, const std::string &output, const ::dokime::plugin::CaptureMode &mode,
                       HostFilesCapturesStartOptions options = {});
-  ::dokime::plugin::FilesCapturesStopResponse stop(const std::uint64_t &capture_id, HostFilesCapturesStopOptions options = {});
+  ::dokime::plugin::host::files::CapturesStopResponse stop(const std::uint64_t &capture_id, HostFilesCapturesStopOptions options = {});
 };
 struct HostFilesResource {
   Context context;
   HostFilesCapturesResource captures;
   HostFilesUploadsResource uploads;
-  HostFilesResource(Context value) : context(value), captures(value), uploads(value) {}
+  HostFilesResource(Context context_value) : context(context_value), captures(context_value), uploads(context_value) {}
   ::dokime::FilesGetResponse get(const ::harmos::FileReference &file, HostFilesGetOptions options = {});
   ::dokime::FilesReadResponse read(const ::harmos::FileReference &file, const std::uint64_t &offset, const std::uint64_t &max_bytes,
                                    HostFilesReadOptions options = {});
@@ -272,37 +286,36 @@ struct HostFilesResource {
 };
 struct HostExecutionsProgressResource {
   Context context;
-  HostExecutionsProgressResource(Context value) : context(value) {}
-  ::dokime::ExecutionsProgressGetResponse get(HostExecutionsProgressGetOptions options = {});
-  ::dokime::plugin::ExecutionsProgressSetResponse set(const ::dokime::ExecutionProgressValue &value, const std::string &expected_revision,
-                                                      HostExecutionsProgressSetOptions options = {});
+  HostExecutionsProgressResource(Context context_value) : context(context_value) {}
+  ::dokime::ProgressGetResponse get(HostExecutionsProgressGetOptions options = {});
+  ::dokime::plugin::ProgressSetResponse set(const ::dokime::ExecutionProgressValue &value, const std::string &expected_revision,
+                                            HostExecutionsProgressSetOptions options = {});
 };
 struct HostExecutionsResource {
   Context context;
   HostExecutionsProgressResource progress;
-  HostExecutionsResource(Context value) : context(value), progress(value) {}
+  HostExecutionsResource(Context context_value) : context(context_value), progress(context_value) {}
 };
 struct HostEvidenceTraceabilityResource {
   Context context;
-  HostEvidenceTraceabilityResource(Context value) : context(value) {}
-  ::dokime::EvidenceTraceabilityGetResponse get(HostEvidenceTraceabilityGetOptions options = {});
-  ::dokime::plugin::EvidenceTraceabilitySetResponse set(const ::dokime::TraceabilityEntry &value, const std::string &expected_revision,
-                                                        const std::string &entry, HostEvidenceTraceabilitySetOptions options = {});
+  HostEvidenceTraceabilityResource(Context context_value) : context(context_value) {}
+  ::dokime::TraceabilityGetResponse get(HostEvidenceTraceabilityGetOptions options = {});
+  ::dokime::plugin::TraceabilitySetResponse set(const ::dokime::TraceabilityEntry &value, const std::string &expected_revision,
+                                                const std::string &entry, HostEvidenceTraceabilitySetOptions options = {});
 };
 struct HostEvidenceRecordsResource {
   Context context;
-  HostEvidenceRecordsResource(Context value) : context(value) {}
-  ::dokime::EvidenceRecordsListResponse list(const std::string &record_type, const std::vector<std::uint32_t> &versions,
-                                             const ::dokime::Window &between, const std::string &step,
-                                             const ::dokime::EvidenceCapturedRecordSelection &selection,
-                                             HostEvidenceRecordsListOptions options = {});
-  ::dokime::plugin::EvidenceRecordsAppendResponse append(const std::string &execution, const std::string &kind, const std::string &payload,
-                                                         const ::google::protobuf::Timestamp &source_at,
-                                                         HostEvidenceRecordsAppendOptions options = {});
+  HostEvidenceRecordsResource(Context context_value) : context(context_value) {}
+  ::dokime::RecordsListResponse list(const std::string &record_type, const std::vector<std::uint32_t> &versions,
+                                     const ::dokime::model::Window &between, const std::string &step,
+                                     const ::dokime::CapturedRecordSelection &selection, HostEvidenceRecordsListOptions options = {});
+  ::dokime::plugin::RecordsAppendResponse append(const std::string &execution, const std::string &kind, const std::string &payload,
+                                                 const ::google::protobuf::Timestamp &source_at,
+                                                 HostEvidenceRecordsAppendOptions options = {});
 };
 struct HostEvidenceLogsResource {
   Context context;
-  HostEvidenceLogsResource(Context value) : context(value) {}
+  HostEvidenceLogsResource(Context context_value) : context(context_value) {}
   ::harmos::Receipt append(const std::string &execution, const ::dokime::Severity &severity, const std::string &message,
                            const ::google::protobuf::Timestamp &at, HostEvidenceLogsAppendOptions options = {});
 };
@@ -311,15 +324,16 @@ struct HostEvidenceResource {
   HostEvidenceLogsResource logs;
   HostEvidenceRecordsResource records;
   HostEvidenceTraceabilityResource traceability;
-  HostEvidenceResource(Context value) : context(value), logs(value), records(value), traceability(value) {}
+  HostEvidenceResource(Context context_value)
+      : context(context_value), logs(context_value), records(context_value), traceability(context_value) {}
   ::dokime::EvidenceStatisticsResponse statistics(const std::string &stream, const std::vector<std::uint32_t> &versions,
-                                                  const ::dokime::Window &between, const std::vector<::dokime::Output> &outputs,
+                                                  const ::dokime::model::Window &between, const std::vector<::dokime::Output> &outputs,
                                                   const std::string &field, const std::string &step,
                                                   HostEvidenceStatisticsOptions options = {});
 };
 struct HostEffectsResource {
   Context context;
-  HostEffectsResource(Context value) : context(value) {}
+  HostEffectsResource(Context context_value) : context(context_value) {}
   ::dokime::plugin::EffectsCreateResponse create(const std::string &resource, const std::string &inverse_operation,
                                                  const std::string &inverse, const std::string &description,
                                                  HostEffectsCreateOptions options = {});
@@ -329,24 +343,24 @@ struct HostEffectsResource {
 };
 struct HostDocumentsResource {
   Context context;
-  HostDocumentsResource(Context value) : context(value) {}
+  HostDocumentsResource(Context context_value) : context(context_value) {}
   ::harmos::Receipt append_parts(const std::string &execution, const std::string &document, const std::string &section,
                                  HostDocumentsAppendPartsOptions options = {});
 };
 struct HostContentArtifactsResource {
   Context context;
-  HostContentArtifactsResource(Context value) : context(value) {}
-  ::dokime::ContentArtifactsCreateResponse create(const ::harmos::FileReference &file, const std::string &filename,
-                                                  const std::string &content_type, HostContentArtifactsCreateOptions options = {});
+  HostContentArtifactsResource(Context context_value) : context(context_value) {}
+  ::dokime::ArtifactsCreateResponse create(const ::harmos::FileReference &file, const std::string &filename,
+                                           const std::string &content_type, HostContentArtifactsCreateOptions options = {});
 };
 struct HostContentResource {
   Context context;
   HostContentArtifactsResource artifacts;
-  HostContentResource(Context value) : context(value), artifacts(value) {}
+  HostContentResource(Context context_value) : context(context_value), artifacts(context_value) {}
 };
 struct HostBackendResource {
   Context context;
-  HostBackendResource(Context value) : context(value) {}
+  HostBackendResource(Context context_value) : context(context_value) {}
   ::dokime::plugin::BackendEnvironmentResponse environment(HostBackendEnvironmentOptions options = {});
 };
 struct HostRoot {
@@ -358,6 +372,7 @@ struct HostRoot {
   HostExecutionsResource executions;
   HostFilesResource files;
   HostInvocationsResource invocations;
+  HostOperationsResource operations;
   HostPluginsResource plugins;
   HostPromptsResource prompts;
   HostSecretsResource secrets;

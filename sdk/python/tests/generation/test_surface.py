@@ -16,8 +16,8 @@
 # Third Party Imports
 
 # Local Imports
-from dokime import FileReference, FileSource, Output, Window
-from dokime.client import Client
+from dokime import FileReference, FileSource, Output, model
+from dokime.client import ClientRoot
 from dokime.plugin import Context
 
 # Type Checking Imports
@@ -34,12 +34,12 @@ from dokime.plugin import Context
 # === Public Functions === #
 
 
-async def generated_surface(client: Client, context: Context) -> None:
+async def generated_surface(client: ClientRoot, context: Context) -> None:
     """Type-Check Content Calls Without Starting a Product Host."""
     await client.plugins.list()
     await context.host.files.capture(FileSource(), "output")
     await context.host.content.artifacts.create(FileReference(), "capture.bin", "application/octet-stream")
-    await context.host.evidence.statistics("stream", [], Window(), list[Output](), "field", "step")
+    await context.host.evidence.statistics("stream", [], model.Window(), list[Output](), "field", "step")
 
 
 # === Private Functions === #

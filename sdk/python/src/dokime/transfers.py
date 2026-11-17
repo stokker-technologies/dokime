@@ -22,12 +22,9 @@ from uuid import uuid4
 # Third Party Imports
 from harmos import FileMetadata, FileReference, Upload
 
-from dokime import FilesUploadsAppendResponse as UploadsAppendResponse
-from dokime import FilesUploadsCreateResponse as UploadsCreateResponse
-from dokime import FilesUploadsDeleteResponse as UploadsDeleteResponse
-from dokime import FilesUploadsPublishResponse as UploadsPublishResponse
+from dokime import UploadsAppendResponse, UploadsCreateResponse, UploadsDeleteResponse, UploadsPublishResponse
 
-from .client import Client, ReportSubject
+from .client import ClientRoot, ReportSubject
 
 # Local Imports
 
@@ -73,7 +70,7 @@ async def upload_bytes(uploads: Uploads, data: bytes, *, metadata: FileMetadata,
 
 
 async def upload_file(
-    client: Client, path: str | Path, *, scope: str = "", media_type: str = "application/octet-stream", request_id: str | None = None
+    client: ClientRoot, path: str | Path, *, scope: str = "", media_type: str = "application/octet-stream", request_id: str | None = None
 ) -> FileReference:
     identity = request_id if request_id is not None else str(uuid4())
     source = FileIO(Path(path), "r")
@@ -104,7 +101,9 @@ async def upload_file(
         source.close()
 
 
-async def download_report(client: Client, execution: str, *, document: str = "", max_bytes: int, request_id: str | None = None) -> bytes:
+async def download_report(
+    client: ClientRoot, execution: str, *, document: str = "", max_bytes: int, request_id: str | None = None
+) -> bytes:
     if max_bytes <= 0:
         raise ValueError("Download Report: Supply a Positive Read Limit")
     report = await client.reports.create(ReportSubject(execution=execution), document, request_id=request_id)

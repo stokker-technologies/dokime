@@ -4,7 +4,7 @@ from google.protobuf.message import Message
 
 from dokime import Parameter, Prompt, PromptDefinitions
 from dokime.authoring import Record, Suite, Template, criterion, observer, step, stream, window_observer
-from dokime.plugin import Context, Plugin, SampleWindow
+from dokime.plugin import Context, Plugin, Window
 
 # SPDX-License-Identifier: Apache-2.0
 """The Same Thermal Procedure as Every SDK."""
@@ -62,7 +62,7 @@ class Thermal:
     # A 1 kHz Stream Answers Each Host Window at Once.
     @stream("Exact Counter", identifier="thermal.counter", row=Counter)
     @window_observer(columns=CounterColumns, interval_ms=1)
-    def counter(self, ctx: Context, window: SampleWindow) -> Message:
+    def counter(self, ctx: Context, window: Window) -> Message:
         return CounterColumns(value=[1_152_921_504_606_847_975] * window.count)
 
     @criterion("Temperature Within Limit", identifier="within_limit")

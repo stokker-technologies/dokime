@@ -169,7 +169,7 @@ class Expression:
 class Plot:
     @classmethod
     def line(cls, identifier: str, label: str) -> "Plot":
-        return cls(dokime.Plot(metadata=dokime.Metadata(identifier=identifier, label=label), kind=PlotKind.Value("PLOT_KIND_TIME_SERIES")))
+        return cls(dokime.Plot(metadata=dokime.Metadata(identifier=identifier, label=label), kind=dokime.PLOT_KIND_TIME_SERIES))
 
     def __init__(self, value: dokime.Plot) -> None:
         if not isinstance(value, dokime.Plot):
