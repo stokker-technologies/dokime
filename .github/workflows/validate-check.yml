@@ -45,11 +45,11 @@ jobs:
     - name: Restore C++ Dependencies
       id: cpp_dependencies
       if: matrix.language == 'cpp'
-      uses: ./sdk/cpp/actions/cache
+      uses: ./.github/actions/cpp-cache
     - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
     - name: Save C++ Dependencies
       if: matrix.language == 'cpp'
-      uses: ./sdk/cpp/actions/cache
+      uses: ./.github/actions/cpp-cache
       with:
         operation: save
         key: ${{ steps.cpp_dependencies.outputs.cache-primary-key }}

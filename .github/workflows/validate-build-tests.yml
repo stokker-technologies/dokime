@@ -217,7 +217,7 @@ jobs:
     - name: Restore Pinned C++ Dependencies
       id: cpp_dependencies
       if: inputs.fixture-language == 'cpp'
-      uses: ./sdk/cpp/actions/cache
+      uses: ./.github/actions/cpp-cache
     - run: mise run build:host-fixtures -- --profile ${{ env.PROFILE }} --language ${{ inputs.fixture-language }} --export
     - name: Preserve C++ Build Diagnostics
       if: always() && inputs.fixture-language == 'cpp'
@@ -236,7 +236,7 @@ jobs:
         compression-level: 0
     - name: Save Pinned C++ Dependencies
       if: inputs.fixture-language == 'cpp'
-      uses: ./sdk/cpp/actions/cache
+      uses: ./.github/actions/cpp-cache
       with:
         operation: save
         key: ${{ steps.cpp_dependencies.outputs.cache-primary-key }}
