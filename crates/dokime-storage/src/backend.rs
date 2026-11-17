@@ -35,7 +35,7 @@ use std::{
 };
 
 // Third Party Imports
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 use tokio::sync;
 
 // Local Imports
@@ -70,6 +70,8 @@ use harmos_storage::query::projection::ProjectionRead;
 use harmos_storage::query::projection::ProjectionStatus;
 
 /* === Constants === */
+
+const FORMAT: &str = "dokime.scoped-objects.v1";
 
 /* === Macros === */
 
@@ -127,6 +129,16 @@ struct State {
 /* === Implementations === */
 
 impl Backend {
+    pub(crate) fn validate_root(root: &Path) -> crate::Result<()> {
+        let path = root.join("storage.sqlite3");
+        if !path.exists() {
+            return Ok(());
+        }
+        let incompatible = |_| crate::Error::Incompatible(root.display().to_string());
+        let connection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(incompatible)?;
+        validate_format(&connection).map_err(|_| crate::Error::Incompatible(root.display().to_string()))
+    }
+
     pub fn open(store: &crate::Store, catalog: ObjectCatalog) -> crate::Result<(StorageBackends, BackendLease)> {
         let history = store.storage_history()?;
         let history = StoreHistory {
@@ -180,20 +192,9 @@ impl Backend {
     fn connect(mut connection: Connection, history: StoreHistory, settings: BackendSettings, lease: Option<File>) -> Result<Self> {
         integer(settings.chunk_rows.get() as u64)?;
         integer(settings.chunk_bytes.get() as u64)?;
+        validate_format(&connection)?;
         let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0)).map_err(db)?;
-        let tables: i64 = connection
-            .query_row("SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'", [], |row| row.get(0))
-            .map_err(db)?;
-        if version != 1 && (version != 0 || tables != 0) {
-            return Err(incompatible());
-        }
         if version == 1 {
-            let format: Option<String> =
-                connection.query_row("SELECT value FROM storage_meta WHERE name='format'", [], |row| row.get(0)).optional().map_err(db)?;
-            if format.as_deref() != Some("dokime.operations-retained.v1") {
-                return Err(incompatible());
-            }
-
             let stored: Option<String> = connection
                 .query_row("SELECT value FROM storage_meta WHERE name='history'", [], |row| row.get(0))
                 .optional()
@@ -250,7 +251,7 @@ impl Backend {
         if stored.as_ref().is_some_and(|stored| stored != &encoded) {
             return Err(incompatible());
         }
-        tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('format','dokime.operations-retained.v1')", []).map_err(db)?;
+        tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('format',?1)", [FORMAT]).map_err(db)?;
         tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('history',?1)", [&encoded]).map_err(db)?;
         tx.execute_batch("INSERT OR IGNORE INTO storage_meta VALUES('deletion_generation','0'); INSERT OR IGNORE INTO storage_meta VALUES('recovery_written','0'); INSERT OR IGNORE INTO storage_meta VALUES('recovery_saved','0'); INSERT OR IGNORE INTO storage_meta VALUES('saved','0'); INSERT OR IGNORE INTO storage_meta VALUES('floor','0'); INSERT OR IGNORE INTO storage_meta VALUES('object_receipt_floor','0'); PRAGMA user_version=1;").map_err(db)?;
         tx.commit().map_err(db)?;
@@ -750,6 +751,25 @@ fn incompatible() -> Error {
             "incompatible storage format or history; back up the original data and select a fresh storage root; the old folder is preserved",
         ),
     )
+}
+
+fn validate_format(connection: &Connection) -> Result<()> {
+    let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0)).map_err(db)?;
+    let tables: i64 = connection
+        .query_row("SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'", [], |row| row.get(0))
+        .map_err(db)?;
+    if version == 0 && tables == 0 {
+        return Ok(());
+    }
+    if version != 1 {
+        return Err(incompatible());
+    }
+    let format: Option<String> =
+        connection.query_row("SELECT value FROM storage_meta WHERE name='format'", [], |row| row.get(0)).optional().map_err(db)?;
+    if format.as_deref() != Some(FORMAT) {
+        return Err(incompatible());
+    }
+    Ok(())
 }
 fn db(source: rusqlite::Error) -> Error {
     let kind = match source.sqlite_error_code() {

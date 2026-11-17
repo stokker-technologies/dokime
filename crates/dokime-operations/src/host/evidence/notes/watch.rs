@@ -30,10 +30,10 @@ use tonic::Status;
 
 // Local Imports
 use super::list;
-use crate::host::storage::administration::{self, Administration};
 use crate::host::{ClientSettings, Context, Output};
 use crate::{Error, Result};
 use dokime_protocol::host::evidence::{NotesListRequest, NotesWatchRequest, NotesWatchResponse};
+use dokime_storage::persisted::{self, Administration};
 
 /* === Constants === */
 
@@ -123,7 +123,7 @@ pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<Out
                             let Some(frame) = receive.recv().await else { return Ok(()) };
                             match frame.event.as_ref() {
                                 Some(Event::Object(entry)) => {
-                                    let value = administration::catalog()
+                                    let value = persisted::catalog()
                                         .decode::<Administration>(&entry.value, NonZeroUsize::new(context.settings.message_bytes).unwrap())
                                         .map_err(|source| {
                                             Error::Invalid(format!(

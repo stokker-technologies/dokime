@@ -1892,7 +1892,7 @@ sample values and source times.
 For this wave, compound product objects retain their transactional Store paths.
 The operations manifest declares the workspace `harmos-runtime`
 dependency. Runtime storage registration
-combines the library plugin catalog with `host::storage::administration::catalog()`.
+combines the library plugin catalog with `dokime_storage::persisted::catalog()`.
 The library Plugins watch refreshes the suite projection and reconciles secret
 bindings; observer cancellation is awaited before the host closes.
 

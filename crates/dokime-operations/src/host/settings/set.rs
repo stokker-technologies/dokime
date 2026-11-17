@@ -24,6 +24,7 @@ use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
+use dokime_storage::persisted::Scope;
 
 use dokime_protocol::host::ApplicationSettings;
 use dokime_protocol::host::SettingsSetRequest;
@@ -59,6 +60,7 @@ pub async fn handle(context: &Context, request: SettingsSetRequest) -> Result<Se
         let (snapshot, receipt) = crate::host::storage::administration::replace(
             context,
             "preferences",
+            Scope::Root(&context.host.identity().backend_id).identifier()?,
             request.expected_revision,
             &request.request_id,
             value.encode_to_vec(),

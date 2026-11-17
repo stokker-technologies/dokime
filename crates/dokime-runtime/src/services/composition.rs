@@ -16,42 +16,42 @@
 /* === Imports === */
 
 // Standard Library Imports
-use crate::streams::{Samples, Timing};
-use harmos_runtime::storage::Cursor;
 use std::path::Path;
 use std::{
     num::NonZeroUsize,
-    result::Result as StdResult,
+    result,
     sync::Arc,
     time::{Duration, SystemTime},
 };
 
 // Third Party Imports
 use harmos_protocol::host::access::ListenerValue;
-use harmos_runtime::clock::Clock as RuntimeClock;
+use harmos_protocol::model::{StorageTransferSettings, TransferFraming};
+use harmos_runtime::clock;
 use harmos_runtime::clock::Source;
+use harmos_runtime::operations;
 use harmos_runtime::operations::Lane;
-use harmos_runtime::operations::Settings as OperationSettings;
 use harmos_runtime::plugin::grpc::{IntervalLag, PlacementSettings};
 use harmos_runtime::plugin::manager::{Manager, PluginManagerSettings};
 use harmos_runtime::state::Never;
-use harmos_runtime::{Application as RuntimeApplication, AssemblyError, Lifecycle};
+use harmos_runtime::storage::Cursor;
+use harmos_runtime::storage::{
+    StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
+};
+use harmos_runtime::{AssemblyError, Lifecycle};
 use harmos_runtime::{
     Runtime, Setup, Startup,
     clock::{Reading, Sleep},
-    grpc::{Settings as TransportSettings, access::AccessSettings},
+    grpc::{self, access::AccessSettings},
 };
 use tokio::time::Instant;
 
 // Local Imports
 use super::ClientSettings;
+use crate::streams::{Samples, Timing};
 use crate::{Error, Host, Result, SchedulerClock};
 use dokime_operations::native::Binding;
 use dokime_storage::{Backend, BackendLease};
-use harmos_protocol::model::{StorageTransferSettings, TransferFraming};
-use harmos_runtime::storage::{
-    StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
-};
 
 /* === Constants === */
 
@@ -80,7 +80,7 @@ impl Lifecycle for Application {
     type Config = Option<ClientSettings>;
     type Error = AssemblyError;
     type Context = Startup<Self>;
-    async fn prepare(settings: Option<ClientSettings>, setup: &mut Setup<Self>) -> StdResult<Self, Self::Error> {
+    async fn prepare(settings: Option<ClientSettings>, setup: &mut Setup<Self>) -> result::Result<Self, Self::Error> {
         let settings = settings.ok_or_else(|| AssemblyError("Compose Host: Supply Operation Settings".into()))?;
         let registration = dokime_operations::native::registration(&settings).map_err(|source| AssemblyError(source.to_string()))?;
         setup.settings().with_registration(registration);
@@ -90,7 +90,7 @@ impl Lifecycle for Application {
         Ok(Self)
     }
 }
-impl RuntimeApplication for Application {
+impl harmos_runtime::Application for Application {
     type State = ();
     type Transaction = Never;
     type Record = ();
@@ -138,7 +138,7 @@ pub(super) async fn launch(
         .checked_sub(TransferFraming::Bytes as usize)
         .and_then(NonZeroUsize::new)
         .ok_or_else(|| Error::Invalid("Start Storage Transfers: Allow Transfer Framing Within the Message Capacity".into()))?;
-    let catalog = harmos_runtime::plugin::manager::catalog().extend(dokime_operations::host::storage::administration::catalog());
+    let catalog = harmos_runtime::plugin::manager::catalog().extend(dokime_storage::persisted::catalog());
     let (backends, lease) = Backend::open(store, catalog.clone())?;
     let storage = StorageManager::with_catalog(
         catalog,
@@ -194,9 +194,9 @@ pub(super) async fn launch(
     .map_err(|source| Error::ComposedStartup(Box::new(source)))?;
     let (clock, controller) = source.execution_clock();
     let clock = if controller.is_some() {
-        RuntimeClock::real_at(clock.date())
+        clock::Clock::real_at(clock.date())
     } else {
-        RuntimeClock::with_clock(Clock {
+        clock::Clock::with_clock(Clock {
             origin_ns: source.now_ns(),
             source,
             origin: Instant::now(),
@@ -212,7 +212,7 @@ pub(super) async fn launch(
             scopes: sample_scopes,
         });
         setup.settings().clock(clock).storage(&storage).plugins(plugins.clone()).grpc_plugin_settings(crate::plugin_settings());
-        setup.settings().operation_settings(OperationSettings {
+        setup.settings().operation_settings(operations::Settings {
             preparation_bytes: Some(bytes),
             ..Default::default()
         });
@@ -227,8 +227,8 @@ pub(super) async fn launch(
     Ok((runtime, lease, plugins))
 }
 
-pub(super) fn transport(settings: &ClientSettings) -> TransportSettings {
-    let mut transport = TransportSettings {
+pub(super) fn transport(settings: &ClientSettings) -> grpc::Settings {
+    let mut transport = grpc::Settings {
         request_timeout: settings.watch_timeout,
         shutdown_timeout: settings.mutation_timeout,
         ..Default::default()

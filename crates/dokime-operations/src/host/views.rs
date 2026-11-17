@@ -20,6 +20,8 @@ use std::future::Future;
 
 // Third Party Imports
 use harmos_protocol::model::{FileMetadata, FileReference, PageRequest, ReadCut, Receipt, ResourceRevision};
+use harmos_runtime::builtins::storage::{DeleteFile, DeleteFileRequest, GetFileBytes, GetFileBytesRequest};
+use harmos_runtime::storage::{self, StagedFile};
 use prost::Message;
 use sha2::{Digest, Sha256};
 
@@ -29,8 +31,7 @@ use crate::host::files::uploads::{append, create, delete, publish};
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
-use harmos_runtime::builtins::storage::{DeleteFile, DeleteFileRequest, GetFileBytes, GetFileBytesRequest};
-use harmos_runtime::storage::{self, StagedFile};
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -82,7 +83,7 @@ pub(crate) async fn read<T: Message + Default>(
     let revision = Sha256::digest(&payload).to_vec();
     let file = retain(context, &format!("view:{name}:{}", hex(&revision)), &payload).await?;
     let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
-    administration::retain(context, &key, &file).await?;
+    administration::retain(context, &key, Scope::Root(store.identity()).identifier()?, &file).await?;
 
     Ok((
         value,
@@ -249,7 +250,11 @@ async fn retain(context: &Context, key: &str, payload: &[u8]) -> Result<FileRefe
             return Err(source);
         }
     };
-    let saved = administration::retain(context, key, &file).await?;
+    let scope = match &context.caller {
+        Some(caller) => Scope::Execution(&caller.execution).identifier()?,
+        None => Scope::Root(&context.host.identity().backend_id).identifier()?,
+    };
+    let saved = administration::retain(context, key, scope, &file).await?;
     if saved != file {
         let file = storage::FileReference::try_from(file)
             .map_err(|source| Error::Invalid(format!("Retain View: Remove Its Unused Native File: {source}")))?;

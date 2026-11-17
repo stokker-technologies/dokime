@@ -26,6 +26,7 @@ mod history;
 mod ipc;
 mod notes;
 mod outcome;
+pub mod persisted;
 mod plot_kinds;
 mod plot_selection;
 mod plot_windows;

@@ -55,6 +55,9 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   `plans.rs` API and `cases`/`registrations` tables are deleted; execution bindings
   remain owned by the coupled lifecycle cutover. Existing development roots with
   those tables are refused at baseline v1 and preserved.
+  Registered `Case`/`Plan` shapes now live in `crates/dokime-storage/src/persisted.rs`;
+  cases use exact C scopes and `DeleteScope(C)`, while registration replay belongs
+  to Y or R and preserves original frozen case bytes independently of deletion.
 - Execution command receipts and retained command cuts use native object operations
   in `host/executions/commands`. The execution manager owns admission through durable
   publication and scheduling even if the client stops observing. Each object retains
@@ -78,9 +81,9 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   remain blocked on the **typed facade**. Notes already persist through Harmos
   administration objects independently of that ledger, so their list/watch source
   can move to native cuts and `WatchRows` without splitting evidence history.
-  Those administration objects have no native execution scope: note ownership,
-  open-owner admission and scoped deletion must move together with the lifecycle
-  contract before the remaining direct owner queries can be removed.
+  Those administration values now persist explicit E/Y scopes. Owner validation,
+  open-owner admission, atomic events and execution deletion still move together
+  with the lifecycle contract before the remaining direct owner queries can be removed.
 
 Touched invariants in `docs/architecture.md` and their purposes:
 
@@ -110,7 +113,7 @@ delivery; it is not permission to begin another open change.
 
 | Owner | Source Set and Required Replacement |
 | --- | --- |
-| 1.6–1.7 | `crates/dokime-storage/src/execution.rs`, `backend.rs`, `backend/**`; `crates/dokime-operations/src/host/storage/**`; `crates/dokime-runtime/src/services/composition.rs`: persisted objects, frozen schemas, exact scopes, durable evidence-cut ownership and native backend registration. |
+| 1.6–1.7 | `crates/dokime-storage/src/execution.rs`, `persisted.rs`, `backend.rs`, `backend/**`; `crates/dokime-operations/src/host/storage/**`; `crates/dokime-runtime/src/services/composition.rs`: persisted objects, frozen schemas, exact scopes, durable evidence-cut ownership and native backend registration. |
 | 2.2–2.4 | Storage `store.rs`, `cycles.rs`, `history.rs`, `resource_values.rs`, `evidence_positions.rs`, `outcome.rs`; runtime `execution.rs`, `execution_manager.rs`, `run_control.rs`, `capabilities.rs`, `host.rs`; operations `host/{cases,cycles,executions}/**`, `host/execution_state.rs`, `host/projection.rs`: lifecycle, bindings, attributed outcomes, seal and deletion policy. Command persistence in `host/executions/commands/**` also adopts exact E. |
 | 3.3–3.5 | Runtime `streams.rs` and composition's sample consumer; operations `resources.rs`, `host/evidence/**`; storage `notes.rs`, `telemetry.rs`, `telemetry/{codec,writer,reader,catalog}.rs`, `ipc.rs`, `ipc/**`: admitted columnar intake, records, notes, traceability, health, native row watches and frozen decoding. Physical Arrow/catalog code survives only under the backend. |
 | 4.4–4.5 | Runtime `documents.rs`, `prompts.rs`, `reports.rs`; operations `host/{documents,prompts,prompt_definitions,reports,content,files}/**`, `host/views.rs`, `host/catalog_inventory.rs`, `host/record_schemas/**`, `host/evidence/archive.rs`; storage `content.rs`, `content_name.rs`, `document_values.rs`, `report.rs`: source reads at C, explicit publication and byte-preserving archives. |

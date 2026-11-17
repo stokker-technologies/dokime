@@ -16,8 +16,8 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::fs::OpenOptions;
-use std::io::Write;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -25,6 +25,7 @@ use std::sync::atomic::Ordering;
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
+    result, slice,
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -43,7 +44,7 @@ use sha2::{Digest, Sha256};
 use tokio::sync::watch::Sender;
 
 // Local Imports
-use crate::StorageSettings;
+use crate::{Backend, StorageSettings, expressions, history, stream_windows, telemetry};
 use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample};
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
@@ -69,9 +70,9 @@ pub struct Store {
     connection: Arc<Mutex<Connection>>,
     pub(crate) database: Arc<PathBuf>,
     pub(crate) snapshot_pins: Arc<Mutex<BTreeMap<String, usize>>>,
-    pub(crate) projection: Arc<Mutex<Option<crate::expressions::Projection>>>,
-    pub(crate) telemetry: Arc<Mutex<crate::telemetry::Telemetry>>,
-    pub(crate) intake: Arc<Mutex<crate::telemetry::Intake>>,
+    pub(crate) projection: Arc<Mutex<Option<expressions::Projection>>>,
+    pub(crate) telemetry: Arc<Mutex<telemetry::Telemetry>>,
+    pub(crate) intake: Arc<Mutex<telemetry::Intake>>,
     pub(crate) identity: Arc<str>,
     pub(crate) cancelled: Option<Arc<AtomicBool>>,
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
@@ -105,12 +106,13 @@ impl Store {
         Self::open_with(root, crate::storage_defaults())
     }
     pub fn open_with(root: &Path, settings: StorageSettings) -> Result<Self> {
-        let telemetry = crate::telemetry::Telemetry::new(settings)?;
-        let intake = crate::telemetry::Intake::new(settings);
-        std::fs::create_dir_all(root)?;
+        Backend::validate_root(root)?;
+        let telemetry = telemetry::Telemetry::new(settings)?;
+        let intake = telemetry::Intake::new(settings);
+        fs::create_dir_all(root)?;
         let database = root.join("execution.sqlite3");
         let exists = database.exists();
-        let occupied = std::fs::read_dir(root)?.collect::<std::io::Result<Vec<_>>>()?.iter().any(|entry| entry.file_name() != "local.lock");
+        let occupied = fs::read_dir(root)?.collect::<io::Result<Vec<_>>>()?.iter().any(|entry| entry.file_name() != "local.lock");
         if !exists && occupied {
             return Err(Error::Incompatible(root.display().to_string()));
         }
@@ -126,7 +128,7 @@ impl Store {
             }
             let mut statement =
                 connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")?;
-            let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
+            let tables = statement.query_map([], |row| row.get::<_, String>(0))?.collect::<result::Result<Vec<_>, _>>()?;
             if tables
                 != [
                     "administration",
@@ -199,14 +201,14 @@ impl Store {
                 CREATE TABLE read_positions(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE resource_values(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,resource,position));
                 CREATE INDEX resource_values_position ON resource_values(execution,position);
-                CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));", telemetry_schema=format_args!("{}{}{}",crate::telemetry::catalog::SCHEMA,crate::telemetry::aggregates::SCHEMA,crate::telemetry::previews::SCHEMA)))?;
+                CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));", telemetry_schema=format_args!("{}{}{}",telemetry::catalog::SCHEMA,telemetry::aggregates::SCHEMA,telemetry::previews::SCHEMA)))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
-        std::fs::create_dir_all(root.join("telemetry"))?;
-        crate::telemetry::catalog::collect_garbage(root, &connection)?;
+        fs::create_dir_all(root.join("telemetry"))?;
+        telemetry::catalog::collect_garbage(root, &connection)?;
         let identity_path = root.join("backend-id");
         let identity = if identity_path.exists() {
-            std::fs::read_to_string(&identity_path)?
+            fs::read_to_string(&identity_path)?
         } else {
             let identity = uuid::Uuid::now_v7().to_string();
             let mut file = OpenOptions::new().write(true).create_new(true).open(identity_path)?;
@@ -301,7 +303,7 @@ impl Store {
         Ok((session, ReadCancellation { cancelled, interrupt }))
     }
     pub fn create(&self, execution: &Execution) -> Result<()> {
-        self.create_executions(std::slice::from_ref(execution))
+        self.create_executions(slice::from_ref(execution))
     }
     pub fn create_executions(&self, executions: &[Execution]) -> Result<()> {
         for execution in executions {
@@ -328,17 +330,17 @@ impl Store {
     pub fn cycle_execution_page(&self, cycle: &str, after: &str, limit: NonZeroUsize) -> Result<Vec<String>> {
         let connection = self.lock()?;
         let mut query = connection.prepare("SELECT id FROM executions WHERE cycle=?1 AND id>?2 ORDER BY id LIMIT ?3")?;
-        Ok(query.query_map(params![cycle, after, limit.get() as i64], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
+        Ok(query.query_map(params![cycle, after, limit.get() as i64], |row| row.get(0))?.collect::<result::Result<_, _>>()?)
     }
     pub fn identifiers(&self) -> Result<Vec<String>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT id FROM executions ORDER BY rowid")?;
-        Ok(statement.query_map([], |row| row.get(0))?.collect::<std::result::Result<_, _>>()?)
+        Ok(statement.query_map([], |row| row.get(0))?.collect::<result::Result<_, _>>()?)
     }
     pub fn cycle_outcomes(&self, cycle: &str) -> Result<Vec<ExecutionOutcome>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT payload FROM executions WHERE cycle=?1 ORDER BY id")?;
-        let bytes = statement.query_map([cycle], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let bytes = statement.query_map([cycle], |row| row.get::<_, Vec<u8>>(0))?.collect::<result::Result<Vec<_>, _>>()?;
         let mut outcomes = Vec::new();
         for payload in bytes {
             let execution = Execution::decode(payload.as_slice())?;
@@ -480,7 +482,7 @@ impl Store {
         let digest = digest(&transaction, execution)?;
         transaction.execute("UPDATE executions SET state=2,seal=?2 WHERE id=?1", params![execution, digest])?;
         let cycle: String = transaction.query_row("SELECT cycle FROM executions WHERE id=?1", [execution], |row| row.get(0))?;
-        crate::history::capture_cycle(&transaction, &cycle, execution)?;
+        history::capture_cycle(&transaction, &cycle, execution)?;
         transaction.commit()?;
         self.verified
             .lock()
@@ -499,10 +501,10 @@ impl Store {
         }
         let mut evidence_query = connection.prepare("SELECT payload FROM evidence WHERE execution=?1 ORDER BY position")?;
         let evidence_bytes =
-            evidence_query.query_map([execution], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
+            evidence_query.query_map([execution], |row| row.get::<_, Vec<u8>>(0))?.collect::<result::Result<Vec<_>, _>>()?;
         let evidence = evidence_bytes.iter().map(|bytes| Evidence::decode(bytes.as_slice()).map_err(Error::from)).collect::<Result<_>>()?;
         if state == 2 {
-            crate::telemetry::catalog::verify_files(self.database.parent().unwrap(), &connection, execution)?;
+            telemetry::catalog::verify_files(self.database.parent().unwrap(), &connection, execution)?;
         }
         drop(evidence_query);
         drop(connection);
@@ -568,7 +570,7 @@ fn insert_evidence(transaction: &Transaction<'_>, execution: &str, evidence: &Ev
             let Ok(row) = DynamicMessage::decode(descriptor, record.payload.as_slice()) else {
                 continue;
             };
-            for (field, number, label) in crate::stream_windows::indexed_fields(&row, "") {
+            for (field, number, label) in stream_windows::indexed_fields(&row, "") {
                 transaction.execute(
                     "INSERT INTO record_fields VALUES(?1,?2,?3,?4,?5,?6,?7)",
                     params![execution, kind, field, evidence.position as i64, evidence.source_ns, number, label],

@@ -33,6 +33,7 @@ use prost_types::Timestamp;
 use crate::host::{Context, files::transfer, storage::administration};
 use crate::{Error, Result};
 use dokime_protocol::host::executions::{ExecutionCommandPhase, ExecutionCommandReceipt};
+use dokime_storage::persisted::{self, Administration, Scope};
 
 /* === Constants === */
 
@@ -161,14 +162,13 @@ fn stored(payload: &[u8]) -> Result<Stored> {
 async fn write(context: &Context, key: &str, execution: &str, saved: &Stored, expected: Vec<u8>, mutation: MutationId) -> Result<Receipt> {
     let bound = NonZeroUsize::new(context.settings.message_bytes)
         .ok_or_else(|| Error::Bound("Save Execution Command: Configure a Positive Message Bound".into()))?;
-    let value = administration::Administration {
+    let value = Administration {
         key: key.into(),
+        scope: Scope::Execution(execution).identifier()?,
         payload: saved.encode_to_vec(),
     };
-    let mut value =
-        administration::catalog().encode(&value, bound).map_err(|source| Error::Invalid(format!("Save Execution Command: {source}")))?;
-    value.scope = Some(Identifier::new(execution).map_err(|source| Error::Invalid(format!("Save Execution Command: {source}")))?);
-    let graph = ObjectDefinition::of::<administration::Administration>()
+    let value = persisted::catalog().encode(&value, bound).map_err(|source| Error::Invalid(format!("Save Execution Command: {source}")))?;
+    let graph = ObjectDefinition::of::<Administration>()
         .graph(&Default::default())
         .map_err(|source| Error::Invalid(format!("Save Execution Command: {source}")))?;
     let response = context

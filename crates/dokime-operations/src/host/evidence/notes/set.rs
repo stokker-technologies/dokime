@@ -72,8 +72,11 @@ pub async fn handle(context: &Context, request: NotesSetRequest) -> Result<Notes
             super::require_open(context, scope)?;
         }
         note.message = value.message.clone();
+        let scope = note.scope.as_ref().ok_or_else(|| Error::Precondition("Set Note: Restore Its Owner Scope".into()))?;
+        let storage_scope = super::storage_scope(scope)?;
         let (saved, receipt) =
-            administration::replace(context, &key, request.expected_revision, &request.request_id, note.encode_to_vec()).await?;
+            administration::replace(context, &key, storage_scope, request.expected_revision, &request.request_id, note.encode_to_vec())
+                .await?;
         let note = OperatorNote::decode(saved.payload.as_slice())?;
         Ok(NotesSetResponse {
             value: Some(NoteWritable { message: note.message }),

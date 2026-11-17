@@ -19,12 +19,29 @@ pub mod watch;
 
 /* === Imports === */
 
+// Standard Library Imports
+use std::num::NonZeroUsize;
+
+// Third Party Imports
+use harmos_runtime::Identifier;
+
+// Local Imports
 use crate::{Error, Result, host::Context};
 use dokime_protocol::model::EvidenceScope;
 use dokime_storage::ExecutionState;
-use std::num::NonZeroUsize;
+use dokime_storage::persisted::Scope;
 
 /* === Public Functions === */
+
+pub(crate) fn storage_scope(scope: &EvidenceScope) -> Result<Identifier> {
+    if let Some(execution) = scope.execution_id.as_deref() {
+        return Ok(Scope::Execution(execution).identifier()?);
+    }
+    if let Some(cycle) = scope.cycle_id.as_deref() {
+        return Ok(Scope::Cycle(cycle).identifier()?);
+    }
+    Err(Error::Invalid("Write Note: Select an Execution or Cycle Owner".into()))
+}
 
 pub(crate) fn require_open(context: &Context, scope: &EvidenceScope) -> Result<()> {
     let store = context.host.store();

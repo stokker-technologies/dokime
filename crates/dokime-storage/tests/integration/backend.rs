@@ -15,33 +15,33 @@
 
 /* === Imports === */
 
-use harmos_domain::Identified;
-use harmos_storage::conformance::{self, CompoundFixture, ScopeFixture};
-use harmos_storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, StoredObject};
-use harmos_storage::{StorageFuture, StorageManager, WorkerOwner};
-
 // Standard Library Imports
+use std::fs;
+use std::io::Read;
+use std::num::{NonZeroU32, NonZeroUsize};
+use std::sync::Arc;
+use std::{error, result, time::Duration};
 
 // Third Party Imports
-
-// Local Imports
 use arrow_array::UInt64Array;
-use dokime_storage::{Backend, Store};
-use harmos_domain::Message;
 use harmos_domain::config::SchemaSettings;
 use harmos_domain::journal::Position;
 use harmos_domain::schema::{Described, graph::Schema};
+use harmos_domain::{Identified, Message};
 use harmos_query::columnar::{ArrowScan, Cancellation, ColumnKind, ColumnSource};
+use harmos_storage::conformance::{self, CompoundFixture, ScopeFixture};
 use harmos_storage::query::{ObjectSelection, ObjectVersions, StreamSelection};
 use harmos_storage::state::{RecoveryEntry, RecoverySnapshot, SnapshotPayload};
 use harmos_storage::{
     FileChunk, FileMetadata, Identifier, ObjectPoint, ObjectVersion, PayloadEncoding, ReadLimits, RecoveryPosition, ScanPage, SchemaKey,
     StorageBatch, StorageCursor, StorageSchema, StoreHistory, StoredRecord, StoredRow,
 };
-use std::io::Read;
-use std::num::{NonZeroU32, NonZeroUsize};
-use std::sync::Arc;
-use std::{error, result, time::Duration};
+use harmos_storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, StoredObject};
+use harmos_storage::{StorageFuture, StorageManager, WorkerOwner};
+
+// Local Imports
+use dokime_storage::persisted::{self, Administration, Case, Plan, Scope};
+use dokime_storage::{Backend, Store};
 
 /* === Constants === */
 
@@ -228,7 +228,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     };
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let catalog = ObjectCatalog::new().entry(ObjectDefinition::of::<Reading>());
+    let catalog = ObjectCatalog::new().entry(ObjectDefinition::of::<Reading>()).extend(persisted::catalog());
     let (backends, _lease) = Backend::open(&store, catalog.clone())?;
     let capacity = NonZeroUsize::new(64).unwrap();
     let storage = StorageManager::with_catalog(
@@ -525,7 +525,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     let settings = storage.settings().clone();
     storage.close().await?;
     let (backends, _lease) = Backend::open(&store, catalog.clone())?;
-    let storage = StorageManager::with_catalog(catalog, backends, settings)?;
+    let storage = StorageManager::with_catalog(catalog.clone(), backends, settings)?;
     storage
         .start_with(Arc::new(()), |mut worker| {
             let task = tokio::spawn(async move {
@@ -540,6 +540,72 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     conformance::check_retained_scope(&storage, &retained).await?;
     storage.release_retained_snapshot(&retained.snapshot).await?;
     assert!(storage.open_retained_snapshot(&retained.snapshot).await.is_err());
+
+    // Publish the Frozen Plan and Cases Under Independent Exact Owners.
+    let product_mutation = MutationId {
+        window: storage.mutation_window()?.id,
+        key: Identifier::new("product-plan")?,
+    };
+    let case = Case {
+        key: "shared".into(),
+        scope: Scope::Case("shared").identifier()?,
+        cycle: "shared".into(),
+        payload: vec![10, 2, 255, 0],
+    };
+    let related = Case {
+        key: "shared/child".into(),
+        scope: Scope::Case("shared/child").identifier()?,
+        ..case.clone()
+    };
+    let plan = Plan {
+        key: "product-plan".into(),
+        scope: Scope::Cycle("shared").identifier()?,
+        plan: vec![18, 2, 0, 255],
+        cases: vec![case.clone(), related.clone()],
+        window: product_mutation.window.clone(),
+        mutation: product_mutation.key.clone(),
+    };
+    let settings = Administration {
+        key: "preferences".into(),
+        scope: Scope::Root("shared").identifier()?,
+        payload: vec![8, 1],
+    };
+    let command = Administration {
+        key: "execution-command/shared/first".into(),
+        scope: Scope::Execution("shared").identifier()?,
+        payload: vec![8, 2],
+    };
+    let product_items = vec![
+        MutationItem::Create(catalog.encode(&plan, limits().bytes)?),
+        MutationItem::Create(catalog.encode(&case, limits().bytes)?),
+        MutationItem::Create(catalog.encode(&related, limits().bytes)?),
+        MutationItem::Create(catalog.encode(&settings, limits().bytes)?),
+        MutationItem::Create(catalog.encode(&command, limits().bytes)?),
+    ];
+    let product_receipt = storage.mutate_once(&product_mutation, product_items.clone()).await?;
+    let before = storage.snapshot(&product_receipt.position).await?;
+    let deletion = MutationId {
+        window: product_mutation.window.clone(),
+        key: Identifier::new("delete-product-case")?,
+    };
+    storage.mutate_once(&deletion, vec![MutationItem::DeleteScope(case.scope.clone())]).await?;
+    assert!(storage.get_object::<Case>(&case.key, ObjectVersion::Latest).await?.is_none());
+    assert_eq!(storage.get_object::<Case>(&related.key, ObjectVersion::Latest).await?.unwrap().value, related);
+    assert_eq!(storage.get_object::<Plan>(&plan.key, ObjectVersion::Latest).await?.unwrap().value, plan);
+    assert_eq!(storage.get_object::<Administration>(&settings.key, ObjectVersion::Latest).await?.unwrap().value, settings);
+    assert_eq!(storage.get_object::<Administration>(&command.key, ObjectVersion::Latest).await?.unwrap().value, command);
+    let encoded = catalog.encode(&case, limits().bytes)?;
+    let point = ObjectPoint {
+        schema: encoded.schema.id,
+        item: encoded.item,
+        version: ObjectVersion::Latest,
+    };
+    let retained = before.get_object(&point).await?.unwrap();
+    assert_eq!(catalog.decode::<Case>(&retained.value, limits().bytes)?, case);
+    assert_eq!(storage.mutate_once(&product_mutation, product_items).await?, product_receipt);
+    assert!(storage.get_object::<Case>(&case.key, ObjectVersion::Latest).await?.is_none());
+    drop(before);
+
     storage.close().await?;
     let chunks: i64 = connection.query_row("SELECT count(*) FROM storage_file_chunks WHERE id='retained-file'", [], |row| row.get(0))?;
     assert_eq!(chunks, 0);
@@ -558,6 +624,9 @@ async fn superseded_backend_roots_are_refused_without_changing_their_values() ->
     connection.execute("UPDATE storage_meta SET value=?1 WHERE name='format'", ["superseded"])?;
     connection.execute("INSERT INTO storage_meta VALUES('preserved',?1)", [&prior])?;
     assert!(Backend::open(&store, ObjectCatalog::new()).is_err());
+    let execution_bytes = fs::read(root.path().join("execution.sqlite3"))?;
+    assert!(matches!(Store::open(root.path()), Err(dokime_storage::Error::Incompatible(_))));
+    assert_eq!(fs::read(root.path().join("execution.sqlite3"))?, execution_bytes);
     let saved: Vec<u8> = connection.query_row("SELECT value FROM storage_meta WHERE name='preserved'", [], |row| row.get(0))?;
     assert_eq!(saved, prior);
     Ok(())

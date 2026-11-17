@@ -24,6 +24,7 @@ use prost::Message;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
+use dokime_storage::persisted::Scope;
 
 use dokime_protocol::host::storage::SourcesSetRequest;
 use dokime_protocol::host::storage::SourcesSetResponse;
@@ -63,6 +64,7 @@ pub async fn handle(context: &Context, request: SourcesSetRequest) -> Result<Sou
         let (snapshot, receipt) = crate::host::storage::administration::replace(
             context,
             "storage-sources",
+            Scope::Root(&context.host.identity().backend_id).identifier()?,
             request.expected_revision,
             &request.request_id,
             value.encode_to_vec(),
