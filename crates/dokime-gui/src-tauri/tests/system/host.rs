@@ -51,9 +51,8 @@ use dokime_protocol::host::executions::ProgressWatchRequest;
 use dokime_protocol::host::plots::SnapshotsListRequest;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
+use dokime_sdk::CapturedRecordSelection;
 use dokime_sdk::Downsample;
-use dokime_sdk::EvidenceCapturedRecordSelection;
-use dokime_sdk::EvidenceRecordsListResponse;
 use dokime_sdk::EvidenceScope;
 use dokime_sdk::FieldReference;
 use dokime_sdk::FilesGetResponse;
@@ -61,28 +60,29 @@ use dokime_sdk::FilesReadResponse;
 use dokime_sdk::Import;
 use dokime_sdk::Metadata;
 use dokime_sdk::Origin;
+use dokime_sdk::RecordsListResponse;
 use dokime_sdk::Termination;
-use dokime_sdk::client::BackendOverviewGetResponse;
+use dokime_sdk::client::AnswersCreateResponse;
 use dokime_sdk::client::CasesCreateResponse;
 use dokime_sdk::client::CyclesCreateResponse;
 use dokime_sdk::client::DocumentsGetResponse;
-use dokime_sdk::client::EvidenceSamplesListResponse;
 use dokime_sdk::client::ExecutionOutcome;
 use dokime_sdk::client::ExecutionState;
 use dokime_sdk::client::ExecutionsGetResponse;
 use dokime_sdk::client::ExecutionsListResponse;
-use dokime_sdk::client::ExecutionsProgressWatchResponse;
-use dokime_sdk::client::PlotsPlotRequest;
-use dokime_sdk::client::PlotsSnapshotsListResponse;
-use dokime_sdk::client::PlotsSnapshotsWatchResponse;
-use dokime_sdk::client::PromptsAnswersCreateResponse;
+use dokime_sdk::client::OverviewGetResponse;
+use dokime_sdk::client::PlotRequest;
+use dokime_sdk::client::ProgressWatchResponse;
 use dokime_sdk::client::PromptsListResponse;
 use dokime_sdk::client::RegisteredSelection;
 use dokime_sdk::client::ReportSubject;
 use dokime_sdk::client::ReportsCreateResponse;
 use dokime_sdk::client::ReportsGetResponse;
 use dokime_sdk::client::ReportsPublishResponse;
+use dokime_sdk::client::SamplesListResponse;
 use dokime_sdk::client::SelectionPlan;
+use dokime_sdk::client::SnapshotsListResponse;
+use dokime_sdk::client::SnapshotsWatchResponse;
 use dokime_sdk::client::SuitesGetResponse;
 use dokime_sdk::client::SuitesListResponse;
 use dokime_sdk::client::document_frame_frame;
@@ -96,14 +96,15 @@ use tokio_stream::StreamExt;
 use dokime_gui::connection::host::{Connection, ConnectionSettings};
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::test_support;
-use dokime_protocol::host::plots::{PlotDomain, SnapshotsListResponse, SnapshotsWatchResponse};
+use dokime_protocol::host::plots::PlotDomain;
 use dokime_protocol::host::{DocumentsWatchRequest, DocumentsWatchResponse};
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
 
 use dokime_sdk::StorageTransferSettings;
 use dokime_sdk::client::document_binding_result;
 use dokime_sdk::client::{ClientSettings, FrozenSchemaCache};
-use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Section, Suite, Suites, TestCaseTemplate};
+use dokime_sdk::model::Section;
+use dokime_sdk::{Card, Document, FftWindow, Plot, PlotKind, Suite, Suites, TestCaseTemplate};
 use dokime_storage::{Execution, Sample, Store};
 use harmos_protocol::model;
 use harmos_protocol::model::{Declarations, StreamDeclaration};
@@ -385,7 +386,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
         let result = async {
             // Admit the Prepared Plugin and Read Its Top-Level Suite Resource.
             let session = owner.start(root.path()).await?;
-            let overview: BackendOverviewGetResponse =
+            let overview: OverviewGetResponse =
                 session.unary("/dokime.host.v1.backend.Overview/Get", OverviewGetRequest::default()).await?;
             let process_epoch = overview.overview.ok_or("Read Backend: Missing Overview")?.session_id;
             let options = PluginsCreateOptions {
@@ -497,7 +498,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             let mut progress = session.watch_raw("/dokime.host.v1.executions.Progress/Watch", &request).await?;
             loop {
                 let frame = progress.next().await.ok_or("Observe Execution: Closed Before Prompt")??;
-                let frame = ExecutionsProgressWatchResponse::decode(frame.as_slice())?;
+                let frame = ProgressWatchResponse::decode(frame.as_slice())?;
                 assert!(!frame.finished);
                 if frame.phase == "prompt" {
                     break;
@@ -516,7 +517,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             let prompt = prompts.prompts.first().and_then(|view| view.prompt.as_ref()).ok_or("Answer Prompt: Missing Question")?;
 
             // Observe a Plot Before Answering, Then Join the Terminal Progress.
-            let plot_request = PlotsPlotRequest {
+            let plot_request = PlotRequest {
                 plot_id: Some("module-voltage".into()),
                 stream: "obc.measurement".into(),
                 y_keys: vec!["voltage_v".into()],
@@ -535,7 +536,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             .encode_to_vec();
             let mut plots = session.watch_raw("/dokime.host.v1.plots.Snapshots/Watch", &request).await?;
             let opening = plots.next().await.ok_or("Watch Plot: Missing Opening")??;
-            let opening = PlotsSnapshotsWatchResponse::decode(opening.as_slice())?;
+            let opening = SnapshotsWatchResponse::decode(opening.as_slice())?;
             assert!(opening.opening);
             assert_eq!(opening.updates.len(), 1);
             // Open One Hundred Authored Cards From Two Independent Native Clients.
@@ -607,7 +608,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                     });
                 }
             }
-            let _: PromptsAnswersCreateResponse = session
+            let _: AnswersCreateResponse = session
                 .unary(
                     "/dokime.host.v1.prompts.Answers/Create",
                     AnswersCreateRequest {
@@ -622,7 +623,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             let mut terminal = false;
             while let Some(frame) = progress.next().await {
                 assert!(!terminal);
-                terminal = ExecutionsProgressWatchResponse::decode(frame?.as_slice())?.finished;
+                terminal = ProgressWatchResponse::decode(frame?.as_slice())?.finished;
             }
             assert!(terminal);
             let mut cards_with_data = 0;
@@ -649,11 +650,11 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             let mut cache = FrozenSchemaCache::default();
             let descriptors = cache.get(session.client(), &detail).await?;
             assert!(Arc::ptr_eq(&descriptors, &cache.get(session.client(), &detail).await?));
-            let records: EvidenceRecordsListResponse = session
+            let records: RecordsListResponse = session
                 .unary(
                     "/dokime.host.v1.evidence.Records/List",
                     RecordsListRequest {
-                        selection: Some(EvidenceCapturedRecordSelection {
+                        selection: Some(CapturedRecordSelection {
                             scope: Some(EvidenceScope {
                                 execution_id: Some(execution.clone()),
                                 ..Default::default()
@@ -665,7 +666,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                 )
                 .await?;
             assert!(records.records.iter().any(|record| record.record_type == "obc.benchmark.plots.confirmation"));
-            let samples: EvidenceSamplesListResponse = session
+            let samples: SamplesListResponse = session
                 .unary(
                     "/dokime.host.v1.evidence.Samples/List",
                     SamplesListRequest {
@@ -678,7 +679,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                 )
                 .await?;
             assert!(!samples.samples.is_empty());
-            let snapshots: PlotsSnapshotsListResponse = session
+            let snapshots: SnapshotsListResponse = session
                 .unary(
                     "/dokime.host.v1.plots.Snapshots/List",
                     SnapshotsListRequest {

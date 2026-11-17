@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{error::Error as StdError, num::NonZeroUsize, path::Path, time::Duration};
+use std::{error::Error, num::NonZeroUsize, path::Path, time::Duration};
 
 // Third Party Imports
 use prost::Message;
@@ -40,21 +40,21 @@ use dokime_protocol::host::executions::ProgressWatchRequest;
 use dokime_protocol::model::ArtifactScope;
 use dokime_runtime::{PlacementSettings, PluginProcess};
 use dokime_sdk::Termination;
+use dokime_sdk::client::ArtifactsListResponse;
 use dokime_sdk::client::CasesCreateResponse;
-use dokime_sdk::client::ContentArtifactsListResponse;
 use dokime_sdk::client::CyclesCreateResponse;
 use dokime_sdk::client::ExecutionsGetResponse;
 use dokime_sdk::client::ExecutionsListResponse;
-use dokime_sdk::client::ExecutionsProgressWatchResponse;
 use dokime_sdk::client::PluginPlacement;
 use dokime_sdk::client::PluginRemote;
 use dokime_sdk::client::PluginValue;
 use dokime_sdk::client::PluginsCreateOptions;
+use dokime_sdk::client::ProgressWatchResponse;
 use dokime_sdk::client::RegisteredSelection;
 use dokime_sdk::client::SelectionPlan;
-use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+use dokime_sdk::client::plugin_placement;
 use dokime_sdk::client::{PluginState, PluginsDeleteOptions, PluginsGetOptions, PluginsWatchOptions};
-use dokime_sdk::value::Kind as ValueKind;
+use dokime_sdk::value;
 
 /* === Constants === */
 
@@ -74,20 +74,20 @@ use dokime_sdk::value::Kind as ValueKind;
 
 /* === Private Functions === */
 
-async fn admit_plugin(session: &Session, endpoint: &str) -> Result<(), Box<dyn StdError>> {
+async fn admit_plugin(session: &Session, endpoint: &str) -> Result<(), Box<dyn Error>> {
     let options = PluginsCreateOptions {
         context: session.call_options()?,
         ..Default::default()
     };
     let placement = PluginPlacement {
-        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: endpoint.into() })),
+        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: endpoint.into() })),
     };
     let admitted =
         session.execute(session.client().plugins.create_with("capture", placement, PluginValue { enabled: true }, options)).await?;
     ready(session, admitted.entry.ok_or("Admit Capture Fixture: Missing Entry")?).await
 }
 
-async fn ready(session: &Session, mut entry: harmos_protocol::host::PluginEntry) -> Result<(), Box<dyn StdError>> {
+async fn ready(session: &Session, mut entry: harmos_protocol::host::PluginEntry) -> Result<(), Box<dyn Error>> {
     let options = PluginsWatchOptions {
         name: Some(entry.name.clone()),
         context: session.call_options()?,
@@ -113,10 +113,10 @@ async fn ready(session: &Session, mut entry: harmos_protocol::host::PluginEntry)
 }
 
 // Copies the Device Folder Once and Returns the Termination and Captured Artifact Names.
-async fn copy(session: &Session, device: &Path, request: &str) -> Result<(i32, Vec<String>), Box<dyn StdError>> {
+async fn copy(session: &Session, device: &Path, request: &str) -> Result<(i32, Vec<String>), Box<dyn Error>> {
     let text = |value: &Path| SelectionValues {
         values: vec![dokime_sdk::Value {
-            kind: Some(ValueKind::Text(value.display().to_string())),
+            kind: Some(value::Kind::Text(value.display().to_string())),
         }],
     };
     let parameters = vec![
@@ -174,7 +174,7 @@ async fn copy(session: &Session, device: &Path, request: &str) -> Result<(i32, V
     let mut progress = session.watch_raw("/dokime.host.v1.executions.Progress/Watch", &request).await?;
     loop {
         let frame = progress.next().await.ok_or("Observe Copy: Closed Before Completion")??;
-        if ExecutionsProgressWatchResponse::decode(frame.as_slice())?.finished {
+        if ProgressWatchResponse::decode(frame.as_slice())?.finished {
             break;
         }
     }
@@ -186,7 +186,7 @@ async fn copy(session: &Session, device: &Path, request: &str) -> Result<(i32, V
         Some(Attribution::Evaluated(_)) => Termination::Failed as i32,
         other => return Err(format!("Observe Copy: Unexpected Outcome {other:?}").into()),
     };
-    let artifacts: ContentArtifactsListResponse = session
+    let artifacts: ArtifactsListResponse = session
         .unary(
             "/dokime.host.v1.content.Artifacts/List",
             ArtifactsListRequest {
@@ -204,7 +204,7 @@ async fn copy(session: &Session, device: &Path, request: &str) -> Result<(i32, V
 /* === Tests === */
 
 #[test]
-fn capture_folders_persist_and_apply_to_the_built_in_host() -> Result<(), Box<dyn StdError>> {
+fn capture_folders_persist_and_apply_to_the_built_in_host() -> Result<(), Box<dyn Error>> {
     dokime_gui::test_support::run(async {
         // Start the Owned Host With No Capture Folders Saved
         let application = dokime_gui::test_support::tempdir()?;
@@ -263,6 +263,6 @@ fn capture_folders_persist_and_apply_to_the_built_in_host() -> Result<(), Box<dy
         assert_eq!(artifacts, vec!["device/device.log".to_owned()]);
         owner.shutdown().await.map_err(|error| format!("{error:?}"))?;
         plugin.close().await?;
-        Ok::<(), Box<dyn StdError>>(())
+        Ok::<(), Box<dyn Error>>(())
     })
 }

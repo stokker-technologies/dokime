@@ -41,7 +41,7 @@ use dokime_sdk::ArtifactMetadata;
 use dokime_sdk::ArtifactState;
 use dokime_sdk::FilesGetResponse;
 use dokime_sdk::FilesReadResponse;
-use dokime_sdk::client::ContentArtifactsGetResponse;
+use dokime_sdk::client::ArtifactsGetResponse;
 
 /* === Constants === */
 
@@ -118,7 +118,7 @@ impl tonic::codegen::Service<HttpRequest> for Storage {
 }
 
 impl UnaryService<ArtifactsGetRequest> for Metadata {
-    type Response = ContentArtifactsGetResponse;
+    type Response = ArtifactsGetResponse;
     type Future = BoxFuture<Response<Self::Response>, Status>;
     fn call(&mut self, request: Request<ArtifactsGetRequest>) -> Self::Future {
         self.0.download.lock().unwrap().calls += 1;
@@ -133,7 +133,7 @@ impl UnaryService<ArtifactsGetRequest> for Metadata {
                 state: ArtifactState::Complete as i32,
                 ..Default::default()
             };
-            let mut reply = ContentArtifactsGetResponse {
+            let mut reply = ArtifactsGetResponse {
                 metadata: Some(metadata),
                 ..Default::default()
             };

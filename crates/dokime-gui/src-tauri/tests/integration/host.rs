@@ -40,13 +40,13 @@ use dokime_protocol::host::backend::OverviewWatchRequest;
 use dokime_protocol::host::evidence::TraceabilityGetRequest;
 use dokime_protocol::host::evidence::TraceabilityWatchRequest;
 use dokime_sdk::EvidenceScope;
-use dokime_sdk::EvidenceTraceabilityGetResponse;
 use dokime_sdk::Metadata;
-use dokime_sdk::client::BackendOverviewWatchResponse;
+use dokime_sdk::TraceabilityGetResponse;
 use dokime_sdk::client::CyclesCreateResponse;
 use dokime_sdk::client::CyclesGetResponse;
-use dokime_sdk::client::EvidenceTraceabilityWatchResponse;
+use dokime_sdk::client::OverviewWatchResponse;
 use dokime_sdk::client::SuitesListResponse;
+use dokime_sdk::client::TraceabilityWatchResponse;
 use prost::Message;
 use tokio_stream::StreamExt;
 use tonic::Code;
@@ -202,7 +202,7 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn erro
         let request = OverviewWatchRequest::default().encode_to_vec();
         let mut watch = session.watch_raw("/dokime.host.v1.backend.Overview/Watch", &request).await?;
         let opening = watch.next().await.ok_or("Watch Runtime: Missing Initial Frame")??;
-        let opening = BackendOverviewWatchResponse::decode(opening.as_slice())?;
+        let opening = OverviewWatchResponse::decode(opening.as_slice())?;
         assert!(opening.opening);
 
         // A Mutation and Its Read Use Canonical Generated Messages on the Same SDK Root
@@ -220,7 +220,7 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn erro
         assert!(!cycle.cycle_id.is_empty());
         loop {
             let frame = watch.next().await.ok_or("Watch Runtime: Closed Before Cycle Admission")??;
-            let frame = BackendOverviewWatchResponse::decode(frame.as_slice())?;
+            let frame = OverviewWatchResponse::decode(frame.as_slice())?;
             if frame.overview.is_some_and(|overview| overview.cycle_summaries.len() == 1) {
                 break;
             }
@@ -244,7 +244,7 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn erro
         }
         .encode_to_vec();
         let response = session.call_raw("/dokime.host.v1.evidence.Traceability/Get", &request).await?;
-        let response = EvidenceTraceabilityGetResponse::decode(response.as_slice())?;
+        let response = TraceabilityGetResponse::decode(response.as_slice())?;
         assert!(response.snapshots.is_empty());
         assert!(response.next_page_token.is_empty());
         let cut = response.resolved_at.ok_or("Get Traceability: Missing Read Cut")?;
@@ -260,7 +260,7 @@ fn sdk_calls_and_watches_share_the_owned_connection() -> Result<(), Box<dyn erro
         .encode_to_vec();
         let mut traceability = session.watch_raw("/dokime.host.v1.evidence.Traceability/Watch", &request).await?;
         let opening = traceability.next().await.ok_or("Watch Traceability: Missing Opening")??;
-        let opening = EvidenceTraceabilityWatchResponse::decode(opening.as_slice())?;
+        let opening = TraceabilityWatchResponse::decode(opening.as_slice())?;
         assert!(opening.opening);
         assert!(opening.snapshots.is_empty());
         assert_eq!(opening.resolved_at.as_ref(), Some(&cut));
