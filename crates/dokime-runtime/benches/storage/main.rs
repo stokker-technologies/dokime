@@ -19,14 +19,29 @@ mod windows;
 /* === Imports === */
 
 // Standard Library Imports
+use std::f64::consts::TAU;
+use std::hint::black_box;
+use std::num::NonZeroUsize;
+use std::time::Duration;
+use std::time::Instant;
 
 // Third Party Imports
-
-// Local Imports
 use criterion::BenchmarkId;
 use criterion::Criterion;
 use criterion::SamplingMode;
 use criterion::Throughput;
+use prost::Message;
+use prost_types::DescriptorProto;
+use prost_types::FieldDescriptorProto;
+use prost_types::FileDescriptorProto;
+use prost_types::FileDescriptorSet;
+use prost_types::Timestamp;
+use prost_types::field_descriptor_proto::Label;
+use prost_types::field_descriptor_proto::Type;
+use tempfile::TempDir;
+use tokio::runtime::Builder;
+
+// Local Imports
 use dokime::Aggregate;
 use dokime::AggregateExpression;
 use dokime::Card;
@@ -54,21 +69,6 @@ use dokime_storage::Sample;
 use dokime_storage::Store;
 use harmos_protocol::model::Declarations;
 use harmos_protocol::model::StreamDeclaration;
-use prost::Message;
-use prost_types::DescriptorProto;
-use prost_types::FieldDescriptorProto;
-use prost_types::FileDescriptorProto;
-use prost_types::FileDescriptorSet;
-use prost_types::Timestamp;
-use prost_types::field_descriptor_proto::Label;
-use prost_types::field_descriptor_proto::Type;
-use std::f64::consts::TAU;
-use std::hint::black_box;
-use std::num::NonZeroUsize;
-use std::time::Duration;
-use std::time::Instant;
-use tempfile::TempDir;
-use tokio::runtime::Builder;
 
 /* === Constants === */
 
@@ -96,15 +96,19 @@ struct Row {
     #[prost(string, tag = "2")]
     timestamp: String,
 }
+
 #[derive(Clone, PartialEq, Message)]
 struct IngestRow {
     #[prost(uint32, tag = "1")]
     phase: u32,
+
     #[prost(uint64, tag = "2")]
     ordinal: u64,
+
     #[prost(double, tag = "3")]
     value: f64,
 }
+
 struct Fixture {
     store: Store,
     root: TempDir,

@@ -1126,9 +1126,12 @@ The table below records consumer repairs at this pin. Plugin Boundary replaces
 direct plugin-service composition and author-facing Harmos values; product SDKs
 use carrier helpers internally and expose Dokime values only.
 The pin and generated contracts do not establish consumer compilation.
+Native desktop preferences consume `client::host::SettingsGetResponse`; desktop
+system and benchmark callers use the original generated payload names. Python
+callers use the authored `FailureError` exception and keyword-only record scope.
 Generator tooling is pinned separately at
-`609341697fcab051638389eb0f6a920fd64b7249`; carrier and SDK dependencies retain
-the revision above until the coordinator publishes the repair commit. The
+`b72dd3d52d29599502f7edf92644f451ffdc1fc2`; carrier and SDK dependencies retain
+the revision above. The
 generator imports shared payloads from their defining protocol modules and the
 Python exception from its authored module, preserving original names behind the
 product barrels. Rust qualifies resource/payload collisions and isolates plugin

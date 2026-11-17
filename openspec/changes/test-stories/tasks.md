@@ -7,6 +7,19 @@
   - [ ] 2.1.4 Reconcile native file deletion generations with library current-cut reuse before expecting unqualified reads to hide deleted uploads; retain the failing restart-story readback check for the owner's design decision.
   - [x] 2.1.5 Fix C# generated host mutation calls to supply default request IDs; regenerate through the shared generator and prove thermal parity in managed and remote placements without patching generated output or fixture callers.
   - [ ] 2.1.6 Resolve the missing Overview/Watch shutdown frame before claiming runtime-state observation proof; reconcile final snapshot publication with client-watch settlement and listener shutdown rather than weakening the story's terminal-frame assertion.
+  - [ ] 2.1.7 Repair the Nightly build and check consumers without changing product semantics.
+    - [x] Correct Python starter record scope and the authored failure exception; prove the dev-profile bindings and strict stub check.
+    - [x] Align C++ source formatting with the shared generator and prove the native SDK check.
+    - [x] Remove the TypeScript unused type and correct type-only imports; prove frontend format and lint.
+    - [x] Compile the complete desktop and desktop benchmark targets with the regenerated SDK names in the dev profile; use the focused target build because the Bench producer hardcodes its bench profile.
+    - [x] Compile the Tests archive with current desktop fixture payload names.
+    - [x] Complete the Tests artifact's Rust/Python host, CLI and desktop fixture producers.
+    - [x] Correct strict Rust diagnostics in storage and the stale storage-benchmark Section import; prove the Rust check leaf including workspace Clippy and dependency-use checks.
+    - [x] Run the focused document-reduction story after the storage diagnostic repairs; compile-check all targets in the touched desktop, runtime and storage packages.
+    - [ ] Resolve repeated Python namespace exports with the shared-generator owner; the pinned configuration has no public export-placement setting, and the repository check remains unchanged.
+    - [x] Prove the Rust, Python and TypeScript language check leaves independently of the unresolved repository public-surface check.
+    - [ ] Prove the complete requested Rust/Python/TypeScript check commands after resolving repeated namespace exports.
+    - [x] Run the packaged OBC journey once after the build repairs; both selected module stories pass from the prepared Tests archive.
 - [ ] 2.2 Move the surviving desktop connection fixture mechanics from `tests/integration/connection/fixture/` to shared support where multiple stories need them; the retired server wire stack is not restored.
 - [ ] 3.1 Split surviving multi-scenario drivers and consolidate redundant fixture startups into complete stories; retain independent behavioral coverage and current native driver routing.
 - [ ] 4.1 Move oversized correctness workloads such as the desktop RPC archive fixture to benchmarks, retaining small deterministic boundary-crossing cases as correctness tests; the direct Store-seeded plot-window story is superseded.
