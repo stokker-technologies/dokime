@@ -29,8 +29,10 @@ pub use crate::wire::plugin::StepsExecuteRequest;
 pub use crate::wire::plugin::StepsExecuteResponse;
 pub use crate::wire::plugin::TestCasesMaterializeRequest;
 pub use crate::wire::plugin::TestCasesMaterializeResponse;
-pub mod host {
-    pub mod files {
-        pub use crate::wire::host::files::CapturesStopResponse;
+pub mod dokime {
+    pub mod host {
+        pub mod files {
+            pub use crate::wire::host::files::CapturesStopResponse;
+        }
     }
 }

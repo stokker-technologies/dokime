@@ -48,11 +48,14 @@ transport, crate publishing, Python publishing and review evidence have their
 own modules under `release/registry/`. Package definitions, assembly, executable
 verification and installer checks have separate modules under `package/`. Test lane execution, coverage,
 benchmarks and child-process execution have separate owners under `test/`.
-The tools package depends on `harmos-tools` from the same immutable git revision
-as the Cargo carrier dependencies. `tools/python/pyproject.toml` declares its
+The tools package depends on `harmos-tools` from immutable revision
+`609341697fcab051638389eb0f6a920fd64b7249`. `tools/python/pyproject.toml` declares its
 `tools/python` subdirectory source; the root `uv.lock` records that resolution.
 No sibling library checkout is needed. When changing the carrier pin, update this
-source revision and refresh the root lock together.
+source revision and refresh the root lock together. Carrier and SDK dependencies
+remain at `c2cfb153ab136159f07741d1061fcb3a1191e86c` because the generator repair
+commit has not been published. The coordinator must publish the tooling revision
+before a fresh checkout can resolve it; no local path override is committed.
 
 `build/protocol.py` passes the product namespace, formatter inputs, restored
 Grpc.Tools path and request selector policy to
@@ -84,12 +87,15 @@ preserving their descriptor-declared caller audiences. These implementations are
 replacements at this pin. Shared subprocess console policy remains a separate
 owner decision.
 
-Generated C++ compilation passes at this pin. Python compilation still requires
-regenerated library exports for `FailureError` and `model.Failure`; Rust requires
-the matching library `model::Failure` export and shared renderer fixes for host
-and storage resource collisions. C# requires preservation of protobuf camel-case
-property names such as `StepId`, `MaximumSeconds`, `CycleId` and `ExecutionId`.
-These failures remain open; generated output is not patched by hand.
+All four generated-consumer compile checks pass with the repaired tooling.
+Python imports the original exception and payloads from their defining library
+modules, and Rust imports library payloads from `harmos-protocol` rather than
+assuming a matching SDK barrel layout. Rust payload/resource collisions keep
+their original names under qualified package paths. C# optional assignments
+preserve protobuf property names such as `StepId`, `MaximumSeconds`, `CycleId`
+and `ExecutionId`. CLI, OBC and native SDK test callers use the qualified names
+and current optional-argument shapes. Regenerate through
+`mise run generate -- --protocol`; generated output is never patched by hand.
 
 Disposable directory owners expose their path and explicit `close()` operation.
 Scratch roots, private credential stores, headless displays and build phases

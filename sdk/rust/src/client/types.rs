@@ -335,69 +335,68 @@ pub use crate::wire::host::settings_section_owner;
 pub use crate::wire::host::storage::SourcesGetResponse;
 pub use crate::wire::host::storage::SourcesSetResponse;
 pub use crate::wire::host::storage::StorageSource;
-pub use crate::wire::host::storage::StorageSources;
 pub use crate::wire::host::value_format_kind;
-pub use ::harmos::client::CertificatesCreateResponse;
-pub use ::harmos::client::ComponentState;
-pub use ::harmos::client::DiagnosticsGetResponse;
-pub use ::harmos::client::Event;
-pub use ::harmos::client::HealthComponent;
-pub use ::harmos::client::HostIdentity;
-pub use ::harmos::client::HostStatus;
-pub use ::harmos::client::InvocationsCreateResponse;
-pub use ::harmos::client::ListenerGetResponse;
-pub use ::harmos::client::ListenerSetResponse;
-pub use ::harmos::client::ListenerValue;
-pub use ::harmos::client::LogsListResponse;
-pub use ::harmos::client::LogsWatchResponse;
-pub use ::harmos::client::Pairing;
-pub use ::harmos::client::PairingsCreateResponse;
-pub use ::harmos::client::PairingsDeleteResponse;
-pub use ::harmos::client::PairingsListResponse;
-pub use ::harmos::client::PayloadEncoding;
-pub use ::harmos::client::PluginChange;
-pub use ::harmos::client::PluginDescription;
-pub use ::harmos::client::PluginEntry;
-pub use ::harmos::client::PluginGuest;
-pub use ::harmos::client::PluginManaged;
-pub use ::harmos::client::PluginPlacement;
-pub use ::harmos::client::PluginProcess;
-pub use ::harmos::client::PluginRemote;
-pub use ::harmos::client::PluginSnapshot;
-pub use ::harmos::client::PluginState;
-pub use ::harmos::client::PluginValue;
-pub use ::harmos::client::PluginsCreateResponse;
-pub use ::harmos::client::PluginsDeleteResponse;
-pub use ::harmos::client::PluginsGetResponse;
-pub use ::harmos::client::PluginsListResponse;
-pub use ::harmos::client::PluginsReplaceResponse;
-pub use ::harmos::client::PluginsRestartResponse;
-pub use ::harmos::client::PluginsSetResponse;
-pub use ::harmos::client::PluginsWatchResponse;
-pub use ::harmos::client::SchemaCardinality;
-pub use ::harmos::client::SchemaDefinition;
-pub use ::harmos::client::SchemaDescription;
-pub use ::harmos::client::SchemaField;
-pub use ::harmos::client::SchemaForm;
-pub use ::harmos::client::SchemaGraph;
-pub use ::harmos::client::SchemaKey;
-pub use ::harmos::client::SchemaKind;
-pub use ::harmos::client::SchemaOmission;
-pub use ::harmos::client::SchemaRepresentation;
-pub use ::harmos::client::SchemasListResponse;
-pub use ::harmos::client::StatusGetResponse;
-pub use ::harmos::client::StatusWatchResponse;
-pub use ::harmos::client::StreamIdentity;
-pub use ::harmos::client::StreamsListResponse;
-pub use ::harmos::client::TraceEventsListResponse;
-pub use ::harmos::client::TraceEventsWatchResponse;
-pub use ::harmos::client::plugin_change;
-pub use ::harmos::client::plugin_placement;
-pub use ::harmos::client::plugins_watch_response;
+pub use harmos_protocol::host::ComponentState;
+pub use harmos_protocol::host::HealthComponent;
+pub use harmos_protocol::host::HostIdentity;
+pub use harmos_protocol::host::HostStatus;
+pub use harmos_protocol::host::InvocationsCreateResponse;
+pub use harmos_protocol::host::PayloadEncoding;
+pub use harmos_protocol::host::PluginChange;
+pub use harmos_protocol::host::PluginDescription;
+pub use harmos_protocol::host::PluginEntry;
+pub use harmos_protocol::host::PluginGuest;
+pub use harmos_protocol::host::PluginManaged;
+pub use harmos_protocol::host::PluginPlacement;
+pub use harmos_protocol::host::PluginProcess;
+pub use harmos_protocol::host::PluginRemote;
+pub use harmos_protocol::host::PluginSnapshot;
+pub use harmos_protocol::host::PluginState;
+pub use harmos_protocol::host::PluginValue;
+pub use harmos_protocol::host::PluginsCreateResponse;
+pub use harmos_protocol::host::PluginsDeleteResponse;
+pub use harmos_protocol::host::PluginsGetResponse;
+pub use harmos_protocol::host::PluginsListResponse;
+pub use harmos_protocol::host::PluginsReplaceResponse;
+pub use harmos_protocol::host::PluginsRestartResponse;
+pub use harmos_protocol::host::PluginsSetResponse;
+pub use harmos_protocol::host::PluginsWatchResponse;
+pub use harmos_protocol::host::SchemaCardinality;
+pub use harmos_protocol::host::SchemaDefinition;
+pub use harmos_protocol::host::SchemaDescription;
+pub use harmos_protocol::host::SchemaField;
+pub use harmos_protocol::host::SchemaForm;
+pub use harmos_protocol::host::SchemaGraph;
+pub use harmos_protocol::host::SchemaKey;
+pub use harmos_protocol::host::SchemaKind;
+pub use harmos_protocol::host::SchemaOmission;
+pub use harmos_protocol::host::SchemaRepresentation;
+pub use harmos_protocol::host::SchemasListResponse;
+pub use harmos_protocol::host::StatusGetResponse;
+pub use harmos_protocol::host::StatusWatchResponse;
+pub use harmos_protocol::host::StreamIdentity;
+pub use harmos_protocol::host::StreamsListResponse;
+pub use harmos_protocol::host::access::CertificatesCreateResponse;
+pub use harmos_protocol::host::access::ListenerGetResponse;
+pub use harmos_protocol::host::access::ListenerSetResponse;
+pub use harmos_protocol::host::access::ListenerValue;
+pub use harmos_protocol::host::access::Pairing;
+pub use harmos_protocol::host::access::PairingsCreateResponse;
+pub use harmos_protocol::host::access::PairingsDeleteResponse;
+pub use harmos_protocol::host::access::PairingsListResponse;
+pub use harmos_protocol::host::plugin_change;
+pub use harmos_protocol::host::plugin_placement;
+pub use harmos_protocol::host::plugins_watch_response;
+pub use harmos_protocol::host::status::DiagnosticsGetResponse;
+pub use harmos_protocol::host::status::Event;
+pub use harmos_protocol::host::status::LogsListResponse;
+pub use harmos_protocol::host::status::LogsWatchResponse;
+pub use harmos_protocol::host::status::TraceEventsListResponse;
+pub use harmos_protocol::host::status::TraceEventsWatchResponse;
 pub mod harmos {
     pub mod host {
         pub mod plugins {
-            pub use ::harmos::client::SettingsSetResponse;
+            pub use harmos_protocol::host::plugins::SettingsSetResponse;
         }
     }
 }
@@ -414,5 +413,8 @@ pub mod host {
     }
     pub mod plugins {
         pub use crate::wire::host::plugins::SecretsListResponse;
+    }
+    pub mod storage {
+        pub use crate::wire::host::storage::StorageSources;
     }
 }

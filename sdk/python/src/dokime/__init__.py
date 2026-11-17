@@ -1,5 +1,5 @@
 # @generated from protocol descriptors; do not edit.
-from harmos import FailureError
+from harmos._invocation import FailureError
 
 from ._generated.shared import (
     AGGREGATE_COUNT,

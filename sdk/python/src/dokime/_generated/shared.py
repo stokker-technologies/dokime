@@ -674,68 +674,59 @@ from dokime._wire.model.v1.traceability_pb2 import TraceabilityEntry
 
 TraceabilityEntry.__module__ = "dokime"
 TraceabilityEntry.__qualname__ = "TraceabilityEntry"
-from harmos import (
-    ALL,
-    CALLERS_UNSPECIFIED,
+from harmos._wire.host.v1.invocations_pb2 import InvocationsCancelResponse, InvocationsGetResponse, InvocationsWatchResponse
+from harmos._wire.host.v1.operations_pb2 import OperationsGetResponse, OperationsListResponse
+from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListResponse
+from harmos._wire.host.v1.time_pb2 import TimeGetResponse, TimeSleepResponse
+from harmos._wire.model.v1.callers_pb2 import ALL, CALLERS_UNSPECIFIED, CLIENTS, PLUGINS, Callers
+from harmos._wire.model.v1.description_pb2 import Declarations
+from harmos._wire.model.v1.failure_pb2 import (
     CLASSIFICATION_CANCELLED,
     CLASSIFICATION_PERMANENT,
     CLASSIFICATION_REFUSED,
     CLASSIFICATION_TIMED_OUT,
     CLASSIFICATION_TRANSIENT,
     CLASSIFICATION_UNSPECIFIED,
-    CLIENTS,
-    PLUGINS,
-    TRANSFER_FRAMING_BYTES,
-    TRANSFER_FRAMING_UNSPECIFIED,
+    Classification,
+)
+from harmos._wire.model.v1.file_pb2 import (
     UPLOAD_STATE_ABANDONED,
     UPLOAD_STATE_FINISHED,
     UPLOAD_STATE_PRODUCING,
     UPLOAD_STATE_UNSPECIFIED,
+    File,
+    FileMetadata,
+    FileReference,
+    Upload,
+    UploadState,
+)
+from harmos._wire.model.v1.invocation_pb2 import InstanceState
+from harmos._wire.model.v1.operation_pb2 import (
     VISIBILITY_PRIVATE,
     VISIBILITY_PROTECTED,
     VISIBILITY_PUBLIC,
     VISIBILITY_UNSPECIFIED,
-    Callers,
-    Classification,
-    Declarations,
     DiscoveredContract,
     DiscoveredOperation,
-    File,
-    FileMetadata,
-    FileReference,
     Grant,
     Grpc,
-    History,
-    InstanceState,
-    InvocationsCancelResponse,
-    InvocationsGetResponse,
-    InvocationsWatchResponse,
-    MessageSettings,
     OperationContract,
-    OperationPolicy,
-    OperationsGetResponse,
-    OperationsListResponse,
-    PageRequest,
-    Position,
     Protobuf,
-    ReadCut,
-    Receipt,
     Requirement,
-    ResourceRevision,
-    RetryPolicy,
-    SettingDeclaration,
-    SettingsDeclarations,
-    SettingsListResponse,
-    SettingValue,
-    SettingValues,
-    StorageTransferSettings,
-    StreamDeclaration,
-    TimeGetResponse,
-    TimeSleepResponse,
-    TransferFraming,
-    Upload,
-    UploadState,
     Visibility,
+)
+from harmos._wire.model.v1.page_pb2 import PageRequest
+from harmos._wire.model.v1.policy_pb2 import OperationPolicy, RetryPolicy
+from harmos._wire.model.v1.position_pb2 import History, Position, ReadCut, ResourceRevision
+from harmos._wire.model.v1.receipt_pb2 import Receipt
+from harmos._wire.model.v1.setting_pb2 import SettingDeclaration, SettingsDeclarations, SettingValue, SettingValues
+from harmos._wire.model.v1.stream_pb2 import StreamDeclaration
+from harmos._wire.model.v1.transfer_pb2 import (
+    TRANSFER_FRAMING_BYTES,
+    TRANSFER_FRAMING_UNSPECIFIED,
+    MessageSettings,
+    StorageTransferSettings,
+    TransferFraming,
 )
 
 from ._exports.shared import harmos

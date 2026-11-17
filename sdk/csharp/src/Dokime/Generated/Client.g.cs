@@ -1842,7 +1842,7 @@ public sealed class ExecutionsCommandsResource
     };
     if (stepId is not null)
     {
-      request.Stepid = stepId;
+      request.StepId = stepId;
     }
     var method = new Method<global::Dokime.Clients.ExecutionsResources.CommandsCreateRequest, global::Dokime.Clients.ExecutionsResources.CommandsCreateResponse>(MethodType.Unary, "dokime.host.v1.executions.Commands", "Create",
         Marshallers.Create<global::Dokime.Clients.ExecutionsResources.CommandsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsResources.CommandsCreateRequest.Parser.ParseFrom(bytes)),
@@ -2302,7 +2302,7 @@ public sealed class MediaCapturesResource
     }
     if (maximumSeconds is not null)
     {
-      request.Maximumseconds = maximumSeconds.Value;
+      request.MaximumSeconds = maximumSeconds.Value;
     }
     var method = new Method<global::Dokime.Clients.MediaResources.CapturesCreateRequest, global::Dokime.Clients.MediaResources.CapturesCreateResponse>(MethodType.Unary, "dokime.host.v1.media.Captures", "Create",
         Marshallers.Create<global::Dokime.Clients.MediaResources.CapturesCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.MediaResources.CapturesCreateRequest.Parser.ParseFrom(bytes)),
@@ -2762,11 +2762,11 @@ public sealed class PromptsResource
     };
     if (cycleId is not null)
     {
-      request.Cycleid = cycleId;
+      request.CycleId = cycleId;
     }
     if (executionId is not null)
     {
-      request.Executionid = executionId;
+      request.ExecutionId = executionId;
     }
     if (at is not null)
     {
@@ -2800,11 +2800,11 @@ public sealed class PromptsResource
     };
     if (cycleId is not null)
     {
-      request.Cycleid = cycleId;
+      request.CycleId = cycleId;
     }
     if (executionId is not null)
     {
-      request.Executionid = executionId;
+      request.ExecutionId = executionId;
     }
     if (at is not null)
     {

@@ -37,5 +37,5 @@ extend-select = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "AN
 system-certs = true
 
 [tool.uv.sources]
-# Match the Immutable Carrier Revision in Cargo.toml.
-harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "c2cfb153ab136159f07741d1061fcb3a1191e86c", subdirectory = "tools/python" }
+# Generator Repairs Are Pinned Independently of the Carrier Dependencies.
+harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "609341697fcab051638389eb0f6a920fd64b7249", subdirectory = "tools/python" }

@@ -1,5 +1,5 @@
 // @generated from protocol descriptors; do not edit.
-pub use host::{
+pub use self::host::{
     HostBackendEnvironmentOptions, HostBackendResource, HostContentArtifactsCreateOptions, HostContentArtifactsResource,
     HostContentResource, HostDocumentsAppendPartsOptions, HostDocumentsResource, HostEffectsCreateOptions, HostEffectsGetOptions,
     HostEffectsResource, HostEffectsSetOptions, HostEvidenceLogsAppendOptions, HostEvidenceLogsResource, HostEvidenceRecordsAppendOptions,

@@ -9,8 +9,6 @@ using Harmos;
 using Harmos.Clients;
 using Stories.Support;
 using Xunit;
-using Client = Dokime.Client;
-using Metadata = Grpc.Core.Metadata;
 
 namespace Stories.Integration;
 
@@ -21,14 +19,14 @@ public sealed class ClientInspectsABackend
   {
     // Connect Through the SDK's Caller-Owned Invoker.
     var server = new FakeBackend();
-    using var client = new Client(server);
+    using var client = new Dokime.Client(server);
 
     // Observe Authentication Failure Before Supplying a Token.
     var failure = await Assert.ThrowsAsync<RpcException>(() => client.Status.Get());
     Assert.Equal(StatusCode.Unauthenticated, failure.StatusCode);
 
     // Inspect the Backend with Explicit Per-Call Credentials and a Deadline Override.
-    var headers = new Metadata { { "authorization", "Bearer test-token" } };
+    var headers = new Grpc.Core.Metadata { { "authorization", "Bearer test-token" } };
     var deadline = new DateTime(2031, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     var options = new CallOptions(headers, deadline);
     var observed = await client.Status.Get(context: options);
@@ -61,8 +59,8 @@ public sealed class ClientInspectsABackend
     Assert.Equal(added.Entry, Assert.Single(listed.Entries));
 
     // Retain Integer and Rational Evidence Separately from Plot Coordinates.
-    var statistics = await client.Evidence.Statistics(new EvidenceScope { ExecutionId = "first" }, "readings", [],
-        new Window(), [], "counter", "", context: options);
+    var statistics = await client.Evidence.Statistics("readings", [], new Window(), [], "counter", "",
+        scope: new EvidenceScope { ExecutionId = "first" }, context: options);
     Assert.Equal(18_446_744_073_709_551_615ul, statistics.Statistics.Sum.UnsignedInteger);
     Assert.Equal("18446744073709551615", statistics.Statistics.Mean.Exact.Numerator);
     Assert.Equal("2", statistics.Statistics.Mean.Exact.Denominator);

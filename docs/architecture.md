@@ -1120,11 +1120,17 @@ The table below records consumer repairs at this pin. Plugin Boundary replaces
 direct plugin-service composition and author-facing Harmos values; product SDKs
 use carrier helpers internally and expose Dokime values only.
 The pin and generated contracts do not establish consumer compilation.
-At this pin, C++ generated and SDK compilation pass. Python still requires the
-library SDK to export `FailureError` and `model.Failure`; Rust generated barrels
-require the corresponding `model::Failure` and collision repairs. C# generated
-client property casing remains a shared-tooling repair. Storage, operations and
-runtime compile checks and stored-envelope continuation coarsening pass.
+Generator tooling is pinned separately at
+`609341697fcab051638389eb0f6a920fd64b7249`; carrier and SDK dependencies retain
+the revision above until the coordinator publishes the repair commit. The
+generator imports shared payloads from their defining protocol modules and the
+Python exception from its authored module, preserving original names behind the
+product barrels. Rust qualifies resource/payload collisions and isolates plugin
+payload packages from the local host resource module; C# optional assignments
+retain wire property casing. Generated consumers in all four SDKs compile, as do
+the Rust SDK, CLI, OBC, storage, operations and runtime. Stored-envelope
+continuation coarsening and the focused SDK unit tests pass. Broader runtime
+admission and application proof remain owned by their existing changes.
 The storage candidate uses the native definitions from `harmos-operations` after
 the runtime removed its `builtins` reexport. Descriptor-declared audiences replace
 composition caller overrides. The typed facade remains the later 6.2 adoption.
