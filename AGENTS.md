@@ -13,6 +13,6 @@
 
 ## Documentation
 
-- Read `docs/architecture.md` before proposing architecture, protocol or public API changes, and update it in the same delivery.
+- Read `docs/architecture.md` before proposing architecture, protocol or public API changes. The owner writes the documentation; report documentation impact instead of editing `docs/`.
 - Start at `README.md` and `docs/product-guide.md`. Read `docs/gui.md` before changing `crates/dokime-gui/`.
 - Keep documentation in `docs/` and refer to code by path. Do not add `AGENTS.md`, `CLAUDE.md` or other Markdown notes inside code directories; package READMEs that registries publish are the exception.
