@@ -1,5 +1,3 @@
-import { ElapsedUnit, type ValueFormat } from "@host/model";
-import type { Wire } from "@/lib/rpc/canonical";
 /* ***
  *
  * Dokime
@@ -10,6 +8,9 @@ import type { Wire } from "@/lib/rpc/canonical";
  */
 
 /* === Local Imports === */
+
+import type { ElapsedUnit, ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 
 /* === Types === */
 
@@ -30,6 +31,14 @@ export const COMPACT_DECIMAL_CHARACTERS = 12;
 
 /** The significant digits an abbreviated tile value keeps. */
 const COMPACT_SIGNIFICANT_DIGITS = 6;
+
+/** Presentation for each serialized elapsed unit; generated messages stay outside the report bundle. */
+const ELAPSED_FORMATTERS: Record<ElapsedUnit, (seconds: number) => string> = {
+  0: (seconds) => `${seconds.toFixed(1)}s`,
+  1: (seconds) => `${seconds.toFixed(1)}s`,
+  2: (seconds) => `${Math.round(seconds * 1000)}ms`,
+  3: (seconds) => `${(seconds / 60).toFixed(1)}m`,
+};
 
 const TITLE_SMALL_WORDS = new Set([
   "a",
@@ -323,13 +332,8 @@ function significant(value: number): number {
 
 /** Elapsed seconds since the format's origin, rendered with the declared unit. */
 function elapsedText(elapsedSeconds: number, unit: ElapsedUnit): string {
-  if (unit === ElapsedUnit.MILLISECONDS) {
-    return `${Math.round(elapsedSeconds * 1000)}ms`;
-  }
-  if (unit === ElapsedUnit.MINUTES) {
-    return `${(elapsedSeconds / 60).toFixed(1)}m`;
-  }
-  return `${elapsedSeconds.toFixed(1)}s`;
+  const format = ELAPSED_FORMATTERS[unit] ?? ELAPSED_FORMATTERS[0];
+  return format(elapsedSeconds);
 }
 
 /** Substitutes `%Y %m %d %H %M %S %L %%`; every other run of text, including an unknown token, is literal. */

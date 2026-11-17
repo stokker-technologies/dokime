@@ -8,7 +8,9 @@ import { NativeSession } from "@/app/native-session/session";
 import { fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
 import { commands } from "@/lib/desktop/commands";
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
-import type { DocumentViewPlot, RecordScope } from "@/lib/types";
+import type { DocumentViewPlot } from "@/lib/types";
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { useLivePlotPayloads } from "@/plots/live-data";
 import { useSummaryWindowStore } from "@/stores/summary-window-store";
 import "@/styles.css";
@@ -171,7 +173,7 @@ requestAnimationFrame(presented);
 // How Long Ago the Last Animation Frame Ran: a Growing Age Means the WebView Stopped Presenting Frames.
 globalThis.desktopFrameAge = () => performance.now() - previousFrame;
 
-function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: RecordScope }) {
+function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: Wire<EvidenceScope> }) {
   const states = useLivePlotPayloads({ enabled: true, plots, scope, windowS: 259200 });
   useLayoutEffect(() => {
     const refused = (state: (typeof states)[string]) => state.status === "error" || Boolean(state.failure && !state.payload);
@@ -191,7 +193,7 @@ function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: RecordS
 }
 
 function Surface({ session }: { session: ConnectedSession }) {
-  const [selection, setSelection] = useState<{ plots: DocumentViewPlot[]; scope: RecordScope; key: number } | null>(null);
+  const [selection, setSelection] = useState<{ plots: DocumentViewPlot[]; scope: Wire<EvidenceScope>; key: number } | null>(null);
   globalThis.desktopBegin = (condition) => {
     observation.previous = new Map(
       [...document.querySelectorAll<HTMLElement>("[data-bench-plot]")].map((card) => [
@@ -242,7 +244,7 @@ function Surface({ session }: { session: ConnectedSession }) {
       ]),
     );
     useSummaryWindowStore.setState({ windows });
-    setSelection({ plots, scope: { test_cycle_id: cycle, test_execution_id: execution }, key: observation.scene });
+    setSelection({ plots, scope: { cycleId: cycle, executionId: execution }, key: observation.scene });
   };
   globalThis.desktopAction = (condition, from, to) => {
     globalThis.desktopBegin(condition);

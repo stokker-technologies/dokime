@@ -87,15 +87,16 @@ use dokime_sdk::client::SuitesGetResponse;
 use dokime_sdk::client::SuitesListResponse;
 use dokime_sdk::client::document_frame_frame;
 use dokime_sdk::client::report_subject;
-use dokime_sdk::origin;
 use dokime_sdk::value;
+use dokime_sdk::{card, origin};
 use prost::Message;
 use sha2::{Digest, Sha256};
+use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
 
 use dokime_gui::connection::host::{Connection, ConnectionSettings};
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
-use dokime_gui::test_support;
+use dokime_gui::{test_support, testing};
 use dokime_protocol::host::plots::PlotDomain;
 use dokime_protocol::host::{DocumentsWatchRequest, DocumentsWatchResponse};
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
@@ -200,7 +201,7 @@ fn large_document_and_long_history_frequency_use_bounded_native_reads() -> Resul
                             identifier: format!("card-{index}"),
                             ..Default::default()
                         }),
-                        body: Some(dokime_sdk::card::Body::Plot(plot)),
+                        body: Some(card::Body::Plot(plot)),
                         ..Default::default()
                     })
                     .collect(),
@@ -539,7 +540,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             let opening = SnapshotsWatchResponse::decode(opening.as_slice())?;
             assert!(opening.opening);
             assert_eq!(opening.updates.len(), 1);
-            // Open One Hundred Authored Cards From Two Independent Native Clients.
+            // Open Every Authored Card From Two Independent Native Clients.
             let mut second_owner = Connection::new(settings())?;
             let second = second_owner.attach_local(session.endpoint()).await?;
             let mut document_request = DocumentsGetRequest {
@@ -574,7 +575,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                 document_request.at = first.resolved_at;
             }
             assert!(producing.len() > 100);
-            let mut readers = tokio::task::JoinSet::new();
+            let mut readers = JoinSet::new();
             for viewer in [&session, &second] {
                 for group in producing.chunks(32) {
                     let viewer = viewer.clone();
@@ -595,7 +596,8 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                                 let envelope = update.envelope.unwrap();
                                 assert!(envelope.warnings.is_empty());
                                 assert!(expected.contains(&envelope.plot_id));
-                                if envelope.payload.and_then(|payload| payload.frame).is_some_and(|frame| frame.point_count > 0) {
+                                if envelope.diagnostics.is_some_and(|diagnostics| diagnostics.point_count > 0) {
+                                    assert!(envelope.payload.is_some());
                                     data.insert(envelope.plot_id);
                                 }
                             }
@@ -630,7 +632,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             while let Some(result) = readers.join_next().await {
                 cards_with_data += result?.map_err(|error| error.to_string())?;
             }
-            assert_eq!(cards_with_data, 200);
+            assert_eq!(cards_with_data, producing.len() * 2);
             second_owner.close().await?;
             drop(plots);
 
@@ -797,10 +799,10 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                 .await
                 .map_err(|error| format!("{error:?}"))?;
             let destination = root.path().join("native-export.html");
-            let exported = dokime_gui::testing::save_verified(
+            let exported = testing::save_verified(
                 active.clone(),
                 connected.generation,
-                dokime_gui::testing::ArtifactSource::ExecutionReport { execution_id: execution },
+                testing::ArtifactSource::ExecutionReport { execution_id: execution },
                 "native-export.html".into(),
                 async { Ok(Some((destination.clone(), false))) },
             )
