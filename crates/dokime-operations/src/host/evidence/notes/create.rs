@@ -18,19 +18,15 @@
 // Standard Library Imports
 
 // Third Party Imports
-
-// Local Imports
-use crate::host::storage::administration;
-use crate::{Error, Result, host::Context};
+use harmos_protocol::model::OperationContract;
 use prost::Message;
 use sha2::Digest;
 
-use dokime_protocol::host::evidence::NotesCreateRequest;
-use dokime_protocol::host::evidence::NotesCreateResponse;
-use dokime_protocol::host::evidence::OperatorNote;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::OperationContract;
+// Local Imports
+use crate::host::storage::administration;
+use crate::host::{ClientSettings, Context};
+use crate::{Error, Result};
+use dokime_protocol::host::evidence::{NotesCreateRequest, NotesCreateResponse, OperatorNote};
 
 /* === Constants === */
 
@@ -81,13 +77,11 @@ pub async fn handle(context: &Context, request: NotesCreateRequest) -> Result<No
             created_at: saved.and_then(|note| note.created_at).or_else(|| Some(crate::host::projection::timestamp(context.host.now_ns()))),
         };
         let (saved, receipt) = administration::replace(context, &key, Vec::new(), &request.request_id, note.encode_to_vec()).await?;
-        let reply = NotesCreateResponse {
+        Ok(NotesCreateResponse {
             note: Some(OperatorNote::decode(saved.payload.as_slice())?),
             revision: saved.revision,
             receipt: Some(receipt),
-        };
-        context.host.signal_change();
-        Ok(reply)
+        })
     })
     .await
 }

@@ -806,6 +806,13 @@ request ID while taking durable positions from the native receipt. Case deletion
 Dokime's cycle and execution-ownership guards and calls `DeleteObject`; retained
 cuts still see the previous case. No SQL registration or planned-case table remains.
 Execution bindings still belong to the coupled execution/evidence cutover.
+Operator note lists read the native object history at an issued Harmos cut, with
+selection-bound pagination. Their watches follow `WatchRows` object revisions from
+the opening cut, including edits committed before the watch opens. They expose a
+row-watch gap with its last issued cut and require the client to resynchronize.
+Note ownership and open-owner policy still read the execution ledger pending the
+coupled lifecycle cutover. Note lists create no retained-view files and watches
+observe native object revisions.
 Roots containing the superseded SQL registration/case tables, view or prepared-report journals are refused
 with fresh-root guidance at baseline v1. Admission preserves their stored values;
 there is no migration, fallback reader or automatic reset.

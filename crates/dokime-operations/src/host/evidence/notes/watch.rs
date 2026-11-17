@@ -16,19 +16,24 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_protocol::model::{Failure, OperationContract};
+use harmos_runtime::builtins::storage::{WatchRows, WatchRowsRequest, watch_rows_response::Event};
+use harmos_runtime::operations::{StreamSettings, native_stream};
+use harmos_runtime::storage::ObjectDefinition;
+use harmos_runtime::storage::query::{ObjectSelection, ObjectVersions, Source};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::Status;
 
 // Local Imports
-use crate::{Result, host::Context};
-
-use dokime_protocol::host::evidence::NotesListRequest;
-use dokime_protocol::host::evidence::NotesWatchRequest;
-use dokime_protocol::host::evidence::NotesWatchResponse;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::Failure;
-use harmos_protocol::model::OperationContract;
+use super::list;
+use crate::host::storage::administration::{self, Administration};
+use crate::host::{ClientSettings, Context, Output};
+use crate::{Error, Result};
+use dokime_protocol::host::evidence::{NotesListRequest, NotesWatchRequest, NotesWatchResponse};
 
 /* === Constants === */
 
@@ -51,18 +56,47 @@ pub const ID: &str = "dokime.host.v1.evidence.Notes/Watch";
 pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
     crate::host::declaration::<NotesWatchRequest, NotesWatchResponse>(ID, settings.watch_timeout)
 }
-pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<crate::host::Output<NotesWatchResponse>> {
+pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<Output<NotesWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
-        let mut storage = context.host.store().subscribe();
-        let mut runtime = context.host.changes();
         let mut selection = NotesListRequest {
             selection: request.selection,
             at: request.at,
             page: request.page,
         };
-        let first = crate::host::evidence::notes::list::handle(context, selection.clone()).await?;
+        let first = list::handle(context, selection.clone()).await?;
+        let revision = crate::host::paging::bytes(&selection.selection.clone().unwrap_or_default());
+        let at = first.resolved_at.clone().ok_or_else(|| Error::Precondition("Watch Notes: Return the Opening Storage Cut".into()))?;
+        let at = list::source_cut(at, &revision)?;
+        let schema =
+            ObjectDefinition::of::<Administration>().schema().map_err(|source| Error::Invalid(format!("Watch Notes: {source}")))?;
+        let limits = StreamSettings {
+            items: NonZeroUsize::new(context.settings.stream_buffer).unwrap(),
+            bytes: NonZeroUsize::new(context.settings.message_bytes).unwrap(),
+        };
+        let (send, receive) = native_stream(limits).map_err(|source| Error::Unavailable(format!("Watch Notes: {source}")))?;
+        let operations = match &context.caller {
+            Some(caller) => context
+                .operations
+                .with_scope(caller.execution.clone())
+                .map_err(|source| Error::Permission(format!("Watch Notes: {source}")))?,
+            None => (*context.operations).clone(),
+        };
+        let invocation = operations
+            .submit_native::<WatchRows>(
+                WatchRowsRequest {
+                    source: Some(Source::Objects(ObjectSelection {
+                        schema: Some(schema),
+                        key: None,
+                        versions: ObjectVersions::Revisions,
+                    })),
+                    at: Some(at),
+                },
+                send,
+            )
+            .map_err(|source| Error::Unavailable(format!("Watch Notes: {source}")))?;
         let context = context.clone();
-        let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
+        let mut runtime = context.host.changes();
+        let (sender, output) = mpsc::channel(context.settings.stream_buffer);
         tokio::spawn(async move {
             let work = async {
                 let mut page = first;
@@ -77,47 +111,74 @@ pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<cra
                         resync_required: None,
                     };
                     if sender.send(Ok(response)).await.is_err() {
-                        return;
+                        return Ok(());
                     }
                     if !token.is_empty() {
                         selection.at = cut;
                         selection.page.get_or_insert_default().page_token = token;
                     } else {
-                        if context.host.shutting_down() {
-                            return;
-                        }
-                        tokio::select! {
-                            _ = sender.closed() => return,
-                            changed = storage.changed() => if changed.is_err() { return; },
-                            changed = runtime.changed() => if changed.is_err() { return; },
+                        loop {
+                            let Some(frame) = receive.recv().await else { return Ok(()) };
+                            match frame.event.as_ref() {
+                                Some(Event::Object(entry)) => {
+                                    let value = administration::catalog()
+                                        .decode::<Administration>(&entry.value, NonZeroUsize::new(context.settings.message_bytes).unwrap())
+                                        .map_err(|source| Error::Invalid(format!("Watch Notes: {source}")))?;
+                                    if !value.key.starts_with("note:") {
+                                        continue;
+                                    }
+                                    let at = frame
+                                        .resolved_at
+                                        .clone()
+                                        .ok_or_else(|| Error::Precondition("Watch Notes: Return the Changed Storage Cut".into()))?;
+                                    selection.at = Some(list::selection_cut(at, revision.clone()));
+                                    break;
+                                }
+                                Some(Event::ResyncRequired(message)) => {
+                                    let _ = sender
+                                        .send(Ok(NotesWatchResponse {
+                                            resolved_at: frame.resolved_at.clone().map(|at| list::selection_cut(at, revision.clone())),
+                                            resync_required: Some(Failure {
+                                                code: "resync_required".into(),
+                                                message: message.clone(),
+                                                ..Default::default()
+                                            }),
+                                            ..Default::default()
+                                        }))
+                                        .await;
+                                    return Ok(());
+                                }
+                                _ => continue,
+                            }
                         }
                         opening = false;
-                        selection.at = None;
                         selection.page.get_or_insert_default().page_token.clear();
                     }
-                    page = match crate::host::evidence::notes::list::handle(&context, selection.clone()).await {
-                        Ok(page) => page,
-                        Err(error) => {
-                            let _ = sender
-                                .send(Ok(NotesWatchResponse {
-                                    resync_required: Some(Failure {
-                                        code: "resync_required".into(),
-                                        message: format!("{ID}: {error}"),
-                                        ..Default::default()
-                                    }),
-                                    ..Default::default()
-                                }))
-                                .await;
-                            return;
-                        }
-                    };
+                    page = list::handle(&context, selection.clone()).await?;
                 }
             };
-            if tokio::time::timeout(context.settings.watch_timeout, work).await.is_err() {
-                let _ = sender.try_send(Err(tonic::Status::deadline_exceeded(format!("{ID}: Reopen After Its Deadline"))));
+            let result = tokio::select! {
+                _ = sender.closed() => Ok(()),
+                _ = async {
+                    while !context.host.shutting_down() {
+                        if runtime.changed().await.is_err() { break; }
+                    }
+                } => Ok(()),
+                result = tokio::time::timeout(context.settings.watch_timeout, work) => {
+                    result.unwrap_or_else(|_| Err(Error::Deadline(ID.into())))
+                }
+            };
+            invocation.request_cancel();
+            let settled = invocation.await;
+            if let Err(source) = result {
+                let _ = sender.send(Err(crate::host::status(source))).await;
+            } else if let Err(source) = settled
+                && !matches!(source, harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. }))
+            {
+                let _ = sender.send(Err(Status::internal(format!("{ID}: {source}")))).await;
             }
         });
-        Ok(tokio_stream::wrappers::ReceiverStream::new(output))
+        Ok(ReceiverStream::new(output))
     })
     .await
 }

@@ -58,6 +58,16 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   (`setup.composition`), `native::callers()` in `crates/dokime-operations/src/native.rs`,
   `sdk/cpp/tools/generate.py`, `sdk/csharp/tools/generate.py` and
   `tools/python/src/dokime_tools/build/resource_roots.py`.
+- The evidence-family inventory is `crates/dokime-runtime/src/streams.rs` and its
+  consumer registration in `crates/dokime-runtime/src/services/composition.rs`;
+  `crates/dokime-operations/src/resources.rs` owns evidence appends used by timing
+  and plugin host operations; `crates/dokime-operations/src/host/evidence/` owns evidence
+  queries and watches. The record/sample/traceability paths still depend on product
+  execution cuts, step boundaries and seal verification. The statistics reader stays
+  coupled to the pending **consolidated statistics** kernel; archive engine types
+  remain blocked on the **typed facade**. Notes already persist through Harmos
+  administration objects independently of that ledger, so their list/watch source
+  can move to native cuts and `WatchRows` without splitting evidence history.
 
 Touched invariants in `docs/architecture.md` and their purposes:
 
