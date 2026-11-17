@@ -89,7 +89,10 @@ impl Store {
         } else {
             false
         };
-        if numeric && let Some(data_expression::Kind::Stream(reference)) = &expression.kind {
+        if numeric
+            && kind != Aggregate::Median
+            && let Some(data_expression::Kind::Stream(reference)) = &expression.kind
+        {
             let (reader, _cancellation) = self.read_session()?;
             *reader.projection.lock().map_err(|_| Error::Data("restart after the document projection lock failed"))? =
                 Some(expressions::Projection {
@@ -124,7 +127,6 @@ impl Store {
                 Aggregate::Mean => Some(moments.average.clone()),
                 Aggregate::Stddev => Some(ScalarValue::Float(moments.standard_deviation)),
                 Aggregate::Rms => Some(ScalarValue::Float(moments.rms)),
-                Aggregate::Median => Some(reader.ranks(window, &[50])?[&50].clone()),
                 Aggregate::Percentile if percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 => {
                     Some(reader.ranks(window, &[percentile as u8])?[&(percentile as u8)].clone())
                 }
@@ -144,10 +146,8 @@ impl Store {
             })?;
             return Ok(edge.unwrap_or(ScalarValue::Missing));
         }
-        if kind == Aggregate::Median
-            || kind == Aggregate::Percentile && percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0
-        {
-            let rank = if kind == Aggregate::Median { 50 } else { percentile as u8 };
+        if kind == Aggregate::Percentile && percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 {
+            let rank = percentile as u8;
             let values = aggregates::rank_values(
                 |push| self.expression_values(cut, expression, None, filters, |_, _, value, _| push(value)),
                 &[rank],
