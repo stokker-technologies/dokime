@@ -64,7 +64,7 @@ export function cycleSnapshotSource(payload: ReportPayload): CycleSnapshotSource
     artifacts,
     document: (executionId) => (executionId === null ? cycleDocument : (documents.get(executionId) ?? null)),
     executionFiles: (executionId) =>
-      executionId === null ? [] : artifacts.filter((artifact) => artifact.scope?.test_execution_id === executionId),
+      executionId === null ? [] : artifacts.filter((artifact) => artifact.scope?.executionId === executionId),
     executions: payload.test_executions,
     generatedAt: payload.generated_at ?? null,
     warnings: payload.warnings

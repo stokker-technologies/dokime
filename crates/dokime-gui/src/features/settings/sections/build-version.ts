@@ -49,13 +49,10 @@ export function buildLabel(build: BuildIdentity): BuildLabel {
   const source = build.sourceRevision ?? "";
   const dirty = source.endsWith(DIRTY);
   const commit = dirty ? source.slice(0, -DIRTY.length) : source;
-  if (!COMMIT.test(commit)) return { version, commit: null, revision: "unknown", channel: build.channel };
+  if (!COMMIT.test(commit)) {
+    return { version, commit: null, revision: "unknown", channel: build.channel };
+  }
   return { version, commit, revision: commit.slice(0, SHORT_DIGITS) + (dirty ? DIRTY : ""), channel: build.channel };
-}
-
-/** `v0.1.2 · 766330b7 · nightly`, the text the About row shows. */
-export function buildText(label: BuildLabel): string {
-  return [label.version, label.revision, label.channel].filter(Boolean).join(" · ");
 }
 
 /* === Private Functions === */

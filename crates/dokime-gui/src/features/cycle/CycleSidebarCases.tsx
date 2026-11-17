@@ -52,7 +52,7 @@ export function CycleSidebarCases(props: CycleSidebarCasesProps) {
   const rerunCase = useRerunCase(props.cycleId);
   const prompts = useCyclePendingPromptsQuery(props.cycleId).data;
   const inputNeeded = useMemo(
-    () => new Set((prompts ?? []).flatMap((prompt) => (prompt.scope?.test_execution_id ? [prompt.scope.test_execution_id] : []))),
+    () => new Set((prompts ?? []).flatMap((prompt) => (prompt.scope?.executionId ? [prompt.scope.executionId] : []))),
     [prompts],
   );
   return (

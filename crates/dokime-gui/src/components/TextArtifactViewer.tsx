@@ -114,7 +114,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
      so the connection is optional and only the reads insist on it — and those
      run when a reader opens a file, which the report offers no way to do. */
   const session = useNativeSessionOptional();
-  const executionId = artifact?.scope?.test_execution_id ?? null;
+  const executionId = artifact?.scope?.executionId ?? null;
   const artifactId = artifact?.artifact_id ?? null;
   const path = artifact?.path ?? null;
   const streamed = shouldFollowArtifact(artifact);

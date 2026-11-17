@@ -153,7 +153,7 @@ function dashboardNumber(value: number): string {
   if (value !== 0 && Math.abs(value) < 0.005) {
     return String(Number(value.toPrecision(3)));
   }
-  return formatNumber(value, { kind: "fixed", decimals: Math.abs(value) >= 100 ? 0 : 2 });
+  return formatNumber(value, { kind: { kind: { case: "fixed", value: { decimals: Math.abs(value) >= 100 ? 0 : 2 } } } });
 }
 
 function compactLifecycleMessage(message: string, record: HubRecord, fallbackSubject: string): string {
@@ -168,7 +168,7 @@ function compactCaseLabel(label: string, record: HubRecord): string {
   if (parenIndex > 0) {
     return label.slice(0, parenIndex);
   }
-  const scopedTemplate = record.scope?.template_id ?? record.template_id;
+  const scopedTemplate = record.scope?.templateId ?? record.template_id;
   if (scopedTemplate && label.includes(scopedTemplate)) {
     return titleFromIdentifier(scopedTemplate);
   }

@@ -57,8 +57,8 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
   const generation = useNativeSessionOptional()?.identity.generation ?? "";
   const settings = useSettingsSections();
   const pluginsQuery = usePluginsQuery();
-  const section = settings.frame?.sections.find((entry) => entry.section_id === sectionId) ?? null;
-  const pluginId = section?.owner.kind === "installed_plugin" ? section.owner.plugin_id : null;
+  const section = settings.frame?.sections.find((entry) => entry.sectionId === sectionId) ?? null;
+  const pluginId = section?.owner?.kind.case === "installedPluginId" ? section.owner.kind.value : null;
   const installation = !section ? pluginsQuery.data?.find((entry) => entry.name === sectionId) : null;
   /* The installation whose startup or restart this page reports: the bundle's own
      page, or the installation that runs the contributed section's program. */
@@ -72,7 +72,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
     overflow: actions,
   });
 
-  const cards = settings.frame?.cards.filter((card) => card.section_id === sectionId) ?? [];
+  const cards = settings.frame?.cards.filter((card) => card.sectionId === sectionId) ?? [];
 
   return (
     <div className="p-[var(--shell-inset)]">

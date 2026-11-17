@@ -40,31 +40,7 @@ export type OperationsSummary =
   | { kind: "single"; operation: BackendOperation }
   | { kind: "many"; count: number; longest: BackendOperation; operations: BackendOperation[] };
 
-/** The operation fields a runtime state frame carries, as generated. */
-export type OperationFrame = {
-  operationId: string;
-  label: string;
-  phase: string;
-  fraction?: number;
-  startedAt?: { seconds: bigint | number; nanos: number };
-  status?: BackendOperationStatus;
-  failure?: string;
-};
-
 /* === Public Functions === */
-
-/** The operations of one runtime state frame, in the order the backend sent. */
-export function operationsFromFrame(frames: readonly OperationFrame[] | undefined): BackendOperation[] {
-  return (frames ?? []).map((frame) => ({
-    failure: frame.failure ?? null,
-    fraction: fractionOf(frame.fraction),
-    id: frame.operationId,
-    label: frame.label,
-    phase: frame.phase,
-    startedAtMs: frame.startedAt ? Number(frame.startedAt.seconds) * 1_000 + Math.floor(frame.startedAt.nanos / 1_000_000) : null,
-    status: statusOf(frame.status),
-  }));
-}
 
 /** What the status bar shows for `operations`. */
 export function summarizeOperations(operations: readonly BackendOperation[]): OperationsSummary {
@@ -106,22 +82,6 @@ export function operationsCountLabel(count: number): string {
 }
 
 /* === Private Functions === */
-
-function fractionOf(value: number | undefined): number | null {
-  if (value === undefined || !Number.isFinite(value)) return null;
-  return Math.min(1, Math.max(0, value));
-}
-
-function statusOf(member: BackendOperationStatus | undefined): BackendOperationStatus {
-  switch (member) {
-    case "finished":
-      return "finished";
-    case "failed":
-      return "failed";
-    default:
-      return "running";
-  }
-}
 
 function longestRunning(running: readonly BackendOperation[]): BackendOperation {
   return running.reduce((longest, operation) =>

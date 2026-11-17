@@ -7,8 +7,10 @@
  * ***
  */
 
+import type { ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { JsonObject } from "../types";
-import type { ValueFormat } from "./format";
+
 import type { ContractValidationMode } from "./records";
 
 /* === Telemetry stream/spec/sample types === */
@@ -21,7 +23,7 @@ export type TelemetryColumnSpec = {
   role: "value" | "counter" | "state" | "distance" | "latency" | "throughput";
   display_unit?: string | null;
   required: boolean;
-  format?: ValueFormat | null;
+  format?: Wire<ValueFormat> | null;
 };
 
 export type TelemetryStreamSpec = {

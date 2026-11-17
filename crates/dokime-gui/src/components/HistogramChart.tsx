@@ -9,13 +9,15 @@
 
 /* === External Imports === */
 
+import type { ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { Button } from "@/components/ui/button";
 import { type ReactNode, useState } from "react";
 
 /* === Local Imports === */
 
 import { formatNumber, formatUnitLabel } from "@/lib/format";
-import type { ValueFormat } from "@/lib/types";
+
 import { HISTOGRAM_COUNT_LABEL } from "@/plots/histogram-axes";
 import { type HistogramDistribution, histogramBars } from "@/plots/histogram-bins";
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
@@ -31,7 +33,7 @@ type HistogramChartProps = {
   /** The x axis title: the binned value's label and unit. */
   xTitle?: string;
   /** How a bin edge prints; `null` keeps the plain number. */
-  format?: ValueFormat | null;
+  format?: Wire<ValueFormat> | null;
   sampleLabel?: string;
   /** Content the card holds under the chart, such as its statistics, under the one title. */
   children?: ReactNode;
@@ -137,7 +139,7 @@ function binCentre(index: number, count: number): number {
   return ((index + 0.5) / Math.max(1, count)) * 100;
 }
 
-function formatHistogramValue(value: number | undefined, unit: string, format: ValueFormat | null): string {
+function formatHistogramValue(value: number | undefined, unit: string, format: Wire<ValueFormat> | null): string {
   if (value === undefined || !Number.isFinite(value)) {
     return "-";
   }

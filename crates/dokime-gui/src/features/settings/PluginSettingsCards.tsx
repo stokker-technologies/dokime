@@ -16,11 +16,12 @@
 import { Badge } from "@/components/ui/badge";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import type { HostCardBlock, HostCardTone, RuntimeSettingsCard, RuntimeSettingsCardState } from "@/features/settings/settings-contracts";
+import * as model from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 
 /* === Types === */
 
-type PluginSettingsCardsProps = { cards: RuntimeSettingsCard[] };
+type PluginSettingsCardsProps = { cards: Wire<model.SettingsCard>[] };
 
 /* === Components === */
 
@@ -32,13 +33,13 @@ export function PluginSettingsCards({ cards }: PluginSettingsCardsProps) {
   return (
     <>
       {cards.map((card) => (
-        <PluginSettingsCard card={card} key={`${card.plugin_id}:${card.card_id}`} />
+        <PluginSettingsCard card={card} key={`${card.pluginId}:${card.cardId}`} />
       ))}
     </>
   );
 }
 
-function PluginSettingsCard({ card }: { card: RuntimeSettingsCard }) {
+function PluginSettingsCard({ card }: { card: Wire<model.SettingsCard> }) {
   const state = stateMeta(card.state);
 
   return (
@@ -53,25 +54,32 @@ function PluginSettingsCard({ card }: { card: RuntimeSettingsCard }) {
       }
       title={card.label}
     >
-      {(card.body.blocks ?? []).map((block) => (
+      {(card.body?.blocks ?? []).map((block) => (
         <HostCardBlockView block={block} key={hostCardBlockKey(block)} />
       ))}
     </SettingsCard>
   );
 }
 
-function HostCardBlockView({ block }: { block: HostCardBlock }) {
-  switch (block.type) {
+function HostCardBlockView({ block }: { block: Wire<model.HostCardBlock> }) {
+  const variant = block.kind?.kind;
+  switch (variant?.case) {
     case "text":
-      return <div className="px-4 py-2 text-sm text-muted-foreground">{block.text}</div>;
+      return <div className="px-4 py-2 text-sm text-muted-foreground">{variant.value}</div>;
     case "status": {
-      const tone = toneMeta(block.tone);
-      return <SettingsRow control={<Badge variant={tone.variant}>{tone.label}</Badge>} description={block.detail} label={block.label} />;
+      const tone = toneMeta(variant.value.tone);
+      return (
+        <SettingsRow
+          control={<Badge variant={tone.variant}>{tone.label}</Badge>}
+          description={variant.value.detail}
+          label={variant.value.label}
+        />
+      );
     }
-    case "key_value_list":
+    case "keyValueList":
       return (
         <>
-          {(block.items ?? []).map((item) => (
+          {(variant.value.items ?? []).map((item) => (
             <SettingsRow
               control={
                 <span className="min-w-0 truncate text-sm text-muted-foreground" title={item.value}>
@@ -88,7 +96,7 @@ function HostCardBlockView({ block }: { block: HostCardBlock }) {
     case "metrics":
       return (
         <div className="grid gap-3 px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">
-          {(block.items ?? []).map((item) => (
+          {(variant.value.items ?? []).map((item) => (
             <div className="min-w-0 rounded-lg border bg-muted/20 px-3 py-2" key={item.label}>
               <div className="truncate text-xs text-muted-foreground">{item.label}</div>
               <div className="mt-1 flex items-baseline gap-1">
@@ -105,44 +113,46 @@ function HostCardBlockView({ block }: { block: HostCardBlock }) {
 
 /* === Private Functions === */
 
-function stateMeta(state: RuntimeSettingsCardState): {
+function stateMeta(state: model.SettingsCardState): {
   label: string;
   variant: "secondary" | "success" | "warning" | "destructive" | "outline";
 } {
   switch (state) {
-    case "ready":
+    case model.SettingsCardState.READY:
       return { label: "Ready", variant: "success" };
-    case "disabled":
+    case model.SettingsCardState.DISABLED:
       return { label: "Disabled", variant: "secondary" };
-    case "disconnected":
+    case model.SettingsCardState.DISCONNECTED:
       return { label: "Disconnected", variant: "warning" };
-    case "stale":
+    case model.SettingsCardState.STALE:
       return { label: "Stale", variant: "warning" };
-    case "error":
+    case model.SettingsCardState.ERROR:
       return { label: "Error", variant: "destructive" };
-    case "permission_denied":
+    case model.SettingsCardState.PERMISSION_DENIED:
       return { label: "Permission Denied", variant: "destructive" };
+    default:
+      return { label: "Unknown", variant: "outline" };
   }
 }
 
-function toneMeta(tone: HostCardTone): {
+function toneMeta(tone: model.HostCardTone): {
   label: string;
   variant: "secondary" | "success" | "warning" | "destructive" | "outline";
 } {
   switch (tone) {
-    case "success":
+    case model.HostCardTone.SUCCESS:
       return { label: "OK", variant: "success" };
-    case "warning":
+    case model.HostCardTone.WARNING:
       return { label: "Warning", variant: "warning" };
-    case "danger":
+    case model.HostCardTone.DANGER:
       return { label: "Error", variant: "destructive" };
-    case "info":
+    case model.HostCardTone.INFO:
       return { label: "Info", variant: "outline" };
-    case "neutral":
+    default:
       return { label: "Status", variant: "secondary" };
   }
 }
 
-function hostCardBlockKey(block: HostCardBlock): string {
-  return `${block.type}:${JSON.stringify(block)}`;
+function hostCardBlockKey(block: Wire<model.HostCardBlock>): string {
+  return JSON.stringify(block);
 }

@@ -9,6 +9,8 @@
 
 /* === External Imports === */
 
+import type { EvidenceScope } from "@host/model";
+import { cutKey, type Wire } from "@/lib/rpc/canonical";
 import { failureOf } from "@/lib/notification-details";
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 
@@ -26,7 +28,7 @@ import {
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import { toast } from "@/lib/notifications";
 import { summaryInFlight } from "@/lib/statistics";
-import type { DocumentViewPlot, PlotPayloadStreamMessage, RecordScope } from "@/lib/types";
+import type { DocumentViewPlot, PlotPayloadStreamMessage } from "@/lib/types";
 import { applyDocumentPlotMessages, applyPendingNotice, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
@@ -57,7 +59,7 @@ export function useLivePlotPayloads({
   plots: DocumentViewPlot[];
   renderActive?: boolean;
   refresh?: PlotRefreshState;
-  scope: RecordScope | null;
+  scope: Wire<EvidenceScope> | null;
   windowS?: number | null;
 }): LivePlotStateMap {
   const pageVisible = usePageVisible();
@@ -74,30 +76,13 @@ export function useLivePlotPayloads({
   const panelWidths = useSummaryWindowStore((store) => store.widths);
   const panelHeights = useSummaryWindowStore((store) => store.heights);
   const visible = useSummaryWindowStore((store) => store.visible);
-  const scopeFields = useMemo(
-    () => ({
-      test_case_id: scope?.test_case_id ?? null,
-      criterion_id: scope?.criterion_id ?? null,
-      session_id: scope?.session_id ?? null,
-      suite_id: scope?.suite_id ?? null,
-      step_id: scope?.step_id ?? null,
-      template_id: scope?.template_id ?? null,
-      test_cycle_id: scope?.test_cycle_id ?? null,
-      test_execution_id: scope?.test_execution_id ?? null,
-    }),
-    [
-      scope?.test_case_id,
-      scope?.criterion_id,
-      scope?.session_id,
-      scope?.suite_id,
-      scope?.step_id,
-      scope?.template_id,
-      scope?.test_cycle_id,
-      scope?.test_execution_id,
-    ],
-  );
-  const scopeKey = useMemo(() => recordScopeKey(scopeFields), [scopeFields]);
-  const requestScope = useMemo(() => cloneRecordScope(scopeFields), [scopeFields]);
+  const scopeKey = cutKey(scope);
+  // Equivalent Canonical Scopes Keep Their Subscription Across Query Refreshes.
+  const scopeRef = useRef({ key: scopeKey, value: scope });
+  if (scopeRef.current.key !== scopeKey) {
+    scopeRef.current = { key: scopeKey, value: scope };
+  }
+  const requestScope = scopeRef.current.value;
   const generation = nativeSession?.identity.generation;
   const scopeWindowKey = useMemo(() => [generation, scopeKey, windowS ?? "all"].join("|"), [generation, scopeKey, windowS]);
   const dataKey = useMemo(() => [plotRequestKey, scopeWindowKey].join("|"), [plotRequestKey, scopeWindowKey]);
@@ -200,7 +185,7 @@ export function useLivePlotPayloads({
     const viewChanged = viewKeyRef.current !== scopeWindowKey;
     viewKeyRef.current = scopeWindowKey;
 
-    const testCycleId = requestScope?.test_cycle_id;
+    const testCycleId = requestScope?.cycleId;
     if (!enabled || !testCycleId || selectedPlots.length === 0 || !requestVisible) {
       for (const dispose of groupsRef.current.values()) dispose();
       groupsRef.current.clear();
@@ -522,7 +507,7 @@ export function useLivePlotPayloads({
 export function plotRequestForDocumentPlot(
   plot: DocumentViewPlot,
   options: {
-    scope: RecordScope | null;
+    scope: Wire<EvidenceScope> | null;
     windowS?: number | null;
     summaryWindow?: SummaryWindow | null;
     panelWidth?: number;
@@ -584,47 +569,6 @@ export function displayPointBudget(displayPoints: number | null | undefined): nu
 
 function documentPlotRequestKey(plot: DocumentViewPlot): string {
   return JSON.stringify({ ...plotRequestForDocumentPlot(plot, { scope: null }), maxPoints: displayPointBudget(plot.display_points) });
-}
-
-function recordScopeKey(scope: RecordScope | null): string {
-  return [
-    scope?.test_cycle_id ?? "",
-    scope?.test_execution_id ?? "",
-    scope?.test_case_id ?? "",
-    scope?.session_id ?? "",
-    scope?.suite_id ?? "",
-    scope?.template_id ?? "",
-    scope?.step_id ?? "",
-    scope?.criterion_id ?? "",
-  ].join(":");
-}
-
-function cloneRecordScope(scope: RecordScope | null): RecordScope | null {
-  if (!scope) {
-    return null;
-  }
-  if (
-    !scope.test_cycle_id &&
-    !scope.test_execution_id &&
-    !scope.test_case_id &&
-    !scope.session_id &&
-    !scope.suite_id &&
-    !scope.template_id &&
-    !scope.step_id &&
-    !scope.criterion_id
-  ) {
-    return null;
-  }
-  return {
-    test_cycle_id: scope.test_cycle_id ?? null,
-    test_execution_id: scope.test_execution_id ?? null,
-    test_case_id: scope.test_case_id ?? null,
-    session_id: scope.session_id ?? null,
-    suite_id: scope.suite_id ?? null,
-    template_id: scope.template_id ?? null,
-    step_id: scope.step_id ?? null,
-    criterion_id: scope.criterion_id ?? null,
-  };
 }
 
 function isAbortError(value: unknown): boolean {

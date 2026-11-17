@@ -9,21 +9,8 @@
 
 import type { JsonObject } from "../types";
 import type { CycleSummaryDefinition } from "./cycle-summary";
-
-type ExecutionControls = {
-  requestId?: string;
-  paused: boolean;
-  stopRequested: boolean;
-  canStart: boolean;
-  canRerun: boolean;
-  canCancel: boolean;
-  canInspect: boolean;
-  canExport: boolean;
-  canPause: boolean;
-  canResume: boolean;
-  canStop: boolean;
-  mode: "automatic" | "interactive" | null;
-};
+import type { ExecutionControls } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 
 /* === Test-domain types ===
    Authoring (Parameter/Step/Measurement/.../FileDefinition + TestCase/TestSuiteEntry),
@@ -311,7 +298,7 @@ export type TestExecution = {
   archived?: boolean;
   /** The execution report is sealed, so its case label no longer changes. */
   sealed?: boolean;
-  controls?: ExecutionControls | null;
+  controls?: Wire<ExecutionControls> | null;
   test_execution_id: string;
   test_cycle_id: string;
   queue_item_id: string;

@@ -11,6 +11,7 @@
 
 /* === External Imports === */
 
+import type { EvidenceScope } from "@host/model";
 import { type createFileRegistry, fromBinary, ScalarType } from "@bufbuild/protobuf";
 import { FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
 import { reflect, isReflectMessage, isReflectList, isReflectMap, type ReflectMessage } from "@bufbuild/protobuf/reflect";
@@ -21,7 +22,7 @@ import { LogsAppendRequestSchema } from "@host/model";
 
 /* === Local Imports === */
 
-import { nativeEvidenceScope, nativeRecordScope, recordScopeFromNative } from "@/lib/host/values";
+import { nativeRecordScope } from "@/lib/host/values";
 import { fallbackRecordDisplay } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
@@ -29,7 +30,7 @@ import * as rpc from "@/lib/host/client";
 type Cursor = NonNullable<RecordPage["resolvedAt"]>;
 
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import type { HubRecord, RecordScope, JsonObject } from "@/lib/types";
+import type { HubRecord, JsonObject } from "@/lib/types";
 import { mapBounded, NativeIntegerValue, NativeNumberValue, NativeApiLimitError, safeNumber, timestampIso } from "./native-values";
 
 /* === Canonical Types === */
@@ -59,7 +60,7 @@ export type RecordTail = { records: HubRecord[]; cursor: Cursor | null };
  * The server scans the replay itself and returns the tail with the frontier
  * it read through; `openNativeRecordStream` continues from that cursor.
  */
-export async function fetchNativeRecordTail(session: SessionIdentity, scope: RecordScope | null): Promise<RecordTail> {
+export async function fetchNativeRecordTail(session: SessionIdentity, scope: Wire<EvidenceScope> | null): Promise<RecordTail> {
   let pageToken = "";
   let at: Cursor | undefined;
   const records: CapturedRecord[] = [];
@@ -67,7 +68,7 @@ export async function fetchNativeRecordTail(session: SessionIdentity, scope: Rec
   for (let index = 0; index < 4096; index++) {
     const reply = await rpc.evidenceRecordsList(session, {
       scope: nativeRecordScope(scope),
-      selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
+      selection: { scope: scope ?? undefined, recordTypes: [], sources: [], severities: [] },
       at,
       page: { pageSize: RECORD_TAIL, pageToken },
     });
@@ -111,12 +112,12 @@ export interface NativeEvidenceSession extends SessionIdentity {
  */
 export async function openNativeRecordStream(
   session: NativeEvidenceSession,
-  scope: RecordScope | null,
+  scope: Wire<EvidenceScope> | null,
   after?: Cursor | null,
 ): Promise<NativeStream<{ records: HubRecord[]; cursor: Cursor | null }>> {
   const reader = await rpc.evidenceRecordsWatch(session, {
     scope: nativeRecordScope(scope),
-    selection: { scope: nativeEvidenceScope(scope), recordTypes: [], sources: [], severities: [] },
+    selection: { scope: scope ?? undefined, recordTypes: [], sources: [], severities: [] },
     at: after ?? undefined,
   });
   let settled = false;
@@ -204,7 +205,7 @@ function mapNativeRecord(record: CapturedRecord, details: JsonObject): HubRecord
     related_sample_id: record.relatedSampleId ?? null,
     related_stream: record.relatedStreamId ?? null,
     related_artifact_id: record.relatedArtifactId ?? null,
-    scope: recordScopeFromNative(record.scope),
+    scope: record.scope ?? null,
   };
 }
 

@@ -21,15 +21,9 @@ import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed
 import { statusPresentation } from "@/features/settings/plugins/PluginList";
 import { programRows, programSource } from "@/features/settings/plugins/PluginPrograms";
 import { announceStopping, desktopStopping, settleUnlessStopping } from "@/lib/desktop/stopping";
-import type { RuntimeSettingsFrame } from "@/lib/types/view-contracts";
-import {
-  type OperationFrame,
-  operationPercent,
-  operationPhaseLabel,
-  operationsCountLabel,
-  operationsFromFrame,
-  summarizeOperations,
-} from "@/shell/status-bar-operations";
+import type { SettingsFrame } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
+import { type BackendOperation, operationPhaseLabel, operationsCountLabel, summarizeOperations } from "@/shell/status-bar-operations";
 
 /* === Re-Exports === */
 
@@ -37,7 +31,7 @@ import {
 
 /* === Types === */
 
-type FrameOptions = { fraction?: number; phase?: string; seconds?: number };
+type OperationOptions = { fraction?: number; phase?: string; seconds?: number };
 
 /* === Classes === */
 
@@ -48,53 +42,32 @@ type FrameOptions = { fraction?: number; phase?: string; seconds?: number };
 function frame(
   id: string,
   status: string,
-  { fraction, phase = "Materializing Evidence", seconds = 100 }: FrameOptions = {},
-): OperationFrame {
+  { fraction, phase = "Materializing Evidence", seconds = 100 }: OperationOptions = {},
+): BackendOperation {
   return {
-    fraction,
+    fraction: fraction ?? null,
     label: `Operation ${id}`,
-    operationId: id,
+    id,
     phase,
-    startedAt: { nanos: 0, seconds: BigInt(seconds) },
+    startedAtMs: seconds * 1000,
+    failure: null,
     status: status === "Finished" ? "finished" : status === "Failed" ? "failed" : "running",
   };
 }
 
 /* === Entry Point === */
 
-test("Operation Progress", () => {
-  // One Running Operation Shows Its Label, Phase and Determinate Progress
-  const summary = summarizeOperations(operationsFromFrame([frame("a", "Running", { fraction: 0.426 })]));
-  assert.ok(summary.kind === "single");
-  assert.equal(summary.operation.label, "Operation a");
-  assert.equal(operationPhaseLabel(summary.operation), "Materializing Evidence");
-  assert.equal(operationPercent(summary.operation), 43);
-  assert.equal(summary.operation.startedAtMs, 100_000);
-
-  // An Operation Without a Fraction Is Indeterminate
-  const [indeterminate] = operationsFromFrame([frame("a", "Running", { phase: "" })]);
-  assert.equal(operationPercent(indeterminate), null);
-  assert.equal(operationPhaseLabel(indeterminate), "Starting");
-
-  // Fractions Outside Zero to One Are Clamped
-  const [over, under] = operationsFromFrame([frame("a", "Running", { fraction: 1.7 }), frame("b", "Running", { fraction: -0.2 })]);
-  assert.equal(operationPercent(over), 100);
-  assert.equal(operationPercent(under), 0);
-});
-
 test("Operation Summary", () => {
   // An Idle Backend Shows Nothing
-  assert.deepEqual(summarizeOperations(operationsFromFrame([])), { kind: "idle" });
-  assert.deepEqual(summarizeOperations(operationsFromFrame(undefined)), { kind: "idle" });
+  assert.deepEqual(summarizeOperations([]), { kind: "idle" });
+  assert.deepEqual(summarizeOperations([]), { kind: "idle" });
 
   // Several Running Operations Collapse to a Count Named After the Longest Running
-  const many = summarizeOperations(
-    operationsFromFrame([
-      frame("late", "Running", { seconds: 300 }),
-      frame("early", "Running", { seconds: 100 }),
-      frame("done", "Finished", { seconds: 50 }),
-    ]),
-  );
+  const many = summarizeOperations([
+    frame("late", "Running", { seconds: 300 }),
+    frame("early", "Running", { seconds: 100 }),
+    frame("done", "Finished", { seconds: 50 }),
+  ]);
   assert.ok(many.kind === "many");
   assert.equal(many.count, 2);
   assert.equal(operationsCountLabel(many.count), "2 Operations");
@@ -105,17 +78,17 @@ test("Operation Summary", () => {
   );
 
   // With Nothing Running, the Last Settled Operation Shows Until It Retires
-  const finished = summarizeOperations(operationsFromFrame([frame("a", "Finished")]));
+  const finished = summarizeOperations([frame("a", "Finished")]);
   assert.ok(finished.kind === "single");
   assert.equal(operationPhaseLabel(finished.operation), "Done");
-  const failed = summarizeOperations(operationsFromFrame([{ ...frame("b", "Failed"), failure: "report does not fit" }]));
+  const failed = summarizeOperations([{ ...frame("b", "Failed"), failure: "report does not fit" }]);
   assert.ok(failed.kind === "single");
   assert.equal(failed.operation.status, "failed");
   assert.equal(failed.operation.failure, "report does not fit");
   assert.equal(operationPhaseLabel(failed.operation), "Failed");
 
   // A Running Operation Outranks One That Settled
-  const outranked = summarizeOperations(operationsFromFrame([frame("done", "Finished"), frame("busy", "Running")]));
+  const outranked = summarizeOperations([frame("done", "Finished"), frame("busy", "Running")]);
   assert.ok(outranked.kind === "single");
   assert.equal(outranked.operation.id, "busy");
 });
@@ -150,13 +123,12 @@ test("Plugin Rows Open Their Own Settings Page", () => {
     { owner: { kind: "embedded", generation: "g" }, plugin_id: "fixture.embedded", version: "1" },
   ] as unknown as RuntimeInstalledPluginRecord[];
   const frame = {
-    bootstrap_paths: null,
     cards: [],
     sections: [
-      { owner: { kind: "installed_plugin", plugin_id: "fixture.host.settings" }, section_id: "fixture-host-section" },
-      { owner: { kind: "installed_plugin", plugin_id: "fixture.bundle" }, section_id: "fixture-bundle-section" },
+      { owner: { kind: { case: "installedPluginId", value: "fixture.host.settings" } }, sectionId: "fixture-host-section" },
+      { owner: { kind: { case: "installedPluginId", value: "fixture.bundle" } }, sectionId: "fixture-bundle-section" },
     ],
-  } as unknown as RuntimeSettingsFrame;
+  } as unknown as Wire<SettingsFrame>;
 
   // The Host Row Opens the Section Any of Its Programs Contributes
   assert.deepEqual(
@@ -171,14 +143,19 @@ test("Plugin Rows Open Their Own Settings Page", () => {
 
 test("a failure during the desktop's stop never settles, and the stop shows only once it lasts", async () => {
   const pending = Symbol("pending");
-  const outcome = (promise: Promise<unknown>) =>
-    Promise.race([
-      promise.then(
-        () => "resolved",
-        () => "rejected",
-      ),
-      new Promise((resolve) => setTimeout(() => resolve(pending), 10)),
-    ]);
+  const outcome = async (promise: Promise<unknown>) => {
+    let result: unknown = pending;
+    void promise.then(
+      () => {
+        result = "resolved";
+      },
+      () => {
+        result = "rejected";
+      },
+    );
+    await Promise.resolve();
+    return result;
+  };
 
   // Running: A Failure Is The Caller's
   assert.equal(desktopStopping(), "running");

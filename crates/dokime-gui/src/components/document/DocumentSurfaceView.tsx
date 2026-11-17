@@ -15,6 +15,8 @@
 
 /* === External Imports === */
 
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { type ReactNode, useContext } from "react";
 
 /* === Local Imports === */
@@ -44,7 +46,6 @@ import type {
   HubRecord,
   OperatorNote,
   PlotPayload,
-  RecordScope,
   StepExecutionRecord,
   TelemetryStream,
   TraceabilitySnapshot,
@@ -78,9 +79,9 @@ type DocumentSurfaceSharedProps = {
 
 type LiveDocumentSurfaceProps = DocumentSurfaceSharedProps & {
   /** The execution scope host captures attach to; absent hides the controls. */
-  captureScope?: RecordScope | null;
+  captureScope?: Wire<EvidenceScope> | null;
   /** The unsealed cycle or execution a new operator note is filed against. */
-  noteScope?: RecordScope | null;
+  noteScope?: Wire<EvidenceScope> | null;
   livePlotStates: LivePlotStateMap;
   onPlotSettingsChange?: PlotSettingsChange;
   plotContextTelemetry: Record<string, TelemetryStream> | null;

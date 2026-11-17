@@ -4,6 +4,8 @@
 - [x] 2.4 Read settings on demand through typed host operations rather than start-time injection.
 - [x] 2.5 Implement Rust execution-context typed set/get resources and remove the retired template Own model.
 - [x] 2.8 Make protocol messages authoritative and remove the product domain/wire mirrors; generate host service declarations and four-language client roots.
+- [x] 2.8.1 Adopt generated frontend settings cards/sections, execution controls, evidence scopes, plot grids/diagnostics/domains and value formats; remove their copying adapters and the unused DocumentCard, buildText and OperationFrame paths.
+- [ ] 2.8.2 Resolve direct host HTML versus retained React report rendering ownership, then replace the remaining frontend document/plot serialization families and copying adapters; keep only presentation state composed with generated contracts and prove the complete GUI candidate.
 - [x] 2.9 Freeze PluginRun/Import Origin, reserve retired TestCase fields and migrate planning, persistence, SDK invocation envelopes and report/client projections.
 - [x] 3.0.6 Switch CLI/desktop to the execution host and remove retired domain/client/server crates and candidate package suffixes.
 - [x] 3.2 Materialize case-owned steps, criteria and streams for expanded parameters, retaining provider digest and process identity.

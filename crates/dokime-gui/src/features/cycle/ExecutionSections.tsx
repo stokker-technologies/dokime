@@ -22,6 +22,8 @@
 
 /* === External Imports === */
 
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { useMemo } from "react";
 
 /* === Local Imports === */
@@ -31,7 +33,7 @@ import { OperatorNotesContent } from "@/components/document/OperatorNotesContent
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery } from "@/components/MediaGallery";
 import { useTestSuitesQuery } from "@/components/suite-picker/server-state";
-import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan, TestExecution } from "@/lib/types";
+import type { HubLiveState, PromptRequest, TestCyclePlan, TestExecution } from "@/lib/types";
 import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { DocumentPagination } from "./DocumentPagination";
@@ -88,14 +90,14 @@ export function ExecutionSections({
     ? suitesQuery.data.some((suite) => suite.members.some((template) => template.template_id === row.case.templateId))
     : undefined;
   const started = row.execution && !isUnstartedExecution(row.execution.status) ? row.execution : null;
-  const scope = useMemo<RecordScope>(
+  const scope = useMemo<Wire<EvidenceScope>>(
     () =>
       started
         ? {
-            test_cycle_id: cycleId,
-            test_execution_id: started.test_execution_id,
+            cycleId: cycleId,
+            executionId: started.test_execution_id,
           }
-        : { test_cycle_id: cycleId, test_case_id: row.case.caseId },
+        : { cycleId: cycleId, caseId: row.case.caseId },
     [started, cycleId, row.case.caseId],
   );
 
@@ -122,7 +124,7 @@ export function ExecutionSections({
 
   const executionId = row.execution?.test_execution_id ?? null;
   const pagePrompts = executionPagePrompts(prompts, executionId);
-  const liveScope = live && scope.test_execution_id ? scope : null;
+  const liveScope = live && scope.executionId ? scope : null;
   const pane = evidencePaneState({
     hasDocument: document !== null,
     error: documentQuery.error,

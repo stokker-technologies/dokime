@@ -1,3 +1,5 @@
+import { ElapsedUnit, type ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 /* ***
  *
  * Dokime
@@ -8,8 +10,6 @@
  */
 
 /* === Local Imports === */
-
-import type { ValueFormat } from "@/lib/types";
 
 /* === Types === */
 
@@ -167,25 +167,26 @@ export function durationParts(seconds: number): DurationParts {
  * time-kind format reaching here (a mismatched or stale caller) falls back the
  * same way, so a renderer never throws over a format it cannot use.
  */
-export function formatNumber(value: number, format: ValueFormat | null, options?: NumberFormatOptions): string {
+export function formatNumber(value: number, format: Wire<ValueFormat> | null, options?: NumberFormatOptions): string {
   if (!Number.isFinite(value)) {
     return "";
   }
-  switch (format?.kind) {
+  const kind = format?.kind?.kind;
+  switch (kind?.case) {
     case undefined:
       return defaultPlotNumber(value, options?.increment);
     case "normal":
-      return format.max_fraction_digits == null
+      return kind.value.maxFractionDigits == null
         ? defaultPlotNumber(value, options?.increment)
-        : value.toLocaleString(undefined, { maximumFractionDigits: format.max_fraction_digits });
+        : value.toLocaleString(undefined, { maximumFractionDigits: kind.value.maxFractionDigits });
     case "fixed":
-      return value.toFixed(format.decimals);
+      return value.toFixed(kind.value.decimals);
     case "scientific":
-      return value.toExponential(format.significant_digits - 1);
+      return value.toExponential(kind.value.significantDigits - 1);
     case "engineering":
-      return engineeringText(value, format.significant_digits);
-    case "si_prefix": {
-      const { mantissaText, prefix } = siPrefixParts(value, format.significant_digits);
+      return engineeringText(value, kind.value.significantDigits);
+    case "siPrefix": {
+      const { mantissaText, prefix } = siPrefixParts(value, kind.value.significantDigits);
       return prefix ? `${mantissaText}${prefix}` : mantissaText;
     }
     default:
@@ -202,17 +203,18 @@ export function formatNumber(value: number, format: ValueFormat | null, options?
  * documented fallback (the payload's `run_started_at`/`cycle_started_at`, or
  * else the first point of the first series) before calling this.
  */
-export function formatTime(epochSeconds: number, format: ValueFormat | null, origin: TimeFormatOrigin): string {
+export function formatTime(epochSeconds: number, format: Wire<ValueFormat> | null, origin: TimeFormatOrigin): string {
   if (!Number.isFinite(epochSeconds)) {
     return "";
   }
-  if (format?.kind === "absolute_time") {
-    return applyTimePattern(new Date(epochSeconds * 1000), format.pattern);
+  const kind = format?.kind?.kind;
+  if (kind?.case === "absoluteTime") {
+    return applyTimePattern(new Date(epochSeconds * 1000), kind.value.pattern);
   }
-  if (format?.kind === "elapsed_since_run" || format?.kind === "elapsed_since_cycle") {
-    const originSeconds = format.kind === "elapsed_since_run" ? origin.runStart : origin.cycleStart;
+  if (kind?.case === "elapsedSinceRun" || kind?.case === "elapsedSinceCycle") {
+    const originSeconds = kind.case === "elapsedSinceRun" ? origin.runStart : origin.cycleStart;
     const elapsedSeconds = Number.isFinite(originSeconds) ? epochSeconds - (originSeconds as number) : 0;
-    return elapsedText(elapsedSeconds, format.unit);
+    return elapsedText(elapsedSeconds, kind.value.unit);
   }
   return new Date(epochSeconds * 1000).toLocaleString();
 }
@@ -320,11 +322,11 @@ function significant(value: number): number {
 }
 
 /** Elapsed seconds since the format's origin, rendered with the declared unit. */
-function elapsedText(elapsedSeconds: number, unit: "seconds" | "milliseconds" | "minutes"): string {
-  if (unit === "milliseconds") {
+function elapsedText(elapsedSeconds: number, unit: ElapsedUnit): string {
+  if (unit === ElapsedUnit.MILLISECONDS) {
     return `${Math.round(elapsedSeconds * 1000)}ms`;
   }
-  if (unit === "minutes") {
+  if (unit === ElapsedUnit.MINUTES) {
     return `${(elapsedSeconds / 60).toFixed(1)}m`;
   }
   return `${elapsedSeconds.toFixed(1)}s`;

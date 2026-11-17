@@ -1,3 +1,4 @@
+import * as lucideReactModule from "lucide-react";
 import { toast } from "@/lib/notifications";
 /* ***
  *
@@ -18,18 +19,7 @@ import { toast } from "@/lib/notifications";
 
 import type { NotificationFailure } from "@/lib/notification-details";
 import { failureOf } from "@/lib/notification-details";
-import {
-  Boxes,
-  ChevronDown,
-  ChevronRight,
-  Download,
-  FileAudio,
-  FileText,
-  FileVideo,
-  Folder,
-  FolderOpen,
-  Image as ImageIcon,
-} from "lucide-react";
+import { Boxes, ChevronDown, ChevronRight, Download, FileAudio, FileText, FileVideo, Folder, FolderOpen } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 /* === Local Imports === */
@@ -337,7 +327,7 @@ function ArtifactFile({
      row stays a link rather than offering a viewer that cannot read. */
   const previewText = nativePreviewEnabled && isPreviewableTextArtifact(artifact);
   const nativeTransfer =
-    !primaryHref && (artifact.group_id !== "execution-files" || Boolean(artifact.scope?.test_execution_id?.trim() && artifact.path.trim()));
+    !primaryHref && (artifact.group_id !== "execution-files" || Boolean(artifact.scope?.executionId?.trim() && artifact.path.trim()));
   const title = [artifact.fileName, fileLabel, artifact.description, artifact.displayPath, details].filter(Boolean).join("\n");
 
   return (
@@ -424,7 +414,7 @@ function ArtifactFile({
 function ArtifactIcon({ mediaType }: { mediaType?: string | null }) {
   const normalized = mediaType?.toLowerCase() ?? "";
   if (normalized.startsWith("image/")) {
-    return <ImageIcon className="shrink-0" size={16} />;
+    return <lucideReactModule.Image className="shrink-0" size={16} />;
   }
   if (normalized.startsWith("video/")) {
     return <FileVideo className="shrink-0" size={16} />;

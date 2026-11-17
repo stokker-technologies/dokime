@@ -7,8 +7,11 @@
  * ***
  */
 
-import type { JsonObject, RecordScope } from "../types";
-import type { ValueFormat } from "./format";
+import type { ValueFormat } from "@host/model";
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { JsonObject } from "../types";
+
 import type { TelemetryContractSpec } from "./telemetry";
 
 /* === Record / notification / prompt / contract types === */
@@ -67,7 +70,7 @@ export type HubRecord = {
   related_sample_id?: string | null;
   related_stream?: string | null;
   related_artifact_id?: string | null;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type ContractFieldSpec = {
@@ -79,7 +82,7 @@ export type ContractFieldSpec = {
   description?: string | null;
   choices: string[];
   default?: unknown;
-  format?: ValueFormat | null;
+  format?: Wire<ValueFormat> | null;
 };
 
 export type RecordTypeSpec = {
@@ -129,7 +132,7 @@ export type PromptResponse = {
   values: JsonObject;
   source: PromptResponseSource;
   responded_at: string;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type RecordVerificationCondition = {
@@ -177,7 +180,7 @@ export type PromptRequest = {
   expires_at?: string | null;
   answered_at?: string | null;
   created_at: string;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type PromptTypeSpec = {

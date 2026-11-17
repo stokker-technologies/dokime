@@ -9,9 +9,11 @@
 
 /* === Local Imports === */
 
+import type { ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { formatNumber, formatTime, type TimeFormatOrigin } from "@/lib/format";
 import { isDatetimeValue } from "@/lib/record-display";
-import type { ValueFormat } from "@/lib/types";
+
 import { numericValue } from "@/lib/utils";
 
 // The default numeric axis/legend rule now lives beside the declared-format
@@ -79,7 +81,7 @@ const MAX_CLOCK_FRACTION_DIGITS = 3;
 /** How a plot's x axis prints, and what one pixel of it spans. */
 export type CursorXAxis = {
   timeAxis: boolean;
-  xFormat: ValueFormat | null;
+  xFormat: Wire<ValueFormat> | null;
   xElapsedUnit: string | null;
   origin: TimeFormatOrigin;
   /** The visible x span, in the axis's own units. */

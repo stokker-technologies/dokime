@@ -1,3 +1,4 @@
+import type { EvidenceScope } from "@host/model";
 /* ***
  *
  * Dokime
@@ -19,7 +20,7 @@ import { PromptKind } from "@host/model";
 import { PromptFieldKind, PromptActionEmphasis } from "@host/model";
 import { StreamMatchOperator, type EvidenceCondition } from "@host/model";
 import { Severity } from "@host/model";
-import { recordScopeFromNative, jsonToNativeValue, nativeValuesToJson, nativeValueToJson, valueTypeName } from "@/lib/host/values";
+import { jsonToNativeValue, nativeValuesToJson, nativeValueToJson, valueTypeName } from "@/lib/host/values";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, PromptRequest } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
@@ -113,7 +114,7 @@ function mapNativePrompt(prompt: PromptInstance, response?: NativePromptResponse
     expires_at: null,
     answered_at: response ? timestampIso(response.submittedAt) : null,
     created_at: createdAt,
-    scope: recordScopeFromNative(prompt.scope),
+    scope: prompt.scope ?? null,
   };
 }
 
@@ -186,10 +187,7 @@ function mapActionEmphasis(emphasis: PromptActionEmphasis): "primary" | "seconda
   return emphasis === PromptActionEmphasis.DANGER ? "danger" : emphasis === PromptActionEmphasis.SECONDARY ? "secondary" : "primary";
 }
 
-function mapPromptResponse(
-  response: NativePromptResponse,
-  scope?: Parameters<typeof recordScopeFromNative>[0],
-): NonNullable<PromptRequest["response"]> {
+function mapPromptResponse(response: NativePromptResponse, scope?: Wire<EvidenceScope>): NonNullable<PromptRequest["response"]> {
   const respondedAt = timestampIso(response.submittedAt);
   if (!respondedAt) throw new Error(`Native prompt ${response.promptId} has no response timestamp.`);
   return {
@@ -198,7 +196,7 @@ function mapPromptResponse(
     values: nativeValuesToJson(response.values?.values),
     source: mapResponseSource(response.responder),
     responded_at: respondedAt,
-    scope: recordScopeFromNative(scope),
+    scope: scope ?? null,
   };
 }
 

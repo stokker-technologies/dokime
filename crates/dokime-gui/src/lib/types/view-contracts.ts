@@ -6,7 +6,9 @@
  * server API types.
  */
 
-import type { ValueFormat } from "./format";
+import type { ValueFormat } from "@host/model";
+import type { PlotDomain, PlotPayloadDiagnostics } from "@host/model";
+
 import type { Origin, ExecutionOutcome } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
 
@@ -146,31 +148,6 @@ export type ExecutionStatus =
   | "cancelled"
   | "interrupted";
 
-export type HostCardBlock =
-  | { type: "text"; text: string }
-  | { type: "status"; label: string; tone: HostCardTone; detail?: string | null }
-  | { type: "key_value_list"; items?: HostCardKeyValue[] }
-  | { type: "metrics"; items?: HostCardMetric[] };
-
-export type HostCardBody = {
-  blocks?: HostCardBlock[];
-};
-
-export type HostCardKeyValue = {
-  label: string;
-  value: string;
-  detail?: string | null;
-};
-
-export type HostCardMetric = {
-  label: string;
-  value: string;
-  unit?: string | null;
-  trend?: string | null;
-};
-
-export type HostCardTone = "neutral" | "info" | "success" | "warning" | "danger";
-
 export type Identifier = string;
 
 export type MultipleChoice = {
@@ -210,8 +187,8 @@ export type Path = {
 export type PlotCartesianFrame = {
   mode: PlotCartesianMode;
   series: PlotCartesianSeriesFrame[];
-  x_domain: PlotDomain | null;
-  y_domain: PlotDomain | null;
+  x_domain: Wire<PlotDomain> | null;
+  y_domain: Wire<PlotDomain> | null;
   point_count: number;
   signature: string;
 };
@@ -223,25 +200,11 @@ export type PlotCartesianSeriesFrame = {
   y: (number | null)[];
 };
 
-export type PlotDomain = {
-  min: number | null;
-  max: number | null;
-};
-
 export type PlotMarker = {
   x: Value;
   label: string;
   record_type: string;
   color: string;
-};
-
-export type PlotPayloadDiagnostics = {
-  series_count: number;
-  point_count: number;
-  raw_point_count: number;
-  downsampled: boolean;
-  max_points: number;
-  window_s: number | null;
 };
 
 export type PlotPayloadEnvelope_Serialize = {
@@ -250,7 +213,7 @@ export type PlotPayloadEnvelope_Serialize = {
   epoch: string;
   selection: string;
   payload: PlotPayload_Serialize;
-  diagnostics: PlotPayloadDiagnostics;
+  diagnostics: Wire<PlotPayloadDiagnostics>;
   warnings: string[];
 };
 
@@ -268,7 +231,7 @@ export type PlotPayload_Serialize = {
   window_s: number | null;
   generated_at: string;
   /** The resolved winner of the x-axis format precedence chain; `null` when none applies. */
-  x_format?: ValueFormat | null;
+  x_format?: Wire<ValueFormat> | null;
   run_started_at?: string | null;
   cycle_started_at?: string | null;
 };
@@ -287,19 +250,7 @@ export type PlotSeries_Serialize = {
   raw_points: number;
   downsampled: boolean;
   /** The resolved winner of the y-axis format precedence chain; `null` when none applies. */
-  format?: ValueFormat | null;
-};
-
-export type RecordScope = {
-  origin?: { kind: "default" | "initialization" | "cleanup" } | { kind: "step_attempt"; attemptId: string };
-  session_id?: SessionId | null;
-  test_cycle_id?: TestCycleId | null;
-  test_case_id?: CaseId | null;
-  test_execution_id?: TestExecutionId | null;
-  step_id?: StepId | null;
-  criterion_id?: CriterionId | null;
-  template_id?: TemplateId | null;
-  suite_id?: SuiteId | null;
+  format?: Wire<ValueFormat> | null;
 };
 
 export type SecretAvailability = { identifier: string; available: boolean };
@@ -341,36 +292,6 @@ export type RuntimePluginSettings = {
   secrets: SecretAvailability[];
 };
 
-export type RuntimeSettingsCard = {
-  plugin_id: Identifier;
-  card_id: Identifier;
-  section_id: Identifier;
-  label: string;
-  description?: string | null;
-  body: HostCardBody;
-  refresh?: SettingsCardRefreshPolicy;
-  state: RuntimeSettingsCardState;
-  order: number;
-};
-
-export type RuntimeSettingsCardState = "ready" | "disabled" | "disconnected" | "stale" | "error" | "permission_denied";
-
-export type RuntimeSettingsFrame = {
-  bootstrap_paths: { application: string; storage: string; plugins: string; logs: string } | null;
-  sections: RuntimeSettingsSection[];
-  cards: RuntimeSettingsCard[];
-};
-
-export type RuntimeSettingsSection = {
-  section_id: Identifier;
-  label: string;
-  description?: string | null;
-  owner: RuntimeSettingsSectionOwner;
-  order: number;
-};
-
-export type RuntimeSettingsSectionOwner = { kind: "app" } | { kind: "installed_plugin"; plugin_id: Identifier };
-
 export type RuntimeThemeFamily = {
   plugin_id: Identifier;
   theme_id: Identifier;
@@ -395,8 +316,6 @@ export type SessionId = string;
 export type Settings = {
   contributions?: SettingsEntry[];
 };
-
-export type SettingsCardRefreshPolicy = { kind: "manual" } | { kind: "cached"; max_age_ms: number } | { kind: "on_demand" };
 
 export type SettingsEntry =
   | ({

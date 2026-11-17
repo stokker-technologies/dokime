@@ -95,9 +95,9 @@ export function GridChartPlot({ plot }: { plot: PlotCardSpec }) {
           ))}
         </TableBody>
       </Table>
-      {shown.summary_label ? (
+      {shown.summaryLabel ? (
         <output className="text-xs text-muted-foreground">
-          {formatUnitLabel(shown.summary_label, plot.unit)}:{" "}
+          {formatUnitLabel(shown.summaryLabel, plot.unit)}:{" "}
           {formatNumber(
             values.reduce((sum, value) => sum + value, 0),
             plot.yFormat ?? null,

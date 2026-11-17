@@ -100,7 +100,7 @@ export function cycleRows(cycles: CycleSummary[], attentionByCycleId: ReadonlyMa
 export function promptCountsByCycle(prompts: readonly PromptRequest[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const prompt of prompts) {
-    const cycleId = prompt.scope?.test_cycle_id;
+    const cycleId = prompt.scope?.cycleId;
     if (cycleId) counts.set(cycleId, (counts.get(cycleId) ?? 0) + 1);
   }
   return counts;

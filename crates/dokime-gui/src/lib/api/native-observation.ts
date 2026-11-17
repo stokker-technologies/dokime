@@ -11,20 +11,20 @@
 
 /* === Local Imports === */
 
+import type { EvidenceScope } from "@host/model";
 import { defaultBrand } from "@/lib/brand";
 import { required, type Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import { CycleStatus } from "@host/model";
 import { ResultStatus } from "@host/model";
-import type { EvidenceScope as HostEvidenceScope } from "@host/model";
-import { nativeValueToJson, nativeEvidenceScope, recordScopeFromNative } from "@/lib/host/values";
+import { nativeValueToJson } from "@/lib/host/values";
 export type RuntimeStateFrame = Wire<
   Awaited<ReturnType<typeof rpc.backendOverviewWatch>> extends NativeStream<infer Frame> ? Frame : never
 >;
 
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import { traceabilitySnapshotFromItems } from "@/lib/traceability";
-import type { ExecutionResultSummary, HubLiveState, RecordScope, RunStatus, TraceabilitySnapshot } from "@/lib/types";
+import type { ExecutionResultSummary, HubLiveState, RunStatus, TraceabilitySnapshot } from "@/lib/types";
 import { listNativeCycles } from "./native-planning";
 import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, nowIso, safeNumber, timestampIso } from "./native-values";
 
@@ -37,7 +37,6 @@ interface ExecutionProgressFrame {
 }
 type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>["snapshots"][number]>;
 type TraceabilityCut = Wire<NonNullable<Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>["resolvedAt"]>>;
-type EvidenceScope = Wire<HostEvidenceScope>;
 
 /* === Runtime shell === */
 
@@ -88,7 +87,7 @@ export function mapRuntimeShell(snapshots: readonly RuntimeShellSnapshot[], cycl
     pending_prompts: [],
     notes: [],
     health: [],
-    result_summary: cycle?.result ? mapResult(cycle.result, { test_cycle_id: cycle.cycleId }) : null,
+    result_summary: cycle?.result ? mapResult(cycle.result, { cycleId: cycle.cycleId }) : null,
     traceability: null,
     artifacts: [],
     installed_plugins: [],
@@ -100,9 +99,9 @@ export function mapRuntimeShell(snapshots: readonly RuntimeShellSnapshot[], cycl
 type TraceabilityResponse = Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>;
 
 /** Read ordered traceability snapshots at one generation-bound, scoped read cut. */
-export async function fetchNativeTraceability(session: SessionIdentity, scope?: RecordScope | null): Promise<TraceabilitySnapshot> {
+export async function fetchNativeTraceability(session: SessionIdentity, scope?: Wire<EvidenceScope> | null): Promise<TraceabilitySnapshot> {
   const operation = "Traceability.Get";
-  const requestedScope = nativeEvidenceScope(scope);
+  const requestedScope = scope ?? undefined;
   const items: NativeTraceabilitySnapshot[] = [];
   const tokens = new Set<string>();
   let pageToken = "";
@@ -139,7 +138,7 @@ export async function fetchNativeTraceability(session: SessionIdentity, scope?: 
 function validateTraceabilityResponse(
   response: TraceabilityResponse,
   expectedCut: TraceabilityCut | undefined,
-  requestedScope: EvidenceScope | undefined,
+  requestedScope: Wire<EvidenceScope> | undefined,
   previous: NativeTraceabilitySnapshot | undefined,
   operation: string,
 ): void {
@@ -213,17 +212,19 @@ function sameTraceabilityCut(left: TraceabilityCut, right: TraceabilityCut): boo
   );
 }
 
-function matchesTraceabilityScope(wanted: EvidenceScope | undefined, actual: EvidenceScope): boolean {
+function matchesTraceabilityScope(wanted: Wire<EvidenceScope> | undefined, actual: Wire<EvidenceScope>): boolean {
   if (!wanted) return true;
   // The Host Validates the Runtime Epoch; Snapshot Scopes Carry Durable Attribution.
   const { origin, sessionId: _sessionId, ...fields } = wanted;
-  const matchesFields = Object.entries(fields).every(([key, value]) => value == null || actual[key as keyof EvidenceScope] === value);
+  const matchesFields = Object.entries(fields).every(
+    ([key, value]) => key.startsWith("$") || value == null || actual[key as keyof Wire<EvidenceScope>] === value,
+  );
   return matchesFields && (!origin || JSON.stringify(origin.kind?.kind) === JSON.stringify(actual.origin?.kind?.kind));
 }
 
 function mapNativeTraceability(
   snapshots: NativeTraceabilitySnapshot[],
-  requestedScope: EvidenceScope | undefined,
+  requestedScope: Wire<EvidenceScope> | undefined,
   operation: string,
 ): TraceabilitySnapshot {
   const items = snapshots.map((snapshot) => {
@@ -281,9 +282,9 @@ function mapNativeTraceability(
       created_at: createdAt,
     };
   });
-  const result = traceabilitySnapshotFromItems(items, (value) => recordScopeFromNative(value ?? undefined));
+  const result = traceabilitySnapshotFromItems(items, (value) => value ?? null);
   if (requestedScope) {
-    result.scope = recordScopeFromNative(requestedScope);
+    result.scope = requestedScope ?? null;
   }
   return result;
 }
@@ -425,7 +426,7 @@ function isTerminalCycle(status: CycleStatus): boolean {
 
 function mapResult(
   result: NonNullable<RuntimeShellSnapshot["cycleSummaries"][number]["result"]>,
-  scope: RecordScope,
+  scope: Wire<EvidenceScope>,
 ): ExecutionResultSummary {
   return {
     outcome:

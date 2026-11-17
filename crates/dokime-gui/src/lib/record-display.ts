@@ -9,8 +9,10 @@
 
 /* === Local Imports === */
 
+import type { ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { formatNumber, formatTime } from "@/lib/format";
-import type { RecordDisplay, RecordTone, ValueFormat } from "@/lib/types";
+import type { RecordDisplay, RecordTone } from "@/lib/types";
 import { cn, isRecord, numericValue } from "@/lib/utils";
 
 /* === Types === */
@@ -101,7 +103,7 @@ export function isDatetimeValue(value: unknown): value is DatetimeValue {
  * renders as its wall clock instead of falling through to raw JSON; a plain
  * number honours a numeric format; anything else renders as plain text.
  */
-export function formatRecordValue(value: unknown, format?: ValueFormat | null): string {
+export function formatRecordValue(value: unknown, format?: Wire<ValueFormat> | null): string {
   value = numericValue(value) ?? value;
   if (isDatetimeValue(value)) {
     const epochSeconds = Date.parse(value.$datetime) / 1000;

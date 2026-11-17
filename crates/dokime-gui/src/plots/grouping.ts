@@ -9,18 +9,13 @@
 
 /* === Local Imports === */
 
+import type { ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { ReferenceBand, ReferenceLine, ReferenceValue } from "@/lib/document-contracts";
 import { formatTitleWord } from "@/lib/format";
 import { scaleStatisticValue, type StatisticValue } from "@/lib/statistics";
 import { numericValue } from "@/lib/utils";
-import type {
-  DocumentReferenceBand,
-  DocumentReferenceLine,
-  DocumentViewPlot,
-  PlotPayload,
-  TelemetryStream,
-  ValueFormat,
-} from "@/lib/types";
+import type { DocumentReferenceBand, DocumentReferenceLine, DocumentViewPlot, PlotPayload, TelemetryStream } from "@/lib/types";
 import { elapsedColumnUnit } from "@/plots/axis";
 import { plotColor, referenceColor } from "@/plots/colors";
 import { histogramAxes } from "@/plots/histogram-axes";
@@ -131,7 +126,7 @@ export function documentPlotSpec({
  * payload that carries no declaration at all, and only affirmatively; see
  * `elapsedColumnUnit`.
  */
-export function resolvedElapsedUnit(plot: DocumentViewPlot, xFormat: ValueFormat | null): string | null {
+export function resolvedElapsedUnit(plot: DocumentViewPlot, xFormat: Wire<ValueFormat> | null): string | null {
   if (plot.plot_type !== "time_series" || xFormat) return null;
   const declared = plot.x_axis;
   if (declared) return declared.kind === "elapsed" ? declared.unit : null;

@@ -13,13 +13,14 @@
 
 /* === Local Imports === */
 
+import type { EvidenceScope } from "@host/model";
 import { required, cutKey } from "@/lib/rpc/canonical";
 import { Severity } from "@host/model";
-import { recordScopeFromNative } from "@/lib/host/values";
+
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type { CommandReceipt, HealthItem, OperatorNote, RecordScope } from "@/lib/types";
+import type { CommandReceipt, HealthItem, OperatorNote } from "@/lib/types";
 import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, nowIso, timestampIso } from "./native-values";
 
 /* === Types === */
@@ -31,7 +32,7 @@ type NativeHealthItem = Wire<Awaited<ReturnType<typeof rpc.evidenceHealthEventsL
 
 /* === Public API === */
 
-export async function fetchNativeNotes(session: SessionIdentity, scope: RecordScope): Promise<OperatorNote[]> {
+export async function fetchNativeNotes(session: SessionIdentity, scope: Wire<EvidenceScope>): Promise<OperatorNote[]> {
   const selection = annotationSelection(scope);
   const items: NativeOperatorNote[] = [];
   let pageToken = "";
@@ -51,7 +52,7 @@ export async function fetchNativeNotes(session: SessionIdentity, scope: RecordSc
   throw new NativeApiLimitError("Read Annotations", "Page Budget Reached");
 }
 
-export async function fetchNativeHealth(session: SessionIdentity, scope: RecordScope): Promise<HealthItem[]> {
+export async function fetchNativeHealth(session: SessionIdentity, scope: Wire<EvidenceScope>): Promise<HealthItem[]> {
   const selection = annotationSelection(scope);
   const items: NativeHealthItem[] = [];
   let pageToken = "";
@@ -71,7 +72,11 @@ export async function fetchNativeHealth(session: SessionIdentity, scope: RecordS
   throw new NativeApiLimitError("Read Annotations", "Page Budget Reached");
 }
 
-export async function createNativeNote(session: SessionIdentity, text: string, scope?: RecordScope | null): Promise<CommandReceipt> {
+export async function createNativeNote(
+  session: SessionIdentity,
+  text: string,
+  scope?: Wire<EvidenceScope> | null,
+): Promise<CommandReceipt> {
   const message = text.trim();
   if (!message) throw new Error("A note cannot be empty.");
   const mutationId = crypto.randomUUID();
@@ -85,7 +90,7 @@ export async function createNativeNote(session: SessionIdentity, text: string, s
   return {
     command_id: mutationId,
     kind: "note.add",
-    target_id: receipt.note?.noteId ?? scope?.test_cycle_id ?? "run",
+    target_id: receipt.note?.noteId ?? scope?.cycleId ?? "run",
     status: "applied",
     accepted_at: acceptedAt,
     updated_at: acceptedAt,
@@ -116,7 +121,7 @@ function mapNativeNote(note: NativeOperatorNote): OperatorNote {
     author: note.author ?? null,
     text: note.message,
     timestamp,
-    scope: recordScopeFromNative(note.scope),
+    scope: note.scope ?? null,
   };
 }
 
@@ -137,24 +142,24 @@ function mapNativeHealth(item: NativeHealthItem): HealthItem {
     message: item.detail ?? null,
     details: {},
     created_at: createdAt,
-    scope: recordScopeFromNative(item.scope),
+    scope: item.scope ?? null,
   };
 }
 
-export function annotationOwner(scope?: RecordScope | null): AnnotationOwner {
-  const cycleId = scope?.test_cycle_id;
+export function annotationOwner(scope?: Wire<EvidenceScope> | null): AnnotationOwner {
+  const cycleId = scope?.cycleId;
   if (!cycleId) {
     throw new Error("Native notes require a cycle-scoped owner.");
   }
-  if (scope.test_execution_id) {
-    return { owner: { kind: { case: "execution", value: { cycleId, executionId: scope.test_execution_id } } } };
+  if (scope.executionId) {
+    return { owner: { kind: { case: "execution", value: { cycleId, executionId: scope.executionId } } } };
   }
-  if (scope.test_case_id) {
-    return { owner: { kind: { case: "plannedCase", value: { cycleId, caseId: scope.test_case_id } } } };
+  if (scope.caseId) {
+    return { owner: { kind: { case: "plannedCase", value: { cycleId, caseId: scope.caseId } } } };
   }
   return { owner: { kind: { case: "cycleId", value: cycleId } } };
 }
 
-function annotationSelection(scope: RecordScope): AnnotationSelection {
+function annotationSelection(scope: Wire<EvidenceScope>): AnnotationSelection {
   return { owner: annotationOwner(scope), includeContext: false };
 }

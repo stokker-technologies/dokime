@@ -9,7 +9,9 @@
 
 /* === Local Imports === */
 
-import type { JsonObject, RecordScope, TraceabilityGroup, TraceabilityItem, TraceabilitySnapshot } from "@/lib/types";
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { JsonObject, TraceabilityGroup, TraceabilityItem, TraceabilitySnapshot } from "@/lib/types";
 
 /* === Types === */
 
@@ -80,7 +82,7 @@ export function traceabilityJsonFilename(name: TraceabilityExportName | null | u
 
 export function traceabilitySnapshotFromItems<TScope>(
   items: TraceabilitySnapshotInput<TScope>[],
-  mapScope: (scope?: TScope | null) => RecordScope | null,
+  mapScope: (scope?: TScope | null) => Wire<EvidenceScope> | null,
 ): TraceabilitySnapshot {
   const groups = items.flatMap((item) => traceabilityGroups(item, mapScope));
   const dedupedGroups = latestTraceabilityGroups(groups);
@@ -98,7 +100,7 @@ export function traceabilitySnapshotFromItems<TScope>(
 
 function traceabilityGroups<TScope>(
   item: TraceabilitySnapshotInput<TScope>,
-  mapScope: (scope?: TScope | null) => RecordScope | null,
+  mapScope: (scope?: TScope | null) => Wire<EvidenceScope> | null,
 ): TraceabilityGroup[] {
   const scope = mapScope(item.scope);
   const visibleEntries = item.entries.filter((entry) => entry.source !== "traceability.environment");
@@ -152,7 +154,7 @@ function traceabilityGroups<TScope>(
 function statedTraceabilityGroup<TScope>(
   item: TraceabilitySnapshotInput<TScope>,
   metadata: TraceabilityMetadata,
-  scope: RecordScope | null,
+  scope: Wire<EvidenceScope> | null,
   entries: TraceabilityEntryInput[],
 ): TraceabilityGroup[] {
   const items: TraceabilityItem[] = entries.map((entry) => ({
@@ -183,7 +185,7 @@ function statedTraceabilityGroup<TScope>(
 
 function entriesByTitle<TScope>(
   item: TraceabilitySnapshotInput<TScope>,
-  scope: RecordScope | null,
+  scope: Wire<EvidenceScope> | null,
   entries: TraceabilityEntryInput[],
 ): Map<string, TraceabilityEntryInput[]> {
   const groups = new Map<string, TraceabilityEntryInput[]>();
@@ -241,7 +243,7 @@ function derivedTraceabilityGroup(source: string | null | undefined): string | u
 
 function traceabilityGroupTitle<TScope>(
   item: TraceabilitySnapshotInput<TScope>,
-  scope: RecordScope | null,
+  scope: Wire<EvidenceScope> | null,
   entries = item.entries,
 ): string {
   // Host-owned groups are titled from their provenance rather than the
@@ -268,9 +270,9 @@ function traceabilityGroupTitle<TScope>(
   if (text.includes("cycle") || text.includes("suite")) return "Cycle Traceability";
   if (text.includes("execution")) return "Execution Traceability";
   if (text.includes("instrument") || text.includes("device") || text.includes("dut")) return "Head Unit Traceability";
-  if (scope?.test_execution_id) return "Execution Traceability";
-  if (scope?.test_case_id) return "Case Traceability";
-  if (scope?.test_cycle_id) return "Cycle Traceability";
+  if (scope?.executionId) return "Execution Traceability";
+  if (scope?.caseId) return "Case Traceability";
+  if (scope?.cycleId) return "Cycle Traceability";
   return "Runtime Traceability";
 }
 

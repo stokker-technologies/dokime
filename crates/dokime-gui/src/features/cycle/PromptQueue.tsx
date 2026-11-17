@@ -97,7 +97,7 @@ export function PromptQueue({ prompts, records, steps = [] }: PromptQueueProps) 
 /** One pending prompt: open and focused at the head of the queue, read-only behind it. */
 function PromptQueueCard({ open, prompt, steps }: { open: boolean; prompt: PromptRequest; steps: readonly StepExecutionRecord[] }) {
   const card = useRef<HTMLLIElement>(null);
-  const step = steps.find((record) => record.record_type === "step" && record.step_id === prompt.scope?.step_id);
+  const step = steps.find((record) => record.record_type === "step" && record.step_id === prompt.scope?.stepId);
   useEffect(() => {
     if (open) card.current?.focus({ preventScroll: false });
   }, [open]);
@@ -116,8 +116,8 @@ function PromptQueueCard({ open, prompt, steps }: { open: boolean; prompt: Promp
           {recordLevelLabel(prompt.level)}
         </Badge>
         <span className="min-w-0 [overflow-wrap:anywhere]">
-          {step ? stepRecordLabel(step, false) : prompt.scope?.step_id ? null : "Asked by the run"}
-          {prompt.scope?.step_id ? <span className="ml-2 font-mono">{prompt.scope.step_id}</span> : null}
+          {step ? stepRecordLabel(step, false) : prompt.scope?.stepId ? null : "Asked by the run"}
+          {prompt.scope?.stepId ? <span className="ml-2 font-mono">{prompt.scope.stepId}</span> : null}
         </span>
       </p>
       {open ? (

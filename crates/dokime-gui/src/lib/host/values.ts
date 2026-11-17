@@ -11,8 +11,7 @@
 
 /* === External Imports === */
 
-import { ElapsedUnit as HostElapsedUnit, type ValueFormat as HostValueFormat } from "@host/model";
-import type { EvidenceScope, RecordScope as HostRecordScope } from "@host/model";
+import type { EvidenceScope, RecordScope } from "@host/model";
 import { ValueType, type Value } from "@host/model";
 import type { Metadata } from "@host/model";
 
@@ -21,7 +20,7 @@ import type { Metadata } from "@host/model";
 import { assertIntegerRange, NativeExactValue, NativeIntegerValue, NativeNumberValue, timestampIso } from "@/lib/api/native-values";
 import { isDatetimeValue } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { JsonObject, RecordScope, ValueFormat, ElapsedUnit } from "@/lib/types";
+import type { JsonObject } from "@/lib/types";
 
 /* === Constants === */
 
@@ -163,77 +162,8 @@ export function valueTypeName(type: ValueType): string {
   }
 }
 
-export function nativeEvidenceScope(scope?: RecordScope | null): Wire<EvidenceScope> | undefined {
-  if (!scope) return undefined;
-  const origin = scope.origin;
-  return {
-    sessionId: scope.session_id ?? undefined,
-    cycleId: scope.test_cycle_id ?? undefined,
-    caseId: scope.test_case_id ?? undefined,
-    executionId: scope.test_execution_id ?? undefined,
-    stepId: scope.step_id ?? undefined,
-    criterionId: scope.criterion_id ?? undefined,
-    templateId: scope.template_id ?? undefined,
-    suiteId: scope.suite_id ?? undefined,
-    origin: origin
-      ? {
-          kind: {
-            kind: origin.kind === "step_attempt" ? { case: "stepAttemptId", value: origin.attemptId } : { case: origin.kind, value: true },
-          },
-        }
-      : undefined,
-  };
-}
-
-export function nativeRecordScope(scope?: RecordScope | null): Wire<HostRecordScope> | undefined {
-  if (scope?.test_cycle_id)
-    return { kind: { case: "cycle", value: { cycleId: scope.test_cycle_id, executionId: scope.test_execution_id ?? undefined } } };
-  if (scope?.test_execution_id) return { kind: { case: "execution", value: scope.test_execution_id } };
+export function nativeRecordScope(scope?: Wire<EvidenceScope> | null): Wire<RecordScope> | undefined {
+  if (scope?.cycleId) return { kind: { case: "cycle", value: { cycleId: scope.cycleId, executionId: scope.executionId ?? undefined } } };
+  if (scope?.executionId) return { kind: { case: "execution", value: scope.executionId } };
   return undefined;
-}
-
-export function recordScopeFromNative(scope?: Wire<EvidenceScope>): RecordScope | null {
-  if (!scope) return null;
-  const origin = scope.origin?.kind?.kind;
-  return {
-    session_id: scope.sessionId ?? null,
-    test_cycle_id: scope.cycleId ?? null,
-    test_case_id: scope.caseId ?? null,
-    test_execution_id: scope.executionId ?? null,
-    step_id: scope.stepId ?? null,
-    criterion_id: scope.criterionId ?? null,
-    template_id: scope.templateId ?? null,
-    suite_id: scope.suiteId ?? null,
-    ...(origin?.case
-      ? { origin: origin.case === "stepAttemptId" ? { kind: "step_attempt", attemptId: origin.value } : { kind: origin.case } }
-      : {}),
-  };
-}
-
-export function mapNativeValueFormat(format?: Wire<HostValueFormat>): ValueFormat | null {
-  const kind = format?.kind?.kind;
-  switch (kind?.case) {
-    case "normal":
-      return { kind: "normal", max_fraction_digits: kind.value.maxFractionDigits ?? null };
-    case "fixed":
-      return { kind: "fixed", decimals: kind.value.decimals };
-    case "scientific":
-      return { kind: "scientific", significant_digits: kind.value.significantDigits };
-    case "engineering":
-      return { kind: "engineering", significant_digits: kind.value.significantDigits };
-    case "siPrefix":
-      return { kind: "si_prefix", significant_digits: kind.value.significantDigits };
-    case "absoluteTime":
-      return { kind: "absolute_time", pattern: kind.value.pattern };
-    case "elapsedSinceRun":
-      return { kind: "elapsed_since_run", unit: elapsedUnit(kind.value.unit) };
-    case "elapsedSinceCycle":
-      return { kind: "elapsed_since_cycle", unit: elapsedUnit(kind.value.unit) };
-    default:
-      return null;
-  }
-}
-
-function elapsedUnit(unit: HostElapsedUnit): ElapsedUnit {
-  return unit === HostElapsedUnit.MILLISECONDS ? "milliseconds" : unit === HostElapsedUnit.MINUTES ? "minutes" : "seconds";
 }

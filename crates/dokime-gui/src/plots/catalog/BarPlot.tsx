@@ -80,7 +80,10 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
               <span className="absolute inset-y-0 w-px bg-foreground" style={{ left: `${baseline}%` }} />
             </div>
             <span className="whitespace-nowrap text-right text-xs font-semibold tabular-nums">
-              {formatUnitLabel(formatCategoryTotal(bar, { kind: "normal", max_fraction_digits: 2 }), plot.unit)}
+              {formatUnitLabel(
+                formatCategoryTotal(bar, { kind: { kind: { case: "normal", value: { maxFractionDigits: 2 } } } }),
+                plot.unit,
+              )}
             </span>
           </div>
         ))}

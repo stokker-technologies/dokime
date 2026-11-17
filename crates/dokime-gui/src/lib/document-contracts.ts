@@ -1,3 +1,6 @@
+import type { ValueFormat } from "@host/model";
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 /* ***
  *
  * Dokime
@@ -110,15 +113,13 @@ export type DocumentFilter = {
 export type DocumentId = string;
 
 export type DocumentSelection = {
-  scope: RecordScope;
+  scope: Wire<EvidenceScope>;
 };
 
 export type DocumentWarning = {
   code: Identifier;
   message: string;
 };
-
-export type ElapsedUnit = "seconds" | "milliseconds" | "minutes";
 
 export type FftDetrend = "none" | "mean";
 
@@ -198,8 +199,8 @@ export type PlotDefinition = {
   marker_record_types?: string[];
   reference_lines?: ReferenceLine[];
   reference_bands?: ReferenceBand[];
-  x_format?: ValueFormat | null;
-  y_format?: ValueFormat | null;
+  x_format?: Wire<ValueFormat> | null;
+  y_format?: Wire<ValueFormat> | null;
   x_axis?: PlotAxisKind | null;
   display_points?: number | null;
   downsample?: DownsampleTechnique | null;
@@ -221,7 +222,7 @@ export type PlotInput = {
   render?: "cells" | "bands";
   grid?: import("./types/plot").GridDefinition | null;
   plot_id: Identifier;
-  scope: RecordScope;
+  scope: Wire<EvidenceScope>;
   plot_type: PlotType;
   x_field: string | null;
   series_fields: string[];
@@ -247,8 +248,8 @@ export type PlotInput = {
   reference_bands: ReferenceBand[];
   available_streams: Identifier[];
   marker_count: number;
-  x_format?: ValueFormat | null;
-  y_format?: ValueFormat | null;
+  x_format?: Wire<ValueFormat> | null;
+  y_format?: Wire<ValueFormat> | null;
   x_axis?: PlotAxisKind | null;
   display_points?: number | null;
   downsample?: DownsampleTechnique | null;
@@ -259,17 +260,6 @@ export type PlotStyle = "line" | "points" | "line_points" | "step";
 export type DownsampleTechnique = "lttb" | "min_max" | "raw";
 
 export type PlotType = import("./types/plot").DocumentPlotType;
-
-export type RecordScope = {
-  session_id?: SessionId | null;
-  test_cycle_id?: TestCycleId | null;
-  test_case_id?: CaseId | null;
-  test_execution_id?: TestExecutionId | null;
-  step_id?: StepId | null;
-  criterion_id?: CriterionId | null;
-  template_id?: TemplateId | null;
-  suite_id?: SuiteId | null;
-};
 
 export type ReferenceValue = number | DataExpression;
 
@@ -441,13 +431,3 @@ export type Value =
   | { type: "text" | "datetime"; value: string }
   | { type: "array"; value: Value[] }
   | { type: "object"; value: Record<string, Value> };
-
-export type ValueFormat =
-  | { kind: "normal"; max_fraction_digits?: number | null }
-  | { kind: "fixed"; decimals: number }
-  | { kind: "scientific"; significant_digits: number }
-  | { kind: "engineering"; significant_digits: number }
-  | { kind: "si_prefix"; significant_digits: number }
-  | { kind: "absolute_time"; pattern: string }
-  | { kind: "elapsed_since_run"; unit: ElapsedUnit }
-  | { kind: "elapsed_since_cycle"; unit: ElapsedUnit };

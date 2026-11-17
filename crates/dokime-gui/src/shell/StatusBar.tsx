@@ -120,7 +120,7 @@ function ConsoleItem() {
      scope is Instance, which this backend does not serve, so there is nothing
      to promise and nothing to read. */
   const cycleId = useRouteCycleId();
-  const records = useRecordsQuery(cycleId !== null, cycleId ? { test_cycle_id: cycleId } : null);
+  const records = useRecordsQuery(cycleId !== null, cycleId ? { cycleId: cycleId } : null);
   const unseen = cycleId ? consoleAttentionCount(records.data ?? [], drawer.lastOpenedAt) : 0;
 
   return (
@@ -268,7 +268,7 @@ function AttentionItem() {
       id: `prompt:${prompt.correlation_id}`,
       label: prompt.title,
       open: () => {
-        const cycleId = prompt.scope?.test_cycle_id;
+        const cycleId = prompt.scope?.cycleId;
         void (cycleId ? navigate({ params: { cycleId }, to: "/cycles/$cycleId" }) : navigate({ to: "/cycles" }));
       },
     })),

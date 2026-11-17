@@ -9,6 +9,8 @@
 
 /* === External Imports === */
 
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { type Query, type QueryClient, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
@@ -38,7 +40,7 @@ import {
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
 import { respondNativePrompt } from "@/lib/api/native-prompts";
-import type { DocumentViewCard, DocumentViewPayload, RecordScope } from "@/lib/types";
+import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
 import { failureOf } from "@/lib/notification-details";
 import { documentRetry, documentRetryDelay, mergeDocumentProgress } from "./document-query-model";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
@@ -62,7 +64,7 @@ type PromptResponseVariables = {
 };
 
 type AddNoteVariables = {
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
   text: string;
 };
 
@@ -89,7 +91,7 @@ export const workflowQueryKeys = {
   notes: () => [...workflowQueryKeys.all, "notes"] as const,
   prompts: () => [...workflowQueryKeys.all, "prompts"] as const,
   runtimeShell: () => [...workflowQueryKeys.all, "runtime-shell"] as const,
-  traceability: (scope?: RecordScope | null) =>
+  traceability: (scope?: Wire<EvidenceScope> | null) =>
     scope ? ([...workflowQueryKeys.all, "traceability", scope] as const) : ([...workflowQueryKeys.all, "traceability"] as const),
 };
 
@@ -122,7 +124,7 @@ function generationOf(session: ReturnType<typeof useNativeSessionOptional>) {
  * record stream (`holdRecordTail`); a stream that fails re-reads the tail and
  * continues from its new cursor.
  */
-export function useRecordsQuery(enabled: boolean, scope: RecordScope | null) {
+export function useRecordsQuery(enabled: boolean, scope: Wire<EvidenceScope> | null) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const queryClient = useQueryClient();
@@ -149,29 +151,29 @@ export function useRecordsQuery(enabled: boolean, scope: RecordScope | null) {
   return snapshot ? frozenQuery(snapshot.records) : query;
 }
 
-export function useNotesQuery(enabled: boolean, scope: RecordScope) {
+export function useNotesQuery(enabled: boolean, scope: Wire<EvidenceScope>) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const query = useQuery({
-    enabled: enabled && session !== null && !!scope.test_cycle_id,
+    enabled: enabled && session !== null && !!scope.cycleId,
     queryFn: () => fetchNativeNotes(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.notes(), generationOf(session), scope],
   });
   return snapshot ? frozenQuery(snapshot.notes) : query;
 }
 
-export function useHealthQuery(enabled: boolean, scope: RecordScope) {
+export function useHealthQuery(enabled: boolean, scope: Wire<EvidenceScope>) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const query = useQuery({
-    enabled: enabled && session !== null && !!scope.test_cycle_id,
+    enabled: enabled && session !== null && !!scope.cycleId,
     queryFn: () => fetchNativeHealth(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.health(), generationOf(session), scope],
   });
   return snapshot ? frozenQuery(snapshot.health) : query;
 }
 
-export function useTraceabilityQuery(enabled: boolean, scope: RecordScope | null) {
+export function useTraceabilityQuery(enabled: boolean, scope: Wire<EvidenceScope> | null) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const query = useQuery({
@@ -180,7 +182,7 @@ export function useTraceabilityQuery(enabled: boolean, scope: RecordScope | null
     queryKey: [...workflowQueryKeys.traceability(scope), generationOf(session)],
     gcTime: EVIDENCE_GC_MS,
   });
-  return snapshot ? frozenQuery(snapshot.traceability(scope?.test_execution_id ?? null)) : query;
+  return snapshot ? frozenQuery(snapshot.traceability(scope?.executionId ?? null)) : query;
 }
 
 export function useExecutionDetailQuery(executionId: string | null, enabled: boolean) {
@@ -581,7 +583,7 @@ function holdRecordTail(
   queryClient: QueryClient,
   session: NativeEvidenceSession,
   queryKey: readonly unknown[],
-  scope: RecordScope | null,
+  scope: Wire<EvidenceScope> | null,
 ): () => void {
   const key = JSON.stringify(queryKey);
   const held = recordTails.get(key);

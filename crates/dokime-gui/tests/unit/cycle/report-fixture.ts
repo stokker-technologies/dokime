@@ -199,10 +199,10 @@ function artifact(): ArtifactRecord {
 
 function scope() {
   return {
-    test_case_id: FIXTURE_CASE_ID,
-    template_id: "template-1",
-    test_cycle_id: FIXTURE_CYCLE_ID,
-    test_execution_id: FIXTURE_EXECUTION_ID,
+    caseId: FIXTURE_CASE_ID,
+    templateId: "template-1",
+    cycleId: FIXTURE_CYCLE_ID,
+    executionId: FIXTURE_EXECUTION_ID,
   };
 }
 
@@ -292,13 +292,13 @@ function documentMetadata(identifier: string, label: string) {
 /** The document's own scope shape, which names the case as `test_case_id`. */
 function documentScope(executionId: string | null) {
   return {
-    criterion_id: null,
-    session_id: null,
-    step_id: null,
-    suite_id: null,
-    template_id: null,
-    test_case_id: executionId ? FIXTURE_CASE_ID : null,
-    test_cycle_id: FIXTURE_CYCLE_ID,
-    test_execution_id: executionId,
+    criterionId: undefined,
+    sessionId: undefined,
+    stepId: undefined,
+    suiteId: undefined,
+    templateId: undefined,
+    caseId: executionId ? FIXTURE_CASE_ID : undefined,
+    cycleId: FIXTURE_CYCLE_ID,
+    executionId: executionId ?? undefined,
   };
 }

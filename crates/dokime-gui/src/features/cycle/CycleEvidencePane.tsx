@@ -22,11 +22,13 @@
 
 /* === External Imports === */
 
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { type ReactNode, useMemo } from "react";
 
 /* === Local Imports === */
 
-import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan } from "@/lib/types";
+import type { HubLiveState, PromptRequest, TestCyclePlan } from "@/lib/types";
 import { CycleEvidenceView } from "./CycleEvidenceView";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { DocumentPagination } from "./DocumentPagination";
@@ -56,7 +58,7 @@ export type CycleEvidencePaneProps = {
 
 export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, plan, prompts, snapshot, trail }: CycleEvidencePaneProps) {
   const plotWindow = usePlotWindow();
-  const scope = useMemo<RecordScope>(() => ({ test_cycle_id: cycleId }), [cycleId]);
+  const scope = useMemo<Wire<EvidenceScope>>(() => ({ cycleId: cycleId }), [cycleId]);
   const documentQuery = useCycleDocumentQuery(cycleId, true);
   const document = documentQuery.data ?? null;
   const surface = useDocumentSurface({
@@ -95,7 +97,7 @@ export function CycleEvidencePane({ cycleId, lead, live = true, pageActions, pla
       }
       promptQueue={
         live ? (
-          <PromptQueue prompts={prompts ?? []} records={surface.view.records.filter((record) => !record.scope?.test_execution_id)} />
+          <PromptQueue prompts={prompts ?? []} records={surface.view.records.filter((record) => !record.scope?.executionId)} />
         ) : undefined
       }
       trail={trail}

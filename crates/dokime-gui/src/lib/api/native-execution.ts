@@ -215,27 +215,7 @@ function mapNativeExecution(
   const fallback = timestampIso(summary.updatedAt) ?? nowIso();
   const startedAt = timestampIso(detail.startedAt);
   return {
-    controls: detail.controls
-      ? {
-          requestId: detail.controls.requestId,
-          paused: detail.controls.paused,
-          stopRequested: detail.controls.stopRequested,
-          canStart: detail.controls.canStart,
-          canRerun: detail.controls.canRerun,
-          canCancel: detail.controls.canCancel,
-          canInspect: detail.controls.canInspect,
-          canExport: detail.controls.canExport,
-          canPause: detail.controls.canPause,
-          canResume: detail.controls.canResume,
-          canStop: detail.controls.canStop,
-          mode:
-            detail.controls.mode === ExecutionMode.AUTOMATIC
-              ? "automatic"
-              : detail.controls.mode === ExecutionMode.INTERACTIVE
-                ? "interactive"
-                : null,
-        }
-      : null,
+    controls: detail.controls,
     archived: item.archived,
     sealed: item.state === ExecutionState.SEALED,
     report: detail.report

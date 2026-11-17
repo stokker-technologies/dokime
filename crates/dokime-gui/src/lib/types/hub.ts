@@ -7,11 +7,12 @@
  * ***
  */
 
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { JsonObject } from "../types";
 import type { DocumentViewPayload } from "./document";
 import type { ContractRegistrySnapshot, HubRecord, PromptRequest, Severity } from "./records";
 import type { TelemetryStream } from "./telemetry";
-import type { RecordScope } from "./view-contracts";
 
 /* === Hub / runtime / artifact / traceability types ===
    Hub snapshot+live state, run/command status, diagnostics, and the
@@ -58,8 +59,6 @@ export type RunMetadata = {
   rerun_command?: string[] | null;
 };
 
-export type { RecordScope } from "./view-contracts";
-
 export type OperatorNote = {
   note_id: string;
   /** The authenticated identity that filed the note. */
@@ -70,7 +69,7 @@ export type OperatorNote = {
   related_record_id?: string | null;
   related_sample_id?: string | null;
   related_artifact_id?: string | null;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type HealthItem = {
@@ -81,7 +80,7 @@ export type HealthItem = {
   details: JsonObject;
   related_artifact_id?: string | null;
   created_at: string;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type ExecutionResultSummary = {
@@ -90,7 +89,7 @@ export type ExecutionResultSummary = {
   warnings: string[];
   evidence: JsonObject[];
   updated_at: string;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type TraceabilityItem = {
@@ -99,7 +98,7 @@ export type TraceabilityItem = {
   unit?: string | null;
   level: Severity;
   details: JsonObject;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type TraceabilityGroup = {
@@ -117,7 +116,7 @@ export type TraceabilitySnapshot = {
   warnings: string[];
   artifacts: string[];
   updated_at: string;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type ArtifactRecord = {
@@ -135,7 +134,7 @@ export type ArtifactRecord = {
   group_label?: string | null;
   supersedes_artifact_id?: string | null;
   created_at: string;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type DocumentStatistic =

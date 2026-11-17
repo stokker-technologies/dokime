@@ -9,6 +9,8 @@
 
 /* === External Imports === */
 
+import type { ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { Button } from "@/components/ui/button";
 import { ErrorCard } from "@/components/ErrorCard";
 import type { NotificationFailure } from "@/lib/notification-details";
@@ -29,7 +31,6 @@ import type {
   PlotCartesianFrame,
   PlotMarker,
   PlotSeries,
-  ValueFormat,
 } from "@/lib/types";
 import { isNumber } from "@/lib/utils";
 import { formatBooleanState, formatCursorX, formatElapsedTick, xValue } from "@/plots/axis";
@@ -108,7 +109,7 @@ type CartesianPlotProps = {
   booleanAxis?: boolean;
   colors?: string[];
   unit?: string | null;
-  xFormat?: ValueFormat | null;
+  xFormat?: Wire<ValueFormat> | null;
   xLabel?: string;
   intervals?: boolean;
   currentPosition?: boolean;
@@ -119,7 +120,7 @@ type CartesianPlotProps = {
    * numbers with this unit and never as a date.
    */
   xElapsedUnit?: string | null;
-  yFormat?: ValueFormat | null;
+  yFormat?: Wire<ValueFormat> | null;
   runStartedAt?: number | null;
   cycleStartedAt?: number | null;
   resetKey?: string;
@@ -398,7 +399,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         booleanAxis ? formatBooleanState(split) : split == null ? "" : formatNumber(split, yFormat, { increment: foundIncr }),
       );
     const seriesLegendValue =
-      (format: ValueFormat | null): uPlot.Series.Value =>
+      (format: Wire<ValueFormat> | null): uPlot.Series.Value =>
       (_plot, rawValue) =>
         booleanAxis ? formatBooleanState(rawValue) : rawValue == null ? "--" : formatNumber(rawValue, format);
     const options: uPlot.Options = {

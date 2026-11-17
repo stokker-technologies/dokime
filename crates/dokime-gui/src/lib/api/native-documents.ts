@@ -11,36 +11,15 @@
 
 /* === External Imports === */
 
+import * as hostModel from "@host/model";
 import { toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
-import {
-  AxisScale as HostAxisScale,
-  BarArrangement,
-  ContourRender,
-  Downsample,
-  FftDetrend as HostFftDetrend,
-  FftWindow as HostFftWindow,
-  FrequencyLevelUnit as HostFrequencyLevelUnit,
-  LineStyle,
-  PlotKind,
-  Reduction,
-} from "@host/model";
-import {
-  DocumentCardKind as HostDocumentCardKind,
-  DocumentDensity as HostDocumentDensity,
-  type DocumentFrame,
-  DocumentFrameSchema,
-  DocumentRail as HostDocumentRail,
-  DocumentSummaryFormat,
-  DocumentSummaryPresentation as HostDocumentSummaryPresentation,
-  DocumentSummaryStat,
-  DocumentSummaryState as HostDocumentSummaryState,
-  PlotAxisKind,
-} from "@host/model";
-import type { DocumentScope as HostDocumentScope } from "@host/model";
-import { Aggregate, FilterOperator as HostFilterOperator } from "@host/model";
+import { BarArrangement, ContourRender, Downsample, LineStyle, PlotKind, Reduction } from "@host/model";
+import { type DocumentFrame, DocumentFrameSchema, DocumentSummaryFormat, DocumentSummaryStat, PlotAxisKind } from "@host/model";
+
+import { Aggregate } from "@host/model";
 import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
 import {
   documentCard,
@@ -59,7 +38,7 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { DocumentDataExpression, DocumentDownsampleTechnique, DocumentViewCard, DocumentViewPayload, Metadata } from "@/lib/types";
 import { required, cutKey } from "@/lib/rpc/canonical";
 import { safeNumber } from "./native-values";
-import { mapNativeValueFormat, nativeValuesToJson, nativeValueToJson } from "@/lib/host/values";
+import { nativeValuesToJson, nativeValueToJson } from "@/lib/host/values";
 
 const DOCUMENTS_ENCODED_DEPTH = 32;
 const DOCUMENTS_EXPANDED_NODES = 4_096;
@@ -84,7 +63,7 @@ type DocumentSummaryTileDefinition = FrameValue<"tileDefinition">;
 type DocumentRepeatSelection = FrameValue<"repeatSelection">;
 type DocumentRepeatInstance = FrameValue<"repeatInstance">;
 type DocumentSectionIdentity = FrameValue<"sectionIdentity">;
-type DocumentScope = Wire<HostDocumentScope>;
+type DocumentScope = Wire<hostModel.DocumentScope>;
 type DocumentSummaryGroup = FrameValue<"summaryGroup">;
 type DocumentSummaryTile = FrameValue<"summaryTile">;
 type DocumentSummaryPresentation = NonNullable<DocumentSummaryTile["presentation"]>;
@@ -342,7 +321,7 @@ function mapNativeCard(card: DocumentCard, binding: DocumentBinding, document: C
       })),
     });
   }
-  if (result.case === "plot" && body.case === "owner" && body.value?.kind === HostDocumentCardKind.PLOT) {
+  if (result.case === "plot" && body.case === "owner" && body.value?.kind === hostModel.DocumentCardKind.PLOT) {
     if (!result.value) invalid("plot binding is missing");
     const plot = mapNativePlot(result.value, id);
     return documentCard(metadata, "plots", { plots: [plot] });
@@ -442,32 +421,32 @@ function mapNativePlacementLayout(placement?: {
 }
 
 function mapDensity(value?: DocumentDensity): "compact" | "normal" | "spacious" {
-  return value === HostDocumentDensity.COMPACT ? "compact" : value === HostDocumentDensity.SPACIOUS ? "spacious" : "normal";
+  return value === hostModel.DocumentDensity.COMPACT ? "compact" : value === hostModel.DocumentDensity.SPACIOUS ? "spacious" : "normal";
 }
 function mapRail(value?: DocumentRail): "main" | "right" | "left" {
-  return value === HostDocumentRail.LEFT ? "left" : value === HostDocumentRail.RIGHT ? "right" : "main";
+  return value === hostModel.DocumentRail.LEFT ? "left" : value === hostModel.DocumentRail.RIGHT ? "right" : "main";
 }
 function mapCardKind(value: DocumentCardKind | undefined): DocumentViewCard["kind"] | null {
   switch (value) {
-    case HostDocumentCardKind.PLOT:
+    case hostModel.DocumentCardKind.PLOT:
       return "plots";
-    case HostDocumentCardKind.STEPS:
+    case hostModel.DocumentCardKind.STEPS:
       return "steps";
-    case HostDocumentCardKind.CRITERIA:
+    case hostModel.DocumentCardKind.CRITERIA:
       return "criteria";
-    case HostDocumentCardKind.TRACEABILITY:
+    case hostModel.DocumentCardKind.TRACEABILITY:
       return "traceability";
-    case HostDocumentCardKind.NOTES:
+    case hostModel.DocumentCardKind.NOTES:
       return "notes";
-    case HostDocumentCardKind.RECORDS:
+    case hostModel.DocumentCardKind.RECORDS:
       return "records";
-    case HostDocumentCardKind.ARTIFACTS:
+    case hostModel.DocumentCardKind.ARTIFACTS:
       return "artifacts";
-    case HostDocumentCardKind.MEDIA:
+    case hostModel.DocumentCardKind.MEDIA:
       return "media";
-    case HostDocumentCardKind.HEALTH:
+    case hostModel.DocumentCardKind.HEALTH:
       return "health";
-    case HostDocumentCardKind.TELEMETRY_CONTEXT:
+    case hostModel.DocumentCardKind.TELEMETRY_CONTEXT:
       return "telemetry_context";
     default:
       return null;
@@ -492,20 +471,20 @@ function summaryFormat(value: DocumentSummaryFormat): "auto" | "number" | "perce
   }
 }
 function mapSummaryPresentation(value: DocumentSummaryPresentation | undefined): "value" | "progress" | "badge" {
-  return value === HostDocumentSummaryPresentation.PROGRESS
+  return value === hostModel.DocumentSummaryPresentation.PROGRESS
     ? "progress"
-    : value === HostDocumentSummaryPresentation.BADGE
+    : value === hostModel.DocumentSummaryPresentation.BADGE
       ? "badge"
       : "value";
 }
 function mapSummaryState(value: DocumentSummaryState | undefined): "ok" | "warning" | "critical" | "muted" | null {
-  return value === HostDocumentSummaryState.OK
+  return value === hostModel.DocumentSummaryState.OK
     ? "ok"
-    : value === HostDocumentSummaryState.WARNING
+    : value === hostModel.DocumentSummaryState.WARNING
       ? "warning"
-      : value === HostDocumentSummaryState.CRITICAL
+      : value === hostModel.DocumentSummaryState.CRITICAL
         ? "critical"
-        : value === HostDocumentSummaryState.MUTED
+        : value === hostModel.DocumentSummaryState.MUTED
           ? "muted"
           : null;
 }
@@ -573,7 +552,7 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
             column: mapNativeExpression(highlight.column) ?? invalid("grid highlight column is missing"),
             label: highlight.label,
           })),
-          summary_label: request.grid.summaryLabel,
+          summaryLabel: request.grid.summaryLabel,
         }
       : null,
     histogram: {
@@ -607,8 +586,8 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
       label: band.label ?? null,
       color: band.color,
     })),
-    x_format: mapNativeValueFormat(presentation?.xFormat),
-    y_format: mapNativeValueFormat(presentation?.yFormat),
+    x_format: presentation?.xFormat ?? null,
+    y_format: presentation?.yFormat ?? null,
     x_axis: mapNativePlotAxis(presentation?.xAxis, presentation?.xAxisUnit),
     display_points: request.maxPoints === undefined ? null : safeNumber(request.maxPoints, "plot display points"),
     downsample: mapDownsampleTechnique(request.technique),
@@ -675,20 +654,20 @@ function mapPlotStyle(value?: PlotStyle): "line" | "points" | "line_points" | "s
         : "line";
 }
 function mapAxisScale(value?: AxisScale): "linear" | "log" {
-  return value === HostAxisScale.LOG ? "log" : "linear";
+  return value === hostModel.AxisScale.LOG ? "log" : "linear";
 }
 function mapFftWindow(value?: FftWindow): "hann" | "rectangular" {
-  return value === HostFftWindow.RECTANGULAR ? "rectangular" : "hann";
+  return value === hostModel.FftWindow.RECTANGULAR ? "rectangular" : "hann";
 }
 function mapFftDetrend(value?: FftDetrend): "none" | "mean" {
-  return value === HostFftDetrend.NONE ? "none" : "mean";
+  return value === hostModel.FftDetrend.NONE ? "none" : "mean";
 }
 function mapFrequencyLevelUnit(value?: FrequencyLevelUnit): "linear" | "dB" | "dBu" | "dBm" {
-  return value === HostFrequencyLevelUnit.DB
+  return value === hostModel.FrequencyLevelUnit.DB
     ? "dB"
-    : value === HostFrequencyLevelUnit.DBU
+    : value === hostModel.FrequencyLevelUnit.DBU
       ? "dBu"
-      : value === HostFrequencyLevelUnit.DBM
+      : value === hostModel.FrequencyLevelUnit.DBM
         ? "dBm"
         : "linear";
 }
@@ -707,19 +686,19 @@ function mapNativeFilter(filter: PlotRequest["filters"][number]): {
 }
 function mapFilterOperator(value: FilterOperator | undefined): "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists" {
   switch (value) {
-    case HostFilterOperator.NE:
+    case hostModel.FilterOperator.NE:
       return "ne";
-    case HostFilterOperator.GT:
+    case hostModel.FilterOperator.GT:
       return "gt";
-    case HostFilterOperator.GE:
+    case hostModel.FilterOperator.GE:
       return "gte";
-    case HostFilterOperator.LT:
+    case hostModel.FilterOperator.LT:
       return "lt";
-    case HostFilterOperator.LE:
+    case hostModel.FilterOperator.LE:
       return "lte";
-    case HostFilterOperator.CONTAINS:
+    case hostModel.FilterOperator.CONTAINS:
       return "contains";
-    case HostFilterOperator.EXISTS:
+    case hostModel.FilterOperator.EXISTS:
       return "exists";
     default:
       return "eq";
@@ -988,7 +967,7 @@ export async function assembleDocument(
         const expectedResult =
           source.body?.kind.case === "summary"
             ? "summary"
-            : source.body?.kind.case === "owner" && source.body.kind.value?.kind === HostDocumentCardKind.PLOT
+            : source.body?.kind.case === "owner" && source.body.kind.value?.kind === hostModel.DocumentCardKind.PLOT
               ? "plot"
               : "literal";
         if (

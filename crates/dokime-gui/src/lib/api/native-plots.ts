@@ -11,12 +11,13 @@
 
 /* === External Imports === */
 
+import * as hostModel from "@host/model";
+import type { EvidenceScope } from "@host/model";
 import { create } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
 import {
-  AxisScale as HostAxisScale,
   BarArrangement,
   ContourRender,
   Downsample,
@@ -25,13 +26,12 @@ import {
   FrequencyLevelUnit,
   LineStyle,
   PlotKind,
-  type PlotRequest as HostPlotRequest,
   PlotRequestSchema,
   Reduction,
   XyInterval,
 } from "@host/model";
-import { PlotCartesianMode as HostPlotCartesianMode, PlotStreamKind as HostPlotStreamKind, type SnapshotsWatchResponse } from "@host/model";
-import { Aggregate, FilterOperator as HostFilterOperator, type TransformExpression } from "@host/model";
+import { type SnapshotsWatchResponse } from "@host/model";
+import { Aggregate, type TransformExpression } from "@host/model";
 import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -48,20 +48,18 @@ import type {
   PlotCartesianFrame,
   PlotMarker,
   PlotPayload,
-  PlotPayloadDiagnostics,
   PlotPayloadEnvelope,
   PlotPayloadStreamMessage,
   PlotSeries,
-  RecordScope,
 } from "@/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
-import { jsonToNativeValue, mapNativeValueFormat, nativeEvidenceScope, nativeValueToJson } from "@/lib/host/values";
+import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
 import type { StatisticValue } from "@/lib/statistics";
 import { NativeApiLimitError, NATIVE_MAX_PAGES, safeNumber } from "./native-values";
 
 /* === Canonical Types === */
 
-type PlotRequest = Wire<HostPlotRequest>;
+type PlotRequest = Wire<hostModel.PlotRequest>;
 type PlotEnvelope = Wire<Awaited<ReturnType<typeof rpc.plotsSnapshotsList>>>["envelopes"][number];
 type DataExpression = NonNullable<PlotRequest["xExpression"]>;
 type NativePlotPayload = NonNullable<PlotEnvelope["payload"]>;
@@ -132,7 +130,7 @@ export type PlotPayloadRequestInput = {
   summaryWindow?: { from: number; to: number } | null;
   viewport?: { from: number; to: number } | null;
   panelWidth?: number;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 /** Renderer envelope for one storage query. */
@@ -169,7 +167,7 @@ export type NativePlotWatchOptions = NativePlotReadOptions;
 
 /** Build one typed protobuf plot request from the document-facing input. */
 export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest {
-  const nativeScope = nativeEvidenceScope(input.scope);
+  const nativeScope = input.scope ?? undefined;
   return create(PlotRequestSchema, {
     arrangement: input.arrangement ? (input.arrangement === "grouped" ? BarArrangement.GROUPED : BarArrangement.STACKED) : undefined,
     pareto: input.pareto ?? false,
@@ -189,7 +187,7 @@ export function toNativePlotRequest(input: PlotPayloadRequestInput): PlotRequest
             column: dataExpression(highlight.column),
             label: highlight.label,
           })),
-          summaryLabel: input.grid.summary_label,
+          summaryLabel: input.grid.summaryLabel,
         }
       : undefined,
     panelHeight: input.panelHeight,
@@ -387,7 +385,7 @@ export function mapNativePlotEnvelope(envelope: PlotEnvelope, plotType?: Documen
     epoch: requiredText(envelope.epoch, "plot runtime epoch"),
     selection: requiredText(envelope.selection, "plot selection"),
     payload: mapNativePlotPayload(envelope.payload, plotType),
-    diagnostics: mapNativePlotDiagnostics(envelope.diagnostics),
+    diagnostics: envelope.diagnostics,
     warnings: [...envelope.warnings],
   };
 }
@@ -408,7 +406,7 @@ export function mapNativePlotWatchPage(frame: PlotWatchPage, plotTypes?: PlotTyp
 function mapNativePlotStreamUpdate(frame: PlotStreamUpdate, plotType?: DocumentPlotType | null): NativePlotStreamUpdate {
   if (!frame.envelope) throw new Error("Native plot stream frame has no envelope.");
   // An unspecified frame that names a plot and carries nothing is the watch's pending notice.
-  if (frame.kind === HostPlotStreamKind.UNSPECIFIED && !frame.envelope.payload) {
+  if (frame.kind === hostModel.PlotStreamKind.UNSPECIFIED && !frame.envelope.payload) {
     return { kind: "pending", plot_id: frame.envelope.plotId };
   }
   const kind = plotStreamKind(frame.kind);
@@ -437,7 +435,7 @@ function mapNativePlotErrorEnvelope(envelope: PlotEnvelope, plotType?: DocumentP
     payload: envelope.payload
       ? mapNativePlotPayload(envelope.payload, plotType)
       : { stream: "", x_key: "", max_points: 0, generated_at: "", series: [] },
-    ...(envelope.diagnostics ? { diagnostics: mapNativePlotDiagnostics(envelope.diagnostics) } : {}),
+    ...(envelope.diagnostics ? { diagnostics: envelope.diagnostics } : {}),
     warnings: envelope.warnings.length ? [...envelope.warnings] : ["Plot stream returned an error."],
   };
 }
@@ -566,21 +564,21 @@ function downsampleTechnique(value?: DocumentDownsampleTechnique | null): Downsa
 }
 
 function axisScale(value?: DocumentAxisScale | null): AxisScale {
-  if (value === "log") return HostAxisScale.LOG;
-  if (value === "linear" || value == null) return HostAxisScale.LINEAR;
+  if (value === "log") return hostModel.AxisScale.LOG;
+  if (value === "linear" || value == null) return hostModel.AxisScale.LINEAR;
   throw new Error(`Unsupported plot axis scale: ${String(value)}`);
 }
 
 function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number]["operator"]): FilterOperator {
   const operator = {
-    eq: HostFilterOperator.EQ,
-    ne: HostFilterOperator.NE,
-    gt: HostFilterOperator.GT,
-    gte: HostFilterOperator.GE,
-    lt: HostFilterOperator.LT,
-    lte: HostFilterOperator.LE,
-    contains: HostFilterOperator.CONTAINS,
-    exists: HostFilterOperator.EXISTS,
+    eq: hostModel.FilterOperator.EQ,
+    ne: hostModel.FilterOperator.NE,
+    gt: hostModel.FilterOperator.GT,
+    gte: hostModel.FilterOperator.GE,
+    lt: hostModel.FilterOperator.LT,
+    lte: hostModel.FilterOperator.LE,
+    contains: hostModel.FilterOperator.CONTAINS,
+    exists: hostModel.FilterOperator.EXISTS,
   }[value];
   if (operator === undefined) throw new Error(`Unsupported plot filter operator: ${String(value)}`);
   return operator;
@@ -641,7 +639,7 @@ function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlo
     max_points: safeNumber(payload.maxPoints, "Plots payload max_points"),
     window_s: payload.windowS ?? null,
     generated_at: payload.generatedAt,
-    x_format: mapNativeValueFormat(payload.xFormat),
+    x_format: payload.xFormat ?? null,
     run_started_at: payload.runStartedAt ?? null,
     cycle_started_at: payload.cycleStartedAt ?? null,
     bucket_width_s: payload.bucketWidthS ?? null,
@@ -731,37 +729,10 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           raw_points: safeNumber(series.rawPoints, "interval raw_points"),
         })),
       };
-    case "contour": {
-      const grid = result.value;
-      return {
-        kind: "contour",
-        grid: {
-          columns: grid.columns,
-          rows: grid.rows,
-          x_edges: grid.xEdges,
-          y_edges: grid.yEdges,
-          values: grid.values,
-          valid: grid.valid,
-        },
-      };
-    }
-    case "gridChart": {
-      const data = result.value;
-      return {
-        kind: "grid_chart",
-        data: {
-          rows: data.rows.map((entry) => ({ ...entry })),
-          columns: data.columns.map((entry) => ({ ...entry })),
-          summary_label: data.summaryLabel,
-          frames: data.frames.map((frame) => ({
-            instant: frame.instant,
-            values: frame.values,
-            valid: frame.valid,
-            highlights: frame.highlights.map((cell) => ({ ...cell })),
-          })),
-        },
-      };
-    }
+    case "contour":
+      return { kind: "contour", grid: result.value };
+    case "gridChart":
+      return { kind: "grid_chart", data: result.value };
   }
 }
 
@@ -773,7 +744,7 @@ function mapNativePlotSeries(series: NativePlotSeries): PlotSeries {
     points: [],
     raw_points: safeNumber(series.rawPoints, "Plots series raw_points"),
     downsampled: series.downsampled,
-    format: mapNativeValueFormat(series.format),
+    format: series.format ?? null,
   };
 }
 
@@ -817,31 +788,20 @@ function nativeDomain(value?: { min: number; max: number }): { min: number; max:
   if (!value || !Number.isFinite(value.min) || !Number.isFinite(value.max)) {
     return null;
   }
-  return { min: value.min, max: value.max };
-}
-
-function mapNativePlotDiagnostics(diagnostics: NativePlotPayloadDiagnostics): PlotPayloadDiagnostics {
-  return {
-    series_count: safeNumber(diagnostics.seriesCount, "Plots diagnostics series_count"),
-    point_count: safeNumber(diagnostics.pointCount, "Plots diagnostics point_count"),
-    raw_point_count: safeNumber(diagnostics.rawPointCount, "Plots diagnostics raw_point_count"),
-    downsampled: diagnostics.downsampled,
-    max_points: safeNumber(diagnostics.maxPoints, "Plots diagnostics max_points"),
-    window_s: diagnostics.windowS ?? null,
-  };
+  return value;
 }
 
 function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"] {
   switch (value) {
-    case HostPlotStreamKind.SNAPSHOT:
+    case hostModel.PlotStreamKind.SNAPSHOT:
       return "snapshot";
-    case HostPlotStreamKind.REPLACE:
+    case hostModel.PlotStreamKind.REPLACE:
       return "replace";
-    case HostPlotStreamKind.DELTA:
+    case hostModel.PlotStreamKind.DELTA:
       return "delta";
-    case HostPlotStreamKind.STATISTICS:
+    case hostModel.PlotStreamKind.STATISTICS:
       return "statistics";
-    case HostPlotStreamKind.ERROR:
+    case hostModel.PlotStreamKind.ERROR:
       return "error";
     default:
       throw new Error("Native plot stream returned an unspecified kind.");
@@ -850,9 +810,9 @@ function plotStreamKind(value: PlotStreamKind): PlotPayloadStreamMessage["kind"]
 
 function cartesianMode(value: PlotCartesianMode | undefined): PlotCartesianFrame["mode"] {
   switch (value) {
-    case HostPlotCartesianMode.ALIGNED:
+    case hostModel.PlotCartesianMode.ALIGNED:
       return "aligned";
-    case HostPlotCartesianMode.FACETED:
+    case hostModel.PlotCartesianMode.FACETED:
       return "faceted";
     default:
       throw new Error("Native Cartesian frame returned an unspecified mode.");

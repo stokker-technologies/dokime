@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { create } from "@bufbuild/protobuf";
 import { PlotCartesianMode, PlotStreamKind, SnapshotsWatchResponseSchema } from "@host/model";
 import { PlotKind, Reduction, XyInterval } from "@host/model";
-import { LineStyle } from "@host/model";
+import { ElapsedUnit, LineStyle, ValueFormatSchema } from "@host/model";
 
 // Third Party Imports
 import { act, type ComponentProps, createElement } from "react";
@@ -39,7 +39,7 @@ import {
 import { jsonToNativeValue } from "@/lib/host/values";
 import * as appearance from "@/lib/appearance";
 import { ApplicationThemeProvider } from "@/lib/application-theme";
-import { formatUnitLabel } from "@/lib/format";
+import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
 import {
   formatSummaryValue,
   nearestDrawnPoint,
@@ -260,7 +260,7 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
       display_points: 100,
     }),
   );
-  const scope = { test_cycle_id: "cycle" };
+  const scope = { cycleId: "cycle" };
   useSummaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, visibleIds.includes(id)])) });
   const session = { identity: { generation: "1", isCurrent: () => true }, own: () => () => {} } as unknown as ConnectedSession;
   const host = document.createElement("div");
@@ -809,7 +809,7 @@ test("Slider Selects Storage Query Range", () => {
     y: ["voltage"],
     display_points: 100,
   };
-  const scope = { test_cycle_id: "cycle" };
+  const scope = { cycleId: "cycle" };
   const plots = [plot, { ...plot, plot_id: "current", y: ["current"] }];
   for (const definition of plots) {
     const initial = plotRequestForDocumentPlot(definition, { scope });
@@ -904,9 +904,23 @@ test("Drag Viewport", () => {
   });
 });
 
+test("Generated Formats Render Numeric Precision and Selected Time Origins", () => {
+  const fixed = create(ValueFormatSchema, { kind: { kind: { case: "fixed", value: { decimals: 2 } } } });
+  const scientific = create(ValueFormatSchema, { kind: { kind: { case: "scientific", value: { significantDigits: 3 } } } });
+  const run = create(ValueFormatSchema, { kind: { kind: { case: "elapsedSinceRun", value: { unit: ElapsedUnit.MILLISECONDS } } } });
+  const cycle = create(ValueFormatSchema, { kind: { kind: { case: "elapsedSinceCycle", value: { unit: ElapsedUnit.MINUTES } } } });
+  const absolute = create(ValueFormatSchema, { kind: { kind: { case: "absoluteTime", value: { pattern: "%L" } } } });
+
+  assert.equal(formatNumber(1.234, fixed), "1.23");
+  assert.equal(formatNumber(1234, scientific), "1.23e+3");
+  assert.equal(formatTime(132.345, run, { runStart: 130, cycleStart: 12.345 }), "2345ms");
+  assert.equal(formatTime(132.345, cycle, { runStart: 130, cycleStart: 12.345 }), "2.0m");
+  assert.equal(formatTime(132.345, absolute, {}), "345");
+});
+
 test("Histogram Axes", () => {
   // A Histogram Draws Its Declared Value on X and the Host's Count on Y
-  const format = { kind: "fixed", decimals: 1 };
+  const format = { kind: { kind: { case: "fixed", value: { decimals: 1 } } } };
   const axes = histogramAxes(
     histogram({
       title: "Voltage Distribution",
@@ -949,13 +963,13 @@ test("Histogram Axes", () => {
     {
       label: null,
       unit: "A",
-      format: { kind: "engineering", significant_digits: 3 },
+      format: { kind: { kind: { case: "engineering", value: { significantDigits: 3 } } } },
     } as unknown as HistogramColumn,
   );
   assert.deepEqual(timestamp.x, {
     label: "Current Distribution",
     unit: "A",
-    format: { kind: "engineering", significant_digits: 3 },
+    format: { kind: { kind: { case: "engineering", value: { significantDigits: 3 } } } },
   });
 });
 
@@ -2162,7 +2176,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
     generated_at: "2026-01-01T00:00:00Z",
     analysis: {
       kind: "contour",
-      grid: { columns: 2, rows: 2, x_edges: [0, 2, 3], y_edges: [0, 1, 4], values: [0, 0, 0, 4], valid: [true, false, false, true] },
+      grid: { columns: 2, rows: 2, xEdges: [0, 2, 3], yEdges: [0, 1, 4], values: [0, 0, 0, 4], valid: [true, false, false, true] },
     },
   };
   const plot = documentPlotSpec({ plot: declaration, payload });
@@ -2205,7 +2219,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
         frames: [
           { instant: "2026-01-01T00:00:00Z", values: [0, 0], valid: [true, false], highlights: [{ row: 0, column: 0, label: "Selected" }] },
         ],
-        summary_label: "Readings",
+        summaryLabel: "Readings",
       },
     },
   };
@@ -2232,7 +2246,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
       rows: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.rows : [],
       columns: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.columns : [],
       highlights: [],
-      summary_label: "Readings",
+      summaryLabel: "Readings",
     },
   });
   assert.equal(request.reduction, Reduction.MAX);
@@ -2565,10 +2579,7 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
   const replacement = session("3");
   const states = new Map<string, ReturnType<typeof useLivePlotPayloads>>();
   function Probe({ name }: { name: string }) {
-    states.set(
-      name,
-      useLivePlotPayloads({ enabled: true, plots, scope: { test_cycle_id: "cycle", test_execution_id: "execution" }, windowS: 300 }),
-    );
+    states.set(name, useLivePlotPayloads({ enabled: true, plots, scope: { cycleId: "cycle", executionId: "execution" }, windowS: 300 }));
     return null;
   }
   const roots = [createRoot(document.createElement("div")), createRoot(document.createElement("div"))];
