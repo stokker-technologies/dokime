@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::result;
 
 // Third Party Imports
 use prost::Message;
@@ -30,7 +31,6 @@ use dokime_protocol::host::ExecutionsDeleteResponse;
 use dokime_protocol::host::ResultStatus;
 use dokime_protocol::host::ResultSummary;
 use harmos_protocol::model::History;
-use rusqlite;
 
 /* === Constants === */
 
@@ -58,7 +58,7 @@ impl Store {
                 [i64::try_from(through).map_err(|_| Error::Invalid("Browse History: Use a Returned Storage Frontier".into()))?],
                 |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?)),
             )?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .collect::<result::Result<Vec<_>, _>>()?;
         rows.into_iter().map(|(sequence, payload)| Ok((sequence as u64, CycleSummary::decode(payload.as_slice())?))).collect()
     }
     pub fn sealed_cycle(&self, execution: &str) -> Result<(u64, CycleSummary)> {
@@ -166,8 +166,8 @@ pub(crate) fn capture_cycle(connection: &Connection, id: &str, execution: &str) 
     cycle.phase = if cycle.sealed { CyclePhase::Sealed } else { CyclePhase::Active } as i32;
     cycle.status = if total == completed { CycleStatus::Completed } else { CycleStatus::Running } as i32;
     let mut statement = connection.prepare("SELECT payload FROM executions WHERE cycle=?1")?;
-    let payloads = statement.query_map([id], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
-    let executions: Vec<_> = payloads.iter().map(|payload| Execution::decode(payload.as_slice())).collect::<std::result::Result<_, _>>()?;
+    let payloads = statement.query_map([id], |row| row.get::<_, Vec<u8>>(0))?.collect::<result::Result<Vec<_>, _>>()?;
+    let executions: Vec<_> = payloads.iter().map(|payload| Execution::decode(payload.as_slice())).collect::<result::Result<_, _>>()?;
     let counts = crate::OutcomeCounts::from_outcomes(executions.iter().filter_map(|execution| execution.outcome.as_ref()));
     cycle.result = Some(ResultSummary {
         status: counts.verdict.map_or(ResultStatus::Pending as i32, |status| status as i32),

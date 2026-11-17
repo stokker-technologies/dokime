@@ -17,13 +17,18 @@
 
 // Standard Library Imports
 use std::cmp::Ordering;
+use std::iter;
+use std::num::NonZeroUsize;
 
 // Third Party Imports
+use arrow_array::{Int64Array, StructArray, UInt64Array};
+use arrow_schema::DataType;
 use harmos_query::transform::{FieldPath, FieldPathExecution};
 
 // Local Imports
+use crate::telemetry::aggregates;
 use crate::{
-    Error, ExecutionCut, Result, Store, expressions,
+    BatchSelection, Error, ExecutionCut, NumericWindow, Result, Store, expressions, plot_selection,
     scalar::{self, ScalarValue},
 };
 use dokime_protocol::model::Aggregate;
@@ -78,8 +83,8 @@ impl Store {
             let codec = self.source_codec(cut, &(false, reference.identifier.clone()))?;
             let empty = codec.batch(&[])?;
             matches!(
-                FieldPath::from(format!("values.{}", &reference.field).as_str()).field(empty.schema().as_ref())?.data_type(),
-                arrow_schema::DataType::Int64 | arrow_schema::DataType::UInt64 | arrow_schema::DataType::Float64
+                FieldPath::from(format!("values.{}", reference.field).as_str()).field(empty.schema().as_ref())?.data_type(),
+                DataType::Int64 | DataType::UInt64 | DataType::Float64
             )
         } else {
             false
@@ -95,7 +100,7 @@ impl Store {
                     grouping: None,
                     group: None,
                 });
-            let window = crate::NumericWindow {
+            let window = NumericWindow {
                 execution: &cut.execution.identifier,
                 stream: &reference.identifier,
                 field: &reference.field,
@@ -103,7 +108,7 @@ impl Store {
                 through: cut.frontier,
                 start_ns: i64::MIN,
                 end_ns: i64::MAX,
-                bins: std::num::NonZeroUsize::MIN,
+                bins: NonZeroUsize::MIN,
             };
             let moments = reader.numeric_summary(window)?;
             if moments.count == 0 {
@@ -143,7 +148,7 @@ impl Store {
             || kind == Aggregate::Percentile && percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0
         {
             let rank = if kind == Aggregate::Median { 50 } else { percentile as u8 };
-            let values = crate::telemetry::aggregates::rank_values(
+            let values = aggregates::rank_values(
                 |push| self.expression_values(cut, expression, None, filters, |_, _, value, _| push(value)),
                 &[rank],
                 self.storage_settings()?.query_bytes.get(),
@@ -191,9 +196,8 @@ impl Store {
         &self, cut: &ExecutionCut, expression: &DataExpression, order: Option<&DataExpression>, filters: &[PlotFilter],
         mut read: impl FnMut(u64, i64, ScalarValue, Option<ScalarValue>) -> Result<()>,
     ) -> Result<()> {
-        use arrow_array::{Int64Array, StructArray, UInt64Array};
-        let source = crate::plot_selection::reference(expression).map(|(r, record)| (record, r.identifier.clone()));
-        let expressions = std::iter::once(expression.clone())
+        let source = plot_selection::reference(expression).map(|(r, record)| (record, r.identifier.clone()));
+        let expressions = iter::once(expression.clone())
             .chain(order.cloned())
             .chain(filters.iter().filter_map(|f| f.expression.clone()))
             .collect::<Vec<_>>();
@@ -204,7 +208,7 @@ impl Store {
         self.evaluate(
             cut,
             source.clone(),
-            crate::BatchSelection {
+            BatchSelection {
                 execution: &cut.execution.identifier,
                 stream: &source.1,
                 after: 0,
