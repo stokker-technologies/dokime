@@ -24,9 +24,9 @@ use std::{
 
 // Third Party Imports
 use harmos_protocol::host::PluginDescription;
-use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginRemote, PluginState};
-use harmos_protocol::model::Receipt;
+use harmos_protocol::model::{FileReference, Receipt};
 use prost::Message;
 use tokio::sync::watch::Receiver;
 
@@ -38,6 +38,7 @@ use dokime_protocol::host::ExecutionControls;
 use dokime_protocol::host::ExecutionMode;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
+use dokime_protocol::host::content::ExecutionFileMetadata;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::Origin;
@@ -138,7 +139,7 @@ impl Host {
     }
     pub async fn add_remote(&self, name: &str, endpoint: &str) -> Result<String> {
         let placement = PluginPlacement {
-            kind: Some(PlacementKind::Remote(PluginRemote { url: endpoint.into() })),
+            kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: endpoint.into() })),
         };
         self.create_plugin(name.into(), placement).await
     }
@@ -203,7 +204,7 @@ impl Host {
         .upload
         .ok_or_else(|| Error::Invalid("Add Plugin: Publish Its Bundle".into()))?;
         let placement = PluginPlacement {
-            kind: Some(PlacementKind::Managed(PluginManaged {
+            kind: Some(plugin_placement::Kind::Managed(PluginManaged {
                 sha256: content.sha256.clone(),
                 content: Some(content),
             })),
@@ -378,11 +379,58 @@ impl Host {
             .ok_or_else(|| Error::Invalid("Rerun Execution: Supply Its Frozen Origin".into()))?;
         self.start_cycle(vec![origin]).await
     }
-    pub fn export_execution(&self, execution: &str) -> Result<Vec<u8>> {
+    pub async fn export_execution(&self, execution: &str) -> Result<Vec<u8>> {
         if !self.capabilities(execution)?.export {
             return Err(Error::Invalid("Export Execution: Seal the Execution Before Exporting Evidence".into()));
         }
-        Ok(self.store.export(execution)?)
+        let context = self
+            .executions
+            .inner
+            .context
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Export Execution: Open the Host Before Reading Evidence".into()))?;
+        let response = dokime_operations::host::evidence::archive::handle(
+            &context,
+            dokime_protocol::host::EvidenceArchiveRequest {
+                subject: Some(dokime_protocol::host::EvidenceSubject {
+                    kind: Some(dokime_protocol::host::evidence_subject::Kind::Execution(execution.into())),
+                }),
+                at: None,
+            },
+        )
+        .await?;
+        let file = response.file.ok_or_else(|| Error::Invalid("Export Execution: Restore Its Native Archive Reference".into()))?;
+        let mut bytes = Vec::new();
+        while (bytes.len() as u64) < file.length {
+            let response = dokime_operations::host::files::read::handle(
+                &context,
+                dokime_protocol::host::FilesReadRequest {
+                    file: Some(file.clone()),
+                    offset: bytes.len() as u64,
+                    max_bytes: 0,
+                    at: None,
+                },
+            )
+            .await?;
+            if response.data.is_empty() {
+                return Err(Error::Invalid("Export Execution: Restore Its Complete Native Archive".into()));
+            }
+            bytes.extend(response.data);
+        }
+        Ok(bytes)
+    }
+    pub async fn attach_execution_file(&self, execution: &str, metadata: ExecutionFileMetadata, file: FileReference) -> Result<Receipt> {
+        let context = self
+            .executions
+            .inner
+            .context
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Attach Execution File: Open the Host Before Registering Content".into()))?;
+        dokime_operations::host::content::attach_execution_file(&context, execution, metadata, file)
+            .await
+            .map_err(|source| Error::Invalid(source.to_string()))
     }
     /// Replaces the folders plugins may capture from; captures opened afterwards use them.
     pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {

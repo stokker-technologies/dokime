@@ -43,8 +43,9 @@ use dokime::client::FilesUploadsPublishOptions;
 use dokime::client::FilesUploadsResumeOptions;
 use dokime_protocol::host::FilesDeleteRequest;
 use dokime_protocol::host::content::ArtifactsCreateRequest;
-use dokime_protocol::host::evidence_subject::Kind as EvidenceSubjectKind;
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::host::evidence_subject;
+use dokime_protocol::model::origin;
+use dokime_protocol::model::{Metadata, Value, value};
 use dokime_storage::CONTENT_CHUNK_BYTES;
 use dokime_storage::Execution;
 use dokime_storage::Store;
@@ -52,6 +53,7 @@ use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::PageRequest;
 use sha2::Digest;
 use sha2::Sha256;
+use std::collections::HashMap;
 use std::error::Error;
 use tonic::transport::Endpoint;
 
@@ -89,7 +91,7 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
                 identifier: "native-archive".into(),
                 cycle: "native-archive".into(),
                 origin: Some(Origin {
-                    kind: Some(OriginKind::Import(Import::default())),
+                    kind: Some(origin::Kind::Import(Import::default())),
                 }),
                 ..Default::default()
             })?;
@@ -137,7 +139,7 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
             let archived = client
                 .evidence
                 .archive(EvidenceSubject {
-                    kind: Some(EvidenceSubjectKind::Execution("native-archive".into())),
+                    kind: Some(evidence_subject::Kind::Execution("native-archive".into())),
                 })
                 .await?
                 .file
@@ -189,7 +191,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                     identifier: id.into(),
                     cycle: "content-cycle".into(),
                     origin: Some(Origin {
-                        kind: Some(OriginKind::Import(Import::default())),
+                        kind: Some(origin::Kind::Import(Import::default())),
                     }),
                     ..Default::default()
                 })?;
@@ -205,9 +207,26 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
             let original = super::support::native_file(&client, "file-original", "content-a", b"original\n").await?;
-            store.attach_execution_file("content-a", file.clone(), original.clone())?;
             let replacement = super::support::native_file(&client, "file-replacement", "content-a", b"replacement\n").await?;
-            store.attach_execution_file("content-a", file, replacement)?;
+            process.close().await?;
+            super::support::register_execution_files(
+                root.path(),
+                &credentials.environment,
+                vec![
+                    dokime_storage::StoredExecutionFile {
+                        metadata: Some(file.clone()),
+                        file: Some(original.clone()),
+                    },
+                    dokime_storage::StoredExecutionFile {
+                        metadata: Some(file),
+                        file: Some(replacement),
+                    },
+                ],
+            )
+            .await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
             let bytes = vec![42; 140003];
             let reference = super::support::native_file(&client, "uploaded", "content-a", &bytes).await?;
             let uploaded = client
@@ -252,7 +271,18 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 filename: "attached.bin".into(),
                 content_type: "application/octet-stream".into(),
                 request_id: "attach".into(),
-                metadata: None,
+                metadata: Some(Metadata {
+                    attributes: HashMap::from([
+                        (
+                            "sensor".into(),
+                            Value {
+                                kind: Some(value::Kind::Text("temperature".into())),
+                            },
+                        ),
+                        ("run".into(), Value { kind: Some(value::Kind::Integer(42)) }),
+                    ]),
+                    ..Default::default()
+                }),
             };
             let attached = artifacts
                 .create_with(
@@ -283,7 +313,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                     .await?,
                 attached
             );
-            let mut foreign = request;
+            let mut foreign = request.clone();
             foreign.scope.as_mut().unwrap().execution_id = Some("content-b".into());
             assert!(
                 artifacts
@@ -305,11 +335,25 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             assert_eq!(file.metadata.as_ref().unwrap().size_bytes, 12);
             let file = file.file.unwrap();
             assert_eq!(client.files.read(file.clone(), 0, 64).await?.data, b"replacement\n");
-            assert_eq!(client.files.read(original, 0, 64).await?.data, b"original\n");
+            assert_eq!(client.files.read(original.clone(), 0, 64).await?.data, b"original\n");
+            assert!(
+                client
+                    .files
+                    .delete_with(
+                        original,
+                        FilesDeleteOptions {
+                            request_id: Some("retain-replaced-file".into()),
+                            ..Default::default()
+                        }
+                    )
+                    .await
+                    .is_err()
+            );
             assert!(files.get("content-b", "logs/output.txt").await.is_err());
             assert!(files.get("content-a", "../logs/output.txt").await.is_err());
             let listed = files.list("content-a").await?;
             assert_eq!(listed.files.len(), 1);
+            let committed = attached.clone();
             let attached = attached.artifact.unwrap();
             let stored = artifacts.get(attached.artifact_id.clone()).await?.file.unwrap();
             assert_eq!(stored.length, bytes.len() as u64);
@@ -504,7 +548,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                     .clone();
             let archived = evidence
                 .archive(EvidenceSubject {
-                    kind: Some(EvidenceSubjectKind::Execution("content-a".into())),
+                    kind: Some(evidence_subject::Kind::Execution("content-a".into())),
                 })
                 .await?;
             assert!(archived.file.unwrap().length > bytes.len() as u64);
@@ -515,6 +559,20 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                     .content
                     .artifacts
                     .clone();
+            let replay = artifacts
+                .create_with(
+                    request.file.clone().unwrap(),
+                    request.scope.clone().unwrap(),
+                    request.filename.clone(),
+                    request.content_type.clone(),
+                    ContentArtifactsCreateOptions {
+                        request_id: Some(request.request_id.clone()),
+                        metadata: request.metadata.clone(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(replay, committed);
             let restored = artifacts.get(attached.artifact_id.clone()).await?;
             assert_eq!(restored.metadata, Some(attached));
             assert_eq!(restored.file.unwrap().sha256, reference.sha256);

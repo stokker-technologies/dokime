@@ -168,7 +168,7 @@ impl Store {
                 |row| row.get(0),
             )?;
             let superseded_journals: bool = connection.query_row(
-                "SELECT EXISTS(SELECT 1 FROM administration WHERE id GLOB 'view:*' OR id GLOB 'view-at:*' OR id GLOB 'prepared-report/*')",
+                "SELECT EXISTS(SELECT 1 FROM administration WHERE id GLOB 'view:*' OR id GLOB 'view-at:*' OR id GLOB 'prepared-report/*' OR id GLOB 'artifact/*' OR id GLOB 'execution-file/*')",
                 [],
                 |row| row.get(0),
             )?;
@@ -347,7 +347,7 @@ impl Store {
     }
     pub fn export(&self, execution: &str) -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
-        self.write_execution_archive(execution, &mut bytes)?;
+        self.write_execution_archive(execution, &mut bytes, Default::default())?;
         Ok(bytes)
     }
 

@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::fs::File;
+use std::sync::Weak;
 use std::{
     io::{BufWriter, Write},
     num::NonZeroUsize,
@@ -24,7 +25,6 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::model as h;
 use harmos_protocol::model::Declarations;
 use harmos_protocol::model::ReadCut;
 use prost::Message;
@@ -33,15 +33,14 @@ use tempfile::NamedTempFile;
 
 // Local Imports
 use crate::{Error, Host, Result};
-use dokime_operations::Result as OperationsResult;
 use dokime_operations::host::HostIdentity;
 use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ReportMetadata;
 use dokime_protocol::host::ReportSubject;
-use dokime_protocol::model::Document;
 use dokime_protocol::model::Plot;
 use dokime_protocol::model::PlotFilter;
 use dokime_protocol::model::Section;
+use dokime_protocol::model::{ArtifactMetadata, Document};
 use dokime_storage::{Execution, ExecutionCut, Report, Store};
 
 /* === Constants === */
@@ -56,6 +55,7 @@ pub struct FixedSnapshot {
     store: Store,
     cut: ExecutionCut,
     counts: dokime_storage::OutcomeCounts,
+    artifacts: Vec<ArtifactMetadata>,
     _read_cancellation: Option<dokime_storage::ReadCancellation>,
 }
 
@@ -98,9 +98,9 @@ impl RenderedDocument {
     }
 }
 impl Host {
-    pub(crate) fn render_report(
+    pub(crate) async fn render_report(
         &self, subject: &ReportSubject, document_id: &str, at: Option<&ReadCut>, identity: &HostIdentity, render_settings: RenderSettings,
-    ) -> OperationsResult<(File, ReportMetadata)> {
+    ) -> dokime_operations::Result<(File, ReportMetadata)> {
         use std::io::{Seek, Write};
         let (store, _read_cancellation) = self.store.read_session()?;
         let (execution, cycle) = match subject.kind.as_ref() {
@@ -150,7 +150,7 @@ impl Host {
                 }
                 snapshots.push((
                     document,
-                    self.snapshot_in(store.clone(), cut).map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?,
+                    self.snapshot_in(store.clone(), cut).await.map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?,
                 ));
             }
         }
@@ -250,7 +250,7 @@ impl Host {
         if cut.execution.cycle != scope.cycle_id {
             return Err(Error::Invalid("Capture Document: Select the Execution in Its Own Cycle".into()));
         }
-        let catalog = h::Declarations::decode(cut.execution.catalog.as_slice())?;
+        let catalog = Declarations::decode(cut.execution.catalog.as_slice())?;
         let mut documents = Vec::new();
         for section in &catalog.sections {
             if section.r#type != "dokime.model.v1.Suites" {
@@ -292,23 +292,33 @@ impl Host {
         Ok((document, cut))
     }
 
-    pub fn snapshot(&self, execution: &str) -> Result<FixedSnapshot> {
+    pub async fn snapshot(&self, execution: &str) -> Result<FixedSnapshot> {
         let cut = self.store.cut(execution)?;
-        self.snapshot_cut(cut)
+        self.snapshot_cut(cut).await
     }
-    pub fn snapshot_cut(&self, cut: ExecutionCut) -> Result<FixedSnapshot> {
+    pub async fn snapshot_cut(&self, cut: ExecutionCut) -> Result<FixedSnapshot> {
         let (store, guard) = self.store.read_session()?;
-        let mut snapshot = self.snapshot_in(store, cut)?;
+        let mut snapshot = self.snapshot_in(store, cut).await?;
         snapshot._read_cancellation = Some(guard);
         Ok(snapshot)
     }
-    pub(crate) fn snapshot_in(&self, store: Store, cut: ExecutionCut) -> Result<FixedSnapshot> {
+    pub(crate) async fn snapshot_in(&self, store: Store, cut: ExecutionCut) -> Result<FixedSnapshot> {
         let outcomes = store.cycle_outcomes(&cut.execution.cycle)?;
         let counts = dokime_storage::OutcomeCounts::from_outcomes(&outcomes);
+        let context = self
+            .executions
+            .inner
+            .context
+            .get()
+            .and_then(Weak::upgrade)
+            .ok_or_else(|| Error::Invalid("Capture Document: Open the Host Before Reading Content".into()))?;
+        let artifacts =
+            dokime_operations::host::content::artifact_records(&context).await?.into_iter().filter_map(|entry| entry.artifact).collect();
         Ok(FixedSnapshot {
             store,
             cut,
             counts,
+            artifacts,
             _read_cancellation: None,
         })
     }
@@ -318,6 +328,7 @@ impl Host {
             store,
             cut: snapshot.cut.clone(),
             counts: snapshot.counts.clone(),
+            artifacts: snapshot.artifacts.clone(),
             _read_cancellation: Some(cancellation),
         };
         let mut file = NamedTempFile::with_prefix("dokime-render-")?;
@@ -341,7 +352,7 @@ impl Host {
             "<dl><dt>Evaluated</dt><dd>{}</dd><dt>Not Evaluated</dt><dd>{}</dd><dt>Declared</dt><dd>{}</dd></dl>",
             counts.evaluated, counts.not_evaluated, counts.declared
         )?;
-        let catalog = h::Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
+        let catalog = Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
         let mut offset = 0;
         loop {
             let expansion = dokime_operations::host::documents::expansion::expand(
@@ -494,35 +505,27 @@ fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32,
             }
         }
     } else if matches!(kind, dokime_protocol::model::EvidenceCard::Artifacts | dokime_protocol::model::EvidenceCard::Media) {
-        let mut after = String::new();
-        loop {
-            let page = snapshot.store.artifacts_page(&after, settings.page_size.get())?;
-            if page.is_empty() {
-                break;
+        for artifact in &snapshot.artifacts {
+            if artifact.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) != Some(&snapshot.cut.execution.identifier) {
+                continue;
             }
-            for artifact in page {
-                after = artifact.artifact_id.clone();
-                if artifact.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) != Some(&snapshot.cut.execution.identifier) {
-                    continue;
-                }
-                let media = artifact
-                    .content_type
-                    .as_ref()
-                    .is_some_and(|mime| mime.starts_with("image/") || mime.starts_with("audio/") || mime.starts_with("video/"));
-                if kind == dokime_protocol::model::EvidenceCard::Media && !media {
-                    continue;
-                }
-                write!(
-                    output,
-                    "<li data-artifact=\"{}\">{} ({} bytes)</li>",
-                    escape(&artifact.artifact_id),
-                    escape(&artifact.filename),
-                    artifact.size_bytes
-                )?;
+            let media = artifact
+                .content_type
+                .as_ref()
+                .is_some_and(|mime| mime.starts_with("image/") || mime.starts_with("audio/") || mime.starts_with("video/"));
+            if kind == dokime_protocol::model::EvidenceCard::Media && !media {
+                continue;
             }
+            write!(
+                output,
+                "<li data-artifact=\"{}\">{} ({} bytes)</li>",
+                escape(&artifact.artifact_id),
+                escape(&artifact.filename),
+                artifact.size_bytes
+            )?;
         }
     } else if kind == dokime_protocol::model::EvidenceCard::StreamContext {
-        let catalog = h::Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
+        let catalog = Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
         for stream in catalog.streams {
             write!(output, "<li>{}</li>", escape(&stream.id))?;
         }
@@ -549,7 +552,7 @@ fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32,
                 }
                 if kind == dokime_protocol::model::EvidenceCard::Records {
                     let record = dokime_protocol::host::evidence::RecordsAppendRequest::decode(evidence.payload.as_slice())?;
-                    let catalog = h::Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
+                    let catalog = Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
                     let mut message = None;
                     for section in &catalog.sections {
                         if section.r#type == "dokime.model.v1.RecordContracts" {

@@ -11,9 +11,7 @@
 
 /* === Modules === */
 
-#[path = "storage/publication.rs"]
 mod publication;
-#[path = "storage/windows.rs"]
 mod windows;
 
 /* === Re-Exports === */
@@ -47,8 +45,8 @@ use dokime::Termination;
 use dokime::client::ExecutionOutcome;
 use dokime_protocol::builders::Plot;
 use dokime_protocol::model::card::Body;
-use dokime_protocol::model::data_expression::Kind as DataExpressionKind;
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::model::data_expression;
+use dokime_protocol::model::origin;
 use dokime_storage::BatchSelection;
 use dokime_storage::Execution;
 use dokime_storage::NumericWindow;
@@ -312,7 +310,7 @@ fn definition() -> Execution {
         identifier: "execution".into(),
         cycle: "cycle".into(),
         origin: Some(Origin {
-            kind: Some(OriginKind::Import(Import::default())),
+            kind: Some(origin::Kind::Import(Import::default())),
         }),
         catalog: Declarations {
             types: Some(types),
@@ -373,10 +371,10 @@ fn window(count: u64) -> NumericWindow<'static> {
 }
 fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
     DataExpression {
-        kind: Some(DataExpressionKind::Aggregate(Box::new(AggregateExpression {
+        kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
             kind: kind as i32,
             input: Some(Box::new(DataExpression {
-                kind: Some(DataExpressionKind::Stream(FieldReference {
+                kind: Some(data_expression::Kind::Stream(FieldReference {
                     identifier: stream.into(),
                     field: "value".into(),
                 })),
@@ -493,7 +491,7 @@ fn main() {
         b.iter(|| {
             let started = Instant::now();
             let mut bytes = Vec::new();
-            export.store.write_execution_archive("execution", &mut bytes).unwrap();
+            export.store.write_execution_archive("execution", &mut bytes, Default::default()).unwrap();
             black_box(bytes);
             report(started.elapsed(), 1);
         })

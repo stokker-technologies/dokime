@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `7fe385eacbe9a4c9a47943f6a528f97a014256ee`, rather than
+[Cargo.toml](../Cargo.toml), `6978e65f1d505c2fe805a34a2781e48ea6f30350`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -199,7 +199,7 @@ ownership changes below are locked direction, not implemented source.
    independent clock; lifecycle dispatch uses the library operation manager. Scoped
    sample ingestion acknowledges only after the product Arrow write and binding
    closure precedes sealing. Product file presentation stores logical paths and
-   original native file references in the execution transaction. Retired SQL file
+   original native file references in scoped Harmos objects. Retired SQL file
    byte objects and writers are removed; incompatible development roots are preserved
    and refused at baseline v1. Final combined validation remains a separate obligation.
    Every native credential lives under the host's credential namespace
@@ -781,15 +781,27 @@ At the current pin, the product `execution.sqlite3` ledger still owns coupled
 execution, evidence, sample, seal and report transitions, while registered Harmos
 operations persist in `storage.sqlite3`. Their sequencing cannot be split by moving
 only an append call: reads, retained cuts and seals must move with the canonical
-writer. The pinned Harmos revision and registered backend provide compound atomic
-mutation and object/scoped deletion. Their coupled product cutover remains open;
-offline/minimal-assembly storage operations, expression transforms scale/offset/contains,
-consolidated statistics, the bucket-summary kernel and the typed facade remain
-upstream gaps.
+writer. The pinned Harmos revision provides compound atomic mutation,
+object/scoped deletion, storage-only assembly and maintenance operations, and
+scale/offset/contains expression transforms. Their coupled product cutover and
+backend maintenance hooks remain open. Consolidated statistics, the bucket-summary
+kernel and the typed facade remain upstream gaps.
 Independent retained views use immutable native files and object indexes, retaining
 the first file published for a product cut. Pages keep their existing response bounds;
 the complete collection is stored and read through bounded native file operations.
 No mirror, fallback reader or dual write is introduced.
+Artifact and execution-file metadata use scoped Harmos objects in
+`crates/dokime-operations/src/host/content/mod.rs`; their bytes remain native files.
+Artifact replay retains its original native mutation identity and receipt, including
+after sealing and restart. Logical file replacement retains the old immutable file
+reference. Archive metadata and fixed document artifact cards read those objects;
+archive execution/evidence/telemetry readers still await the coupled source cutover.
+The execution-open check still uses the coupled execution owner. Atomic coordination
+of content publication with seal/deletion and native cut issuance remains required
+before this family establishes the complete storage-through-operations boundary.
+`Host::snapshot`, `Host::snapshot_cut` and `Host::export_execution` are asynchronous
+because they read content through operations. Physical archive assembly remains in
+`crates/dokime-storage/src/content.rs` until its evidence and telemetry inputs move.
 Prepared reports persist their document, execution seal and native file reference
 through Harmos objects. Their HTML stays in the native file and publication reads
 it through `GetFileBytes`; the final product report transaction still awaits the
@@ -806,7 +818,8 @@ request ID while taking durable positions from the native receipt. Case deletion
 Dokime's cycle and execution-ownership guards and calls `DeleteObject`; retained
 cuts still see the previous case. No SQL registration or planned-case table remains.
 Execution bindings still belong to the coupled execution/evidence cutover.
-Roots containing the superseded SQL registration/case tables, view or prepared-report journals are refused
+Roots containing the superseded SQL registration/case tables, view, prepared-report,
+artifact or execution-file journals are refused
 with fresh-root guidance at baseline v1. Admission preserves their stored values;
 there is no migration, fallback reader or automatic reset.
 
@@ -870,7 +883,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/7fe385eacbe9a4c9a47943f6a528f97a014256ee/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/6978e65f1d505c2fe805a34a2781e48ea6f30350/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -981,7 +994,7 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `7fe385eacbe9a4c9a47943f6a528f97a014256ee`.
+The definition pass pins Harmos at `6978e65f1d505c2fe805a34a2781e48ea6f30350`.
 The table below records consumer repairs at this pin. Plugin Boundary replaces
 direct plugin-service composition and author-facing Harmos values; product SDKs
 use carrier helpers internally and expose Dokime values only.

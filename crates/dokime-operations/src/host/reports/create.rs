@@ -55,7 +55,7 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<ReportsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let subject = request.subject.as_ref().ok_or_else(|| Error::Invalid("Create Report: Select Its Execution or Cycle".into()))?;
-        let (file, metadata) = context.host.render_report(subject, &request.document_id, request.at.as_ref())?;
+        let (file, metadata) = context.host.render_report(subject, &request.document_id, request.at.as_ref()).await?;
         let (retained, length, digest) = crate::host::content::transfer::temporary(file)?;
         let digest =
             (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();

@@ -34,7 +34,7 @@ use crate::{Error, Result, host::Context};
 use dokime_protocol::host::EvidenceArchiveRequest;
 use dokime_protocol::host::EvidenceArchiveResponse;
 
-use dokime_protocol::host::evidence_subject::Kind as EvidenceSubjectKind;
+use dokime_protocol::host::evidence_subject;
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::FileReference;
 
@@ -70,11 +70,11 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
             let (store, _read_cancellation) = context.host.store().read_session()?;
             let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Create Temporary Evidence Export: {error}")))?;
             match subject.kind.as_ref() {
-                Some(EvidenceSubjectKind::Execution(execution)) => {
-                    let files = native_files(context, execution).await?;
-                    store.write_execution_archive_with_files(execution, &mut file, files)?;
+                Some(evidence_subject::Kind::Execution(execution)) => {
+                    let files = content(context, execution).await?;
+                    store.write_execution_archive(execution, &mut file, files)?;
                 }
-                Some(EvidenceSubjectKind::Cycle(cycle)) => {
+                Some(evidence_subject::Kind::Cycle(cycle)) => {
                     let page = std::num::NonZeroUsize::new(context.settings.page_items).unwrap();
                     let mut files = HashMap::new();
                     let mut after = String::new();
@@ -85,10 +85,10 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
                         }
                         for execution in executions {
                             after = execution.clone();
-                            files.insert(execution.clone(), native_files(context, &execution).await?);
+                            files.insert(execution.clone(), content(context, &execution).await?);
                         }
                     }
-                    store.write_cycle_archive_with_files(cycle, page, &mut file, &mut files)?;
+                    store.write_cycle_archive(cycle, page, &mut file, &mut files)?;
                 }
                 None => return Err(Error::Invalid("Download Evidence: Select an Execution or Cycle".into())),
             }
@@ -168,6 +168,20 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
 }
 
 /* === Private Functions === */
+
+async fn content(context: &Context, execution: &str) -> Result<dokime_storage::ArchivedContent> {
+    let artifacts = crate::host::content::artifact_records(context)
+        .await?
+        .into_iter()
+        .filter(|entry| {
+            entry.artifact.as_ref().and_then(|artifact| artifact.scope.as_ref()).and_then(|scope| scope.execution_id.as_deref())
+                == Some(execution)
+        })
+        .collect();
+    let execution_files = crate::host::content::execution_files(context, execution).await?;
+    let files = native_files(context, execution).await?;
+    Ok(dokime_storage::ArchivedContent { files, artifacts, execution_files })
+}
 
 async fn native_files(context: &Context, execution: &str) -> Result<Vec<dokime_storage::ArchivedNativeFile>> {
     let saved = context.storage::<CreateSnapshot>(CreateSnapshotRequest { at: None }).await?;

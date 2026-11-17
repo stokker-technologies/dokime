@@ -148,8 +148,8 @@ impl host::Host for State {
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, dokime_storage::ExecutionCut)> {
         self.host.current_document(scope, identifier).map_err(convert)
     }
-    fn render_report(&self, subject: &ReportSubject, document_id: &str, at: Option<&ReadCut>) -> Result<(File, ReportMetadata)> {
-        self.host.render_report(subject, document_id, at, &self.identity, self.render_settings)
+    async fn render_report(&self, subject: &ReportSubject, document_id: &str, at: Option<&ReadCut>) -> Result<(File, ReportMetadata)> {
+        self.host.render_report(subject, document_id, at, &self.identity, self.render_settings).await
     }
     fn retain_report(&self, reference: FileReference) -> Result<()> {
         self.host.reports.retain(reference, self.temporary_report_limit).map_err(convert)
