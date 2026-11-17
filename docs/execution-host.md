@@ -248,13 +248,20 @@ exact seal and retains a durable request receipt for retry resolution.
 The service adapter adds `Host::record_answer`, `changes`, `signal_change`,
 `is_shutting_down`, `execution_controls`, `start_execution_mode`,
 `pause_execution`, `stop_execution` and `submit_execution_command`.
-The storage owners are `crates/dokime-storage/src/plans.rs` (registration and
-planned-case reads), `cycles.rs` (cycle headers, execution presentation, command
-receipts, recovery and evidence times), and `history.rs` (saved frontiers and
-idempotent sealed deletion). `Store::create_executions` admits complete origin
-lists atomically. The added tables are `cases`, `registrations`, `cycles`,
-`bindings`, `commands`, `cycle_history` and `deletions`, alongside the
-`administration` table. Root validation requires the current v1 layout and refuses incompatible roots with
+Planned-case registration, reads and deletion belong to
+`crates/dokime-operations/src/host/cases/storage.rs`. Harmos objects retain frozen
+plans; one native compound mutation publishes each registration and its cases.
+The original mutation window/key and original case bytes preserve receipt replay
+across restart. Product responses echo the caller's request ID and retain the
+native durable positions. Deletion checks cycle and execution ownership before
+`DeleteObject`; retained cuts keep their earlier image.
+`crates/dokime-storage/src/cycles.rs` still owns cycle headers, execution
+presentation, command receipts, recovery and evidence times; `history.rs` owns
+saved frontiers and sealed execution deletion until the coupled lifecycle cutover.
+`Store::create_executions` still admits complete origin lists atomically.
+The product tables are `cycles`, `bindings`, `commands`, `cycle_history`,
+`deletions` and `administration`, alongside execution/evidence tables.
+SQL `cases` and `registrations` are superseded. Root validation requires the current v1 layout and refuses incompatible roots with
 the action to select a fresh storage root. It never migrates or deletes existing data.
 
 Materialization returns frozen origins; CreateCycle admits and starts the

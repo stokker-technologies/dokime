@@ -142,6 +142,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             )
             .await?;
         let cases = registered.cases.clone();
+        assert_eq!(registered.receipt.as_ref().unwrap().request_id, "lifecycle-plan");
         let case_id = cases[0].case_id.clone();
         let listed = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
             .cases

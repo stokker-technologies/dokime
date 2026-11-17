@@ -86,7 +86,7 @@ pub(crate) async fn registration(context: &Context, request_id: &str, plan: &[u8
     if saved.plan != plan {
         return Err(Error::Conflict("Register Selection: Choose a New Request ID for the Changed Plan".into()));
     }
-    commit(context, &key, saved).await.map(Some)
+    commit(context, request_id, &key, saved).await.map(Some)
 }
 
 pub(crate) async fn register(
@@ -117,7 +117,7 @@ pub(crate) async fn register(
         window: mutation.window.to_string(),
         mutation: mutation.key.to_string(),
     };
-    commit(context, &key, saved).await
+    commit(context, request_id, &key, saved).await
 }
 
 pub(crate) async fn read(context: &Context, identifier: &str, cycle: Option<&str>) -> Result<PlannedCase> {
@@ -177,7 +177,9 @@ pub(crate) async fn delete(context: &Context, cycle: &str, identifier: &str, req
     if matches!(response.outcome, CompoundOutcome::Conflict { .. }) {
         return Err(Error::Conflict("Delete Case: Refresh the Case Before Deleting It".into()));
     }
-    response.receipt.ok_or_else(|| Error::Precondition("Delete Case: Return Its Durable Receipt".into()))
+    let mut receipt = response.receipt.ok_or_else(|| Error::Precondition("Delete Case: Return Its Durable Receipt".into()))?;
+    receipt.request_id = request_id.into();
+    Ok(receipt)
 }
 
 /* === Private Functions === */
@@ -194,7 +196,7 @@ fn value(context: &Context, key: String, payload: Vec<u8>) -> Result<ObjectValue
     administration::catalog().encode(&value, bound).map_err(|source| Error::Invalid(format!("Register Selection: {source}")))
 }
 
-async fn commit(context: &Context, key: &str, saved: Registration) -> Result<CasesCreateResponse> {
+async fn commit(context: &Context, request_id: &str, key: &str, saved: Registration) -> Result<CasesCreateResponse> {
     let cases = saved.cases.iter().map(|payload| PlannedCase::decode(payload.as_slice())).collect::<result::Result<Vec<_>, _>>()?;
     let mut reply = CasesCreateResponse { cases, ..Default::default() };
     let mut items = vec![MutationItem::Create(value(context, key.into(), saved.encode_to_vec())?)];
@@ -216,7 +218,7 @@ async fn commit(context: &Context, key: &str, saved: Registration) -> Result<Cas
         info.saved.map(Position::from).ok_or_else(|| Error::Precondition("Register Selection: Restore Its Durable History".into()))?;
     position.sequence = u64::MAX;
     reply.receipt = Some(Receipt {
-        request_id: format!("{}:{}", mutation.window, mutation.key),
+        request_id: request_id.into(),
         accepted_at: Some(position.clone()),
         durable_at: Some(position),
         completed: true,
@@ -228,7 +230,9 @@ async fn commit(context: &Context, key: &str, saved: Registration) -> Result<Cas
     if matches!(response.outcome, CompoundOutcome::Conflict { .. }) {
         return Err(Error::Conflict("Register Selection: Refresh the Cases Before Registering Them".into()));
     }
-    reply.receipt = Some(response.receipt.ok_or_else(|| Error::Precondition("Register Selection: Return Its Durable Receipt".into()))?);
+    let mut receipt = response.receipt.ok_or_else(|| Error::Precondition("Register Selection: Return Its Durable Receipt".into()))?;
+    receipt.request_id = request_id.into();
+    reply.receipt = Some(receipt);
     Ok(reply)
 }
 

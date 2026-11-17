@@ -14,13 +14,13 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   the storage catalog. Settings and plot settings already use `GetObject`, `SetObject` and
   `ListColumnRows` (`crates/dokime-operations/src/host/storage/administration.rs`); native
   transfers use operations (`crates/dokime-operations/src/host/files/`).
-- Direct `Store` consumers remain across `crates/dokime-storage/src` (store, cycles, plans,
+- Direct `Store` consumers remain across `crates/dokime-storage/src` (store, cycles,
   notes, history, client reads, resource values, evidence positions, administration,
   telemetry reader/query, stream windows, expressions, document values, plot selection,
   plot windows, plot kinds, content, report), `crates/dokime-runtime/src` (execution,
   execution manager, run control, capabilities, host, streams, documents, prompts, reports,
   access credentials, root claim) and `crates/dokime-operations/src/host` (resources, views,
-  execution state, planning, cases, cycles, executions, evidence, documents, plots, prompts,
+  execution state, cases, cycles, executions, evidence, documents, plots, prompts,
   reports, content, every `watch.rs`, backend overview).
 - Duplicated kernels: moments, ranks and persisted summaries in
   `crates/dokime-storage/src/telemetry/aggregates.rs`; adaptive envelope merge in
