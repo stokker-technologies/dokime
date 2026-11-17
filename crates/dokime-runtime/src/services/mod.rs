@@ -38,9 +38,13 @@ use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};
 
 // Third Party Imports
 use composition::Application;
+use harmos_protocol::host::plugin_change::Kind;
+use harmos_protocol::host::{PluginsWatchRequest, plugins_watch_response::Event};
+use harmos_runtime::builtins::plugins::Watch;
 use harmos_runtime::grpc::Attached;
 use harmos_runtime::grpc::middleware::{Enter, Invocation, Middleware, Observation};
 use harmos_runtime::operations::OperationManager;
+use harmos_runtime::operations::StreamSettings;
 use harmos_runtime::services::status::Registration;
 use harmos_runtime::services::status::Status;
 use harmos_runtime::{Refusal, Runtime};
@@ -386,9 +390,6 @@ async fn observe_plugins(
     operations: OperationManager, context: Weak<Context>, settings: ClientSettings, cancellation: tokio_util::sync::CancellationToken,
     status: Arc<Status>,
 ) -> Result<()> {
-    use harmos_protocol::host::{PluginsWatchRequest, plugins_watch_response::Event};
-    use harmos_runtime::builtins::plugins::Watch;
-    use harmos_runtime::operations::StreamSettings;
     loop {
         let mut watch = operations.download_protobuf::<Watch>(
             PluginsWatchRequest { name: None, at: None },
@@ -422,7 +423,6 @@ async fn observe_plugins(
                 return Ok(());
             };
             if let Some(Event::Change(change)) = &event.event {
-                use harmos_protocol::host::plugin_change::Kind;
                 let fields = match &change.kind {
                     Some(Kind::Entry(entry)) => [("plugin".into(), entry.name.clone()), ("state".into(), entry.state.to_string())].into(),
                     Some(Kind::Deleted(name)) => [("plugin".into(), name.clone()), ("deleted".into(), true.to_string())].into(),

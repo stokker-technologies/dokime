@@ -283,7 +283,7 @@ impl ExecutionManager {
                 action: request.action,
                 step_id: request.step_id,
                 phase: if refusal.is_some() { ExecutionCommandPhase::Refused } else { ExecutionCommandPhase::Accepted } as i32,
-                detail: refusal.clone(),
+                detail: refusal,
                 accepted_at: Some(at),
                 updated_at: Some(at),
                 ..Default::default()

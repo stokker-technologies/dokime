@@ -31,6 +31,7 @@ use std::{
 // Third Party Imports
 use harmos_protocol::model::Declarations;
 use harmos_protocol::model::History;
+use harmos_protocol::model::Position;
 use harmos_protocol::model::Receipt;
 use prost::Message;
 use prost_reflect::DescriptorPool;
@@ -375,9 +376,6 @@ impl Store {
     pub fn append_requested(
         &self, execution: &str, operation: &str, request_id: &str, fingerprint: &[u8], mut evidence: Evidence,
     ) -> Result<(u64, Receipt)> {
-        use harmos_protocol::model::History;
-        use harmos_protocol::model::Position;
-        use harmos_protocol::model::Receipt;
         if request_id.is_empty() {
             return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));
         }

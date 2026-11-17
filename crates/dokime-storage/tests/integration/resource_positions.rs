@@ -20,7 +20,7 @@
 // Third Party Imports
 use harmos_protocol::model::{FileMetadata, FileReference, History, Position, Section};
 use prost::Message;
-use rusqlite::Connection;
+use rusqlite::{Connection, params};
 
 // Local Imports
 use dokime_protocol::host::ExecutionOutcome;
@@ -86,8 +86,11 @@ fn superseded_command_journal_refuses_admission_without_deleting_receipts() -> R
         command_id: "command".into(),
         ..Default::default()
     };
-    store.save_command(&command)?;
     drop(store);
+    let connection = Connection::open(root.path().join("execution.sqlite3"))?;
+    connection
+        .execute("INSERT INTO commands VALUES (?1,?2,?3)", params![command.execution_id, command.command_id, command.encode_to_vec()])?;
+    drop(connection);
 
     // Refuse Admission and Preserve the Original Receipt
     assert!(matches!(Store::open(root.path()), Err(Error::Incompatible(_))));
