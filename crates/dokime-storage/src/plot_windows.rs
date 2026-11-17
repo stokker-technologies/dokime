@@ -16,17 +16,25 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::{collections::BTreeMap, iter, mem, sync::Arc};
 
 // Third Party Imports
-use arrow_array::{Float64Array, ListArray, RecordBatch, UInt64Array};
+use arrow_array::{Float64Array, Int64Array, ListArray, RecordBatch, UInt64Array};
 use arrow_schema::{DataType, Field, Schema};
 use harmos_domain::model::storage::query::transform::statistics;
-use harmos_query::TableWriter;
-use harmos_query::transform::{FieldPath, Transform, histogram};
+use harmos_query::config::QueryAccumulatorSettings;
+use harmos_query::scalar::Agg;
+use harmos_query::transform::{
+    FieldPath, FieldPathExecution, HistogramExecution, Transform,
+    downsample::{self, Algorithm},
+    histogram,
+};
+use harmos_query::{Accumulator, Aggregate, TableWriter};
+use prost_types::Timestamp;
 
 // Local Imports
-use crate::{Error, NumericWindow, Result, Store, scalar};
+use crate::scalar::{self, ScalarValue};
+use crate::{Error, NumericWindow, Result, Store};
 use dokime_protocol::model::Downsample;
 use dokime_protocol::model::Value;
 
@@ -39,8 +47,6 @@ use dokime_protocol::host::plots::PlotHistogramStatistics;
 use dokime_protocol::host::plots::PlotSeriesSummary;
 
 use dokime_protocol::host::Statistics;
-
-use prost_types::Timestamp;
 
 use dokime_protocol::model::value;
 
@@ -62,16 +68,6 @@ impl Store {
     pub fn sampled_time_series_window(
         &self, window: NumericWindow<'_>, technique: Downsample, limit: usize,
     ) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
-        use arrow_array::{Float64Array, Int64Array, RecordBatch};
-        use arrow_schema::{DataType, Field, Schema};
-        use harmos_query::{
-            TableWriter,
-            transform::{
-                FieldPath, Transform,
-                downsample::{self, Algorithm},
-            },
-        };
-        use std::sync::Arc;
         if limit == 0 || technique == Downsample::Lttb && limit < 3 {
             return Err(Error::Data("supply a positive raw limit or at least three LTTB vertices"));
         }
@@ -117,12 +113,9 @@ impl Store {
                 column.y.push(NullableNumber { value: Some(ys.value(row)) });
             }
         }
-        let _ = std::marker::PhantomData::<RecordBatch>;
         Ok((column, summary, count))
     }
     fn read_numeric_batches(&self, window: NumericWindow<'_>, mut read: impl FnMut(RecordBatch) -> Result<()>) -> Result<()> {
-        use arrow_array::{Float64Array, Int64Array, RecordBatch};
-        use std::sync::Arc;
         let mut times = Vec::new();
         let mut values = Vec::new();
         let rows = self.storage_settings()?.flush_rows.get();
@@ -132,9 +125,9 @@ impl Store {
             if times.len() >= rows {
                 let xs = times.iter().map(|time| (*time as i128 - window.start_ns as i128) as f64 / 1e9).collect::<Vec<_>>();
                 read(RecordBatch::try_from_iter(vec![
-                    ("time", Arc::new(Int64Array::from(std::mem::take(&mut times))) as _),
+                    ("time", Arc::new(Int64Array::from(mem::take(&mut times))) as _),
                     ("x", Arc::new(Float64Array::from(xs)) as _),
-                    ("y", Arc::new(Float64Array::from(std::mem::take(&mut values))) as _),
+                    ("y", Arc::new(Float64Array::from(mem::take(&mut values))) as _),
                 ])?)?;
             }
             Ok(())
@@ -158,7 +151,7 @@ impl Store {
         if moments.count == 0 {
             return Ok(Default::default());
         }
-        let ranks = self.ranks(*window, &[5, 50, 95, 99])?;
+        let (median, ranks) = self.numeric_order_statistics(*window, &[5, 95, 99], |_| Ok(()))?;
         Ok(Statistics {
             count: moments.count,
             min: Some(scalar::wire(&moments.min)?),
@@ -166,7 +159,7 @@ impl Store {
             mean: Some(scalar::wire(&moments.average)?),
             sum: Some(scalar::wire(&moments.sum)?),
             stddev: moments.standard_deviation,
-            median: Some(scalar::wire(&ranks[&50])?),
+            median: Some(scalar::wire(&median)?),
             p05: Some(scalar::wire(&ranks[&5])?),
             p95: Some(scalar::wire(&ranks[&95])?),
             p99: Some(scalar::wire(&ranks[&99])?),
@@ -218,7 +211,19 @@ impl Store {
         let max = scalar::number(&summary.max).unwrap();
         let width = if max == min { 1.0 } else { (max - min) / bins as f64 };
         let edges = (0..=bins).map(|index| min + index as f64 * width).collect();
-        let batch = self.reduce_numeric(window, &Transform::Histogram(histogram::Histogram { field: FieldPath::from("y"), edges }))?;
+        let plan = histogram::Histogram {
+            field: FieldPath::from(format!("values.{}", window.field).as_str()),
+            edges,
+        };
+        let mut histogram = None;
+        let (median, _) = self.numeric_order_statistics(window, &[], |batch| {
+            if histogram.is_none() {
+                histogram = Some(plan.start(batch.schema().as_ref())?);
+            }
+            histogram.as_mut().unwrap().push(batch, &mut || Ok(()))?;
+            Ok(())
+        })?;
+        let batch = histogram.ok_or(Error::Data("capture numeric values in the selected histogram window"))?.finish()?;
         let lower = batch.column_by_name("lower").unwrap().as_any().downcast_ref::<Float64Array>().unwrap();
         let upper = batch.column_by_name("upper").unwrap().as_any().downcast_ref::<Float64Array>().unwrap();
         let counts = batch.column_by_name("count").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
@@ -234,7 +239,7 @@ impl Store {
             count: summary.count,
             statistics: Some(PlotHistogramStatistics {
                 mean: Some(scalar::wire(&summary.average)?),
-                median: Some(scalar::wire(&self.ranks(window, &[50])?[&50])?),
+                median: Some(scalar::wire(&median)?),
                 std: summary.standard_deviation,
                 rms: summary.rms,
                 min: Some(scalar::wire(&summary.min)?),
@@ -275,6 +280,36 @@ impl Store {
             ..Default::default()
         })
     }
+    fn numeric_order_statistics(
+        &self, window: NumericWindow<'_>, percentiles: &[u8], mut read: impl FnMut(&RecordBatch) -> Result<()>,
+    ) -> Result<(ScalarValue, BTreeMap<u8, ScalarValue>)> {
+        let memory_bytes = self.storage_settings()?.query_bytes.get() / (percentiles.len() + 1);
+        let kinds = iter::once(Aggregate::Median).chain(percentiles.iter().copied().map(Aggregate::Percentile));
+        let mut accumulators =
+            kinds.map(|kind| Accumulator::with_settings(Agg::Of(kind), QueryAccumulatorSettings { memory_bytes })).collect::<Vec<_>>();
+        let field = FieldPath::from(format!("values.{}", window.field).as_str());
+        let mut position = 0;
+        self.evaluated_batches(window, &[window.field.into()], |batch| {
+            read(&batch)?;
+            for row in 0..batch.num_rows() {
+                position += 1;
+                let value = field.value(&batch, row)?;
+                for accumulator in &mut accumulators {
+                    accumulator.push(position, &value)?;
+                }
+            }
+            Ok(true)
+        })?;
+        let mut values = accumulators
+            .into_iter()
+            .map(|accumulator| accumulator.finish(&mut || Ok(())))
+            .collect::<harmos_query::Result<Vec<_>>>()?
+            .into_iter();
+        let median = values.next().unwrap();
+        let ranks = percentiles.iter().copied().zip(values).collect();
+        Ok((median, ranks))
+    }
+
     fn reduce_numeric(&self, window: NumericWindow<'_>, transform: &Transform) -> Result<RecordBatch> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("time", DataType::Int64, false),

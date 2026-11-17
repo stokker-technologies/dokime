@@ -491,6 +491,49 @@ fn integer_document_medians_preserve_exact_values() -> Result<()> {
     Ok(())
 }
 #[test]
+fn histogram_medians_match_native_integer_medians() -> Result<()> {
+    let base = (1u64 << 60) + 487;
+    for signed in [false, true] {
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        let mut execution = fixture::execution();
+        if signed {
+            let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+            catalog.types.as_mut().unwrap().file[0].message_type[0].field[0].r#type = Some(Type::Int64 as i32);
+            execution.catalog = catalog.encode_to_vec();
+        }
+        store.create(&execution)?;
+        store.open_stream("execution", "readings")?;
+        let mut samples = fixture::samples(3);
+        for (sample, magnitude) in samples.iter_mut().zip([base, base + 4097, base + 8194]) {
+            let value = if signed { (-(magnitude as i64)) as u64 } else { magnitude };
+            sample.row = Row { value, label: "large".into() }.encode_to_vec();
+        }
+        store.sample_batch("execution", &samples)?;
+        store.flush_samples()?;
+        let expression = DataExpression {
+            kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
+                input: Some(Box::new(FieldReference::new("readings").field("value"))),
+                kind: Aggregate::Median as i32,
+                ..Default::default()
+            }))),
+            ..Default::default()
+        };
+        for through in [2, 3] {
+            let cut = ExecutionCut {
+                frontier: through,
+                ..store.cut("execution")?
+            };
+            let expected = store.document_value(&cut, &expression)?;
+            let histogram = store.histogram_window(numeric(through), 2)?;
+            assert_eq!(histogram.statistics.unwrap().median, Some(expected.clone()));
+            assert_eq!(store.numeric_statistics(&numeric(through))?.median, Some(expected));
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn large_integer_numeric_statistics_use_library_statistics() -> Result<()> {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
@@ -572,12 +615,7 @@ fn integer_statistics_keep_exact_values_and_float_ranks_across_reopen() -> Resul
     ] {
         assert_eq!(value.as_ref().unwrap().kind, Some(value::Kind::UnsignedInteger(expected)));
     }
-    for (value, expected) in [
-        (&statistics.median, base + 5_000),
-        (&statistics.p05, base + 500),
-        (&statistics.p95, base + 9_500),
-        (&statistics.p99, base + 9_900),
-    ] {
+    for (value, expected) in [(&statistics.p05, base + 500), (&statistics.p95, base + 9_500), (&statistics.p99, base + 9_900)] {
         let Some(value::Kind::Number(actual)) = value.as_ref().unwrap().kind else {
             panic!("Library Ranks Return Floating-Point Values");
         };
