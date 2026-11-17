@@ -43,6 +43,7 @@ use crate::{Error, NumericWindow, Result, Store};
 /* === Structs === */
 
 /// Product Projection of Library Aggregate Results; No Persisted Running Moments.
+#[derive(Clone)]
 pub(crate) struct NumericSummary {
     pub count: u64,
     pub min: ScalarValue,
@@ -53,6 +54,18 @@ pub(crate) struct NumericSummary {
     pub average: ScalarValue,
     pub standard_deviation: f64,
     pub rms: f64,
+}
+
+/// An Unprojected Numeric Selection at One Saved Cut; Display Resolution Is Not Part of Its Statistics.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) struct SummarySelection {
+    execution: String,
+    stream: String,
+    field: String,
+    after: u64,
+    through: u64,
+    start_ns: i64,
+    end_ns: i64,
 }
 
 pub(super) struct Numeric<'a> {
@@ -78,6 +91,20 @@ pub(super) enum Values<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl From<NumericWindow<'_>> for SummarySelection {
+    fn from(window: NumericWindow<'_>) -> Self {
+        Self {
+            execution: window.execution.into(),
+            stream: window.stream.into(),
+            field: window.field.into(),
+            after: window.after,
+            through: window.through,
+            start_ns: window.start_ns,
+            end_ns: window.end_ns,
+        }
+    }
+}
 
 impl Statistics {
     pub(super) fn load(connection: &Connection, id: &str, settings: PreviewSettings) -> Result<Self> {
@@ -109,6 +136,7 @@ impl Statistics {
 
 impl Store {
     pub(crate) fn numeric_summary(&self, window: NumericWindow<'_>) -> Result<NumericSummary> {
+        self.check_read()?;
         let window = if (window.start_ns != i64::MIN || window.end_ns != i64::MAX) && self.preview_bounds(window)?.is_some() {
             NumericWindow {
                 start_ns: i64::MIN,
@@ -118,6 +146,15 @@ impl Store {
         } else {
             window
         };
+        // Only Finite Read Sessions Share Results; Live Tails and Projected Selections Are Recomputed.
+        let summaries = if self.has_projection(window)? { None } else { self.summaries.as_ref() };
+        let selection = SummarySelection::from(window);
+        if let Some(summaries) = summaries
+            && let Some(summary) =
+                summaries.lock().map_err(|_| Error::Data("start a new read after the numeric summary lock failed"))?.get(&selection)
+        {
+            return Ok(summary.clone());
+        }
         let kinds = [
             Aggregate::Count,
             Aggregate::Min,
@@ -163,7 +200,7 @@ impl Store {
         let average = results.next().unwrap();
         let standard_deviation = scalar::number(&results.next().unwrap()).unwrap_or_default();
         let rms = scalar::number(&results.next().unwrap()).unwrap_or_default();
-        Ok(NumericSummary {
+        let summary = NumericSummary {
             count,
             min,
             max,
@@ -173,7 +210,14 @@ impl Store {
             average,
             standard_deviation,
             rms,
-        })
+        };
+        if let Some(summaries) = summaries {
+            summaries
+                .lock()
+                .map_err(|_| Error::Data("start a new read after the numeric summary lock failed"))?
+                .insert(selection, summary.clone());
+        }
+        Ok(summary)
     }
 
     pub(crate) fn ranks(&self, window: NumericWindow<'_>, percentiles: &[u8]) -> Result<BTreeMap<u8, ScalarValue>> {
@@ -206,9 +250,9 @@ pub(crate) fn rank_values(
         .map(|rank| {
             (
                 rank,
-                harmos_query::Accumulator::with_settings(
-                    scalar::Agg::Of(harmos_query::Aggregate::Percentile(rank)),
-                    harmos_query::config::QueryAccumulatorSettings {
+                Accumulator::with_settings(
+                    Agg::Of(Aggregate::Percentile(rank)),
+                    QueryAccumulatorSettings {
                         memory_bytes: scratch_bytes / percentiles.len().max(1),
                     },
                 ),

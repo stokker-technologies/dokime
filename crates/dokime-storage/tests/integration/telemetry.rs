@@ -45,6 +45,7 @@ use dokime_protocol::model::DataExpression;
 use dokime_protocol::model::FftDetrend;
 use dokime_protocol::model::FftWindow;
 use dokime_protocol::model::FieldReference;
+use dokime_protocol::model::FilterOperator;
 use dokime_protocol::model::GridAxisEntry;
 use dokime_protocol::model::GridDefinition;
 use dokime_protocol::model::GridHighlight;
@@ -65,6 +66,7 @@ use dokime_protocol::model::AggregateExpression;
 use dokime_protocol::model::ArtifactMetadata;
 use dokime_protocol::model::ExactNumber;
 use dokime_protocol::model::Metadata;
+use dokime_protocol::model::PlotFilter;
 use dokime_protocol::model::RecordContract;
 use dokime_protocol::model::RecordContracts;
 use dokime_protocol::model::Termination;
@@ -133,6 +135,105 @@ fn numeric(through: u64) -> NumericWindow<'static> {
 }
 
 /* === Tests === */
+
+#[test]
+fn finite_numeric_reads_keep_selection_and_request_boundaries() -> Result<()> {
+    // Save and Reopen One Stream.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.open_stream("execution", "readings")?;
+    store.sample_batch("execution", &fixture::samples(6))?;
+    store.flush_samples()?;
+    drop(store);
+    let store = Store::open(root.path())?;
+    let cut = store.cut("execution")?;
+    let (reader, cancellation) = store.read_session()?;
+
+    // Share the Full Selection Across Preview, Statistics, RMS and Nested Document Reads.
+    let (_, summary, count) = reader.time_series_window(numeric(6))?;
+    assert_eq!(count, 6);
+    assert_eq!(
+        summary.mean.unwrap().kind,
+        Some(value::Kind::Exact(ExactNumber {
+            negative: false,
+            numerator: "5".into(),
+            denominator: "2".into(),
+        }))
+    );
+    let statistics = reader.numeric_statistics(&numeric(6))?;
+    assert_eq!(statistics.count, 6);
+    assert_eq!(statistics.sum.unwrap().kind, Some(value::Kind::UnsignedInteger(15)));
+    assert_eq!(reader.numeric_rms(&numeric(6))?, (55.0_f64 / 6.0).sqrt());
+    let expression = DataExpression {
+        kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
+            input: Some(Box::new(FieldReference::new("readings").field("value"))),
+            kind: Aggregate::Sum as i32,
+            percentile: 0.0,
+        }))),
+        ..Default::default()
+    };
+    assert_eq!(reader.document_value(&cut, &expression)?.kind, Some(value::Kind::UnsignedInteger(15)));
+
+    // Retained Positions, Source Windows and Filters Must Not Reuse the Full Selection.
+    let (_, _, count) = reader.time_series_window(numeric(3))?;
+    assert_eq!(count, 3);
+    let (_, summary, count) = reader.time_series_window(NumericWindow { after: 3, ..numeric(6) })?;
+    assert_eq!(count, 3);
+    assert_eq!(summary.mean.unwrap().kind, Some(value::Kind::UnsignedInteger(4)));
+    let (_, summary, count) = reader.time_series_window(NumericWindow { start_ns: 2, end_ns: 4, ..numeric(6) })?;
+    assert_eq!(count, 3);
+    assert_eq!(summary.mean.unwrap().kind, Some(value::Kind::UnsignedInteger(3)));
+    let request = PlotRequest {
+        stream: "readings".into(),
+        y_keys: vec!["value".into()],
+        filters: vec![PlotFilter {
+            expression: Some(FieldReference::new("readings").field("value")),
+            operator: FilterOperator::Ge as i32,
+            value: Some(model::Value {
+                kind: Some(value::Kind::UnsignedInteger(4)),
+            }),
+        }],
+        ..Default::default()
+    };
+    reader.plot_selection(&cut, &request)?;
+    let filtered = reader.numeric_statistics(&numeric(6))?;
+    assert_eq!(filtered.count, 2);
+    assert_eq!(filtered.sum.unwrap().kind, Some(value::Kind::UnsignedInteger(9)));
+    reader.plot_selection(&cut, &PlotRequest { filters: Vec::new(), ..request })?;
+    assert_eq!(reader.numeric_statistics(&numeric(6))?.count, 6);
+
+    // Each Selected Group Has Its Own Numeric Values.
+    reader.plot_selection(
+        &cut,
+        &PlotRequest {
+            stream: "readings".into(),
+            series_by: Some("label".into()),
+            ..Default::default()
+        },
+    )?;
+    let groups = reader.plot_group_values(numeric(6), "label", 3)?;
+    assert_eq!(groups.len(), 3);
+    for (group, sum) in groups.iter().zip([3, 5, 7]) {
+        reader.select_plot_group(Some(group))?;
+        let statistics = reader.numeric_statistics(&numeric(6))?;
+        assert_eq!(statistics.count, 2);
+        assert_eq!(statistics.sum.unwrap().kind, Some(value::Kind::UnsignedInteger(sum)));
+    }
+    reader.select_plot_group(None)?;
+    assert_eq!(reader.numeric_statistics(&numeric(6))?.count, 6);
+
+    // Cancellation Applies Even After a Result Was Computed; Another Request Has Its Own Saved Image.
+    drop(cancellation);
+    assert!(reader.numeric_rms(&numeric(6)).is_err());
+    drop(reader);
+    store.sample_batch("execution", &fixture::samples(2))?;
+    store.flush_samples()?;
+    let (reader, _cancellation) = store.read_session()?;
+    assert_eq!(reader.numeric_statistics(&numeric(8))?.count, 8);
+    assert_eq!(reader.numeric_statistics(&numeric(6))?.count, 6);
+    Ok(())
+}
 
 #[test]
 fn frequency_selects_latest_source_samples_across_long_history_and_restart() -> Result<()> {
