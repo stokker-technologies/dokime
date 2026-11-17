@@ -50,6 +50,7 @@ use tokio::time::Instant;
 use super::ClientSettings;
 use crate::streams::{Samples, Timing};
 use crate::{Error, Host, Result, SchedulerClock};
+use dokime_operations::host::settings::get;
 use dokime_operations::native::Binding;
 use dokime_storage::{Backend, BackendLease};
 
@@ -237,8 +238,14 @@ pub(super) fn transport(settings: &ClientSettings) -> grpc::Settings {
 }
 
 pub(super) fn access_settings(settings: &ClientSettings) -> AccessSettings {
+    let snapshot = get::initial_preferences();
+    let listener = snapshot.value.expect("declared application settings").listener.expect("declared listener settings");
     AccessSettings {
-        listener: initial_listener(),
+        listener: ListenerValue {
+            enabled: listener.enabled,
+            endpoint: listener.address,
+            certificate_names: listener.certificate_names,
+        },
         transport: transport(settings),
         handshake_timeout: settings.read_timeout,
         pairings: NonZeroUsize::new(settings.max_cases).unwrap(),
@@ -248,13 +255,5 @@ pub(super) fn access_settings(settings: &ClientSettings) -> AccessSettings {
 }
 
 /* === Private Functions === */
-
-pub(super) fn initial_listener() -> ListenerValue {
-    ListenerValue {
-        enabled: false,
-        endpoint: "127.0.0.1:0".into(),
-        certificate_names: vec!["localhost".into(), "127.0.0.1".into()],
-    }
-}
 
 /* === Tests === */

@@ -28,16 +28,17 @@ pub use dokime_operations::host::ClientSettings;
 /* === Imports === */
 
 // Standard Library Imports
+use std::fs;
 use std::fs::OpenOptions;
 use std::fs::TryLockError;
 use std::num::NonZeroUsize;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{RwLock, Weak};
 use std::time::Duration;
 use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};
 
 // Third Party Imports
-use composition::Application;
 use harmos_operations::plugins::Watch;
 use harmos_protocol::host::plugin_change::Kind;
 use harmos_protocol::host::{PluginsWatchRequest, plugins_watch_response::Event};
@@ -52,15 +53,15 @@ use prost_types::Timestamp;
 use tokio::sync::Mutex;
 use tokio::sync::watch::{self, Sender};
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use crate::RenderSettings;
 use crate::{Error, Host, HostSettings, Result};
+use composition::Application;
 use dokime_operations::host::Context;
 use dokime_operations::host::HostIdentity;
 use dokime_operations::host::credentials::CredentialNamespace;
-use dokime_protocol::host::RemoteListenerSettings;
-use dokime_protocol::host::SettingsGetResponse;
 use dokime_storage::Store;
 
 /* === Constants === */
@@ -125,10 +126,10 @@ pub struct Server {
     endpoint: SocketAddr,
     host: Host,
     listener: Option<Attached>,
-    status: Arc<harmos_runtime::services::status::Status>,
+    status: Arc<Status>,
     status_task: Option<JoinHandle<Result<()>>>,
     plugin_task: Option<JoinHandle<Result<()>>>,
-    plugin_observation: tokio_util::sync::CancellationToken,
+    plugin_observation: CancellationToken,
     _status_registration: Arc<Registration>,
 }
 
@@ -146,7 +147,7 @@ impl Server {
         &self.status
     }
     /// Replaces the served host's capture folders for captures opened from now on.
-    pub fn set_capture_roots(&self, roots: Vec<std::path::PathBuf>) {
+    pub fn set_capture_roots(&self, roots: Vec<PathBuf>) {
         self.host.set_capture_roots(roots);
     }
     pub async fn close(mut self) -> Result<()> {
@@ -189,20 +190,6 @@ impl Drop for Server {
 
 /* === Public Functions === */
 
-/// Compose Declared Defaults Without Opening Storage, Credentials or Transports.
-pub fn initial_preferences() -> SettingsGetResponse {
-    let mut snapshot = dokime_operations::host::settings::get::initial_preferences();
-    let listener = composition::initial_listener();
-    snapshot.value.as_mut().expect("declared application settings").listener = Some(RemoteListenerSettings {
-        enabled: listener.enabled,
-        address: listener.endpoint,
-        certificate_names: listener.certificate_names,
-        tls_enabled: true,
-        authentication_enabled: true,
-    });
-    snapshot
-}
-
 /// Remove Protected Values Before Explicitly Discarding a Storage Root.
 /// The Host Must Be Stopped; Evidence and the Root Itself Are Retained. Only Entries Inside `namespace`, the
 /// Namespace the Root's Host Ran With, Are Removed.
@@ -216,7 +203,7 @@ pub fn remove_credentials(root: &Path, namespace: &CredentialNamespace) -> Resul
         Err(TryLockError::WouldBlock) => return Err(Error::OccupiedRoot(root.to_owned())),
         Err(TryLockError::Error(error)) => return Err(error.into()),
     }
-    let host_id = std::fs::read_to_string(root.join("backend-id"))?;
+    let host_id = fs::read_to_string(root.join("backend-id"))?;
     let storage = Store::open(root)?;
     // A Copied Folder Carries the Identity and Catalogs, Never the Native Owner Claim.
     root_claim::require_owner(root, &storage, namespace)?;
@@ -264,7 +251,7 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
     transport.address = endpoint;
     let listener = runtime.grpc().attach(transport).await?;
     let endpoint = listener.local_addr();
-    let plugin_observation = tokio_util::sync::CancellationToken::new();
+    let plugin_observation = CancellationToken::new();
     let plugin_task = tokio::spawn(observe_plugins(
         runtime.operations.clone(),
         plugin_context,
@@ -387,8 +374,7 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
 }
 
 async fn observe_plugins(
-    operations: OperationManager, context: Weak<Context>, settings: ClientSettings, cancellation: tokio_util::sync::CancellationToken,
-    status: Arc<Status>,
+    operations: OperationManager, context: Weak<Context>, settings: ClientSettings, cancellation: CancellationToken, status: Arc<Status>,
 ) -> Result<()> {
     loop {
         let mut watch = operations.download_protobuf::<Watch>(

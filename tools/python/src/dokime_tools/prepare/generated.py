@@ -53,7 +53,7 @@ def prepare() -> None:
         [
             "--locked",
             "--package",
-            "dokime-gui",
+            "dokime-operations",
             "--example",
             "export_preferences",
             "--",

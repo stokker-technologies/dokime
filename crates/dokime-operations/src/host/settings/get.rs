@@ -15,19 +15,17 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
-
+use dokime_protocol::host::RemoteListenerSettings;
 use dokime_protocol::host::SettingsGetRequest;
 use dokime_protocol::host::SettingsGetResponse;
-
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -55,11 +53,20 @@ pub async fn handle(context: &Context, request: SettingsGetRequest) -> Result<Se
         .await
 }
 
-/* === Private Functions === */
-
+/// Compose Declared Defaults Without Opening Storage, Credentials or Transports.
 pub fn initial_preferences() -> SettingsGetResponse {
-    crate::host::settings::preferences::initial()
+    let mut snapshot = crate::host::settings::preferences::initial();
+    snapshot.value.as_mut().expect("declared application settings").listener = Some(RemoteListenerSettings {
+        enabled: false,
+        address: "127.0.0.1:0".into(),
+        certificate_names: vec!["localhost".into(), "127.0.0.1".into()],
+        tls_enabled: true,
+        authentication_enabled: true,
+    });
+    snapshot
 }
+
+/* === Private Functions === */
 
 /* === Tests === */
 
