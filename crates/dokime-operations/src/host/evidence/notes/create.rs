@@ -69,6 +69,7 @@ pub async fn handle(context: &Context, request: NotesCreateRequest) -> Result<No
         if saved.is_none() {
             super::require_open(context, &scope)?;
         }
+        let storage_scope = super::storage_scope(&scope)?;
         let note = OperatorNote {
             note_id,
             scope: Some(scope),
@@ -76,7 +77,8 @@ pub async fn handle(context: &Context, request: NotesCreateRequest) -> Result<No
             message: value.message.clone(),
             created_at: saved.and_then(|note| note.created_at).or_else(|| Some(crate::host::projection::timestamp(context.host.now_ns()))),
         };
-        let (saved, receipt) = administration::replace(context, &key, Vec::new(), &request.request_id, note.encode_to_vec()).await?;
+        let (saved, receipt) =
+            administration::replace(context, &key, storage_scope, Vec::new(), &request.request_id, note.encode_to_vec()).await?;
         Ok(NotesCreateResponse {
             note: Some(OperatorNote::decode(saved.payload.as_slice())?),
             revision: saved.revision,

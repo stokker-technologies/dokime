@@ -19,20 +19,25 @@
 use std::{num::NonZeroUsize, result};
 
 // Third Party Imports
-use harmos_protocol::model::{Position, Receipt};
-use harmos_runtime::Identifier;
+use arrow_array::{Array, BinaryArray, StringArray};
+use harmos_protocol::model::{PageRequest, Position, Receipt};
+use harmos_query::arrow::ArrowBatch;
 use harmos_runtime::builtins::storage::{
-    CompoundOutcome, DeleteObject, DeleteObjectRequest, Mutate, MutateRequest, MutationId, MutationItem,
+    ColumnKind, ColumnSelection, ColumnSource, GetObject, GetObjectRequest, ListColumnRows, ListColumnRowsRequest,
+};
+use harmos_runtime::builtins::storage::{
+    CompoundOutcome, DeleteScope, DeleteScopeRequest, Mutate, MutateRequest, MutationId, MutationItem,
 };
 use harmos_runtime::builtins::storage::{Info, InfoRequest};
-use harmos_runtime::storage::ObjectValue;
+use harmos_runtime::storage::{ObjectDefinition, ObjectValue, ReadLimits, StoredObject};
 use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::host::{Context, files::transfer, storage::administration};
+use crate::host::{Context, files::transfer};
 use crate::{Error, Result};
 use dokime_protocol::host::{CasesCreateResponse, PlannedCase};
+use dokime_storage::persisted::{self, Case, Plan, Scope};
 
 /* === Constants === */
 
@@ -41,33 +46,6 @@ use dokime_protocol::host::{CasesCreateResponse, PlannedCase};
 /* === Type Aliases === */
 
 /* === Structs === */
-
-#[derive(Clone, PartialEq, Message)]
-struct Registration {
-    #[prost(bytes = "vec", tag = "1")]
-    plan: Vec<u8>,
-
-    #[prost(string, tag = "2")]
-    cycle: String,
-
-    #[prost(bytes = "vec", repeated, tag = "3")]
-    cases: Vec<Vec<u8>>,
-
-    #[prost(string, tag = "4")]
-    window: String,
-
-    #[prost(string, tag = "5")]
-    mutation: String,
-}
-
-#[derive(Clone, PartialEq, Message)]
-struct Case {
-    #[prost(string, tag = "1")]
-    cycle: String,
-
-    #[prost(bytes = "vec", tag = "2")]
-    payload: Vec<u8>,
-}
 
 /* === Enums === */
 
@@ -79,14 +57,13 @@ struct Case {
 
 pub(crate) async fn registration(context: &Context, request_id: &str, plan: &[u8]) -> Result<Option<CasesCreateResponse>> {
     let key = registration_key(request_id);
-    let (saved, revision) = administration::message::<Registration>(context, &key).await?;
-    if revision.is_empty() {
+    let Some(saved) = read_object::<Plan>(context, &key).await? else {
         return Ok(None);
-    }
+    };
     if saved.plan != plan {
         return Err(Error::Conflict("Register Selection: Choose a New Request ID for the Changed Plan".into()));
     }
-    commit(context, request_id, &key, saved).await.map(Some)
+    commit(context, request_id, saved).await.map(Some)
 }
 
 pub(crate) async fn register(
@@ -110,22 +87,33 @@ pub(crate) async fn register(
     }
     reply.receipt = None;
     let mutation = transfer::mutation(context, "Register Selection", request_id).await?;
-    let saved = Registration {
+    let scope =
+        if cycle.is_empty() { Scope::Root(&context.host.identity().backend_id).identifier()? } else { Scope::Cycle(cycle).identifier()? };
+    let saved = Plan {
+        key: key.clone(),
+        scope,
         plan: plan.into(),
-        cycle: cycle.into(),
-        cases: reply.cases.iter().map(Message::encode_to_vec).collect(),
-        window: mutation.window.to_string(),
-        mutation: mutation.key.to_string(),
+        cases: reply
+            .cases
+            .iter()
+            .map(|case| {
+                Ok(Case {
+                    key: case.case_id.clone(),
+                    scope: Scope::Case(&case.case_id).identifier()?,
+                    cycle: cycle.into(),
+                    payload: case.encode_to_vec(),
+                })
+            })
+            .collect::<Result<_>>()?,
+        window: mutation.window,
+        mutation: mutation.key,
     };
-    commit(context, request_id, &key, saved).await
+    commit(context, request_id, saved).await
 }
 
 pub(crate) async fn read(context: &Context, identifier: &str, cycle: Option<&str>) -> Result<PlannedCase> {
-    let key = format!("case/{identifier}");
-    let (case, revision) = administration::message::<Case>(context, &key).await?;
-    if revision.is_empty() {
-        return Err(Error::NotFound("Read Case: Select a Registered Case".into()));
-    }
+    let case =
+        read_object::<Case>(context, identifier).await?.ok_or_else(|| Error::NotFound("Read Case: Select a Registered Case".into()))?;
     if cycle.is_some_and(|cycle| !case.cycle.is_empty() && case.cycle != cycle) {
         return Err(Error::Invalid("Read Case: Select a Case Registered for This Cycle".into()));
     }
@@ -133,12 +121,65 @@ pub(crate) async fn read(context: &Context, identifier: &str, cycle: Option<&str
 }
 
 pub(crate) async fn list(context: &Context, cycle: &str) -> Result<Vec<PlannedCase>> {
-    let (entries, _) = administration::scan(context, "case/", None).await?;
+    let schema = ObjectDefinition::of::<Case>()
+        .schema()
+        .map_err(|source| Error::Invalid(format!("List Cases: Restore Their Frozen Schema: {source}")))?;
+    let mut at = None;
+    let mut token = String::new();
     let mut cases = Vec::new();
-    for entry in entries {
-        let case = Case::decode(entry.payload.as_slice())?;
-        if case.cycle == cycle {
-            cases.push(PlannedCase::decode(case.payload.as_slice())?);
+    loop {
+        let response = context
+            .storage::<ListColumnRows>(ListColumnRowsRequest {
+                selection: Some(ColumnSelection {
+                    source: Some(ColumnSource {
+                        kind: ColumnKind::Objects,
+                        schema: schema.clone(),
+                    }),
+                    columns: vec!["payload.cycle".into(), "payload.payload".into()],
+                    predicate: None,
+                    time: None,
+                    start: 0,
+                    work: Some(ReadLimits {
+                        rows: NonZeroUsize::new(context.settings.page_items).unwrap(),
+                        bytes: NonZeroUsize::new(context.settings.message_bytes).unwrap(),
+                    }),
+                }),
+                at,
+                page: Some(PageRequest {
+                    page_size: context.settings.page_items as u32,
+                    page_token: token,
+                    ..Default::default()
+                }),
+            })
+            .await?;
+        at = response.resolved_at;
+        if at.is_none() {
+            return Err(Error::Precondition("List Cases: Return Their Issued Storage Cut".into()));
+        }
+        if let Some(page) = response.page {
+            let batch = ArrowBatch::from_ipc(page.batch.data)
+                .map_err(|source| Error::Invalid(format!("List Cases: Restore Their Frozen Values: {source}")))?;
+            let batch = batch.as_record_batch();
+            let cycles = batch
+                .column_by_name("payload.cycle")
+                .and_then(|column| column.as_any().downcast_ref::<StringArray>())
+                .ok_or_else(|| Error::Precondition("List Cases: Restore Their Cycle Column".into()))?;
+            let payloads = batch
+                .column_by_name("payload.payload")
+                .and_then(|column| column.as_any().downcast_ref::<BinaryArray>())
+                .ok_or_else(|| Error::Precondition("List Cases: Restore Their Frozen Payload Column".into()))?;
+            for index in 0..cycles.len() {
+                if cycles.is_null(index) || payloads.is_null(index) {
+                    return Err(Error::Precondition("List Cases: Restore Every Frozen Case Field".into()));
+                }
+                if cycles.value(index) == cycle {
+                    cases.push(PlannedCase::decode(payloads.value(index))?);
+                }
+            }
+        }
+        token = response.next_page_token;
+        if token.is_empty() {
+            break;
         }
     }
     cases.sort_by(|left, right| left.ordinal.cmp(&right.ordinal).then_with(|| left.case_id.cmp(&right.case_id)));
@@ -164,14 +205,11 @@ pub(crate) async fn delete(context: &Context, cycle: &str, identifier: &str, req
             after = execution;
         }
     }
-    let value = value(context, format!("case/{identifier}"), Vec::new())?;
     let mutation = transfer::mutation(context, &format!("case/{identifier}/delete"), request_id).await?;
     let response = context
-        .storage::<DeleteObject>(DeleteObjectRequest {
+        .storage::<DeleteScope>(DeleteScopeRequest {
             mutation: Some(mutation),
-            schema: value.schema.id,
-            item: value.item,
-            expected: None,
+            scope: Scope::Case(identifier).identifier()?,
         })
         .await?;
     if matches!(response.outcome, CompoundOutcome::Conflict { .. }) {
@@ -184,34 +222,48 @@ pub(crate) async fn delete(context: &Context, cycle: &str, identifier: &str, req
 
 /* === Private Functions === */
 
+async fn read_object<T: StoredObject>(context: &Context, key: &str) -> Result<Option<T>> {
+    let schema = ObjectDefinition::of::<T>()
+        .schema()
+        .map_err(|source| Error::Invalid(format!("Read Plan or Case: Restore Its Frozen Schema: {source}")))?;
+    let response = context
+        .storage::<GetObject>(GetObjectRequest {
+            schema: Some(schema),
+            item: key.into(),
+            at: None,
+        })
+        .await?;
+    let bound = NonZeroUsize::new(context.settings.message_bytes)
+        .ok_or_else(|| Error::Bound("Read Plan or Case: Configure a Positive Message Bound".into()))?;
+    response
+        .value
+        .map(|value| persisted::catalog().decode::<T>(&value, bound))
+        .transpose()
+        .map_err(|source| Error::Invalid(format!("Read Plan or Case: Restore Its Frozen Schema and Payload: {source}")))
+}
+
 fn registration_key(request_id: &str) -> String {
     let digest = Sha256::digest(request_id.as_bytes());
     format!("case-registration/{}", crate::host::views::hex(&digest))
 }
 
-fn value(context: &Context, key: String, payload: Vec<u8>) -> Result<ObjectValue> {
+fn value<T: StoredObject>(context: &Context, value: &T) -> Result<ObjectValue> {
     let bound = NonZeroUsize::new(context.settings.message_bytes)
         .ok_or_else(|| Error::Bound("Register Selection: Configure a Positive Message Bound".into()))?;
-    let value = administration::Administration { key, payload };
-    administration::catalog().encode(&value, bound).map_err(|source| Error::Invalid(format!("Register Selection: {source}")))
+    persisted::catalog().encode(value, bound).map_err(|source| Error::Invalid(format!("Register Selection: {source}")))
 }
 
-async fn commit(context: &Context, request_id: &str, key: &str, saved: Registration) -> Result<CasesCreateResponse> {
-    let cases = saved.cases.iter().map(|payload| PlannedCase::decode(payload.as_slice())).collect::<result::Result<Vec<_>, _>>()?;
+async fn commit(context: &Context, request_id: &str, saved: Plan) -> Result<CasesCreateResponse> {
+    let cases = saved.cases.iter().map(|case| PlannedCase::decode(case.payload.as_slice())).collect::<result::Result<Vec<_>, _>>()?;
     let mut reply = CasesCreateResponse { cases, ..Default::default() };
-    let mut items = vec![MutationItem::Create(value(context, key.into(), saved.encode_to_vec())?)];
+    let mut items = vec![MutationItem::Create(value(context, &saved)?)];
     // Keep the Original Protobuf Bytes: Reencoding Maps Would Change the Native Mutation Fingerprint.
-    for (case, payload) in reply.cases.iter().zip(&saved.cases) {
-        let stored = Case {
-            cycle: saved.cycle.clone(),
-            payload: payload.clone(),
-        };
-        let payload = stored.encode_to_vec();
-        items.push(MutationItem::Create(value(context, format!("case/{}", case.case_id), payload)?));
+    for case in &saved.cases {
+        items.push(MutationItem::Create(value(context, case)?));
     }
     let mutation = MutationId {
-        window: Identifier::new(saved.window).map_err(|source| Error::Invalid(format!("Replay Registration: {source}")))?,
-        key: Identifier::new(saved.mutation).map_err(|source| Error::Invalid(format!("Replay Registration: {source}")))?,
+        window: saved.window,
+        key: saved.mutation,
     };
     let info = context.storage::<Info>(InfoRequest {}).await?;
     let mut position =

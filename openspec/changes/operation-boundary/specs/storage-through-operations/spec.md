@@ -38,7 +38,7 @@ Every Dokime watch over stored data SHALL observe storage through Harmos row wat
 #### Scenario: Execution Watch Resynchronizes
 
 - **WHEN** a watch falls behind and Harmos reports a resynchronization
-- **THEN** the Dokime watch re-reads at the issued cut and continues without gaps or duplicates
+- **THEN** the Dokime watch emits `resync_required` with its last issued cut and terminates, and the client lists a fresh image before reopening
 
 ### Requirement: Deletion Through Scoped Deletion
 

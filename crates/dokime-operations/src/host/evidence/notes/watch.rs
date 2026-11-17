@@ -30,10 +30,10 @@ use tonic::Status;
 
 // Local Imports
 use super::list;
-use crate::host::storage::administration::{self, Administration};
 use crate::host::{ClientSettings, Context, Output};
 use crate::{Error, Result};
 use dokime_protocol::host::evidence::{NotesListRequest, NotesWatchRequest, NotesWatchResponse};
+use dokime_storage::persisted::Administration;
 
 /* === Constants === */
 
@@ -122,21 +122,12 @@ pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<Out
                         loop {
                             let Some(frame) = receive.recv().await else { return Ok(()) };
                             match frame.event.as_ref() {
-                                Some(Event::Object(entry)) => {
-                                    let value = administration::catalog()
-                                        .decode::<Administration>(&entry.value, NonZeroUsize::new(context.settings.message_bytes).unwrap())
-                                        .map_err(|source| {
-                                            Error::Invalid(format!(
-                                                "Watch Notes: Inspect the Stored Object and Its Message Bound: {source}"
-                                            ))
-                                        })?;
-                                    if !value.key.starts_with("note:") {
-                                        continue;
-                                    }
+                                Some(Event::DurableProgress(())) => {
+                                    // Data Frames Carry the Prior Cut; Recompute Only at the Complete Frontier.
                                     let at = frame
                                         .resolved_at
                                         .clone()
-                                        .ok_or_else(|| Error::Precondition("Watch Notes: Return the Changed Storage Cut".into()))?;
+                                        .ok_or_else(|| Error::Precondition("Watch Notes: Return the Complete Storage Frontier".into()))?;
                                     selection.at = Some(list::selection_cut(at, revision.clone()));
                                     break;
                                 }

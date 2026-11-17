@@ -23,18 +23,19 @@ use arrow_array::{Array, BinaryArray, StringArray};
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::{ReadCut, Receipt};
 use harmos_query::arrow::ArrowBatch;
-use harmos_runtime::Identified;
+use harmos_runtime::Identifier;
 use harmos_runtime::builtins::storage::{ColumnKind, ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
 use harmos_runtime::builtins::storage::{
     GetObject, GetObjectRequest, SchemaInput, SetObject, SetObjectRequest, set_object_response::Outcome,
 };
-use harmos_runtime::storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, ReadLimits, StoredObject};
+use harmos_runtime::storage::{ObjectDefinition, ReadLimits};
 use prost::Message;
 
 // Local Imports
 use crate::host::Context;
 use crate::host::files::transfer;
 use crate::{Error, Result};
+use dokime_storage::persisted::{Administration, catalog};
 
 /* === Constants === */
 
@@ -44,11 +45,6 @@ use crate::{Error, Result};
 
 /* === Structs === */
 
-#[derive(harmos_runtime::Message, Clone, Debug, Default, PartialEq)]
-pub struct Administration {
-    pub key: String,
-    pub payload: Vec<u8>,
-}
 pub struct Snapshot {
     pub payload: Vec<u8>,
     pub revision: Vec<u8>,
@@ -61,30 +57,14 @@ pub struct Snapshot {
 
 /* === Implementations === */
 
-impl Identified for Administration {
-    const ID: &'static str = "dokime.administration";
-}
-impl StoredObject for Administration {
-    type Key = String;
-    const RETENTION: ObjectRetention = ObjectRetention::All;
-    fn key(&self) -> &String {
-        &self.key
-    }
-}
-
 /* === Public Functions === */
 
-pub fn catalog() -> ObjectCatalog {
-    ObjectCatalog::new().entry(ObjectDefinition::of::<Administration>())
-}
 pub async fn read(context: &Context, key: &str, initial: &[u8], at: Option<ReadCut>) -> Result<Snapshot> {
     let definition = ObjectDefinition::of::<Administration>();
     let schema = definition.schema().map_err(|cause| invalid("Get Administration", cause))?;
-    let value = Administration { key: key.into(), payload: Vec::new() };
-    let value = catalog().encode(&value, bound(context)?).map_err(|cause| invalid("Get Administration", cause))?;
     let request = GetObjectRequest {
         schema: Some(schema),
-        item: value.item.to_string(),
+        item: key.into(),
         at,
     };
     let response = context.storage::<GetObject>(request).await?;
@@ -100,8 +80,10 @@ pub async fn read(context: &Context, key: &str, initial: &[u8], at: Option<ReadC
         resolved_at: response.resolved_at,
     })
 }
-pub async fn replace(context: &Context, key: &str, expected: Vec<u8>, request_id: &str, payload: Vec<u8>) -> Result<(Snapshot, Receipt)> {
-    let value = Administration { key: key.into(), payload };
+pub async fn replace(
+    context: &Context, key: &str, scope: Identifier, expected: Vec<u8>, request_id: &str, payload: Vec<u8>,
+) -> Result<(Snapshot, Receipt)> {
+    let value = Administration { key: key.into(), scope, payload };
     let value = catalog().encode(&value, bound(context)?).map_err(|cause| invalid("Set Administration", cause))?;
     let definition = ObjectDefinition::of::<Administration>();
     let graph = definition.graph(&Default::default()).map_err(|cause| invalid("Set Administration", cause))?;
@@ -149,7 +131,7 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
                         kind: ColumnKind::Objects,
                         schema: schema.clone(),
                     }),
-                    columns: vec!["payload.key".into(), "payload.payload".into()],
+                    columns: vec!["payload.key".into(), "_storage.scope".into(), "payload.payload".into()],
                     predicate: None,
                     time: None,
                     start: 0,
@@ -178,13 +160,18 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
                 .column_by_name("payload.payload")
                 .and_then(|column| column.as_any().downcast_ref::<BinaryArray>())
                 .ok_or_else(|| Error::Precondition("List Administration: Restore Its Value Column".into()))?;
+            let scopes = batch
+                .column_by_name("_storage.scope")
+                .and_then(|column| column.as_any().downcast_ref::<StringArray>())
+                .ok_or_else(|| Error::Precondition("List Administration: Restore Its Scope Column".into()))?;
             for index in 0..keys.len() {
-                if keys.is_null(index) || values.is_null(index) {
+                if keys.is_null(index) || scopes.is_null(index) || values.is_null(index) {
                     return Err(Error::Precondition("List Administration: Restore Its Complete Object".into()));
                 }
                 if keys.value(index).starts_with(prefix) {
                     entries.push(Administration {
                         key: keys.value(index).into(),
+                        scope: Identifier::new(scopes.value(index)).map_err(|cause| invalid("List Administration", cause))?,
                         payload: values.value(index).to_vec(),
                     });
                 }
@@ -205,14 +192,14 @@ pub async fn message<T: Message + Default>(context: &Context, key: &str) -> Resu
 }
 
 /// Retain an Immutable Product Value, Returning the First Published Value on a Race.
-pub async fn retain<T: Message + Default>(context: &Context, key: &str, value: &T) -> Result<T> {
+pub async fn retain<T: Message + Default>(context: &Context, key: &str, scope: Identifier, value: &T) -> Result<T> {
     let (saved, revision) = message::<T>(context, key).await?;
     if !revision.is_empty() {
         return Ok(saved);
     }
     let request_id = uuid::Uuid::now_v7().to_string();
     let payload = value.encode_to_vec();
-    match replace(context, key, Vec::new(), &request_id, payload).await {
+    match replace(context, key, scope, Vec::new(), &request_id, payload).await {
         Ok((saved, _)) => Ok(T::decode(saved.payload.as_slice())?),
         Err(Error::Conflict(_)) => {
             let (saved, revision) = message::<T>(context, key).await?;
@@ -239,12 +226,14 @@ fn invalid(action: &str, cause: impl Display) -> Error {
 #[cfg(test)]
 mod tests {
     use super::{Administration, catalog};
+    use dokime_storage::persisted::Scope;
     use std::num::NonZeroUsize;
     #[test]
     fn native_envelope_preserves_protobuf_bytes_and_distinct_object_keys() {
         let bound = NonZeroUsize::new(4096).unwrap();
         let original = Administration {
             key: "preferences".into(),
+            scope: Scope::Root("backend").identifier().unwrap(),
             payload: vec![8, 1, 18, 2, 255, 0],
         };
         let encoded = catalog().encode(&original, bound).unwrap();
@@ -252,6 +241,7 @@ mod tests {
             .encode(
                 &Administration {
                     key: "sources".into(),
+                    scope: original.scope.clone(),
                     payload: original.payload.clone(),
                 },
                 bound,

@@ -785,13 +785,15 @@ mutation item, so cascades/parent updates cannot claim atomicity across calls.
 Root disposal uses offline primary/recovery disposal and product credential cleanup;
 deleting the root scope alone leaves other scopes and unscoped schemas.
 
-Upstream blockers remain explicit: **G1**, restart-safe scope-qualified retained
+The pinned Harmos revision supplies **G1**, restart-safe scope-qualified retained
 cuts (slices 1, 2, 4); **G2**, columnar append/backend writes (slice 3); **G3**,
-compound-aware watches (slices 3, 5); Harmos **groups 6–7**, consolidated statistics
-and bucket summaries/continuation (slice 5); **group 9**, the typed facade,
-authoring exports and operation-owned batch DTOs (slice 6). Current native Arrow
-conversion expands rows and the product backend inserts/hashes each row; G2 is
-unresolved and throughput is unmeasured. Storage-only/maintenance and expression
+compound-aware watches (slices 3, 5); and **groups 6–7**, consolidated statistics
+and bucket summaries/continuation (slice 5). The product backend implements G1/G3;
+product evidence-cut ownership and watch-source adoption remain open. Its sample
+backend still advertises no columnar append capability and inserts/hashes rows;
+G2 product adoption is open and throughput is unmeasured. **Group 9**, the typed
+facade and authoring exports, remains upstream work for a later delivery; storage
+deletions proceed through the current operation API. Storage-only/maintenance and expression
 transforms are available, with product hooks/adoption still open.
 
 ## Final Library Assembly and Storage Contract
@@ -902,20 +904,34 @@ original registration and its native mutation window/key, then replays that same
 mutation. Its durable receipt survives restart without rematerializing the plugin
 or substituting the new admission window. Product responses preserve the caller's
 request ID while taking durable positions from the native receipt. Case deletion keeps
-Dokime's cycle and execution-ownership guards and calls `DeleteObject`; retained
+Dokime's cycle and execution-ownership guards and calls `DeleteScope(case/<case_id>)`; retained
 cuts still see the previous case. No SQL registration or planned-case table remains.
 Execution bindings still belong to the coupled execution/evidence cutover.
+`crates/dokime-storage/src/persisted.rs` owns the registered `Case`, `Plan` and
+`Administration` shapes and their frozen native schema graphs. Each case has its
+own exact C scope; its registration belongs to Y for a cycle plan or R otherwise.
+Deleting a case preserves the registration's original bytes and receipt without
+recreating the case on replay. Administration values carry an explicit persisted
+scope: root settings use R, notes use E/Y, and command/content/prepared-report/plot
+settings objects use E. Client retained-view indexes currently remain root-owned;
+their source-specific ownership moves with the coupled view cutover. No scope
+prefix implies a relationship or a cascade.
 Operator note lists read the native object history at an issued Harmos cut, with
 selection-bound pagination. Their watches follow `WatchRows` object revisions from
 the opening cut, including edits committed before the watch opens. They expose a
 row-watch gap with its last issued cut and require the client to resynchronize.
-Note ownership and open-owner policy still read the execution ledger pending the
+They recompute at `DurableProgress` frontiers; individual data frames carry the
+previous resume cut and cannot select a complete changed image.
+Note owner validation and open-owner policy still read the execution ledger pending the
 coupled lifecycle cutover. Note lists create no retained-view files and watches
 observe native object revisions.
 Roots containing the superseded SQL registration/case tables, view, prepared-report,
 artifact or execution-file journals are refused
 with fresh-root guidance at baseline v1. Admission preserves their stored values;
 there is no migration, fallback reader or automatic reset.
+The scoped native object layout also refuses the previous unscoped object format.
+Read-only native format admission precedes opening the execution catalog, so
+refusal does not initialize or repair either catalog. Format baselines remain v1.
 
 The exact [operation/message/caller map](execution-host.md#operation-identity-and-caller-mapping)
 is canonical.

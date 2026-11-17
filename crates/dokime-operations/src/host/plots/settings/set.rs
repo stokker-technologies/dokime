@@ -18,20 +18,22 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 use prost::Message;
 
 // Local Imports
 use crate::host::storage::administration;
-use crate::{Error, Result, host::Context};
+use crate::{
+    Error, Result,
+    host::{ClientSettings, Context},
+};
+use dokime_storage::persisted::Scope;
 
 use dokime_protocol::host::plots::PlotSettingsValue;
 use dokime_protocol::host::plots::SettingsSetRequest;
 use dokime_protocol::host::plots::SettingsSetResponse;
 use dokime_protocol::model::Downsample;
-use dokime_protocol::model::card::Body as CardBody;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::OperationContract;
+use dokime_protocol::model::card;
 
 /* === Constants === */
 
@@ -66,7 +68,7 @@ pub async fn handle(context: &Context, request: SettingsSetRequest) -> Result<Se
         let mut found = false;
         while let Some(section) = sections.pop() {
             for card in &section.cards {
-                if let Some(CardBody::Plot(plot)) = card.body.as_ref() {
+                if let Some(card::Body::Plot(plot)) = card.body.as_ref() {
                     found |= plot.metadata.as_ref().is_some_and(|metadata| metadata.identifier == request.plot_id);
                 }
             }
@@ -76,8 +78,15 @@ pub async fn handle(context: &Context, request: SettingsSetRequest) -> Result<Se
             return Err(Error::Invalid("Set Plot Settings: Select a Plot ID from This Document".into()));
         }
         let key = format!("plot-settings:{}/{}/{}", scope.execution_id, request.document_id, request.plot_id);
-        let (saved, receipt) =
-            administration::replace(context, &key, request.expected_revision, &request.request_id, value.encode_to_vec()).await?;
+        let (saved, receipt) = administration::replace(
+            context,
+            &key,
+            Scope::Execution(&scope.execution_id).identifier()?,
+            request.expected_revision,
+            &request.request_id,
+            value.encode_to_vec(),
+        )
+        .await?;
         let payload = saved.payload;
         let revision = saved.revision;
         let value = PlotSettingsValue::decode(payload.as_slice())?;

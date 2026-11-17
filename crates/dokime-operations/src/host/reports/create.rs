@@ -30,6 +30,7 @@ use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::ReportsCreateResponse;
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -136,7 +137,7 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
                 document: Some(document),
                 file: Some(reference.clone()),
             };
-            administration::retain(context, &name, &prepared).await?;
+            administration::retain(context, &name, Scope::Execution(execution).identifier()?, &prepared).await?;
         }
         context.host.retain_report(reference.clone())?;
         let position = context.host.store().evidence_position(None)?;

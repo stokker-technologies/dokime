@@ -52,6 +52,7 @@ use crate::{
 use dokime_protocol::host::FilesGetRequest;
 use dokime_protocol::host::content::{ArtifactsCreateRequest, ArtifactsCreateResponse, ExecutionFileMetadata, ExecutionFileState};
 use dokime_protocol::model::{ArtifactMetadata, ArtifactState};
+use dokime_storage::persisted::{self, Administration, Scope};
 use dokime_storage::{ExecutionState, Store, StoredArtifact, StoredExecutionFile};
 
 /* === Constants === */
@@ -102,9 +103,8 @@ pub async fn validate_root(context: &Context) -> Result<()> {
 }
 
 pub(crate) async fn retained(context: &Context, file: &FileReference) -> Result<bool> {
-    let schema = ObjectDefinition::of::<administration::Administration>()
-        .schema()
-        .map_err(|source| Error::Invalid(format!("Check Retained Files: {source}")))?;
+    let schema =
+        ObjectDefinition::of::<Administration>().schema().map_err(|source| Error::Invalid(format!("Check Retained Files: {source}")))?;
     let mut token = String::new();
     let mut at = None;
     let mut retained = false;
@@ -259,10 +259,12 @@ pub async fn attach_artifact(context: &Context, request: ArtifactsCreateRequest)
         key: Identifier::new(saved.mutation.clone()).map_err(|source| Error::Invalid(format!("Create Artifact: {source}")))?,
     };
     let bound = NonZeroUsize::new(context.settings.message_bytes).unwrap();
-    let value = administration::Administration { key, payload: saved.encode_to_vec() };
-    let mut value =
-        administration::catalog().encode(&value, bound).map_err(|source| Error::Invalid(format!("Create Artifact: {source}")))?;
-    value.scope = Some(Identifier::new(execution).map_err(|source| Error::Invalid(format!("Create Artifact: {source}")))?);
+    let value = Administration {
+        key,
+        scope: Scope::Execution(execution).identifier()?,
+        payload: saved.encode_to_vec(),
+    };
+    let value = persisted::catalog().encode(&value, bound).map_err(|source| Error::Invalid(format!("Create Artifact: {source}")))?;
     let response = context
         .storage::<Mutate>(MutateRequest {
             mutation: Some(mutation),
@@ -315,15 +317,15 @@ pub async fn attach_execution_file(
         file: Some(file),
     };
     let request_id = uuid::Uuid::now_v7().to_string();
-    let value = administration::Administration {
+    let value = Administration {
         key: key.clone(),
+        scope: Scope::Execution(execution).identifier()?,
         payload: saved.encode_to_vec(),
     };
-    let mut value = administration::catalog()
+    let value = persisted::catalog()
         .encode(&value, NonZeroUsize::new(context.settings.message_bytes).unwrap())
         .map_err(|source| Error::Invalid(format!("Attach Execution File: {source}")))?;
-    value.scope = Some(Identifier::new(execution).map_err(|source| Error::Invalid(format!("Attach Execution File: {source}")))?);
-    let definition = ObjectDefinition::of::<administration::Administration>();
+    let definition = ObjectDefinition::of::<Administration>();
     let graph = definition.graph(&Default::default()).map_err(|source| Error::Invalid(format!("Attach Execution File: {source}")))?;
     let mutation = files::transfer::mutation(context, &key, &request_id).await?;
     let response = context
