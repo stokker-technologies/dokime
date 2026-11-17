@@ -7,7 +7,7 @@ Branded distributions reuse unchanged Dokime binaries, so every installation sto
 ## What Changes
 
 - The distributor's installer manifest declares the distribution identifier (`[installer] identifier = "com.example.testhub"`). It becomes the installation's storage and install identity.
-- `cargo dokime installer package` writes the identifier into an installed distribution file beside the executable and uses it for the NSIS install folder and uninstall registry keys and for DEB/RPM package names.
+- `dokime installer package` writes the identifier into an installed distribution file beside the executable and uses it for the NSIS install folder and uninstall registry keys and for DEB/RPM package names.
 - The desktop resolves every directory from the installed distribution identity before anything else starts: application, data, plugins, logs and the WebView2 profile. CLI and server defaults use the same lookup.
 - Without a declared identifier, the compiled identifier applies (plain Dokime).
 - Supersedes the `organization-installers` decision that storage identity stays compiled; organization packs themselves stay appearance-only.

@@ -43,8 +43,6 @@ An organization pack SHALL be applied only by packaging it into the installer, w
 - **WHEN** an installer is packaged without a pack
 - **THEN** the installation shows the built-in appearance
 
-## MODIFIED Requirements
-
 ### Requirement: Organization Packs and Trusted Release Sources
 
 Organization Packs SHALL provide appearance and organizational update defaults without changing compiled app identity or signing trust. Packs SHALL be selected only during installer packaging. One resolved policy SHALL support disabled, manual and automatic checks through direct manifest, GitHub Releases and GitLab Releases sources; installation remains explicit.
@@ -54,7 +52,7 @@ Organization Packs SHALL provide appearance and organizational update defaults w
 - **WHEN** installer packaging receives an invalid organization pack or an operator switches a named update source
 - **THEN** invalid packs fail packaging without modifying input artifacts or installed application data, invalid source configuration preserves the last valid configuration with a visible error, source switching preserves signing keys, and disabled policy performs no update network activity.
 
-#### Scenario: Authenticated App and Plugin Releases
+#### Scenario: Public App and Plugin Releases
 
-- **WHEN** an organization declares named connections and app/plugin release sources
-- **THEN** public sources work without login, configured credentials remain host/account/client-scoped and do not cross origins, compatible signed app assets are verified, and plugin discovery/staging retains explicit consent, install and restart ownership.
+- **WHEN** an organization declares app/plugin release sources
+- **THEN** public sources work without account login, compatible signed app assets are verified, and direct verified plugin installation retains mutation/cleanup ownership and explicit restart behavior without a staging/consent UI.

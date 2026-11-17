@@ -143,9 +143,8 @@ and inspects bundles, admits plugins and controls execution/cycle workflows.
 Exact subcommands are in the [CLI section](execution-host.md#command-line-tool).
 The CLI uses the Rust SDK's client roots. `catalog list/show` reads the top-level
 Suites resource; `operation list/show/call` discovers contracts through the library's
-Operations.List. Product and library operations use their respective host executor packages. Product operations are currently absent from host discovery,
-so raw product calls remain blocked pending host registration. Typed product
-commands and library raw calls use these forms:
+Operations.List. Product and library operations use their respective host executor packages. Product operation declarations retain their gRPC bindings for host discovery.
+Typed commands and raw calls use these forms:
 
 ```sh
 dokime --endpoint http://127.0.0.1:7000 operation call harmos.host.v1.Status/Get --json '{}'
@@ -169,7 +168,7 @@ with `parent`, `executions` and `request_id`. Lifecycle commands and prompt answ
 accept `--request-id`; retain it to retry an unchanged mutation. Omitted identities
 are generated for a single command invocation. Whole-value metadata changes use
 the final Set request with Get's complete writable value, `expected_revision`
-and a retained `request_id`; raw delivery awaits the discovery registration above.
+and a retained `request_id`.
 
 Report commands prepare with Reports.Create, read bounded product Files.Read
 ranges at the returned cut, verify length and SHA-256, and save without replacing an

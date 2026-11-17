@@ -15,7 +15,7 @@ identifier = "com.example.testhub"     # storage + install identity for this dis
 
 ## Installed Distribution File
 
-`cargo dokime installer package` writes `distribution.json` beside the installed executables:
+`dokime installer package` writes `distribution.json` beside the installed executables:
 
 ```json
 { "schema": 1, "identifier": "com.example.testhub" }
