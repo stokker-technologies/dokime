@@ -21,8 +21,6 @@ use std::{collections::BTreeSet, result, slice};
 // Third Party Imports
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
-// Local Imports
-use super::{State, columns, conflict, db, decode, encode, files, integer, invalid, meta, rows, set_meta, text, unsigned};
 use harmos_query::{
     columnar::{ColumnKind, ColumnSource},
     source,
@@ -30,6 +28,11 @@ use harmos_query::{
 use harmos_storage::{
     CompoundOutcome, CompoundReceipt, CompoundWrite, Identifier, MutationHeader, MutationReceipt, MutationValue, ObjectEntry, ObjectKey,
     ObjectVersionToken, Result, StorageCursor,
+};
+
+// Local Imports
+use super::{
+    State, columns, conflict, db, decode, encode, files, integer, invalid, meta, rows, save_mutation_receipt, set_meta, text, unsigned,
 };
 
 /* === Constants === */
@@ -149,7 +152,7 @@ pub(super) fn commit(
     tx.execute_batch("RELEASE compound_effects").map_err(db)?;
     let refused = matches!(outcome, CompoundOutcome::Conflict { .. });
     let receipt = header.complete(MutationValue::Compound(CompoundReceipt { position: position.clone(), outcome }));
-    tx.execute("INSERT INTO storage_mutations VALUES(?1,?2)", params![text(&header.mutation)?, encode(&receipt)?]).map_err(db)?;
+    save_mutation_receipt(&tx, &receipt)?;
     rows::save(&tx, position.sequence)?;
     tx.execute("INSERT INTO storage_compound_ranges VALUES(?1,?2)", params![integer(first)?, integer(position.sequence)?]).map_err(db)?;
     tx.commit().map_err(db)?;

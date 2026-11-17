@@ -13,9 +13,14 @@
 
 /* === Imports === */
 
-use super::*;
+// Standard Library Imports
+
+// Third Party Imports
 use harmos_storage::DefinitionKind;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension};
+
+// Local Imports
+use super::*;
 
 /* === Constants === */
 
@@ -48,9 +53,7 @@ pub(super) fn write(
 ) -> Result<()> {
     if let Some(mutation) = mutation {
         let receipt = mutation.definition(kind, name.clone(), outcome.clone());
-        connection
-            .execute("INSERT INTO storage_mutations VALUES(?1,?2)", params![text(&mutation.mutation)?, encode(&receipt)?])
-            .map_err(db)?;
+        save_mutation_receipt(connection, &receipt)?;
     }
     Ok(())
 }

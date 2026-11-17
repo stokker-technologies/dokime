@@ -16,6 +16,7 @@
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
+    iter,
     num::NonZeroUsize,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -26,10 +27,9 @@ use arrow_array::{
     Array, ArrayRef, RecordBatch, StringArray, StructArray, TimestampNanosecondArray, UInt32Array, UInt64Array, new_null_array,
 };
 use arrow_ipc::writer::StreamWriter;
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params, types::Value};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params, params_from_iter, types::Value};
+use serde::de::DeserializeOwned;
 
-// Local Imports
-use super::*;
 use harmos_query::columnar::ColumnKind;
 use harmos_query::columnar::ColumnSource;
 use harmos_query::source;
@@ -43,6 +43,9 @@ use harmos_storage::ObjectVersion;
 use harmos_storage::SchemaExchange;
 use harmos_storage::SchemaWriteReceipt;
 use harmos_storage::writes::{SampleAppend, convert};
+
+// Local Imports
+use super::*;
 
 /* === Constants === */
 
@@ -208,7 +211,7 @@ pub(super) fn set_schema(state: &mut State, exchange: &SchemaExchange) -> Result
     };
     let receipt = exchange.receipt(outcome);
     save(&tx, exchange.value.position.sequence)?;
-    tx.execute("INSERT INTO storage_mutations VALUES(?1,?2)", params![text(&receipt.mutation)?, encode(&receipt)?]).map_err(db)?;
+    save_mutation_receipt(&tx, &receipt)?;
     tx.commit().map_err(db)?;
     Ok(SchemaWriteReceipt {
         saved: state.cursor()?,
@@ -384,11 +387,11 @@ pub(super) fn append_sample_columns(state: &mut State, append: &SampleAppend) ->
     let mut arrays = Vec::<ArrayRef>::with_capacity(template.num_columns());
     for field in template.fields() {
         let array: ArrayRef = match field.name().as_str() {
-            "store" => Arc::new(StringArray::from_iter_values(std::iter::repeat_n(state.history.store.as_str(), count))),
-            "epoch" => Arc::new(StringArray::from_iter_values(std::iter::repeat_n(state.history.epoch.as_str(), count))),
+            "store" => Arc::new(StringArray::from_iter_values(iter::repeat_n(state.history.store.as_str(), count))),
+            "epoch" => Arc::new(StringArray::from_iter_values(iter::repeat_n(state.history.epoch.as_str(), count))),
             "position" => Arc::new(UInt64Array::from_iter_values(append.first.sequence..=append.through.sequence)),
             "scope" if append.scope.is_some() => {
-                Arc::new(StringArray::from_iter(std::iter::repeat_n(append.scope.as_ref().map(Identifier::as_str), count)))
+                Arc::new(StringArray::from_iter(iter::repeat_n(append.scope.as_ref().map(Identifier::as_str), count)))
             }
             "source_time" if original.column_by_name("source_time").is_some() => Arc::new(
                 original
@@ -400,12 +403,12 @@ pub(super) fn append_sample_columns(state: &mut State, append: &SampleAppend) ->
                     .clone()
                     .with_timezone("UTC"),
             ),
-            "stream" => Arc::new(StringArray::from_iter_values(std::iter::repeat_n(append.batch.destination.as_str(), count))),
+            "stream" => Arc::new(StringArray::from_iter_values(iter::repeat_n(append.batch.destination.as_str(), count))),
             // These Columns Describe One Registered Schema and Never Depend on a Sample Value.
             "schema_id" | "schema_version" | "payload_encoding" => match field.name().as_str() {
-                "schema_id" => Arc::new(StringArray::from_iter_values(std::iter::repeat_n(append.schema.key.id.as_str(), count))),
-                "schema_version" => Arc::new(UInt32Array::from_iter_values(std::iter::repeat_n(append.schema.key.version.get(), count))),
-                _ => Arc::new(StringArray::from_iter_values(std::iter::repeat_n("postcard_v1", count))),
+                "schema_id" => Arc::new(StringArray::from_iter_values(iter::repeat_n(append.schema.key.id.as_str(), count))),
+                "schema_version" => Arc::new(UInt32Array::from_iter_values(iter::repeat_n(append.schema.key.version.get(), count))),
+                _ => Arc::new(StringArray::from_iter_values(iter::repeat_n("postcard_v1", count))),
             },
             name => original.column_by_name(name).cloned().unwrap_or_else(|| new_null_array(field.data_type(), count)),
         };
@@ -428,7 +431,7 @@ pub(super) fn append_sample_columns(state: &mut State, append: &SampleAppend) ->
     )
     .map_err(db)?;
     let receipt = append.receipt();
-    tx.execute("INSERT INTO storage_mutations VALUES(?1,?2)", params![text(&receipt.mutation)?, encode(&receipt)?]).map_err(db)?;
+    save_mutation_receipt(&tx, &receipt)?;
     save(&tx, append.through.sequence)?;
     let writing_ns = u64::try_from(writing.elapsed().as_nanos()).unwrap_or(u64::MAX);
     let commit_started = Instant::now();
@@ -883,7 +886,9 @@ pub(super) fn prune(state: &mut State, through: &StorageCursor, maximum: NonZero
     if through.sequence > state.cursor()?.sequence {
         return Err(invalid("pruning is ahead of durable data"));
     }
+    let now = state.clock.date();
     let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
+    prune_mutation_receipts(&tx, now)?;
     let mut remove = Vec::new();
     let mut done = true;
     {
@@ -951,7 +956,7 @@ pub(super) fn prune(state: &mut State, through: &StorageCursor, maximum: NonZero
 
 /* === Private Functions === */
 
-fn query<T: serde::de::DeserializeOwned>(
+fn query<T: DeserializeOwned>(
     connection: &Connection, snapshot: &BackendSnapshot, page: ScanPage, kind: i64, condition: &str, extra: Vec<Value>,
 ) -> Result<Vec<T>> {
     let scope_parameter = extra.len() + 4;
@@ -967,7 +972,7 @@ fn query<T: serde::de::DeserializeOwned>(
     arguments.extend(extra);
     arguments.push(optional(super::snapshots::read(connection, snapshot)?.scope));
     let mut statement = connection.prepare(&sql).map_err(db)?;
-    let mut rows = statement.query(rusqlite::params_from_iter(arguments)).map_err(db)?;
+    let mut rows = statement.query(params_from_iter(arguments)).map_err(db)?;
     let mut output = Vec::new();
     let mut bytes = 0;
     while let Some(row) = rows.next().map_err(db)? {

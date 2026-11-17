@@ -17,47 +17,52 @@
 
 // Standard Library Imports
 use std::error::Error;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 // Third Party Imports
-use harmos_protocol::plugin::InstanceGetRequest;
-use harmos_protocol::plugin::InstanceGetResponse;
-use harmos_protocol::plugin::InstanceInvokeRequest;
-use harmos_protocol::plugin::InstanceInvokeResponse;
-use harmos_protocol::plugin::InstanceSamplesRequest;
-use harmos_protocol::plugin::InstanceSamplesResponse;
-use harmos_protocol::plugin::InstanceStopRequest;
-use harmos_protocol::plugin::InstanceStopResponse;
-use harmos_protocol::plugin::instance_server::Instance;
+use harmos_protocol::host::{OperationsGetRequest, OperationsListRequest, PluginState, plugin_placement};
+use harmos_protocol::model::{
+    Callers, Classification, Declarations, Failure, OperationContract, OperationPolicy, Position, Requirement, Section, StreamDeclaration,
+    Visibility,
+};
+use harmos_protocol::plugin::{
+    ChildRequest, InstanceGetRequest, InstanceGetResponse, InstanceInvokeRequest, InstanceInvokeResponse, InstanceSamplesRequest,
+    InstanceSamplesResponse, InstanceStopRequest, InstanceStopResponse, child_response, instance_invoke_request, instance_invoke_response,
+    instance_server::{Instance, InstanceServer},
+    response,
+};
+use harmos_protocol::schema;
 use harmos_runtime::operations::OperationFactory;
 use prost::Message;
-use prost_types::Duration;
-use prost_types::Timestamp;
+use prost_reflect::ReflectMessage;
+use prost_types::{Duration, FileDescriptorSet, Timestamp};
 use tokio::net::TcpListener;
-use tokio_stream::wrappers::ReceiverStream;
-use tonic::Code;
-use tonic::Request;
-use tonic::Response;
-use tonic::Status;
-use tonic::Streaming;
-use tonic::transport::Endpoint;
-use tonic::transport::Server;
+use tokio::sync::{mpsc, oneshot};
+use tokio::time;
+use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
+use tonic::transport::{Endpoint, Server};
+use tonic::{Code, Request, Response, Status, Streaming};
+use uuid::Uuid;
 
 // Local Imports
-use dokime::Client;
-use dokime::FileReference;
-use dokime::RecordScope;
-use dokime::Termination;
-use dokime::client::ResultStatus;
+use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
+use dokime::client::{ExecutionMode, ExecutionOutcome, PluginPlacement, PluginRemote, PluginValue, ResultStatus};
 use dokime::record_scope::Kind;
+use dokime::{
+    ArtifactScope, Client, EvidenceScope, FileReference, Import, Metadata, Origin, RecordScope, Step, Suite, Suites, Termination, TestCase,
+    TestCaseTemplate, origin, value,
+};
 use dokime_operations::host;
 use dokime_protocol::FILE_DESCRIPTOR_SET;
-use dokime_protocol::host::evidence::RecordsAppendRequest;
-use dokime_protocol::host::execution_outcome;
-use dokime_runtime::Host;
-use dokime_storage::Sample;
-use dokime_storage::Store;
+use dokime_protocol::host::content::ArtifactsCreateRequest;
+use dokime_protocol::host::evidence::{
+    LogsAppendRequest, RecordsAppendRequest, RecordsListRequest, TraceabilityGetRequest, logs_client::LogsClient,
+};
+use dokime_protocol::host::executions::ProgressGetRequest;
+use dokime_protocol::host::{EvidenceStatisticsRequest, EvidenceStatisticsResponse, SettingsGetRequest, execution_outcome};
+use dokime_protocol::plugin::{StepsExecuteRequest, StepsExecuteResponse, TestCasesMaterializeRequest, TestCasesMaterializeResponse};
+use dokime_runtime::{Host, services};
+use dokime_storage::{Execution, Sample, Store};
 
 /* === Constants === */
 
@@ -88,25 +93,6 @@ impl Instance for ScopeProbe {
     }
     type InvokeStream = ReceiverStream<Result<InstanceInvokeResponse, Status>>;
     async fn invoke(&self, request: Request<Streaming<InstanceInvokeRequest>>) -> Result<Response<Self::InvokeStream>, Status> {
-        use dokime::value;
-        use dokime::{ArtifactScope, EvidenceScope, Metadata, Step, TestCase};
-        use dokime_protocol::host::content::ArtifactsCreateRequest;
-        use dokime_protocol::host::evidence::{RecordsListRequest, TraceabilityGetRequest};
-        use dokime_protocol::host::executions::ProgressGetRequest;
-        use dokime_protocol::host::{EvidenceStatisticsRequest, EvidenceStatisticsResponse, SettingsGetRequest};
-        use dokime_protocol::plugin::{
-            StepsExecuteRequest, StepsExecuteResponse, TestCasesMaterializeRequest, TestCasesMaterializeResponse,
-        };
-        use harmos_protocol::host::{OperationsGetRequest, OperationsListRequest};
-        use harmos_protocol::model::{Classification, Failure, Position};
-        use harmos_protocol::plugin::child_response;
-        use harmos_protocol::plugin::instance_invoke_request;
-        use harmos_protocol::plugin::instance_invoke_response;
-        use harmos_protocol::plugin::response;
-        use harmos_protocol::plugin::{ChildRequest, InstanceInvokeResponse};
-        use tokio::sync::mpsc;
-        use tokio_stream::wrappers::ReceiverStream;
-
         let mut input = request.into_inner();
         let Some(instance_invoke_request::Frame::Request(request)) = input.message().await?.and_then(|frame| frame.frame) else {
             return Err(Status::invalid_argument("Open Scope Probe: Supply an Invocation"));
@@ -162,7 +148,7 @@ impl Instance for ScopeProbe {
                         }),
                         filename: "probe.bin".into(),
                         content_type: "application/octet-stream".into(),
-                        request_id: uuid::Uuid::now_v7().to_string(),
+                        request_id: Uuid::now_v7().to_string(),
                         ..Default::default()
                     };
                     let scope = selected.clone().map(|execution_id| EvidenceScope {
@@ -210,12 +196,8 @@ impl Instance for ScopeProbe {
                         .methods()
                         .find(|candidate| candidate.name() == method)
                         .unwrap();
-                    let fingerprint = harmos_protocol::schema::fingerprint(
-                        operation,
-                        types,
-                        descriptor.input().full_name(),
-                        descriptor.output().full_name(),
-                    )?;
+                    let fingerprint =
+                        schema::fingerprint(operation, types, descriptor.input().full_name(), descriptor.output().full_name())?;
                     let call = index as u64 + 1;
                     let frame = InstanceInvokeResponse {
                         frame: Some(instance_invoke_response::Frame::Child(ChildRequest {
@@ -280,7 +262,7 @@ impl Instance for ScopeProbe {
     type SamplesStream = ReceiverStream<Result<InstanceSamplesResponse, Status>>;
     async fn samples(&self, request: Request<Streaming<InstanceSamplesRequest>>) -> Result<Response<Self::SamplesStream>, Status> {
         let mut input = request.into_inner();
-        let (send, receive) = tokio::sync::mpsc::channel(1);
+        let (send, receive) = mpsc::channel(1);
         tokio::spawn(async move {
             // The Probe's Device Stream Publishes Nothing Itself; Steps Seed Its Evidence Directly.
             while let Ok(Some(_)) = input.message().await {}
@@ -300,34 +282,48 @@ impl Instance for ScopeProbe {
 /* === Tests === */
 
 #[test]
-fn direct_admission_refuses_each_wrong_caller_direction() {
-    use harmos_protocol::model::{Callers, Classification, Failure};
-    for service in dokime_protocol::descriptor_pool().services().filter(|service| service.package_name().starts_with("dokime.host.v1")) {
-        for method in service.methods() {
-            let callers = harmos_protocol::schema::method_callers(&method).unwrap();
-            let operation = format!("{}/{}", service.full_name(), method.name());
-            for caller in [Callers::Clients, Callers::Plugins] {
-                let result = dokime_operations::authorize(&operation, caller);
-                if callers == Callers::All || callers == caller {
-                    assert!(result.is_ok(), "{operation}: {result:?}");
-                    continue;
+fn encoded_admission_refuses_plugin_only_operations_for_clients() -> Result<(), Box<dyn Error>> {
+    support::run(Box::pin(async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
+            // Start the Runtime's Actual Client Admission Path
+            let root = support::tempdir()?;
+            let server = services::serve("127.0.0.1:0".parse()?, root.path(), support::settings(), support::service_settings()).await?;
+            let channel = Endpoint::from_shared(format!("http://{}", server.endpoint()))?.connect().await?;
+            let client = Client::from_channel(channel, support::client_settings())?;
+            let types = FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?;
+            let mut checked = 0;
+
+            // Call Every Plugin-Only Product Operation Using Its Declared Fingerprint
+            for service in
+                dokime_protocol::descriptor_pool().services().filter(|service| service.package_name().starts_with("dokime.host.v1"))
+            {
+                for method in service.methods() {
+                    if schema::method_callers(&method)? != Callers::Plugins {
+                        continue;
+                    }
+                    let operation = format!("{}/{}", service.full_name(), method.name());
+                    let fingerprint = schema::fingerprint(&operation, &types, method.input().full_name(), method.output().full_name())?;
+                    let status = client.invocations.create(&operation, fingerprint, Vec::new()).await.unwrap_err();
+                    assert_eq!(status.code(), Code::PermissionDenied, "{operation}: {status}");
+                    let failure = Failure::decode(status.details())?;
+                    assert_eq!(failure.classification, Classification::Refused as i32, "{operation}: {failure:?}");
+                    assert_eq!(failure.code, "-32604", "{operation}: {failure:?}");
+                    assert_eq!(failure.action, "Call", "{operation}: {failure:?}");
+                    checked += 1;
                 }
-                let failure = Failure::from(&result.unwrap_err());
-                assert_eq!(failure.classification, Classification::Refused as i32);
-                assert_eq!(failure.code, "-32604");
-                assert_eq!(failure.action, "Call");
             }
-        }
-    }
+            assert!(checked > 0, "Exercise Client Admission: Register Plugin-Only Operations");
+            server.close().await?;
+            Ok::<(), Box<dyn Error>>(())
+        })
+        .await?
+    }))
 }
 
 #[test]
 fn clients_cannot_call_plugin_operations_over_typed_or_encoded_grpc() -> Result<(), Box<dyn Error>> {
-    super::support::run(Box::pin(async {
-        use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
-        use dokime_protocol::host::evidence::{LogsAppendRequest, logs_client::LogsClient};
-        use harmos_protocol::model::{Classification, Failure};
-        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+    support::run(Box::pin(async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
             let root = support::tempdir()?;
             let credential_root = support::tempdir()?;
             let credentials = support::CredentialStore::start(credential_root.path()).await?;
@@ -358,24 +354,8 @@ fn clients_cannot_call_plugin_operations_over_typed_or_encoded_grpc() -> Result<
 
 #[test]
 fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dyn Error>> {
-    super::support::run(Box::pin(async {
-        use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
-        use dokime::client::{ExecutionOutcome, PluginPlacement, PluginRemote, PluginValue};
-        use dokime::origin;
-        use dokime::{Import, Metadata, Origin, Suite, Suites, Termination, TestCaseTemplate};
-        use dokime_protocol::plugin::{
-            StepsExecuteRequest, StepsExecuteResponse, TestCasesMaterializeRequest, TestCasesMaterializeResponse,
-        };
-        use dokime_storage::{Execution, Store};
-        use harmos_protocol::host::plugin_placement;
-        use harmos_protocol::model::{
-            Declarations, OperationContract, OperationPolicy, Requirement, Section, StreamDeclaration, Visibility,
-        };
-        use harmos_protocol::plugin::{InstanceGetResponse, instance_server::InstanceServer};
-        use prost_reflect::ReflectMessage;
-        use prost_types::FileDescriptorSet;
-        use std::sync::{Arc, Mutex};
-        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+    support::run(Box::pin(async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Freeze the Plugin's Lifecycle Contracts and Product Contributions
             let root = support::tempdir()?;
             let credential_root = support::tempdir()?;
@@ -406,7 +386,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                     id: id.into(),
                     request: request.full_name().into(),
                     response: response.full_name().into(),
-                    fingerprint: harmos_protocol::schema::fingerprint(id, &types, request.full_name(), response.full_name())?,
+                    fingerprint: schema::fingerprint(id, &types, request.full_name(), response.full_name())?,
                     visibility: Visibility::Protected as i32,
                     policy: Some(OperationPolicy {
                         timeout: Some(Duration::try_from(support::OPERATION_TIMEOUT)?),
@@ -443,12 +423,9 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 "dokime.host.v1.evidence.Records/List",
                 "dokime.host.v1.evidence.Traceability/Get",
                 "dokime.host.v1.executions.Progress/Get",
-            ];
-            for id in required_operations.into_iter().chain([
                 "dokime.host.v1.Settings/Get",
-                "harmos.host.v1.Operations/List",
-                "harmos.host.v1.Operations/Get",
-            ]) {
+            ];
+            for id in required_operations.into_iter().chain(["harmos.host.v1.Operations/List", "harmos.host.v1.Operations/Get"]) {
                 let contract = client.operations.get(id).await?.contract.ok_or("Discover Required Operation: Missing Contract")?;
                 host_contracts.push(contract);
             }
@@ -466,17 +443,10 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
             roots.extend(
                 host_contracts
                     .iter()
-                    .filter(|contract| {
-                        requires.iter().any(|required| required.id == contract.id)
-                            || matches!(
-                                contract.id.as_str(),
-                                "dokime.host.v1.Settings/Get" | "harmos.host.v1.Operations/List" | "harmos.host.v1.Operations/Get"
-                            )
-                    })
                     .filter_map(|contract| contract.protobuf.as_ref())
                     .flat_map(|protobuf| [protobuf.request.as_str(), protobuf.response.as_str()]),
             );
-            let types = harmos_protocol::schema::operation_types(&types, &roots)?;
+            let types = schema::operation_types(&types, &roots)?;
             let mut catalog = Declarations {
                 operations,
                 requires,
@@ -492,7 +462,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 }],
                 ..Default::default()
             };
-            catalog.digest = harmos_protocol::schema::declarations_digest(&catalog);
+            catalog.digest = schema::declarations_digest(&catalog);
             let file = Arc::new(Mutex::new(None));
             let observations = Arc::new(Mutex::new(Vec::new()));
             let provider = ScopeProbe {
@@ -512,11 +482,11 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
             };
             let listener = TcpListener::bind("127.0.0.1:0").await?;
             let url = format!("http://{}", listener.local_addr()?);
-            let (stop, stopped) = tokio::sync::oneshot::channel();
+            let (stop, stopped) = oneshot::channel();
             let provider = tokio::spawn(async move {
                 Server::builder()
                     .add_service(InstanceServer::new(provider))
-                    .serve_with_incoming_shutdown(tokio_stream::wrappers::TcpListenerStream::new(listener), async {
+                    .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
                         let _ = stopped.await;
                     })
                     .await
@@ -533,7 +503,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                     PluginValue { enabled: true },
                 )
                 .await?;
-            support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
+            support::plugin_state(&client.plugins, created.entry.unwrap(), PluginState::Ready).await?;
             let cases = support::materialize(&client, "scope_fixture", "scope_fixture.capture", Default::default()).await?;
             let origins = cases.into_iter().map(|case| case.origin.unwrap()).collect();
             let cycle = client
@@ -555,7 +525,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
             let executions = entries.into_iter().map(|entry| entry.summary.unwrap().execution_id).collect::<Vec<_>>();
             let reference = support::native_file(&client, "scope-probe-file", &executions[0], &[1, 2, 3]).await?;
             *file.lock().unwrap() = Some(reference);
-            client.executions.start(executions[0].clone(), dokime::client::ExecutionMode::Automatic).await?;
+            client.executions.start(executions[0].clone(), ExecutionMode::Automatic).await?;
             let mut watch = client.executions.progress.watch(executions[0].clone()).await?;
             while watch.next().await?.is_some() {}
             let completed = client.executions.get(executions[0].clone()).await?.execution.unwrap();
@@ -581,15 +551,15 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
 
 #[test]
 fn execution_isolation() -> Result<(), Box<dyn Error>> {
-    super::support::run(Box::pin(async {
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+    support::run(Box::pin(async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Start Three Executions Before Releasing Any Measurement
-            let root = super::support::tempdir()?;
-            let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-            let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
-            let first = host.materialize(&entry, "execution.capture", super::support::parameters(11.0, 0, true)).await?;
-            let second = host.materialize(&entry, "execution.capture", super::support::parameters(22.0, 0, true)).await?;
-            let third = host.materialize(&entry, "execution.capture", super::support::parameters(33.0, 0, true)).await?;
+            let root = support::tempdir()?;
+            let host = Host::open(root.path(), support::settings(), support::service_settings()).await?;
+            let entry = host.add_managed("execution", &support::execution_fixture()?, &[]).await?;
+            let first = host.materialize(&entry, "execution.capture", support::parameters(11.0, 0, true)).await?;
+            let second = host.materialize(&entry, "execution.capture", support::parameters(22.0, 0, true)).await?;
+            let third = host.materialize(&entry, "execution.capture", support::parameters(33.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![first, second]).await?;
             let other = host.start_cycle(vec![third]).await?;
             let executions = [&cycle.executions[0], &cycle.executions[1], &other.executions[0]];
@@ -599,7 +569,7 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
             }
             assert_ne!(cycle.identifier, other.identifier);
             for (execution, prompt) in executions.into_iter().zip(prompts) {
-                super::support::answer(&host, execution, prompt)?;
+                support::answer(&host, execution, prompt)?;
             }
 
             // Inspect Isolated Evidence and Execution Resources After Cleanup
@@ -625,12 +595,12 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
                 );
                 assert!(!snapshot.samples.is_empty());
                 for sample in &snapshot.samples {
-                    assert_eq!(super::support::Reading::decode(sample.row.as_slice())?.value, value);
+                    assert_eq!(support::Reading::decode(sample.row.as_slice())?.value, value);
                 }
                 let records = snapshot.records("execution.attempt");
                 assert_eq!(records.len(), 1);
                 let record = RecordsAppendRequest::decode(records[0].payload.as_slice())?;
-                let attempt = super::support::Attempt::decode(record.payload.as_slice())?;
+                let attempt = support::Attempt::decode(record.payload.as_slice())?;
                 assert_eq!(attempt.value, value);
                 assert!(attempt.scope_refused);
                 assert!(host.cancel(&snapshot.execution.identifier).is_err());
@@ -644,14 +614,14 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn concurrent_execution_clocks_advance_independently() -> Result<(), Box<dyn Error>> {
-    super::support::run(Box::pin(async {
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+    support::run(Box::pin(async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Admit Two Units on One Managed Connection
-            let root = super::support::tempdir()?;
-            let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
-            let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
-            let first = host.materialize(&entry, "execution.capture", super::support::parameters(11.0, 0, true)).await?;
-            let second = host.materialize(&entry, "execution.capture", super::support::parameters(22.0, 0, true)).await?;
+            let root = support::tempdir()?;
+            let host = Host::open(root.path(), support::settings(), support::service_settings()).await?;
+            let entry = host.add_managed("execution", &support::execution_fixture()?, &[]).await?;
+            let first = host.materialize(&entry, "execution.capture", support::parameters(11.0, 0, true)).await?;
+            let second = host.materialize(&entry, "execution.capture", support::parameters(22.0, 0, true)).await?;
             let left = host.start_cycle(vec![first]).await?;
             let right = host.start_cycle(vec![second]).await?;
             let left_id = left.executions[0].clone();
@@ -661,7 +631,7 @@ fn concurrent_execution_clocks_advance_independently() -> Result<(), Box<dyn Err
             let held = host.execution(&left_id)?.samples;
 
             // Settle Only Right and Observe That Left's Timeline Stays Still
-            super::support::answer(&host, &right_id, right_prompt)?;
+            support::answer(&host, &right_id, right_prompt)?;
             let right = right.wait().await?.executions.remove(0);
             assert_eq!(host.execution(&left_id)?.samples, held);
             assert_eq!(
@@ -677,7 +647,7 @@ fn concurrent_execution_clocks_advance_independently() -> Result<(), Box<dyn Err
             );
 
             // Advance Left Through Its Own Sleep and Retain Separate Evidence
-            super::support::answer(&host, &left_id, left_prompt)?;
+            support::answer(&host, &left_id, left_prompt)?;
             let left = left.wait().await?.executions.remove(0);
             assert_eq!(left.execution.termination, Termination::Completed as i32);
             for (snapshot, expected) in [(left, 11.0), (right, 22.0)] {
@@ -686,7 +656,7 @@ fn concurrent_execution_clocks_advance_independently() -> Result<(), Box<dyn Err
                     vec![1_000_000_000, 2_000_000_000, 3_000_000_000]
                 );
                 for sample in snapshot.samples {
-                    assert_eq!(super::support::Reading::decode(sample.row.as_slice())?.value, expected);
+                    assert_eq!(support::Reading::decode(sample.row.as_slice())?.value, expected);
                 }
             }
             host.shutdown().await?;
