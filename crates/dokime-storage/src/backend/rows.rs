@@ -17,7 +17,7 @@
 use std::{
     collections::BTreeMap,
     num::NonZeroUsize,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 // Third Party Imports
@@ -27,6 +27,7 @@ use rusqlite::{Connection, OptionalExtension, params, types::Value};
 use super::*;
 use harmos_query::columnar::ColumnKind;
 use harmos_query::columnar::ColumnSource;
+use harmos_query::source;
 use harmos_storage::query::ObjectVersions;
 use sha2::Digest;
 
@@ -36,6 +37,7 @@ use harmos_storage::ObjectRetention;
 use harmos_storage::ObjectVersion;
 use harmos_storage::SchemaExchange;
 use harmos_storage::SchemaWriteReceipt;
+use harmos_storage::writes::convert;
 
 /* === Constants === */
 
@@ -250,7 +252,7 @@ pub(super) fn append_records(state: &mut State, values: &[StoredRecord]) -> Resu
         for values in groups.values() {
             let first = &values[0];
             let schema = schema(&tx, &first.schema, first.position.sequence)?;
-            let batch = harmos_query::source::records(&schema, values.iter())?;
+            let batch = source::records(&schema, values.iter())?;
             columns::store(
                 &tx,
                 &ColumnSource {
@@ -307,7 +309,7 @@ pub(super) fn append_samples(state: &mut State, values: &[StoredRow]) -> Result<
         for values in groups.values() {
             let first = &values[0].record;
             let schema = schema(&tx, &first.schema, first.position.sequence)?;
-            let batch = harmos_query::source::stream(&schema, values)?;
+            let batch = source::stream(&schema, values)?;
             columns::store(
                 &tx,
                 &ColumnSource {
@@ -363,7 +365,7 @@ pub(super) fn append_object_revisions(state: &mut State, values: &[ObjectEntry])
         for values in groups.values() {
             let first = &values[0];
             let schema = schema(&tx, &first.value.schema, first.position.sequence)?;
-            let batch = harmos_query::source::objects(&schema, values)?;
+            let batch = source::objects(&schema, values)?;
             columns::store(
                 &tx,
                 &ColumnSource {
@@ -550,7 +552,7 @@ pub(super) fn list_samples(
     use arrow_array::{Array, StringArray, StructArray, TimestampNanosecondArray, UInt64Array};
     state.snapshot(snapshot)?;
     let schema = schema(&state.connection, &selection.schema, snapshot.at.sequence)?;
-    let empty = harmos_query::source::stream(&schema, &[])?;
+    let empty = source::stream(&schema, &[])?;
     let fields = empty.column(0).as_any().downcast_ref::<StructArray>().ok_or_else(incompatible)?;
     let metadata = fields.fields().iter().map(|field| field.name().as_str()).collect::<Vec<_>>();
     let values = empty
@@ -617,9 +619,9 @@ pub(super) fn list_samples(
             } else {
                 let time = times.value(row);
                 Some(if time < 0 {
-                    UNIX_EPOCH - std::time::Duration::from_nanos(time.unsigned_abs())
+                    UNIX_EPOCH - Duration::from_nanos(time.unsigned_abs())
                 } else {
-                    UNIX_EPOCH + std::time::Duration::from_nanos(time as u64)
+                    UNIX_EPOCH + Duration::from_nanos(time as u64)
                 })
             };
             if selection.scope.as_ref().is_some_and(|value| scope.as_ref() != Some(value))
@@ -630,6 +632,16 @@ pub(super) fn list_samples(
             {
                 continue;
             }
+            if output.len() == page.rows.get() {
+                return Ok(output);
+            }
+            let selected = payload.slice(row, 1);
+            let mut encoded = match convert::encode_payloads(&schema.schema, &selected, page.bytes) {
+                Ok(encoded) => encoded,
+                Err(Error::ResourceExhausted { .. }) if !output.is_empty() => return Ok(output),
+                Err(source) => return Err(source),
+            };
+            let payload = encoded.pop().ok_or_else(incompatible)?;
             let value = StoredRow {
                 record: StoredRecord {
                     position: StorageCursor {
@@ -641,7 +653,7 @@ pub(super) fn list_samples(
                     item,
                     source: text("source")?,
                     source_time,
-                    payload: super::payload::encode(&schema.schema, payload, row)?,
+                    payload,
                 },
                 stream,
                 sequence: sequences.value(row),

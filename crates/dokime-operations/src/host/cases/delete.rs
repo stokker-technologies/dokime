@@ -50,12 +50,10 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: CasesDeleteRequest) -> Result<CasesDeleteResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
-        crate::host::execution_state::cycle(context, &request.parent)?;
-        context.host.store().delete_planned_case(&request.parent, &request.name)?;
+        crate::host::execution_state::cycle(context, &request.parent).await?;
+        let receipt = super::storage::delete(context, &request.parent, &request.name, &request.request_id).await?;
         context.host.signal_change();
-        Ok(CasesDeleteResponse {
-            receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
-        })
+        Ok(CasesDeleteResponse { receipt: Some(receipt) })
     })
     .await
 }

@@ -51,7 +51,7 @@ pub async fn handle(context: &Context, request: CasesListRequest) -> Result<Case
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             crate::host::views::read(context, &format!("{ID}/{}/{}", request.parent, String::new()), request.at.as_ref(), async {
-                let cases = crate::host::execution_state::cases(context, &request.parent)?;
+                let cases = crate::host::execution_state::cases(context, &request.parent).await?;
                 Ok(CasesListResponse { cases, ..Default::default() })
             })
             .await?;

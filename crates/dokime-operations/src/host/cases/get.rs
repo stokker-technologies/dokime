@@ -52,9 +52,11 @@ pub async fn handle(context: &Context, request: CasesGetRequest) -> Result<Cases
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             crate::host::views::read(context, &format!("{ID}/{}/{}", request.parent, request.name.clone()), request.at.as_ref(), async {
-                let case = crate::host::execution_state::planned(context, &request.parent, &request.name)?;
-                let summary =
-                    crate::host::execution_state::cases(context, &request.parent)?.into_iter().find(|case| case.case_id == request.name);
+                let case = crate::host::execution_state::planned(context, &request.parent, &request.name).await?;
+                let summary = crate::host::execution_state::cases(context, &request.parent)
+                    .await?
+                    .into_iter()
+                    .find(|case| case.case_id == request.name);
                 let parameter_count = crate::host::execution_state::case(case.origin.as_ref().unwrap())?.parameters.len() as u64;
                 Ok(CasesGetResponse {
                     value: Some(CaseDetail {

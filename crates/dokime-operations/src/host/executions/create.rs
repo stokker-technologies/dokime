@@ -57,7 +57,7 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Result<ExecutionsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
-        let cycle = crate::host::execution_state::cycle(context, &request.parent)?;
+        let cycle = crate::host::execution_state::cycle(context, &request.parent).await?;
         if cycle.sealed || request.executions.is_empty() || request.executions.len() > context.settings.max_cases {
             return Err(Error::Invalid("Append Executions: Supply Bounded Bindings to an Unsealed Cycle".into()));
         }
@@ -68,7 +68,8 @@ pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Resu
             if uuid::Uuid::parse_str(&binding.execution_id).is_err() || !identifiers.insert(&binding.execution_id) {
                 return Err(Error::Invalid("Append Executions: Supply Unique Execution UUIDs".into()));
             }
-            let case = context.host.store().planned_case(&binding.case_id)?;
+            let case = crate::host::cases::storage::read(context, &binding.case_id, Some(&request.parent)).await?;
+            let label = case.metadata.as_ref().map(|metadata| metadata.label.clone()).unwrap_or_default();
             let origin = case.origin.ok_or_else(|| Error::Invalid("Append Executions: Materialize the Selected Case".into()))?;
             let run = match origin.kind.as_ref() {
                 Some(Kind::PluginRun(run)) => run,
@@ -103,6 +104,7 @@ pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Resu
                     ..Default::default()
                 },
                 binding.case_id.clone(),
+                label,
             ));
         }
         context.host.store().bind_executions(&request.parent, &prepared)?;

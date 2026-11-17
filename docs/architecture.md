@@ -287,7 +287,7 @@ ownership changes below are locked direction, not implemented source.
     never deduplicate; accepted and durable positions remain separate facts.
     **Why:** A failed transport does not prove that an external effect was not applied.
     **Where:** [receipt and retry requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy),
-    [existing planning receipts](../crates/dokime-storage/src/plans.rs).
+    [existing planning receipts](../crates/dokime-operations/src/host/cases/storage.rs).
     **Proof:** No proof yet across the final mutation API; A9.
     **Status:** locked direction (`operation-grammar`).
 
@@ -796,7 +796,17 @@ it through `GetFileBytes`; the final product report transaction still awaits the
 compound-mutation cutover.
 The bounded live report registry retains native references only; it owns no second
 copy of the file bytes or file handles after upload.
-Roots containing the superseded SQL view or prepared-report journals are refused
+Case registration and frozen plans use Harmos object operations in
+`crates/dokime-operations/src/host/cases/storage.rs`. One compound mutation
+publishes the registration and every planned case. Replaying its request reads the
+original registration and its native mutation window/key, then replays that same
+mutation. Its durable receipt survives restart without rematerializing the plugin
+or substituting the new admission window. Product responses preserve the caller's
+request ID while taking durable positions from the native receipt. Case deletion keeps
+Dokime's cycle and execution-ownership guards and calls `DeleteObject`; retained
+cuts still see the previous case. No SQL registration or planned-case table remains.
+Execution bindings still belong to the coupled execution/evidence cutover.
+Roots containing the superseded SQL registration/case tables, view or prepared-report journals are refused
 with fresh-root guidance at baseline v1. Admission preserves their stored values;
 there is no migration, fallback reader or automatic reset.
 
@@ -840,7 +850,9 @@ At this pin the native PayloadEncoding enum still contains only PostcardV1.
 The backend consumer must encode native object/record/sample values and their
 schemas truthfully; protobuf bytes must never be relabeled as Postcard. Preserve
 the frozen protobuf definitions and map product values losslessly at the native
-port. Arrow scans supply projected batches to the library query engine directly;
+port. Native Arrow-to-Postcard reconstruction calls Harmos's bounded
+`writes::convert::encode_payloads`; Dokime owns no second payload encoder.
+Arrow scans supply projected batches to the library query engine directly;
 this is no permission for a duplicate durable row representation or new wire codec.
 
 
@@ -850,7 +862,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 | --- | --- |
 | backend.rs, store.rs, history.rs, administration.rs | Native ports, catalog transactions, stable history, original receipts and recovery-state persistence. Dokime plugin administration uses Harmos storage operations; the backend owns physical persistence. |
 | ipc.rs, ipc/**, telemetry/**, streams.rs, stream_* | Physical Arrow append/projection/flush/checkpoints and catalog pruning; saved/live boundaries and compressed recovery. |
-| execution.rs, cycles.rs, plans.rs, progress.rs, traceability.rs, notes.rs, report.rs | Product objects and records reached through library native operations; no new storage interface or manager. |
+| host/cases/storage.rs, execution.rs, cycles.rs, progress.rs, traceability.rs, notes.rs, report.rs | Product objects and records reached through library native operations; no new storage interface or manager. |
 | content.rs and file/upload helpers | Native staging/publication, fences, checkpoints and resumable sessions under one content owner. Wire uses library FileReference/Upload, not native backend structs. |
 | expressions.rs, plot*.rs, document*.rs, numeric*.rs | Product expression binding and presentation; consume projected library query results and the library time merge. Preserve the parallel correctness repair. |
 | ordered_merge.rs | Delete after expressions.rs moves to TimeMergeReader; no product generic merge remains in the completed consumer migration. |

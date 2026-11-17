@@ -58,7 +58,7 @@ pub async fn handle(context: &Context, request: OverviewGetRequest) -> Result<Ov
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (overview, cut) =
             crate::host::views::read(context, &format!("{ID}/{}", context.host.identity().epoch), request.at.as_ref(), async {
-                let cycles = crate::host::execution_state::cycles(context)?;
+                let cycles = crate::host::execution_state::cycles(context).await?;
                 let cycle_summaries = cycles;
                 let cursor = crate::host::execution_state::observed(context);
                 let next_after_cycle_id = None;

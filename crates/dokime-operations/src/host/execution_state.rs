@@ -131,7 +131,7 @@ pub(crate) fn summary(context: &Context, snapshot: &ExecutionSnapshot) -> Result
     summary.archived = archived;
     Ok(summary)
 }
-pub(crate) fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
+pub(crate) async fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
     let rows = snapshots(context, id)?;
     let mut cycle = context
         .host
@@ -153,7 +153,7 @@ pub(crate) fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
         queued += u64::from(controls.can_start);
         paused |= controls.paused;
     }
-    let mut cases: BTreeSet<_> = context.host.store().planned_cases(id)?.into_iter().map(|case| case.case_id).collect();
+    let mut cases: BTreeSet<_> = crate::host::cases::storage::list(context, id).await?.into_iter().map(|case| case.case_id).collect();
     for row in
         rows.iter().filter(|row| matches!(row.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(Kind::PluginRun(_))))
     {
@@ -197,19 +197,21 @@ pub(crate) fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
     cycle.observed_cursor = Some(observed(context));
     Ok(cycle)
 }
-pub(crate) fn cycles(context: &Context) -> Result<Vec<CycleSummary>> {
+pub(crate) async fn cycles(context: &Context) -> Result<Vec<CycleSummary>> {
     let mut ids: BTreeSet<_> = context.host.store().client_cycles()?.into_iter().map(|cycle| cycle.cycle_id).collect();
     for id in context.host.store().identifiers()? {
         ids.insert(context.host.store().cut(&id)?.execution.cycle);
     }
-    ids.into_iter().map(|id| cycle(context, &id)).collect()
+    let mut cycles = Vec::new();
+    for id in ids {
+        cycles.push(cycle(context, &id).await?);
+    }
+    Ok(cycles)
 }
-pub(crate) fn cases(context: &Context, cycle_id: &str) -> Result<Vec<CaseSummary>> {
-    cycle(context, cycle_id)?;
-    let mut cases: BTreeMap<_, _> = context
-        .host
-        .store()
-        .planned_cases(cycle_id)?
+pub(crate) async fn cases(context: &Context, cycle_id: &str) -> Result<Vec<CaseSummary>> {
+    cycle(context, cycle_id).await?;
+    let mut cases: BTreeMap<_, _> = crate::host::cases::storage::list(context, cycle_id)
+        .await?
         .into_iter()
         .map(|case| {
             (
@@ -271,12 +273,14 @@ pub(crate) fn cases(context: &Context, cycle_id: &str) -> Result<Vec<CaseSummary
     cases.sort_by(|left, right| left.ordinal.cmp(&right.ordinal).then_with(|| left.case_id.cmp(&right.case_id)));
     Ok(cases)
 }
-pub(crate) fn planned(context: &Context, cycle: &str, case: &str) -> Result<PlannedCase> {
-    if !cases(context, cycle)?.iter().any(|entry| entry.case_id == case) {
+pub(crate) async fn planned(context: &Context, cycle: &str, case: &str) -> Result<PlannedCase> {
+    if !cases(context, cycle).await?.iter().any(|entry| entry.case_id == case) {
         return Err(Error::NotFound("Inspect Case: Select a Case in This Cycle".into()));
     }
-    if let Ok(case) = context.host.store().planned_case(case) {
-        return Ok(case);
+    match crate::host::cases::storage::read(context, case, Some(cycle)).await {
+        Ok(case) => return Ok(case),
+        Err(Error::NotFound(_)) => {}
+        Err(error) => return Err(error),
     }
     let snapshot = snapshots(context, cycle)?
         .into_iter()

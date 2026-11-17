@@ -51,7 +51,7 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: CyclesGetRequest) -> Result<CyclesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let cycle = crate::host::execution_state::cycle(context, &request.name)?;
+        let cycle = crate::host::execution_state::cycle(context, &request.name).await?;
         let value = CycleWritable {
             label: cycle.metadata.as_ref().map_or(String::new(), |metadata| metadata.label.clone()),
             paused: cycle.status == CycleStatus::Paused as i32,

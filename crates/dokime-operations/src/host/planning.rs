@@ -27,7 +27,7 @@ use dokime_protocol::host::CasesCreateResponse;
 use dokime_protocol::host::PlannedCase;
 use dokime_protocol::host::RegisteredSelection;
 use dokime_protocol::host::SelectionPlan;
-use dokime_protocol::host::selected_file_kind::Kind as SelectedFileKind;
+use dokime_protocol::host::selected_file_kind;
 use dokime_protocol::model::Parameter;
 use dokime_protocol::model::ParameterBinaryOperator;
 use dokime_protocol::model::ParameterExpression;
@@ -36,8 +36,8 @@ use dokime_protocol::model::TestCaseTemplate;
 use dokime_protocol::model::Value;
 use dokime_protocol::model::ValueList;
 use dokime_protocol::model::ValueType;
-use dokime_protocol::model::parameter_expansion::Kind as ParameterExpansionKind;
-use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_protocol::model::parameter_expansion;
+use dokime_protocol::model::value;
 
 /* === Constants === */
 
@@ -69,20 +69,21 @@ pub(crate) async fn resolve(context: &Context, plan: &SelectionPlan) -> Result<C
         }
         let mut cases = Vec::new();
         for identifier in &plan.case_ids {
-            cases.push(context.host.store().planned_case(identifier)?);
+            cases.push(crate::host::cases::storage::read(context, identifier, None).await?);
         }
         return Ok(CasesCreateResponse { cases, ..Default::default() });
     }
     if plan.selections.is_empty() {
         return Err(Error::Invalid("Plan Selection: Supply at Least One Selection".into()));
     }
-    if !plan.cycle_id.is_empty() && crate::host::execution_state::cycle(context, &plan.cycle_id)?.sealed {
+    if !plan.cycle_id.is_empty() && crate::host::execution_state::cycle(context, &plan.cycle_id).await?.sealed {
         return Err(Error::Precondition("Plan Selection: Select an Unsealed Cycle".into()));
     }
     let catalog = context.host.plugins().await?;
     let catalog_cursor = crate::host::paging::cursor(context, "planning.catalog".into(), catalog.iter().map(crate::host::paging::bytes));
     let suites = context.host.suites()?;
-    let first_ordinal = if plan.cycle_id.is_empty() { 0 } else { context.host.store().planned_cases(&plan.cycle_id)?.len() as u64 };
+    let first_ordinal =
+        if plan.cycle_id.is_empty() { 0 } else { crate::host::cases::storage::list(context, &plan.cycle_id).await?.len() as u64 };
     let mut cases = Vec::new();
     for (selection_index, selection) in plan.selections.iter().enumerate() {
         let matches: Vec<_> = suites
@@ -185,9 +186,9 @@ fn expand(template: &TestCaseTemplate, selection: &RegisteredSelection, cap: usi
         let Some(mut values) = resolved.remove(name) else {
             continue;
         };
-        if parameter.r#type == ValueType::List as i32 && !matches!(values.as_slice(), [Value { kind: Some(ValueKind::List(_)) }]) {
+        if parameter.r#type == ValueType::List as i32 && !matches!(values.as_slice(), [Value { kind: Some(value::Kind::List(_)) }]) {
             values = vec![Value {
-                kind: Some(ValueKind::List(ValueList { values })),
+                kind: Some(value::Kind::List(ValueList { values })),
             }];
         }
         if values.is_empty() || values.len() > cap {
@@ -198,11 +199,11 @@ fn expand(template: &TestCaseTemplate, selection: &RegisteredSelection, cap: usi
             validate_parameter(parameter, value)?;
         }
         let expansion = parameter.expansion.as_ref().and_then(|expansion| expansion.kind.as_ref());
-        if matches!(expansion, Some(ParameterExpansionKind::Single(true))) && values.len() != 1 {
+        if matches!(expansion, Some(parameter_expansion::Kind::Single(true))) && values.len() != 1 {
             return Err(Error::Invalid(format!("Plan Selection: Supply One Value for {name}")));
         }
         let group = match expansion {
-            Some(ParameterExpansionKind::Zip(group)) => format!("zip:{group}"),
+            Some(parameter_expansion::Kind::Zip(group)) => format!("zip:{group}"),
             _ => format!("parameter:{name}"),
         };
         if let Some((_, rows)) = dimensions.iter_mut().find(|(key, _)| key == &group) {
@@ -240,8 +241,8 @@ fn expand(template: &TestCaseTemplate, selection: &RegisteredSelection, cap: usi
             return Err(Error::Invalid("Plan Selection: Use Unique Declared File Parameters".into()));
         }
         let value = match file.value.as_ref().and_then(|file| file.kind.as_ref()).and_then(|kind| kind.kind.as_ref()) {
-            Some(SelectedFileKind::Value(value)) => Some(value.clone()),
-            Some(SelectedFileKind::Clear(_)) => None,
+            Some(selected_file_kind::Kind::Value(value)) => Some(value.clone()),
+            Some(selected_file_kind::Kind::Clear(_)) => None,
             None => return Err(Error::Invalid("Plan Selection: Select or Explicitly Clear Each File".into())),
         };
         files.insert(file.key.clone(), value);
@@ -257,7 +258,7 @@ fn expand(template: &TestCaseTemplate, selection: &RegisteredSelection, cap: usi
                 combination.insert(
                     name.clone(),
                     Value {
-                        kind: Some(ValueKind::Text(value.clone())),
+                        kind: Some(value::Kind::Text(value.clone())),
                     },
                 );
             }
@@ -289,7 +290,7 @@ fn coerce(kind: i32, value: &mut Value) -> Result<()> {
 
 fn validate_parameter(parameter: &Parameter, value: &Value) -> Result<()> {
     let name = &parameter.metadata.as_ref().unwrap().identifier;
-    if matches!(value.kind, Some(ValueKind::Null(_))) && !parameter.required {
+    if matches!(value.kind, Some(value::Kind::Null(_))) && !parameter.required {
         return Ok(());
     }
     if !crate::host::prompts::validation::type_matches(parameter.r#type, value)
@@ -297,7 +298,7 @@ fn validate_parameter(parameter: &Parameter, value: &Value) -> Result<()> {
     {
         return Err(Error::Invalid(format!("Plan Selection: Use the Declared Type and Choices for {name}")));
     }
-    if let Some(ValueKind::List(list)) = &value.kind
+    if let Some(value::Kind::List(list)) = &value.kind
         && (parameter.min_items.is_some_and(|min| list.values.len() < min as usize)
             || parameter.max_items.is_some_and(|max| list.values.len() > max as usize)
             || list.values.iter().any(|value| !crate::host::prompts::validation::type_matches(parameter.element_type, value)))
@@ -313,9 +314,9 @@ fn validate_parameter(parameter: &Parameter, value: &Value) -> Result<()> {
 
 fn numeric(value: &Value) -> Option<f64> {
     match value.kind {
-        Some(ValueKind::Integer(value)) => Some(value as f64),
-        Some(ValueKind::UnsignedInteger(value)) => Some(value as f64),
-        Some(ValueKind::Number(value)) => Some(value),
+        Some(value::Kind::Integer(value)) => Some(value as f64),
+        Some(value::Kind::UnsignedInteger(value)) => Some(value as f64),
+        Some(value::Kind::Number(value)) => Some(value),
         _ => None,
     }
 }
@@ -348,7 +349,7 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
                 if values.len() >= cap {
                     return Err(Error::Invalid("Plan Selection: Reduce the Integer Range".into()));
                 }
-                values.push(Value { kind: Some(ValueKind::Integer(value)) });
+                values.push(Value { kind: Some(value::Kind::Integer(value)) });
                 value = value
                     .checked_add(range.step)
                     .ok_or_else(|| Error::Invalid("Plan Selection: Keep Integer Ranges Within Their Type".into()))?;
@@ -368,7 +369,7 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
                 if index == cap {
                     return Err(Error::Invalid("Plan Selection: Reduce the Number Range".into()));
                 }
-                values.push(Value { kind: Some(ValueKind::Number(value)) });
+                values.push(Value { kind: Some(value::Kind::Number(value)) });
             }
             values
         }
@@ -378,7 +379,7 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
             }
             (0..range.count)
                 .map(|index| Value {
-                    kind: Some(ValueKind::Number(if range.count == 1 {
+                    kind: Some(value::Kind::Number(if range.count == 1 {
                         range.start
                     } else {
                         range.start + (range.stop - range.start) * index as f64 / (range.count - 1) as f64
@@ -404,12 +405,12 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
             values
                 .into_iter()
                 .map(|value| match value.kind {
-                    Some(ValueKind::Integer(value)) => value
+                    Some(value::Kind::Integer(value)) => value
                         .checked_neg()
-                        .map(|value| Value { kind: Some(ValueKind::Integer(value)) })
+                        .map(|value| Value { kind: Some(value::Kind::Integer(value)) })
                         .ok_or_else(|| Error::Invalid("Plan Selection: Avoid Integer Overflow".into())),
                     _ => numeric(&value)
-                        .map(|value| Value { kind: Some(ValueKind::Number(-value)) })
+                        .map(|value| Value { kind: Some(value::Kind::Number(-value)) })
                         .ok_or_else(|| Error::Invalid("Plan Selection: Use Numeric Unary Operands".into())),
                 })
                 .collect::<Result<_>>()?
@@ -444,7 +445,7 @@ fn expression_values(expression: &ParameterExpression, resolved: &HashMap<String
                 if !value.is_finite() {
                     return Err(Error::Invalid("Plan Selection: Keep Arithmetic Results Finite".into()));
                 }
-                values.push(Value { kind: Some(ValueKind::Number(value)) });
+                values.push(Value { kind: Some(value::Kind::Number(value)) });
             }
             values
         }
@@ -468,7 +469,7 @@ mod tests {
     use dokime_protocol::model::ParameterBinary;
     use dokime_protocol::model::ParameterExpansion;
     use dokime_protocol::model::ParameterExpressions;
-    use dokime_protocol::model::parameter_expression::Kind as ParameterExpressionKind;
+    use dokime_protocol::model::parameter_expression;
 
     #[test]
     fn parameter_expressions_preserve_zip_and_list_shapes() -> Result<()> {
@@ -482,7 +483,7 @@ mod tests {
                     }),
                     r#type: ValueType::Number as i32,
                     expansion: Some(ParameterExpansion {
-                        kind: Some(ParameterExpansionKind::Zip("pair".into())),
+                        kind: Some(parameter_expansion::Kind::Zip("pair".into())),
                     }),
                     ..Default::default()
                 },
@@ -493,22 +494,26 @@ mod tests {
                     }),
                     r#type: ValueType::Number as i32,
                     expansion: Some(ParameterExpansion {
-                        kind: Some(ParameterExpansionKind::Zip("pair".into())),
+                        kind: Some(parameter_expansion::Kind::Zip("pair".into())),
                     }),
                     expression: Some(ParameterExpression {
-                        kind: Some(ParameterExpressionKind::Binary(Box::new(ParameterBinary {
+                        kind: Some(parameter_expression::Kind::Binary(Box::new(ParameterBinary {
                             operator: ParameterBinaryOperator::Add as i32,
                             left: Some(Box::new(ParameterExpression {
-                                kind: Some(ParameterExpressionKind::Reference("left".into())),
+                                kind: Some(parameter_expression::Kind::Reference("left".into())),
                             })),
                             right: Some(Box::new(ParameterExpression {
-                                kind: Some(ParameterExpressionKind::Array(ParameterExpressions {
+                                kind: Some(parameter_expression::Kind::Array(ParameterExpressions {
                                     values: vec![
                                         ParameterExpression {
-                                            kind: Some(ParameterExpressionKind::Literal(Value { kind: Some(ValueKind::Number(10.0)) })),
+                                            kind: Some(parameter_expression::Kind::Literal(Value {
+                                                kind: Some(value::Kind::Number(10.0)),
+                                            })),
                                         },
                                         ParameterExpression {
-                                            kind: Some(ParameterExpressionKind::Literal(Value { kind: Some(ValueKind::Number(20.0)) })),
+                                            kind: Some(parameter_expression::Kind::Literal(Value {
+                                                kind: Some(value::Kind::Number(20.0)),
+                                            })),
                                         },
                                     ],
                                 })),
@@ -525,13 +530,17 @@ mod tests {
                     r#type: ValueType::List as i32,
                     element_type: ValueType::Text as i32,
                     expression: Some(ParameterExpression {
-                        kind: Some(ParameterExpressionKind::Array(ParameterExpressions {
+                        kind: Some(parameter_expression::Kind::Array(ParameterExpressions {
                             values: vec![
                                 ParameterExpression {
-                                    kind: Some(ParameterExpressionKind::Literal(Value { kind: Some(ValueKind::Text("a".into())) })),
+                                    kind: Some(parameter_expression::Kind::Literal(Value {
+                                        kind: Some(value::Kind::Text("a".into())),
+                                    })),
                                 },
                                 ParameterExpression {
-                                    kind: Some(ParameterExpressionKind::Literal(Value { kind: Some(ValueKind::Text("b".into())) })),
+                                    kind: Some(parameter_expression::Kind::Literal(Value {
+                                        kind: Some(value::Kind::Text("b".into())),
+                                    })),
                                 },
                             ],
                         })),
@@ -545,24 +554,24 @@ mod tests {
             parameters: vec![RegisteredSelectionParametersEntry {
                 key: "left".into(),
                 value: Some(SelectionValues {
-                    values: vec![Value { kind: Some(ValueKind::Number(1.0)) }, Value { kind: Some(ValueKind::Number(2.0)) }],
+                    values: vec![Value { kind: Some(value::Kind::Number(1.0)) }, Value { kind: Some(value::Kind::Number(2.0)) }],
                 }),
             }],
             ..Default::default()
         };
         let rows = expand(&template, &selection, 4)?;
         assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0]["right"].kind, Some(ValueKind::Number(11.0)));
-        assert_eq!(rows[1]["right"].kind, Some(ValueKind::Number(22.0)));
-        assert!(matches!(&rows[0]["labels"].kind,Some(ValueKind::List(values)) if values.values.len() == 2));
+        assert_eq!(rows[0]["right"].kind, Some(value::Kind::Number(11.0)));
+        assert_eq!(rows[1]["right"].kind, Some(value::Kind::Number(22.0)));
+        assert!(matches!(&rows[0]["labels"].kind,Some(value::Kind::List(values)) if values.values.len() == 2));
 
         // Refuse an Incompatible Pair Without Producing a Partial Expansion
         let mut invalid = template.clone();
-        if let Some(ParameterExpressionKind::Binary(binary)) =
+        if let Some(parameter_expression::Kind::Binary(binary)) =
             invalid.parameters[1].expression.as_mut().and_then(|expression| expression.kind.as_mut())
         {
             binary.right = Some(Box::new(ParameterExpression {
-                kind: Some(ParameterExpressionKind::Range(IntegerRange { start: 1, stop: 4, step: 1 })),
+                kind: Some(parameter_expression::Kind::Range(IntegerRange { start: 1, stop: 4, step: 1 })),
             }));
         }
         assert!(expand(&invalid, &selection, 8).is_err());

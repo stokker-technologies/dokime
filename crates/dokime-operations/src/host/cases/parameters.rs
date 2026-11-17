@@ -51,7 +51,7 @@ pub async fn handle(context: &Context, request: CasesParametersRequest) -> Resul
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             crate::host::views::read(context, &format!("{ID}/{}/{}", request.parent, request.name.clone()), request.at.as_ref(), async {
-                let planned = crate::host::execution_state::planned(context, &request.parent, &request.name)?;
+                let planned = crate::host::execution_state::planned(context, &request.parent, &request.name).await?;
                 let parameters = crate::host::execution_state::parameters(
                     &crate::host::execution_state::case(planned.origin.as_ref().unwrap())?.parameters,
                 );

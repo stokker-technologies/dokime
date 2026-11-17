@@ -132,7 +132,6 @@ impl Store {
                     "administration",
                     "attempts",
                     "bindings",
-                    "cases",
                     "commands",
                     "cycle_history",
                     "cycles",
@@ -143,7 +142,6 @@ impl Store {
                     "notes",
                     "read_positions",
                     "record_fields",
-                    "registrations",
                     "reports",
                     "resource_requests",
                     "resource_values",
@@ -191,8 +189,6 @@ impl Store {
                 CREATE TABLE record_fields(execution TEXT NOT NULL, record TEXT NOT NULL, field TEXT NOT NULL, position INTEGER NOT NULL, source_ns INTEGER NOT NULL, number REAL, label TEXT, PRIMARY KEY(execution,record,field,position));
                 CREATE INDEX record_fields_time ON record_fields(execution,record,field,source_ns,position);
                 CREATE TABLE notes(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, execution TEXT, receipt BLOB NOT NULL, payload BLOB NOT NULL);
-                CREATE TABLE registrations(id INTEGER PRIMARY KEY, key TEXT UNIQUE, plan BLOB NOT NULL, payload BLOB NOT NULL);
-                CREATE TABLE cases(id TEXT PRIMARY KEY, cycle TEXT NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE cycles(id TEXT PRIMARY KEY, payload BLOB NOT NULL);
                 CREATE TABLE bindings(execution TEXT PRIMARY KEY REFERENCES executions(id), case_id TEXT NOT NULL, label TEXT NOT NULL, archived INTEGER NOT NULL);
                 CREATE TABLE commands(request TEXT NOT NULL, id TEXT NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(request,id));
