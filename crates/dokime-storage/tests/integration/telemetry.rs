@@ -341,7 +341,7 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     Ok(())
 }
 #[test]
-fn large_integer_document_median_is_exact() -> Result<()> {
+fn large_integer_document_reductions_use_library_statistics() -> Result<()> {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     store.create(&fixture::execution())?;
@@ -368,14 +368,15 @@ fn large_integer_document_median_is_exact() -> Result<()> {
         }))),
         ..Default::default()
     };
-    assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(value::Kind::UnsignedInteger(u64::MAX - 1)));
+    assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(value::Kind::Number((u64::MAX - 1) as f64)));
     let statistics = store.numeric_statistics(&numeric(3))?;
     assert_eq!(statistics.count, 3);
-    assert!((statistics.stddev - (2.0f64 / 3.0).sqrt()).abs() < 1e-12);
+    assert_eq!(statistics.stddev, 0.0);
+    assert_eq!(store.numeric_rms(&numeric(3))?, (u64::MAX - 1) as f64);
     Ok(())
 }
 #[test]
-fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
+fn integer_statistics_keep_exact_values_and_float_ranks_across_reopen() -> Result<()> {
     let root = tempfile::tempdir()?;
     let base = 1_152_921_504_606_847_975u64;
     let input = FieldReference::new("readings").field("value");
@@ -409,7 +410,16 @@ fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
                 }))),
                 ..Default::default()
             };
-            assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(kind.clone()));
+            let answer = store.document_value(&store.cut("execution")?, &expression)?;
+            let Some(value::Kind::Number(actual)) = answer.kind else {
+                panic!("Library Ranks Return Floating-Point Values");
+            };
+            let expected = match kind {
+                value::Kind::Integer(value) => value as f64,
+                value::Kind::UnsignedInteger(value) => value as f64,
+                _ => unreachable!(),
+            };
+            assert!((actual - expected).abs() <= expected.abs() * f64::EPSILON);
         }
     }
     for (start_ns, end_ns, count, minimum, mean, maximum) in
@@ -427,13 +437,20 @@ fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
         (&statistics.max, base + 10_000),
         (&statistics.first, base),
         (&statistics.last, base + 10_000),
+        (&statistics.mean, base + 5_000),
+    ] {
+        assert_eq!(value.as_ref().unwrap().kind, Some(value::Kind::UnsignedInteger(expected)));
+    }
+    for (value, expected) in [
         (&statistics.median, base + 5_000),
         (&statistics.p05, base + 500),
         (&statistics.p95, base + 9_500),
         (&statistics.p99, base + 9_900),
-        (&statistics.mean, base + 5_000),
     ] {
-        assert_eq!(value.as_ref().unwrap().kind, Some(value::Kind::UnsignedInteger(expected)));
+        let Some(value::Kind::Number(actual)) = value.as_ref().unwrap().kind else {
+            panic!("Library Ranks Return Floating-Point Values");
+        };
+        assert!((actual - expected as f64).abs() <= expected as f64 * f64::EPSILON);
     }
     for (kind, expected) in [
         (Aggregate::Min, statistics.min.as_ref().unwrap()),
@@ -482,7 +499,15 @@ fn integer_statistics_preserve_every_bit_across_reopen() -> Result<()> {
             }))),
             ..Default::default()
         };
-        assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(value::Kind::UnsignedInteger(expected)));
+        let answer = store.document_value(&store.cut("execution")?, &expression)?;
+        if matches!(kind, Aggregate::Median | Aggregate::Percentile) {
+            let Some(value::Kind::Number(actual)) = answer.kind else {
+                panic!("Library Ranks Return Floating-Point Values");
+            };
+            assert!((actual - expected as f64).abs() <= expected as f64 * f64::EPSILON);
+        } else {
+            assert_eq!(answer.kind, Some(value::Kind::UnsignedInteger(expected)));
+        }
     }
     let expression = DataExpression {
         kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {

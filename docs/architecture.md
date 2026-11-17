@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `fa52a0e6619803c824af5112eb28b9a85430b359`, rather than
+[Cargo.toml](../Cargo.toml), `ee16bf8a70152b82c881dcccf5f0108a5a859091`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -676,14 +676,12 @@ projected table readers at one cut. Its AtOrBefore plan supplies the shared
 time alignment for stream-to-stream and record-to-stream expressions, record-based
 ranges and grouping, values at records, and paired record intervals. Intervals pair
 the previous record at the current record's time before alignment to later samples.
-Exact integer rank selection spills projected order keys to an ephemeral query
-file once and replays those keys in bounded radix passes, avoiding repeated batch
-decompression and whole-population sorting in memory. Integer ordering and
-interpolation retain their integer or rational type through evidence statistics,
-plot summaries and document values. Record/expression percentiles use the same
-spill-backed rank selector as stream percentiles, rather than the library's
-floating percentile accumulator. Category reducers likewise accumulate typed
-values; plot columns retain exact totals separately from drawing coordinates.
+Numeric summaries and order statistics use Harmos query execution. Stream,
+record and expression percentiles use the library's bounded accumulator; their
+results are floating point. The product radix selector, persisted moments and
+chunk checkpoints are removed. Integer extrema, first/last, sums and means retain
+their typed values. Category reducers likewise accumulate typed values; plot
+columns retain exact totals separately from drawing coordinates.
 `dokime.model.v1.Value.exact` uses the product model's
 `dokime.model.v1.ExactNumber` for fractions and totals outside the 64-bit range;
 ordinary integral results retain signed or unsigned integer values. The final
@@ -692,10 +690,10 @@ fields (negative = 1, numerator = 2, denominator = 3) at its model boundary.
 The desktop formats these values without converting them to JavaScript numbers. Document
 structure carries pending bindings; result bindings, summary groups, tiles and
 card completion follow the evidence cut. Literal table rows also settle at card
-completion, with their declared counts still enforced. Integer
-variance uses bounded exact sums of squares, so small spreads above f64 integer
-precision survive. Standard deviation, RMS and chart coordinates remain floating
-point; these drawing coordinates never replace the exact statistic or its label.
+completion, with their declared counts still enforced. Standard deviation, RMS,
+median and percentiles follow the library's floating-point arithmetic; exact
+integer variance and rank interpolation are not promised. Drawing coordinates
+remain separate from typed values and their labels.
 
 `Backend::open(&store, catalog)` returns the library's `StorageBackends` pair, sharing the
 root's durable history. `backend.rs` and `backend/**` implement the native primary
@@ -1006,7 +1004,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/fa52a0e6619803c824af5112eb28b9a85430b359/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/ee16bf8a70152b82c881dcccf5f0108a5a859091/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -1117,11 +1115,26 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `fa52a0e6619803c824af5112eb28b9a85430b359`.
+The definition pass pins Harmos at `ee16bf8a70152b82c881dcccf5f0108a5a859091`.
 The table below records consumer repairs at this pin. Plugin Boundary replaces
 direct plugin-service composition and author-facing Harmos values; product SDKs
 use carrier helpers internally and expose Dokime values only.
 The pin and generated contracts do not establish consumer compilation.
+The storage candidate uses the native definitions from `harmos-operations` after
+the runtime removed its `builtins` reexport. Descriptor-declared audiences replace
+composition caller overrides. The typed facade remains the later 6.2 adoption.
+Native sample appends commit Arrow columns, contiguous identity ranges, replay
+receipts and their complete watch frontier together. The native backend advertises
+columnar append support and refuses the previous layout while preserving its root.
+The runtime sample consumer and the product execution ledger still require their
+coupled source cutover. Product numeric queries delegate moments, RMS, deviation,
+percentiles, histograms and box summaries to Harmos query execution; persisted
+moments/checkpoints and the product scalar traversal/radix selector are removed.
+Stored preview coarsening and scanned time bins remain product kernels pending
+native query/preview adoption.
+Percentiles use library floating-point results. Box summaries use the library
+source-order outlier truncation, then sort the selected outliers for display.
+
 
 | Consumer | Required Change at This Pin |
 | --- | --- |

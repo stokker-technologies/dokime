@@ -19,8 +19,8 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_operations::storage::{WatchRows, WatchRowsRequest, watch_rows_response::Event};
 use harmos_protocol::model::{Failure, OperationContract};
-use harmos_runtime::builtins::storage::{WatchRows, WatchRowsRequest, watch_rows_response::Event};
 use harmos_runtime::operations::{StreamSettings, native_stream};
 use harmos_runtime::storage::ObjectDefinition;
 use harmos_runtime::storage::query::{ObjectSelection, ObjectVersions, Source};

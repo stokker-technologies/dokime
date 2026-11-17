@@ -37,7 +37,7 @@ from pathlib import Path
 
 # === Entry Point === #
 
-revision: str = "fa52a0e6619803c824af5112eb28b9a85430b359"
+revision: str = "ee16bf8a70152b82c881dcccf5f0108a5a859091"
 # Each Revision Stages and Builds Apart: Cargo Fingerprints Path Sources by Location and Time, So a Shared Source
 # or Target Directory Could Reuse Another Revision's Artifacts.
 target: Path = (Path(__file__).resolve().parents[1] / "../../target").resolve()

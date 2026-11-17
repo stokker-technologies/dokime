@@ -19,8 +19,8 @@ use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::files::{UploadsGetRequest, UploadsGetResponse};
+use harmos_operations::storage::{GetFileProduction, GetFileProductionRequest};
 use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{GetFileProduction, GetFileProductionRequest};
 
 /* === Constants === */
 

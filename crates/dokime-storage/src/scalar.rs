@@ -20,12 +20,10 @@ pub(crate) use harmos_query::scalar::{Agg, ScalarValue};
 // Standard Library Imports
 
 // Third Party Imports
-use arrow_array::{Array, ArrayRef, BooleanArray, Float64Array, Int64Array, RecordBatch, StringArray, StructArray, UInt64Array};
-use arrow_schema::DataType;
 
 // Local Imports
 use crate::{Error, Result};
-use dokime_protocol::model::ExactNumber as WireExactNumber;
+use dokime_protocol::model;
 use dokime_protocol::model::Null;
 use dokime_protocol::model::Value;
 use harmos_query::scalar::ExactNumber;
@@ -49,51 +47,6 @@ use dokime_protocol::model::value;
 
 /* === Public Functions === */
 
-pub(crate) fn column<'a>(batch: &'a RecordBatch, path: &str) -> Result<Column<'a>> {
-    let values = batch.column_by_name("values").ok_or(Error::Corrupt("values column missing"))?;
-    let mut array = values;
-    let mut parents = Vec::new();
-    for name in path.split('.') {
-        let structure = array.as_any().downcast_ref::<StructArray>().ok_or(Error::Data("select a scalar field path"))?;
-        parents.push(array);
-        array = structure.column_by_name(name).ok_or(Error::Data("declare the selected scalar column"))?;
-    }
-    Ok(Column { array, parents })
-}
-pub(crate) struct Column<'a> {
-    array: &'a ArrayRef,
-    parents: Vec<&'a ArrayRef>,
-}
-impl Column<'_> {
-    pub(crate) fn data_type(&self) -> &DataType {
-        self.array.data_type()
-    }
-    pub(crate) fn value(&self, row: usize) -> Result<ScalarValue> {
-        if self.array.is_null(row) || self.parents.iter().any(|a| a.is_null(row)) {
-            return Ok(ScalarValue::Null);
-        }
-        let any = self.array.as_any();
-        if let Some(a) = any.downcast_ref::<UInt64Array>() {
-            return Ok(ScalarValue::Unsigned(a.value(row)));
-        }
-        if let Some(a) = any.downcast_ref::<Int64Array>() {
-            return Ok(ScalarValue::Signed(a.value(row)));
-        }
-        if let Some(a) = any.downcast_ref::<Float64Array>() {
-            return Ok(ScalarValue::Float(a.value(row)));
-        }
-        if let Some(a) = any.downcast_ref::<StringArray>() {
-            return Ok(ScalarValue::Text(a.value(row).into()));
-        }
-        if let Some(a) = any.downcast_ref::<BooleanArray>() {
-            return Ok(ScalarValue::Bool(a.value(row)));
-        }
-        Err(Error::Data("select a scalar column"))
-    }
-}
-pub(crate) fn field(batch: &RecordBatch, path: &str, row: usize) -> Result<ScalarValue> {
-    column(batch, path)?.value(row)
-}
 pub(crate) fn number(value: &ScalarValue) -> Option<f64> {
     match value {
         ScalarValue::Float(v) => Some(*v),
@@ -138,7 +91,7 @@ pub(crate) fn wire(value: &ScalarValue) -> Result<Value> {
         ScalarValue::Exact(v) if v.denominator.get() == 1 && !v.negative && v.numerator <= u64::MAX as u128 => {
             value::Kind::UnsignedInteger(v.numerator as u64)
         }
-        ScalarValue::Exact(v) => value::Kind::Exact(WireExactNumber {
+        ScalarValue::Exact(v) => value::Kind::Exact(model::ExactNumber {
             negative: v.negative,
             numerator: v.numerator.to_string(),
             denominator: v.denominator.to_string(),

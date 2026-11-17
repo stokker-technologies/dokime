@@ -31,6 +31,7 @@ dokime-protocol = { workspace = true }
 dokime-storage = { workspace = true }
 
 # Git
+harmos-operations = { workspace = true }
 harmos-protocol = { workspace = true }
 harmos-query = { workspace = true }
 harmos-runtime = { workspace = true }

@@ -49,8 +49,9 @@ Dokime adds `plugins.Secrets`, a read-only view of each plugin's declared secret
 identifiers and whether Secret Storage holds them. A plugin reads the secret stored
 under exactly its declared identifier; undeclared names are refused.
 `Secrets.Get` returns protected bytes; administrative metadata belongs only to
-clients. Typed statistics retain exact numeric values and sums independently of
-floating plotting coordinates.
+clients. Integer extrema, first/last, sums and means retain typed numeric values
+independently of floating plotting coordinates. RMS, standard deviation, median
+and percentiles use library floating-point results.
 
 A step brings device output files into its execution with `Files.Capture` (one
 copy) or `files.Captures.Start` and `Stop` (bytes written in between). The host

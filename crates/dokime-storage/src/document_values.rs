@@ -19,6 +19,7 @@
 use std::cmp::Ordering;
 
 // Third Party Imports
+use harmos_query::transform::{FieldPath, FieldPathExecution};
 
 // Local Imports
 use crate::{
@@ -77,7 +78,7 @@ impl Store {
             let codec = self.source_codec(cut, &(false, reference.identifier.clone()))?;
             let empty = codec.batch(&[])?;
             matches!(
-                scalar::column(&empty, &reference.field)?.data_type(),
+                FieldPath::from(format!("values.{}", &reference.field).as_str()).field(empty.schema().as_ref())?.data_type(),
                 arrow_schema::DataType::Int64 | arrow_schema::DataType::UInt64 | arrow_schema::DataType::Float64
             )
         } else {
@@ -104,33 +105,20 @@ impl Store {
                 end_ns: i64::MAX,
                 bins: std::num::NonZeroUsize::MIN,
             };
-            let moments = reader.moments(window)?;
+            let moments = reader.numeric_summary(window)?;
             if moments.count == 0 {
                 return Ok(if kind == Aggregate::Count { ScalarValue::Signed(0) } else { ScalarValue::Missing });
             }
-            let exact_mean = || {
-                moments
-                    .total
-                    .map(|total| total.divide(moments.count as u128).map(ScalarValue::Exact))
-                    .transpose()
-                    .map_err(|e| Error::Invalid(e.to_string()))
-            };
             let answer = match kind {
                 Aggregate::Count => Some(ScalarValue::Signed(moments.count as i64)),
                 Aggregate::Min => Some(moments.min.clone()),
                 Aggregate::Max => Some(moments.max.clone()),
                 Aggregate::First => Some(moments.first.clone()),
                 Aggregate::Last => Some(moments.last.clone()),
-                Aggregate::Sum => Some(match moments.total {
-                    Some(total) => ScalarValue::Exact(total),
-                    None => ScalarValue::Float(moments.mean()? * moments.count as f64),
-                }),
-                Aggregate::Mean => Some(match exact_mean()? {
-                    Some(value) => value,
-                    None => ScalarValue::Float(moments.mean()?),
-                }),
-                Aggregate::Stddev => Some(ScalarValue::Float(moments.stddev()?)),
-                Aggregate::Rms => Some(ScalarValue::Float(moments.rms()?)),
+                Aggregate::Sum => Some(moments.sum.clone()),
+                Aggregate::Mean => Some(moments.average.clone()),
+                Aggregate::Stddev => Some(ScalarValue::Float(moments.standard_deviation)),
+                Aggregate::Rms => Some(ScalarValue::Float(moments.rms)),
                 Aggregate::Median => Some(reader.ranks(window, &[50])?[&50].clone()),
                 Aggregate::Percentile if percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 => {
                     Some(reader.ranks(window, &[percentile as u8])?[&(percentile as u8)].clone())
@@ -158,6 +146,7 @@ impl Store {
             let values = crate::telemetry::aggregates::rank_values(
                 |push| self.expression_values(cut, expression, None, filters, |_, _, value, _| push(value)),
                 &[rank],
+                self.storage_settings()?.query_bytes.get(),
             )?;
             return Ok(values.get(&rank).cloned().unwrap_or(ScalarValue::Missing));
         }

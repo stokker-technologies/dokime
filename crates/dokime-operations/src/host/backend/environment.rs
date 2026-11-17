@@ -23,8 +23,8 @@
 use crate::{Error, Resources, Result};
 use dokime_protocol::host::BackendEnvironmentRequest;
 use dokime_protocol::host::BackendEnvironmentResponse;
+use harmos_operations::storage::{Info, InfoRequest};
 use harmos_protocol::model::Position;
-use harmos_runtime::builtins::storage::{Info, InfoRequest};
 
 use harmos_protocol::model::OperationContract;
 use prost_types::FileDescriptorSet;

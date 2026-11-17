@@ -19,8 +19,8 @@ use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::{FilesDeleteRequest, FilesDeleteResponse};
+use harmos_operations::storage::{DeleteFile, DeleteFileRequest};
 use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{DeleteFile, DeleteFileRequest};
 use harmos_runtime::storage;
 use harmos_runtime::storage::StagedFile;
 

@@ -45,7 +45,7 @@ use rusqlite::{Connection, params};
 use tokio::time::Instant;
 
 // Local Imports
-use super::{Intake, Pending, Telemetry, aggregates, aggregates::Statistics, catalog, codec::Codec, config::StorageSettings};
+use super::{Intake, Pending, Telemetry, aggregates::Statistics, catalog, codec::Codec, config::StorageSettings};
 use crate::{Error, Execution, Result, Sample, Store, ipc};
 use harmos_protocol::model::Declarations;
 
@@ -91,7 +91,6 @@ struct Prepared {
 struct Chunk {
     encoded: ipc::Encoded,
     span: (u64, u64, i64, i64),
-    checkpoints: Vec<(String, Vec<u8>)>,
 }
 
 /// A Writer's Batches and End After a Commit's Writes.
@@ -295,11 +294,10 @@ impl Claim {
         for offset in (0..samples.num_rows()).step_by(rows) {
             let batch = samples.slice(offset, rows.min(samples.num_rows() - offset));
             let span = span(&batch)?;
-            let checkpoints = statistics.advance(&batch, span.1)?;
+            statistics.advance(&batch, span.1)?;
             chunks.push(Chunk {
                 encoded: ipc::encode(&codec.schema, &batch)?,
                 span,
-                checkpoints,
             });
         }
         Ok(Prepared {
@@ -764,9 +762,6 @@ impl Store {
             for prepared in &prepared {
                 let file = files.get(&prepared.id).ok_or(Error::Data("restart after an Arrow writer went missing"))?;
                 for (chunk, index) in prepared.chunks.iter().zip(&file.indices) {
-                    for (field, moments) in &chunk.checkpoints {
-                        aggregates::checkpoint(&transaction, &prepared.id, index.offset, field, chunk.span, moments)?;
-                    }
                     let (first, last, start, end) = chunk.span;
                     transaction.prepare_cached("INSERT INTO telemetry_batches VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)")?.execute(
                         params![
@@ -988,7 +983,7 @@ pub(super) fn span(batch: &RecordBatch) -> Result<(u64, u64, i64, i64)> {
 mod tests {
     use super::*;
     use crate::Evidence;
-    use crate::telemetry::{aggregates::Moments, config::storage_defaults, previews::Envelope};
+    use crate::telemetry::{config::storage_defaults, previews::Envelope};
     use dokime_protocol::model::{Import, Origin, origin};
     use harmos_protocol::model::StreamDeclaration;
     use prost_types::{
@@ -1065,7 +1060,7 @@ mod tests {
             .collect()
     }
 
-    /// Every Admitted Row Is Saved Exactly Once, and Each File's Summary, Chunk Moments and Preview Count It Once.
+    /// Every Admitted Row Is Saved Exactly Once and Counted by Its Stored Preview.
     fn require_saved_once(store: &Store, rounds: u64) -> Result<()> {
         let total = rounds * ROWS * STREAMS as u64;
         assert_eq!(store.cut("execution")?.frontier, total);
@@ -1073,24 +1068,15 @@ mod tests {
         positions.sort_unstable();
         assert_eq!(positions, (1..=total).collect::<Vec<_>>());
         let connection = store.lock()?;
-        let mut files = connection.prepare("SELECT s.file,s.moments,p.payload,(SELECT SUM(rows) FROM telemetry_batches b WHERE b.file=s.file) FROM telemetry_summaries s JOIN telemetry_previews p ON p.file=s.file AND p.field=s.field")?;
+        let mut files = connection
+            .prepare("SELECT p.payload,(SELECT SUM(rows) FROM telemetry_batches b WHERE b.file=p.file) FROM telemetry_previews p")?;
         let files = files
-            .query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?, row.get::<_, Vec<u8>>(2)?, row.get::<_, i64>(3)?))
-            })?
+            .query_map([], |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, i64>(1)? as u64)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         assert_eq!(files.len(), STREAMS);
-        for (id, summary, preview, rows) in files {
-            let rows = rows as u64;
+        for (preview, rows) in files {
             assert_eq!(rows, rounds * ROWS);
-            assert_eq!(serde_json::from_slice::<Moments>(&summary)?.count, rows);
             assert_eq!(postcard::from_bytes::<Envelope>(&preview)?.buckets.values().map(|bucket| bucket.count).sum::<u64>(), rows);
-            let mut checkpoints = connection.prepare("SELECT moments FROM telemetry_checkpoints WHERE file=?1")?;
-            let counted = checkpoints
-                .query_map([&id], |row| row.get::<_, Vec<u8>>(0))?
-                .map(|moments| Ok(serde_json::from_slice::<Moments>(&moments?)?.count))
-                .sum::<Result<u64>>()?;
-            assert_eq!(counted, rows);
         }
         Ok(())
     }

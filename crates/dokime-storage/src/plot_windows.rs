@@ -16,15 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
-use arrow_array::RecordBatch;
+use arrow_array::{Float64Array, ListArray, RecordBatch, UInt64Array};
+use arrow_schema::{DataType, Field, Schema};
+use harmos_domain::model::storage::query::transform::statistics;
+use harmos_query::TableWriter;
+use harmos_query::transform::{FieldPath, Transform, histogram};
 
 // Local Imports
-use crate::{
-    Error, NumericWindow, Result, Store,
-    scalar::{self, ScalarValue},
-};
+use crate::{Error, NumericWindow, Result, Store, scalar};
 use dokime_protocol::model::Downsample;
 use dokime_protocol::model::Value;
 
@@ -66,7 +68,7 @@ impl Store {
             TableWriter,
             transform::{
                 FieldPath, Transform,
-                downsample::{Algorithm, Downsample as EngineDownsample},
+                downsample::{self, Algorithm},
             },
         };
         use std::sync::Arc;
@@ -93,7 +95,7 @@ impl Store {
         let table = writer.finish()?;
         let table = if count > limit as u64 {
             table.transform(
-                &Transform::Downsample(EngineDownsample {
+                &Transform::Downsample(downsample::Downsample {
                     max_rows: limit,
                     algorithm: Algorithm::Lttb,
                     axis: Some(FieldPath { fields: vec!["x".into()] }),
@@ -148,30 +150,22 @@ impl Store {
         Ok(())
     }
     pub fn numeric_rms(&self, window: &NumericWindow<'_>) -> Result<f64> {
-        self.moments(*window)?.rms()
+        Ok(self.numeric_summary(*window)?.rms)
     }
     #[tracing::instrument(name = "plot.statistics", skip_all)]
     pub fn numeric_statistics(&self, window: &NumericWindow<'_>) -> Result<Statistics> {
-        let moments = self.moments(*window)?;
+        let moments = self.numeric_summary(*window)?;
         if moments.count == 0 {
             return Ok(Default::default());
         }
         let ranks = self.ranks(*window, &[5, 50, 95, 99])?;
-        let mean = match moments.total {
-            Some(total) => ScalarValue::Exact(total.divide(moments.count as u128).map_err(|error| Error::Invalid(error.to_string()))?),
-            None => ScalarValue::Float(moments.mean()?),
-        };
-        let sum = match moments.total {
-            Some(total) => ScalarValue::Exact(total),
-            None => ScalarValue::Float(moments.mean()? * moments.count as f64),
-        };
         Ok(Statistics {
             count: moments.count,
             min: Some(scalar::wire(&moments.min)?),
             max: Some(scalar::wire(&moments.max)?),
-            mean: Some(scalar::wire(&mean)?),
-            sum: Some(scalar::wire(&sum)?),
-            stddev: moments.stddev()?,
+            mean: Some(scalar::wire(&moments.average)?),
+            sum: Some(scalar::wire(&moments.sum)?),
+            stddev: moments.standard_deviation,
             median: Some(scalar::wire(&ranks[&50])?),
             p05: Some(scalar::wire(&ranks[&5])?),
             p95: Some(scalar::wire(&ranks[&95])?),
@@ -183,7 +177,8 @@ impl Store {
     #[tracing::instrument(name = "plot.preview", skip_all)]
     pub fn time_series_window(&self, window: NumericWindow<'_>) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
         let bins = self.numeric_bins(window)?;
-        let count = bins.iter().map(|bin| bin.count).sum::<u64>();
+        let moments = self.numeric_summary(window)?;
+        let count = moments.count;
         let mut points = Vec::with_capacity(bins.len() * 4);
         for bin in &bins {
             let mut extrema = [(bin.first_ns, bin.first), (bin.min_ns, bin.min), (bin.max_ns, bin.max), (bin.last_ns, bin.last)];
@@ -200,101 +195,99 @@ impl Store {
             y: points.iter().map(|(_, value)| NullableNumber { value: Some(*value) }).collect(),
             ..Default::default()
         };
-        let moments = self.moments(window)?;
-        let mean = if count == 0 {
-            None
-        } else {
-            let mean = match moments.total {
-                Some(total) => ScalarValue::Exact(total.divide(count as u128).map_err(|error| Error::Invalid(error.to_string()))?),
-                None => ScalarValue::Float(moments.mean()?),
-            };
-            Some(scalar::wire(&mean)?)
-        };
-        let scale = bins.iter().map(|bin| bin.scale).fold(0.0, f64::max);
-        let squares = bins.iter().map(|bin| if scale == 0.0 { 0.0 } else { bin.scaled_squares * (bin.scale / scale).powi(2) }).sum::<f64>();
+        let mean = if count == 0 { None } else { Some(scalar::wire(&moments.average)?) };
         let summary = PlotSeriesSummary {
             count,
             min: (count > 0).then(|| scalar::wire(&moments.min)).transpose()?,
             max: (count > 0).then(|| scalar::wire(&moments.max)).transpose()?,
             mean,
-            rms: (count > 0).then(|| (squares / count as f64).clamp(0.0, 1.0).sqrt() * scale),
+            rms: (count > 0).then_some(moments.rms),
             ..Default::default()
         };
         Ok((column, summary, count))
     }
     pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {
-        let statistics = self.numeric_statistics(&window)?;
-        if statistics.count == 0 {
+        let summary = self.numeric_summary(window)?;
+        if summary.count == 0 {
             return Ok(Default::default());
         }
         if bins == 0 {
             return Err(Error::Data("supply at least one histogram bin"));
         }
-        let min = scalar::number(&scalar::from_wire(statistics.min.as_ref().unwrap())?).unwrap();
-        let max = scalar::number(&scalar::from_wire(statistics.max.as_ref().unwrap())?).unwrap();
+        let min = scalar::number(&summary.min).unwrap();
+        let max = scalar::number(&summary.max).unwrap();
         let width = if max == min { 1.0 } else { (max - min) / bins as f64 };
-        let mut histogram = (0..bins)
-            .map(|index| PlotHistogramBin {
-                lower: min + index as f64 * width,
-                upper: min + (index + 1) as f64 * width,
-                count: 0,
+        let edges = (0..=bins).map(|index| min + index as f64 * width).collect();
+        let batch = self.reduce_numeric(window, &Transform::Histogram(histogram::Histogram { field: FieldPath::from("y"), edges }))?;
+        let lower = batch.column_by_name("lower").unwrap().as_any().downcast_ref::<Float64Array>().unwrap();
+        let upper = batch.column_by_name("upper").unwrap().as_any().downcast_ref::<Float64Array>().unwrap();
+        let counts = batch.column_by_name("count").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
+        let histogram = (1..=bins)
+            .map(|row| PlotHistogramBin {
+                lower: lower.value(row),
+                upper: upper.value(row),
+                count: counts.value(row),
             })
-            .collect::<Vec<_>>();
-        self.numeric_values(window, |_, _, value| {
-            histogram[(((value - min) / width) as usize).min(bins - 1)].count += 1;
-            Ok(())
-        })?;
+            .collect();
         Ok(PlotHistogramSeries {
             bins: histogram,
-            count: statistics.count,
+            count: summary.count,
             statistics: Some(PlotHistogramStatistics {
-                mean: statistics.mean.clone(),
-                median: statistics.median,
-                std: statistics.stddev,
-                rms: scalar::number(&scalar::from_wire(statistics.mean.as_ref().unwrap())?).unwrap().hypot(statistics.stddev),
-                min: statistics.min,
-                max: statistics.max,
+                mean: Some(scalar::wire(&summary.average)?),
+                median: Some(scalar::wire(&self.ranks(window, &[50])?[&50])?),
+                std: summary.standard_deviation,
+                rms: summary.rms,
+                min: Some(scalar::wire(&summary.min)?),
+                max: Some(scalar::wire(&summary.max)?),
             }),
             ..Default::default()
         })
     }
     pub fn box_window(&self, window: NumericWindow<'_>, maximum_outliers: usize) -> Result<PlotBoxSummary> {
-        let statistics = self.numeric_statistics(&window)?;
-        if statistics.count == 0 {
+        let summary = self.numeric_summary(window)?;
+        if summary.count == 0 {
             return Ok(Default::default());
         }
-        let ranks = self.ranks(window, &[25, 75])?;
-        let (q1, q3) = (crate::scalar::number(&ranks[&25]).unwrap(), crate::scalar::number(&ranks[&75]).unwrap());
-        let lower = q1 - 1.5 * (q3 - q1);
-        let upper = q3 + 1.5 * (q3 - q1);
-        let mut lower_whisker = f64::INFINITY;
-        let mut upper_whisker = f64::NEG_INFINITY;
-        let mut outliers = Vec::<f64>::new();
-        self.numeric_values(window, |_, _, value| {
-            if value >= lower && value <= upper {
-                lower_whisker = lower_whisker.min(value);
-                upper_whisker = upper_whisker.max(value);
-            } else if maximum_outliers > 0 {
-                let at = outliers.partition_point(|other| other.total_cmp(&value).is_lt());
-                if at < maximum_outliers {
-                    outliers.insert(at, value);
-                    outliers.truncate(maximum_outliers);
-                }
-            }
-            Ok(())
-        })?;
+        let budget = self.storage_settings()?.query_bytes.get();
+        let batch = self.reduce_numeric(
+            window,
+            &Transform::BoxSummary(statistics::BoxSummary {
+                field: FieldPath::from("y"),
+                max_outliers: maximum_outliers,
+                memory_bytes: budget / 2,
+                scratch_bytes: budget / 2,
+            }),
+        )?;
+        let value = |name| batch.column_by_name(name).unwrap().as_any().downcast_ref::<Float64Array>().unwrap().value(0);
+        let selected = batch.column_by_name("outliers").unwrap().as_any().downcast_ref::<ListArray>().unwrap().value(0);
+        let mut outliers = selected.as_any().downcast_ref::<Float64Array>().unwrap().values().to_vec();
+        outliers.sort_by(f64::total_cmp);
         Ok(PlotBoxSummary {
-            count: statistics.count,
-            min: statistics.min,
-            max: statistics.max,
-            q1: Some(scalar::wire(&ranks[&25])?),
-            median: statistics.median,
-            q3: Some(scalar::wire(&ranks[&75])?),
-            lower_whisker,
-            upper_whisker,
+            count: summary.count,
+            min: Some(scalar::wire(&summary.min)?),
+            max: Some(scalar::wire(&summary.max)?),
+            q1: Some(number(value("q1"))),
+            median: Some(number(value("median"))),
+            q3: Some(number(value("q3"))),
+            lower_whisker: value("lower_whisker"),
+            upper_whisker: value("upper_whisker"),
             outliers,
             ..Default::default()
         })
+    }
+    fn reduce_numeric(&self, window: NumericWindow<'_>, transform: &Transform) -> Result<RecordBatch> {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("time", DataType::Int64, false),
+            Field::new("x", DataType::Float64, false),
+            Field::new("y", DataType::Float64, false),
+        ]));
+        let mut writer = TableWriter::new(schema)?;
+        self.read_numeric_batches(window, |batch| {
+            writer.push(&batch, &mut || Ok(()))?;
+            Ok(())
+        })?;
+        let table = writer.finish()?.transform(transform, &mut || Ok(()))?;
+        table.reader()?.next(&mut || Ok(()))?.ok_or(Error::Corrupt("numeric transform returned no result"))
     }
 }
 

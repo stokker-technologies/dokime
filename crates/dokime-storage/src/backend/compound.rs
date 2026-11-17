@@ -190,11 +190,30 @@ pub(super) fn visible_positions(connection: &Connection, source: &ColumnSource, 
                         AND d.position>r.position AND d.position<=?3)",
         )
         .map_err(db)?;
-    query
+    let mut visible = query
         .query_map(params![integer(first)?, integer(last)?, integer(at)?, kind, text(&source.schema)?], |row| unsigned(row, 0))
         .map_err(db)?
-        .collect::<result::Result<_, _>>()
-        .map_err(db)
+        .collect::<result::Result<BTreeSet<_>, _>>()
+        .map_err(db)?;
+    if source.kind == ColumnKind::Stream {
+        let mut ranges = connection
+            .prepare(
+                "SELECT first,last FROM storage_sample_ranges r WHERE schema_key=?1 AND first<=?3 AND last>=?2
+            AND NOT EXISTS(SELECT 1 FROM storage_scope_deletions d WHERE d.scope=r.scope AND d.position>r.last AND d.position<=?4)",
+            )
+            .map_err(db)?;
+        let ranges = ranges
+            .query_map(params![text(&source.schema)?, integer(first)?, integer(last)?, integer(at)?], |row| {
+                Ok((unsigned(row, 0)?, unsigned(row, 1)?))
+            })
+            .map_err(db)?
+            .collect::<result::Result<Vec<_>, _>>()
+            .map_err(db)?;
+        for (start, end) in ranges {
+            visible.extend(start.max(first)..=end.min(last).min(at));
+        }
+    }
+    Ok(visible)
 }
 
 pub(super) fn reclaim(state: &mut State) -> Result<()> {
@@ -215,8 +234,15 @@ pub(super) fn reclaim(state: &mut State) -> Result<()> {
         DELETE FROM storage_index_entries WHERE position IN(SELECT position FROM reclaim_rows);
         DELETE FROM storage_rows WHERE position IN(SELECT position FROM reclaim_rows);
         DROP TABLE reclaim_rows;").map_err(db)?;
+    tx.execute(
+        "DELETE FROM storage_sample_ranges AS r WHERE EXISTS(SELECT 1 FROM storage_scope_deletions d
+        WHERE d.scope=r.scope AND d.position>r.last AND NOT EXISTS(SELECT 1 FROM storage_retained_cuts c
+        WHERE c.position>=r.first AND c.position<d.position AND (c.scope IS NULL OR c.scope=r.scope)))",
+        [],
+    )
+    .map_err(db)?;
     let chunks = {
-        let mut query = tx.prepare("SELECT id,source,first,last FROM arrow_chunks c WHERE EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position>=c.first AND d.position<=c.last AND d.deleted_at<=?1)").map_err(db)?;
+        let mut query = tx.prepare("SELECT id,source,first,last FROM arrow_chunks c WHERE EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position>=c.first AND d.position<=c.last AND d.deleted_at<=?1) OR json_extract(source,'$.kind')='Stream'").map_err(db)?;
         query
             .query_map([integer(oldest)?], |row| {
                 Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, unsigned(row, 2)?, unsigned(row, 3)?))
@@ -234,7 +260,7 @@ pub(super) fn reclaim(state: &mut State) -> Result<()> {
         };
         let referenced: bool = tx
             .query_row(
-                "SELECT EXISTS(SELECT 1 FROM storage_rows WHERE kind=?1 AND schema_key=?2 AND position>=?3 AND position<=?4)",
+                "SELECT EXISTS(SELECT 1 FROM storage_rows WHERE kind=?1 AND schema_key=?2 AND position>=?3 AND position<=?4) OR (?1=3 AND EXISTS(SELECT 1 FROM storage_sample_ranges WHERE schema_key=?2 AND first<=?4 AND last>=?3))",
                 params![kind, text(&source.schema)?, integer(first)?, integer(last)?],
                 |row| row.get(0),
             )

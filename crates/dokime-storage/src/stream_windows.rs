@@ -19,6 +19,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_query::transform::{FieldPath, FieldPathExecution};
 use prost_reflect::{DynamicMessage, ReflectMessage, Value};
 
 // Local Imports
@@ -129,9 +130,9 @@ impl Store {
             let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("sample metadata differs"))?;
             let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
             let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
-            let column = crate::scalar::column(&batch, window.field)?;
+            let column = FieldPath::from(format!("values.{}", window.field).as_str());
             for row in 0..batch.num_rows() {
-                if let Some(value) = crate::scalar::number(&column.value(row)?).filter(|value| value.is_finite()) {
+                if let Some(value) = crate::scalar::number(&column.value(&batch, row)?).filter(|value| value.is_finite()) {
                     read(positions.value(row), times.value(row), value)?;
                 }
             }

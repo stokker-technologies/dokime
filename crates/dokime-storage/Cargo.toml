@@ -30,10 +30,10 @@ publish.workspace = true
 dokime-protocol = { workspace = true }
 
 # Git
-harmos-protocol = { workspace = true }
-harmos-storage = { workspace = true }
 harmos-domain = { workspace = true }
+harmos-protocol = { workspace = true }
 harmos-query = { workspace = true }
+harmos-storage = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -42,24 +42,22 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
-num-bigint = { workspace = true }
-num-traits = { workspace = true }
-uuid = { workspace = true }
 sha2 = { workspace = true }
+uuid = { workspace = true }
 
 # Serialization
-arrow-buffer = { workspace = true }
-flatbuffers = { workspace = true }
 arrow-array = { workspace = true }
+arrow-buffer = { workspace = true }
 arrow-ipc = { workspace = true }
-arrow-select = { workspace = true }
 arrow-schema = { workspace = true }
+arrow-select = { workspace = true }
+flatbuffers = { workspace = true }
+postcard = { workspace = true }
 prost = { workspace = true }
 prost-reflect = { workspace = true }
 prost-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-postcard = { workspace = true }
 zip = { workspace = true }
 
 # Configuration

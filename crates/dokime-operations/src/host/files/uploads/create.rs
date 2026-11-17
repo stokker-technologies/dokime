@@ -18,8 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_operations::storage::{CreateFileProduction, CreateFileProductionRequest};
 use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{CreateFileProduction, CreateFileProductionRequest};
 use harmos_runtime::storage;
 
 // Local Imports

@@ -405,7 +405,7 @@ template's authored content with built-in results and evidence.
 Document structure commits before the saved-evidence wait. Each pending binding
 uses an independent query through the existing document capture operation, with
 its own cancellation and retry lifetime. Runtime invalidation preserves in-flight
-card reads, so fast cards keep refreshing while an exact median is still loading.
+card reads, so fast cards keep refreshing while a median is still loading.
 An invalidation during a card read coalesces a following read at the latest cut
 after that card settles, independently of other cards.
 Live documents re-read at most every five seconds while telemetry grows. A change
@@ -422,7 +422,7 @@ stable across page and evidence frontier changes; each repeated card requests th
 page that declared it. A page retains only its actual expanded output.
 
 Live document summary tiles query one saved evidence cut using bounded folds and
-exact order statistics. They do not load the run's telemetry into a document input
+library order statistics. They do not load the run's telemetry into a document input
 array. Count, min, max, mean and RMS reuse typed ingest checkpoints; a cut inside
 a saved batch reads only its bounded remainder. Median remains exact and loads in
 an independently loading card. They do not
@@ -537,13 +537,14 @@ minimum, maximum and running moments. Only uncovered intervals and the admission
 tail read raw evidence. The interface sends its held viewport and measured panel width;
 time buckets follow elapsed time rather than sample counts. Zoom requests can
 retrieve finer raw detail than the stored bucket interval.
-Numeric fields and plain same-stream field expressions use
-`crates/dokime-storage/src/plots/`; other raw projections use
-`crates/dokime-storage/src/plots/`. Field expressions with values
-outside the safe integer range retain the typed exact-statistics path.
-Ad hoc queries without a matching
-checkpoint, explicit unbounded queries and older historical frontiers still
-require raw evidence reads.
+Numeric fields and plain same-stream field expressions use stored envelopes in
+`crates/dokime-storage/src/telemetry/previews.rs` when eligible. Computed or filtered
+expressions use `expressions.rs` and the plot readers in `plot_windows.rs` and
+`plot_kinds.rs` over source rows. Integer extrema, sums and means retain typed
+values outside the safe integer range; median and percentile results follow
+library floating-point arithmetic. Ad hoc queries without a matching envelope,
+explicit unbounded queries and older historical frontiers still require raw
+evidence reads.
 
 Timed plot watches merge saved telemetry with the bounded, unflushed admission
 tail. They follow accepted publications independently of the disk save interval,
@@ -556,7 +557,7 @@ All refreshes and frozen reports retain saved evidence cuts.
 A document watch evaluates its dirty plots together at one captured cut, reusing
 query deduplication and bounded storage readers. One watch message carries the
 complete dirty set in request order, including each plot's snapshot, changed time buckets or error. A late sample
-replaces the bucket containing its timestamp. Exact statistics arrive on their
+replaces the bucket containing its timestamp. Typed statistics arrive on their
 own coalesced read and never block a redraw; their evidence revision can lag the
 latest drawn frame.
 The wire carries one columnar frame and series metadata. Aligned plots share

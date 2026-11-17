@@ -23,6 +23,7 @@ use std::sync::{Arc, RwLock};
 
 // Third Party Imports
 use async_trait::async_trait;
+use harmos_operations::plugins::List;
 use harmos_protocol::host::PluginEntry;
 use harmos_protocol::host::PluginState;
 use harmos_protocol::host::PluginsListRequest;
@@ -30,7 +31,6 @@ use harmos_protocol::model::FileReference;
 use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
 use harmos_protocol::model::Visibility;
-use harmos_runtime::builtins::plugins::List;
 use harmos_runtime::operations::OperationManager;
 use harmos_runtime::services::status::Status;
 use prost::Message;

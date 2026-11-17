@@ -20,14 +20,14 @@ use std::{collections::HashMap, io::Write, num::NonZeroUsize};
 
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray, UInt64Array};
+use harmos_operations::storage::{
+    CreateSnapshot, CreateSnapshotRequest, DeleteSnapshot, DeleteSnapshotRequest, GetFileBytes, GetFileBytesRequest, ListRows,
+    ListRowsRequest, RowOutput, Source,
+};
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::FileReference;
 use harmos_protocol::model::{History, OperationContract, PageRequest, Position};
 use harmos_query::arrow::ArrowBatch;
-use harmos_runtime::builtins::storage::{
-    CreateSnapshot, CreateSnapshotRequest, DeleteSnapshot, DeleteSnapshotRequest, GetFileBytes, GetFileBytesRequest, ListRows,
-    ListRowsRequest, RowOutput, Source,
-};
 use harmos_runtime::storage::{self, query::FileSelection};
 use prost::Message;
 use tempfile::NamedTempFile;
