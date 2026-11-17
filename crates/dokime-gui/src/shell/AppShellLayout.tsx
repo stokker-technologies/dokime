@@ -24,7 +24,6 @@ import { focusPresentation, useFocusMode } from "./focus-mode";
 import { settingsParent } from "./navigation-model";
 import { PanelHeader } from "./PageShell";
 import { PageChromeProvider, usePageChromeState } from "./page-chrome";
-import type { FrozenCycleStatus } from "./StatusBarFrame";
 import { useNavigationMode } from "./use-sidebar-state";
 
 // Local Imports
@@ -39,7 +38,6 @@ const TOP_LEVEL = new Set(["/cycles", "/library", "/history", "/settings"]);
 export type FrozenShell = {
   selection: { caseId?: string; executionId?: string };
   cycleId: string;
-  status: FrozenCycleStatus;
   /** ISO timestamp the report was generated at. */
   generatedAt: string | null;
   title: string;
@@ -71,17 +69,24 @@ function AppFrame({ children, frozen, menuBar, sidebar, statusBar, console }: Ap
 
   /* The focus flag also drives `styles.css`, which grows the plot cards. */
   useEffect(() => {
-    if (focused) document.documentElement.dataset.focus = "on";
-    else delete document.documentElement.dataset.focus;
+    if (focused) {
+      document.documentElement.dataset.focus = "on";
+    } else {
+      delete document.documentElement.dataset.focus;
+    }
     return () => {
       delete document.documentElement.dataset.focus;
     };
   }, [focused]);
 
   useEffect(() => {
-    if (!focused) return undefined;
+    if (!focused) {
+      return undefined;
+    }
     const leave = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) setFocused(false);
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        setFocused(false);
+      }
     };
     window.addEventListener("keydown", leave);
     return () => window.removeEventListener("keydown", leave);
@@ -123,13 +128,14 @@ function AppFrame({ children, frozen, menuBar, sidebar, statusBar, console }: Ap
 function PageBar({ focused, frozen }: { focused: boolean; frozen: FrozenShell | null }) {
   const chrome = usePageChromeState();
   const presentation = focusPresentation(focused, frozen !== null);
-  if (frozen)
+  if (frozen) {
     return (
       <PanelHeader
         title={frozenReportTitle(frozen.generatedAt)}
         onBack={frozen.selection.caseId || frozen.selection.executionId ? () => frozen.onSelect({}) : undefined}
       />
     );
+  }
   return (
     <LivePanelHeader
       focused={focused}
@@ -172,7 +178,9 @@ function LivePanelHeader({
  */
 export function frozenReportTitle(generatedAt: string | null): string {
   const at = generatedAt ? new Date(generatedAt) : null;
-  if (!at || Number.isNaN(at.getTime())) return "Frozen Report";
+  if (!at || Number.isNaN(at.getTime())) {
+    return "Frozen Report";
+  }
   return `Frozen Report \u00b7 Generated ${at.toLocaleString()}`;
 }
 
@@ -199,15 +207,29 @@ function useParentRoute(): string | null {
   const lastOutsideSettings = useRef<string | null>(null);
 
   const inSettings = pathname === "/settings" || pathname.startsWith("/settings/");
-  if (!inSettings) lastOutsideSettings.current = pathname;
+  if (!inSettings) {
+    lastOutsideSettings.current = pathname;
+  }
 
-  if (TOP_LEVEL.has(pathname)) return null;
-  if (/^\/settings\/plugins\/.+/.test(pathname)) return "/settings/plugins";
-  if (inSettings) return mode === "phone" ? settingsParent(pathname) : (lastOutsideSettings.current ?? "/cycles");
+  if (TOP_LEVEL.has(pathname)) {
+    return null;
+  }
+  if (/^\/settings\/plugins\/.+/.test(pathname)) {
+    return "/settings/plugins";
+  }
+  if (inSettings) {
+    return mode === "phone" ? settingsParent(pathname) : (lastOutsideSettings.current ?? "/cycles");
+  }
   // An execution page goes back to its cycle; the cycle page to Cycles.
-  if (pathname.startsWith("/cycles/")) return member ? `${pathname}?view=cycle` : "/cycles";
-  if (pathname.startsWith("/history/")) return "/history";
-  if (pathname.startsWith("/library/")) return "/library";
+  if (pathname.startsWith("/cycles/")) {
+    return member ? `${pathname}?view=cycle` : "/cycles";
+  }
+  if (pathname.startsWith("/history/")) {
+    return "/history";
+  }
+  if (pathname.startsWith("/library/")) {
+    return "/library";
+  }
   return null;
 }
 

@@ -59,7 +59,9 @@ function ReportSurface() {
     source?.executions.length === 1 ? { executionId: source.executions[0].test_execution_id } : {},
   );
 
-  if (!source) return null;
+  if (!source) {
+    return null;
+  }
 
   const plan = source.plan;
   const cycleId = plan?.test_cycle.test_cycle_id ?? "";
@@ -72,7 +74,6 @@ function ReportSurface() {
         cycleId,
         generatedAt: source.generatedAt,
         onSelect: setSelection,
-        status: { lifecycle: plan?.test_cycle.status ?? "planned", phase: plan?.test_cycle.phase ?? "sealed" },
         title,
       }}
     >

@@ -9,8 +9,6 @@
 
 /* === External Imports === */
 
-import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SquareTerminal } from "lucide-react";
@@ -20,6 +18,7 @@ import type { ReactNode } from "react";
 
 import { useNativeSession } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Progress } from "@/components/ui/progress";
 import { useRecordsQuery } from "@/features/cycle/server-state";
 import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { ActiveCyclePicker, ActiveCycleSummary } from "@/features/library/ActiveCycle";
@@ -50,7 +50,7 @@ import {
 import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
 import { RunIndicator } from "./RunIndicator";
-import { type FrozenCycleStatus, FrozenStatusBar, StatusBarFrame } from "./StatusBarFrame";
+import { StatusBarFrame } from "./StatusBarFrame";
 
 /* === Constants === */
 
@@ -66,13 +66,6 @@ const CONNECTION_LABEL = {
 
 /* === Types === */
 
-export type StatusBarProps =
-  | { live?: true }
-  | {
-      frozen: { generatedAt: string | null; status: FrozenCycleStatus };
-      live: false;
-    };
-
 type AttentionEntry = {
   id: string;
   label: string;
@@ -83,8 +76,7 @@ type AttentionEntry = {
 /* === Components === */
 
 /** Live Execution Focus Followed By Backend And Operator Attention. */
-export function StatusBar(props: StatusBarProps) {
-  if (props.live === false) return <FrozenStatusBar status={props.frozen.status} />;
+export function StatusBar() {
   return (
     <StatusBarFrame>
       <div className="flex w-full min-w-0 items-stretch justify-between gap-2 px-4">
@@ -154,7 +146,9 @@ export function OperationsItem() {
   const operations = useHubStore((state) => state.operations);
   const summary = summarizeOperations(operations);
 
-  if (summary.kind === "idle") return null;
+  if (summary.kind === "idle") {
+    return null;
+  }
   const shown = summary.kind === "single" ? summary.operation : summary.longest;
   const listed = summary.kind === "single" ? [summary.operation] : summary.operations;
   const label = summary.kind === "single" ? shown.label : operationsCountLabel(summary.count);
