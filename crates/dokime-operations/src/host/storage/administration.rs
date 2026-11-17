@@ -131,7 +131,7 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
                         kind: ColumnKind::Objects,
                         schema: schema.clone(),
                     }),
-                    columns: vec!["payload.key".into(), "payload.scope".into(), "payload.payload".into()],
+                    columns: vec!["payload.key".into(), "_storage.scope".into(), "payload.payload".into()],
                     predicate: None,
                     time: None,
                     start: 0,
@@ -161,7 +161,7 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
                 .and_then(|column| column.as_any().downcast_ref::<BinaryArray>())
                 .ok_or_else(|| Error::Precondition("List Administration: Restore Its Value Column".into()))?;
             let scopes = batch
-                .column_by_name("payload.scope")
+                .column_by_name("_storage.scope")
                 .and_then(|column| column.as_any().downcast_ref::<StringArray>())
                 .ok_or_else(|| Error::Precondition("List Administration: Restore Its Scope Column".into()))?;
             for index in 0..keys.len() {

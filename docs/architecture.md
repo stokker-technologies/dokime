@@ -920,6 +920,8 @@ Operator note lists read the native object history at an issued Harmos cut, with
 selection-bound pagination. Their watches follow `WatchRows` object revisions from
 the opening cut, including edits committed before the watch opens. They expose a
 row-watch gap with its last issued cut and require the client to resynchronize.
+They recompute at `DurableProgress` frontiers; individual data frames carry the
+previous resume cut and cannot select a complete changed image.
 Note owner validation and open-owner policy still read the execution ledger pending the
 coupled lifecycle cutover. Note lists create no retained-view files and watches
 observe native object revisions.

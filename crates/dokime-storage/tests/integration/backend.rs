@@ -112,7 +112,7 @@ async fn catalog_objects_can_be_scanned_before_their_first_write_and_after_reope
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let definition = ObjectDefinition::of::<Reading>();
-    let catalog = ObjectCatalog::new().entry(definition);
+    let catalog = ObjectCatalog::new().entry(definition).extend(persisted::catalog());
     let (backends, lease) = Backend::open(&store, catalog.clone())?;
     let backend = backends.primary.clone();
     backend.create_session().await?;
@@ -135,6 +135,17 @@ async fn catalog_objects_can_be_scanned_before_their_first_write_and_after_reope
     let page = backend.list_column_rows(&snapshot, &scan, &cancel).await?;
     assert_eq!(page.batch.num_rows(), 0);
     assert!(page.complete);
+    let administration = ArrowScan {
+        source: ColumnSource {
+            kind: ColumnKind::Objects,
+            schema: ObjectDefinition::of::<Administration>().schema()?,
+        },
+        columns: vec!["payload.key".into(), "_storage.scope".into(), "payload.payload".into()],
+        ..scan.clone()
+    };
+    let page = backend.list_column_rows(&snapshot, &administration, &cancel).await?;
+    assert_eq!(page.batch.num_rows(), 0);
+    assert!(page.complete);
     backend.delete_snapshot(&snapshot).await?;
     drop(lease);
     assert!(backend.get_saved_position().await.is_err());
@@ -143,6 +154,9 @@ async fn catalog_objects_can_be_scanned_before_their_first_write_and_after_reope
     reopened.primary.create_session().await?;
     let snapshot = reopened.primary.create_snapshot(&at).await?;
     let page = reopened.primary.list_column_rows(&snapshot, &scan, &cancel).await?;
+    assert_eq!(page.batch.num_rows(), 0);
+    assert!(page.complete);
+    let page = reopened.primary.list_column_rows(&snapshot, &administration, &cancel).await?;
     assert_eq!(page.batch.num_rows(), 0);
     assert!(page.complete);
     reopened.primary.delete_snapshot(&snapshot).await?;
