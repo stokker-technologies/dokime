@@ -3,11 +3,23 @@
 
 /* === Imports === */
 
-use super::*;
-use crate::rpc::protocol::{FRAME_BYTES as DESKTOP_FRAME_BYTES, UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
+use super::{Bridge, Context, RpcError, read_u64};
+use crate::connection::ConnectionSession;
+use crate::rpc::protocol;
 use dokime_protocol::host::content;
 use dokime_protocol::host::files;
 use sha2::{Digest, Sha256};
+use tauri::{
+    Runtime, State, WebviewWindow, async_runtime,
+    ipc::{Request, Response},
+};
+use tokio::sync;
+use tokio_util::sync::CancellationToken;
 
 /* === Structs === */
 
@@ -23,7 +35,7 @@ struct Registry {
 struct Upload {
     context: Arc<Context>,
     cancel: CancellationToken,
-    writer: tokio::sync::Mutex<Writer>,
+    writer: sync::Mutex<Writer>,
 }
 
 struct Writer {
@@ -38,7 +50,7 @@ struct Writer {
 /* === Implementations === */
 
 impl ArtifactUploads {
-    async fn open(&self, context: Context, artifact: content::ArtifactsCreateRequest) -> Result<tauri::ipc::Response, RpcError> {
+    async fn open(&self, context: Context, artifact: content::ArtifactsCreateRequest) -> Result<Response, RpcError> {
         context.check()?;
         let context = Arc::new(context);
         let (id, upload) = {
@@ -51,7 +63,7 @@ impl ArtifactUploads {
             let upload = Arc::new(Upload {
                 context: context.clone(),
                 cancel: CancellationToken::new(),
-                writer: tokio::sync::Mutex::new(Writer {
+                writer: sync::Mutex::new(Writer {
                     request: Default::default(),
                     artifact,
                     next_sequence: 1,
@@ -69,7 +81,8 @@ impl ArtifactUploads {
             let mut request = files::UploadsCreateRequest::default();
             let metadata = request.metadata.get_or_insert_with(Default::default);
             metadata.id = format!("desktop-{}", writer.artifact.request_id);
-            metadata.scope = writer.artifact.scope.as_ref().and_then(|scope| scope.execution_id.clone());
+            metadata.scope =
+                writer.artifact.scope.as_ref().and_then(|scope| scope.execution_id.as_ref()).map(|id| format!("execution/{id}"));
             metadata.media_type = writer.artifact.content_type.clone();
             request.request_id = format!("desktop-{}-{id}-open", context.generation);
             let production: files::UploadsCreateResponse =
@@ -94,7 +107,7 @@ impl ArtifactUploads {
         }
         let mut response = context.generation.to_le_bytes().to_vec();
         response.extend(id.to_le_bytes());
-        Ok(tauri::ipc::Response::new(response))
+        Ok(Response::new(response))
     }
 
     fn get(&self, owner: &str, generation: u64, id: u64) -> Result<Arc<Upload>, RpcError> {
@@ -109,7 +122,7 @@ impl ArtifactUploads {
     }
 
     async fn write(&self, owner: &str, generation: u64, id: u64, sequence: u64, bytes: Vec<u8>) -> Result<(), RpcError> {
-        if bytes.len() > DESKTOP_UPLOAD_SLICE_BYTES as usize {
+        if bytes.len() > protocol::UPLOAD_SLICE_BYTES as usize {
             return Err(RpcError::LimitExceeded);
         }
         let upload = self.get(owner, generation, id)?;
@@ -141,7 +154,7 @@ impl ArtifactUploads {
         Ok(())
     }
 
-    async fn finish(&self, owner: &str, generation: u64, id: u64) -> Result<tauri::ipc::Response, RpcError> {
+    async fn finish(&self, owner: &str, generation: u64, id: u64) -> Result<Response, RpcError> {
         let upload = self.get(owner, generation, id)?;
         let mut writer = upload.writer.lock().await;
         if writer.closed {
@@ -198,7 +211,7 @@ impl ArtifactUploads {
         };
         for (id, upload) in uploads {
             upload.cancel.cancel();
-            tauri::async_runtime::spawn(async move {
+            async_runtime::spawn(async move {
                 let mut writer = upload.writer.lock().await;
                 writer.closed = true;
                 if writer.request.upload.is_none() {
@@ -221,25 +234,22 @@ impl ArtifactUploads {
 /* === Public Functions === */
 
 #[tauri::command]
-pub async fn artifact_upload_open<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
-) -> Result<tauri::ipc::Response, RpcError> {
+pub async fn artifact_upload_open<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
+) -> Result<Response, RpcError> {
     Box::pin(async move {
-        let (context, header) =
-            bridge.prepare::<dokime_protocol::host::content::ArtifactsCreateRequest>(&session, webview.label(), request.body())?;
+        let (context, header) = bridge.prepare::<content::ArtifactsCreateRequest>(&session, webview.label(), request.body())?;
         bridge.uploads.open(context, header).await
     })
     .await
 }
 
 #[tauri::command]
-pub async fn artifact_upload_write<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
+pub async fn artifact_upload_write<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
 ) -> Result<(), RpcError> {
     Box::pin(async move {
-        let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+        let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
         session.lease(&generation.to_string())?;
         if payload.len() < 16 {
             return Err(RpcError::InvalidRequest);
@@ -250,12 +260,11 @@ pub async fn artifact_upload_write<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub async fn artifact_upload_finish<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
-) -> Result<tauri::ipc::Response, RpcError> {
+pub async fn artifact_upload_finish<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
+) -> Result<Response, RpcError> {
     Box::pin(async move {
-        let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+        let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
         session.lease(&generation.to_string())?;
         if payload.len() != 8 {
             return Err(RpcError::InvalidRequest);
@@ -266,12 +275,11 @@ pub async fn artifact_upload_finish<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-pub async fn artifact_upload_cancel<R: tauri::Runtime>(
-    session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
+pub async fn artifact_upload_cancel<R: Runtime>(
+    session: State<'_, ConnectionSession>, bridge: State<'_, Bridge>, webview: WebviewWindow<R>, request: Request<'_>,
 ) -> Result<(), RpcError> {
     Box::pin(async move {
-        let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+        let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
         session.lease(&generation.to_string())?;
         if payload.len() != 8 {
             return Err(RpcError::InvalidRequest);
