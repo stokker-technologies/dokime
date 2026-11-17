@@ -28,7 +28,6 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::fixture::{self, Row};
-use dokime_protocol::host::content::ExecutionFileMetadata;
 
 use dokime_protocol::model::DataExpression;
 use dokime_protocol::model::FftDetrend;
@@ -271,26 +270,14 @@ fn accepted_tail_saved_cut_and_failed_catalog_commit() -> Result<()> {
     })?;
     assert_eq!(count, 1024);
     store.sample_batch("execution", &fixture::samples(3))?;
-    let metadata = ExecutionFileMetadata {
-        relative_path: "capture.bin".into(),
-        ..Default::default()
-    };
-    let file = harmos_protocol::model::FileReference {
-        metadata: Some(harmos_protocol::model::FileMetadata {
-            id: "capture".into(),
-            scope: Some("execution".into()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
     db.execute_batch(
         "CREATE TRIGGER refuse_barrier BEFORE INSERT ON telemetry_batches BEGIN SELECT RAISE(ABORT,'injected barrier failure'); END;",
     )?;
-    assert!(store.attach_execution_file("execution", metadata.clone(), file.clone()).is_err());
+    assert!(store.flush_samples().is_err());
     assert_eq!(store.cut("execution")?.frontier, 1034);
     db.execute_batch("DROP TRIGGER refuse_barrier;")?;
-    store.attach_execution_file("execution", metadata.clone(), file.clone())?;
-    assert_eq!(store.cut("execution")?.frontier, 1038);
+    store.flush_samples()?;
+    assert_eq!(store.cut("execution")?.frontier, 1037);
     db.execute_batch(
         "CREATE TRIGGER refuse_closure BEFORE UPDATE OF closed ON streams BEGIN SELECT RAISE(ABORT,'injected closure failure'); END;",
     )?;
@@ -330,7 +317,7 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     store.seal("execution")?;
     assert_eq!(store.cut("execution")?.state, ExecutionState::Sealed);
     let mut archive = Vec::new();
-    store.write_execution_archive("execution", &mut archive)?;
+    store.write_execution_archive("execution", &mut archive, Default::default())?;
     let mut zip = zip::ZipArchive::new(Cursor::new(archive))?;
     let mut copied = Vec::new();
     zip.by_name("telemetry/readings.arrow")?.read_to_end(&mut copied)?;

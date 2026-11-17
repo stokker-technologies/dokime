@@ -20,24 +20,26 @@ with the fresh-root action; no migrations or compatibility code.
 
 The owner's storage-through-operations-2 task supersedes the former fixed-pin
 instruction: all SDKs adopt Harmos
-`7fe385eacbe9a4c9a47943f6a528f97a014256ee` (Harmos #272). Verified at that revision in Harmos
+`6978e65f1d505c2fe805a34a2781e48ea6f30350`, including the owner's content-worker
+amendment for storage-only maintenance and expression transforms. Verified in Harmos
 `crates/harmos-operations/src/storage/native/{mod,requests}.rs`: `SetSchema`,
 `GetObject`, `SetObject`, `AppendObjectRevisions`, `AppendRecords`, `AppendSamples`,
 `ListRows`, `ListColumnRows`, `WatchRows`, snapshots and file production/read
 operations exist, together with `Mutate`, `DeleteObject` and `DeleteScope`.
 ListRows supports filter/project, aggregates, histograms, time buckets, LTTB and
 time merge. **Offline/minimal-assembly storage operations**, **expression transforms
-scale/offset/contains**, **consolidated statistics**, the **bucket-summary kernel**
-and the **typed facade** remain named upstream gaps.
+scale/offset/contains** are available at this revision. **Consolidated statistics**,
+the **bucket-summary kernel** and the **typed facade** remain named upstream gaps.
 
-- [x] 2.1 Adopt Harmos `7fe385eacbe9a4c9a47943f6a528f97a014256ee` in Cargo, Python, C++ and C#, refresh their locks and regenerate checked-in output. Prove with `mise run build -- --package dokime-runtime --check` and `mise run test -- --package dokime-storage --target integration`.
+- [x] 2.1 Adopt Harmos `6978e65f1d505c2fe805a34a2781e48ea6f30350` in Cargo, Python, C++ and C#, refresh their locks and regenerate checked-in output. Prove with `mise run build -- --package dokime-runtime --check` and `mise run test -- --package dokime-storage --target integration`.
 - [x] 2.2 Implement compound commit and object/scoped deletion in `crates/dokime-storage/src/backend`. Prove with Harmos's backend conformance kit, receipt replay after restart, refusal of partial compound cuts, physical file reclamation after retained reads release and preservation of incompatible roots.
-- [ ] 2.3 Implement maintenance copy/dispose hooks and consistent-copy backend stories after **offline/minimal-assembly storage operations** land upstream.
+- [ ] 2.3 Implement maintenance copy/dispose hooks and consistent-copy backend stories. Storage-only assembly and CopyBackend/DisposeBackend are available at the current pin; the product backend hooks remain open.
 
 ## 3. Bootstrap and Maintenance
 
-Blocked at the current pin on **offline/minimal-assembly storage operations**: root admission,
-access credentials/root claims, CLI doctor copies and desktop native archive/disposal.
+Storage-only assembly and maintenance operations are available at the current pin.
+Root admission, access credentials/root claims, CLI doctor copies and desktop native
+archive/disposal still need their product implementation and backend hooks.
 
 - [ ] 3.1 Move root admission (`crates/dokime-runtime/src/host.rs`), credential journals (`services/access_credentials.rs`) and root claims (`services/root_claim.rs`) onto storage operations on the Harmos storage-only runtime, keeping OS credential policy in Dokime. Prove with stories `storage_root_admission`, `credentials_leave_with_discarded_roots` and `client_pairs_and_rotates_remote_access`.
 - [ ] 3.2 Replace desktop archive and disposal (`crates/dokime-gui/src-tauri/src/native_session/storage.rs`) and CLI doctor copies (`crates/dokime-cli/src/commands/doctor.rs`) with maintenance operations. Prove with `mise run test -- --package dokime-cli --target system` filtered to doctor and the desktop native session tests for archive and disposal.
@@ -78,13 +80,17 @@ publication and execution/case deletion remain open product implementation work.
 - [ ] 7.1 Move content, artifacts, execution files and report bytes to Harmos file operations and object metadata. Prove with stories `client_transfers_execution_content` and `client_publishes_execution_report`.
 - [ ] 7.2 Implement execution and case deletion with Dokime seal and ownership checks followed by Harmos scoped deletion; delete the `history.rs` and `cycles.rs` deletion paths. Prove with a new story `client_deletes_execution_scope` asserting absence at new cuts and retained-cut reads.
 
+- [x] 7.4 Move artifact and execution-file metadata, retained file protection, archive content metadata and fixed document artifact cards to scoped Harmos objects; remove the SQL metadata accessors and refuse their superseded journals. Retained protection reads every object revision through ListRows with the native contains/filter transforms. Prove with `client_transfers_execution_content`, `client_browses_sealed_history`, `execution_capabilities`, document/report stories and storage admission tests.
+- [ ] 7.5 Join content publication to the canonical native execution-open guard and evidence cut owner. The current execution-state check still reaches the coupled ledger through `execution_state::read`; its atomic coordination with seal/deletion and native cut issuance must move with the shared lifecycle source contract. Move archive execution/evidence/telemetry readers with that same canonical source, without a second writer or compatibility reader. Preserve rejection of late content publication and retained-cut reads. This remains required for 7.1 and for the content family's source closure.
+
 - [x] 7.3 Store prepared-report metadata and its native file reference through Harmos object operations; read its bytes through GetFileBytes for publication and delete the duplicate prepared HTML journal and unused live temporary-file handles. Prove publication from a prepared report across host restart with `client_publishes_execution_report` and report-manager lifecycle stories.
 
 ## 8. Queries, Statistics and Expressions
 
 The coupled evidence source cutover above blocks replacing its Store readers with
-row operations. Additional blockers are **expression transforms scale/offset/contains**
-and **consolidated statistics** (including multi-percentile and box summaries).
+row operations. Expression transforms scale/offset/contains are available at the
+current pin. **Consolidated statistics** (including multi-percentile and box summaries)
+remain an upstream gap.
 The pinned Harmos revision already exports
 `harmos_storage::writes::convert::encode_payloads`; the native backend uses it
 instead of a product payload encoder.

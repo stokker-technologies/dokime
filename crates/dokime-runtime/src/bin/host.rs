@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::error::Error as StdError;
+use std::error::Error;
 use std::{
     io::Write,
     num::NonZeroUsize,
@@ -26,6 +26,7 @@ use std::{
 };
 
 // Third Party Imports
+use prost::Message;
 use tokio::io::AsyncReadExt;
 use tracing::instrument::WithSubscriber;
 
@@ -34,6 +35,8 @@ use dokime_runtime::{
     ControlledClock, HostSettings, PlacementSettings, SchedulerClock,
     services::{self, ClientSettings, WallClock},
 };
+
+use dokime_storage::StoredExecutionFile;
 
 /* === Constants === */
 
@@ -56,12 +59,13 @@ use dokime_runtime::{
 // Admissions and flush commits briefly hold the store's blocking locks; worker threads keep
 // plugin transport, clients and the flush timer running meanwhile, and connections decode in parallel.
 #[tokio::main(flavor = "multi_thread")]
-async fn main() -> Result<(), Box<dyn StdError>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     let mut arguments = std::env::args().skip(1);
     let mut endpoint = None;
     let mut root = None;
     let mut controlled = false;
     let mut remove_credentials = false;
+    let mut execution_files = Vec::new();
     let mut capture = dokime_runtime::CaptureSettings::default();
     let mut environment = None;
     let mut credentials = dokime_runtime::CredentialNamespace::default();
@@ -72,6 +76,9 @@ async fn main() -> Result<(), Box<dyn StdError>> {
             "--controlled-clock" => controlled = true,
             "--capture-root" => capture.roots.push(PathBuf::from(arguments.next().ok_or("Start Host: Supply --capture-root PATH")?)),
             "--remove-credentials" => remove_credentials = true,
+            "--attach-execution-file" => {
+                execution_files.push(PathBuf::from(arguments.next().ok_or("Register Execution File: Supply Its Encoded Metadata Path")?))
+            }
             "--credential-namespace" => {
                 credentials =
                     dokime_runtime::CredentialNamespace::new(arguments.next().ok_or("Start Host: Supply --credential-namespace NAME")?)?
@@ -91,7 +98,6 @@ async fn main() -> Result<(), Box<dyn StdError>> {
         services::remove_credentials(&root, &credentials)?;
         return Ok(());
     }
-    let endpoint = endpoint.ok_or("Start Host: Supply --endpoint HOST:PORT")?;
     let clock: Arc<dyn SchedulerClock> = if controlled { Arc::new(ControlledClock::new(0)) } else { Arc::new(WallClock) };
     let host_settings = HostSettings {
         credentials,
@@ -115,6 +121,25 @@ async fn main() -> Result<(), Box<dyn StdError>> {
         message_bytes: 4 * 1024 * 1024,
         stream_buffer: 8,
     };
+    if !execution_files.is_empty() {
+        let host = dokime_runtime::Host::open(&root, host_settings, settings).await?;
+        for path in execution_files {
+            let bytes = std::fs::read(path)?;
+            let stored = StoredExecutionFile::decode(bytes.as_slice())?;
+            let file = stored.file.ok_or("Register Execution File: Supply Its Native File Reference")?;
+            let execution = file
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.scope.as_deref())
+                .ok_or("Register Execution File: Select Its Execution Scope")?
+                .to_owned();
+            let metadata = stored.metadata.ok_or("Register Execution File: Supply Its Logical Path Metadata")?;
+            host.attach_execution_file(&execution, metadata, file).await?;
+        }
+        host.shutdown().await?;
+        return Ok(());
+    }
+    let endpoint = endpoint.ok_or("Start Host: Supply --endpoint HOST:PORT")?;
     use tracing_subscriber::prelude::*;
     // Startup Failures Reach Standard Error With Their Cause Before the Status Layer Exists.
     let startup = tracing_subscriber::registry()
@@ -131,7 +156,7 @@ async fn main() -> Result<(), Box<dyn StdError>> {
 }
 
 // The Host Reads Only RUST_LOG; Any Other Variable in the Explicit File Is Refused.
-fn log_directives(path: &Path) -> Result<Option<String>, Box<dyn StdError>> {
+fn log_directives(path: &Path) -> Result<Option<String>, Box<dyn Error>> {
     if std::fs::metadata(path)?.len() > 1024 * 1024 {
         return Err(format!("Read Environment File {}: Select a File of at Most 1 MiB", path.display()).into());
     }

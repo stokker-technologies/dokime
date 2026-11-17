@@ -628,6 +628,9 @@ their current invocation-scoped handlers until that replacement is available.
 
 Content serves ordered artifact transfers, execution/cycle evidence exports and
 registered execution-file inventory, bounded windows, downloads and follows.
+Artifact and logical execution-file metadata are scoped Harmos objects. File bytes,
+including earlier references after a logical path is replaced, use Harmos file
+operations. The old SQL metadata journals are refused with a fresh-root action.
 Client uploads require an explicit SHA-256 completion before input finish;
 cancelling a staged upload publishes nothing. Plugin artifact calls are unary
 and preserve sequence, exact retry, prefix replacement and terminal abort.
@@ -697,8 +700,9 @@ generation task owns the additive `PlotRequest.at` field and generated output.
 
 | Owner | Added Methods |
 | --- | --- |
-| Host | `current_document`, `snapshot_cut`, `analyze`; service adapters also provide `render_report`, `retain_report` and `temporary_report` |
-| Storage Content | `publish_artifact_chunk`, `begin_artifact`, `abort_artifact`, `append_content`, `finish_artifact`, `register_execution_file`, `finish_execution_file`, `content`, `execution_file`, `content_window`, `artifacts_page`, `files_page`, `write_execution_archive`, `content_fingerprint` |
+| Host | `current_document`, asynchronous `snapshot`, `snapshot_cut`, `export_execution` and `attach_execution_file`, `analyze`; service adapters also provide asynchronous `render_report`, `retain_report` and `temporary_report` |
+| Content Operations | Artifact publication/replay and logical execution-file registration/read through scoped Harmos objects; bytes through native file operations |
+| Storage Archive Assembly | `write_execution_archive`, `write_cycle_archive`; evidence and telemetry sources remain coupled to the parallel source cutover |
 | Storage Notes | `create_note`, `edit_note`, `note_owner`, `notes_page`, `notes_fingerprint` |
 | Storage Documents | `plot_preferences`, `save_plot_preferences`, `document_value`, `document_value_filtered`, `document_distinct` |
 | Storage Queries | `read_session`, `cycle_execution_page`, `cycle_is_sealed`, `plot_selection`, `plot_group_values`, `select_plot_group`, `sigma_window`, `contour_scaled_window`, `sampled_time_series_window` |
@@ -711,7 +715,7 @@ Product builds, fixtures, native stories and both WebView lanes include it.
 
 ## Final Library Definition Contract
 
-The definitions pin Harmos at `7fe385eacbe9a4c9a47943f6a528f97a014256ee`.
+The definitions pin Harmos at `6978e65f1d505c2fe805a34a2781e48ea6f30350`.
 
 ```text
 proto/dokime/
@@ -793,7 +797,7 @@ carried by the merge and are not consumer work to reimplement.
 The first column is the pre-pin wire identity or hand-bound context identity.
 Library composition rows name the library operation directly, without forwarding.
 The complete library identity/type mapping is in the pinned
-[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/7fe385eacbe9a4c9a47943f6a528f97a014256ee/docs/architecture.md).
+[Harmos Architecture](https://github.com/stokker-technologies/harmos/blob/6978e65f1d505c2fe805a34a2781e48ea6f30350/docs/architecture.md).
 
 | Old Identity | Final Identity | Callers | Request | Response |
 | --- | --- | --- | --- | --- |
@@ -1809,10 +1813,12 @@ mutation identities include the trusted execution scope, so equal request IDs in
 different executions remain independent; retrying one request retains its file ID.
 Artifact creation accepts open execution evidence, including imported evidence,
 and refuses closed executions before writing metadata.
-Artifact metadata, the original native file reference and its mutation receipt
-commit in the product Store transaction with execution evidence. Reads and watches
-retain product read cuts, and deletion removes these references in the execution
-transaction. File bytes remain in native storage. Admission refuses incompatible
+Artifact metadata and the original native file reference commit in one scoped
+Harmos object mutation with its durable receipt. Replay retains the original
+serialized payload and native mutation identity, including after sealing and
+restart. Reads and watches retain product read cuts. Scoped object deletion belongs
+to the coupled execution lifecycle cutover. File bytes remain in native storage.
+Admission refuses superseded SQL artifact and execution-file journals and incompatible
 product file objects before execution recovery and refuses earlier native artifact
 objects with the action to select a fresh storage root; it never resets that data.
 

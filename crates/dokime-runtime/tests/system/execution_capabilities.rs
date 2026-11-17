@@ -27,15 +27,15 @@ use dokime::client::DeclaredOutcome;
 use dokime::client::ExecutionOutcome;
 use dokime::client::ResultStatus;
 use dokime::client::UnevaluatedOutcome;
-use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::host::execution_outcome;
+use dokime_protocol::model::origin;
 use dokime_runtime::Host;
 use dokime_storage::Execution;
 use dokime_storage::ExecutionArchive;
 use dokime_storage::ExecutionState;
 use dokime_storage::Store;
 use prost::Message;
-use std::error::Error as StdError;
+use std::error::Error;
 use std::io::Cursor;
 use std::io::Read;
 
@@ -60,7 +60,7 @@ use std::io::Read;
 /* === Tests === */
 
 #[test]
-fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
+fn execution_capabilities() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Inspect and Cancel an Active Plugin Run
@@ -81,7 +81,7 @@ fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
             assert!(sealed.rerun && sealed.inspect && sealed.export);
             assert!(!sealed.start && !sealed.cancel);
             assert!(host.cancel(&execution).unwrap_err().to_string().to_lowercase().contains("cancel"));
-            let mut archive = zip::ZipArchive::new(Cursor::new(host.export_execution(&execution)?))?;
+            let mut archive = zip::ZipArchive::new(Cursor::new(host.export_execution(&execution).await?))?;
             let mut metadata = Vec::new();
             Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
             let exported = ExecutionArchive::decode(metadata.as_slice())?;
@@ -113,7 +113,7 @@ fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
             cycle.wait().await?;
             assert!(!host.capabilities("unstarted")?.start);
             let import = Origin {
-                kind: Some(OriginKind::Import(Import {
+                kind: Some(origin::Kind::Import(Import {
                     importer: "sample.importer".into(),
                     processing: "Captured Measurements".into(),
                     ..Default::default()
@@ -131,7 +131,7 @@ fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
                 "imported",
                 Termination::Completed,
                 ExecutionOutcome {
-                    attribution: Some(ExecutionOutcomeAttribution::Declared(DeclaredOutcome {
+                    attribution: Some(execution_outcome::Attribution::Declared(DeclaredOutcome {
                         status: ResultStatus::Passed as i32,
                         importer: "sample.importer".into(),
                         ..Default::default()
@@ -143,7 +143,7 @@ fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
                 "closed-import",
                 Termination::Completed,
                 ExecutionOutcome {
-                    attribution: Some(ExecutionOutcomeAttribution::NotEvaluated(UnevaluatedOutcome {
+                    attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome {
                         termination: Termination::Completed as i32,
                         ..Default::default()
                     })),
@@ -160,12 +160,12 @@ fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
             assert!(host.start_execution("imported").await.is_err());
             assert!(host.rerun("imported").await.is_err());
             assert!(host.cancel("imported").is_err());
-            let imported_bytes = host.export_execution("imported")?;
+            let imported_bytes = host.export_execution("imported").await?;
             let mut archive = zip::ZipArchive::new(Cursor::new(&imported_bytes))?;
             let mut metadata = Vec::new();
             Read::read_to_end(&mut archive.by_name("evidence.pb")?, &mut metadata)?;
             let export = ExecutionArchive::decode(metadata.as_slice())?;
-            assert!(matches!(export.execution.unwrap().origin.unwrap().kind, Some(OriginKind::Import(_))));
+            assert!(matches!(export.execution.unwrap().origin.unwrap().kind, Some(origin::Kind::Import(_))));
             let draft = store.read("draft")?;
             assert_eq!(draft.state, ExecutionState::Open);
             assert!(!host.capabilities("draft")?.start);
@@ -178,10 +178,10 @@ fn execution_capabilities() -> Result<(), Box<dyn StdError>> {
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             assert_eq!(host.execution("draft")?, draft);
             assert_eq!(host.execution("closed-import")?, closed);
-            assert_eq!(host.export_execution("imported")?, imported_bytes);
+            assert_eq!(host.export_execution("imported").await?, imported_bytes);
             assert!(!host.capabilities("draft")?.cancel);
             host.shutdown().await?;
-            Ok::<(), Box<dyn StdError>>(())
+            Ok::<(), Box<dyn Error>>(())
         })
         .await?
     }))

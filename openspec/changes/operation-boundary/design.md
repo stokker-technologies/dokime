@@ -36,7 +36,7 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   `execution.sqlite3`. Moving an append alone splits their canonical history and
   invalidates cuts and seal verification. The coupled migration needs Harmos
   compound atomic mutation at the backend boundary, now provided by Harmos
-  `7fe385eacbe9a4c9a47943f6a528f97a014256ee` and implemented in
+  `6978e65f1d505c2fe805a34a2781e48ea6f30350` and implemented in
   `crates/dokime-storage/src/backend/compound.rs`. Product callers still need
   their coupled cutover; retaining two writers or
   adding a mirror is not an acceptable intermediate design. Independent retained
@@ -46,8 +46,9 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
 - The native backend commits compound effects and applied/refused receipts together,
   refuses partial compound cuts, and implements object/scoped tombstones with retained
   reads and file reclamation. Harmos's public backend conformance kit runs in
-  `crates/dokime-storage/tests/integration/backend.rs`. Maintenance copy/dispose remains
-  dependent on offline/minimal-assembly storage operations; no substitute is introduced.
+  `crates/dokime-storage/tests/integration/backend.rs`. Storage-only assembly and
+  maintenance operations are available at the current pin. The product backend's
+  consistent-copy/disposal hooks and their CLI/desktop consumers remain open.
 - Planned-case ownership is `host/cases/storage.rs`: registration replay, atomic
   publication, frozen plans and deletion use native object operations. Its consumers
   are planning, cases, execution-state projections and execution admission. The SQL
@@ -88,6 +89,27 @@ Touched invariants in `docs/architecture.md` and their purposes:
   become internal to Harmos; Dokime drives them only through operations.
 
 ## Goals / Non-Goals
+
+### Content and Files Source Inventory
+
+The content worker owns `host/content`, `host/evidence/archive.rs`, `host/reports`,
+`host/documents`, `host/plots/snapshots`, `host/prompts`, `host/prompt_definitions`
+and the overview counts in `host/backend/overview/get.rs`; their runtime owners
+are `documents.rs`, `reports.rs` and `prompts.rs`. Storage readers in
+`content.rs`, `report.rs`, `document_values.rs`, `expressions.rs`,
+`plot_selection.rs` and plot algorithms move only where those consumers require
+them. CLI `commands/doctor.rs` and desktop `native_session/storage.rs` compose
+storage-only maintenance. Shared Store modules remain while other families use
+them. Consolidated statistics, the bucket-summary kernel and typed facade remain
+upstream gaps; expression transforms and storage-only maintenance are available
+at Harmos `6978e65f1d505c2fe805a34a2781e48ea6f30350`.
+Content metadata now uses scoped administration objects under `content/artifact/`
+and `content/execution-file/`. Artifact commits preserve their original serialized
+payload and native mutation identity; logical-file retention scans all object
+revisions. Their execution-open guard still calls the coupled execution owner,
+so atomic seal/deletion coordination and native cut issuance remain part of the
+required shared source cutover, rather than being inferred from passing content
+transfer stories.
 
 **Goals:**
 
