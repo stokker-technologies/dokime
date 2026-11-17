@@ -534,6 +534,9 @@ fn main() {
                     {
                         println!("Stage | {name} | {:.6} s", duration.as_secs_f64());
                     }
+                    let stage = Instant::now();
+                    black_box(reader.numeric_bins(window).unwrap());
+                    println!("Reference | persisted bins only, excluded from total | {:.6} s", stage.elapsed().as_secs_f64());
                 }
             }
             report(elapsed, iterations)
