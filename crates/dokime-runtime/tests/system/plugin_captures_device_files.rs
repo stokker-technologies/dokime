@@ -17,16 +17,17 @@
 
 // Standard Library Imports
 use std::collections::{BTreeMap, HashMap};
-use std::error::Error as StdError;
+use std::error;
 use std::path::Path;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
 use prost::Message;
 use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime::Client;
-use dokime::EvidenceRecordScope;
+use dokime::RecordScope;
 use dokime::Termination;
 use dokime::Value;
 use dokime::client::EvidenceRecordsListOptions;
@@ -35,13 +36,12 @@ use dokime::client::ExecutionsProgressWatchOptions;
 use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
-use dokime::record_scope::Kind as RecordScopeKind;
+use dokime::record_scope;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::model::ArtifactScope;
-use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_protocol::model::value;
 use dokime_runtime::PluginProcess;
 use dokime_runtime::services;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
 
 /* === Constants === */
 
@@ -82,10 +82,10 @@ struct Refused {
 
 /* === Private Functions === */
 
-async fn admit(client: &Client, template: &str, device: &Path, outside: &Path) -> Result<String, Box<dyn StdError>> {
+async fn admit(client: &Client, template: &str, device: &Path, outside: &Path) -> Result<String, Box<dyn error::Error>> {
     let text = |path: &Path| {
         vec![Value {
-            kind: Some(ValueKind::Text(path.display().to_string())),
+            kind: Some(value::Kind::Text(path.display().to_string())),
         }]
     };
     let parameters = HashMap::from([("root".into(), text(device)), ("outside".into(), text(outside))]);
@@ -93,7 +93,7 @@ async fn admit(client: &Client, template: &str, device: &Path, outside: &Path) -
     Ok(super::support::admit(client, cases).await?.remove(0))
 }
 
-async fn settle(client: &Client, execution: &str) -> Result<i32, Box<dyn StdError>> {
+async fn settle(client: &Client, execution: &str) -> Result<i32, Box<dyn error::Error>> {
     let mut progress = client.executions.progress.watch(execution.to_owned()).await?;
     while let Some(frame) = progress.next().await? {
         if frame.finished {
@@ -107,16 +107,16 @@ async fn settle(client: &Client, execution: &str) -> Result<i32, Box<dyn StdErro
     }
 }
 
-async fn record<T: Message + Default>(client: &Client, execution: &str) -> Result<T, Box<dyn StdError>> {
+async fn record<T: Message + Default>(client: &Client, execution: &str) -> Result<T, Box<dyn error::Error>> {
     let records = client
         .evidence
         .records
         .list_with(
-            EvidenceRecordScope {
-                kind: Some(RecordScopeKind::Execution(execution.to_owned())),
-            },
             String::new(),
             EvidenceRecordsListOptions {
+                scope: Some(RecordScope {
+                    kind: Some(record_scope::Kind::Execution(execution.to_owned())),
+                }),
                 versions: Some(Vec::new()),
                 between: Some(Default::default()),
                 step: Some(String::new()),
@@ -132,7 +132,7 @@ async fn record<T: Message + Default>(client: &Client, execution: &str) -> Resul
 }
 
 // Every Artifact the Execution Holds, by Name, With Its Exact Bytes.
-async fn artifacts(client: &Client, execution: &str) -> Result<BTreeMap<String, Vec<u8>>, Box<dyn StdError>> {
+async fn artifacts(client: &Client, execution: &str) -> Result<BTreeMap<String, Vec<u8>>, Box<dyn error::Error>> {
     let scope = ArtifactScope {
         execution_id: Some(execution.to_owned()),
         ..Default::default()
@@ -156,7 +156,7 @@ fn expected(entries: &[(&str, &[u8])]) -> BTreeMap<String, Vec<u8>> {
 /* === Tests === */
 
 #[test]
-fn plugin_captures_device_files() -> Result<(), Box<dyn StdError>> {
+fn plugin_captures_device_files() -> Result<(), Box<dyn error::Error>> {
     super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Allow One Device Directory and One Running Capture
@@ -175,7 +175,7 @@ fn plugin_captures_device_files() -> Result<(), Box<dyn StdError>> {
             let client = Client::from_channel(channel, super::support::client_settings())?;
             let mut plugin = PluginProcess::start(&super::support::capture_fixture()?, true, &settings.placement).await?;
             let placement = PluginPlacement {
-                kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let created = client.plugins.create("capture", placement, PluginValue { enabled: true }).await?;
             super::support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
@@ -236,7 +236,7 @@ fn plugin_captures_device_files() -> Result<(), Box<dyn StdError>> {
 
             server.close().await?;
             plugin.close().await?;
-            Ok::<(), Box<dyn StdError>>(())
+            Ok::<(), Box<dyn error::Error>>(())
         })
         .await?
     }))

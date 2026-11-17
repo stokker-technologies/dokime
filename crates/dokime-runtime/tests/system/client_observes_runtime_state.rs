@@ -16,29 +16,30 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::error::Error;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Client;
-use dokime::EvidenceRecordScope;
 use dokime::EvidenceScope;
 use dokime::MapValue;
+use dokime::RecordScope;
 use dokime::client::BackendOverviewGetOptions;
 use dokime::client::BackendOverviewWatchOptions;
 use dokime::client::EvidenceRecordsWatchOptions;
+use dokime::client::EvidenceTraceabilityGetOptions;
 use dokime::client::ExecutionMode;
 use dokime::client::ExecutionsProgressWatchOptions;
 use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
-use dokime::record_scope::Kind as RecordScopeKind;
+use dokime::record_scope;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
-use std::collections::HashMap;
-use std::error::Error;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -93,7 +94,7 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
                 .create(
                     "thermal",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -140,8 +141,11 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
                 .evidence
                 .traceability
                 .clone()
-                .get(EvidenceScope {
-                    execution_id: Some(identifier.clone()),
+                .get_with(EvidenceTraceabilityGetOptions {
+                    scope: Some(EvidenceScope {
+                        execution_id: Some(identifier.clone()),
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 })
                 .await?;
@@ -172,8 +176,8 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
                 selection: Some(Default::default()),
                 ..Default::default()
             };
-            let scope = EvidenceRecordScope {
-                kind: Some(RecordScopeKind::Execution(identifier.clone())),
+            let scope = RecordScope {
+                kind: Some(record_scope::Kind::Execution(identifier.clone())),
             };
             let mut records = client.evidence.records.watch_with(scope, String::new(), options).await?;
             assert!(records.next().await?.is_some_and(|frame| frame.opening));

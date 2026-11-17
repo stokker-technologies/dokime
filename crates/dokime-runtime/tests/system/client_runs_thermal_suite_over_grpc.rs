@@ -15,52 +15,50 @@
 
 /* === Imports === */
 
-use dokime::client::EvidenceSamplesListOptions;
-
-use dokime::client::EvidenceRecordsListOptions;
-
 // Standard Library Imports
-
-// Third Party Imports
-
-// Local Imports
-use dokime::Client;
-use dokime::EvidenceRecordScope;
-use dokime::EvidenceScope;
-use dokime::MapValue;
-use dokime::Value;
-use dokime::client::ExecutionState;
-use dokime::client::ExecutionsProgressWatchOptions;
-use dokime::client::FrozenSchemaCache;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
-use dokime::client::ReportSubject;
-use dokime::client::ReportsCreateOptions;
-use dokime::client::ResultStatus;
-use dokime::record_scope::Kind as RecordScopeKind;
-use dokime_protocol::host::evidence::sample_row::Kind as SampleRowKind;
-use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
-use dokime_protocol::host::report_subject::Kind as ReportSubjectKind;
-use dokime_protocol::model::value::Kind as ValueKind;
-use dokime_runtime::PluginProcess;
-use dokime_storage::Report;
-use dokime_storage::Store;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
-use prost::Message;
-use prost_reflect::DescriptorPool;
-use prost_reflect::DynamicMessage;
-use prost_reflect::Value as ProstReflectValue;
 use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsString;
 use std::path::Path;
 use std::process::Stdio;
+
+// Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use prost::Message;
+use prost_reflect::DescriptorPool;
+use prost_reflect::DynamicMessage;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
 use tokio::process::Child;
 use tokio::process::Command;
 use tonic::transport::Endpoint;
+
+// Local Imports
+use dokime::Client;
+use dokime::EvidenceScope;
+use dokime::MapValue;
+use dokime::RecordScope;
+use dokime::Value;
+use dokime::client::EvidenceRecordsListOptions;
+use dokime::client::EvidenceSamplesListOptions;
+use dokime::client::EvidenceStatisticsOptions;
+use dokime::client::ExecutionState;
+use dokime::client::ExecutionsProgressWatchOptions;
+use dokime::client::FilesReadOptions;
+use dokime::client::FrozenSchemaCache;
+use dokime::client::PluginPlacement;
+use dokime::client::PluginRemote;
+use dokime::client::PluginValue;
+use dokime::client::ReportState;
+use dokime::client::ReportSubject;
+use dokime::client::ReportsCreateOptions;
+use dokime::client::ResultStatus;
+use dokime::record_scope;
+use dokime_protocol::host::evidence::sample_row;
+use dokime_protocol::host::execution_outcome;
+use dokime_protocol::host::report_subject;
+use dokime_protocol::model::value;
+use dokime_runtime::PluginProcess;
 
 /* === Constants === */
 
@@ -112,7 +110,7 @@ impl HostProcess {
     }
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 impl Drop for HostProcess {
     fn drop(&mut self) {
         if self.child.try_wait().is_ok_and(|status| status.is_some()) {
@@ -166,7 +164,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             .create(
                 "thermal",
                 PluginPlacement {
-                    kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                    kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                 },
                 PluginValue { enabled: true },
             )
@@ -183,7 +181,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             &client,
             suite_id,
             "thermal.cycle",
-            HashMap::from([("limit".into(), vec![Value { kind: Some(ValueKind::Number(85.0)) }])]),
+            HashMap::from([("limit".into(), vec![Value { kind: Some(value::Kind::Number(85.0)) }])]),
         )
         .await?;
         assert_eq!(cases.len(), 1);
@@ -213,23 +211,23 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
         assert_eq!(detail.summary.as_ref().unwrap().state, ExecutionState::Sealed as i32);
         assert!(!detail.seal.is_empty());
         assert!(
-            matches!(detail.outcome.as_ref().unwrap().attribution.as_ref(),Some(ExecutionOutcomeAttribution::Evaluated(outcome)) if outcome.status==ResultStatus::Passed as i32)
+            matches!(detail.outcome.as_ref().unwrap().attribution.as_ref(),Some(execution_outcome::Attribution::Evaluated(outcome)) if outcome.status==ResultStatus::Passed as i32)
         );
         let page = client.executions.list(String::new(), Default::default(), Default::default(), Default::default()).await?;
         assert_eq!(page.executions[0].summary.as_ref(), detail.summary.as_ref());
         let records = client
             .evidence
             .records
-            .list_with(EvidenceRecordScope {
-                    kind: Some(RecordScopeKind::Execution(execution_id.clone())),
-                }, String::new(), EvidenceRecordsListOptions { versions: Some(Vec::new()), between: Some(Default::default()), step: Some(String::new()), selection: Some(Default::default()), ..Default::default() })
+            .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
+                    kind: Some(record_scope::Kind::Execution(execution_id.clone())),
+                }), versions: Some(Vec::new()), between: Some(Default::default()), step: Some(String::new()), selection: Some(Default::default()), ..Default::default() })
             .await?;
         assert!(!records.records.is_empty());
         let mut schema_cache = FrozenSchemaCache::default();
         let frozen = schema_cache.get(&client, &detail).await?;
         let pool = DescriptorPool::from_file_descriptor_set((*frozen).clone())?;
         let door = DynamicMessage::decode(pool.get_message_by_name("thermal.Door").unwrap(), records.records[0].payload.as_slice())?;
-        assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &ProstReflectValue::Bool(true));
+        assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &prost_reflect::Value::Bool(true));
         let samples = client
             .evidence
             .samples
@@ -242,20 +240,20 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             .samples
             .iter()
             .map(|row| match row.kind.as_ref().unwrap() {
-                SampleRowKind::Raw(sample) => sample,
+                sample_row::Kind::Raw(sample) => sample,
                 _ => panic!("Expected Raw Samples"),
             })
             .collect::<Vec<_>>();
         let times = raw.iter().map(|sample| sample.timestamp.map(|at| (at.seconds, at.nanos))).collect::<Vec<_>>();
         assert_eq!(times, [Some((1, 0)), Some((2, 0))], "Sample the Hold at 1 s and 2 s: {raw:?}");
         assert!(raw.iter().all(|sample| !sample.payload.is_empty()));
-        assert!(raw.iter().all(|sample| sample.values.as_ref().unwrap().values["celsius"].kind == Some(ValueKind::Number(84.0))));
+        assert!(raw.iter().all(|sample| sample.values.as_ref().unwrap().values["celsius"].kind == Some(value::Kind::Number(84.0))));
         // Ingestion Settles Before the Seal: the First Statistics Read Counts Every Sample.
         let sealed = EvidenceScope {
             execution_id: Some(execution_id.clone()),
             ..Default::default()
         };
-        let statistics = client.evidence.statistics(sealed, "thermal.temperature", "celsius").await?.statistics.unwrap();
+        let statistics = client.evidence.statistics_with("thermal.temperature", "celsius", EvidenceStatisticsOptions { scope: Some(sealed), ..Default::default() }).await?.statistics.unwrap();
         assert_eq!(statistics.count, raw.len() as u64);
 
         // Prepared Report Metadata Identifies Its Exact Frozen Bytes Without Publishing.
@@ -265,7 +263,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
         let prepared = reports
             .create_with(
                 ReportSubject {
-                    kind: Some(ReportSubjectKind::Execution(execution_id.clone())),
+                    kind: Some(report_subject::Kind::Execution(execution_id.clone())),
                 },
                 String::new(),
                 ReportsCreateOptions {
@@ -275,13 +273,20 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             )
             .await?;
         let file = prepared.file.unwrap();
-        let store = Store::open(root.path())?;
-        let saved: Report = store.administration(&file.metadata.unwrap().id)?.unwrap();
+        let selected = client.files.get(file.clone()).await?;
+        let mut html = Vec::new();
+        while html.len() < file.length as usize {
+            let page = client.files.read_with(file.clone(), html.len() as u64, selected.chunk_bytes,
+                FilesReadOptions { at: selected.resolved_at.clone(), ..Default::default() }).await?;
+            assert_eq!(page.resolved_at, selected.resolved_at);
+            assert!(!page.data.is_empty());
+            html.extend(page.data);
+        }
         use sha2::Digest;
-        assert_eq!(saved.html.len() as u64, file.length);
-        assert_eq!(sha2::Sha256::digest(&saved.html).as_slice(), file.sha256);
-        assert!(std::str::from_utf8(&saved.html)?.contains(&execution_id));
-        assert!(store.reports(&execution_id)?.is_empty());
+        assert_eq!(html.len() as u64, file.length);
+        assert_eq!(sha2::Sha256::digest(&html).as_slice(), file.sha256);
+        assert!(std::str::from_utf8(&html)?.contains(&execution_id));
+        assert_eq!(client.executions.get(execution_id.clone()).await?.execution.unwrap().report.unwrap().state, ReportState::Pending as i32);
 
         // Concurrent Executions Retain Their Own Questions and Record Identities.
         let isolated = super::support::admit(&client, vec![isolation.clone(), isolation]).await?;
@@ -320,15 +325,15 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             let records = client
                 .evidence
                 .records
-                .list_with(EvidenceRecordScope {
-                        kind: Some(RecordScopeKind::Execution(id.clone())),
-                    }, String::new(), EvidenceRecordsListOptions { versions: Some(Vec::new()), between: Some(Default::default()), step: Some(String::new()), selection: Some(Default::default()), ..Default::default() })
+                .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
+                        kind: Some(record_scope::Kind::Execution(id.clone())),
+                    }), versions: Some(Vec::new()), between: Some(Default::default()), step: Some(String::new()), selection: Some(Default::default()), ..Default::default() })
                 .await?;
             assert_eq!(records.records.len(), 1);
             let record = &records.records[0];
             assert_eq!(record.scope.as_ref().unwrap().execution_id.as_deref(), Some(id.as_str()));
             let door = DynamicMessage::decode(pool.get_message_by_name("thermal.Door").unwrap(), record.payload.as_slice())?;
-            assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &ProstReflectValue::Bool(closed));
+            assert_eq!(door.get_field_by_name("closed").unwrap().as_ref(), &prost_reflect::Value::Bool(closed));
             record_ids.push(record.record_id.clone());
             let detail = client.executions.get(id.clone()).await?.execution.unwrap();
             let controls = detail.controls.unwrap();
@@ -347,9 +352,9 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             client
                 .evidence
                 .records
-                .list_with(EvidenceRecordScope {
-                        kind: Some(RecordScopeKind::Execution(execution_id.clone()))
-                    }, String::new(), EvidenceRecordsListOptions { versions: Some(Vec::new()), between: Some(Default::default()), step: Some(String::new()), selection: Some(Default::default()), ..Default::default() })
+                .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
+                        kind: Some(record_scope::Kind::Execution(execution_id.clone()))
+                    }), versions: Some(Vec::new()), between: Some(Default::default()), step: Some(String::new()), selection: Some(Default::default()), ..Default::default() })
                 .await?
                 .records,
             records.records

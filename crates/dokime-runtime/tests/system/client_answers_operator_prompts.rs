@@ -16,8 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::error::Error;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use tonic::Code;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
@@ -25,10 +30,10 @@ use dokime::Client;
 use dokime::MapValue;
 use dokime::Metadata;
 use dokime::client::CyclesCreateOptions;
+use dokime::client::ExecutionCommandAction;
+use dokime::client::ExecutionCommandPhase;
 use dokime::client::ExecutionMode;
 use dokime::client::ExecutionsCommandsCreateOptions;
-use dokime::client::ExecutionsExecutionCommandAction;
-use dokime::client::ExecutionsExecutionCommandPhase;
 use dokime::client::ExecutionsProgressWatchOptions;
 use dokime::client::ExecutionsStartOptions;
 use dokime::client::ExecutionsStopOptions;
@@ -38,13 +43,8 @@ use dokime::client::PluginValue;
 use dokime::client::PromptsAnswersCreateOptions;
 use dokime::client::PromptsListOptions;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::model::origin;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
-use std::collections::HashMap;
-use std::error::Error;
-use tonic::Code;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -87,7 +87,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                 .create(
                     "thermal",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -102,7 +102,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
             assert_eq!(definitions.get("missing", String::new(), Default::default()).await.unwrap_err().code(), Code::NotFound);
             let cases = super::support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
             let mut repeated_origin = cases[0].origin.clone().unwrap();
-            if let Some(OriginKind::PluginRun(run)) = repeated_origin.kind.as_mut() {
+            if let Some(origin::Kind::PluginRun(run)) = repeated_origin.kind.as_mut() {
                 run.test_case.as_mut().unwrap().steps[1].repeatable = true;
             }
             let cycle = super::support::admit(&client, cases).await?;
@@ -261,7 +261,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                     .create_with(
                         repeated.clone(),
                         command,
-                        ExecutionsExecutionCommandAction::try_from(ExecutionsExecutionCommandAction::RunStep as i32)?,
+                        ExecutionCommandAction::try_from(ExecutionCommandAction::RunStep as i32)?,
                         ExecutionsCommandsCreateOptions {
                             request_id: Some(command.into()),
                             step_id: Some("hold".into()),
@@ -281,7 +281,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                 questions.push(question);
                 loop {
                     let saved = commands.get(command, repeated.clone()).await?.command.unwrap();
-                    if saved.phase == ExecutionsExecutionCommandPhase::Completed as i32 {
+                    if saved.phase == ExecutionCommandPhase::Completed as i32 {
                         break;
                     }
                     runtime.next().await?.unwrap();

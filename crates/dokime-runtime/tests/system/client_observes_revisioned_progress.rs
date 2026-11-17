@@ -16,8 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::error::Error;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use harmos_protocol::model::ReadCut;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
@@ -34,11 +39,6 @@ use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
 use dokime_protocol::host::executions::ProgressGetRequest;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
-use harmos_protocol::model::ReadCut;
-use std::collections::HashMap;
-use std::error::Error;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -79,7 +79,7 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 .create(
                     "content",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -136,8 +136,15 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                     break;
                 }
             }
-            let first =
-                client.executions.progress.get_with(name.clone(), ExecutionsProgressGetOptions { at: None, ..Default::default() }).await?;
+            let first = client
+                .executions
+                .progress
+                .get_with(ExecutionsProgressGetOptions {
+                    name: Some(name.clone()),
+                    at: None,
+                    ..Default::default()
+                })
+                .await?;
             assert_eq!(first.value.as_ref().unwrap().completed, 1);
             let prompt = host.prompts.list(name.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
             host.prompts.answers.create(prompt, "continue", MapValue::default(), true).await?;
@@ -148,8 +155,15 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
             assert!(finished);
 
             // Whole-Value Replacement Clears Fields and Execution Detail Agrees
-            let current =
-                client.executions.progress.get_with(name.clone(), ExecutionsProgressGetOptions { at: None, ..Default::default() }).await?;
+            let current = client
+                .executions
+                .progress
+                .get_with(ExecutionsProgressGetOptions {
+                    name: Some(name.clone()),
+                    at: None,
+                    ..Default::default()
+                })
+                .await?;
             assert_eq!(current.value.as_ref().unwrap().completed, 2);
             assert!(current.value.as_ref().unwrap().label.is_empty());
             assert_ne!(current.revision, first.revision);
@@ -170,13 +184,11 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 client
                     .executions
                     .progress
-                    .get_with(
-                        ((pinned.clone()).name).unwrap_or_default(),
-                        ExecutionsProgressGetOptions {
-                            at: (pinned.clone()).at,
-                            ..Default::default()
-                        }
-                    )
+                    .get_with(ExecutionsProgressGetOptions {
+                        name: Some(((pinned.clone()).name).unwrap_or_default()),
+                        at: (pinned.clone()).at,
+                        ..Default::default()
+                    })
                     .await?,
                 first
             );
@@ -186,13 +198,11 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 client
                     .executions
                     .progress
-                    .get_with(
-                        ((unavailable.clone()).name).unwrap_or_default(),
-                        ExecutionsProgressGetOptions {
-                            at: (unavailable.clone()).at,
-                            ..Default::default()
-                        }
-                    )
+                    .get_with(ExecutionsProgressGetOptions {
+                        name: Some(((unavailable.clone()).name).unwrap_or_default()),
+                        at: (unavailable.clone()).at,
+                        ..Default::default()
+                    })
                     .await
                     .is_err()
             );
@@ -206,13 +216,11 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 client
                     .executions
                     .progress
-                    .get_with(
-                        ((pinned.clone()).name).unwrap_or_default(),
-                        ExecutionsProgressGetOptions {
-                            at: (pinned.clone()).at,
-                            ..Default::default()
-                        }
-                    )
+                    .get_with(ExecutionsProgressGetOptions {
+                        name: Some(((pinned.clone()).name).unwrap_or_default()),
+                        at: (pinned.clone()).at,
+                        ..Default::default()
+                    })
                     .await?,
                 first
             );

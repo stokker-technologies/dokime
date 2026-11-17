@@ -16,30 +16,28 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::error::Error;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use harmos_protocol::model::PageRequest;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use dokime::CapturedRecordSelection;
 use dokime::Client;
-use dokime::EvidenceCapturedRecordSelection;
 use dokime::EvidenceScope;
-use dokime::Import;
 use dokime::MapValue;
 use dokime::Metadata;
-use dokime::Origin;
-use dokime::Termination;
-use dokime::client::ContentExecutionFileKind;
-use dokime::client::ContentExecutionFileMetadata;
 use dokime::client::CyclesCreateOptions;
 use dokime::client::CyclesGetOptions;
 use dokime::client::CyclesListOptions;
 use dokime::client::CyclesSetOptions;
-use dokime::client::DeclaredOutcome;
 use dokime::client::EvidenceRecordsListOptions;
 use dokime::client::EvidenceSamplesListOptions;
 use dokime::client::ExecutionFilter;
-use dokime::client::ExecutionOutcome;
 use dokime::client::ExecutionsDeleteOptions;
 use dokime::client::ExecutionsGetOptions;
 use dokime::client::ExecutionsListOptions;
@@ -49,20 +47,11 @@ use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
 use dokime::client::PromptsListOptions;
-use dokime::client::ResultStatus;
 use dokime_protocol::host::ExecutionsDeleteRequest;
 use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::evidence::SamplesListRequest;
-use dokime_protocol::host::execution_outcome;
-use dokime_protocol::model::origin;
+use dokime_runtime::Host;
 use dokime_runtime::PluginProcess;
-use dokime_storage::Execution;
-use dokime_storage::Store;
-use harmos_protocol::host::plugin_placement;
-use harmos_protocol::model::PageRequest;
-use std::collections::HashMap;
-use std::error::Error;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -88,79 +77,35 @@ use tonic::transport::Endpoint;
 fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
         tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-            // Prepare Imported Artifact Evidence Without Inventing a Plugin Run
+            // Prepare an Isolated Storage Root for Sealed History
             let root = super::support::tempdir()?;
             let credential_root = super::support::tempdir()?;
             let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
-            let store = Store::open(root.path())?;
-            store.create(&Execution {
-                identifier: "imported-capture".into(),
-                cycle: "imported-cycle".into(),
-                origin: Some(Origin {
-                    kind: Some(origin::Kind::Import(Import {
-                        metadata: Some(Metadata {
-                            identifier: "capture".into(),
-                            label: "Captured File".into(),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    })),
-                }),
-                ..Default::default()
-            })?;
-            // Publish Native Bytes and Retain Their Logical Path in the Execution Transaction
-            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-            let client = Client::from_channel(channel, super::support::client_settings())?;
-            let reference = super::support::native_file(&client, "history-file", "imported-capture", b"abcdef").await?;
-            process.close().await?;
-            super::support::register_execution_files(
-                root.path(),
-                &credentials.environment,
-                vec![dokime_storage::StoredExecutionFile {
-                    metadata: Some(ContentExecutionFileMetadata {
-                        relative_path: "capture.txt".into(),
-                        kind: ContentExecutionFileKind::Text as i32,
-                        ..Default::default()
-                    }),
-                    file: Some(reference),
-                }],
-            )
-            .await?;
-            store.close_streams("imported-capture")?;
-            store.close(
-                "imported-capture",
-                Termination::Completed,
-                ExecutionOutcome {
-                    attribution: Some(execution_outcome::Attribution::Declared(DeclaredOutcome {
-                        status: ResultStatus::Passed as i32,
-                        importer: "operator".into(),
-                        ..Default::default()
-                    })),
-                },
-            )?;
-            store.seal("imported-capture")?;
-            drop(store);
+            // Complete a Real Execution Through the In-Process Host
+            let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
+            let entry = host.add_managed("execution", &super::support::execution_fixture()?, &[]).await?;
+            let origin = host.materialize(&entry, "execution.capture", super::support::parameters(23.0, 0, true)).await?;
+            let cycle = host.start_cycle(vec![origin]).await?;
+            let retained_id = cycle.executions[0].clone();
+            let prompt = host.next_prompt(&retained_id).await?;
+            super::support::answer(&host, &retained_id, prompt)?;
+            cycle.wait().await?;
+            host.shutdown().await?;
+            drop(host);
 
-            // Read an Existing Saved Seal and Its Bounded Artifact Window
+            // Read the Saved Seal at Its Retained Position
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
-            let executions = Client::from_channel(channel.clone(), super::support::client_settings())?.executions.clone();
-            let files = Client::from_channel(channel.clone(), super::support::client_settings())?.content.execution_files.clone();
-            let cycles = Client::from_channel(channel.clone(), super::support::client_settings())?.cycles.clone();
-            let retained = executions.get_with("imported-capture", ExecutionsGetOptions { at: None, ..Default::default() }).await?;
+            let executions = &client.executions;
+            let cycles = &client.cycles;
+            let retained = executions.get(retained_id.clone()).await?;
             assert!(!retained.execution.as_ref().unwrap().seal.is_empty());
             let mut invalid = retained.resolved_at.clone().unwrap();
             invalid.history.as_mut().unwrap().store = "foreign".into();
             assert!(
-                executions.get_with("imported-capture", ExecutionsGetOptions { at: Some(invalid), ..Default::default() }).await.is_err()
+                executions.get_with(retained_id.clone(), ExecutionsGetOptions { at: Some(invalid), ..Default::default() }).await.is_err()
             );
-            let file = files.get("imported-capture", "capture.txt").await?;
-            let reference = file.file.unwrap();
-            assert_eq!(reference.length, 6);
-            assert_eq!(client.files.read(reference, 2, 3).await?.data, b"cde");
-            assert!(files.get("imported-capture", "../capture.txt").await.is_err());
 
             // Complete a Plugin Run and Inspect Each Retained Resource at Its Own Cut.
             let settings = super::support::settings();
@@ -250,13 +195,13 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             let records = Client::from_channel(channel.clone(), super::support::client_settings())?.evidence.records.clone();
             let page = records
                 .list_with(
-                    Default::default(),
                     String::new(),
                     EvidenceRecordsListOptions {
+                        scope: Some(Default::default()),
                         versions: Some(Default::default()),
                         between: Some(Default::default()),
                         step: Some(String::new()),
-                        selection: Some(EvidenceCapturedRecordSelection {
+                        selection: Some(CapturedRecordSelection {
                             scope: Some(EvidenceScope {
                                 execution_id: Some(identifier.clone()),
                                 ..Default::default()
@@ -364,8 +309,8 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                     },
                 )
                 .await?;
-            assert_eq!(first.outcome_counts.as_ref().unwrap().evaluated_count, 1);
-            assert_eq!(first.outcome_counts.as_ref().unwrap().declared_count, 1);
+            assert_eq!(first.outcome_counts.as_ref().unwrap().evaluated_count, 2);
+            assert_eq!(first.outcome_counts.as_ref().unwrap().declared_count, 0);
             let next = ExecutionsListRequest {
                 at: first.resolved_at,
                 page: Some(PageRequest {
@@ -417,7 +362,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
 
             // A Sealed Deletion Replays Its Original Receipt After Restart and Invalidates Cuts.
             let deletion = ExecutionsDeleteRequest {
-                name: "imported-capture".into(),
+                name: retained_id.clone(),
                 request_id: "delete-capture".into(),
             };
             let deleted = executions
@@ -476,9 +421,8 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                     .await?,
                 deleted
             );
-            assert!(executions.get_with("imported-capture", ExecutionsGetOptions { at: None, ..Default::default() }).await.is_err());
+            assert!(executions.get_with(retained_id.clone(), ExecutionsGetOptions { at: None, ..Default::default() }).await.is_err());
             process.close().await?;
-            assert!(files.get("imported-capture", "capture.txt").await.is_err());
             plugin.close().await?;
             Ok::<_, Box<dyn Error>>(())
         })

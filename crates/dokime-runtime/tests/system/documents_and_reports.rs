@@ -16,18 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 
 // Local Imports
 use dokime::Document;
 use dokime::FieldReference;
-use dokime::Section;
+use dokime::model::Section;
 use dokime_protocol::builders::Plot;
 use dokime_runtime::Host;
 use dokime_runtime::RenderSettings;
-use std::error::Error;
-use std::num::NonZeroUsize;
 
 /* === Constants === */
 
