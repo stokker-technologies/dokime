@@ -117,6 +117,11 @@ product execution ledger. Do not add a mirror notification path.
 
 - [ ] 10.1 Replace product storage notifications in every `watch.rs` under `crates/dokime-operations/src/host` with `WatchRows`, projecting product responses and handling resynchronization at issued cuts. Prove with stories `client_observes_revisioned_progress`, `client_observes_revisioned_traceability`, `client_browses_execution_evidence`, `client_observes_runtime_state` and `client_transfers_execution_content`.
 
+- [x] 10.2 Move the independent native-object note lists and watches to issued Harmos
+  cuts and `WatchRows`, deleting their retained-view file and notification dependencies.
+  Preserve owner/open-owner policy until the lifecycle cutover. Prove a watch opened
+  after an edit replays it from the earlier issued cut with `client_keeps_execution_notes`.
+
 ## 11. Delete Direct Store Consumers
 
 - [ ] 11.1 Delete the `Store` facade, telemetry reader and query entry points and every remaining consumer path so `crates/dokime-storage` holds only the backend implementation and product persisted shapes; migrate or remove tests whose code is gone. Accept when no crate outside the backend registration imports storage internals; prove with `mise run build -- --package dokime-storage --check` and `mise run test -- --package dokime-storage --target integration`.
