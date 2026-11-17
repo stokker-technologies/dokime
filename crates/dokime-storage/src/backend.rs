@@ -32,9 +32,11 @@ use std::{
     num::NonZeroUsize,
     path::Path,
     sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 // Third Party Imports
+use harmos_query::columnar;
 use harmos_query::columnar::ArrowPage;
 use harmos_query::columnar::ArrowScan;
 use harmos_query::columnar::Cancellation;
@@ -50,6 +52,7 @@ use harmos_storage::SchemaWrite;
 use harmos_storage::SchemaWriteReceipt;
 use harmos_storage::StorageBackends;
 use harmos_storage::StorageWork;
+use harmos_storage::execution::Execution;
 use harmos_storage::query::columnar::StorageCapabilities;
 use harmos_storage::query::projection::ProjectionDefinition;
 use harmos_storage::query::projection::ProjectionPage;
@@ -64,8 +67,9 @@ use harmos_storage::{
     ObjectPoint, ReadLimits, Result, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture,
     StorageSchema, StoreHistory, StoredIdentity, StoredRecord, StoredRow,
 };
-use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
-use tokio::sync;
+use rusqlite::{Connection, ErrorCode, OpenFlags, OptionalExtension, Row, TransactionBehavior, params};
+use serde::{Serialize, de::DeserializeOwned};
+use tokio::{sync, task};
 
 // Local Imports
 
@@ -117,6 +121,7 @@ struct State {
     history: StoreHistory,
     settings: BackendSettings,
     catalog: ObjectCatalog,
+    clock: Execution,
     closed: bool,
     recovery_closed: bool,
     work: Cell<StorageWork>,
@@ -140,6 +145,12 @@ impl Backend {
     }
 
     pub fn open(store: &crate::Store, catalog: ObjectCatalog) -> crate::Result<(StorageBackends, BackendLease)> {
+        Self::open_with_execution(store, catalog, Execution::default())
+    }
+
+    pub fn open_with_execution(
+        store: &crate::Store, catalog: ObjectCatalog, clock: Execution,
+    ) -> crate::Result<(StorageBackends, BackendLease)> {
         let history = store.storage_history()?;
         let history = StoreHistory {
             store: Identifier::new(history.store).map_err(|source| Error::backend("Open Root History", BackendFailure::Corrupt, source))?,
@@ -154,8 +165,12 @@ impl Backend {
                 chunk_bytes: settings.pending_bytes,
             },
         )?;
-        primary.state.try_lock().map_err(|source| Error::backend("Register Object Catalog", BackendFailure::Conflict, source))?.catalog =
-            catalog;
+        {
+            let mut state =
+                primary.state.try_lock().map_err(|source| Error::backend("Register Object Catalog", BackendFailure::Conflict, source))?;
+            state.catalog = catalog;
+            state.clock = clock;
+        }
         let state = recovery::RecoveryBackend(primary.clone());
         let lease = BackendLease(
             primary
@@ -224,7 +239,7 @@ impl Backend {
             CREATE INDEX IF NOT EXISTS storage_file_scope ON storage_files(scope,id);
             CREATE TABLE IF NOT EXISTS storage_file_chunks(id TEXT NOT NULL REFERENCES storage_files(id), offset INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY(id,offset));
             CREATE TABLE IF NOT EXISTS storage_file_sessions(id TEXT PRIMARY KEY REFERENCES storage_files(id), generation INTEGER NOT NULL, abandoned INTEGER NOT NULL, checkpoint BLOB);
-            CREATE TABLE IF NOT EXISTS storage_mutations(id TEXT PRIMARY KEY, data BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS storage_mutations(id TEXT PRIMARY KEY, data BLOB NOT NULL, expires_at_s INTEGER NOT NULL, expires_at_ns INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS storage_object_deletions(position INTEGER PRIMARY KEY,schema_id TEXT NOT NULL,item TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS storage_object_deletion_key ON storage_object_deletions(schema_id,item,position);
             CREATE TABLE IF NOT EXISTS storage_row_deletions(position INTEGER PRIMARY KEY,deleted_at INTEGER NOT NULL);
@@ -248,6 +263,32 @@ impl Backend {
             CREATE TABLE IF NOT EXISTS storage_object_gaps(position INTEGER PRIMARY KEY,schema_key TEXT NOT NULL,schema_id TEXT NOT NULL,item TEXT NOT NULL,scope TEXT);
             CREATE INDEX IF NOT EXISTS storage_object_gap_selection ON storage_object_gaps(schema_key,item,position);
             CREATE TABLE IF NOT EXISTS object_releases(schema_key TEXT NOT NULL, item TEXT NOT NULL, through INTEGER NOT NULL, PRIMARY KEY(schema_key,item));").map_err(db)?;
+        // Backfill Existing Receipt Tables Once Without Replacing Their Data.
+        let indexed_expiry: bool = tx
+            .query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('storage_mutations') WHERE name='expires_at_s')", [], |row| {
+                row.get(0)
+            })
+            .map_err(db)?;
+        if !indexed_expiry {
+            tx.execute_batch(
+                "ALTER TABLE storage_mutations ADD COLUMN expires_at_s INTEGER;
+                ALTER TABLE storage_mutations ADD COLUMN expires_at_ns INTEGER;",
+            )
+            .map_err(db)?;
+            let mut query = tx.prepare("SELECT id,data FROM storage_mutations").map_err(db)?;
+            let mut rows = query.query([]).map_err(db)?;
+            while let Some(row) = rows.next().map_err(db)? {
+                let id: String = row.get(0).map_err(db)?;
+                let data: Vec<u8> = row.get(1).map_err(db)?;
+                let receipt: MutationReceipt = decode(&data)?;
+                let (seconds, nanos) = expiry(receipt.expires_at)?;
+                tx.execute("UPDATE storage_mutations SET expires_at_s=?2,expires_at_ns=?3 WHERE id=?1", params![id, seconds, nanos])
+                    .map_err(db)?;
+            }
+        }
+        tx.execute_batch("CREATE INDEX IF NOT EXISTS storage_mutation_expiry ON storage_mutations(expires_at_s DESC,expires_at_ns DESC);")
+            .map_err(db)?;
+
         let encoded = text(&history)?;
         let stored: Option<String> =
             tx.query_row("SELECT value FROM storage_meta WHERE name='history'", [], |row| row.get(0)).optional().map_err(db)?;
@@ -267,6 +308,7 @@ impl Backend {
                 history,
                 settings,
                 catalog: ObjectCatalog::new(),
+                clock: Execution::default(),
                 closed: false,
                 recovery_closed: false,
                 work: Cell::default(),
@@ -276,7 +318,7 @@ impl Backend {
 
     async fn call<T: Send + 'static>(&self, action: impl FnOnce(&mut State) -> Result<T> + Send + 'static) -> Result<T> {
         let mut state = self.state.clone().lock_owned().await;
-        tokio::task::spawn_blocking(move || action(&mut state))
+        task::spawn_blocking(move || action(&mut state))
             .await
             .map_err(|source| Error::backend("SQLite worker", BackendFailure::Permanent, source))?
     }
@@ -686,7 +728,7 @@ impl StorageBackend for Backend {
                 if prior.as_ref().is_some_and(|prior| prior != &bytes) {
                     return Err(conflict("mutation receipt differs"));
                 }
-                tx.execute("INSERT OR IGNORE INTO storage_mutations VALUES(?1,?2)", params![id, bytes]).map_err(db)?;
+                save_mutation_receipt(&tx, receipt)?;
             }
             tx.commit().map_err(db)
         }))
@@ -694,15 +736,22 @@ impl StorageBackend for Backend {
     fn list_mutation_receipts(&self, limits: ReadLimits) -> StorageFuture<'_, Vec<MutationReceipt>> {
         Box::pin(self.call(move |state| {
             state.check()?;
-            let mut query = state.connection.prepare("SELECT data FROM storage_mutations ORDER BY id").map_err(db)?;
-            let mut rows = query.query([]).map_err(db)?;
+            prune_mutation_receipts(&state.connection, state.clock.date())?;
+            let mut query = state
+                .connection
+                .prepare("SELECT data FROM storage_mutations ORDER BY expires_at_s DESC,expires_at_ns DESC LIMIT ?1")
+                .map_err(db)?;
+            let mut rows = query.query([integer(limits.rows.get() as u64)?]).map_err(db)?;
             let mut output = Vec::new();
-            let mut bytes = 0;
+            let mut bytes = size_of::<Vec<MutationReceipt>>();
             while let Some(row) = rows.next().map_err(db)? {
                 let data: Vec<u8> = row.get(0).map_err(db)?;
-                bytes += data.len();
-                limits.check(output.len() + 1, bytes)?;
-                output.push(decode(&data)?);
+                let receipt: MutationReceipt = decode(&data)?;
+                bytes = bytes.saturating_add(receipt.memory_size());
+                if bytes > limits.bytes.get() {
+                    break;
+                }
+                output.push(receipt);
             }
             Ok(output)
         }))
@@ -713,6 +762,30 @@ impl StorageBackend for Backend {
 
 /* === Private Functions === */
 
+fn expiry(date: SystemTime) -> Result<(i64, u32)> {
+    let elapsed = date
+        .duration_since(UNIX_EPOCH)
+        .map_err(|source| Error::backend("Read Receipt Expiry: Use a Date After the Unix Epoch", BackendFailure::Permanent, source))?;
+    Ok((integer(elapsed.as_secs())?, elapsed.subsec_nanos()))
+}
+
+fn save_mutation_receipt(connection: &Connection, receipt: &MutationReceipt) -> Result<()> {
+    let (seconds, nanos) = expiry(receipt.expires_at)?;
+    connection
+        .execute(
+            "INSERT OR IGNORE INTO storage_mutations(id,data,expires_at_s,expires_at_ns) VALUES(?1,?2,?3,?4)",
+            params![text(&receipt.mutation)?, encode(receipt)?, seconds, nanos],
+        )
+        .map_err(db)?;
+    Ok(())
+}
+
+fn prune_mutation_receipts(connection: &Connection, now: SystemTime) -> Result<()> {
+    let (seconds, nanos) = expiry(now)?;
+    connection.execute("DELETE FROM storage_mutations WHERE (expires_at_s,expires_at_ns)<=(?1,?2)", params![seconds, nanos]).map_err(db)?;
+    Ok(())
+}
+
 fn meta(connection: &Connection, name: &str) -> Result<u64> {
     let value: String = connection.query_row("SELECT value FROM storage_meta WHERE name=?1", [name], |row| row.get(0)).map_err(db)?;
     value.parse().map_err(|_| incompatible())
@@ -721,24 +794,24 @@ fn set_meta(connection: &Connection, name: &str, value: u64) -> Result<()> {
     connection.execute("UPDATE storage_meta SET value=?1 WHERE name=?2", params![value.to_string(), name]).map_err(db)?;
     Ok(())
 }
-fn unsigned(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<u64> {
+fn unsigned(row: &Row<'_>, index: usize) -> rusqlite::Result<u64> {
     let value = row.get::<_, i64>(index)?;
     u64::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(index, value))
 }
-fn size(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<usize> {
+fn size(row: &Row<'_>, index: usize) -> rusqlite::Result<usize> {
     let value = row.get::<_, i64>(index)?;
     usize::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(index, value))
 }
 fn integer(value: u64) -> Result<i64> {
     value.try_into().map_err(|_| invalid("value exceeds SQLite signed integer range"))
 }
-fn encode<T: serde::Serialize>(value: &T) -> Result<Vec<u8>> {
+fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     serde_json::to_vec(value).map_err(|source| Error::backend("encode SQLite value", BackendFailure::Permanent, source))
 }
-fn text<T: serde::Serialize>(value: &T) -> Result<String> {
+fn text<T: Serialize>(value: &T) -> Result<String> {
     serde_json::to_string(value).map_err(|source| Error::backend("encode SQLite key", BackendFailure::Permanent, source))
 }
-fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T> {
     serde_json::from_slice(bytes).map_err(|source| {
         Error::backend("decode SQLite value; back up the original data and reset explicitly", BackendFailure::Corrupt, source)
     })
@@ -780,9 +853,9 @@ fn validate_format(connection: &Connection) -> Result<()> {
 }
 fn db(source: rusqlite::Error) -> Error {
     let kind = match source.sqlite_error_code() {
-        Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked) => BackendFailure::Transient,
-        Some(rusqlite::ErrorCode::DatabaseCorrupt | rusqlite::ErrorCode::NotADatabase) => BackendFailure::Corrupt,
-        Some(rusqlite::ErrorCode::ConstraintViolation) => BackendFailure::Conflict,
+        Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked) => BackendFailure::Transient,
+        Some(ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase) => BackendFailure::Corrupt,
+        Some(ErrorCode::ConstraintViolation) => BackendFailure::Conflict,
         _ => BackendFailure::Permanent,
     };
     Error::backend(
@@ -797,7 +870,7 @@ fn db(source: rusqlite::Error) -> Error {
 }
 
 fn exhausted() -> Error {
-    harmos_query::columnar::exhausted().into()
+    columnar::exhausted().into()
 }
 
 /* === Tests === */

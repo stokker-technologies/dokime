@@ -19,42 +19,29 @@ mod receipt_history_reopens;
 
 // Standard Library Imports
 use std::fs;
-use std::io::{self, Read};
-use std::num::{NonZeroU32, NonZeroU64, NonZeroUsize};
+use std::io::Read;
+use std::num::{NonZeroU32, NonZeroUsize};
 use std::sync::Arc;
 use std::{error, result, time::Duration};
 
 // Third Party Imports
-use arrow_array::{Array, ArrayRef, BinaryArray, Float64Array, Int64Array, RecordBatch, StringArray, UInt64Array};
+use arrow_array::UInt64Array;
 use harmos_domain::config::SchemaSettings;
 use harmos_domain::journal::Position;
-use harmos_domain::model::storage::query::transform::statistics::BucketSummary;
 use harmos_domain::schema::{Described, graph::Schema};
 use harmos_domain::{Identified, Message};
-use harmos_query::arrow::ArrowBatch;
 use harmos_query::columnar::{ArrowScan, Cancellation, ColumnKind, ColumnSource};
 use harmos_query::index::{IndexDefinition, IndexRead};
-use harmos_query::source;
-use harmos_query::transform::{FieldPath, Transform, TransformExecution};
 use harmos_storage::conformance::{self, CompoundFixture, ScopeFixture};
 use harmos_storage::query::projection::{ProjectionDefinition, ProjectionRead, ProjectionTransform, advance_projection};
 use harmos_storage::query::{ObjectSelection, ObjectVersions, StreamSelection};
 use harmos_storage::state::{RecoveryEntry, RecoverySnapshot, SnapshotPayload};
-use harmos_storage::writes::DecodedBatch;
-use harmos_storage::{
-    BackendFailure, CompareExchange, Error, IdentityKind, IdentitySelection, MutationId, MutationItem, ObjectEntry, ObjectExchange,
-    ObjectKey, ObjectValue, ObjectVersionToken, RecordInput, StorageFilesystemSettings, StoragePolicy, StorageRequestSettings,
-    StorageResponseSettings, StorageSettings, StoredIdentity, StreamInput,
-};
 use harmos_storage::{
     FileChunk, FileMetadata, Identifier, ObjectPoint, ObjectVersion, PayloadEncoding, ReadLimits, RecoveryPosition, ScanPage, SchemaKey,
     StorageBatch, StorageCursor, StorageSchema, StoreHistory, StoredRecord, StoredRow,
 };
 use harmos_storage::{ObjectCatalog, ObjectDefinition, ObjectRetention, StoredObject};
 use harmos_storage::{StorageFuture, StorageManager, WorkerOwner};
-use rusqlite::Connection;
-use sha2::{Digest, Sha256};
-use tokio::{sync::Mutex, task::JoinHandle};
 
 // Local Imports
 use dokime_storage::persisted::{self, Administration, Case, Plan, Scope};
@@ -68,7 +55,7 @@ use dokime_storage::{Backend, Store};
 type StoryResult<T = ()> = Result<T, Box<dyn error::Error>>;
 
 /* === Structs === */
-#[derive(Message, Clone, Debug, PartialEq)]
+#[derive(harmos_domain::Message, Clone, Debug, PartialEq)]
 struct Reading {
     value: u64,
     label: String,
@@ -78,14 +65,14 @@ struct Reading {
     fraction: f32,
     bytes: Vec<u8>,
 }
-#[derive(Message, Clone, Debug, PartialEq)]
+#[derive(harmos_domain::Message, Clone, Debug, PartialEq)]
 struct Details {
     enabled: bool,
     value: Option<u64>,
 }
 
 /* === Enums === */
-#[derive(Message, Clone, Debug, PartialEq)]
+#[derive(harmos_domain::Message, Clone, Debug, PartialEq)]
 enum Choice {
     Empty,
     Value(Details),
@@ -107,13 +94,15 @@ impl StoredObject for Reading {
     }
 }
 
-struct StorageWorker(Mutex<Option<JoinHandle<harmos_storage::Result<()>>>>);
+struct StorageWorker(tokio::sync::Mutex<Option<tokio::task::JoinHandle<harmos_storage::Result<()>>>>);
 
 impl WorkerOwner for StorageWorker {
     fn stop(&self) -> StorageFuture<'_, ()> {
         Box::pin(async move {
             if let Some(task) = self.0.lock().await.take() {
-                task.await.map_err(|source| Error::backend("Join Backend Conformance Worker", BackendFailure::Permanent, source))??;
+                task.await.map_err(|source| {
+                    harmos_storage::Error::backend("Join Backend Conformance Worker", harmos_storage::BackendFailure::Permanent, source)
+                })??;
             }
             Ok(())
         })
@@ -251,6 +240,10 @@ fn limits() -> ReadLimits {
 
 #[test]
 fn library_bucket_continuation_coarsens_a_stored_envelope() -> StoryResult {
+    use arrow_array::{Array, ArrayRef, BinaryArray, Float64Array, Int64Array, RecordBatch, UInt64Array};
+    use harmos_domain::model::storage::query::transform::statistics::BucketSummary;
+    use harmos_query::transform::{FieldPath, Transform, TransformExecution};
+    use std::num::NonZeroU64;
     let samples = RecordBatch::try_from_iter([
         ("time", Arc::new(Int64Array::from(vec![0, 1, 2, 3])) as ArrayRef),
         ("position", Arc::new(UInt64Array::from(vec![1, 2, 3, 4])) as ArrayRef),
@@ -289,6 +282,10 @@ fn library_bucket_continuation_coarsens_a_stored_envelope() -> StoryResult {
 
 #[tokio::test]
 async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> StoryResult {
+    use harmos_storage::{
+        MutationId, MutationItem, ObjectVersionToken, RecordInput, StorageFilesystemSettings, StoragePolicy, StorageRequestSettings,
+        StorageResponseSettings, StorageSettings, StreamInput,
+    };
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let catalog = ObjectCatalog::new().entry(ObjectDefinition::of::<Reading>()).extend(persisted::catalog());
@@ -326,7 +323,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
                 worker.run().await?;
                 worker.cleanup().await
             });
-            Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
+            Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
         })
         .await?;
 
@@ -371,10 +368,10 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     let opening = StorageCursor { sequence: 0, ..created.position.clone() };
     let frontier = storage.watch_frontier(&opening, &partial).await?;
     assert!(frontier.sequence < partial.sequence);
-    let Err(Error::Persistence { source }) = storage.snapshot(&partial).await else {
+    let Err(harmos_storage::Error::Persistence { source }) = storage.snapshot(&partial).await else {
         panic!("Partial Compound Cut Must Be Refused");
     };
-    assert!(matches!(source.as_ref(), Error::InvalidInput { .. }));
+    assert!(matches!(source.as_ref(), harmos_storage::Error::InvalidInput { .. }));
 
     let refused_identity = MutationId {
         window: identity.window.clone(),
@@ -419,7 +416,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     }
     storage.append_samples(mixed).await?;
     storage.flush().await?;
-    let connection = Connection::open(root.path().join("storage.sqlite3"))?;
+    let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
     let deleted_chunks = {
         let mut query = connection.prepare(
             "SELECT file FROM arrow_chunks c WHERE EXISTS(SELECT 1 FROM storage_rows r
@@ -509,14 +506,20 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     .await?;
     let sample_scope = Identifier::new("columnar-execution")?;
     let frozen = storage.lookup_schema(&first.schema).await?;
-    let sample_columns = DecodedBatch {
+    let sample_columns = harmos_storage::writes::DecodedBatch {
         destination: Identifier::new("readings")?,
         schema: first.schema.clone(),
-        data: ArrowBatch::try_new(source::stream(&frozen, &rows(&frozen, 1, 5, sample_scope.as_str())?)?)?,
+        data: harmos_query::arrow::ArrowBatch::try_new(harmos_query::source::stream(
+            &frozen,
+            &rows(&frozen, 1, 5, sample_scope.as_str())?,
+        )?)?,
     };
     let (sample_mutation, sample_frontier) = conformance::columnar_appends(&storage, &sample_scope, &sample_columns).await?;
-    let oversized = DecodedBatch {
-        data: ArrowBatch::try_new(source::stream(&frozen, &rows(&frozen, 1, 32_768, sample_scope.as_str())?)?)?,
+    let oversized = harmos_storage::writes::DecodedBatch {
+        data: harmos_query::arrow::ArrowBatch::try_new(harmos_query::source::stream(
+            &frozen,
+            &rows(&frozen, 1, 32_768, sample_scope.as_str())?,
+        )?)?,
         ..sample_columns.clone()
     };
     conformance::columnar_admission_bounds(&storage, &sample_scope, &oversized).await?;
@@ -524,7 +527,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
 
     let settings = storage.settings().clone();
     storage.close().await?;
-    let connection = Connection::open(root.path().join("storage.sqlite3"))?;
+    let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
     let chunks: i64 = connection.query_row("SELECT count(*) FROM storage_file_chunks WHERE id='scoped-file'", [], |row| row.get(0))?;
     assert_eq!(chunks, 0);
     for file in deleted_chunks {
@@ -540,7 +543,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
                 worker.run().await?;
                 worker.cleanup().await
             });
-            Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
+            Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
         })
         .await?;
     conformance::columnar_reopened(&storage, &sample_scope, &sample_columns, &sample_mutation, &sample_frontier).await?;
@@ -569,7 +572,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     };
     loop {
         let page = current.list_column_rows(&sample_scan, &Cancellation::default()).await?;
-        let scopes = page.batch.column_by_name("_storage.scope").unwrap().as_any().downcast_ref::<StringArray>().unwrap();
+        let scopes = page.batch.column_by_name("_storage.scope").unwrap().as_any().downcast_ref::<arrow_array::StringArray>().unwrap();
         assert!(!scopes.iter().flatten().any(|scope| scope == sample_scope.as_str()));
         if page.complete {
             break;
@@ -662,7 +665,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
                 worker.run().await?;
                 worker.cleanup().await
             });
-            Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
+            Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
         })
         .await?;
     let mut retained = retained;
@@ -783,7 +786,7 @@ async fn superseded_backend_roots_are_refused_without_changing_their_values() ->
     let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
     backends.primary.create_session().await?;
     backends.primary.delete_session().await?;
-    let connection = Connection::open(root.path().join("storage.sqlite3"))?;
+    let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
     let prior = vec![1u8, 2, 3, 4];
     connection.execute("UPDATE storage_meta SET value=?1 WHERE name='format'", ["dokime.scoped-objects.v1"])?;
     connection.execute("INSERT INTO storage_meta VALUES('preserved',?1)", [&prior])?;
@@ -798,6 +801,7 @@ async fn superseded_backend_roots_are_refused_without_changing_their_values() ->
 
 #[tokio::test]
 async fn object_identities_stay_unique_when_their_scope_changes() -> StoryResult {
+    use harmos_storage::{IdentityKind, IdentitySelection, ObjectEntry, ObjectKey, ObjectValue, ObjectVersionToken, StoredIdentity};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
@@ -974,7 +978,7 @@ async fn native_sample_pages_preserve_valid_rows_before_an_oversized_payload() -
     assert_eq!(first, expected[..1]);
     page.after = first.last().unwrap().record.position.sequence;
     let refused = backend.list_samples(&snapshot, &selection, page).await;
-    assert!(matches!(refused, Err(Error::ResourceExhausted { .. })));
+    assert!(matches!(refused, Err(harmos_storage::Error::ResourceExhausted { .. })));
 
     // A Larger Bound Returns the Exact Remaining Native Payload.
     page.bytes = limits().bytes;
@@ -1031,6 +1035,7 @@ async fn recovery_snapshot_and_entries_survive_reopening_the_root() -> StoryResu
 
 #[tokio::test]
 async fn deleting_a_file_keeps_existing_readers_and_refuses_new_readers() -> StoryResult {
+    use sha2::{Digest, Sha256};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
@@ -1070,7 +1075,7 @@ async fn failed_native_catalog_commit_does_not_publish_arrow_rows() -> StoryResu
     backends.primary.create_session().await?;
     let schema = schema(backends.primary.get_history())?;
     backends.primary.append_schemas(StorageBatch::new(vec![schema.clone()]).into()).await?;
-    let catalog = Connection::open(root.path().join("storage.sqlite3"))?;
+    let catalog = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
     catalog.execute_batch(
         "CREATE TRIGGER reject_arrow BEFORE INSERT ON arrow_chunks BEGIN SELECT RAISE(ABORT,'injected commit failure'); END;",
     )?;
@@ -1092,7 +1097,7 @@ async fn failed_native_catalog_commit_does_not_publish_arrow_rows() -> StoryResu
         bytes: limits().bytes,
     };
     assert_eq!(reopened.primary.list_samples(&snapshot, &selection(&schema.key, "first")?, page).await?, expected);
-    let files = fs::read_dir(root.path().join("storage.arrow"))?.collect::<io::Result<Vec<_>>>()?;
+    let files = std::fs::read_dir(root.path().join("storage.arrow"))?.collect::<std::io::Result<Vec<_>>>()?;
     assert_eq!(files.len(), 1);
     reopened.primary.delete_snapshot(&snapshot).await?;
     reopened.primary.delete_session().await?;
@@ -1101,6 +1106,7 @@ async fn failed_native_catalog_commit_does_not_publish_arrow_rows() -> StoryResu
 
 #[tokio::test]
 async fn conditional_objects_replay_the_original_applied_and_conflict_outcomes() -> StoryResult {
+    use harmos_storage::{CompareExchange, ObjectEntry, ObjectExchange, ObjectKey, ObjectValue, ObjectVersionToken};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
