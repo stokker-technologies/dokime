@@ -20,11 +20,9 @@
 // Third Party Imports
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::ExecutionsDeleteRequest;
 use dokime_protocol::host::ExecutionsDeleteResponse;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -44,9 +42,6 @@ pub const ID: &str = "dokime.host.v1.Executions/Delete";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ExecutionsDeleteRequest, ExecutionsDeleteResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: ExecutionsDeleteRequest) -> Result<ExecutionsDeleteResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         if let Some(reply) = context.host.store().deleted_execution(&request.request_id, &request.name)? {

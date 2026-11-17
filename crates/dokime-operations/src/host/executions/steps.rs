@@ -20,14 +20,12 @@
 // Third Party Imports
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::ExecutionStep;
 use dokime_protocol::host::ExecutionsStepsRequest;
 use dokime_protocol::host::ExecutionsStepsResponse;
 use dokime_protocol::host::StepStatus;
 use dokime_storage::ExecutionState;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -47,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.Executions/Steps";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ExecutionsStepsRequest, ExecutionsStepsResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: ExecutionsStepsRequest) -> Result<ExecutionsStepsResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let position = context.host.store().resource_value(&request.name, "progress", request.at.as_ref())?.resolved_at;

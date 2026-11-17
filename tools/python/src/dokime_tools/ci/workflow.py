@@ -15,6 +15,7 @@
 import argparse
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 # isort: split
@@ -89,20 +90,49 @@ def main(arguments: list[str] | None = None) -> int:
     if operation in {"sdk-check", "sdk-test"}:
         if options.language is None:
             parser.error("Select SDK: Add --language csharp or cpp")
+        language = "C#" if options.language == "csharp" else "C++"
         tools = ["dotnet"] if options.language == "csharp" else ["cmake", "ninja", "pipx:clang-format"]
-        result = subprocess.run(["mise", "-C", f"sdk/{options.language}", "install", *tools], check=False, creationflags=spawn_flags())
+        print(f"Install {language} SDK Tools", flush=True)
+        result = subprocess.run(
+            ["mise", "-C", f"sdk/{options.language}", "install", *tools],
+            check=False,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
         if result.returncode:
+            print(
+                f"Install {language} SDK Tools Failed (Exit {result.returncode}): Fix the Tool Installation Error Above and Rerun mise run ci:{operation} -- --language {options.language} --profile {options.profile}",
+                file=sys.stderr,
+                flush=True,
+            )
             return result.returncode
         commands = ["check"] if operation == "sdk-check" else ["build", "test"]
         if options.language == "csharp" and operation == "sdk-check":
             commands = ["restore", "check"]
         for command in commands:
+            invocation = ["mise", "-C", f"sdk/{options.language}", "run", "--output", "interleave", command]
+            if options.language == "cpp":
+                preset = "release" if options.profile == "release" else "tests"
+                invocation += ["--", "--preset", preset]
+                if command == "test":
+                    invocation.append("--verbose")
+            print(f"{command.title()} {language} SDK", flush=True)
             result = subprocess.run(
-                ["mise", "-C", f"sdk/{options.language}", "run", command],
+                invocation,
                 check=False,
                 creationflags=spawn_flags(),
+                stdin=sys.stdin,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
             )
             if result.returncode:
+                print(
+                    f"{command.title()} {language} SDK Failed (Exit {result.returncode}): Fix the Reported Error Above and Rerun {subprocess.list2cmdline(invocation)}",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 return result.returncode
         return 0
     transport.receive()

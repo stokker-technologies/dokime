@@ -15,12 +15,16 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+use harmos_operations::storage::{GetFileProduction, GetFileProductionRequest};
+
+// Local Imports
+use crate::host::Context;
 use crate::host::files::transfer;
-use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::files::{UploadsGetRequest, UploadsGetResponse};
-use harmos_operations::storage::{GetFileProduction, GetFileProductionRequest};
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -40,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.files.Uploads/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<UploadsGetRequest, UploadsGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: UploadsGetRequest) -> Result<UploadsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let upload = request.upload.ok_or_else(|| Error::Invalid(format!("{ID}: Supply Its Upload")))?;

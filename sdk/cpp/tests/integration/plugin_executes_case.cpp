@@ -17,6 +17,7 @@
 #include "dokime/plugin/v1/steps.pb.h"
 #include "dokime/plugin/v1/test_cases.pb.h"
 #include <catch2/catch_session.hpp>
+#include <grpc/event_engine/event_engine.h>
 
 using dokime::Origin;
 using dokime::Suites;
@@ -31,6 +32,7 @@ using dokime::plugin::v1::StepsExecuteRequest;
 using dokime::plugin::v1::StepsExecuteResponse;
 using dokime::plugin::v1::TestCasesMaterializeRequest;
 using dokime::plugin::v1::TestCasesMaterializeResponse;
+using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 using harmos::TransportError;
 
 using std::string;
@@ -150,6 +152,8 @@ int main(int argc, char **argv) {
     return 2;
   address = argv[1];
   placement = argv[2];
-  Catch::Session session;
-  return session.run(1, argv);
+  const auto result = Catch::Session{}.run(1, argv);
+  // Release Client Work Before Windows Begins DLL Teardown.
+  ShutdownDefaultEventEngine();
+  return result;
 }

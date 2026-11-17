@@ -16,12 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashSet;
 
 // Third Party Imports
+use harmos_protocol::host::PluginState;
 use prost::Message;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::CycleStatus;
 use dokime_protocol::host::ExecutionMode;
@@ -29,9 +30,6 @@ use dokime_protocol::host::ExecutionsCreateRequest;
 use dokime_protocol::host::ExecutionsCreateResponse;
 use dokime_protocol::model::origin::Kind;
 use dokime_storage::Execution;
-use harmos_protocol::host::PluginState;
-use harmos_protocol::model::OperationContract;
-use std::collections::HashSet;
 
 /* === Constants === */
 
@@ -51,9 +49,6 @@ pub const ID: &str = "dokime.host.v1.Executions/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ExecutionsCreateRequest, ExecutionsCreateResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: ExecutionsCreateRequest) -> Result<ExecutionsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;

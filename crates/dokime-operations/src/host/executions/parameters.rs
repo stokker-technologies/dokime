@@ -16,19 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
 
 // Third Party Imports
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::ExecutionParameterSet;
 use dokime_protocol::host::ExecutionsParametersRequest;
 use dokime_protocol::host::ExecutionsParametersResponse;
 use dokime_protocol::host::MaterializedParameter;
 use dokime_protocol::host::ParameterSource;
-use harmos_protocol::model::OperationContract;
-use std::collections::HashMap;
 
 /* === Constants === */
 
@@ -48,9 +46,6 @@ pub const ID: &str = "dokime.host.v1.Executions/Parameters";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ExecutionsParametersRequest, ExecutionsParametersResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: ExecutionsParametersRequest) -> Result<ExecutionsParametersResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let position = context.host.store().resource_value(&request.name, "progress", request.at.as_ref())?.resolved_at;

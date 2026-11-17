@@ -15,8 +15,6 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
@@ -24,12 +22,9 @@ use prost::Message;
 
 // Local Imports
 use crate::{Result, host::Context};
-
 use dokime_protocol::host::storage::SourcesGetRequest;
 use dokime_protocol::host::storage::SourcesGetResponse;
 use dokime_protocol::host::storage::StorageSources;
-
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -49,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.storage.Sources/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SourcesGetRequest, SourcesGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: SourcesGetRequest) -> Result<SourcesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let initial = StorageSources::default();

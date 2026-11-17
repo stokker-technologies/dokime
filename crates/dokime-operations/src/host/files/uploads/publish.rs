@@ -15,12 +15,16 @@
 
 /* === Imports === */
 
-use crate::Result;
-use crate::host::files::transfer;
-use crate::host::{ClientSettings, Context};
-use dokime_protocol::host::files::{UploadsPublishRequest, UploadsPublishResponse};
+// Standard Library Imports
+
+// Third Party Imports
 use harmos_operations::storage::{PublishFileProduction, PublishFileProductionRequest};
-use harmos_protocol::model::OperationContract;
+
+// Local Imports
+use crate::Result;
+use crate::host::Context;
+use crate::host::files::transfer;
+use dokime_protocol::host::files::{UploadsPublishRequest, UploadsPublishResponse};
 
 /* === Constants === */
 
@@ -40,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.files.Uploads/Publish";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<UploadsPublishRequest, UploadsPublishResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: UploadsPublishRequest) -> Result<UploadsPublishResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let session = transfer::session(request.upload)?;

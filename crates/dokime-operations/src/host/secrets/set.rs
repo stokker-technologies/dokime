@@ -15,20 +15,15 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-
 use dokime_protocol::host::SecretWritable;
 use dokime_protocol::host::SecretsSetRequest;
 use dokime_protocol::host::SecretsSetResponse;
-
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -48,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.Secrets/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SecretsSetRequest, SecretsSetResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: SecretsSetRequest) -> Result<SecretsSetResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let receipt = crate::host::views::receipt(context, &request.request_id)?;

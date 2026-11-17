@@ -15,20 +15,15 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-
 use dokime_protocol::host::SuitesGetRequest;
 use dokime_protocol::host::SuitesGetResponse;
 use dokime_protocol::host::SuitesListRequest;
-
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -48,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.Suites/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SuitesGetRequest, SuitesGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: SuitesGetRequest) -> Result<SuitesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let reply = crate::host::suites::list::handle(context, SuitesListRequest { parent: request.parent, at: request.at }).await?;

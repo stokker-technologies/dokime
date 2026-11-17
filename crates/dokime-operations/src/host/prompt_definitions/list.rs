@@ -18,10 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::PromptDefinitionsListRequest;
 use dokime_protocol::host::PromptDefinitionsListResponse;
@@ -45,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.PromptDefinitions/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<PromptDefinitionsListRequest, PromptDefinitionsListResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: PromptDefinitionsListRequest) -> Result<PromptDefinitionsListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;

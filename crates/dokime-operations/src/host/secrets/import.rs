@@ -15,19 +15,14 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-
 use dokime_protocol::host::SecretsImportRequest;
 use dokime_protocol::host::SecretsImportResponse;
-
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -47,9 +42,6 @@ pub const ID: &str = "dokime.host.v1.Secrets/Import";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SecretsImportRequest, SecretsImportResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: SecretsImportRequest) -> Result<SecretsImportResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         if request.validate_only {

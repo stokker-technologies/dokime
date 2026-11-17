@@ -1,0 +1,45 @@
+name: C++ Dependency Cache
+description: Share Pinned vcpkg Binary Archives Across SDK Jobs
+inputs:
+  operation:
+    description: Restore or Save the Binary Archives
+    default: restore
+  key:
+    description: Primary Key Returned by Restore
+    default: ''
+  cache-hit:
+    description: Exact Match Returned by Restore
+    default: ''
+outputs:
+  cache-hit:
+    description: Whether Restore Found an Exact Match
+    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-primary-key:
+    description: Primary Key Used by Restore
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+runs:
+  using: composite
+  steps:
+  - name: Prepare Binary Archive Directory
+    shell: python
+    run: |
+      import os
+      from pathlib import Path
+      path = Path(os.environ['GITHUB_WORKSPACE']) / '.cache/vcpkg/archives'
+      path.mkdir(parents=True, exist_ok=True)
+      output = Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8')
+      output.write(f'VCPKG_DEFAULT_BINARY_CACHE={path.as_posix()}\n')
+      output.close()
+  - name: Restore Binary Archives
+    id: restore
+    if: inputs.operation == 'restore'
+    uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    with:
+      path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+      key: sdk-cpp-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.RUNNER_IMAGE_ID }}-${{ hashFiles('sdk/cpp/vcpkg.json') }}
+  - name: Save Binary Archives
+    if: inputs.operation == 'save' && inputs.cache-hit != 'true' && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request'
+    uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+    with:
+      path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+      key: ${{ inputs.key }}

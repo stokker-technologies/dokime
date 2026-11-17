@@ -15,24 +15,17 @@
 
 /* === Imports === */
 
-use crate::host::Output;
-
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::Failure;
 
 // Local Imports
+use crate::host::Output;
 use crate::{Result, host::Context};
-
 use dokime_protocol::host::SecretsListRequest;
 use dokime_protocol::host::SecretsWatchRequest;
 use dokime_protocol::host::SecretsWatchResponse;
-
-use harmos_protocol::model::OperationContract;
-
-use harmos_protocol::model::Failure;
 
 /* === Constants === */
 
@@ -52,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.Secrets/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SecretsWatchRequest, SecretsWatchResponse>(ID, settings.watch_timeout)
-}
 pub async fn handle(context: &Context, request: SecretsWatchRequest) -> Result<Output<SecretsWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();

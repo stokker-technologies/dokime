@@ -18,9 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 use prost::Message;
-use prost_types::FileDescriptorSet;
 
 // Local Imports
 use crate::{Error, Resources, Result};
@@ -45,13 +43,6 @@ pub const ID: &str = "dokime.host.v1.Documents/AppendParts";
 /* === Implementations === */
 
 /* === Public Functions === */
-
-pub fn declaration() -> Result<OperationContract> {
-    crate::declaration::<DocumentsAppendPartsRequest, DocumentsAppendPartsResponse>(
-        ID,
-        FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
-    )
-}
 
 pub async fn handle(resources: &Resources, request: DocumentsAppendPartsRequest) -> Result<DocumentsAppendPartsResponse> {
     resources.check_action_scope(&request.execution, ID)?;

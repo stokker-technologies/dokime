@@ -13,9 +13,13 @@
 #include <iostream>
 
 // Third Party Imports
+#include <grpc/event_engine/event_engine.h>
 
 // Local Imports
 #include <dokime/plugin.hpp>
+
+using dokime::plugin::Plugin;
+using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 
 using std::exception;
 using std::invalid_argument;
@@ -37,9 +41,8 @@ using std::string;
 
 /* === Entry Point === */
 
-using dokime::plugin::Plugin;
-
 int main(int argc, char **argv) {
+  int result = 0;
   try {
     // Create the Plugin.
     Plugin plugin("sample", "0.1.0");
@@ -53,6 +56,9 @@ int main(int argc, char **argv) {
       throw invalid_argument("Serve Plugin: Expected [--address ADDRESS]");
   } catch (const exception &error) {
     std::cerr << error.what() << '\n';
-    return 1;
+    result = 1;
   }
+  // Drain EventEngine Work Before Windows Begins DLL Teardown.
+  ShutdownDefaultEventEngine();
+  return result;
 }

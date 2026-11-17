@@ -18,10 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::ExecutionsListResponse;
@@ -46,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.Executions/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ExecutionsListRequest, ExecutionsListResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: ExecutionsListRequest) -> Result<ExecutionsListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;

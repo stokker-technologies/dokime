@@ -18,21 +18,17 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::ReadCut;
 use prost::Message;
+use sha2::Digest;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-use sha2::Digest;
-
 use dokime_protocol::host::evidence::SampleRow;
 use dokime_protocol::host::evidence::SamplesListRequest;
 use dokime_protocol::host::evidence::SamplesListResponse;
-use dokime_protocol::host::evidence::sample_row::Kind as SampleRowKind;
-use dokime_protocol::model::origin::Kind as OriginKind;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::OperationContract;
-use harmos_protocol::model::ReadCut;
+use dokime_protocol::host::evidence::sample_row;
+use dokime_protocol::model::origin;
 
 /* === Constants === */
 
@@ -52,9 +48,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Samples/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SamplesListRequest, SamplesListResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: SamplesListRequest) -> Result<SamplesListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let identifier = crate::host::projection::execution_scope(request.scope.as_ref())?;
@@ -135,7 +128,7 @@ pub async fn handle(context: &Context, request: SamplesListRequest) -> Result<Sa
             after.entry(stream.clone()).and_modify(|value| *value = (*value).max(step_after)).or_insert(step_after);
         }
         let source = match cut.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) {
-            Some(OriginKind::PluginRun(run)) => run.plugin.clone(),
+            Some(origin::Kind::PluginRun(run)) => run.plugin.clone(),
             _ => "import".into(),
         };
         let source_matches =
@@ -220,7 +213,12 @@ pub async fn handle(context: &Context, request: SamplesListRequest) -> Result<Sa
             )
         };
         Ok(SamplesListResponse {
-            samples: samples.into_iter().map(|sample| SampleRow { kind: Some(SampleRowKind::Raw(sample)) }).collect(),
+            samples: samples
+                .into_iter()
+                .map(|sample| SampleRow {
+                    kind: Some(sample_row::Kind::Raw(sample)),
+                })
+                .collect(),
             schema: None,
             resolved_at: Some(resolved_at),
             next_page_token,
