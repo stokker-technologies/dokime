@@ -22,6 +22,12 @@ Harmos supplies **G1: restart-safe, scope-qualified retained cuts** at the revis
 in 1.2a. Native backend adoption and product evidence-cut ownership remain required;
 the existing product seal path does not establish restart-safe scoped retention.
 
+Product adoption in 1.7 and seal publication in 2.3 are blocked at the locked
+revision: both `CreateSnapshot` and `RetainSnapshot` are refused by native operation
+admission before reaching their handlers. See design.md, Snapshot Operation
+Admission at the Pinned Revision. Backend conformance does not close these product
+obligations; no retry override or direct-manager workaround is authorized.
+
 - [x] 1.1 Amend facade/SDK scope and product management ownership for `plugin-boundary`; strict validation of the coordinated changes recorded the documentation agreement, not implementation.
 - [x] 1.2 Adopt the additive Harmos revision across Cargo, Python, C++ and C#, refresh locks and regenerate tracked output; compound mutation, exact-scope deletion, storage-only assembly/maintenance and scale/offset/contains transforms are available.
 - [x] 1.2a Pin Harmos `fa52a0e6619803c824af5112eb28b9a85430b359` across Cargo and all SDK source pins, refresh dependency locks and regenerate tracked bindings. G1–G3 and consolidated statistics/bucket summaries are upstream capabilities; product backend and consumer adoption remain open. The typed facade is deferred; this storage delivery keeps the current operation-calling API.
