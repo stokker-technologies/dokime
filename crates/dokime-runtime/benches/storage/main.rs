@@ -19,9 +19,12 @@ mod windows;
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::BTreeMap;
+use std::env;
 use std::f64::consts::TAU;
 use std::hint::black_box;
 use std::num::NonZeroUsize;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::time::Instant;
 
@@ -40,6 +43,8 @@ use prost_types::field_descriptor_proto::Label;
 use prost_types::field_descriptor_proto::Type;
 use tempfile::TempDir;
 use tokio::runtime::Builder;
+use tracing::{Id, Subscriber, span::Attributes};
+use tracing_subscriber::{Layer, layer::Context, layer::SubscriberExt, registry::LookupSpan};
 
 // Local Imports
 use dokime::Aggregate;
@@ -58,6 +63,8 @@ use dokime::SummaryTile;
 use dokime::Termination;
 use dokime::client::ExecutionOutcome;
 use dokime::model::Section;
+use dokime_operations::host::documents::{expansion, plot};
+use dokime_operations::host::plots::snapshots::list;
 use dokime_protocol::builders::Plot;
 use dokime_protocol::model::card::Body;
 use dokime_protocol::model::data_expression;
@@ -120,11 +127,32 @@ struct DocumentFixture {
     plots: usize,
 }
 
+#[derive(Clone, Default)]
+struct StageTimes(Arc<Mutex<BTreeMap<&'static str, (Duration, usize)>>>);
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+
+impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for StageTimes {
+    fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
+        if attributes.metadata().name().starts_with("plot.") {
+            context.span(id).unwrap().extensions_mut().insert(Instant::now());
+        }
+    }
+
+    fn on_close(&self, id: Id, context: Context<'_, S>) {
+        let span = context.span(&id).unwrap();
+        if let Some(started) = span.extensions().get::<Instant>() {
+            let mut stages = self.0.lock().unwrap();
+            let stage = stages.entry(span.name()).or_default();
+            stage.0 += started.elapsed();
+            stage.1 += 1;
+        }
+    }
+}
 
 impl Fixture {
     fn new() -> Self {
@@ -246,7 +274,7 @@ impl DocumentFixture {
         // Without HTML Rendering Or File Output.
         let cut = store.cut("document").unwrap();
         let (reader, _cancellation) = store.read_session().unwrap();
-        let expansion = dokime_operations::host::documents::expansion::expand(&reader, &cut, &self.document, 0, 256).unwrap();
+        let expansion = expansion::expand(&reader, &cut, &self.document, 0, 256).unwrap();
         assert!(expansion.next.is_none());
         let scope = EvidenceScope {
             execution_id: Some("document".into()),
@@ -263,13 +291,12 @@ impl DocumentFixture {
                         }
                     }
                     Body::Plot(plot) => {
-                        let mut request = dokime_operations::host::documents::plot::request(plot, scope.clone()).unwrap();
+                        let mut request = plot::request(plot, scope.clone()).unwrap();
                         request.max_points = Some(1500);
-                        let envelope =
-                            dokime_operations::host::plots::snapshots::list::snapshot_at(&reader, &cut, &request, 1500, 0, "v1").unwrap();
+                        let envelope = list::snapshot_at(&reader, &cut, &request, 1500, 0, "v1").unwrap();
                         assert_eq!(envelope.payload.as_ref().unwrap().series[0].raw_points, (self.rows / self.plots) as u64);
                         black_box(envelope);
-                        black_box(dokime_operations::host::documents::plot::presentation(&reader, &cut, plot).unwrap());
+                        black_box(plot::presentation(&reader, &cut, plot).unwrap());
                         plots += 1;
                     }
                     _ => unreachable!("declared benchmark cards"),
@@ -390,7 +417,7 @@ fn aggregate(stream: &str, kind: Aggregate) -> DataExpression {
     }
 }
 fn main() {
-    if std::env::args().any(|argument| argument == "--remote") {
+    if env::args().any(|argument| argument == "--remote") {
         if windows::selected() {
             windows::serve().unwrap();
         } else {
@@ -473,6 +500,53 @@ fn main() {
             black_box(store.time_series_window(window(QUERY_ROWS as u64)).unwrap());
             report(started.elapsed(), 1);
         });
+    });
+    boundary(
+        "Numeric Plot Cold Stages, 2,073,600 Rows",
+        "fresh store and one read session; bounds, persisted preview with summary, exact statistics and RMS for one stream; OS cache uncontrolled",
+    );
+    group.bench_function("numeric_plot_cold_stages/2073600", |b| {
+        let fixture = Fixture::populated(2_073_600);
+        b.iter_custom(|iterations| {
+            let mut elapsed = Duration::ZERO;
+            for _ in 0..iterations {
+                let started = Instant::now();
+                let store = Store::open(fixture.root.path()).unwrap();
+                let (reader, _cancellation) = store.read_session().unwrap();
+                let opened = started.elapsed();
+                let window = window(2_073_600);
+                let stage = Instant::now();
+                black_box(reader.numeric_bounds(window.execution, window.stream, window.field, window.through).unwrap());
+                let bounds = stage.elapsed();
+                let stage = Instant::now();
+                black_box(reader.time_series_window(window).unwrap());
+                let preview = stage.elapsed();
+                let stage = Instant::now();
+                let stages = StageTimes::default();
+                let subscriber = tracing_subscriber::registry().with(stages.clone());
+                tracing::subscriber::with_default(subscriber, || black_box(reader.numeric_statistics(&window).unwrap()));
+                let statistics = stage.elapsed();
+                let stage = Instant::now();
+                black_box(reader.numeric_rms(&window).unwrap());
+                let rms = stage.elapsed();
+                elapsed += started.elapsed();
+                if env::var_os("DOKIME_BENCH_ONCE").is_some() {
+                    for (name, duration) in
+                        [("store.open", opened), ("bounds", bounds), ("preview", preview), ("statistics", statistics), ("rms", rms)]
+                    {
+                        println!("Stage | {name} | {:.6} s", duration.as_secs_f64());
+                    }
+                    for (name, (duration, calls)) in stages.0.lock().unwrap().iter() {
+                        println!("Stage | {name} | {:.6} s | {calls} calls", duration.as_secs_f64());
+                    }
+                    let stage = Instant::now();
+                    black_box(reader.numeric_bins(window).unwrap());
+                    println!("Reference | persisted bins only, excluded from total | {:.6} s", stage.elapsed().as_secs_f64());
+                }
+            }
+            report(elapsed, iterations)
+        });
+        executor.block_on(fixture.store.shutdown_samples()).unwrap();
     });
     boundary("Stream Finalize, 65,536 Rows", "warm; close_streams and shutdown_samples only; durable; population excluded");
     group.bench_function("stream_finalize/65536", |b| {
@@ -572,7 +646,9 @@ fn main() {
     let mut group = criterion.benchmark_group("telemetry");
     group.sample_size(10);
     group.sampling_mode(SamplingMode::Flat);
-    for (rows, plots, median) in [(QUERY_ROWS, 1, true)].into_iter().chain(DOCUMENT_ROWS.map(|rows| (rows, PLOTS, false))) {
+    for (rows, plots, median) in
+        [(QUERY_ROWS, 1, true), (2_073_600, PLOTS, false)].into_iter().chain(DOCUMENT_ROWS.map(|rows| (rows, PLOTS, false)))
+    {
         let mut document = None;
         for cold in [false, true] {
             let temperature = if cold { "cold" } else { "warm" };
@@ -589,8 +665,18 @@ fn main() {
                     for _ in 0..iterations {
                         let started = Instant::now();
                         if cold {
+                            let opening = Instant::now();
                             let store = Store::open(document._fixture.root.path()).unwrap();
-                            document.query(&store);
+                            let opened = opening.elapsed();
+                            let stages = StageTimes::default();
+                            let subscriber = tracing_subscriber::registry().with(stages.clone());
+                            tracing::subscriber::with_default(subscriber, || document.query(&store));
+                            if env::var_os("DOKIME_BENCH_ONCE").is_some() {
+                                println!("Stage | store.open | {:.6} s | 1 call", opened.as_secs_f64());
+                                for (name, (duration, calls)) in stages.0.lock().unwrap().iter() {
+                                    println!("Stage | {name} | {:.6} s | {calls} calls", duration.as_secs_f64());
+                                }
+                            }
                         } else {
                             document.query(&document._fixture.store);
                         }
@@ -630,7 +716,7 @@ fn boundary(case: &str, measured: &str) {
 }
 
 fn report(elapsed: Duration, iterations: u64) -> Duration {
-    if std::env::var_os("DOKIME_BENCH_ONCE").is_some() {
+    if env::var_os("DOKIME_BENCH_ONCE").is_some() {
         println!("Measured | {:.6} ms | {iterations} iterations", elapsed.as_secs_f64() * 1000.0 / iterations as f64);
     }
     elapsed

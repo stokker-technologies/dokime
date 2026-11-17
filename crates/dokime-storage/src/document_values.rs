@@ -146,14 +146,20 @@ impl Store {
             })?;
             return Ok(edge.unwrap_or(ScalarValue::Missing));
         }
-        if kind == Aggregate::Percentile && percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0 {
-            let rank = percentile as u8;
-            let values = aggregates::rank_values(
+        if kind == Aggregate::Median
+            || kind == Aggregate::Percentile && percentile.is_finite() && (0.0..=100.0).contains(&percentile) && percentile.fract() == 0.0
+        {
+            let statistics = if kind == Aggregate::Median {
+                harmos_query::Aggregate::Median
+            } else {
+                harmos_query::Aggregate::Percentile(percentile as u8)
+            };
+            let mut values = aggregates::rank_values(
                 |push| self.expression_values(cut, expression, None, filters, |_, _, value, _| push(value)),
-                &[rank],
+                &[statistics],
                 self.storage_settings()?.query_bytes.get(),
             )?;
-            return Ok(values.get(&rank).cloned().unwrap_or(ScalarValue::Missing));
+            return Ok(values.remove(0));
         }
         let mut accumulator = expressions::accumulator(kind, percentile)?;
         self.expression_values(cut, expression, None, filters, |position, _, value, _| {

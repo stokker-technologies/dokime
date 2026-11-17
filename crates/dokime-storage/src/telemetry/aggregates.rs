@@ -27,6 +27,7 @@ use harmos_query::scalar::Agg;
 use harmos_query::transform::{FieldPath, FieldPathExecution};
 use harmos_query::{Accumulator, Aggregate};
 use rusqlite::Connection;
+use tracing::info_span;
 
 // Local Imports
 use super::config::PreviewSettings;
@@ -43,6 +44,7 @@ use crate::{Error, NumericWindow, Result, Store};
 /* === Structs === */
 
 /// Product Projection of Library Aggregate Results; No Persisted Running Moments.
+#[derive(Clone)]
 pub(crate) struct NumericSummary {
     pub count: u64,
     pub min: ScalarValue,
@@ -53,6 +55,18 @@ pub(crate) struct NumericSummary {
     pub average: ScalarValue,
     pub standard_deviation: f64,
     pub rms: f64,
+}
+
+/// An Unprojected Numeric Selection at One Saved Cut; Display Resolution Is Not Part of Its Statistics.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) struct SummarySelection {
+    execution: String,
+    stream: String,
+    field: String,
+    after: u64,
+    through: u64,
+    start_ns: i64,
+    end_ns: i64,
 }
 
 pub(super) struct Numeric<'a> {
@@ -78,6 +92,20 @@ pub(super) enum Values<'a> {
 /* === Traits === */
 
 /* === Implementations === */
+
+impl From<NumericWindow<'_>> for SummarySelection {
+    fn from(window: NumericWindow<'_>) -> Self {
+        Self {
+            execution: window.execution.into(),
+            stream: window.stream.into(),
+            field: window.field.into(),
+            after: window.after,
+            through: window.through,
+            start_ns: window.start_ns,
+            end_ns: window.end_ns,
+        }
+    }
+}
 
 impl Statistics {
     pub(super) fn load(connection: &Connection, id: &str, settings: PreviewSettings) -> Result<Self> {
@@ -109,6 +137,7 @@ impl Statistics {
 
 impl Store {
     pub(crate) fn numeric_summary(&self, window: NumericWindow<'_>) -> Result<NumericSummary> {
+        self.check_read()?;
         let window = if (window.start_ns != i64::MIN || window.end_ns != i64::MAX) && self.preview_bounds(window)?.is_some() {
             NumericWindow {
                 start_ns: i64::MIN,
@@ -118,6 +147,15 @@ impl Store {
         } else {
             window
         };
+        // Only Finite Read Sessions Share Results; Live Tails and Projected Selections Are Recomputed.
+        let summaries = if self.has_projection(window)? { None } else { self.summaries.as_ref() };
+        let selection = SummarySelection::from(window);
+        if let Some(summaries) = summaries
+            && let Some(summary) =
+                summaries.lock().map_err(|_| Error::Data("start a new read after the numeric summary lock failed"))?.get(&selection)
+        {
+            return Ok(summary.clone());
+        }
         let kinds = [
             Aggregate::Count,
             Aggregate::Min,
@@ -163,7 +201,7 @@ impl Store {
         let average = results.next().unwrap();
         let standard_deviation = scalar::number(&results.next().unwrap()).unwrap_or_default();
         let rms = scalar::number(&results.next().unwrap()).unwrap_or_default();
-        Ok(NumericSummary {
+        let summary = NumericSummary {
             count,
             min,
             max,
@@ -173,11 +211,19 @@ impl Store {
             average,
             standard_deviation,
             rms,
-        })
+        };
+        if let Some(summaries) = summaries {
+            summaries
+                .lock()
+                .map_err(|_| Error::Data("start a new read after the numeric summary lock failed"))?
+                .insert(selection, summary.clone());
+        }
+        Ok(summary)
     }
 
     pub(crate) fn ranks(&self, window: NumericWindow<'_>, percentiles: &[u8]) -> Result<BTreeMap<u8, ScalarValue>> {
-        rank_values(
+        let statistics = percentiles.iter().copied().map(Aggregate::Percentile).collect::<Vec<_>>();
+        let values = rank_values(
             |push| {
                 self.evaluated_batches(window, &[window.field.into()], |batch| {
                     let field = FieldPath::from(format!("values.{}", window.field).as_str());
@@ -187,9 +233,15 @@ impl Store {
                     Ok(true)
                 })
             },
-            percentiles,
+            &statistics,
             self.storage_settings()?.query_bytes.get(),
-        )
+        )?;
+        Ok(percentiles
+            .iter()
+            .copied()
+            .zip(values)
+            .filter(|(_, value)| !matches!(value, ScalarValue::Missing | ScalarValue::Null))
+            .collect())
     }
 }
 
@@ -198,38 +250,20 @@ impl Store {
 /* === Private Functions === */
 
 pub(crate) fn rank_values(
-    read: impl FnOnce(&mut dyn FnMut(ScalarValue) -> Result<()>) -> Result<()>, percentiles: &[u8], scratch_bytes: usize,
-) -> Result<BTreeMap<u8, ScalarValue>> {
-    let mut accumulators = percentiles
-        .iter()
-        .copied()
-        .map(|rank| {
-            (
-                rank,
-                harmos_query::Accumulator::with_settings(
-                    scalar::Agg::Of(harmos_query::Aggregate::Percentile(rank)),
-                    harmos_query::config::QueryAccumulatorSettings {
-                        memory_bytes: scratch_bytes / percentiles.len().max(1),
-                    },
-                ),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
+    read: impl FnOnce(&mut dyn FnMut(ScalarValue) -> Result<()>) -> Result<()>, statistics: &[Aggregate], memory_bytes: usize,
+) -> Result<Vec<ScalarValue>> {
+    let mut accumulator = Accumulator::with_settings(Agg::Of(Aggregate::Median), QueryAccumulatorSettings { memory_bytes });
     let mut position = 0;
+    let input = info_span!("plot.order_statistics.input").entered();
     read(&mut |value| {
         position += 1;
-        for accumulator in accumulators.values_mut() {
-            accumulator.push(position, &value)?;
-        }
+        accumulator.push(position, &value)?;
         Ok(())
     })?;
-    let mut values = BTreeMap::new();
-    for (rank, accumulator) in accumulators {
-        let value = accumulator.finish(&mut || Ok(()))?;
-        if !matches!(value, ScalarValue::Missing | ScalarValue::Null) {
-            values.insert(rank, value);
-        }
-    }
+    drop(input);
+    let completion = info_span!("plot.order_statistics.finish").entered();
+    let values = accumulator.finish_ranks(statistics, &mut || Ok(()))?;
+    drop(completion);
     Ok(values)
 }
 

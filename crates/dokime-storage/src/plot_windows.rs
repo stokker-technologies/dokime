@@ -16,24 +16,23 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, iter, mem, sync::Arc};
+use std::{collections::BTreeMap, mem, sync::Arc};
 
 // Third Party Imports
 use arrow_array::{Float64Array, Int64Array, ListArray, RecordBatch, UInt64Array};
 use arrow_schema::{DataType, Field, Schema};
 use harmos_domain::model::storage::query::transform::statistics;
-use harmos_query::config::QueryAccumulatorSettings;
-use harmos_query::scalar::Agg;
 use harmos_query::transform::{
     FieldPath, FieldPathExecution, HistogramExecution, Transform,
     downsample::{self, Algorithm},
     histogram,
 };
-use harmos_query::{Accumulator, Aggregate, TableWriter};
+use harmos_query::{Aggregate, TableWriter};
 use prost_types::Timestamp;
 
 // Local Imports
 use crate::scalar::{self, ScalarValue};
+use crate::telemetry::aggregates;
 use crate::{Error, NumericWindow, Result, Store};
 use dokime_protocol::model::Downsample;
 use dokime_protocol::model::Value;
@@ -283,31 +282,23 @@ impl Store {
     fn numeric_order_statistics(
         &self, window: NumericWindow<'_>, percentiles: &[u8], mut read: impl FnMut(&RecordBatch) -> Result<()>,
     ) -> Result<(ScalarValue, BTreeMap<u8, ScalarValue>)> {
-        let memory_bytes = self.storage_settings()?.query_bytes.get() / (percentiles.len() + 1);
-        let kinds = iter::once(Aggregate::Median).chain(percentiles.iter().copied().map(Aggregate::Percentile));
-        let mut accumulators =
-            kinds.map(|kind| Accumulator::with_settings(Agg::Of(kind), QueryAccumulatorSettings { memory_bytes })).collect::<Vec<_>>();
+        let statistics = [Aggregate::Median].into_iter().chain(percentiles.iter().copied().map(Aggregate::Percentile)).collect::<Vec<_>>();
         let field = FieldPath::from(format!("values.{}", window.field).as_str());
-        let mut position = 0;
-        self.evaluated_batches(window, &[window.field.into()], |batch| {
-            read(&batch)?;
-            for row in 0..batch.num_rows() {
-                position += 1;
-                let value = field.value(&batch, row)?;
-                for accumulator in &mut accumulators {
-                    accumulator.push(position, &value)?;
-                }
-            }
-            Ok(true)
-        })?;
-        let mut values = accumulators
-            .into_iter()
-            .map(|accumulator| accumulator.finish(&mut || Ok(())))
-            .collect::<harmos_query::Result<Vec<_>>>()?
-            .into_iter();
-        let median = values.next().unwrap();
-        let ranks = percentiles.iter().copied().zip(values).collect();
-        Ok((median, ranks))
+        let mut values = aggregates::rank_values(
+            |push| {
+                self.evaluated_batches(window, &[window.field.into()], |batch| {
+                    read(&batch)?;
+                    for row in 0..batch.num_rows() {
+                        push(field.value(&batch, row)?)?;
+                    }
+                    Ok(true)
+                })
+            },
+            &statistics,
+            self.storage_settings()?.query_bytes.get(),
+        )?;
+        let median = values.remove(0);
+        Ok((median, percentiles.iter().copied().zip(values).collect()))
     }
 
     fn reduce_numeric(&self, window: NumericWindow<'_>, transform: &Transform) -> Result<RecordBatch> {

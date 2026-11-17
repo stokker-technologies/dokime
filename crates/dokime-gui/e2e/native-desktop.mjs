@@ -230,8 +230,8 @@ async function exactBench() {
   );
   const base = 1152921504606847975n;
   for (const name of ["mean", "median", "min", "max", "first", "last"]) assert.equal(values[name], String(base));
-  // Percentiles Are Floating-Point Values.
-  for (const name of ["p05", "p95", "p99"]) assert.equal(values[name], String(BigInt(Number(base))));
+  // Percentiles Are Floating-Point Values; Their Digit Grouping Follows the Platform Locale.
+  for (const name of ["p05", "p95", "p99"]) assert.equal(values[name].replace(/[^0-9]/g, ""), String(BigInt(Number(base))));
   const count = BigInt(values.count.replace(/[^0-9]/g, ""));
   assert.ok(count > 0n);
   assert.equal(values.sum, String(base * count));
