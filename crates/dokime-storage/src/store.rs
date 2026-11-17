@@ -41,11 +41,12 @@ use rusqlite::Transaction;
 use rusqlite::TransactionBehavior;
 use rusqlite::{Connection, OptionalExtension, params, types::ValueRef};
 use sha2::{Digest, Sha256};
-use tokio::sync::watch::Sender;
+use tokio::sync::watch::{self, Sender};
 
 // Local Imports
+use crate::telemetry::aggregates::{NumericSummary, SummarySelection};
 use crate::{Backend, StorageSettings, expressions, history, stream_windows, telemetry};
-use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample};
+use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample, StatisticsRead, storage_defaults};
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::host::execution_outcome;
@@ -61,7 +62,7 @@ const APPLICATION_ID: i32 = 0x444b4e58;
 
 /* === Type Aliases === */
 
-type StatisticsCache = HashMap<(String, String, String, u64), (u64, crate::StatisticsRead)>;
+type StatisticsCache = HashMap<(String, String, String, u64), (u64, StatisticsRead)>;
 
 /* === Structs === */
 
@@ -75,6 +76,10 @@ pub struct Store {
     pub(crate) intake: Arc<Mutex<telemetry::Intake>>,
     pub(crate) identity: Arc<str>,
     pub(crate) cancelled: Option<Arc<AtomicBool>>,
+
+    /// Numeric Results Belong to One Finite Read and Its Nested Readers, Never the Host Store.
+    pub(crate) summaries: Option<Arc<Mutex<BTreeMap<SummarySelection, NumericSummary>>>>,
+
     pub(crate) statistics: Arc<Mutex<StatisticsCache>>,
     pub(crate) verified: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     pub(crate) changed: Sender<u64>,
@@ -103,7 +108,7 @@ impl Store {
     }
 
     pub fn open(root: &Path) -> Result<Self> {
-        Self::open_with(root, crate::storage_defaults())
+        Self::open_with(root, storage_defaults())
     }
     pub fn open_with(root: &Path, settings: StorageSettings) -> Result<Self> {
         Backend::validate_root(root)?;
@@ -257,9 +262,10 @@ impl Store {
             intake: Arc::new(Mutex::new(intake)),
             identity: identity.into(),
             cancelled: None,
+            summaries: None,
             statistics: Arc::new(Mutex::new(HashMap::new())),
             verified: Arc::new(Mutex::new(HashMap::new())),
-            changed: tokio::sync::watch::channel(0).0,
+            changed: watch::channel(0).0,
         };
         store.restore_intake()?;
         Ok(store)
@@ -294,6 +300,7 @@ impl Store {
             intake: self.intake.clone(),
             identity: self.identity.clone(),
             cancelled: Some(cancelled.clone()),
+            summaries: Some(self.summaries.clone().unwrap_or_else(|| Arc::new(Mutex::new(BTreeMap::new())))),
             statistics: self.statistics.clone(),
             verified: self.verified.clone(),
             changed: self.changed.clone(),
