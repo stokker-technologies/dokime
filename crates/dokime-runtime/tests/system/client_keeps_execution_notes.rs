@@ -34,11 +34,12 @@ use dokime::client::EvidenceNotesCreateOptions;
 use dokime::client::EvidenceNotesGetOptions;
 use dokime::client::EvidenceNotesListOptions;
 use dokime::client::EvidenceNotesSetOptions;
+use dokime::client::EvidenceNotesWatchOptions;
 use dokime::client::ExecutionOutcome;
 use dokime_protocol::host::evidence::NotesCreateRequest;
 use dokime_protocol::host::evidence::NotesSetRequest;
-use dokime_protocol::host::evidence::annotation_owner_owner::Kind as AnnotationOwnerOwnerKind;
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::host::evidence::annotation_owner_owner;
+use dokime_protocol::model::origin;
 use dokime_storage::Execution;
 use dokime_storage::Store;
 use harmos_protocol::model::PageRequest;
@@ -79,7 +80,7 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
                     identifier: id.into(),
                     cycle: "notes-cycle".into(),
                     origin: Some(Origin {
-                        kind: Some(OriginKind::Import(Import::default())),
+                        kind: Some(origin::Kind::Import(Import::default())),
                     }),
                     ..Default::default()
                 })?;
@@ -91,7 +92,7 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             let notes = Client::from_channel(channel, super::support::client_settings())?.evidence.notes.clone();
             let owner = EvidenceAnnotationOwner {
                 owner: Some(EvidenceAnnotationOwnerOwner {
-                    kind: Some(AnnotationOwnerOwnerKind::Execution(EvidenceExecutionNoteOwner {
+                    kind: Some(annotation_owner_owner::Kind::Execution(EvidenceExecutionNoteOwner {
                         cycle_id: "notes-cycle".into(),
                         execution_id: "notes-a".into(),
                     })),
@@ -107,10 +108,10 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             };
             let receipt = notes
                 .create_with(
-                    ((request.clone()).owner).unwrap_or_default(),
-                    ((request.clone()).value).unwrap_or_default(),
+                    request.owner.clone().unwrap_or_default(),
+                    request.value.clone().unwrap_or_default(),
                     EvidenceNotesCreateOptions {
-                        request_id: Some((request.clone()).request_id),
+                        request_id: Some(request.request_id.clone()),
                         ..Default::default()
                     },
                 )
@@ -118,10 +119,10 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             assert_eq!(
                 notes
                     .create_with(
-                        ((request.clone()).owner).unwrap_or_default(),
-                        ((request.clone()).value).unwrap_or_default(),
+                        request.owner.clone().unwrap_or_default(),
+                        request.value.clone().unwrap_or_default(),
                         EvidenceNotesCreateOptions {
-                            request_id: Some((request.clone()).request_id),
+                            request_id: Some(request.request_id.clone()),
                             ..Default::default()
                         }
                     )
@@ -133,10 +134,10 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             assert!(
                 notes
                     .create_with(
-                        ((conflict.clone()).owner).unwrap_or_default(),
-                        ((conflict.clone()).value).unwrap_or_default(),
+                        conflict.owner.clone().unwrap_or_default(),
+                        conflict.value.clone().unwrap_or_default(),
                         EvidenceNotesCreateOptions {
-                            request_id: Some((conflict.clone()).request_id),
+                            request_id: Some(conflict.request_id.clone()),
                             ..Default::default()
                         }
                     )
@@ -145,6 +146,11 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             );
             let name = receipt.note.unwrap().note_id;
             let first = notes.get(name.clone()).await?;
+            let selection = EvidenceAnnotationSelection {
+                owner: Some(owner),
+                include_context: true,
+            };
+            let opening = notes.list(selection.clone()).await?;
             let changed = EvidenceNoteWritable {
                 message: uuid::Uuid::now_v7().to_string(),
             };
@@ -156,11 +162,11 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             };
             let saved = notes
                 .set_with(
-                    (update.clone()).name,
-                    ((update.clone()).value).unwrap_or_default(),
-                    (update.clone()).expected_revision,
+                    update.name.clone(),
+                    update.value.clone().unwrap_or_default(),
+                    update.expected_revision.clone(),
                     EvidenceNotesSetOptions {
-                        request_id: Some((update.clone()).request_id),
+                        request_id: Some(update.request_id.clone()),
                         ..Default::default()
                     },
                 )
@@ -169,21 +175,40 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             assert_eq!(
                 notes
                     .set_with(
-                        (update.clone()).name,
-                        ((update.clone()).value).unwrap_or_default(),
-                        (update.clone()).expected_revision,
+                        update.name.clone(),
+                        update.value.clone().unwrap_or_default(),
+                        update.expected_revision.clone(),
                         EvidenceNotesSetOptions {
-                            request_id: Some((update.clone()).request_id),
+                            request_id: Some(update.request_id.clone()),
                             ..Default::default()
                         }
                     )
                     .await?,
                 saved
             );
-            let selection = EvidenceAnnotationSelection {
-                owner: Some(owner),
-                include_context: true,
-            };
+            // Resume Before an Already Committed Edit Without Waiting for Another Mutation
+            let mut watching = notes
+                .watch_with(
+                    selection.clone(),
+                    EvidenceNotesWatchOptions {
+                        at: opening.resolved_at.clone(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let frame = watching.next().await?.ok_or("Watch Notes: Return Its Opening")?;
+            assert!(frame.opening);
+            assert_eq!(frame.notes, opening.notes);
+            let frame = watching.next().await?.ok_or("Watch Notes: Replay the Committed Edit")?;
+            assert!(!frame.opening);
+            assert_eq!(frame.notes[0].message, changed.message);
+            assert!(frame.resync_required.is_none());
+            let at = frame.resolved_at.ok_or("Watch Notes: Issue Its Storage Cut")?;
+            let observed = notes.list_with(selection.clone(), EvidenceNotesListOptions { at: Some(at), ..Default::default() }).await?;
+            assert_eq!(observed.notes, frame.notes);
+            drop(watching);
+
+            // Read the Updated Image and Reject a Cut from Another Selection
             let page = notes
                 .list_with(
                     selection.clone(),
@@ -198,7 +223,7 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             assert_eq!(page.notes[0].message, changed.message);
             let other = EvidenceAnnotationOwner {
                 owner: Some(EvidenceAnnotationOwnerOwner {
-                    kind: Some(AnnotationOwnerOwnerKind::Execution(EvidenceExecutionNoteOwner {
+                    kind: Some(annotation_owner_owner::Kind::Execution(EvidenceExecutionNoteOwner {
                         cycle_id: "notes-cycle".into(),
                         execution_id: "notes-b".into(),
                     })),
@@ -237,11 +262,11 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             assert!(
                 notes
                     .set_with(
-                        (closed.clone()).name,
-                        ((closed.clone()).value).unwrap_or_default(),
-                        (closed.clone()).expected_revision,
+                        closed.name.clone(),
+                        closed.value.clone().unwrap_or_default(),
+                        closed.expected_revision.clone(),
                         EvidenceNotesSetOptions {
-                            request_id: Some((closed.clone()).request_id),
+                            request_id: Some(closed.request_id.clone()),
                             ..Default::default()
                         }
                     )
@@ -261,11 +286,11 @@ fn client_keeps_execution_notes() -> Result<(), Box<dyn Error>> {
             assert!(
                 notes
                     .set_with(
-                        (closed.clone()).name,
-                        ((closed.clone()).value).unwrap_or_default(),
-                        (closed.clone()).expected_revision,
+                        closed.name.clone(),
+                        closed.value.clone().unwrap_or_default(),
+                        closed.expected_revision.clone(),
                         EvidenceNotesSetOptions {
-                            request_id: Some((closed.clone()).request_id),
+                            request_id: Some(closed.request_id.clone()),
                             ..Default::default()
                         }
                     )

@@ -53,7 +53,7 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: ArtifactsGetRequest) -> Result<ArtifactsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) = crate::host::views::read(context, &format!("artifact/{}", request.name), request.at.as_ref(), async {
-            let stored = context.host.store().artifact(&request.name)?;
+            let stored = crate::host::content::artifact(context, &request.name).await?;
             Ok(ArtifactsGetResponse {
                 metadata: stored.artifact,
                 file: stored.request.and_then(|request| request.file),

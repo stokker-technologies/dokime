@@ -37,13 +37,15 @@ use dokime::client::PlannedCase;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
 use dokime_runtime::Host;
-use dokime_runtime::Result as HostResult;
-use dokime_runtime::services::ClientSettings as ServicesClientSettings;
+
+use dokime_runtime::services;
+use dokime_storage::StoredExecutionFile;
 use harmos_protocol::model::StorageTransferSettings;
 use std::collections::HashMap;
 use std::env::consts::EXE_SUFFIX;
 use std::error::Error;
-use std::path::PathBuf;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 use tokio::process::Child;
 use tokio::process::Command;
 
@@ -109,6 +111,27 @@ impl PythonPlugin {
 }
 
 /* === Public Functions === */
+
+pub async fn register_execution_files(
+    root: &Path, environment: &[(&str, OsString)], files: Vec<StoredExecutionFile>,
+) -> Result<(), Box<dyn Error>> {
+    use prost::Message;
+    use std::io::Write;
+    let mut staged = Vec::new();
+    let mut command = Command::from(dokime_runtime::process::command(host_fixture()?));
+    command.envs(environment.iter().cloned()).args(["--credential-namespace", namespace().as_str(), "--storage"]).arg(root);
+    for file in files {
+        let mut metadata = tempfile::NamedTempFile::new()?;
+        metadata.write_all(&file.encode_to_vec())?;
+        command.arg("--attach-execution-file").arg(metadata.path());
+        staged.push(metadata);
+    }
+    let status = command.status().await?;
+    if !status.success() {
+        return Err(format!("Register Execution Files: Host Fixture Exited with {status}").into());
+    }
+    Ok(())
+}
 
 pub async fn plugin_state(
     plugins: &dokime::client::Plugins, mut entry: harmos_protocol::host::PluginEntry, expected: harmos_protocol::host::PluginState,
@@ -240,7 +263,7 @@ pub fn parameters(value: f64, fail_attempts: u32, evaluate: bool) -> HashMap<Str
         ("evaluate".into(), Value { kind: Some(Kind::Boolean(evaluate)) }),
     ])
 }
-pub fn answer(host: &Host, execution: &str, prompt: PromptsCreateRequest) -> HostResult<()> {
+pub fn answer(host: &Host, execution: &str, prompt: PromptsCreateRequest) -> dokime_runtime::Result<()> {
     host.answer(
         execution,
         PromptsCreateResponse {
@@ -291,9 +314,9 @@ pub fn client_settings() -> ClientSettings {
     }
 }
 
-pub fn service_settings() -> ServicesClientSettings {
+pub fn service_settings() -> services::ClientSettings {
     let bounds = settings();
-    ServicesClientSettings {
+    services::ClientSettings {
         read_timeout: OPERATION_TIMEOUT,
         mutation_timeout: OPERATION_TIMEOUT,
         watch_timeout: SYSTEM_HANG_GUARD,

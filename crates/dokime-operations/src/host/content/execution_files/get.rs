@@ -54,7 +54,7 @@ pub async fn handle(context: &Context, request: ExecutionFilesGetRequest) -> Res
     crate::host::complete(ID, context.settings.read_timeout, async {
         let (mut reply, cut) =
             crate::host::views::read(context, &format!("file/{}/{}", request.parent, request.name), request.at.as_ref(), async {
-                let entry = context.host.store().execution_file(&request.parent, &request.name)?;
+                let entry = crate::host::content::execution_file(context, &request.parent, &request.name).await?;
                 Ok(ExecutionFilesGetResponse {
                     metadata: entry.metadata,
                     file: entry.file,

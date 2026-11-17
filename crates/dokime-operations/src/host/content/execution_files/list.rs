@@ -54,19 +54,9 @@ pub async fn handle(context: &Context, request: ExecutionFilesListRequest) -> Re
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let (saved, cut) = crate::host::views::read(context, &format!("files/{}", request.parent), request.at.as_ref(), async {
-            let store = context.host.store();
-            store.metadata(&request.parent)?;
-            let mut after = String::new();
             let mut files = Vec::new();
-            loop {
-                let page = store.files_page(&request.parent, &after, context.settings.page_items)?;
-                if page.is_empty() {
-                    break;
-                }
-                after = page.last().unwrap().metadata.as_ref().unwrap().relative_path.clone();
-                for entry in page {
-                    files.push(entry.metadata.ok_or_else(|| Error::Precondition("List Execution Files: Restore Its Metadata".into()))?);
-                }
+            for entry in crate::host::content::execution_files(context, &request.parent).await? {
+                files.push(entry.metadata.ok_or_else(|| Error::Precondition("List Execution Files: Restore Its Metadata".into()))?);
             }
             Ok(ExecutionFilesListResponse { files, ..Default::default() })
         })

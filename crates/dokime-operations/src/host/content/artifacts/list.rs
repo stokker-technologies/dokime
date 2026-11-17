@@ -56,16 +56,11 @@ pub async fn handle(context: &Context, request: ArtifactsListRequest) -> Result<
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let key = format!("artifacts/{}", crate::host::views::hex(&request.scope.as_ref().map(Message::encode_to_vec).unwrap_or_default()));
         let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
-            let store = context.host.store();
-            let mut after = String::new();
-            let mut artifacts = Vec::new();
-            loop {
-                let page = store.artifacts_page(&after, context.settings.page_items)?;
-                if page.is_empty() {
-                    break;
-                }
-                after = page.last().unwrap().artifact_id.clone();
-                artifacts.extend(page.into_iter().filter(|artifact| {
+            let artifacts = crate::host::content::artifact_records(context)
+                .await?
+                .into_iter()
+                .filter_map(|stored| stored.artifact)
+                .filter(|artifact| {
                     request.scope.as_ref().is_none_or(|selected| {
                         artifact.scope.as_ref().is_some_and(|scope| {
                             selected.cycle_id.as_ref().is_none_or(|id| scope.cycle_id.as_ref() == Some(id))
@@ -73,8 +68,8 @@ pub async fn handle(context: &Context, request: ArtifactsListRequest) -> Result<
                                 && selected.case_id.as_ref().is_none_or(|id| scope.case_id.as_ref() == Some(id))
                         })
                     })
-                }));
-            }
+                })
+                .collect();
             Ok(ArtifactsListResponse { artifacts, ..Default::default() })
         })
         .await?;

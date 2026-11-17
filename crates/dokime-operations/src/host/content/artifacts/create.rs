@@ -62,7 +62,7 @@ pub async fn handle(context: &Context, mut request: ArtifactsCreateRequest) -> R
         let _guard = context.administration.lock().await;
         let file = request.file.as_ref().ok_or_else(|| Error::Invalid(format!("{ID}: Select Published Content")))?;
         get::handle(context, FilesGetRequest { file: Some(file.clone()), at: None }).await?;
-        let reply = context.host.store().attach_artifact(ID, request, context.host.now_ns())?;
+        let reply = crate::host::content::attach_artifact(context, request).await?;
         context.host.signal_change();
         Ok(reply)
     })

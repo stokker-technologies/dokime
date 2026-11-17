@@ -24,9 +24,9 @@ use dokime::Document;
 use dokime::Termination;
 use dokime::Value;
 use dokime_protocol::host::PromptsCreateResponse;
-use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_protocol::model::value;
 use dokime_runtime::ControlledClock;
-use dokime_runtime::Error as DokimeRuntimeError;
+
 use dokime_runtime::Host;
 use dokime_runtime::RenderSettings;
 use dokime_storage::ExecutionState;
@@ -67,7 +67,7 @@ fn execution_shutdown_joins_runs_after_observer_loss() -> Result<(), Box<dyn Err
             let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
             let cleanup = host.catalog(&entry)?.suites[0].templates[0].cleanup.clone().unwrap();
             let origin = host
-                .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
+                .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]))
                 .await?;
             let cycle = host.start_cycle(vec![origin.clone(), origin.clone()]).await?;
             let executions = cycle.executions.clone();
@@ -114,11 +114,11 @@ fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn Error>> {
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
             let origin = host
-                .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
+                .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]))
                 .await?;
             let cycle = host.start_cycle(vec![origin.clone()]).await?;
             let execution = cycle.executions[0].clone();
-            assert!(matches!(host.cancel(&execution), Err(DokimeRuntimeError::Invalid(_))));
+            assert!(matches!(host.cancel(&execution), Err(dokime_runtime::Error::Invalid(_))));
             assert!(!host.capabilities(&execution)?.cancel);
 
             // Stop Leaves the Current Question Available Until Its Safe Boundary
@@ -164,7 +164,7 @@ fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn Error>
             let host = Host::open(root.path(), settings.clone(), super::support::service_settings()).await?;
             let entry = host.add_managed("thermal", &super::support::thermal_fixture()?, &[]).await?;
             let origin = host
-                .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]))
+                .materialize(&entry, "thermal.cycle", HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]))
                 .await?;
             let cycle = host.start_cycle(vec![origin]).await?;
             let execution = cycle.executions[0].clone();
@@ -173,7 +173,7 @@ fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn Error>
             cycle.wait().await?;
             let before = host.execution(&execution)?;
             let document = Document::new("Execution Evidence");
-            let snapshot = host.snapshot(&execution)?;
+            let snapshot = host.snapshot(&execution).await?;
             let output = host.render_document(
                 &snapshot,
                 document,

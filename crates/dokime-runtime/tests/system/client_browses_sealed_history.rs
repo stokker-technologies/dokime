@@ -53,12 +53,12 @@ use dokime::client::ResultStatus;
 use dokime_protocol::host::ExecutionsDeleteRequest;
 use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::evidence::SamplesListRequest;
-use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::host::execution_outcome;
+use dokime_protocol::model::origin;
 use dokime_runtime::PluginProcess;
 use dokime_storage::Execution;
 use dokime_storage::Store;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::model::PageRequest;
 use std::collections::HashMap;
 use std::error::Error;
@@ -97,7 +97,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                 identifier: "imported-capture".into(),
                 cycle: "imported-cycle".into(),
                 origin: Some(Origin {
-                    kind: Some(OriginKind::Import(Import {
+                    kind: Some(origin::Kind::Import(Import {
                         metadata: Some(Metadata {
                             identifier: "capture".into(),
                             label: "Captured File".into(),
@@ -113,22 +113,26 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, super::support::client_settings())?;
             let reference = super::support::native_file(&client, "history-file", "imported-capture", b"abcdef").await?;
-            store.attach_execution_file(
-                "imported-capture",
-                ContentExecutionFileMetadata {
-                    relative_path: "capture.txt".into(),
-                    kind: ContentExecutionFileKind::Text as i32,
-                    ..Default::default()
-                },
-                reference,
-            )?;
             process.close().await?;
+            super::support::register_execution_files(
+                root.path(),
+                &credentials.environment,
+                vec![dokime_storage::StoredExecutionFile {
+                    metadata: Some(ContentExecutionFileMetadata {
+                        relative_path: "capture.txt".into(),
+                        kind: ContentExecutionFileKind::Text as i32,
+                        ..Default::default()
+                    }),
+                    file: Some(reference),
+                }],
+            )
+            .await?;
             store.close_streams("imported-capture")?;
             store.close(
                 "imported-capture",
                 Termination::Completed,
                 ExecutionOutcome {
-                    attribution: Some(ExecutionOutcomeAttribution::Declared(DeclaredOutcome {
+                    attribution: Some(execution_outcome::Attribution::Declared(DeclaredOutcome {
                         status: ResultStatus::Passed as i32,
                         importer: "operator".into(),
                         ..Default::default()
@@ -166,7 +170,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                 .create(
                     "thermal",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -474,7 +478,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             );
             assert!(executions.get_with("imported-capture", ExecutionsGetOptions { at: None, ..Default::default() }).await.is_err());
             process.close().await?;
-            assert!(Store::open(root.path())?.execution_file("imported-capture", "capture.txt").is_err());
+            assert!(files.get("imported-capture", "capture.txt").await.is_err());
             plugin.close().await?;
             Ok::<_, Box<dyn Error>>(())
         })

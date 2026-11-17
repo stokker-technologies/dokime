@@ -147,7 +147,7 @@ path = "tests/system/main.rs"
 
 [[bench]]
 name = "storage"
-path = "benches/storage.rs"
+path = "benches/storage/main.rs"
 harness = false
 
 # === Example Targets === #

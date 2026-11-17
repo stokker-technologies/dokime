@@ -64,7 +64,7 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             let prompt = host.next_prompt(&execution).await?;
             super::support::answer(&host, &execution, prompt)?;
             let result = cycle.wait().await?;
-            let fixed = host.snapshot(&execution)?;
+            let fixed = host.snapshot(&execution).await?;
             let before = host.execution(&execution)?;
 
             // Render Real HTML with Bounded Stored-Sample Queries and No Publication

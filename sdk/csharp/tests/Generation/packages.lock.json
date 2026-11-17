@@ -161,7 +161,7 @@
           "Google.Protobuf": "[3.36.2, )",
           "Grpc.AspNetCore": "[2.76.0, )",
           "Grpc.Net.Client": "[2.76.0, )",
-          "Harmos": "[0.1.0-dev.7fe385eacbe9, )"
+          "Harmos": "[0.1.0-dev.6978e65f1d50, )"
         }
       },
       "harmos": {

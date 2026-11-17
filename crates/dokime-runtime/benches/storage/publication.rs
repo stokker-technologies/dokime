@@ -36,7 +36,7 @@ use tokio::runtime::Runtime;
 use dokime::plugin::HostOperation;
 use dokime::prelude::*;
 use dokime_protocol::builders::Plot;
-use dokime_protocol::host::PromptsCreateRequest as PromptRequest;
+use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::evidence_client::EvidenceClient;
 use dokime_protocol::host::files_client::FilesClient;
 use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceSubject, FilesReadRequest, PromptsCreateResponse, evidence_subject};
@@ -131,7 +131,7 @@ impl Fixture {
         Self { host, root, cycle, execution }
     }
 
-    pub(super) async fn prompt(&self, name: &str) -> PromptRequest {
+    pub(super) async fn prompt(&self, name: &str) -> PromptsCreateRequest {
         let mut changed = self.host.changes();
         loop {
             changed.borrow_and_update();
@@ -306,7 +306,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                 let Fixture { host, root, cycle, execution } = fixture;
                 let completed = cycle.wait().await.unwrap();
                 assert_eq!(completed.executions[0].samples.len(), 16384, "Prepare Runtime Archive: Retain Every Sample");
-                let snapshot = host.snapshot(&execution).unwrap();
+                let snapshot = host.snapshot(&execution).await.unwrap();
                 let mut pulse = Plot::time_series(FieldReference::new("pulse").field("value")).message;
                 pulse.display_points = Some(400);
                 let mut spectrum = Plot::frequency_series(FieldReference::new("spectrum").field("value")).message;

@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `7fe385eacbe9a4c9a47943f6a528f97a014256ee`, rather than
+[Cargo.toml](../Cargo.toml), `6978e65f1d505c2fe805a34a2781e48ea6f30350`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -212,7 +212,7 @@ ownership changes below are locked direction, not implemented source.
    independent clock; lifecycle dispatch uses the library operation manager. Scoped
    sample ingestion acknowledges only after the product Arrow write and binding
    closure precedes sealing. Product file presentation stores logical paths and
-   original native file references in the execution transaction. Retired SQL file
+   original native file references in scoped Harmos objects. Retired SQL file
    byte objects and writers are removed; incompatible development roots are preserved
    and refused at baseline v1. Final combined validation remains a separate obligation.
    Every native credential lives under the host's credential namespace
@@ -554,6 +554,9 @@ child-watch contract rather than inventing a unary streaming twin.
 
 ## Arrow File Storage
 
+The descriptor-driven execution ledger below is the current implementation, to be
+replaced by the agreed native mapping in [Agreed Storage Mapping](#agreed-storage-mapping).
+Its columnar intake does not establish the end-to-end native append capability G2.
 This implementation preserves invariant 11, **Distinct Storage Guarantees**:
 accepted live rows and a saved finite cut remain different guarantees. Invariant 7,
 **Library Machinery and Product Policy**, places the physical backend in
@@ -720,6 +723,62 @@ The baseline remains v1. A root with the rebuilt `samples`, `sample_fields` and
 `sample_batches` inventory is refused with an action to select a fresh root; no
 existing root is migrated, reset or deleted. Diagnostics copy stream files too.
 
+## Agreed Storage Mapping
+
+**Locked direction, not implemented:** [Operation Boundary D8](../openspec/changes/operation-boundary/design.md#d8-storage-mapping-contract-agreed-not-implemented)
+owns the entity table and detailed storage policy. One authoritative Harmos history
+replaces the execution ledger together with its writers, readers and cut issuance.
+The six ordered [implementation slices](../openspec/changes/operation-boundary/tasks.md)
+keep slices 2–5 in one combined cutover, without a dual writer or mirror.
+
+Root, case, cycle and execution scopes are exact opaque IDs:
+`root/<backend_id>`, `case/<case_id>`, `cycle/<cycle_id>` and
+`execution/<execution_id>`. Explicit product relationships select ownership;
+prefixes imply no hierarchy. Product state uses registered scoped objects,
+immutable transitions/evidence use records, samples use Arrow only, and published
+bytes use native files. Dokime owns entity/event/request IDs and per-stream
+sequences; Harmos owns history/positions, revisions, mutation windows, snapshots
+and file generations. Frozen schemas retain protobuf decoding bindings; no Run
+is persisted.
+
+After admission closes, samples stop, cleanup/captures join, accepted batches
+durably drain, files finalize and Closed persists. Fence evidence/preview writers
+and retain evidence cut **C**. Digest source content and immutable file identities
+at C, excluding previews, seal metadata and later reports. One conditional mutation
+publishes Sealed, cycle attribution/events, every preview deletion and an optional
+report; its durable receipt supplies publication cut **S**. Sealed evidence,
+documents, plots and later reports source at C; current listings may advance.
+Open/Closed reads without `at` use latest durable without flushing. Report bytes
+precede atomic metadata/reference publication; rendering never publishes.
+Execution deletion releases ownership of C; independent reader leases survive it.
+
+Intake derives scope from the admitted binding, validates execution context and
+rejects conflicting authored scope. Bounded batches remain owned until
+`completed=true` and `durable_at` covers them; acceptance alone is insufficient.
+Replay preserves mutation identity/payload. The target path stays columnar without
+per-sample protobuf/JSON/dynamic-message work, locking or SQL.
+
+Row watches observe complete compound frontiers, opening from an issued image cut
+before draining its pages and resuming by `resolved_at`, including filtered durable
+progress. Gaps/expired cuts emit `resync_required` and terminate for a fresh image.
+File watches use native byte/production sources; live status remains separate.
+
+Execution deletion settles writers/productions and checks ownership/seal before
+exact-scope deletion; parent summaries derive from surviving bindings. Case deletion
+remains unexecuted-only. There is no cycle Delete RPC. `DeleteScope` must be the sole
+mutation item, so cascades/parent updates cannot claim atomicity across calls.
+Root disposal uses offline primary/recovery disposal and product credential cleanup;
+deleting the root scope alone leaves other scopes and unscoped schemas.
+
+Upstream blockers remain explicit: **G1**, restart-safe scope-qualified retained
+cuts (slices 1, 2, 4); **G2**, columnar append/backend writes (slice 3); **G3**,
+compound-aware watches (slices 3, 5); Harmos **groups 6–7**, consolidated statistics
+and bucket summaries/continuation (slice 5); **group 9**, the typed facade,
+authoring exports and operation-owned batch DTOs (slice 6). Current native Arrow
+conversion expands rows and the product backend inserts/hashes each row; G2 is
+unresolved and throughput is unmeasured. Storage-only/maintenance and expression
+transforms are available, with product hooks/adoption still open.
+
 ## Final Library Assembly and Storage Contract
 
 **Locked amendment, 2026-11-16:** the typed facade replaces manager construction
@@ -794,15 +853,27 @@ At the current pin, the product `execution.sqlite3` ledger still owns coupled
 execution, evidence, sample, seal and report transitions, while registered Harmos
 operations persist in `storage.sqlite3`. Their sequencing cannot be split by moving
 only an append call: reads, retained cuts and seals must move with the canonical
-writer. The pinned Harmos revision and registered backend provide compound atomic
-mutation and object/scoped deletion. Their coupled product cutover remains open;
-offline/minimal-assembly storage operations, expression transforms scale/offset/contains,
-consolidated statistics, the bucket-summary kernel and the typed facade remain
-upstream gaps.
+writer. The pinned Harmos revision provides compound atomic mutation,
+object/scoped deletion, storage-only assembly and maintenance operations, and
+scale/offset/contains expression transforms. Their coupled product cutover and
+backend maintenance hooks remain open. Consolidated statistics, the bucket-summary
+kernel and the typed facade remain upstream gaps.
 Independent retained views use immutable native files and object indexes, retaining
 the first file published for a product cut. Pages keep their existing response bounds;
 the complete collection is stored and read through bounded native file operations.
 No mirror, fallback reader or dual write is introduced.
+Artifact and execution-file metadata use scoped Harmos objects in
+`crates/dokime-operations/src/host/content/mod.rs`; their bytes remain native files.
+Artifact replay retains its original native mutation identity and receipt, including
+after sealing and restart. Logical file replacement retains the old immutable file
+reference. Archive metadata and fixed document artifact cards read those objects;
+archive execution/evidence/telemetry readers still await the coupled source cutover.
+The execution-open check still uses the coupled execution owner. Atomic coordination
+of content publication with seal/deletion and native cut issuance remains required
+before this family establishes the complete storage-through-operations boundary.
+`Host::snapshot`, `Host::snapshot_cut` and `Host::export_execution` are asynchronous
+because they read content through operations. Physical archive assembly remains in
+`crates/dokime-storage/src/content.rs` until its evidence and telemetry inputs move.
 Prepared reports persist their document, execution seal and native file reference
 through Harmos objects. Their HTML stays in the native file and publication reads
 it through `GetFileBytes`; the final product report transaction still awaits the
@@ -819,7 +890,15 @@ request ID while taking durable positions from the native receipt. Case deletion
 Dokime's cycle and execution-ownership guards and calls `DeleteObject`; retained
 cuts still see the previous case. No SQL registration or planned-case table remains.
 Execution bindings still belong to the coupled execution/evidence cutover.
-Roots containing the superseded SQL registration/case tables, view or prepared-report journals are refused
+Operator note lists read the native object history at an issued Harmos cut, with
+selection-bound pagination. Their watches follow `WatchRows` object revisions from
+the opening cut, including edits committed before the watch opens. They expose a
+row-watch gap with its last issued cut and require the client to resynchronize.
+Note ownership and open-owner policy still read the execution ledger pending the
+coupled lifecycle cutover. Note lists create no retained-view files and watches
+observe native object revisions.
+Roots containing the superseded SQL registration/case tables, view, prepared-report,
+artifact or execution-file journals are refused
 with fresh-root guidance at baseline v1. Admission preserves their stored values;
 there is no migration, fallback reader or automatic reset.
 
@@ -883,7 +962,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/7fe385eacbe9a4c9a47943f6a528f97a014256ee/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/6978e65f1d505c2fe805a34a2781e48ea6f30350/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -994,7 +1073,7 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `7fe385eacbe9a4c9a47943f6a528f97a014256ee`.
+The definition pass pins Harmos at `6978e65f1d505c2fe805a34a2781e48ea6f30350`.
 The table below records consumer repairs at this pin. Plugin Boundary replaces
 direct plugin-service composition and author-facing Harmos values; product SDKs
 use carrier helpers internally and expose Dokime values only.
