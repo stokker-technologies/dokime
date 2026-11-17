@@ -18,13 +18,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 use prost::Message;
 use sha2::Digest;
 
 // Local Imports
+use crate::host::Context;
 use crate::host::storage::administration;
-use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::evidence::{NotesCreateRequest, NotesCreateResponse, OperatorNote};
 
@@ -46,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Notes/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<NotesCreateRequest, NotesCreateResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: NotesCreateRequest) -> Result<NotesCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Create Note: Supply Its Writable Value".into()))?;

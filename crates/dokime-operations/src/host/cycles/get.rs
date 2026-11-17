@@ -20,13 +20,11 @@
 // Third Party Imports
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::CycleStatus;
 use dokime_protocol::host::CycleWritable;
 use dokime_protocol::host::CyclesGetRequest;
 use dokime_protocol::host::CyclesGetResponse;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -46,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.Cycles/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<CyclesGetRequest, CyclesGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: CyclesGetRequest) -> Result<CyclesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let cycle = crate::host::execution_state::cycle(context, &request.name).await?;

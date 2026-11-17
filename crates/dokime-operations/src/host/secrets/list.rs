@@ -15,23 +15,16 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::ReadCut;
+use harmos_protocol::model::ResourceRevision;
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-
 use dokime_protocol::host::SecretsListRequest;
 use dokime_protocol::host::SecretsListResponse;
-
-use harmos_protocol::model::OperationContract;
-
-use harmos_protocol::model::ReadCut;
-
-use harmos_protocol::model::ResourceRevision;
 
 /* === Constants === */
 
@@ -51,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.Secrets/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SecretsListRequest, SecretsListResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: SecretsListRequest) -> Result<SecretsListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let crate::host::secrets::store::Reply::Snapshot(snapshot) =

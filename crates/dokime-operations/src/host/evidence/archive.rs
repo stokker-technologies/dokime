@@ -26,14 +26,13 @@ use harmos_operations::storage::{
 };
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::FileReference;
-use harmos_protocol::model::{History, OperationContract, PageRequest, Position};
+use harmos_protocol::model::{History, PageRequest, Position};
 use harmos_query::arrow::ArrowBatch;
 use harmos_runtime::storage::{self, query::FileSelection};
 use prost::Message;
 use tempfile::NamedTempFile;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::evidence_subject;
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
@@ -59,9 +58,6 @@ pub const ID: &str = "dokime.host.v1.Evidence/Archive";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<EvidenceArchiveRequest, EvidenceArchiveResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Result<EvidenceArchiveResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let scope = match request.subject.as_ref().and_then(|subject| subject.kind.as_ref()) {

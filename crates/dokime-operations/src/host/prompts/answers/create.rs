@@ -16,20 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use prost::Message;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::PromptResponse;
 use dokime_protocol::host::PromptsCreateResponse;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
 use dokime_protocol::host::prompts::AnswersCreateResponse;
 use dokime_protocol::model::MapValue;
-use harmos_protocol::model::OperationContract;
-use std::num::NonZeroUsize;
 
 /* === Constants === */
 
@@ -49,9 +47,6 @@ pub const ID: &str = "dokime.host.v1.prompts.Answers/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<AnswersCreateRequest, AnswersCreateResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: AnswersCreateRequest) -> Result<AnswersCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let mut normalized = request.clone();

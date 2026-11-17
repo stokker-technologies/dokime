@@ -15,16 +15,20 @@
 
 /* === Imports === */
 
-use crate::host::files::{get, read};
-use crate::host::{ClientSettings, Context, Output};
-use crate::{Error, Result};
-use dokime_protocol::host::files_watch_request::Target;
-use dokime_protocol::host::{FileBatch, FileCompletion, FilesGetRequest, FilesReadRequest, FilesWatchRequest, FilesWatchResponse};
-use harmos_protocol::model::OperationContract;
+// Standard Library Imports
+
+// Third Party Imports
 use tokio::sync::mpsc;
 use tokio::time;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
+
+// Local Imports
+use crate::host::files::{get, read};
+use crate::host::{Context, Output};
+use crate::{Error, Result};
+use dokime_protocol::host::files_watch_request::Target;
+use dokime_protocol::host::{FileBatch, FileCompletion, FilesGetRequest, FilesReadRequest, FilesWatchRequest, FilesWatchResponse};
 
 /* === Constants === */
 
@@ -44,9 +48,6 @@ pub const ID: &str = "dokime.host.v1.Files/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<FilesWatchRequest, FilesWatchResponse>(ID, settings.watch_timeout)
-}
 pub async fn handle(context: &Context, request: FilesWatchRequest) -> Result<Output<FilesWatchResponse>> {
     let file = match request.target.clone() {
         Some(Target::File(file)) => file,

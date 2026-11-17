@@ -15,20 +15,15 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
 use crate::{Error, Result, host::Context};
-
 use dokime_protocol::host::StreamSchemasGetRequest;
 use dokime_protocol::host::StreamSchemasGetResponse;
 use dokime_protocol::host::StreamSchemasListRequest;
-
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -48,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.StreamSchemas/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<StreamSchemasGetRequest, StreamSchemasGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: StreamSchemasGetRequest) -> Result<StreamSchemasGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         if request.schema_version != 0 && request.schema_version != 1 {

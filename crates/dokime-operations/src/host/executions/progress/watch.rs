@@ -21,7 +21,6 @@
 
 // Local Imports
 use crate::Error;
-use crate::host::ClientSettings;
 use crate::{
     Result,
     host::{Context, Output},
@@ -29,7 +28,6 @@ use crate::{
 use dokime_protocol::host::executions::ProgressGetRequest;
 use dokime_protocol::host::executions::ProgressWatchRequest;
 use dokime_protocol::host::executions::ProgressWatchResponse;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -48,10 +46,6 @@ pub const ID: &str = "dokime.host.v1.executions.Progress/Watch";
 /* === Implementations === */
 
 /* === Public Functions === */
-
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ProgressWatchRequest, ProgressWatchResponse>(ID, settings.watch_timeout)
-}
 
 pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<Output<ProgressWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {

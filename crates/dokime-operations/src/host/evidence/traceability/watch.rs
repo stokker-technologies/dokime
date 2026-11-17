@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use crate::Error;
 use crate::{
     Result,
     host::{Context, Output},
@@ -27,11 +28,6 @@ use crate::{
 use dokime_protocol::host::evidence::TraceabilityGetRequest;
 use dokime_protocol::host::evidence::TraceabilityWatchRequest;
 use dokime_protocol::host::evidence::TraceabilityWatchResponse;
-
-use harmos_protocol::model::OperationContract;
-
-use crate::Error;
-use crate::host::ClientSettings;
 
 /* === Constants === */
 
@@ -50,10 +46,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Traceability/Watch";
 /* === Implementations === */
 
 /* === Public Functions === */
-
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<TraceabilityWatchRequest, TraceabilityWatchResponse>(ID, settings.watch_timeout)
-}
 
 pub async fn handle(context: &Context, request: TraceabilityWatchRequest) -> Result<Output<TraceabilityWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {

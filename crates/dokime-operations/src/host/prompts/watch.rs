@@ -18,16 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::Failure;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::host::Output;
 use crate::{Result, host::Context};
 use dokime_protocol::host::PromptsListRequest;
 use dokime_protocol::host::PromptsWatchRequest;
 use dokime_protocol::host::PromptsWatchResponse;
-use harmos_protocol::model::Failure;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -47,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.Prompts/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<PromptsWatchRequest, PromptsWatchResponse>(ID, settings.watch_timeout)
-}
 pub async fn handle(context: &Context, request: PromptsWatchRequest) -> Result<Output<PromptsWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();

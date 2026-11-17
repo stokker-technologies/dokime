@@ -15,24 +15,17 @@
 
 /* === Imports === */
 
-use crate::host::Output;
-
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::Failure;
 
 // Local Imports
+use crate::host::Output;
 use crate::{Result, host::Context};
-
 use dokime_protocol::host::content::ExecutionFilesListRequest;
 use dokime_protocol::host::content::ExecutionFilesWatchRequest;
 use dokime_protocol::host::content::ExecutionFilesWatchResponse;
-
-use harmos_protocol::model::OperationContract;
-
-use harmos_protocol::model::Failure;
 
 /* === Constants === */
 
@@ -52,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.content.ExecutionFiles/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ExecutionFilesWatchRequest, ExecutionFilesWatchResponse>(ID, settings.watch_timeout)
-}
 pub async fn handle(context: &Context, request: ExecutionFilesWatchRequest) -> Result<Output<ExecutionFilesWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();

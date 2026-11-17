@@ -18,10 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::content::ArtifactsGetRequest;
 use dokime_protocol::host::content::ArtifactsGetResponse;
@@ -45,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.content.Artifacts/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ArtifactsGetRequest, ArtifactsGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: ArtifactsGetRequest) -> Result<ArtifactsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let stored = crate::host::content::artifact(context, &request.name).await?;

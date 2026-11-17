@@ -18,12 +18,11 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 use prost::Message;
 
 // Local Imports
+use crate::host::Context;
 use crate::host::storage::administration;
-use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::evidence::{NoteWritable, NotesSetRequest, NotesSetResponse, OperatorNote};
 
@@ -45,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Notes/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<NotesSetRequest, NotesSetResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: NotesSetRequest) -> Result<NotesSetResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Set Note: Supply Its Whole Writable Value".into()))?;

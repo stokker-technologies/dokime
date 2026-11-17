@@ -20,13 +20,11 @@
 // Third Party Imports
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::host::RunAction;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::ExecutionsGetRequest;
 use dokime_protocol::host::ExecutionsSetRequest;
 use dokime_protocol::host::ExecutionsSetResponse;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -46,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.Executions/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ExecutionsSetRequest, ExecutionsSetResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: ExecutionsSetRequest) -> Result<ExecutionsSetResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;

@@ -20,19 +20,16 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use arrow_array::{Float64Array, StructArray, UInt64Array};
-use harmos_protocol::model::{Declarations, OperationContract};
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::ReadCut;
 use prost::Message;
 use prost_reflect::{DescriptorPool, Kind};
 
 // Local Imports
-use crate::{
-    Error, Result,
-    host::{ClientSettings, Context},
-};
+use crate::{Error, Result, host::Context};
 use dokime_protocol::host::EvidenceStatisticsRequest;
 use dokime_protocol::host::EvidenceStatisticsResponse;
-use dokime_storage::{BatchSelection, Error as StorageError, Evidence, NumericWindow, StatisticsRead};
-use harmos_protocol::model::ReadCut;
+use dokime_storage::{BatchSelection, Evidence, NumericWindow, StatisticsRead};
 
 /* === Constants === */
 
@@ -52,9 +49,6 @@ pub const ID: &str = "dokime.host.v1.Evidence/Statistics";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<EvidenceStatisticsRequest, EvidenceStatisticsResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: EvidenceStatisticsRequest) -> Result<EvidenceStatisticsResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async { read(context, request) }).await
 }
@@ -179,7 +173,7 @@ fn read(context: &Context, request: EvidenceStatisticsRequest) -> Result<Evidenc
             if let Some(column) = values.column_by_name(field.name()).and_then(|a| a.as_any().downcast_ref::<Float64Array>())
                 && column.values().iter().any(|v| !v.is_finite())
             {
-                return Err(StorageError::Data("Compute Statistics: Publish Finite Values"));
+                return Err(dokime_storage::Error::Data("Compute Statistics: Publish Finite Values"));
             }
             let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
             let values = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
