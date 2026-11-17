@@ -21,7 +21,7 @@ use std::time::Duration;
 
 // Third Party Imports
 use harmos_protocol::model::Callers;
-use harmos_runtime::operations::{Contract, ExecutionContext, HostContext, OperationFactory, ProtobufOperation, ServingError};
+use harmos_runtime::operations::{ExecutionContext, HostContext, Lane, OperationFactory, ProtobufOperation, Registration, ServingError};
 use harmos_runtime::plugin::grpc::CallingPlugin;
 
 // Local Imports
@@ -185,21 +185,15 @@ pub fn failure(source: Error) -> ServingError {
 pub fn factory<O: ProtobufOperation>(timeout: Duration) -> Result<OperationFactory> {
     let factory = OperationFactory::protobuf::<O>().map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
     let contract = factory.contract().map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
-    let mut operation = contract.operation().clone();
-    operation.policy.timeout = timeout;
-    operation.policy.attempt_timeout = timeout;
-    let contract = Contract::from_protobuf(
-        operation,
-        contract.protobuf().expect("protobuf operation").clone(),
-        contract.grpc().cloned(),
-        &Default::default(),
-    )
-    .map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
+    let mut policy = contract.operation().policy;
+    policy.timeout = timeout;
+    policy.attempt_timeout = timeout;
+    let contract = contract.with_policy(policy).map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
     Ok(factory.with_contract(contract))
 }
 
-pub fn registration(settings: &ClientSettings) -> Result<harmos_runtime::operations::Registration> {
-    let mut registration = harmos_runtime::operations::Registration::new(harmos_runtime::operations::Lane::default());
+pub fn registration(settings: &ClientSettings) -> Result<Registration> {
+    let mut registration = Registration::new(Lane::default());
     registration = registration.entry(factory::<crate::host::backend::appearance::Operation>(settings.read_timeout)?);
     registration = registration.entry(factory::<crate::host::backend::environment::Operation>(settings.mutation_timeout)?);
     registration = registration.entry(factory::<crate::host::backend::overview::get::Operation>(settings.read_timeout)?);
