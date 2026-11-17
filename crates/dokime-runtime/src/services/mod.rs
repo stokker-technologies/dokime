@@ -28,36 +28,40 @@ pub use dokime_operations::host::ClientSettings;
 /* === Imports === */
 
 // Standard Library Imports
-use harmos_runtime::grpc::middleware::{Enter, Invocation, Middleware, Observation};
-use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};
-
-// Third Party Imports
-use harmos_runtime::services::status::Status;
-
-// Local Imports
-use crate::RenderSettings;
-use crate::{Error, Host, HostSettings, Result};
-use composition::Application;
-use dokime_operations::host::Context;
-use dokime_operations::host::HostIdentity;
-use dokime_operations::host::credentials::CredentialNamespace;
-use dokime_protocol::host::RemoteListenerSettings;
-use dokime_protocol::host::SettingsGetResponse;
-use dokime_storage::Store;
-use harmos_runtime::grpc::Attached;
-use harmos_runtime::operations::OperationManager;
-use harmos_runtime::services::status::Registration;
-use harmos_runtime::{Error as RuntimeError, Refusal, Runtime as ComposedRuntime};
-use prost_types::Timestamp;
 use std::fs::OpenOptions;
 use std::fs::TryLockError;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{RwLock, Weak};
 use std::time::Duration;
+use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};
+
+// Third Party Imports
+use composition::Application;
+use harmos_protocol::host::plugin_change::Kind;
+use harmos_protocol::host::{PluginsWatchRequest, plugins_watch_response::Event};
+use harmos_runtime::builtins::plugins::Watch;
+use harmos_runtime::grpc::Attached;
+use harmos_runtime::grpc::middleware::{Enter, Invocation, Middleware, Observation};
+use harmos_runtime::operations::OperationManager;
+use harmos_runtime::operations::StreamSettings;
+use harmos_runtime::services::status::Registration;
+use harmos_runtime::services::status::Status;
+use harmos_runtime::{Refusal, Runtime};
+use prost_types::Timestamp;
 use tokio::sync::Mutex;
 use tokio::sync::watch::{self, Sender};
 use tokio::task::JoinHandle;
+
+// Local Imports
+use crate::RenderSettings;
+use crate::{Error, Host, HostSettings, Result};
+use dokime_operations::host::Context;
+use dokime_operations::host::HostIdentity;
+use dokime_operations::host::credentials::CredentialNamespace;
+use dokime_protocol::host::RemoteListenerSettings;
+use dokime_protocol::host::SettingsGetResponse;
+use dokime_storage::Store;
 
 /* === Constants === */
 
@@ -293,7 +297,7 @@ pub async fn serve(endpoint: SocketAddr, root: &Path, host_settings: HostSetting
 /* === Private Functions === */
 
 pub(crate) struct Assembly {
-    pub runtime: Arc<ComposedRuntime<Application>>,
+    pub runtime: Arc<Runtime<Application>>,
     pub context: Arc<Context>,
     pub status: Arc<Status>,
     pub registration: Arc<Registration>,
@@ -350,6 +354,15 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         .set(Arc::downgrade(&runtime))
         .map_err(|_| Error::Invalid("Bind Execution Runtime: Assemble Once".into()))?;
     host.executions.inner.library_plugins.set(plugins).map_err(|_| Error::Invalid("Bind Execution Plugins: Assemble Once".into()))?;
+    let now = host.now_ns();
+    dokime_operations::host::executions::commands::recover(
+        &context,
+        Timestamp {
+            seconds: now.div_euclid(1_000_000_000),
+            nanos: now.rem_euclid(1_000_000_000) as i32,
+        },
+    )
+    .await?;
     binding.bind(&context)?;
     dokime_operations::host::content::validate_root(&context).await?;
     context.host.refresh_plugin_states().await?;
@@ -377,9 +390,6 @@ async fn observe_plugins(
     operations: OperationManager, context: Weak<Context>, settings: ClientSettings, cancellation: tokio_util::sync::CancellationToken,
     status: Arc<Status>,
 ) -> Result<()> {
-    use harmos_protocol::host::{PluginsWatchRequest, plugins_watch_response::Event};
-    use harmos_runtime::builtins::plugins::Watch;
-    use harmos_runtime::operations::StreamSettings;
     loop {
         let mut watch = operations.download_protobuf::<Watch>(
             PluginsWatchRequest { name: None, at: None },
@@ -394,7 +404,7 @@ async fn observe_plugins(
                 _ = cancellation.cancelled() => {
                     watch.request_cancel();
                     match watch.join().await {
-                        Ok(_) | Err(RuntimeError::OperationRefused(Refusal::Cancelled { .. })) => {}
+                        Ok(_) | Err(harmos_runtime::Error::OperationRefused(Refusal::Cancelled { .. })) => {}
                         Err(source) => return Err(source.into()),
                     }
                     return Ok(());
@@ -407,20 +417,18 @@ async fn observe_plugins(
             let Some(context) = context.upgrade() else {
                 watch.request_cancel();
                 match watch.join().await {
-                    Ok(_) | Err(RuntimeError::OperationRefused(Refusal::Cancelled { .. })) => {}
+                    Ok(_) | Err(harmos_runtime::Error::OperationRefused(Refusal::Cancelled { .. })) => {}
                     Err(source) => return Err(source.into()),
                 }
                 return Ok(());
             };
             if let Some(Event::Change(change)) = &event.event {
-                use harmos_protocol::host::plugin_change::Kind;
-                use harmos_protocol::host::status::Event as StatusEvent;
                 let fields = match &change.kind {
                     Some(Kind::Entry(entry)) => [("plugin".into(), entry.name.clone()), ("state".into(), entry.state.to_string())].into(),
                     Some(Kind::Deleted(name)) => [("plugin".into(), name.clone()), ("deleted".into(), true.to_string())].into(),
                     None => return Err(Error::Invalid("Observe Plugins: Supply Its Change".into())),
                 };
-                let observation = StatusEvent {
+                let observation = harmos_protocol::host::status::Event {
                     target: "dokime.plugins".into(),
                     level: "INFO".into(),
                     fields,
@@ -434,7 +442,7 @@ async fn observe_plugins(
             if matches!(event.event, Some(Event::ResyncRequired(_))) {
                 watch.request_cancel();
                 match watch.join().await {
-                    Ok(_) | Err(RuntimeError::OperationRefused(Refusal::Cancelled { .. })) => {}
+                    Ok(_) | Err(harmos_runtime::Error::OperationRefused(Refusal::Cancelled { .. })) => {}
                     Err(source) => return Err(source.into()),
                 }
                 break;

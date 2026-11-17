@@ -18,13 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
 use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::executions::CommandsGetRequest;
 use dokime_protocol::host::executions::CommandsGetResponse;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -49,12 +49,15 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: CommandsGetRequest) -> Result<CommandsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let command = context
-            .host
-            .store()
-            .command(&request.parent, &request.name)?
-            .ok_or_else(|| Error::NotFound("Get Execution Command: Use Its Accepted Execution and Command IDs".into()))?;
-        let resolved_at = context.host.store().resource_value(&request.parent, "progress", request.at.as_ref())?.resolved_at;
+        let selected = request.at.is_some();
+        let (command, resolved_at) = super::read(context, &request.parent, &request.name, request.at).await.map_err(|source| {
+            if selected {
+                Error::Precondition(format!("Get Execution Command: Resynchronize Its Position Before Reading Again: {source}"))
+            } else {
+                source
+            }
+        })?;
+        let command = command.ok_or_else(|| Error::NotFound("Get Execution Command: Use Its Accepted Execution and Command IDs".into()))?;
         Ok(CommandsGetResponse {
             command: Some(command),
             resolved_at: Some(resolved_at),

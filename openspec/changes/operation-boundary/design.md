@@ -55,6 +55,15 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   `plans.rs` API and `cases`/`registrations` tables are deleted; execution bindings
   remain owned by the coupled lifecycle cutover. Existing development roots with
   those tables are refused at baseline v1 and preserved.
+- Execution command receipts and retained command cuts use native object operations
+  in `host/executions/commands`. The execution manager owns admission through durable
+  publication and scheduling even if the client stops observing. Each object retains
+  the original native mutation identity and input for operation-owned receipt replay. Startup recovery
+  runs after binding the storage context and interrupts unfinished receipts. Command
+  cuts follow native retention and refuse gaps with resynchronization guidance. Command
+  objects carry the execution scope; roots holding superseded command journals
+  are refused and preserved at baseline v1. Execution state and evidence remain on
+  the coupled lifecycle cutover path.
 - Composition: `protocol/composition.toml` is read by `services/composition.rs`
   (`setup.composition`), `native::callers()` in `crates/dokime-operations/src/native.rs`,
   `sdk/cpp/tools/generate.py`, `sdk/csharp/tools/generate.py` and

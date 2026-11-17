@@ -16,6 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::num::NonZeroUsize;
+use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -23,33 +29,27 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::History;
+use harmos_protocol::model::Position;
+use harmos_protocol::model::Receipt;
 use prost::Message;
+use prost_reflect::DescriptorPool;
+use prost_reflect::DynamicMessage;
 use rusqlite::Transaction;
 use rusqlite::TransactionBehavior;
 use rusqlite::{Connection, OptionalExtension, params, types::ValueRef};
 use sha2::{Digest, Sha256};
+use tokio::sync::watch::Sender;
 
 // Local Imports
 use crate::StorageSettings;
 use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample};
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::host::execution_outcome;
 use dokime_protocol::model::RecordContracts;
 use dokime_protocol::model::Termination;
-use harmos_protocol::model::Declarations;
-use harmos_protocol::model::History;
-use harmos_protocol::model::Receipt;
-use prost_reflect::DescriptorPool;
-use prost_reflect::DynamicMessage;
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use tokio::sync::watch::Sender;
-
-use dokime_protocol::host::execution_outcome;
 use dokime_protocol::model::origin;
 
 /* === Constants === */
@@ -172,7 +172,8 @@ impl Store {
                 [],
                 |row| row.get(0),
             )?;
-            if !response_column || !evidence_kind || !preview_bounds || superseded_journals {
+            let superseded_commands: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM commands)", [], |row| row.get(0))?;
+            if !response_column || !evidence_kind || !preview_bounds || superseded_journals || superseded_commands {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {
@@ -375,9 +376,6 @@ impl Store {
     pub fn append_requested(
         &self, execution: &str, operation: &str, request_id: &str, fingerprint: &[u8], mut evidence: Evidence,
     ) -> Result<(u64, Receipt)> {
-        use harmos_protocol::model::History;
-        use harmos_protocol::model::Position;
-        use harmos_protocol::model::Receipt;
         if request_id.is_empty() {
             return Err(Error::Invalid(format!("{operation}: Supply a Request ID")));
         }

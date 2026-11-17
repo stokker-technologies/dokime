@@ -23,17 +23,26 @@ use std::sync::{Arc, RwLock};
 
 // Third Party Imports
 use async_trait::async_trait;
+use harmos_protocol::host::PluginEntry;
+use harmos_protocol::host::PluginState;
+use harmos_protocol::host::PluginsListRequest;
+use harmos_protocol::model::FileReference;
+use harmos_protocol::model::ReadCut;
+use harmos_protocol::model::Receipt;
+use harmos_protocol::model::Visibility;
+use harmos_runtime::builtins::plugins::List;
+use harmos_runtime::operations::OperationManager;
+use harmos_runtime::services::status::Status;
+use prost::Message;
 use tokio::sync::watch;
 
 // Local Imports
 use crate::Host;
+use dokime_operations::host::HostIdentity;
 use dokime_operations::{
     Error, Result,
     host::{self, Progress, RunAction, StartedCycle},
 };
-use dokime_storage::Store;
-
-use dokime_operations::host::HostIdentity;
 use dokime_protocol::host::BootstrapPaths;
 use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ExecutionControls;
@@ -52,14 +61,7 @@ use dokime_protocol::model::Suites;
 use dokime_protocol::model::Value;
 use dokime_protocol::model::origin::Kind;
 use dokime_protocol::plugin::{TestCasesMaterializeRequest, TestCasesMaterializeResponse};
-use harmos_protocol::host::PluginEntry;
-use harmos_protocol::model::FileReference;
-use harmos_protocol::model::ReadCut;
-use harmos_protocol::model::Receipt;
-use harmos_protocol::model::Visibility;
-use harmos_runtime::operations::OperationManager;
-use harmos_runtime::services::status::Status;
-use prost::Message;
+use dokime_storage::Store;
 
 /* === Constants === */
 
@@ -118,8 +120,8 @@ impl host::Host for State {
         self.host.signal_change();
         Ok(())
     }
-    fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
-        self.host.submit_execution_command(request).map_err(|error| Error::Precondition(error.to_string()))
+    async fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
+        self.host.submit_execution_command(request).await.map_err(|error| Error::Precondition(error.to_string()))
     }
     fn now_ns(&self) -> i64 {
         self.host.now_ns()
@@ -161,8 +163,6 @@ impl host::Host for State {
         self.host.reports.publish_prepared(prepared).map_err(convert)
     }
     async fn plugins(&self) -> Result<Vec<PluginEntry>> {
-        use harmos_protocol::host::PluginsListRequest;
-        use harmos_runtime::builtins::plugins::List;
         let reply = self
             .operations
             .call_protobuf::<List>(PluginsListRequest { at: None })
@@ -178,7 +178,6 @@ impl host::Host for State {
         Ok(())
     }
     fn suites(&self) -> Result<Vec<(String, Suite)>> {
-        use harmos_protocol::host::PluginState;
         let plugins = self.catalogs.read().map_err(|source| Error::Unavailable(format!("Read Suites: {source}")))?;
         let mut suites = Vec::new();
         for plugin in plugins.iter().filter(|entry| entry.state == PluginState::Ready as i32) {
@@ -200,7 +199,6 @@ impl host::Host for State {
         Ok(suites)
     }
     async fn materialize(&self, plugin: &str, template: &str, parameters: HashMap<String, Value>) -> Result<Origin> {
-        use harmos_protocol::host::PluginState;
         let entries = self.plugins().await?;
         let entry = entries
             .iter()

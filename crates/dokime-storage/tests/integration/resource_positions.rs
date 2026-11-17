@@ -20,18 +20,17 @@
 // Third Party Imports
 use harmos_protocol::model::Section;
 use prost::Message;
-use rusqlite::Connection;
+use rusqlite::{Connection, params};
 
 // Local Imports
-
-use dokime_storage::{Error, Result, Store};
-
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::ExecutionsDeleteResponse;
+use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::Import;
 use dokime_protocol::model::Origin;
 use dokime_protocol::model::Termination;
 use dokime_protocol::model::origin;
+use dokime_storage::{Error, Result, Store};
 
 /* === Constants === */
 
@@ -72,6 +71,30 @@ fn superseded_journals_refuse_admission_without_deleting_their_values() -> Resul
         let payload: Vec<u8> = connection.query_row("SELECT payload FROM administration WHERE id=?1", [key], |row| row.get(0))?;
         assert_eq!(payload, value.encode_to_vec());
     }
+    Ok(())
+}
+
+#[test]
+fn superseded_command_journal_refuses_admission_without_deleting_receipts() -> Result<()> {
+    // Retain a Command From the Superseded SQL Journal
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let command = ExecutionCommandReceipt {
+        execution_id: "execution".into(),
+        command_id: "command".into(),
+        ..Default::default()
+    };
+    drop(store);
+    let connection = Connection::open(root.path().join("execution.sqlite3"))?;
+    connection
+        .execute("INSERT INTO commands VALUES (?1,?2,?3)", params![command.execution_id, command.command_id, command.encode_to_vec()])?;
+    drop(connection);
+
+    // Refuse Admission and Preserve the Original Receipt
+    assert!(matches!(Store::open(root.path()), Err(Error::Incompatible(_))));
+    let connection = Connection::open(root.path().join("execution.sqlite3"))?;
+    let payload: Vec<u8> = connection.query_row("SELECT payload FROM commands", [], |row| row.get(0))?;
+    assert_eq!(payload, command.encode_to_vec());
     Ok(())
 }
 

@@ -18,13 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
 use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::CommandsCreateResponse;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -49,10 +49,11 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: CommandsCreateRequest) -> Result<CommandsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        let command = context.host.submit_command(request.clone())?;
+        let command = context.host.submit_command(request.clone()).await?;
+        let receipt = super::receipt(context, &request.parent, &request.command_id).await?;
         Ok(CommandsCreateResponse {
             command: Some(command),
-            receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
+            receipt: Some(receipt),
         })
     })
     .await

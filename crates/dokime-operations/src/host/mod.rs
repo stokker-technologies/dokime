@@ -54,9 +54,22 @@ use std::{collections::HashMap, fs::File, future::Future, result, sync::Arc, tim
 
 // Third Party Imports
 use async_trait::async_trait;
+use harmos_protocol::host::PluginEntry;
 use harmos_protocol::model;
+use harmos_protocol::model::FileReference;
+use harmos_protocol::model::OperationContract;
+use harmos_protocol::model::ReadCut;
+use harmos_protocol::model::Receipt;
+use harmos_runtime::Failure;
+use harmos_runtime::operations::{NativeOperation, OperationManager};
 use prost::Message;
+use prost_reflect::ReflectMessage;
+use prost_types::FileDescriptorSet;
+use prost_types::Timestamp;
+use tokio::sync::Mutex;
 use tokio::sync::watch;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::{Code, Status};
 
 // Local Imports
 use crate::{Error, Result};
@@ -75,19 +88,6 @@ use dokime_protocol::model::Document;
 use dokime_storage::ExecutionCut;
 use dokime_storage::Report;
 use dokime_storage::Store;
-use harmos_protocol::host::PluginEntry;
-use harmos_protocol::model::FileReference;
-use harmos_protocol::model::OperationContract;
-use harmos_protocol::model::ReadCut;
-use harmos_protocol::model::Receipt;
-use harmos_runtime::Failure;
-use harmos_runtime::operations::{NativeOperation, OperationManager};
-use prost_reflect::ReflectMessage;
-use prost_types::FileDescriptorSet;
-use prost_types::Timestamp;
-use tokio::sync::Mutex;
-use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Code, Status};
 
 /* === Constants === */
 
@@ -161,7 +161,7 @@ pub trait Host: Send + Sync {
     fn signal_change(&self);
     async fn start_existing(&self, execution: &str, mode: ExecutionMode) -> Result<StartedCycle>;
     fn control_execution(&self, execution: &str, action: RunAction) -> Result<()>;
-    fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt>;
+    async fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt>;
     fn now_ns(&self) -> i64;
     fn identity(&self) -> HostIdentity;
     fn credential_namespace(&self) -> credentials::CredentialNamespace;

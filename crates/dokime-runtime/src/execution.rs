@@ -19,6 +19,8 @@
 use std::sync::{Arc, Weak, atomic::AtomicU32};
 
 // Third Party Imports
+use harmos_protocol::host::PluginEntry;
+use harmos_runtime::plugin::grpc::{self, ScopedBinding};
 use prost::Message;
 use tokio::sync::oneshot::{self, Receiver};
 use tokio::task::JoinSet;
@@ -37,15 +39,13 @@ use dokime_operations::Resources;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::host::executions::ExecutionCommandPhase;
 use dokime_protocol::host::{EvaluatedOutcome, ExecutionMode, ExecutionOutcome, ResultStatus, UnevaluatedOutcome};
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::model::origin;
 use dokime_protocol::model::{Origin, Suites, Termination};
 use dokime_protocol::plugin::{
     CriteriaEvaluateRequest, CriteriaEvaluateResponse, ExecutionsCleanupRequest, ExecutionsCleanupResponse, ExecutionsInitializeRequest,
     ExecutionsInitializeResponse, StepsExecuteRequest, StepsExecuteResponse,
 };
 use dokime_storage::{Execution, ExecutionSnapshot, OutcomeCounts};
-use harmos_protocol::host::PluginEntry;
-use harmos_runtime::plugin::grpc::{Error as BindingError, ScopedBinding};
 
 /* === Constants === */
 
@@ -164,7 +164,7 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<Origin>) -> Resul
     let identifier = uuid::Uuid::now_v7().to_string();
     let mut prepared = Vec::new();
     for mut origin in origins {
-        let Some(OriginKind::PluginRun(mut run)) = origin.kind.take() else {
+        let Some(origin::Kind::PluginRun(mut run)) = origin.kind.take() else {
             return Err(Error::Invalid("Start Cycles with PluginRun Origins; Import Evidence Separately".into()));
         };
         run.validate().map_err(Error::Invalid)?;
@@ -180,7 +180,7 @@ pub(crate) async fn start(host: ExecutionManager, origins: Vec<Origin>) -> Resul
         if &run.digest != digest || run.started_at != entry.description.as_ref().unwrap().started_at {
             origin = host.materialize(&run.plugin, &run.template, run.test_case.take().unwrap().parameters).await?;
         } else {
-            origin.kind = Some(OriginKind::PluginRun(run));
+            origin.kind = Some(origin::Kind::PluginRun(run));
         }
         prepared.push((uuid::Uuid::now_v7().to_string(), origin, entry));
     }
@@ -219,7 +219,7 @@ pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str,
         return Err(Error::Invalid("Start Execution: Select Unstarted Open PluginRun Evidence; Rerun Sealed Evidence Separately".into()));
     }
     let origin = cut.execution.origin.ok_or_else(|| Error::Invalid("Start Execution: Supply a PluginRun Origin".into()))?;
-    let Some(OriginKind::PluginRun(run)) = origin.kind.as_ref() else {
+    let Some(origin::Kind::PluginRun(run)) = origin.kind.as_ref() else {
         return Err(Error::Invalid("Start Execution: Imports Cannot Enter the Run Queue".into()));
     };
     run.validate().map_err(Error::Invalid)?;
@@ -250,12 +250,12 @@ pub(crate) async fn start_existing_mode(host: ExecutionManager, execution: &str,
 /* === Private Functions === */
 
 /// Name the Binding Action That Failed and What Resolves It.
-fn settlement(action: &str, source: &BindingError) -> Error {
+fn settlement(action: &str, source: &grpc::Error) -> Error {
     if let Some(error) = stream_failure(action, source) {
         return error;
     }
     match source {
-        BindingError::Deadline { .. } => Error::Invalid(format!(
+        grpc::Error::Deadline { .. } => Error::Invalid(format!(
             "{action}: The Plugin Did Not Settle Its Samples Within stop_grace; Rebuild It on an SDK That Ends Samples When the Host \
              Closes Demand, Then Rerun the Execution"
         )),
@@ -264,8 +264,8 @@ fn settlement(action: &str, source: &BindingError) -> Error {
 }
 
 /// Name the Execution's Streams and the Action When Their Samples Could Not Settle.
-fn samples_settlement(action: &str, source: &BindingError, streams: &[String]) -> Error {
-    if matches!(source, BindingError::Deadline { .. }) {
+fn samples_settlement(action: &str, source: &grpc::Error, streams: &[String]) -> Error {
+    if matches!(source, grpc::Error::Deadline { .. }) {
         return settlement(action, source);
     }
     if let Some(error) = stream_failure(action, source) {
@@ -291,23 +291,23 @@ fn stream_failure(action: &str, source: &(dyn std::error::Error + 'static)) -> O
     const WINDOW: &str = "Shorten Its Window (the Observer's Window Setting or interval_window_ms)";
     let mut cause: Option<&(dyn std::error::Error + 'static)> = Some(source);
     while let Some(current) = cause {
-        let message = match current.downcast_ref::<BindingError>() {
-            Some(BindingError::Lagging { stream, lag, limit }) => Some(format!(
+        let message = match current.downcast_ref::<grpc::Error>() {
+            Some(grpc::Error::Lagging { stream, lag, limit }) => Some(format!(
                 "{action}: Stream {stream} Fell {lag:?} Behind Its Window End, Past Its Lag Limit of {limit:?}; Lower Its Rate or the \
                  Number of Streams, {WINDOW} or Raise interval_lag_windows, Then Rerun the Execution"
             )),
-            Some(BindingError::PoolFull { stream, bytes, rows }) => Some(format!(
+            Some(grpc::Error::PoolFull { stream, bytes, rows }) => Some(format!(
                 "{action}: Stream {stream} Found the Shared Plugin Publication Pool ({bytes} Bytes, {rows} Rows) Full of Rows Storage \
                  Has Not Taken In; Lower Its Rate or the Number of Streams, or {WINDOW}, Then Rerun the Execution"
             )),
-            Some(BindingError::WindowExceedsPool { stream, samples, needed, bytes, rows }) => Some(format!(
+            Some(grpc::Error::WindowExceedsPool { stream, samples, needed, bytes, rows }) => Some(format!(
                 "{action}: Stream {stream} Needs at Least {needed} Bytes for One Window of {samples} Samples, More Than the Shared \
                  Plugin Publication Pool Holds ({bytes} Bytes, {rows} Rows); {WINDOW} or Lower Its Rate, Then Rerun the Execution"
             )),
-            Some(BindingError::WindowFailed { stream, status, message }) => Some(format!(
+            Some(grpc::Error::WindowFailed { stream, status, message }) => Some(format!(
                 "{action}: The Plugin Failed a Window of Stream {stream} ({status:?}: {message}); Correct the Plugin's Sampling of                  That Stream, Then Rerun the Execution"
             )),
-            Some(BindingError::LoadDeadline { plugin, timeout, .. }) => Some(format!(
+            Some(grpc::Error::LoadDeadline { plugin, timeout, .. }) => Some(format!(
                 "{action}: Plugin {plugin} Did Not Load Within {timeout:?}, the Plugins Operation Timeout; Check Its Startup Logs and                  Make It Start Faster, Then Rerun the Execution"
             )),
             _ => None,
@@ -443,7 +443,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
     let control = lock(&host.inner.active)?.get(&execution).unwrap().control.clone();
     tracing::info!(execution = %execution, "Queued Execution");
     states.push(RunState::Queued);
-    let Some(OriginKind::PluginRun(run)) = origin.kind.as_ref() else { unreachable!() };
+    let Some(origin::Kind::PluginRun(run)) = origin.kind.as_ref() else { unreachable!() };
     let case = run.test_case.as_ref().unwrap();
     let description = entry.description.as_ref().ok_or_else(|| Error::Invalid("Start Execution: Discover the Plugin".into()))?;
     let catalog = description.declarations.as_ref().ok_or_else(|| Error::Invalid("Start Execution: Discover Its Catalog".into()))?;
@@ -549,7 +549,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                         seconds: now.div_euclid(1_000_000_000),
                         nanos: now.rem_euclid(1_000_000_000) as i32,
                     });
-                    host.inner.store.save_command(command)?;
+                    dokime_operations::host::executions::commands::save(&dispatch.resources.context, command).await?;
                 }
                 host.signal_change();
                 let result = dispatch
@@ -575,7 +575,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
                         seconds: now.div_euclid(1_000_000_000),
                         nanos: now.rem_euclid(1_000_000_000) as i32,
                     });
-                    host.inner.store.save_command(&command)?;
+                    dokime_operations::host::executions::commands::save(&dispatch.resources.context, &command).await?;
                 }
                 control.complete_step(index)?;
                 host.signal_change();
@@ -617,7 +617,7 @@ async fn drive(host: ExecutionManager, execution: String, origin: Origin, entry:
         .await;
         if let Some(mut command) = control.take_pending()? {
             command.phase = if result.is_ok() { ExecutionCommandPhase::Completed } else { ExecutionCommandPhase::Interrupted } as i32;
-            host.inner.store.save_command(&command)?;
+            dokime_operations::host::executions::commands::save(&dispatch.resources.context, &command).await?;
         }
         let mut termination = match &result {
             Ok(()) => Termination::Completed,

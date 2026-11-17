@@ -16,8 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
@@ -37,6 +40,7 @@ use dokime::client::ExecutionParameterSet;
 use dokime::client::ExecutionState;
 use dokime::client::ExecutionsCancelOptions;
 use dokime::client::ExecutionsCommandsCreateOptions;
+use dokime::client::ExecutionsCommandsGetOptions;
 use dokime::client::ExecutionsCreateOptions;
 use dokime::client::ExecutionsExecutionCommandAction;
 use dokime::client::ExecutionsExecutionCommandPhase;
@@ -52,9 +56,6 @@ use dokime::client::SelectionPlan;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement;
-use std::error::Error;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -305,7 +306,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             action: ExecutionsExecutionCommandAction::Next as i32,
             step_id: None,
         };
-        Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
+        let admitted = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
             .executions
             .commands
             .clone()
@@ -349,9 +350,9 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                     ..Default::default()
                 },
             )
-            .await?
-            .command
-            .unwrap();
+            .await?;
+        assert_eq!(repeated.receipt, admitted.receipt);
+        let repeated = repeated.command.unwrap();
         assert_eq!(repeated.phase, ExecutionsExecutionCommandPhase::Completed as i32);
         assert_eq!(
             Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
@@ -396,6 +397,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 break;
             }
         }
+        let held = client.executions.commands.get("hold-command", identifier.clone()).await?;
         let prompt = client.prompts.list(identifier.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
         client.prompts.answers.create(prompt, "yes", MapValue::default(), true).await?;
         loop {
@@ -413,6 +415,13 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             }
             runtime.next().await?.unwrap();
         }
+        // Retain the Running Command at Its Issued Read Cut
+        let retained = client.executions.commands.get_with("hold-command", identifier.clone(), ExecutionsCommandsGetOptions {
+            at: held.resolved_at,
+            ..Default::default()
+        }).await?;
+        assert_eq!(retained.command, held.command);
+
         let exhausted = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
             .executions
             .commands
@@ -600,8 +609,149 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
         );
         drop(runtime);
         process.close().await?;
+
+        // Read the Durable Command After Restarting the Host
+        let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+        let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?;
+        let command = client.executions.commands.get("finish-command", identifier).await?.command.unwrap();
+        assert_eq!(command.phase, ExecutionsExecutionCommandPhase::Completed as i32);
+        process.close().await?;
         plugin.close().await?;
         Ok::<_, Box<dyn Error>>(())
     }).await?
+    }))
+}
+
+#[test]
+fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn Error>> {
+    super::support::run(Box::pin(async {
+        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+            // Start the Host and Thermal Plugin
+            let root = super::support::tempdir()?;
+            let credential_root = super::support::tempdir()?;
+            let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
+            let settings = super::support::settings();
+            let mut plugin = PluginProcess::start(&super::support::thermal_fixture()?, true, &settings.placement).await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let entry = client
+                .plugins
+                .create(
+                    "thermal",
+                    PluginPlacement {
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                    },
+                    PluginValue { enabled: true },
+                )
+                .await?
+                .entry
+                .unwrap();
+            super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+
+            // Admit an Interactive Execution
+            let cases = super::support::materialize(&client, "thermal", "thermal.cycle", Default::default()).await?;
+            let cycle = client
+                .cycles
+                .create_with(
+                    vec![cases[0].origin.clone().unwrap()],
+                    Metadata {
+                        label: "Interrupted Command".into(),
+                        ..Default::default()
+                    },
+                    false,
+                    String::new(),
+                    CyclesCreateOptions::default(),
+                )
+                .await?
+                .cycle
+                .unwrap();
+            let identifier =
+                client.executions.list(cycle.cycle_id, Default::default(), Default::default(), Default::default()).await?.executions[0]
+                    .summary
+                    .as_ref()
+                    .unwrap()
+                    .execution_id
+                    .clone();
+            client.executions.start(identifier.clone(), ExecutionMode::Interactive).await?;
+            let mut progress = client.executions.progress.watch(identifier.clone()).await?;
+
+            // Run a Command Until Its Operator Prompt Is Observed
+            let admitted = client
+                .executions
+                .commands
+                .create_with(
+                    identifier.clone(),
+                    "interrupted-command",
+                    ExecutionsExecutionCommandAction::RunStep,
+                    ExecutionsCommandsCreateOptions {
+                        step_id: Some("hold".into()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let mut prompted = false;
+            while let Some(frame) = progress.next().await? {
+                if frame.phase == "prompt" {
+                    prompted = true;
+                    break;
+                }
+            }
+            assert!(prompted);
+            let held = client.executions.commands.get("interrupted-command", identifier.clone()).await?;
+            let running = held.command.clone().unwrap();
+            assert_eq!(running.phase, ExecutionsExecutionCommandPhase::Running as i32);
+            drop(progress);
+
+            // Retain the Native Admission Cut While Its History Is Available
+            let retained = client
+                .executions
+                .commands
+                .get_with(
+                    "interrupted-command",
+                    identifier.clone(),
+                    ExecutionsCommandsGetOptions {
+                        at: held.resolved_at,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(retained.command, held.command);
+
+            // Interrupt the Process and Recover the Command Receipt
+            process.kill().await?;
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, super::support::client_settings())?;
+            let recovered = client.executions.commands.get("interrupted-command", identifier.clone()).await?.command.unwrap();
+            assert_eq!(recovered.phase, ExecutionsExecutionCommandPhase::Interrupted as i32);
+            assert_eq!(recovered.execution_id, running.execution_id);
+            assert_eq!(recovered.command_id, running.command_id);
+            assert_eq!(recovered.action, running.action);
+            assert_eq!(recovered.accepted_at, running.accepted_at);
+
+            // Replay the Original Durable Admission Receipt After Recovery
+            let replayed = client
+                .executions
+                .commands
+                .create_with(
+                    identifier,
+                    "interrupted-command",
+                    ExecutionsExecutionCommandAction::RunStep,
+                    ExecutionsCommandsCreateOptions {
+                        request_id: Some(running.request_id),
+                        step_id: Some("hold".into()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(replayed.command, Some(recovered));
+            assert_eq!(replayed.receipt, admitted.receipt);
+
+            process.close().await?;
+            plugin.close().await?;
+            Ok::<_, Box<dyn Error>>(())
+        })
+        .await?
     }))
 }
