@@ -20,7 +20,6 @@ use std::collections::BTreeMap;
 
 // Third Party Imports
 use harmos_protocol::model::Declarations;
-use harmos_protocol::model::OperationContract;
 use prost::Message;
 use prost_reflect::DescriptorPool;
 use prost_reflect::Kind;
@@ -28,7 +27,6 @@ use prost_reflect::MessageDescriptor;
 use prost_types::FileDescriptorSet;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::RecordField;
 use dokime_protocol::host::RecordSchema;
@@ -58,9 +56,6 @@ pub const ID: &str = "dokime.host.v1.RecordSchemas/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<RecordSchemasGetRequest, RecordSchemasGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: RecordSchemasGetRequest) -> Result<RecordSchemasGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let key = format!("record-schema/{}/{}/{}", request.parent, request.name, request.schema_version);

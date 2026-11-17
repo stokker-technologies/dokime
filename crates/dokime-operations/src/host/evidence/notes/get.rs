@@ -18,19 +18,15 @@
 // Standard Library Imports
 
 // Third Party Imports
+use prost::Message;
 
 // Local Imports
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::host::evidence::OperatorNote;
-use prost::Message;
-
 use dokime_protocol::host::evidence::NoteWritable;
 use dokime_protocol::host::evidence::NotesGetRequest;
 use dokime_protocol::host::evidence::NotesGetResponse;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::OperationContract;
+use dokime_protocol::host::evidence::OperatorNote;
 
 /* === Constants === */
 
@@ -50,9 +46,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Notes/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<NotesGetRequest, NotesGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: NotesGetRequest) -> Result<NotesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let saved = administration::read(context, &format!("note:{}", request.name), &[], request.at).await?;

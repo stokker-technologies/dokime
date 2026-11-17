@@ -18,16 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::Failure;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::host::Output;
 use crate::{Result, host::Context};
 use dokime_protocol::host::CyclesListRequest;
 use dokime_protocol::host::CyclesWatchRequest;
 use dokime_protocol::host::CyclesWatchResponse;
-use harmos_protocol::model::Failure;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -47,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.Cycles/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<CyclesWatchRequest, CyclesWatchResponse>(ID, settings.watch_timeout)
-}
 pub async fn handle(context: &Context, request: CyclesWatchRequest) -> Result<Output<CyclesWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();

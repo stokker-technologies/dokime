@@ -20,7 +20,6 @@
 // Third Party Imports
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::CasesCreateResponse;
 use dokime_protocol::host::CycleSummary;
@@ -32,7 +31,6 @@ use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::PlannedCase;
 use dokime_protocol::host::RerunCaseNotice;
 use dokime_protocol::model::origin::Kind;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -52,9 +50,6 @@ pub const ID: &str = "dokime.host.v1.Cycles/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<CyclesCreateRequest, CyclesCreateResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: CyclesCreateRequest) -> Result<CyclesCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let mut request = request;

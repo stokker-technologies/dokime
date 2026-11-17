@@ -15,14 +15,18 @@
 
 /* === Imports === */
 
-use crate::host::files::transfer;
-use crate::host::{ClientSettings, Context};
-use crate::{Error, Result};
-use dokime_protocol::host::{FilesDeleteRequest, FilesDeleteResponse};
+// Standard Library Imports
+
+// Third Party Imports
 use harmos_operations::storage::{DeleteFile, DeleteFileRequest};
-use harmos_protocol::model::OperationContract;
 use harmos_runtime::storage;
 use harmos_runtime::storage::StagedFile;
+
+// Local Imports
+use crate::host::Context;
+use crate::host::files::transfer;
+use crate::{Error, Result};
+use dokime_protocol::host::{FilesDeleteRequest, FilesDeleteResponse};
 
 /* === Constants === */
 
@@ -42,9 +46,6 @@ pub const ID: &str = "dokime.host.v1.Files/Delete";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<FilesDeleteRequest, FilesDeleteResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: FilesDeleteRequest) -> Result<FilesDeleteResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let file = request.file.ok_or_else(|| Error::Invalid(format!("{ID}: Supply Its Reference")))?;

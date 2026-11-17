@@ -21,15 +21,12 @@
 use prost::Message;
 
 // Local Imports
+use crate::Error;
 use crate::{Resources, Result};
 use dokime_protocol::host::evidence::TraceabilitySetRequest;
 use dokime_protocol::host::evidence::TraceabilitySetResponse;
-
 use dokime_protocol::model::Value;
-use dokime_protocol::model::value::Kind as ValueKind;
-
-use crate::Error;
-use harmos_protocol::model::OperationContract;
+use dokime_protocol::model::value;
 
 /* === Constants === */
 
@@ -49,12 +46,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Traceability/Set";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<OperationContract> {
-    crate::declaration::<TraceabilitySetRequest, TraceabilitySetResponse>(
-        ID,
-        prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
-    )
-}
 pub async fn handle(resources: &Resources, request: TraceabilitySetRequest) -> Result<TraceabilitySetResponse> {
     let execution = resources.resolve_execution(request.name.as_deref(), ID)?;
     resources.check_action_scope(execution, ID)?;
@@ -96,7 +87,7 @@ pub async fn handle(resources: &Resources, request: TraceabilitySetRequest) -> R
 fn valid_value(value: &Value) -> bool {
     match &value.kind {
         None => false,
-        Some(ValueKind::List(values)) => values.values.iter().all(valid_value),
+        Some(value::Kind::List(values)) => values.values.iter().all(valid_value),
         Some(_) => true,
     }
 }

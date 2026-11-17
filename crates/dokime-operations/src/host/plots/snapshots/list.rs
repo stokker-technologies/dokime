@@ -22,7 +22,7 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos_protocol::model::Declarations;
-use harmos_protocol::model::{History, OperationContract};
+use harmos_protocol::model::History;
 use harmos_runtime::storage::query::scalar::{ExactNumber, ScalarValue};
 use prost::Message;
 use prost_reflect::DescriptorPool;
@@ -31,10 +31,7 @@ use sha2::{Digest, Sha256};
 use tokio::task;
 
 // Local Imports
-use crate::{
-    Error, Result,
-    host::{ClientSettings, Context},
-};
+use crate::{Error, Result, host::Context};
 use dokime_protocol::host::plots::PlotAnalysis;
 use dokime_protocol::host::plots::PlotAnalysisResult;
 use dokime_protocol::host::plots::PlotBoxSummaryAnalysis;
@@ -95,9 +92,6 @@ struct PlotRead<'a> {
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SnapshotsListRequest, SnapshotsListResponse>(ID, settings.read_timeout)
-}
 #[tracing::instrument(name = "plot.operation", skip_all)]
 pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<SnapshotsListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {

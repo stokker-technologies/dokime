@@ -18,7 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::{Failure, OperationContract};
+use harmos_protocol::model::Failure;
 use tokio::sync::mpsc;
 use tokio::time;
 use tokio_stream::wrappers::ReceiverStream;
@@ -26,7 +26,7 @@ use tonic::Status;
 
 // Local Imports
 use crate::Result;
-use crate::host::{ClientSettings, Context, Output};
+use crate::host::{Context, Output};
 use dokime_protocol::host::backend::{OverviewGetRequest, OverviewWatchRequest, OverviewWatchResponse};
 
 /* === Constants === */
@@ -47,9 +47,6 @@ pub const ID: &str = "dokime.host.v1.backend.Overview/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<OverviewWatchRequest, OverviewWatchResponse>(ID, settings.watch_timeout)
-}
 pub async fn handle(context: &Context, request: OverviewWatchRequest) -> Result<Output<OverviewWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();

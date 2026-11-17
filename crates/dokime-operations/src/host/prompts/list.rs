@@ -18,11 +18,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 use prost::Message;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsListRequest;
@@ -47,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.Prompts/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<PromptsListRequest, PromptsListResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: PromptsListRequest) -> Result<PromptsListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;

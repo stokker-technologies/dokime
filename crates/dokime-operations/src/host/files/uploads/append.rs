@@ -15,12 +15,16 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+use harmos_operations::storage::{AppendFileBytes, AppendFileBytesRequest};
+
+// Local Imports
+use crate::host::Context;
 use crate::host::files::transfer;
-use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsAppendResponse};
-use harmos_operations::storage::{AppendFileBytes, AppendFileBytesRequest};
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -40,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.files.Uploads/Append";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<UploadsAppendRequest, UploadsAppendResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: UploadsAppendRequest) -> Result<UploadsAppendResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         if request.data.len() > transfer::chunk_bytes(context).await? {

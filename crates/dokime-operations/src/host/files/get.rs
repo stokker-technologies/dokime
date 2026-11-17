@@ -15,13 +15,17 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+use harmos_operations::storage::{GetFileBytes, GetFileBytesRequest};
+use harmos_runtime::storage;
+
+// Local Imports
+use crate::host::Context;
 use crate::host::files::transfer;
-use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::{FilesGetRequest, FilesGetResponse};
-use harmos_operations::storage::{GetFileBytes, GetFileBytesRequest};
-use harmos_protocol::model::OperationContract;
-use harmos_runtime::storage;
 
 /* === Constants === */
 
@@ -41,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.Files/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<FilesGetRequest, FilesGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: FilesGetRequest) -> Result<FilesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let file = request.file.ok_or_else(|| Error::Invalid(format!("{ID}: Supply Its Reference")))?;

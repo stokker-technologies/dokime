@@ -19,7 +19,7 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos_protocol::model::{Failure, OperationContract};
+use harmos_protocol::model::Failure;
 use tokio::sync::mpsc;
 use tokio::time;
 use tokio_stream::wrappers::ReceiverStream;
@@ -29,7 +29,7 @@ use tonic::Status;
 use super::list;
 use crate::{
     Result,
-    host::{self, ClientSettings, Context, Output},
+    host::{self, Context, Output},
 };
 use dokime_protocol::host::plots::PlotRequest;
 use dokime_protocol::host::plots::PlotStreamKind;
@@ -64,9 +64,6 @@ enum WatchProgress {
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    host::declaration::<SnapshotsWatchRequest, SnapshotsWatchResponse>(ID, settings.watch_timeout)
-}
 pub async fn handle(context: &Context, request: SnapshotsWatchRequest) -> Result<Output<SnapshotsWatchResponse>> {
     host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();

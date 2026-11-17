@@ -15,22 +15,17 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-use crate::host::files::get;
-use dokime_protocol::host::FilesGetRequest;
-
 // Standard Library Imports
 
 // Third Party Imports
 
 // Local Imports
+use crate::host::files::get;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::model::ArtifactScope;
-
+use dokime_protocol::host::FilesGetRequest;
 use dokime_protocol::host::content::ArtifactsCreateRequest;
 use dokime_protocol::host::content::ArtifactsCreateResponse;
-
-use harmos_protocol::model::OperationContract;
+use dokime_protocol::model::ArtifactScope;
 
 /* === Constants === */
 
@@ -50,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.content.Artifacts/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ArtifactsCreateRequest, ArtifactsCreateResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, mut request: ArtifactsCreateRequest) -> Result<ArtifactsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         request.scope = Some(scoped(context.caller.as_ref().map(|caller| caller.execution.as_str()), request.scope)?);

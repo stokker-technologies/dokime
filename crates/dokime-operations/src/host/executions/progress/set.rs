@@ -23,12 +23,9 @@ use prost::Message;
 // Local Imports
 use crate::Error;
 use crate::{Resources, Result};
-use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_protocol::host::executions::ProgressSetRequest;
 use dokime_protocol::host::executions::ProgressSetResponse;
 use dokime_storage::Evidence;
-use harmos_protocol::model::OperationContract;
-use prost_types::FileDescriptorSet;
 
 /* === Constants === */
 
@@ -48,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.executions.Progress/Set";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<OperationContract> {
-    crate::declaration::<ProgressSetRequest, ProgressSetResponse>(ID, FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?)
-}
 pub async fn handle(resources: &Resources, request: ProgressSetRequest) -> Result<ProgressSetResponse> {
     let name = resources.resolve_execution(request.name.as_deref(), ID)?;
     resources.check_action_scope(name, ID)?;

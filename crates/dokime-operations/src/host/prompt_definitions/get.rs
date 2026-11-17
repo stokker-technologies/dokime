@@ -20,12 +20,10 @@
 // Third Party Imports
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::PromptDefinitionsGetRequest;
 use dokime_protocol::host::PromptDefinitionsGetResponse;
 use dokime_protocol::host::PromptDefinitionsListRequest;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -45,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.PromptDefinitions/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<PromptDefinitionsGetRequest, PromptDefinitionsGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: PromptDefinitionsGetRequest) -> Result<PromptDefinitionsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let reply =

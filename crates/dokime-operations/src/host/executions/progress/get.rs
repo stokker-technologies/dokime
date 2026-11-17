@@ -21,12 +21,10 @@
 use prost::Message;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::executions::ProgressGetRequest;
 use dokime_protocol::host::executions::ProgressGetResponse;
 use dokime_protocol::model::ExecutionProgressValue;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -45,10 +43,6 @@ pub const ID: &str = "dokime.host.v1.executions.Progress/Get";
 /* === Implementations === */
 
 /* === Public Functions === */
-
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ProgressGetRequest, ProgressGetResponse>(ID, settings.read_timeout)
-}
 
 pub async fn handle(context: &Context, request: ProgressGetRequest) -> Result<ProgressGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {

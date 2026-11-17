@@ -18,16 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_operations::storage::{Info, InfoRequest};
+use harmos_protocol::model::Position;
 
 // Local Imports
 use crate::{Error, Resources, Result};
 use dokime_protocol::host::BackendEnvironmentRequest;
 use dokime_protocol::host::BackendEnvironmentResponse;
-use harmos_operations::storage::{Info, InfoRequest};
-use harmos_protocol::model::Position;
-
-use harmos_protocol::model::OperationContract;
-use prost_types::FileDescriptorSet;
 
 /* === Constants === */
 
@@ -47,13 +44,6 @@ pub const ID: &str = "dokime.host.v1.Backend/Environment";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<OperationContract> {
-    use prost::Message;
-    crate::declaration::<BackendEnvironmentRequest, BackendEnvironmentResponse>(
-        ID,
-        FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
-    )
-}
 pub async fn handle(resources: &Resources, request: BackendEnvironmentRequest) -> Result<BackendEnvironmentResponse> {
     resources.check_action_scope(&resources.execution, ID)?;
     let mut context = resources.context.as_ref().clone();

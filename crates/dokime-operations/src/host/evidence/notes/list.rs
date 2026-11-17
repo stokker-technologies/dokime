@@ -18,12 +18,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::{OperationContract, ReadCut, ResourceRevision};
+use harmos_protocol::model::{ReadCut, ResourceRevision};
 use prost::Message;
 
 // Local Imports
+use crate::host::Context;
 use crate::host::storage::administration;
-use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::evidence::{NotesListRequest, NotesListResponse, OperatorNote};
 
@@ -46,9 +46,6 @@ const SELECTION: &str = "dokime.evidence.notes/selection";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<NotesListRequest, NotesListResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: NotesListRequest) -> Result<NotesListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;

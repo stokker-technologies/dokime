@@ -19,12 +19,12 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::model::{OperationContract, Position, ReadCut};
+use harmos_protocol::model::{Position, ReadCut};
 use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::host::{ClientSettings, Context};
+use crate::host::Context;
 use crate::{Error, Result};
 use dokime_protocol::host::evidence::{TraceabilityGetRequest, TraceabilityGetResponse, TraceabilitySnapshot};
 use dokime_protocol::model::{EvidenceScope, TraceabilityEntry};
@@ -46,10 +46,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Traceability/Get";
 /* === Implementations === */
 
 /* === Public Functions === */
-
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<TraceabilityGetRequest, TraceabilityGetResponse>(ID, settings.read_timeout)
-}
 
 pub async fn handle(context: &Context, request: TraceabilityGetRequest) -> Result<TraceabilityGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async { read_page(context, request, None) }).await

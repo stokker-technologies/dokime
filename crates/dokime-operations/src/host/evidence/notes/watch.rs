@@ -20,7 +20,7 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos_operations::storage::{WatchRows, WatchRowsRequest, watch_rows_response::Event};
-use harmos_protocol::model::{Failure, OperationContract};
+use harmos_protocol::model::Failure;
 use harmos_runtime::operations::{StreamSettings, native_stream};
 use harmos_runtime::storage::ObjectDefinition;
 use harmos_runtime::storage::query::{ObjectSelection, ObjectVersions, Source};
@@ -30,7 +30,7 @@ use tonic::Status;
 
 // Local Imports
 use super::list;
-use crate::host::{ClientSettings, Context, Output};
+use crate::host::{Context, Output};
 use crate::{Error, Result};
 use dokime_protocol::host::evidence::{NotesListRequest, NotesWatchRequest, NotesWatchResponse};
 use dokime_storage::persisted::Administration;
@@ -53,9 +53,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Notes/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<NotesWatchRequest, NotesWatchResponse>(ID, settings.watch_timeout)
-}
 pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<Output<NotesWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut selection = NotesListRequest {

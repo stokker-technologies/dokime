@@ -18,6 +18,9 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::Failure;
+
+// Local Imports
 use crate::{
     Result,
     host::{Context, Output},
@@ -25,14 +28,7 @@ use crate::{
 use dokime_protocol::host::evidence::RecordsListRequest;
 use dokime_protocol::host::evidence::RecordsWatchRequest;
 use dokime_protocol::host::evidence::RecordsWatchResponse;
-
-// Local Imports
-
-use dokime_protocol::host::evidence::record_scope::Kind as RecordScopeKind;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::Failure;
-use harmos_protocol::model::OperationContract;
+use dokime_protocol::host::evidence::record_scope;
 
 /* === Constants === */
 
@@ -51,10 +47,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Records/Watch";
 /* === Implementations === */
 
 /* === Public Functions === */
-
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<RecordsWatchRequest, RecordsWatchResponse>(ID, settings.watch_timeout)
-}
 
 pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<Output<RecordsWatchResponse>> {
     let mut changes = context.host.store().subscribe();
@@ -100,7 +92,7 @@ pub async fn handle(context: &Context, request: RecordsWatchRequest) -> Result<O
                         .and_then(|selection| selection.scope.as_ref())
                         .and_then(|scope| scope.execution_id.as_deref())
                         .or_else(|| match selection.scope.as_ref().and_then(|scope| scope.kind.as_ref()) {
-                            Some(RecordScopeKind::Execution(id)) => Some(id.as_str()),
+                            Some(record_scope::Kind::Execution(id)) => Some(id.as_str()),
                             _ => None,
                         });
                     if execution.is_some_and(|id| {

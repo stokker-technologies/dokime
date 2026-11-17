@@ -18,10 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::executions::CommandsGetRequest;
 use dokime_protocol::host::executions::CommandsGetResponse;
@@ -44,9 +42,6 @@ pub const ID: &str = "dokime.host.v1.executions.Commands/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<CommandsGetRequest, CommandsGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: CommandsGetRequest) -> Result<CommandsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let selected = request.at.is_some();

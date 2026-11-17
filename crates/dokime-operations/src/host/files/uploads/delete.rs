@@ -15,13 +15,17 @@
 
 /* === Imports === */
 
-use crate::Result;
-use crate::host::files::transfer;
-use crate::host::{ClientSettings, Context};
-use dokime_protocol::host::files::{UploadsDeleteRequest, UploadsDeleteResponse};
+// Standard Library Imports
+
+// Third Party Imports
 use harmos_operations::storage::{DeleteFileProduction, DeleteFileProductionRequest};
-use harmos_protocol::model::OperationContract;
 use harmos_runtime::storage::StagedFile;
+
+// Local Imports
+use crate::Result;
+use crate::host::Context;
+use crate::host::files::transfer;
+use dokime_protocol::host::files::{UploadsDeleteRequest, UploadsDeleteResponse};
 
 /* === Constants === */
 
@@ -41,9 +45,6 @@ pub const ID: &str = "dokime.host.v1.files.Uploads/Delete";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<UploadsDeleteRequest, UploadsDeleteResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: UploadsDeleteRequest) -> Result<UploadsDeleteResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let session = transfer::session(request.upload)?;
