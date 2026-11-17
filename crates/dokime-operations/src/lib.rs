@@ -29,7 +29,6 @@ use std::result;
 
 // Third Party Imports
 use harmos_protocol::model;
-use harmos_runtime::Failure;
 use prost_reflect::ReflectMessage;
 use prost_types::FileDescriptorSet;
 
@@ -53,25 +52,6 @@ pub type Result<T> = result::Result<T, Error>;
 
 /* === Public Functions === */
 
-/// Check the trusted caller audience independently of visibility and grants.
-pub fn authorize(action: &str, caller: model::Callers) -> result::Result<(), Failure> {
-    let wrong_caller = || Failure::wrong_caller(action);
-    let (service, method) = action.split_once('/').ok_or_else(wrong_caller)?;
-    let service = dokime_protocol::descriptor_pool().get_service_by_name(service).ok_or_else(wrong_caller)?;
-    let method = service.methods().find(|candidate| candidate.name() == method).ok_or_else(wrong_caller)?;
-    let declared = harmos_protocol::schema::method_callers(&method).map_err(|_| wrong_caller())?;
-    let allowed = matches!(
-        (declared, caller),
-        (model::Callers::All, model::Callers::Clients | model::Callers::Plugins)
-            | (model::Callers::Clients, model::Callers::Clients)
-            | (model::Callers::Plugins, model::Callers::Plugins)
-    );
-    if !allowed {
-        return Err(wrong_caller());
-    }
-    Ok(())
-}
-
 /* === Private Functions === */
 
 pub(crate) fn declaration<Q: ReflectMessage + Default, R: ReflectMessage + Default>(
@@ -94,26 +74,3 @@ pub(crate) fn declaration<Q: ReflectMessage + Default, R: ReflectMessage + Defau
 }
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    use super::authorize;
-    use harmos_protocol::model::Callers;
-
-    #[test]
-    fn caller_admission_checks_each_direction_before_handler_dispatch() {
-        for action in ["dokime.host.v1.Executions/Create", "dokime.host.v1.Secrets/Set"] {
-            assert!(authorize(action, Callers::Clients).is_ok());
-            assert!(authorize(action, Callers::Plugins).is_err());
-        }
-        for action in ["dokime.host.v1.evidence.Records/Append", "dokime.host.v1.executions.Progress/Set"] {
-            assert!(authorize(action, Callers::Plugins).is_ok());
-            assert!(authorize(action, Callers::Clients).is_err());
-        }
-        for action in ["dokime.host.v1.Evidence/Statistics", "dokime.host.v1.Secrets/Get", "dokime.host.v1.executions.Progress/Get"] {
-            assert!(authorize(action, Callers::Clients).is_ok());
-            assert!(authorize(action, Callers::Plugins).is_ok());
-            assert!(authorize(action, Callers::All).is_err());
-        }
-    }
-}
