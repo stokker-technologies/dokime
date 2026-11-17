@@ -287,6 +287,7 @@ pub(super) fn append_records(state: &mut State, values: &[StoredRecord]) -> Resu
 pub(super) fn append_samples(state: &mut State, values: &[StoredRow]) -> Result<StorageCursor> {
     state.check()?;
     let through = values.last().ok_or_else(|| invalid("Append Samples: Supply a Nonempty Batch"))?.record.position.sequence;
+    let writing = Instant::now();
     let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for chunk in values.chunks(state.settings.chunk_rows.get()) {
         let mut groups = BTreeMap::<String, Vec<StoredRow>>::new();
@@ -337,9 +338,16 @@ pub(super) fn append_samples(state: &mut State, values: &[StoredRow]) -> Result<
         }
     }
     save(&tx, through)?;
+    let writing_ns = u64::try_from(writing.elapsed().as_nanos()).unwrap_or(u64::MAX);
+    let commit_started = Instant::now();
     tx.commit().map_err(db)?;
+    let commit_ns = u64::try_from(commit_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
     let mut work = state.work.get();
     work.synchronous_commits += 1;
+    work.synchronous_commit_ns += commit_ns;
+    work.maximum_synchronous_commit_ns = work.maximum_synchronous_commit_ns.max(commit_ns);
+    work.writing_ns += writing_ns;
+    work.maximum_writing_ns = work.maximum_writing_ns.max(writing_ns);
     state.work.set(work);
     state.cursor()
 }
@@ -349,6 +357,7 @@ pub(super) fn append_sample_columns(state: &mut State, append: &SampleAppend) ->
     state.check()?;
     state.history.check(&append.first.history)?;
     state.history.check(&append.through.history)?;
+    let writing = Instant::now();
     let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     let prior: Option<Vec<u8>> = tx
         .query_row("SELECT data FROM storage_mutations WHERE id=?1", [text(&append.mutation().mutation)?], |row| row.get(0))
@@ -421,9 +430,16 @@ pub(super) fn append_sample_columns(state: &mut State, append: &SampleAppend) ->
     let receipt = append.receipt();
     tx.execute("INSERT INTO storage_mutations VALUES(?1,?2)", params![text(&receipt.mutation)?, encode(&receipt)?]).map_err(db)?;
     save(&tx, append.through.sequence)?;
+    let writing_ns = u64::try_from(writing.elapsed().as_nanos()).unwrap_or(u64::MAX);
+    let commit_started = Instant::now();
     tx.commit().map_err(db)?;
+    let commit_ns = u64::try_from(commit_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
     let mut work = state.work.get();
     work.synchronous_commits += 1;
+    work.synchronous_commit_ns += commit_ns;
+    work.maximum_synchronous_commit_ns = work.maximum_synchronous_commit_ns.max(commit_ns);
+    work.writing_ns += writing_ns;
+    work.maximum_writing_ns = work.maximum_writing_ns.max(writing_ns);
     state.work.set(work);
     Ok(receipt)
 }

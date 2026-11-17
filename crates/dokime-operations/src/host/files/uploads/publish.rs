@@ -19,8 +19,8 @@ use crate::Result;
 use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
 use dokime_protocol::host::files::{UploadsPublishRequest, UploadsPublishResponse};
-use harmos_protocol::model::OperationContract;
 use harmos_operations::storage::{PublishFileProduction, PublishFileProductionRequest};
+use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 

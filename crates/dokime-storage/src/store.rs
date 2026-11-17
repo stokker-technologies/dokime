@@ -149,11 +149,9 @@ impl Store {
                     "resource_values",
                     "streams",
                     "telemetry_batches",
-                    "telemetry_checkpoints",
                     "telemetry_files",
                     "telemetry_garbage",
                     "telemetry_previews",
-                    "telemetry_summaries",
                 ]
             {
                 return Err(Error::Incompatible(root.display().to_string()));
@@ -201,7 +199,7 @@ impl Store {
                 CREATE TABLE read_positions(execution TEXT NOT NULL REFERENCES executions(id), position INTEGER NOT NULL, PRIMARY KEY(execution,position));
                 CREATE TABLE resource_values(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, position INTEGER NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(execution,resource,position));
                 CREATE INDEX resource_values_position ON resource_values(execution,position);
-                CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));", telemetry_schema=format_args!("{}{}{}",telemetry::catalog::SCHEMA,telemetry::aggregates::SCHEMA,telemetry::previews::SCHEMA)))?;
+                CREATE TABLE resource_requests(execution TEXT NOT NULL REFERENCES executions(id), resource TEXT NOT NULL, request TEXT NOT NULL, fingerprint BLOB NOT NULL, position INTEGER NOT NULL, PRIMARY KEY(execution,resource,request));", telemetry_schema=format_args!("{}{}",telemetry::catalog::SCHEMA,telemetry::previews::SCHEMA)))?;
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA journal_mode=WAL;")?;
         fs::create_dir_all(root.join("telemetry"))?;
@@ -641,8 +639,6 @@ pub(crate) fn digest(connection: &Connection, execution: &str) -> Result<Vec<u8>
     }
     for sql in [
         "SELECT b.file,b.offset,b.metadata_bytes,b.body_bytes,b.rows,b.sha256,b.start_ns,b.end_ns,b.first_position,b.last_position FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1 ORDER BY b.file,b.offset",
-        "SELECT s.file,s.field,s.moments FROM telemetry_summaries s JOIN telemetry_files f ON f.id=s.file WHERE f.execution=?1 ORDER BY s.file,s.field",
-        "SELECT s.file,s.offset,s.field,s.first_position,s.last_position,s.start_ns,s.end_ns,s.moments FROM telemetry_checkpoints s JOIN telemetry_files f ON f.id=s.file WHERE f.execution=?1 ORDER BY s.file,s.offset,s.field",
         "SELECT p.file,p.field,p.through,p.start_ns,p.end_ns,p.encoding,p.payload FROM telemetry_previews p JOIN telemetry_files f ON f.id=p.file WHERE f.execution=?1 ORDER BY p.file,p.field",
     ] {
         let mut query = connection.prepare(sql)?;

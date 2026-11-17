@@ -22,9 +22,9 @@ pub mod get;
 use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_operations::storage::{MutationId, SchemaInput, SetObject, SetObjectRequest, set_object_response::Outcome};
 use harmos_protocol::model::{Position, ReadCut, Receipt};
 use harmos_runtime::Identifier;
-use harmos_operations::storage::{MutationId, SchemaInput, SetObject, SetObjectRequest, set_object_response::Outcome};
 use harmos_runtime::storage::ObjectDefinition;
 use prost::Message;
 use prost_types::Timestamp;

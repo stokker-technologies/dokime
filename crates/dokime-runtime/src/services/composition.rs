@@ -27,6 +27,7 @@ use std::{
 // Third Party Imports
 use harmos_protocol::host::access::ListenerValue;
 use harmos_protocol::model::{StorageTransferSettings, TransferFraming};
+use harmos_runtime::Lifecycle;
 use harmos_runtime::clock;
 use harmos_runtime::clock::Source;
 use harmos_runtime::operations;
@@ -38,7 +39,6 @@ use harmos_runtime::storage::Cursor;
 use harmos_runtime::storage::{
     StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
 };
-use harmos_runtime::Lifecycle;
 use harmos_runtime::{
     Runtime, Setup, Startup,
     clock::{Reading, Sleep},

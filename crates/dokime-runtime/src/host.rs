@@ -23,6 +23,9 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_operations::plugins::Create;
+use harmos_operations::plugins::Delete;
+use harmos_operations::plugins::Watch;
 use harmos_protocol::host::PluginDescription;
 use harmos_protocol::host::PluginsDeleteRequest;
 use harmos_protocol::host::plugin_placement;
@@ -30,9 +33,6 @@ use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginR
 use harmos_protocol::host::{PluginState, PluginsWatchRequest};
 use harmos_protocol::host::{PluginValue, PluginsCreateRequest};
 use harmos_protocol::model::{FileMetadata, FileReference, Receipt};
-use harmos_operations::plugins::Create;
-use harmos_operations::plugins::Delete;
-use harmos_operations::plugins::Watch;
 use harmos_runtime::bundle::Identity;
 use harmos_runtime::operations::StreamSettings;
 use prost::Message;

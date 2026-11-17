@@ -24,8 +24,8 @@ use std::{
 };
 
 // Third Party Imports
-use harmos_protocol::plugin::instance_client::InstanceClient;
 use harmos_operations::plugins::Delete;
+use harmos_protocol::plugin::instance_client::InstanceClient;
 use harmos_runtime::operations::ProtobufOperation;
 use harmos_runtime::plugin::grpc::{GrpcPluginPolicy, GrpcPluginSettings};
 use tokio::{

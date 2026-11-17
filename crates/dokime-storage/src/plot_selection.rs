@@ -20,6 +20,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 // Third Party Imports
+use harmos_query::transform::{FieldPath, FieldPathExecution};
 
 // Local Imports
 use crate::{
@@ -62,7 +63,7 @@ impl Store {
         let mut groups = Vec::<ScalarValue>::new();
         self.evaluated_batches(window, &[field.into()], |batch| {
             for row in 0..batch.num_rows() {
-                let value = scalar::field(&batch, field, row)?;
+                let value = FieldPath::from(format!("values.{field}").as_str()).value(&batch, row)?;
                 if matches!(value, ScalarValue::Missing | ScalarValue::Null) {
                     continue;
                 }

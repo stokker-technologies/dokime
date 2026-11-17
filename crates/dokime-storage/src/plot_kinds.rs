@@ -18,6 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_query::transform::{FieldPath, FieldPathExecution};
 
 // Local Imports
 use crate::scalar::{self, ScalarValue};
@@ -595,9 +596,9 @@ impl Store {
                     let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
                     let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
                     let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
-                    let values = scalar::column(&batch, window.field)?;
+                    let values = FieldPath::from(format!("values.{}", window.field).as_str());
                     for row in 0..batch.num_rows() {
-                        if let Some(value) = scalar::number(&values.value(row)?).filter(|value| value.is_finite()) {
+                        if let Some(value) = scalar::number(&values.value(&batch, row)?).filter(|value| value.is_finite()) {
                             latest.push(Reverse((times.value(row), positions.value(row), value.to_bits())));
                             if latest.len() > maximum {
                                 latest.pop();
@@ -714,23 +715,23 @@ impl Store {
             let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
             let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
             let times = metadata.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();
-            let ys = scalar::column(&batch, request.window.field)?;
-            let xs = request.x.map(|field| scalar::column(&batch, field)).transpose()?;
-            let zs = request.z.map(|field| scalar::column(&batch, field)).transpose()?;
-            let groups = request.group.map(|field| scalar::column(&batch, field)).transpose()?;
+            let ys = FieldPath::from(format!("values.{}", request.window.field).as_str());
+            let xs = request.x.map(|field| FieldPath::from(format!("values.{field}").as_str()));
+            let zs = request.z.map(|field| FieldPath::from(format!("values.{field}").as_str()));
+            let groups = request.group.map(|field| FieldPath::from(format!("values.{field}").as_str()));
             for row in 0..batch.num_rows() {
-                let scalar = ys.value(row)?;
+                let scalar = ys.value(&batch, row)?;
                 let Some(y) = scalar::number(&scalar).filter(|v| v.is_finite()) else {
                     continue;
                 };
                 read(Input {
                     position: positions.value(row),
                     time: times.value(row),
-                    x: xs.as_ref().map(|column| column.value(row)).transpose()?.unwrap_or(ScalarValue::Null),
+                    x: xs.as_ref().map(|column| column.value(&batch, row)).transpose()?.unwrap_or(ScalarValue::Null),
                     y,
                     scalar,
-                    z: zs.as_ref().map(|column| column.value(row)).transpose()?.unwrap_or(ScalarValue::Null),
-                    g: groups.as_ref().map(|column| column.value(row)).transpose()?.unwrap_or(ScalarValue::Text(String::new())),
+                    z: zs.as_ref().map(|column| column.value(&batch, row)).transpose()?.unwrap_or(ScalarValue::Null),
+                    g: groups.as_ref().map(|column| column.value(&batch, row)).transpose()?.unwrap_or(ScalarValue::Text(String::new())),
                 })?;
             }
             Ok(true)

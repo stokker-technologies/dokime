@@ -30,7 +30,7 @@ use dokime_protocol::host::ExecutionsDeleteResponse;
 use dokime_protocol::host::ResultStatus;
 use dokime_protocol::host::ResultSummary;
 use harmos_protocol::model::History;
-use rusqlite::Result as SqlResult;
+use rusqlite;
 
 /* === Constants === */
 
@@ -105,8 +105,9 @@ impl Store {
         transaction.execute("DELETE FROM notes WHERE execution=?1", [execution])?;
         transaction.execute("DELETE FROM administration WHERE id LIKE ?1", [format!("plot-settings:{execution}/%")])?;
         let mut statement = transaction.prepare("SELECT id,payload FROM administration WHERE id LIKE 'artifact/%'")?;
-        let artifacts =
-            statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?.collect::<SqlResult<Vec<_>>>()?;
+        let artifacts = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
         drop(statement);
         for (key, payload) in artifacts {
             let artifact = StoredArtifact::decode(payload.as_slice())?;
@@ -126,10 +127,6 @@ impl Store {
         transaction.execute("INSERT INTO telemetry_garbage SELECT id FROM telemetry_files WHERE execution=?1", [execution])?;
         transaction
             .execute("DELETE FROM telemetry_previews WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
-        transaction
-            .execute("DELETE FROM telemetry_summaries WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
-        transaction
-            .execute("DELETE FROM telemetry_checkpoints WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
         transaction
             .execute("DELETE FROM telemetry_batches WHERE file IN (SELECT id FROM telemetry_files WHERE execution=?1)", [execution])?;
         transaction.execute("DELETE FROM telemetry_files WHERE execution=?1", [execution])?;
