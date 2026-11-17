@@ -28,7 +28,7 @@ A telemetry expression SHALL accept an `at` transform naming a record type. For 
 
 ### Requirement: Linear Sampled Evaluation
 
-Evaluating `at` SHALL merge the stream rows and the records in one ordered pass with memory bounded independently of the row count, for live and sealed evidence alike.
+Evaluating `at` SHALL use Harmos time-merge operations to merge the stream rows and the records in one ordered pass with memory bounded independently of the row count, for live and sealed evidence alike.
 
 #### Scenario: Sealed Execution
 

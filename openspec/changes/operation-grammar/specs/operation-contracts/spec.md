@@ -15,44 +15,11 @@ These are target requirements, not implemented behavior.
 
 ## ADDED Requirements
 
-### Requirement: Audience Faces and Package Boundaries
-
-Each service SHALL have exactly one audience face, visible in its package:
-plugin protocol in `harmos.plugin.v1` (Instance only); product catalog operations
-in `dokime.plugin.v1` on Instance.Invoke; host context in `harmos.context.v1` or
-`dokime.context.v1` through child calls; host client API in `harmos.v1` or
-`dokime.v1`. Nested resources SHALL stay within that face. Only the host SHALL
-call instances; clients SHALL NOT call context. Plugins SHALL remain client management.
-
-#### Scenario: Client Cannot Call Context
-
-- **WHEN** a connected client attempts `dokime.context.v1.executions.Progress/Set` or `harmos.context.v1.HostValues/Get`
-- **THEN** the host refuses the call with an error naming the action; client access does not authorize an invocation-context operation
-- **AND** no context service is registered on the client endpoint or exposed by its generated client root
-
-#### Scenario: Client Cannot Call an Instance Directly
-
-- **WHEN** a client tries to open Instance.Get, Invoke, Samples or Stop directly on a plugin instance
-- **THEN** the plugin protocol refuses the caller because only the host may open those calls
-- **AND** Public catalog visibility does not authorize a direct instance connection
-
-#### Scenario: Plugin Cannot Call Client-Only Management
-
-- **WHEN** a plugin attempts client-only `harmos.v1.Plugins/Delete` through its context
-- **THEN** the host refuses it with an error naming the action and leaves the entry unchanged
-- **AND** plugin context authority does not grant a client-only operation, even when a handler is shared elsewhere
-
-#### Scenario: Host Calls an Instance
-
-- **WHEN** the host connects to a running plugin and invokes one of its admitted product operations
-- **THEN** it reads identity/catalog through `harmos.plugin.v1.Instance/Get` and opens Instance.Invoke for the `dokime.plugin.v1` catalog operation
-- **AND** Instance.Samples and Instance.Stop retain publication and cleanup semantics; Plugins remains a distinct host-served client management service
-
 ### Requirement: Explicit Catalog Visibility and Admission
 
-Faces SHALL NOT replace visibility. Every SDK and host built-in SHALL explicitly
+Caller admission SHALL NOT replace visibility. Every SDK and host built-in SHALL explicitly
 choose Private, Protected or Public with no default, following the decided mapping
-in design.md. Private SHALL be local-only, Protected SHALL admit only its plugin
+in docs/architecture.md. Private SHALL be local-only, Protected SHALL admit only its plugin
 and host over their carrier, and Public SHALL admit declared peers and clients
 through the host. Admission SHALL retain digest, fingerprint, requirement and
 provider checks in one registry.
@@ -79,7 +46,7 @@ provider checks in one registry.
 
 - **WHEN** the host declares built-ins or generates plugin lifecycle bindings
 - **THEN** each uses the decided design.md mapping with no default; implementation-only Private work stays local and host-requested plugin lifecycle work is Protected
-- **AND** Public context built-ins remain callable by plugins but client credentials cannot call that context face
+- **AND** plugin-only host operations remain callable by admitted plugins while client-only operations refuse plugin callers
 
 ### Requirement: Visibility and Host-Mediated Plugin Invocation
 
@@ -104,7 +71,7 @@ propagate through the host. A requirement SHALL NOT grant access.
 
 #### Scenario: Client Invokes a Public Plugin Operation
 
-- **WHEN** a client invokes an admitted Public plugin-served operation through `harmos.v1.Invocations/Invoke`
+- **WHEN** a client invokes an admitted Public plugin-served operation through `harmos.host.v1.Invocations/Invoke`
 - **THEN** the host checks visibility and fingerprint, resolves the provider in the same registry, invokes its instance and returns the result
 - **AND** Private and Protected operations remain unavailable to that client
 
@@ -132,40 +99,6 @@ propagate through the host. A requirement SHALL NOT grant access.
 - **THEN** admission or dispatch refuses the call explicitly and the provider is not invoked
 - **AND** a client call with an incompatible fingerprint or absent admitted provider is also refused
 
-### Requirement: Independent Declarations per Face
-
-A capability needed on context and client faces SHALL have separate IDs,
-fingerprints, requests and responses per face, even with a shared handler.
-Evolution and authorization SHALL be independent. The 15 overlapping capabilities
-SHALL match design.md's per-face mapping. Context-only mutations SHALL NOT be
-added to client services for symmetry.
-
-#### Scenario: Shared Time and Produced Data
-
-- **WHEN** a plugin and a client read time, transfer bytes or read produced records/statistics
-- **THEN** each calls its own face's typed declaration with that face's authorization and scope rules
-- **AND** a shared handler does not make the client request/response a context contract
-
-#### Scenario: Context Revision Mirror
-
-- **WHEN** a plugin gets the value/revision needed for context Progress.Set or Traceability.Set
-- **THEN** it uses the context Get request/response, separate from the client's observation Get
-- **AND** the client gains no progress or traceability Set through this duplication
-
-### Requirement: Generate Only Required Faces
-
-Each language SHALL ship one SDK package containing both plugin-development
-interfaces and backend-client connection/functionality, with separate face roots.
-Python SHALL use `dokime-sdk` and the library's single `harmos-sdk`; no
-audience-specific builds SHALL remain. A codebase MAY install itself via `main.py`.
-The API SHALL be simple to consume. Amended by the owner on 2026-11-13.
-
-#### Scenario: One Package for Plugin and Client
-
-- **WHEN** an author installs the language SDK package
-- **THEN** it supplies plugin protocol/context interfaces and a backend client root
-- **AND** client roots do not expose context or Instance authority; a host may consume all faces
-
 ### Requirement: Predictable Operation Names
 
 Services SHALL name their resource with a plural noun, or a singular noun for
@@ -187,7 +120,7 @@ earlier verb-plus-part rule and flat compound resource services.
 
 #### Scenario: Single-Mode Part and Revisioned Settings
 
-- **WHEN** execution parameters and steps are paged, and plugin or plot settings are read and changed
+- **WHEN** execution parameters and steps are returned as bounded whole values, and plugin or plot settings are read and changed
 - **THEN** the methods are Executions.Parameters, Executions.Steps, Plugins.Settings.Get/Set and Plots.Settings.Get/Set, with no automatic parameter or step watches
 - **AND** each settings Get returns the exact writable value and revision expected by Set
 
@@ -200,26 +133,26 @@ earlier verb-plus-part rule and flat compound resource services.
 ### Requirement: Nested Service Wire Layout
 
 A nested resource SHALL be a service namespace in package
-`<face-package>.<lowercase-parent>`,
+`<executor-package>.<lowercase-parent>`,
 with the part as its service name, one proto file per service and a folder per
 parent. Its messages SHALL use the local service prefix `<Service><Method>Request`
-and `<Service><Method>Response`. Parent and nested resource MAY have different
-library/product owners; composition SHALL preserve both namespaces.
+and `<Service><Method>Response`. Product parent and nested resources SHALL preserve their declared namespace;
+Harmos host operations remain in-process behind product wrappers.
 
 #### Scenario: Product Settings Beside Library Plugins
 
 - **WHEN** the host application serves library Plugins and product plugin settings
-- **THEN** the product declares `dokime.v1.plugins.Settings` in `dokime/v1/plugins/settings.proto`, beside library Plugins, and the full nested Get path is `dokime.v1.plugins.Settings/Get`
+- **THEN** the product declares `dokime.host.v1.plugins.Settings` in `dokime/v1/plugins/settings.proto`, beside library Plugins, and the full nested Get path is `dokime.host.v1.plugins.Settings/Get`
 - **AND** its wrappers are SettingsGetRequest/Response and SettingsSetRequest/Response, not flat PluginSettings wrappers or Plugins.GetSettings
 
 ### Requirement: Generated Method Messages and Clients
 
 Messages SHALL use local ServiceMethodRequest/Response names and response
 wrappers. In all four SDKs a build-time generator SHALL derive hierarchy within
-each selected face from the shared descriptor package/service table, without
+each admitted caller root from the shared executor package/service table, without
 hand-written per-operation code. Composition SHALL merge distinct resource
-children within one face and reject collisions. Language casing SHALL preserve
-hierarchy; context and client roots SHALL remain separate.
+children within one caller root and reject collisions. Language casing SHALL preserve
+hierarchy; plugin and client resource roots SHALL remain separate.
 
 #### Scenario: Contract Review
 
@@ -233,28 +166,6 @@ hierarchy; context and client roots SHALL remain separate.
 - **THEN** the generated call is client.executions.progress.watch(request), using the Progress service in the executions sub-package
 - **AND** no client progress Set or hand-written naming alias is generated
 
-### Requirement: Library Machinery and Product Composition
-
-The library SHALL own Plugins, access, transfers and host status under the
-managers listed in design.md, alongside its existing generic runtime surfaces.
-A product SHALL own its storage definition, objects, operations and policy, and
-serve library services directly by composition without redeclaring or wrapping
-them. It SHALL NOT rebuild generic machinery on the protocol crate alone.
-
-#### Scenario: Direct Library Client Calls on a Product Endpoint
-
-- **WHEN** a client manages a plugin, configures the listener, transfers bytes or reads host health on the host application's endpoint
-- **THEN** it calls the library Plugins, Access/Access.Listener, Storage or Status services directly
-- **AND** PluginManager owns Plugins; GrpcManager owns access, listener, pairing, certificates and key rotation; StorageManager owns transfers; ServiceManager owns host status
-- **AND** the product has no second connection, dispatch, stream, process-launch, entry-management, listener/pairing, upload-handling or host-status implementation; the earlier protocol-only approach produced those duplicates
-- **AND** product storage ownership includes schemas, indexes, projections and the meaning of latest
-
-#### Scenario: Narrow Host-Fact Contribution
-
-- **WHEN** a host application contributes its version and component-health facts
-- **THEN** narrow registration supplies those facts to the library service manager's status services
-- **AND** reads unique to the product remain on its own services rather than duplicating generic identity or health
-
 ### Requirement: Product Settings and Secrets
 
 Settings and secrets SHALL remain product-owned, including stores, schemas,
@@ -266,14 +177,14 @@ The per-plugin settings/secrets ownership question SHALL be treated as closed.
 #### Scenario: Plugin Requests a Value
 
 - **WHEN** a plugin declares its settings and requests a setting or secret
-- **THEN** the catalog carries declarations and `harmos.context.v1.HostValues/Get` calls the registered product resolver with its policy and stores
+- **THEN** the catalog carries declarations and the product settings/secret operation calls its registered resolver with the product policy and stores over the generic carrier
 - **AND** the library introduces no opinionated settings/secret store or archive
 
 ### Requirement: Manager-Owned Orchestration
 
 The product SHALL split Host/shared State into execution, prompt and report
 managers, with capture only if recordings remain, under the single manager rule
-in design.md. Each service method SHALL map to one operation file which calls a
+in docs/architecture.md. Each service method SHALL map to one operation file which calls a
 manager or storage. Rendering SHALL remain pure. Evidence, catalog, notes,
 aggregates, plots and documents SHALL remain storage operations without managers.
 
@@ -292,55 +203,32 @@ aggregates, plots and documents SHALL remain storage operations without managers
 #### Scenario: Storage-Only Read
 
 - **WHEN** a caller reads evidence, catalog, notes, aggregates, plots or documents
-- **THEN** its operation accesses storage without introducing a manager for that collection
-
-### Requirement: Complete Composed Client Inventory
-
-Implementation SHALL preserve all 132 ordinary mapping rows and account for
-132 removed Run twins, with one destination/workflow per row and explicit
-ownership. The client inventory SHALL match design.md's per-owner totals;
-plugin carriers and the library's other existing surfaces SHALL remain separate.
-
-#### Scenario: Mapping and Count Review
-
-- **WHEN** the declarations and generated outputs are reviewed against design.md
-- **THEN** all 132 ordinary rows and their Run twins are accounted for once, and the original mapped client subset has 39 services (23 nested), 120 methods and 240 method wrappers
-- **AND** library mapped-client totals are 7 services (3 nested), 27 operations/methods and 27 request/response pairs; product client totals are 32 services (20 nested), 93 operations/methods and 93 pairs
-- **AND** product Content.ExecutionFiles.Get resolves metadata for library Storage.WatchFileBytes growth/replacement/truncation; Content.ExecutionFiles.Watch follows product metadata/membership
-
-#### Scenario: Complete Per-Face Operation Census
-
-- **WHEN** product plugin/context declarations and mapped library dependencies are included, counting shared capabilities once per face
-- **THEN** the plugin face has 5 logical namespaces, 9 operations, 4 gRPC entry methods and 9 request/response pairs, with Instance its one wire service
-- **AND** context has 15 logical namespaces, 29 operations, zero independent gRPC entry methods and 29 request/response pairs, carried as child calls
-- **AND** the completed client face has 44 services, 128 operations/gRPC methods and 128 pairs, including seven generic library companions beyond the original 120-method mapping
-- **AND** product-only totals are 48 namespaces, 116 declarations, 93 gRPC methods and 116 pairs; mapped library dependencies are 14 namespaces, 49 declarations, 38 gRPC methods and 49 pairs
-- **AND** all-face totals are 64 logical namespaces, 45 wire services, 166 operations, 132 gRPC entry methods and 332 method wrappers; these are not the whole library protocol's totals
-- **AND** supporting payloads and protocol frames remain separate from method wrappers
+- **THEN** its operation accesses stored data only through Harmos storage operations without introducing a manager for that collection
 
 ### Requirement: Product Evidence Archive and Generic Delivery
 
 Evidence.Archive SHALL select the product's evidence at a compatible cut and
-return a bounded immutable content reference. Library Storage.GetFileBytes SHALL deliver
-its ranges without interpreting product evidence selectors, policy or archive
+return a bounded immutable content reference. Product Files.Read SHALL deliver
+its ranges through in-process Harmos storage operations without interpreting product evidence selectors, policy or archive
 layout. Archive assembly SHALL remain an operation over storage with no manager.
 
 #### Scenario: Download Evidence
 
 - **WHEN** an authorized caller downloads an execution's evidence archive
-- **THEN** product Evidence.Archive binds the scope, cut and archive representation, and library Storage.GetFileBytes returns bounded ranges with total length and digest
+- **THEN** product Evidence.Archive binds the scope, cut and archive representation, and product Files.Read returns bounded ranges through in-process Harmos operations with total length and digest
 - **AND** the library does not acquire product object semantics or duplicate the archive-selection operation
 
 ### Requirement: Closed Ordinary Verb Vocabulary
 
-Ordinary verbs SHALL be limited to Get, List, Watch, Set, Create, Delete and Append.
+Ordinary verbs SHALL be limited to Get, List, Watch, Set, Create, Delete and Append,
+with the operation-boundary Files.Read ranged-read spelling retained.
 A domain verb SHALL document one side effect that an ordinary verb would hide.
 Clock waiting SHALL be named Sleep.
 
 #### Scenario: Ordinary Verb Review
 
 - **WHEN** a method uses an ordinary verb
-- **THEN** Update, Read, Browse, Put, Edit, Add, Remove, Follow, Scan, Inspect and Register are absent as ordinary operation verbs
+- **THEN** Update, Browse, Put, Edit, Add, Remove, Follow, Scan, Inspect and Register are absent as ordinary operation verbs; Read is limited to the agreed Files.Read contract
 
 #### Scenario: Domain Action
 
@@ -389,20 +277,6 @@ on 2026-11-13.
 - **WHEN** the reusable durable-lag benchmark measures small, multi-megabyte and mixed loads
 - **THEN** it reports the distributions for each load without a failing lag threshold
 - **AND** correctness tests verify durable positions and configured byte splitting deterministically, without elapsed-time assertions
-
-### Requirement: Library-Owned Language SDKs
-
-The library SHALL retain its language SDKs because other products will host
-plugins on it. Product SDKs SHALL keep building on them. The library protocol,
-SDKs and conformance suite SHALL remain self-sufficient with no product
-vocabulary. Remaining SDK decisions SHALL concern only plugin parity across the
-four languages and generic managed-client coverage in all four or Rust only.
-
-#### Scenario: Independent Plugin Host
-
-- **WHEN** another product hosts plugins on the library
-- **THEN** it can build on the library language SDKs without reimplementing the plugin protocol in every language
-- **AND** the library can prove its protocol end to end through its own SDKs and conformance suite without product vocabulary
 
 ### Requirement: Snapshot Then Watch
 
@@ -542,15 +416,16 @@ scope consistently.
 
 ### Requirement: Shared Unary Resumable Uploads
 
-The library storage manager SHALL own one unary transfer mechanism behind separate
-context/client declarations: Storage.CreateFileProduction, GetFileProduction,
-AppendFileBytes, CreateFileWriter, PublishFileProduction and DeleteFileProduction.
+The product SHALL declare one Files.Uploads unary transfer resource over the
+library's in-process storage operations: Create, Get, Resume, Append, Publish
+and Delete. Explicit caller admission SHALL cover clients and plugins without
+duplicate transport declarations.
 
 #### Scenario: Context and Client Uploads
 
 - **WHEN** a plugin or client uploads a file
-- **THEN** its face's separate declarations use the library storage manager's one unary transfer mechanism
-- **AND** the mechanism provides Storage.CreateFileProduction, GetFileProduction, AppendFileBytes, CreateFileWriter, PublishFileProduction and DeleteFileProduction
+- **THEN** the product's explicit caller declaration uses the library's in-process unary transfer mechanism
+- **AND** the product resource provides Files.Uploads.Create/Get/Resume/Append/Publish/Delete
 
 ### Requirement: Bounded Replay-Safe Upload Chunks
 
@@ -560,14 +435,14 @@ conflicts.
 #### Scenario: Resume After Lost Reply
 
 - **WHEN** an upload chunk reply is lost and the caller reconnects
-- **THEN** Storage.GetFileProduction reports the accepted offset and an identical Storage.AppendFileBytes replays safely
-- **AND** CreateFileWriter fences the old writer when resume needs a new writer generation, while different bytes at an accepted offset conflict without changing content
+- **THEN** Files.Uploads.Get reports the accepted offset and an identical Files.Uploads.Append replays safely
+- **AND** Files.Uploads.Resume fences the old writer when resume needs a new writer generation, while different bytes at an accepted offset conflict without changing content
 
 #### Scenario: Ordered and Bounded Chunks
 
 - **WHEN** a new chunk starts after the next accepted offset or exceeds the configured chunk bound
-- **THEN** Storage.AppendFileBytes refuses it without changing session data
-- **AND** Storage.GetFileProduction exposes the accepted offset, length, digest and session state to resume
+- **THEN** Files.Uploads.Append refuses it without changing session data
+- **AND** Files.Uploads.Get exposes the accepted offset, length, digest and session state to resume
 
 ### Requirement: Verified Upload Publication and Abandonment
 
@@ -591,12 +466,12 @@ message limit SHALL be 8 MiB.
 
 ### Requirement: Shared Unary Ranged Downloads
 
-The library storage manager SHALL serve separate client/context declarations of
-Storage.GetFileBytes with independent request/response types and authority. Clients and plugins
-SHALL download through repeated unary Storage.GetFileBytes calls with
+The product SHALL declare Files.Read with explicit client/plugin callers over
+in-process Harmos storage operations. Clients and plugins SHALL download through
+repeated unary Files.Read calls with
 offset and maximum bytes. Each reply SHALL state total length, content digest
 and resolved_at. Configuration SHALL bound range sizes. Streaming download gRPC methods
-SHALL be removed in favor of ranged Get reads.
+SHALL be removed in favor of bounded Files.Read ranges.
 
 #### Scenario: Download Resume and Bounds
 

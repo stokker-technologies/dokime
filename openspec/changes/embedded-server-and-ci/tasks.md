@@ -1,4 +1,3 @@
-# Tasks
 - [x] 1.1 Dokime owner removes compiler profile overrides and authored injection, preserves packaging symbol policy, maps Tests and matching Clippy to test with explicit graph namespaces, and adopts shared Hub generated tooling.
 - [x] 1.2 Dokime owner consumes the existing Tests archive for all compiler-contract assertions without an additional GUI Cargo build.
 - [x] 1.3 Dokime owner implements composition-owned credential provider, migrates settings/diagnostics/plugin fixtures and extended-only adapter consumers, preserving production secure-storage behavior and all failing assertions.
@@ -74,11 +73,8 @@
 - [ ] 2.3 Measure warm pipeline and Product/Tests durations against agreed budgets; report actionable causes for unmet limits without weakening coverage.
 - [ ] 2.4 Finish and retire the specification after required delivery evidence exists.
 - [ ] 2.6 Validate the combined desktop candidate on native Windows and Linux: same-root launches open independent windows and show actionable local-backend lease conflicts, distinct roots remain independent, shutdown and retry retain ownership, remembered backend identity and Settings reconnect behave correctly, and direct plugin installation, restart and refusal scenarios pass. Validate organization installer packaging and generated artifacts without installing them, as explicitly directed by the user; preserve user-owned applications and external outputs.
-- [ ] 2.7 Verify remote preservation and retire the superseded organization-installers worktree through housekeeping after its open change is completed. Preserve external brand packs, installers and user-owned applications.
-- [ ] 2.8 Rerun the affected development Release / Dry job with the combined candidate and require the source archive in release validation; targeted selector proof does not substitute for the actual packaging and verification job.
+- [ ] 2.8 Rerun the affected release-context Release / Dry job with the combined candidate and require the source archive in release validation; targeted selector proof does not substitute for the actual packaging and verification job.
 - [ ] 2.5 Rerun Linux acceptance/system and Windows system evidence-sealing and watch regressions on the combined candidate; preserve original assertions and durable acknowledgements.
-
-## Clean Desktop Architecture Audit
 - [x] 3.1 Lifecycle owner: repair retained shutdown ownership through GUI native_session, server host and listener drain; migrate callers and prove timeout/cancelled wait followed by retry cannot falsely complete or lose lease ownership. Reuse the existing resumable runtime shutdown rather than adding a second cleanup authority.
 - [x] 3.2 Lifecycle owner: allow every desktop launch to open its own window. Remove desktop locks and focus forwarding; preserve the backend storage lease with an immediate typed `BackendRunning` refusal, data-folder identification and usable connection/retry controls. This owner decision supersedes the earlier single-desktop requirement. Final native validation remains in 2.6.
 - [x] 3.3 Lifecycle owner: preserve named backend identity and persist only Local or a named profile in root-owned desktop settings; reuse backends.json, leave CLI defaults untouched, retain transient explicit attachments, and keep unavailable remembered remotes selected without local fallback. Publish the native contract to the UI owner before consumer edits.

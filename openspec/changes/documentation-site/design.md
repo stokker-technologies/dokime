@@ -76,8 +76,7 @@ generator handles its SDK as built is verified when the SDK references are gener
 Sphinx AutoAPI is the candidate because it analyses sources and stubs statically; `pdoc` imports the
 module and its latest release (16.0.0) dates from 2025-10-27. Stub handling is confirmed with 2.2.
 
-A native Python module is documented from its stubs, so a generator that only imports the module
-does not qualify.
+The Python SDK is a pure package. Its reference must cover authored APIs and the public generated message/stub surface; a native module is not required.
 
 ## Tasks
 

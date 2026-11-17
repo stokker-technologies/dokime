@@ -30,26 +30,26 @@ A time-series plot request SHALL carry the visible range and the panel width, an
 
 ### Requirement: Incremental Live Updates
 
-A plot watch SHALL send a snapshot when it opens and changed buckets afterwards, and SHALL NOT delay a redraw for exact statistics.
+A plot watch SHALL open with a snapshot and SHALL NOT delay drawing for exact statistics. Refresh policy SHALL follow per-kind desktop benchmark evidence: cheap bounded kinds default to invalidation/refetch of the visible window; time-series bucket deltas remain only where measured bandwidth justifies them. Both paths SHALL preserve the captured cut and late-sample correctness.
 
-#### Scenario: New Samples
+#### Scenario: Bounded Replacement Kind
 
-- **WHEN** new samples arrive for a watched plot
-- **THEN** the watch sends only the buckets that changed
+- **WHEN** relevant samples change a kind assigned invalidation/refetch
+- **THEN** the visible plot requests a fresh bounded result without pushed bucket state
 
-#### Scenario: Late Sample
+#### Scenario: Late Sample on a Delta Path
 
-- **WHEN** a sample arrives with a timestamp inside an already sent bucket
-- **THEN** the watch sends that bucket again with the sample included
+- **WHEN** a late sample changes an already delivered time-series bucket on a measured delta path
+- **THEN** the watch replaces that bucket with the correct result at the new cut
 
 #### Scenario: Reconnect
 
-- **WHEN** a client reconnects to a watch
-- **THEN** it receives a fresh snapshot and continues with changed buckets
+- **WHEN** a client reconnects
+- **THEN** it receives a fresh snapshot and continues using its kind's measured policy
 
 ### Requirement: Dokime-Owned Signal Kernels
 
-The kernels stay hand-maintained and move into Dokime; `tsdownsample` was tried and dropped because it needs nightly Rust. Dokime SHALL own only the FFT, statistics and downsampling kernels it calls as private modules, with no vendored dependency or Harmos signal namespace.
+The kernels stay hand-maintained and move into Dokime; `tsdownsample` was tried and dropped because it needs nightly Rust. Dokime SHALL own its product FFT/presentation kernels as private modules; generic statistics, downsampling and bucket merges SHALL compose Harmos operations under operation-boundary, with no vendored dependency or Harmos signal namespace.
 
 #### Scenario: Stable Compiler
 

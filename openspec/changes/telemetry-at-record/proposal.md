@@ -14,7 +14,7 @@ new record field, and historical executions never gain the answer.
 
 ## What Changes
 
-- Add the `at` transform to data expressions:
+- Add the `at` transform to the protocol TransformExpression and SDK data expressions:
   `telemetry(stream, field).at(record_type)` yields one value per record of
   that type, the stream row with the greatest timestamp at or before the
   record's timestamp. `.within_s(tolerance)` switches to the nearest row on
@@ -24,16 +24,16 @@ new record field, and historical executions never gain the answer.
   record and `per_case` compose with it like they do with `time_between`.
 - Like `time_between`, `at` is row-local: a repeated section whose value,
   order or filter uses it is refused at validation, naming the section.
-- Evaluation merges the two time-ordered inputs in one pass, so live and
+- Evaluation binds Harmos time-merge operations through the operation-boundary contract, without a product merge kernel, so live and
   sealed evidence behave identically and the linear record evaluation
   requirement holds.
-- Wire: one new `DataTransform` variant (`at`, with `record_type` and optional
+- Wire: one new protocol `TransformExpression` variant (`at`, with `record_type` and optional
   `within_s`), carried by the document definition like the others. Data shape
   versions derive; existing documents are unaffected.
 
 ## Impact
 
-- Affected: `dokime-domain` expressions, the runtime document evaluator
-  (`document/query.rs`, `frame.rs`, `binding.rs`), document validation, the
-  authoring skill and product guide, the Python SDK's expression builders.
+- Affected: protocol expressions, the product document-expression binding and validation,
+  Harmos query operations, the authoring skill and product guide, and Python
+  expression builders. No domain crate or retired evaluator paths are restored.
 - Not affected: record publication, stream storage, plot rendering.

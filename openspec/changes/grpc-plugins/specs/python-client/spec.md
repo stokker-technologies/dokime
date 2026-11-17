@@ -1,10 +1,3 @@
-## REMOVED Requirements
-
-### Requirement: Owned Cycle Lifecycle
-
-**Reason**: A required async context conflicts with the flat SDK lifecycle.
-**Migration**: Create cycles as values/handles and explicitly finish or stop them and close resources.
-
 ## ADDED Requirements
 
 ### Requirement: Explicit Cycle Lifecycle
@@ -22,8 +15,6 @@ Cleanup failures SHALL retain their original causes alongside execution failures
 
 - **WHEN** a script stops its owned cycle after an exception or cancellation
 - **THEN** active runs clean up and their executions close without depending on block exit
-
-## MODIFIED Requirements
 
 ### Requirement: Lazy Finite Query Readers
 

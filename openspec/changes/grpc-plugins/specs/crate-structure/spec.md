@@ -47,7 +47,7 @@ Logs, support bundles, transfers, paging, watches, plot deltas, diagnostics and 
 
 ### Requirement: Layer Direction and Removal
 
-Host dependencies SHALL flow from protocol through storage, operations and runtime to CLI/desktop. The separate domain, server and client crates, dead conversions and operations contract-only role SHALL be removed after consumer migration. `dokime-tracing` SHALL remain small development support.
+Host dependencies SHALL flow from protocol through storage, operations and runtime to CLI/desktop. The separate domain, server and client crates, dead conversions and operations contract-only role SHALL be removed after consumer migration.
 
 #### Scenario: Migration Completes
 

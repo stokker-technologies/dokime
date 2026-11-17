@@ -1,13 +1,10 @@
-## Implementation
-
-- [x] 1.1 Own dev checks/build selection in the project workflows, with no dev test suites; remove impact planning and preserve native platforms and caches.
+- [x] 1.1 Own dev checks/build selection in the project workflows, with no dev test suites; select quick dev work through the landed impact planner and preserve native platforms and caches.
 - [x] 1.2 Restrict release dry validation to release PRs; reject release git dependencies and make nightly report them as warnings.
 - [x] 1.3 Add API validation of the target SHA before release tagging and publishing, including pending, missing and failed evidence.
-- [x] 1.4 Draft dev publication before replacing assets, verify the complete upload inventory, move the tag once and publish; serialize publication.
-- [x] 1.5 Update contributor/tooling ownership documentation and remove obsolete impact-planning guidance.
-
-## Validation and Delivery
-
-- [ ] 2.1 Run the requested mise check and tooling proof with UV_PROJECT_ENVIRONMENT removed; report every failure without editing product/test code.
-- [ ] 2.2 Deliver only with authorization through the combined `feat/grpc-plugins` candidate; preserve remote SHA and actual hosted proof. This local specification task authorizes no push.
+- [x] 1.4 Draft Nightly publication before replacing assets, verify the complete upload inventory, move the tag once and publish; serialize publication.
+- [x] 1.5 Update contributor/tooling ownership documentation and document the project-owned impact planner.
+- [ ] 2.1 Validate the final CI/release candidate on native Linux and Windows through authorized hosted checks and release rehearsal; report all failed or missing proof.
+- [ ] 2.2 Deliver only with authorization through the combined candidate; preserve remote SHA and actual hosted proof. This local specification task authorizes no push.
 - [ ] 2.3 Retire the specification after the requested proof and handback obligations are fulfilled.
+- [ ] 3.1 Verify provider release environments, signing and publishing identities, signed release preparation and exact-release-commit green required checks before stable tagging/publication; workflow declarations are not live provider proof.
+- [ ] 3.2 Verify a reachable private vulnerability-reporting channel and packaged licenses/notices; review the advisory exception register at release time and resolve expired exceptions without relaxing the gate.

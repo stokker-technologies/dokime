@@ -1,5 +1,14 @@
 # Prototype Streamline
 
+## Current Ownership
+
+The execution-host replacement removed the old loop and domain/server/client owners.
+operation-boundary owns the storage/facade cutover; plugin-boundary owns product
+contracts, SDKs and registry; plugin-lifecycle owns verbs/hooks. Their decisions
+supersede the old backend, aggregation, library-SDK and composition mechanisms.
+Generated output stays tracked. design.md and tasks.md retain only current contracts
+and remaining acceptance, not historical writer inventories.
+
 ## Why
 
 The storage optimization combined useful storage improvements with hundreds of operational knobs and pervasive retained-memory accounting. The prototype needs editable product settings, reliable backend selection, and a smaller implementation surface.
@@ -11,7 +20,7 @@ The storage optimization combined useful storage improvements with hundreds of o
 3. Every retained setting is editable in Settings. Simple exposes everyday preferences; Advanced includes all controls. Reuse the CLI backend registry and GUI connection manager. Backend selection and deletion remain explicit; the later `embedded-server-and-ci` owned-selection contract replaces the original startup/CLI-default coupling.
 4. Remove Dokime's memory-admission/estimation plumbing and the paired Harmos storage accounting extensions. Preserve opened-file ownership, transactional one-row encoding, repeated-item identity, allocation-free decimation, exact wire sizing, borrowed serialization, range filtering and saved-storage live plots.
 5. Consolidate tests around behavior: remove 19 named test definitions, preserving the useful assertions identified in the task inventory. Do not remove corruption, durability, cancellation, authentication, transport-size or performance-regression proof merely because it currently fails.
-6. Apply Harmos's flat feature-gated operation authoring to crate layering. The published dependency and `dokime-operations` are present; remaining resource-library and SDK extraction stays open in section 9.
+6. Apply Harmos's flat feature-gated operation authoring to crate layering. The protocol/storage/operations/runtime split and host-free SDK are present; remaining facade and consumer changes belong to operation-boundary and plugin-boundary.
 
 ## Acceptance
 

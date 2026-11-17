@@ -97,7 +97,7 @@ The host SHALL open the streams a test case names before initialize and close th
 
 ### Requirement: SDKs Provide and Drive
 
-Each language SDK SHALL let an author serve a plugin and drive Dokime through `dokime.v1` from the same package. Python SHALL offer flat value composition and explicit resource close without requiring a context manager.
+Each language SDK SHALL let an author serve a plugin and drive Dokime through `dokime.host.v1` from the same package. Python SHALL offer flat value composition and explicit resource close without requiring a context manager.
 
 #### Scenario: Script Runs Its Own Suite
 
@@ -106,12 +106,12 @@ Each language SDK SHALL let an author serve a plugin and drive Dokime through `d
 
 #### Scenario: Definitions Exported
 
-- **WHEN** an author runs the proto export command for `dokime.v1` or for one plugin
+- **WHEN** an author runs the proto export command for the Dokime model/host/plugin contracts or for one plugin
 - **THEN** it writes the `.proto` files the author's own toolchain generates code from
 
 #### Scenario: Generated Client
 
-- **WHEN** an operation served to clients is added to `dokime.v1`
+- **WHEN** an operation served to clients is added to `dokime.host.v1`
 - **THEN** every language's client exposes it after regeneration, and a check fails while the stubs are stale
 
 ### Requirement: Runtime-Free Authoring

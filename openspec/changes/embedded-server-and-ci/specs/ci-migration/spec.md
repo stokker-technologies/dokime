@@ -1,13 +1,13 @@
 # CI Migration
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Separate Executable Publication
-The dokime and dokime-server libraries SHALL retain their published identities. The non-publishable dokime-cli crate SHALL own the dokime executable, including dokime server. The non-publishable GUI SHALL embed the shared server library. No standalone dokime-server executable or compatibility wrapper SHALL ship.
+The Rust SDK SHALL retain the dokime library identity. The non-publishable dokime-cli crate SHALL own the dokime executable, including dokime server. The non-publishable GUI SHALL embed dokime-runtime. No standalone dokime-server executable or compatibility wrapper SHALL ship.
 
 #### Scenario: Library and Binary Delivery
 - **WHEN** the candidate builds, tests and packages Dokime
-- **THEN** library consumers resolve the existing libraries and headless process stories invoke dokime server
+- **THEN** library consumers resolve the SDK and declared runtime library and headless process stories invoke dokime server
 - **AND** registry publication excludes CLI and GUI crates while release assets contain the remaining declared executable owners
 
 ### Requirement: Validate in the Assigned Worktree

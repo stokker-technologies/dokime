@@ -2,7 +2,7 @@
 
 ### Requirement: No Plugin Domain in the Product
 
-The interface and runtime SHALL use plugin-declared choices, traceability fields and field metadata rather than domain-specific input controls, fixed traceability fields or inferred units and stream names. Plot kind and grid neutrality requirements belong to plot-kinds.
+The interface and runtime SHALL use plugin-declared choices, traceability fields and field metadata rather than domain-specific input controls, fixed traceability fields or inferred units and stream names. The landed plot-kind/grid catalog is retained; its current-host parity proof belongs to grpc-plugins.
 
 #### Scenario: Grouped Choice
 

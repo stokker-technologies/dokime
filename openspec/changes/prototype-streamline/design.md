@@ -1,112 +1,49 @@
 # Prototype Streamline Design
 
-Capability requirements for the backend registry, accounting removal, runtime revision snapshots, desktop feedback and upstream decoder retention live under `specs/`. Later locked changes supersede only the overlapping contracts identified in proposal.md; tasks.md records source/proof status and current ownership.
+## Retained Contract
 
-## Settings Contract
+Application preferences are protocol values in
+`proto/dokime/host/v1/settings.proto`, persisted with whole-value revision guards.
+Bootstrap paths are read-only. The retired operational-knob catalog and retained
+memory-accounting machinery are not restored. Existing incompatible roots are
+preserved and refused at baseline v1; there is no silent reset or migration.
+Desktop selection remembers Local or a saved remote and preserves unavailable
+remote selection with explicit connection controls. Paths follow distribution
+identity. OS credentials remain protected and root-qualified.
 
-`dokime-domain/src/model/settings/application.rs` owns the following implemented model and its validation; existing `model/settings::Settings` remains the plugin schema catalog, not another application-settings model. Domain-owned constituent types are referenced, never redeclared by runtime, server, TS or Python. This source inventory does not close pending native proof.
+The current implementation lives in `crates/dokime-operations/src/host/settings/`,
+the desktop settings/connection owners and runtime composition. Host-free Rust
+SDK dependencies are in `sdk/rust/Cargo.toml`. The old domain/server/client and
+managed-checkpoint loop have been deleted; old test paths and lease admission
+counters are not outstanding work against those deleted mechanisms.
 
-```rust
-pub struct ApplicationSettings {
-    pub appearance: Appearance, // theme_mode, theme_family, density
-    pub report: ReportDefaults, // plot_points, plot_downsample
-    pub client: ClientPreferences, // connect_timeout_ms, request_timeout_ms, endpoint_stagger_ms
-    pub telemetry: TelemetryPreferences, // interval_ms
-    pub listener: RemoteListenerSettings, // enabled, address, tls_enabled, authentication_enabled, certificate_names
-}
-pub enum SettingsScope { Local, Backend }
-pub struct SettingsSnapshot { pub revision: u64, pub settings: ApplicationSettings }
-pub struct UpdateSettings { pub expected_revision: u64, pub settings: ApplicationSettings }
-// Domain operations: ReadApplicationSettings {} -> SettingsSnapshot;
-// UpdateApplicationSettings { update: UpdateSettings } -> SettingsSnapshot.
-// Runtime methods use crate::runtime::Result; conflict is a typed error.
-async fn read_application_settings(&self) -> Result<SettingsSnapshot>;
-async fn update_application_settings(&self, update: UpdateSettings) -> Result<SettingsSnapshot>;
-```
+## Ownership After the Execution-Host Replacement
 
-There are 14 fixed editable leaf fields in the resulting model, plus dynamically declared plugin settings and secret-reference records. Four of the 409 operational leaves survive: `client.connect_timeout_ms` (10,000), `client.default_timeout_ms` -> `client.request_timeout_ms` (30,000), `telemetry.default_interval_ms` -> `telemetry.interval_ms` (1,000), and `server.listen_port` -> the port within existing `listener.address` (default 8765). No separate listener port field survives. Baseline leaf counts by file: analysis 5, client 42, desktop 51, documents 18, execution 33, files 20, gui 60, host 15, notes 8, packaging 20, pagination 3, parameters 7, presentation 14, secrets 6, server 88, sqlite 2, telemetry 10, transport 7 = 409. `schema.rs` contains serialization adapters, not public leaf declarations.
+operation-boundary owns remaining storage consumers, native cuts, compound
+mutations, Arrow intake, bounded query transforms, archive fidelity and facade/
+wrapper adoption. plugin-boundary owns plugin contracts, SDKs, registry/settings
+and bundles; plugin-lifecycle owns verbs/hooks. Generated output stays tracked.
+Generic aggregation and merge kernels belong in Harmos; product presentation and
+FFT behavior stay product-owned. New adapter or extraction layers are not implied.
 
-All other operational leaves become constants beside the implementation using them; accounting-only limits disappear with their mechanism. Preserve queue bounds, protocol frame/decoded-input limits, cancellation deadlines and file-validation constraints as constants. Remove `OperationalSettings`, `InterfaceSettings`, policy-only sidecar bootstrap copies, `Configuration`, the TS mirror and Python `ClientSettings`/`client-settings.json`; constructors take only retained user preferences or actual resources. A protocol constant shared across languages is generated from its owning contract, never a second configurable policy table.
+remote-access-simplification owns pairing and the unresolved transparent-recovery
+contract. grpc-plugins owns remaining file-source support, Effects, aggregate/media
+handlers, benchmark restoration and application migration. test-stories owns the
+surviving test inventory and deterministic consolidation. Duplicate prototype
+worklists for those owners are removed rather than checked as implemented.
 
-Simple: theme mode/family, density, report points/downsampling, Backends, plugin fields and secret references. Advanced includes Simple plus both client timeouts, endpoint stagger, telemetry interval and all five listener fields. Duration values are positive integers within the existing monotonic/transport range; report points use the existing semantic range, not an admission budget. Keep listener TLS/authentication validation and certificate-name checks. UI validation supplements domain validation. Apply appearance immediately, client settings to new connections/requests, telemetry at the next sample scheduling boundary, report defaults to new materializations, and listener edits through the existing explicit restart operation. Show effective listener state and failures separately from saved intent.
+## Remaining Acceptance
 
-## Persistence and Bootstrap
+Recheck preference edits/reopening/conflicts, read-only bootstrap paths, decoder
+retention and exact wire bounds against final consumers on both native platforms.
+Current/sealed report-save and ingest-contention measurements use the restored
+benchmark path with identical deterministic fixtures. Preserve real historical
+baselines if available; do not invent missing comparisons. Conditional scheduling
+or storage tuning requires evidence and unchanged durability/cancellation.
 
-Reuse `storage/sqlite.rs`'s `local.sqlite`, lease and serialized transaction executor. Add `application_settings` singleton `(id=1, revision, body)` via `storage/sqlite/settings.rs`; initialize absent settings atomically. On the existing `storage::sqlite::State`, provide `async fn read_application_settings(&self) -> Result<SettingsSnapshot, storage::Error>` and `async fn update_application_settings(&self, update: UpdateSettings) -> Result<SettingsSnapshot, storage::Error>` with compare-and-update transactions. B adds `storage::Error::SettingsConflict { expected: u64, actual: u64 }` and `storage::Error::InvalidSettings(String)`; A consumes these variants. No second connection owner or JSON-file cache. Validation errors and conflicts leave the stored body unchanged; runtime operations delegate here.
-
-Resolve application/storage/plugins roots from existing explicit startup options/environment and `ApplicationPaths::default_data()` before opening SQLite. Roots are bootstrap inputs, displayed read-only, not persisted settings; remove `SettingsDocument.data_root` and its GUI edit operation. This avoids requiring the database to locate itself. Node identity is durable identity metadata, not editable preferences. Move plugin saved values and secret catalog metadata from `SettingsDocument` into application database records using their existing domain types; keep credential bytes in their existing protected stores. Remove `settings.json` and `config.toml` code paths without deleting users' files. Ignore legacy configuration files without reading or deleting them; settings and identity come from the database; keep schema baseline v1 and never auto-reset an incompatible database.
-
-The desktop's existing local runtime opens its local database even when the selected connection is remote; local appearance/client preferences remain available offline. Native commands use explicit `SettingsScope`: Local edits appearance/client, Backend edits report/telemetry/listener; reject changes to fields outside that scope. Backend requests fail visibly when disconnected. Local backend selection resolves both scopes to the same owner. Plugin and secret editors retain their typed operations and authorization, backed by the same database owner.
-
-## Deferred Layering
-
-Crate extraction is deferred until measurements after the gRPC removals. The
-following table is a candidate boundary inventory, not scheduled implementation.
-Client/SDK and build-script dependency cuts remain required under `grpc-plugins`.
-Dependency arrows point from lower provider to higher consumer: `dokime-domain -> resource libraries -> dokime-operations[runtime] -> dokime-runtime -> dokime facade -> shells`. Resource libraries can depend on domain and other resource libraries only in the order below; never on operations/runtime/facade. Contract-only operations depend only on domain plus Harmos authoring contracts. Packaging/generation depends on domain and contract-only operations, never runtime. The adopted upstream contract must support typed operation definitions without host-runtime dependencies.
-
-| Current Runtime Modules | Later Owner And Cycle Cut |
-| --- | --- |
-| `model/`, pure parts of `definition/`, `parameters.rs`, `diagnostics.rs`, `error.rs`, `state/`, `transactions/` | Domain owns shared values, errors, state and transaction declarations/pure rules; execution effects stay above. No domain import of host/runtime. |
-| `storage/`, `paths.rs`, `persistence.rs`, DB portion of `config/` | `dokime-storage`, lowest resource library; accept domain values, not `RuntimeHandle` or `StateWatcher`. |
-| `artifacts/`, `files/`, `records/`, `streams/`, `telemetry/`, `publication.rs`, `evidence.rs` | `dokime-evidence` above storage; inject storage handle and captured state/record scope, not execution context; existing `plugin-host` supplies platform collection. |
-| `analysis/`, `plot/`, `document/`, `report/`, `traceability/` | `dokime-reporting` above evidence/storage; query with explicit immutable cut/scope/catalog snapshots. Cut `report`/`document` calls into `domains`/`RuntimeHandle`, and telemetry-to-report callbacks. |
-| `execution/`, `plugin/`, `plugins/`, `prompts/`, `transport/`, `process.rs`, `host/`, implementation parts of `definition/` | `dokime-execution` above reporting/evidence/storage; inject operation dispatcher and contribution registry interfaces defined below operations. Never import concrete runtime or operation implementations. |
-| `domains/`, operation declarations currently in domain, `catalog.rs` operation catalog | `dokime-operations` flat concern files; gate implementation/resources with runtime. Replace `impl RuntimeHandle` handlers with injected resource fields; callers in resource libraries use domain ports/messages, cutting the operations-to-runtime cycle. |
-| `app.rs`, `runtime/`, `services/`, `contributions.rs`, launch/organization `config/`, runtime parts of `state/transactions` | `dokime-runtime` composition, lifecycle, registration and services; inject resources into operations and own scheduling. Split mixed files before moving; runtime owns no duplicate domain model. |
-| `lib.rs`, `prelude.rs`, `macros.rs`, `__answer` helpers | Curated facade exports/authoring support; domain-safe helpers move down, host composition stays runtime; remove obsolete runtime re-exports after consumers migrate. |
-
-Do not create lower-level catch-all context traits that reproduce `RuntimeHandle`. Extract only the narrow read/dispatch contracts needed at the named cuts. Move files and consumers together after upstream lands; no temporary reverse dependency, compatibility facade or second declaration tree.
-
-Stream rows use the same length-prefixed metadata plus native payload layout as object rows in SQLite. This development format requires a fresh storage root for older stream data; existing roots are never reset. File checkpoints persist receipts incrementally, acknowledging saved receipt identities only after backend success, and submit active file checkpoints as one batch.
-
-Reports retain native staged file writers through cancellation and retry, writing bounded chunks with exact offsets and publishing durably at finish. Frozen inputs regenerate interrupted reports after restart; public resumable-upload receipts are not created for internal report chunks. Identical durable file checkpoints still verify their prefix but do not repeat durable publication. Plot transport fitting reduces the collected payload without rereading storage and uses the same streamed-envelope sizing for unary and watch budgets.
-
-SQLite file finish records durable publication before committing its finished row. Admission rechecks immutable bytes and the exact reference without republishing those bytes; an interrupted install without a finished row still confirms durability on retry. Existing staging-path lookups are read-only. Logo validation decodes bounded blocks while retaining canonical padding and decoded-byte checks.
-
-The SQLite owner retains private staging handles through bounded writes, finish verification and reference admission; successful reference commit, abort and store close release them. Resumable public productions retain their existing checkpoint/reopen behavior. This avoids reopening every chunk and the just-written file while preserving content verification.
-
-Telemetry decoding preserves the producer sequence used for identity checks. Stream listings and evidence snapshots expose admission ordinals, while runtime live-view cursors and selected history use global storage positions so restart boundaries remain monotonic. Admission ordinals restart with each runtime session; they are not restored from historical rows.
-
-## Round 3
-
-The task inventory retains unfinished source and proof obligations. Integration and ownership follow `grpc-plugins` Implementation Waves.
-
-Secret machine fields become `identifier`/`identifiers` without aliases; human display remains `label`. Backend `Profile.name` becomes `identifier` plus `label`, and defaults/keyring associations/selection reference identifier. Keep existing `secret_id` references as references to that identifier. Domain validation owns the bounded ASCII identifier grammar and nonblank label contract. Versions remain v1; no migrations, compatibility readers, legacy detection, imports or resets. Old unrelated user files remain untouched.
-
-Plots preserve exact evidence; `plot-pipeline` removes the flat-memory requirement.
-Existing spill staging remains until a measured replacement is agreed. Remote
-connections use `.pair` files with ordered endpoints, one backend key, one pinned
-self-signed server certificate and expected-backend identity. `DOKIME_REMOTE` or an
-explicit path selects the file. Profile registries, per-client revocation, CA
-reissue and credential-store connection secrets are removed. Transparent recovery
-is deferred under `remote-access-simplification` task 2.4, pending confirmation.
-
-Read-only application/storage/plugins/log paths travel in GetSettings.bootstrap_paths, separate from saved preferences; no diagnostics snapshot is reconstructed. Delete startup doctor and diagnostics snapshot producers, fields, commands, files-path declarations, UI and tests; retain live logs and CollectDiagnostics without those artifacts. Remove release-account storage/sign-in/provider auth from every interface; updates use public sources only. Secrets use the shared table and Add dialog; secrets/backends use Identifier + Label and Tailwind GUI controls.
-
-Multi-day correctness precedes tuning: incrementally persist telemetry/records with indexed identity and bounded pending state; managed snapshots retain compact durable frontiers, not capture membership. Journal recovery seeks incrementally. Storage reduction preserves exact semantics with peak memory measured; indexed eligible maxima anchor window queries. Execution logs segment at 64 MiB, fail capture explicitly at 1 GiB/execution or permanent failure, retain evidence and expose health; retry transient faults without advancing unsaved offsets. Tests simulate seven days and assert retained bytes/rows, indexed work and recovery/window scan counts.
-
-Exact projection uses private disk indexes for product expressions and correlations and Harmos's existing paged Arrow reduction machinery for projected rows. A reusable Harmos query table owns its spill file, accepts bounded producer pages, and applies the same transforms as stored queries; clones retain the immutable file rather than copying history. This leaves Backend, StorageManager and file-reader contracts unchanged. Dokime owns grouping keys, capture tie order, record-scope correlation and plot metadata. Peak working memory is measured; flat memory as retained history grows is not an acceptance requirement under `plot-pipeline`.
-
-FFT, statistics and downsampling kernels are private Dokime modules under
-`crates/dokime-runtime/src/signal`; no Harmos signal namespace or `tsdownsample`
-dependency is retained. Preserve typed numeric semantics and propagate scratch-file
-errors separately from invalid signal data. Partial SQLite stream indexes require an explicit literal kind predicate so query preparation can prove their applicability. Shared materialized plot owners are serialized by reference; per-request metadata copies only the bounded final result.
-
-Scratch JSON uses float-roundtrip decoding so disk staging preserves the original binary floating-point values. Correlation orders repeated capture positions by their original record order, including the runtime's reverse timestamp view. SQLite scan instrumentation is scoped to each store so concurrent tests cannot contaminate seven-day window-work measurements; fixed-window proof compares decoded rows and indexed anchor rows as retained history grows.
-
-Identity bootstrap remains separate from manager-admitted data initialization. Indexed-schema checks apply once data tables exist; opening an identity-only store must not initialize evidence tables. Telemetry summaries select only telemetry schema identifiers before compiling codecs; unrelated record and object schemas are not telemetry payloads. Exact unbounded plot requests use the spilled projection path. Fixtures follow compact capture frontiers, admission ordinals, segmented log names and the agreed 1 MiB transfer payload. The obsolete retired-intent refusal test becomes an unrelated-table preservation test, consistent with the decision to remove legacy detection without deleting user data. CLI dispatch owns its large command future on the heap so embedded CLI consumers do not inherit its stack footprint.
-
-Reports stage through buffered hashing output, spool selected document/member data, and deliver immutable leased FileReference/FileReader rather than HTML vectors. Preserve 64 MiB document limits, exact evidence, integrity, durability, output order and cancellation. Save picks destination first and downloads to an adjacent tempfile for atomic publication; Open retains cache behavior. Report deadline is 300 s, ordinary requests 30 s; transfer payload target 1 MiB fits the exact encoded ceiling, prefetch is four frames/4 MiB. Runtime/Harmos tuning and conditional native-platform measurements are itemized in tasks.md; no unconditional read pool, 1,800 s policy or relaxed durability. Measure identical large current/sealed cycles before/after and preserve evidence of actual results.
-
-No parked/disabled tests survive: restore live pending cases into real targets or delete obsolete ones. Integration verifies all targeted suites and desktop build, regenerates consumers, reconciles earlier tasks and adds requirement deltas; source closure, delivery and `stkr specification finish prototype-streamline` remain pending until their actual prerequisites complete.
-
-CLI recovery and client execution/listener operations also own large futures on the heap; the native embedded CLI must run on the default test-thread stack. Pairing client identifiers use the workspace-enabled UUID v7 generator, avoiding a hidden dependency on UUID v4 feature unification. Python report prefetch forwards failures to the consumer and observes the failed reader task, preserving propagation without unobserved-task warnings. Report measurement consumes the stamped benchmark and matching plugin fixture through the standard `bench:rust:system` Criterion target; current and sealed timings are distinct observations, not a fabricated historical speedup.
-
-Empty-store retention validates the saved frontier and completes without initializing data tables when the saved sequence is zero. Server fixtures identify paired callers by their issued client identifier; rejection checks assert structured outcomes rather than authored prose. CLI artifact/export fixtures use a separate native local listener, while the existing keyed listener continues to prove authentication and transfer integrity. The plugin atomicity fixture uses a 128-byte response ceiling so its compact response is actually refused before publication.
-
-## System Story Report Finalization (Owner Decision 2026-10-29)
-
-Report saving is part of every report-producing system story's shared finalizer. The finalizer materializes the final sealed execution report, saves it, reopens the saved file and verifies its execution/checkpoint identity and artifact inventory/content. It must not require per-story calls or a dedicated report-saving story. Stories which intentionally finish without an execution report are explicitly exempt in the central system-story policy. Lifecycle interruption assertions run before finalization; recovered shutdown stories finalize only after their recovery assertions. The shared desktop finalizer reopens the same isolated application home when the journey has already closed its session, saves the reports and drains that reopened owner.
-
-The dedicated `measure:report-save` task and Python wrapper are removed. Useful large-cycle current/sealed report-save timing belongs only to the existing Criterion system bench, run by `bench:rust:system`, with no environment-selected alternate runner or custom JSON measurement protocol. This decision supersedes earlier report-only measurement commands in this change. The selected Windows system stories and bench compilation are authorized targeted proof, not aggregate delivery validation.
+Retained multi-day file/log capture must bound pending work, retain saved offsets
+on failure and expose permanent capture failures. Reconcile its segmented output
+and fault policy with the current execution-file owner, without restoring retired
+plugin-restart recovery. Measure surviving crates before proposing further
+layering. Source presence and historical Windows proof do not establish final
+native Linux acceptance or authorized delivery.

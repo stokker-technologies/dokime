@@ -19,7 +19,9 @@ For an expression `telemetry(S, F).at(R)`:
 
 ## Evaluation
 
-One merge over the two ordered inputs: advance A while its next timestamp is
+The product binds the expression to Harmos time-merge operations under
+operation-boundary; it does not add a private merge kernel. Semantically, one
+merge over the two ordered inputs: advance A while its next timestamp is
 at or before the current record, keep the last row (and, with a tolerance, the
 first row after the record for the nearest decision). Memory is bounded by
 one row plus the current record; the pass is linear in rows plus records and
