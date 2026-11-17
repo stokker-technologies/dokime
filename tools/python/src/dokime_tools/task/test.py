@@ -49,7 +49,7 @@ def select(args: argparse.Namespace, languages: list[str], profile: list[str]) -
 
     else:
         layers = [args.layer] if args.layer else ["unit", "integration", "acceptance", "system"]
-        if "python" in languages and "integration" in layers:
+        if "python" in languages and "integration" in layers and args.project in (None, "tools/python"):
             tasks.append(
                 (
                     "test:python:integration",
