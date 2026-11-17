@@ -12,14 +12,18 @@
 # === Imports === #
 
 # Standard Library Imports
+import io
 import json
 import os
+import runpy
 import subprocess
 import tempfile
 import unittest
+from collections.abc import Iterator
 from pathlib import Path
+from queue import Queue
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 # isort: split
 
@@ -53,11 +57,86 @@ class WorkflowTests(unittest.TestCase):
         ):
             with patch.object(workflow.subprocess, "run", return_value=Mock(returncode=0)) as command:
                 self.assertEqual(workflow.main([operation, "--language", language]), 0)
-            observed = [call.args[0][3] if call.args[0][3] == "install" else call.args[0][4] for call in command.call_args_list]
+            observed = [call.args[0][3] if call.args[0][3] == "install" else call.args[0][6] for call in command.call_args_list]
             self.assertEqual(observed, expected)
-        with patch.object(workflow.subprocess, "run", return_value=Mock(returncode=7)) as command:
-            self.assertEqual(workflow.main(["sdk-test", "--language", "cpp"]), 7)
-            self.assertEqual(command.call_count, 1)
+            for call in command.call_args_list:
+                self.assertIs(call.kwargs["stdout"], workflow.sys.stdout)
+                self.assertIs(call.kwargs["stderr"], workflow.sys.stderr)
+                self.assertIs(call.kwargs["stdin"], workflow.sys.stdin)
+
+    def test_cpp_workflow_selects_profile_and_reports_the_failing_step(self) -> None:
+        for profile, preset in (("dev", "tests"), ("release", "release")):
+            for failure_at in range(3):
+                results = [Mock(returncode=0) for _ in range(failure_at)] + [Mock(returncode=7)]
+                with (
+                    patch.object(workflow.subprocess, "run", side_effect=results) as command,
+                    patch.object(workflow.sys, "stderr", new_callable=io.StringIO) as stderr,
+                ):
+                    self.assertEqual(workflow.main(["sdk-test", "--language", "cpp", "--profile", profile]), 7)
+                self.assertEqual(command.call_count, failure_at + 1)
+                if failure_at:
+                    arguments = command.call_args.args[0]
+                    expected = ["--", "--preset", preset]
+                    if failure_at == 2:
+                        expected.append("--verbose")
+                    self.assertEqual(arguments[7:], expected)
+                    self.assertIn(subprocess.list2cmdline(arguments), stderr.getvalue())
+                self.assertIn("7", stderr.getvalue())
+
+    def test_cpp_commands_stream_and_preserve_output_before_waiting(self) -> None:
+        sdk = runpy.run_path(str(Path(__file__).resolve().parents[4] / "sdk/cpp/tools/sdk.py"))
+        runner = sdk["run"]
+        for returncode in (0, 7):
+            temporary = tempfile.TemporaryDirectory()
+            try:
+                log = Path(temporary.name) / "build.log"
+                log.write_text("previous attempt\n", encoding="utf-8")
+                console = io.StringIO()
+
+                def lines(console: io.StringIO = console, log: Path = log) -> Iterator[str]:
+                    yield "compiler progress\n"
+                    self.assertIn("compiler progress\n", console.getvalue())
+                    self.assertEqual(log.read_text(encoding="utf-8"), "compiler progress\n")
+                    yield "compiler diagnostic\n"
+
+                def wait(console: io.StringIO = console, log: Path = log, returncode: int = returncode) -> int:
+                    self.assertIn("compiler diagnostic\n", console.getvalue())
+                    self.assertEqual(log.read_text(encoding="utf-8"), "compiler progress\ncompiler diagnostic\n")
+                    return returncode
+
+                stream = MagicMock()
+                stream.__iter__.side_effect = lines
+                process = Mock(stdout=stream, wait=Mock(side_effect=wait))
+                with (
+                    patch.object(subprocess, "Popen", return_value=process) as start,
+                    patch("sys.stdout", console),
+                    patch("sys.stderr", new_callable=io.StringIO),
+                ):
+                    if returncode:
+                        with self.assertRaises(subprocess.CalledProcessError) as failure:
+                            runner(["cmake", "--build", "--preset", "tests"], action="Build C++ SDK", cwd=log.parent, env={}, log=log)
+                        self.assertEqual(failure.exception.returncode, returncode)
+                    else:
+                        runner(["cmake", "--build", "--preset", "tests"], action="Build C++ SDK", cwd=log.parent, env={}, log=log)
+                self.assertEqual(start.call_args.kwargs["stderr"], subprocess.STDOUT)
+                self.assertEqual((log.parent / "build-1.log").read_text(encoding="utf-8"), "previous attempt\n")
+                stream.close.assert_called_once()
+            finally:
+                temporary.cleanup()
+
+    def test_cpp_plugin_output_is_drained_after_readiness_and_on_startup_failure(self) -> None:
+        support = runpy.run_path(str(Path(__file__).resolve().parents[4] / "sdk/cpp/tests/support/run_plugin.py"))
+        for lines, address in (
+            ("plugin startup\nharmos listening http://127.0.0.1:7000\nplugin progress\n", "http://127.0.0.1:7000"),
+            ("plugin startup failed\n", None),
+        ):
+            ready: Queue[str | None] = Queue()
+            process = Mock(stdout=io.StringIO(lines))
+            with patch("sys.stdout", new_callable=io.StringIO) as console:
+                support["read_output"](process, ready)
+            self.assertEqual(ready.get_nowait(), address)
+            self.assertTrue(ready.empty())
+            self.assertEqual(console.getvalue(), lines)
 
     def test_bootstrap_commands_run_in_order_and_stop_on_failure(self) -> None:
         commands = ["mise run ci:prerequisites -- --gui-runtime", "mise run ci:prerequisites -- --desktop"]
