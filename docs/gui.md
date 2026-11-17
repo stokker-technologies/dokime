@@ -242,6 +242,14 @@ fields, including origin attribution, without a second scope family or decoding
 adapter. Plot diagnostics, contour grids, grid frames and domains retain their
 generated shapes. Value formatting reads the generated `ValueFormat` oneof at
 the renderer; native adapters do not translate it into a separate tagged union.
+Shared formatters import generated contracts only as erased types, so frozen
+reports cannot load RPC or message modules. Elapsed-unit presentation is an
+exhaustive mapping over the serialized unit values.
+
+Plot data counts come from envelope diagnostics across Cartesian and analysis
+payloads; histogram bins, contour cells and grid frames do not populate the
+Cartesian frame. Desktop benchmark surfaces use the same generated evidence
+scope fields as live documents, including `cycleId` and `executionId`.
 
 | Resource | Desktop Contract |
 | --- | --- |
