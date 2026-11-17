@@ -144,10 +144,6 @@ impl Backend {
         validate_format(&connection).map_err(|_| crate::Error::Incompatible(root.display().to_string()))
     }
 
-    pub fn open(store: &crate::Store, catalog: ObjectCatalog) -> crate::Result<(StorageBackends, BackendLease)> {
-        Self::open_with_execution(store, catalog, Execution::default())
-    }
-
     pub fn open_with_execution(
         store: &crate::Store, catalog: ObjectCatalog, clock: Execution,
     ) -> crate::Result<(StorageBackends, BackendLease)> {
@@ -164,12 +160,12 @@ impl Backend {
                 chunk_rows: settings.flush_rows,
                 chunk_bytes: settings.pending_bytes,
             },
+            clock,
         )?;
         {
             let mut state =
                 primary.state.try_lock().map_err(|source| Error::backend("Register Object Catalog", BackendFailure::Conflict, source))?;
             state.catalog = catalog;
-            state.clock = clock;
         }
         let state = recovery::RecoveryBackend(primary.clone());
         let lease = BackendLease(
@@ -189,7 +185,7 @@ impl Backend {
         ))
     }
 
-    fn new(path: impl AsRef<Path>, history: StoreHistory, settings: BackendSettings) -> Result<Self> {
+    fn new(path: impl AsRef<Path>, history: StoreHistory, settings: BackendSettings, clock: Execution) -> Result<Self> {
         let path = path.as_ref();
         let mut lock_path = path.as_os_str().to_os_string();
         lock_path.push(".lock");
@@ -199,12 +195,14 @@ impl Backend {
             .read(true)
             .write(true)
             .open(lock_path)
-            .map_err(|source| Error::backend("open SQLite lease", BackendFailure::Permanent, source))?;
-        lease.try_lock().map_err(|source| Error::backend("lock SQLite storage", BackendFailure::Conflict, source))?;
-        Self::connect(Connection::open(path).map_err(db)?, history, settings, Some(lease))
+            .map_err(|source| Error::backend("Open SQLite Lease", BackendFailure::Permanent, source))?;
+        lease.try_lock().map_err(|source| Error::backend("Lock SQLite Storage", BackendFailure::Conflict, source))?;
+        Self::connect(Connection::open(path).map_err(db)?, history, settings, Some(lease), clock)
     }
 
-    fn connect(mut connection: Connection, history: StoreHistory, settings: BackendSettings, lease: Option<File>) -> Result<Self> {
+    fn connect(
+        mut connection: Connection, history: StoreHistory, settings: BackendSettings, lease: Option<File>, clock: Execution,
+    ) -> Result<Self> {
         integer(settings.chunk_rows.get() as u64)?;
         integer(settings.chunk_bytes.get() as u64)?;
         validate_format(&connection)?;
@@ -308,7 +306,7 @@ impl Backend {
                 history,
                 settings,
                 catalog: ObjectCatalog::new(),
-                clock: Execution::default(),
+                clock,
                 closed: false,
                 recovery_closed: false,
                 work: Cell::default(),

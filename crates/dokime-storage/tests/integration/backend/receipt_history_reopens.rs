@@ -59,6 +59,97 @@ use dokime_storage::{Backend, Store};
 /* === Tests === */
 
 #[tokio::test]
+async fn controlled_receipts_survive_reopen_until_their_execution_clock_expires_them() -> Result<(), Box<dyn error::Error>> {
+    for seconds in [100, 4_000_000_000] {
+        // Share One Controlled Execution Between Receipt Stamping and Recovery.
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        let catalog = persisted::catalog();
+        let (clock, controller) = Execution::virtual_at(SystemTime::UNIX_EPOCH + Duration::from_secs(seconds));
+        let capacity = NonZeroUsize::new(64).unwrap();
+        let bytes = NonZeroUsize::new(1024 * 1024).unwrap();
+        let settings = StorageSettings {
+            transfer: Default::default(),
+            policy: StoragePolicy::default(),
+            request: StorageRequestSettings {
+                max_file_productions: capacity,
+                max_mutation_receipts: capacity,
+                max_pending_queries: capacity,
+                max_active_queries: capacity,
+                max_pending_write_batches: capacity,
+                max_active_file_operations: capacity,
+                max_pending_write_bytes: bytes,
+            },
+            response: StorageResponseSettings { batch_rows: capacity, batch_bytes: bytes },
+            filesystem: StorageFilesystemSettings {
+                poll_interval: Duration::from_millis(100),
+                max_entries: capacity,
+                event_capacity: capacity,
+            },
+        };
+        let (backends, _lease) = Backend::open_with_execution(&store, catalog.clone(), clock.clone())?;
+        let primary = backends.primary.clone();
+        let storage = StorageManager::with_catalog_execution(catalog.clone(), backends, settings.clone(), clock.clone())?;
+        storage
+            .start_with(Arc::new(()), |mut worker| {
+                let task = tokio::spawn(async move {
+                    worker.run().await?;
+                    worker.cleanup().await
+                });
+                Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
+            })
+            .await?;
+
+        // Persist an Original Mutation Result with Library-Stamped Expiry.
+        let mutation = MutationId {
+            window: storage.mutation_window()?.id,
+            key: Identifier::new("controlled-replay")?,
+        };
+        let value = Administration {
+            key: "controlled-replay".into(),
+            scope: Scope::Root("receipt-history").identifier()?,
+            payload: vec![1],
+        };
+        let items = vec![MutationItem::Create(catalog.encode(&value, bytes)?)];
+        let outcome = storage.mutate_once(&mutation, items.clone()).await?;
+        let limits = ReadLimits { rows: capacity, bytes };
+        let receipts = primary.list_mutation_receipts(limits).await?;
+        assert_eq!(receipts.len(), 1);
+        let expires_at = receipts[0].expires_at;
+        storage.close().await?;
+
+        // Reopen Just Before Expiry and Replay the Original Result.
+        controller.advance_by(expires_at.duration_since(clock.date())? - Duration::from_nanos(1)).await;
+        let (backends, _reopened_lease) = Backend::open_with_execution(&store, catalog.clone(), clock.clone())?;
+        let primary = backends.primary.clone();
+        let storage = StorageManager::with_catalog_execution(catalog, backends, settings, clock.clone())?;
+        storage
+            .start_with(Arc::new(()), |mut worker| {
+                let task = tokio::spawn(async move {
+                    worker.run().await?;
+                    worker.cleanup().await
+                });
+                Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
+            })
+            .await?;
+        assert_eq!(storage.mutate_once(&mutation, items).await?, outcome);
+        assert_eq!(primary.list_mutation_receipts(limits).await?, receipts);
+        storage.close().await?;
+
+        // Advance Beyond Expiry and Verify Recovery Physically Prunes the Receipt.
+        controller.advance_by(Duration::from_nanos(2)).await;
+        let (backends, _expired_lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), clock)?;
+        backends.primary.create_session().await?;
+        assert!(backends.primary.list_mutation_receipts(limits).await?.is_empty());
+        let connection = Connection::open(root.path().join("storage.sqlite3"))?;
+        let count: i64 = connection.query_row("SELECT count(*) FROM storage_mutations", [], |row| row.get(0))?;
+        assert_eq!(count, 0);
+        backends.primary.delete_session().await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn receipt_history_reopens_with_only_the_newest_unexpired_outcomes() -> Result<(), Box<dyn error::Error>> {
     for indexed_expiry in [true, false] {
         // Configure a Two-Receipt Replay Cache.

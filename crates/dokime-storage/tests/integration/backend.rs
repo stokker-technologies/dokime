@@ -33,6 +33,7 @@ use harmos_domain::{Identified, Message};
 use harmos_query::columnar::{ArrowScan, Cancellation, ColumnKind, ColumnSource};
 use harmos_query::index::{IndexDefinition, IndexRead};
 use harmos_storage::conformance::{self, CompoundFixture, ScopeFixture};
+use harmos_storage::execution::Execution;
 use harmos_storage::query::projection::{ProjectionDefinition, ProjectionRead, ProjectionTransform, advance_projection};
 use harmos_storage::query::{ObjectSelection, ObjectVersions, StreamSelection};
 use harmos_storage::state::{RecoveryEntry, RecoverySnapshot, SnapshotPayload};
@@ -117,7 +118,7 @@ async fn catalog_objects_can_be_scanned_before_their_first_write_and_after_reope
     let store = Store::open(root.path())?;
     let definition = ObjectDefinition::of::<Reading>();
     let catalog = ObjectCatalog::new().entry(definition).extend(persisted::catalog());
-    let (backends, lease) = Backend::open(&store, catalog.clone())?;
+    let (backends, lease) = Backend::open_with_execution(&store, catalog.clone(), Execution::default())?;
     let backend = backends.primary.clone();
     backend.create_session().await?;
     let at = backend.get_saved_position().await?;
@@ -154,7 +155,7 @@ async fn catalog_objects_can_be_scanned_before_their_first_write_and_after_reope
     drop(lease);
     assert!(backend.get_saved_position().await.is_err());
 
-    let (reopened, _lease) = Backend::open(&store, catalog)?;
+    let (reopened, _lease) = Backend::open_with_execution(&store, catalog, Execution::default())?;
     reopened.primary.create_session().await?;
     let snapshot = reopened.primary.create_snapshot(&at).await?;
     let page = reopened.primary.list_column_rows(&snapshot, &scan, &cancel).await?;
@@ -289,7 +290,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let catalog = ObjectCatalog::new().entry(ObjectDefinition::of::<Reading>()).extend(persisted::catalog());
-    let (backends, _lease) = Backend::open(&store, catalog.clone())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, catalog.clone(), Execution::default())?;
     let capacity = NonZeroUsize::new(64).unwrap();
     let storage = StorageManager::with_catalog(
         catalog.clone(),
@@ -535,7 +536,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     }
 
     // Replay the Original Receipt After Both Backend Sessions Reopen.
-    let (backends, _lease) = Backend::open(&store, catalog.clone())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, catalog.clone(), Execution::default())?;
     let storage = StorageManager::with_catalog(catalog.clone(), backends, settings)?;
     storage
         .start_with(Arc::new(()), |mut worker| {
@@ -657,7 +658,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     let sample_ranges: i64 =
         connection.query_row("SELECT count(*) FROM storage_sample_ranges WHERE scope=?1", [sample_scope.as_str()], |row| row.get(0))?;
     assert_eq!(sample_ranges, 0);
-    let (backends, _lease) = Backend::open(&store, catalog.clone())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, catalog.clone(), Execution::default())?;
     let storage = StorageManager::with_catalog(catalog.clone(), backends, settings)?;
     storage
         .start_with(Arc::new(()), |mut worker| {
@@ -783,14 +784,14 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
 async fn superseded_backend_roots_are_refused_without_changing_their_values() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     backends.primary.create_session().await?;
     backends.primary.delete_session().await?;
     let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
     let prior = vec![1u8, 2, 3, 4];
     connection.execute("UPDATE storage_meta SET value=?1 WHERE name='format'", ["dokime.scoped-objects.v1"])?;
     connection.execute("INSERT INTO storage_meta VALUES('preserved',?1)", [&prior])?;
-    assert!(Backend::open(&store, ObjectCatalog::new()).is_err());
+    assert!(Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default()).is_err());
     let execution_bytes = fs::read(root.path().join("execution.sqlite3"))?;
     assert!(matches!(Store::open(root.path()), Err(dokime_storage::Error::Incompatible(_))));
     assert_eq!(fs::read(root.path().join("execution.sqlite3"))?, execution_bytes);
@@ -804,7 +805,7 @@ async fn object_identities_stay_unique_when_their_scope_changes() -> StoryResult
     use harmos_storage::{IdentityKind, IdentitySelection, ObjectEntry, ObjectKey, ObjectValue, ObjectVersionToken, StoredIdentity};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     let backend = &backends.primary;
     backend.create_session().await?;
     let schema = schema(backend.get_history())?;
@@ -874,7 +875,7 @@ async fn object_identities_stay_unique_when_their_scope_changes() -> StoryResult
 async fn pinned_native_arrow_pages_keep_their_saved_cut() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     let backend = &backends.primary;
     let history = backend.get_history().clone();
     assert_eq!(&history, backends.state.get_history());
@@ -933,7 +934,7 @@ async fn pinned_native_arrow_pages_keep_their_saved_cut() -> StoryResult {
     assert!(backend.list_column_rows(&snapshot, &scan, &cancel).await.is_err());
     backend.delete_session().await?;
     drop(backends);
-    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (reopened, _reopened_lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     assert_eq!(reopened.primary.get_history(), &history);
     reopened.primary.create_session().await?;
     let snapshot = reopened.primary.create_snapshot(&saved).await?;
@@ -948,7 +949,7 @@ async fn native_sample_pages_preserve_valid_rows_before_an_oversized_payload() -
     // Store a Small Row and a Larger Row in the Same Native Arrow Batch.
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     let backend = &backends.primary;
     backend.create_session().await?;
     let schema = schema(backend.get_history())?;
@@ -993,7 +994,7 @@ async fn native_sample_pages_preserve_valid_rows_before_an_oversized_payload() -
 async fn recovery_snapshot_and_entries_survive_reopening_the_root() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     backends.primary.create_session().await?;
     let saved = backends.primary.get_saved_position().await?;
     backends.state.create_recovery_session().await?;
@@ -1020,7 +1021,7 @@ async fn recovery_snapshot_and_entries_survive_reopening_the_root() -> StoryResu
     backends.state.delete_recovery_session().await?;
     backends.primary.delete_session().await?;
     drop(backends);
-    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (reopened, _reopened_lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     assert_eq!(reopened.state.create_recovery_session().await?, through);
     let snapshot = reopened.state.get_recovery_snapshot(NonZeroUsize::new(2).unwrap()).await?.unwrap();
     let mut bytes = Vec::new();
@@ -1038,7 +1039,7 @@ async fn deleting_a_file_keeps_existing_readers_and_refuses_new_readers() -> Sto
     use sha2::{Digest, Sha256};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     let backend = &backends.primary;
     backend.create_session().await?;
     let metadata = FileMetadata {
@@ -1071,7 +1072,7 @@ async fn deleting_a_file_keeps_existing_readers_and_refuses_new_readers() -> Sto
 async fn failed_native_catalog_commit_does_not_publish_arrow_rows() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     backends.primary.create_session().await?;
     let schema = schema(backends.primary.get_history())?;
     backends.primary.append_schemas(StorageBatch::new(vec![schema.clone()]).into()).await?;
@@ -1088,7 +1089,7 @@ async fn failed_native_catalog_commit_does_not_publish_arrow_rows() -> StoryResu
     backends.primary.delete_session().await?;
     drop(backends);
     drop(catalog);
-    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (reopened, _reopened_lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     reopened.primary.create_session().await?;
     let snapshot = reopened.primary.create_snapshot(&saved).await?;
     let page = ScanPage {
@@ -1109,7 +1110,7 @@ async fn conditional_objects_replay_the_original_applied_and_conflict_outcomes()
     use harmos_storage::{CompareExchange, ObjectEntry, ObjectExchange, ObjectKey, ObjectValue, ObjectVersionToken};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     let backend = &backends.primary;
     backend.create_session().await?;
     let schema = schema(backend.get_history())?;
@@ -1151,7 +1152,7 @@ async fn conditional_objects_replay_the_original_applied_and_conflict_outcomes()
     assert_eq!(backend.set_object(&conflicting).await?, refused);
     backend.delete_session().await?;
     drop(backends);
-    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (reopened, _reopened_lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     reopened.primary.create_session().await?;
     assert_eq!(reopened.primary.set_object(&initial).await?, applied);
     assert_eq!(reopened.primary.set_object(&conflicting).await?, refused);
@@ -1166,7 +1167,7 @@ async fn conditional_objects_replay_the_original_applied_and_conflict_outcomes()
 async fn native_indexes_and_shared_projections_retain_published_results_after_restart() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     let backend = &backends.primary;
     backend.create_session().await?;
     let schema = schema(backend.get_history())?;
@@ -1220,7 +1221,7 @@ async fn native_indexes_and_shared_projections_retain_published_results_after_re
     backend.delete_snapshot(&snapshot).await?;
     backend.delete_session().await?;
     drop(backends);
-    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (reopened, _reopened_lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     reopened.primary.create_session().await?;
     assert_eq!(reopened.primary.get_index_definition(&index.name).await?.0, index);
     let snapshot = reopened.primary.create_snapshot(&at).await?;
@@ -1237,7 +1238,7 @@ async fn native_indexes_and_shared_projections_retain_published_results_after_re
 async fn recovery_reopens_at_its_saved_frontier_and_replaces_only_the_unflushed_tail() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     backends.primary.create_session().await?;
     backends.state.create_recovery_session().await?;
     let data = backends.primary.get_saved_position().await?;
@@ -1258,7 +1259,7 @@ async fn recovery_reopens_at_its_saved_frontier_and_replaces_only_the_unflushed_
     backends.state.delete_recovery_session().await?;
     backends.primary.delete_session().await?;
     drop(backends);
-    let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let (reopened, _reopened_lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), Execution::default())?;
     reopened.primary.create_session().await?;
     assert_eq!(reopened.state.create_recovery_session().await?, saved);
     entry.payload = vec![3];
