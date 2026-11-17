@@ -1800,6 +1800,38 @@ impl Clone for PromptsAnswersCreateOptions {
     }
 }
 #[derive(Default)]
+pub struct SuitesGetOptions {
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for SuitesGetOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct SuitesListOptions {
+    pub at: Option<ReadCut>,
+    pub context: CallOptions,
+}
+impl Clone for SuitesListOptions {
+    fn clone(&self) -> Self {
+        Self {
+            at: self.at.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
 pub struct ReportsGetOptions {
     pub at: Option<ReadCut>,
     pub context: CallOptions,
@@ -2061,38 +2093,6 @@ pub struct StreamSchemasListOptions {
     pub context: CallOptions,
 }
 impl Clone for StreamSchemasListOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct SuitesGetOptions {
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for SuitesGetOptions {
-    fn clone(&self) -> Self {
-        Self {
-            at: self.at.clone(),
-            context: CallOptions {
-                metadata: self.context.metadata.clone(),
-                timeout: self.context.timeout,
-            },
-        }
-    }
-}
-#[derive(Default)]
-pub struct SuitesListOptions {
-    pub at: Option<ReadCut>,
-    pub context: CallOptions,
-}
-impl Clone for SuitesListOptions {
     fn clone(&self) -> Self {
         Self {
             at: self.at.clone(),

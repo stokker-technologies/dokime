@@ -25,56 +25,108 @@ namespace Dokime.Clients;
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
             "Chxkb2tpbWUvaG9zdC92MS9yZXBvcnRzLnByb3RvEg5kb2tpbWUuaG9zdC52",
-            "MRoeZG9raW1lL21vZGVsL3YxL21ldGFkYXRhLnByb3RvGh9nb29nbGUvcHJv",
-            "dG9idWYvdGltZXN0YW1wLnByb3RvGh1oYXJtb3MvbW9kZWwvdjEvY2FsbGVy",
-            "cy5wcm90bxoaaGFybW9zL21vZGVsL3YxL2ZpbGUucHJvdG8aHmhhcm1vcy9t",
-            "b2RlbC92MS9wb3NpdGlvbi5wcm90bxodaGFybW9zL21vZGVsL3YxL3JlY2Vp",
-            "cHQucHJvdG8ilgEKEVJlcG9ydHNHZXRSZXF1ZXN0EjcKB3N1YmplY3QYASAB",
-            "KAsyHS5kb2tpbWUuaG9zdC52MS5SZXBvcnRTdWJqZWN0UgdzdWJqZWN0EhIK",
-            "BG5hbWUYAiABKAlSBG5hbWUSLQoCYXQYWiABKAsyGC5oYXJtb3MubW9kZWwu",
-            "djEuUmVhZEN1dEgAUgJhdIgBAUIFCgNfYXQiuwEKElJlcG9ydHNHZXRSZXNw",
-            "b25zZRI2CgZyZXBvcnQYASABKAsyHi5kb2tpbWUuaG9zdC52MS5SZXBvcnRN",
-            "ZXRhZGF0YVIGcmVwb3J0EjIKBGZpbGUYAiABKAsyHi5oYXJtb3MubW9kZWwu",
-            "djEuRmlsZVJlZmVyZW5jZVIEZmlsZRI5CgtyZXNvbHZlZF9hdBhaIAEoCzIY",
-            "Lmhhcm1vcy5tb2RlbC52MS5SZWFkQ3V0UgpyZXNvbHZlZEF0IpkBChRSZXBv",
-            "cnRzQ3JlYXRlUmVxdWVzdBI3CgdzdWJqZWN0GAEgASgLMh0uZG9raW1lLmhv",
-            "c3QudjEuUmVwb3J0U3ViamVjdFIHc3ViamVjdBIfCgtkb2N1bWVudF9pZBgC",
-            "IAEoCVIKZG9jdW1lbnRJZBIdCgpyZXF1ZXN0X2lkGAQgASgJUglyZXF1ZXN0",
-            "SWRKBAgDEARSAmF0IvIBChVSZXBvcnRzQ3JlYXRlUmVzcG9uc2USNgoGcmVw",
-            "b3J0GAEgASgLMh4uZG9raW1lLmhvc3QudjEuUmVwb3J0TWV0YWRhdGFSBnJl",
-            "cG9ydBIyCgRmaWxlGAIgASgLMh4uaGFybW9zLm1vZGVsLnYxLkZpbGVSZWZl",
-            "cmVuY2VSBGZpbGUSOQoLcmVzb2x2ZWRfYXQYAyABKAsyGC5oYXJtb3MubW9k",
-            "ZWwudjEuUmVhZEN1dFIKcmVzb2x2ZWRBdBIyCgdyZWNlaXB0GAQgASgLMhgu",
-            "aGFybW9zLm1vZGVsLnYxLlJlY2VpcHRSB3JlY2VpcHQisAEKFVJlcG9ydHNQ",
-            "dWJsaXNoUmVxdWVzdBISCgRuYW1lGAEgASgJUgRuYW1lEjcKB3N1YmplY3QY",
-            "AiABKAsyHS5kb2tpbWUuaG9zdC52MS5SZXBvcnRTdWJqZWN0UgdzdWJqZWN0",
-            "EisKEWV4cGVjdGVkX3JldmlzaW9uGAMgASgMUhBleHBlY3RlZFJldmlzaW9u",
-            "Eh0KCnJlcXVlc3RfaWQYBCABKAlSCXJlcXVlc3RJZCKYAQoWUmVwb3J0c1B1",
-            "Ymxpc2hSZXNwb25zZRI2CgZyZXBvcnQYASABKAsyHi5kb2tpbWUuaG9zdC52",
-            "MS5SZXBvcnRNZXRhZGF0YVIGcmVwb3J0EhIKBHNlYWwYAiABKAxSBHNlYWwS",
-            "MgoHcmVjZWlwdBgDIAEoCzIYLmhhcm1vcy5tb2RlbC52MS5SZWNlaXB0Ugdy",
-            "ZWNlaXB0IuMCCg5SZXBvcnRNZXRhZGF0YRIiCg10ZXN0X2N5Y2xlX2lkGAEg",
-            "ASgJUgt0ZXN0Q3ljbGVJZBIvChF0ZXN0X2V4ZWN1dGlvbl9pZBgCIAEoCUgA",
-            "Ug90ZXN0RXhlY3V0aW9uSWSIAQESHgoKaWRlbnRpZmllchgDIAEoCVIKaWRl",
-            "bnRpZmllchI1CghtZXRhZGF0YRgEIAEoCzIZLmRva2ltZS5tb2RlbC52MS5N",
-            "ZXRhZGF0YVIIbWV0YWRhdGESPQoMZ2VuZXJhdGVkX2F0GAUgASgLMhouZ29v",
-            "Z2xlLnByb3RvYnVmLlRpbWVzdGFtcFILZ2VuZXJhdGVkQXQSNAoGb3JpZ2lu",
-            "GAYgASgOMhwuZG9raW1lLmhvc3QudjEuUmVwb3J0T3JpZ2luUgZvcmlnaW4S",
-            "GgoId2FybmluZ3MYByADKAlSCHdhcm5pbmdzQhQKEl90ZXN0X2V4ZWN1dGlv",
-            "bl9pZCJPCg1SZXBvcnRTdWJqZWN0Eh4KCWV4ZWN1dGlvbhgBIAEoCUgAUgll",
-            "eGVjdXRpb24SFgoFY3ljbGUYAiABKAlIAFIFY3ljbGVCBgoEa2luZCpiCgxS",
-            "ZXBvcnRPcmlnaW4SHQoZUkVQT1JUX09SSUdJTl9VTlNQRUNJRklFRBAAEhgK",
-            "FFJFUE9SVF9PUklHSU5fU0VBTEVEEAESGQoVUkVQT1JUX09SSUdJTl9DVVJS",
-            "RU5UEAIymgIKB1JlcG9ydHMSUgoDR2V0EiEuZG9raW1lLmhvc3QudjEuUmVw",
-            "b3J0c0dldFJlcXVlc3QaIi5kb2tpbWUuaG9zdC52MS5SZXBvcnRzR2V0UmVz",
-            "cG9uc2UiBMjzGAESWwoGQ3JlYXRlEiQuZG9raW1lLmhvc3QudjEuUmVwb3J0",
-            "c0NyZWF0ZVJlcXVlc3QaJS5kb2tpbWUuaG9zdC52MS5SZXBvcnRzQ3JlYXRl",
-            "UmVzcG9uc2UiBMjzGAESXgoHUHVibGlzaBIlLmRva2ltZS5ob3N0LnYxLlJl",
-            "cG9ydHNQdWJsaXNoUmVxdWVzdBomLmRva2ltZS5ob3N0LnYxLlJlcG9ydHNQ",
-            "dWJsaXNoUmVzcG9uc2UiBMjzGAFCEaoCDkRva2ltZS5DbGllbnRzYgZwcm90",
-            "bzM="));
+            "MRocZG9raW1lL2hvc3QvdjEvYmFja2VuZC5wcm90bxolZG9raW1lL2hvc3Qv",
+            "djEvYmFja2VuZC9vdmVydmlldy5wcm90bxoaZG9raW1lL2hvc3QvdjEvY2Fz",
+            "ZXMucHJvdG8aJmRva2ltZS9ob3N0L3YxL2NvbnRlbnQvYXJ0aWZhY3RzLnBy",
+            "b3RvGixkb2tpbWUvaG9zdC92MS9jb250ZW50L2V4ZWN1dGlvbl9maWxlcy5w",
+            "cm90bxobZG9raW1lL2hvc3QvdjEvY3ljbGVzLnByb3RvGh5kb2tpbWUvaG9z",
+            "dC92MS9kb2N1bWVudHMucHJvdG8aK2Rva2ltZS9ob3N0L3YxL2V2aWRlbmNl",
+            "L2hlYWx0aF9ldmVudHMucHJvdG8aI2Rva2ltZS9ob3N0L3YxL2V2aWRlbmNl",
+            "L25vdGVzLnByb3RvGiVkb2tpbWUvaG9zdC92MS9ldmlkZW5jZS9yZWNvcmRz",
+            "LnByb3RvGipkb2tpbWUvaG9zdC92MS9ldmlkZW5jZS90cmFjZWFiaWxpdHku",
+            "cHJvdG8aH2Rva2ltZS9ob3N0L3YxL2V4ZWN1dGlvbnMucHJvdG8aJ2Rva2lt",
+            "ZS9ob3N0L3YxL2V4ZWN1dGlvbnMvc2NoZW1hcy5wcm90bxoaZG9raW1lL2hv",
+            "c3QvdjEvZmlsZXMucHJvdG8aJGRva2ltZS9ob3N0L3YxL3Bsb3RzL3NuYXBz",
+            "aG90cy5wcm90bxobZG9raW1lL2hvc3QvdjEvc3VpdGVzLnByb3RvGh5kb2tp",
+            "bWUvbW9kZWwvdjEvbWV0YWRhdGEucHJvdG8aH2dvb2dsZS9wcm90b2J1Zi90",
+            "aW1lc3RhbXAucHJvdG8aHWhhcm1vcy9tb2RlbC92MS9jYWxsZXJzLnByb3Rv",
+            "GhpoYXJtb3MvbW9kZWwvdjEvZmlsZS5wcm90bxoeaGFybW9zL21vZGVsL3Yx",
+            "L3Bvc2l0aW9uLnByb3RvGh1oYXJtb3MvbW9kZWwvdjEvcmVjZWlwdC5wcm90",
+            "byKWAQoRUmVwb3J0c0dldFJlcXVlc3QSNwoHc3ViamVjdBgBIAEoCzIdLmRv",
+            "a2ltZS5ob3N0LnYxLlJlcG9ydFN1YmplY3RSB3N1YmplY3QSEgoEbmFtZRgC",
+            "IAEoCVIEbmFtZRItCgJhdBhaIAEoCzIYLmhhcm1vcy5tb2RlbC52MS5SZWFk",
+            "Q3V0SABSAmF0iAEBQgUKA19hdCK7AQoSUmVwb3J0c0dldFJlc3BvbnNlEjYK",
+            "BnJlcG9ydBgBIAEoCzIeLmRva2ltZS5ob3N0LnYxLlJlcG9ydE1ldGFkYXRh",
+            "UgZyZXBvcnQSMgoEZmlsZRgCIAEoCzIeLmhhcm1vcy5tb2RlbC52MS5GaWxl",
+            "UmVmZXJlbmNlUgRmaWxlEjkKC3Jlc29sdmVkX2F0GFogASgLMhguaGFybW9z",
+            "Lm1vZGVsLnYxLlJlYWRDdXRSCnJlc29sdmVkQXQimQEKFFJlcG9ydHNDcmVh",
+            "dGVSZXF1ZXN0EjcKB3N1YmplY3QYASABKAsyHS5kb2tpbWUuaG9zdC52MS5S",
+            "ZXBvcnRTdWJqZWN0UgdzdWJqZWN0Eh8KC2RvY3VtZW50X2lkGAIgASgJUgpk",
+            "b2N1bWVudElkEh0KCnJlcXVlc3RfaWQYBCABKAlSCXJlcXVlc3RJZEoECAMQ",
+            "BFICYXQi8gEKFVJlcG9ydHNDcmVhdGVSZXNwb25zZRI2CgZyZXBvcnQYASAB",
+            "KAsyHi5kb2tpbWUuaG9zdC52MS5SZXBvcnRNZXRhZGF0YVIGcmVwb3J0EjIK",
+            "BGZpbGUYAiABKAsyHi5oYXJtb3MubW9kZWwudjEuRmlsZVJlZmVyZW5jZVIE",
+            "ZmlsZRI5CgtyZXNvbHZlZF9hdBgDIAEoCzIYLmhhcm1vcy5tb2RlbC52MS5S",
+            "ZWFkQ3V0UgpyZXNvbHZlZEF0EjIKB3JlY2VpcHQYBCABKAsyGC5oYXJtb3Mu",
+            "bW9kZWwudjEuUmVjZWlwdFIHcmVjZWlwdCKwAQoVUmVwb3J0c1B1Ymxpc2hS",
+            "ZXF1ZXN0EhIKBG5hbWUYASABKAlSBG5hbWUSNwoHc3ViamVjdBgCIAEoCzId",
+            "LmRva2ltZS5ob3N0LnYxLlJlcG9ydFN1YmplY3RSB3N1YmplY3QSKwoRZXhw",
+            "ZWN0ZWRfcmV2aXNpb24YAyABKAxSEGV4cGVjdGVkUmV2aXNpb24SHQoKcmVx",
+            "dWVzdF9pZBgEIAEoCVIJcmVxdWVzdElkIpgBChZSZXBvcnRzUHVibGlzaFJl",
+            "c3BvbnNlEjYKBnJlcG9ydBgBIAEoCzIeLmRva2ltZS5ob3N0LnYxLlJlcG9y",
+            "dE1ldGFkYXRhUgZyZXBvcnQSEgoEc2VhbBgCIAEoDFIEc2VhbBIyCgdyZWNl",
+            "aXB0GAMgASgLMhguaGFybW9zLm1vZGVsLnYxLlJlY2VpcHRSB3JlY2VpcHQi",
+            "4wIKDlJlcG9ydE1ldGFkYXRhEiIKDXRlc3RfY3ljbGVfaWQYASABKAlSC3Rl",
+            "c3RDeWNsZUlkEi8KEXRlc3RfZXhlY3V0aW9uX2lkGAIgASgJSABSD3Rlc3RF",
+            "eGVjdXRpb25JZIgBARIeCgppZGVudGlmaWVyGAMgASgJUgppZGVudGlmaWVy",
+            "EjUKCG1ldGFkYXRhGAQgASgLMhkuZG9raW1lLm1vZGVsLnYxLk1ldGFkYXRh",
+            "UghtZXRhZGF0YRI9CgxnZW5lcmF0ZWRfYXQYBSABKAsyGi5nb29nbGUucHJv",
+            "dG9idWYuVGltZXN0YW1wUgtnZW5lcmF0ZWRBdBI0CgZvcmlnaW4YBiABKA4y",
+            "HC5kb2tpbWUuaG9zdC52MS5SZXBvcnRPcmlnaW5SBm9yaWdpbhIaCgh3YXJu",
+            "aW5ncxgHIAMoCVIId2FybmluZ3NCFAoSX3Rlc3RfZXhlY3V0aW9uX2lkIk8K",
+            "DVJlcG9ydFN1YmplY3QSHgoJZXhlY3V0aW9uGAEgASgJSABSCWV4ZWN1dGlv",
+            "bhIWCgVjeWNsZRgCIAEoCUgAUgVjeWNsZUIGCgRraW5kItcGCg1SZXBvcnRD",
+            "YXB0dXJlEjYKBnJlcG9ydBgBIAEoCzIeLmRva2ltZS5ob3N0LnYxLlJlcG9y",
+            "dE1ldGFkYXRhUgZyZXBvcnQSNwoFY3ljbGUYAiABKAsyIS5kb2tpbWUuaG9z",
+            "dC52MS5DeWNsZXNHZXRSZXNwb25zZVIFY3ljbGUSMAoFY2FzZXMYAyADKAsy",
+            "Gi5kb2tpbWUuaG9zdC52MS5SZXBvcnRDYXNlUgVjYXNlcxI/CgpleGVjdXRp",
+            "b25zGAQgAygLMh8uZG9raW1lLmhvc3QudjEuUmVwb3J0RXhlY3V0aW9uUgpl",
+            "eGVjdXRpb25zEkAKCGRvY3VtZW50GAUgASgLMiQuZG9raW1lLmhvc3QudjEu",
+            "RG9jdW1lbnRzR2V0UmVzcG9uc2VSCGRvY3VtZW50EkkKCmFwcGVhcmFuY2UY",
+            "BiABKAsyKS5kb2tpbWUuaG9zdC52MS5CYWNrZW5kQXBwZWFyYW5jZVJlc3Bv",
+            "bnNlUgphcHBlYXJhbmNlEkAKBW5vdGVzGAcgAygLMiouZG9raW1lLmhvc3Qu",
+            "djEuZXZpZGVuY2UuTm90ZXNMaXN0UmVzcG9uc2VSBW5vdGVzEkkKBmhlYWx0",
+            "aBgIIAMoCzIxLmRva2ltZS5ob3N0LnYxLmV2aWRlbmNlLkhlYWx0aEV2ZW50",
+            "c0xpc3RSZXNwb25zZVIGaGVhbHRoEkYKB3JlY29yZHMYCSADKAsyLC5kb2tp",
+            "bWUuaG9zdC52MS5ldmlkZW5jZS5SZWNvcmRzTGlzdFJlc3BvbnNlUgdyZWNv",
+            "cmRzEkoKCWFydGlmYWN0cxgKIAMoCzIsLmRva2ltZS5ob3N0LnYxLmNvbnRl",
+            "bnQuQXJ0aWZhY3RzR2V0UmVzcG9uc2VSCWFydGlmYWN0cxIwCgVmaWxlcxgL",
+            "IAMoCzIaLmRva2ltZS5ob3N0LnYxLlJlcG9ydEZpbGVSBWZpbGVzEjkKBnN1",
+            "aXRlcxgMIAMoCzIhLmRva2ltZS5ob3N0LnYxLlN1aXRlc0dldFJlc3BvbnNl",
+            "UgZzdWl0ZXMSRwoIb3ZlcnZpZXcYDSABKAsyKy5kb2tpbWUuaG9zdC52MS5i",
+            "YWNrZW5kLk92ZXJ2aWV3R2V0UmVzcG9uc2VSCG92ZXJ2aWV3Io8BCgpSZXBv",
+            "cnRDYXNlEjgKBmRldGFpbBgBIAEoCzIgLmRva2ltZS5ob3N0LnYxLkNhc2Vz",
+            "R2V0UmVzcG9uc2VSBmRldGFpbBJHCgpwYXJhbWV0ZXJzGAIgASgLMicuZG9r",
+            "aW1lLmhvc3QudjEuQ2FzZXNQYXJhbWV0ZXJzUmVzcG9uc2VSCnBhcmFtZXRl",
+            "cnMiigUKD1JlcG9ydEV4ZWN1dGlvbhI9CgZkZXRhaWwYASABKAsyJS5kb2tp",
+            "bWUuaG9zdC52MS5FeGVjdXRpb25zR2V0UmVzcG9uc2VSBmRldGFpbBJECgZp",
+            "bnB1dHMYAiABKAsyLC5kb2tpbWUuaG9zdC52MS5FeGVjdXRpb25zUGFyYW1l",
+            "dGVyc1Jlc3BvbnNlUgZpbnB1dHMSRgoHb3V0cHV0cxgDIAEoCzIsLmRva2lt",
+            "ZS5ob3N0LnYxLkV4ZWN1dGlvbnNQYXJhbWV0ZXJzUmVzcG9uc2VSB291dHB1",
+            "dHMSPQoFc3RlcHMYBCABKAsyJy5kb2tpbWUuaG9zdC52MS5FeGVjdXRpb25z",
+            "U3RlcHNSZXNwb25zZVIFc3RlcHMSQAoIZG9jdW1lbnQYBSABKAsyJC5kb2tp",
+            "bWUuaG9zdC52MS5Eb2N1bWVudHNHZXRSZXNwb25zZVIIZG9jdW1lbnQSQQoF",
+            "cGxvdHMYBiABKAsyKy5kb2tpbWUuaG9zdC52MS5wbG90cy5TbmFwc2hvdHNM",
+            "aXN0UmVzcG9uc2VSBXBsb3RzElQKDHRyYWNlYWJpbGl0eRgHIAMoCzIwLmRv",
+            "a2ltZS5ob3N0LnYxLmV2aWRlbmNlLlRyYWNlYWJpbGl0eUdldFJlc3BvbnNl",
+            "Ugx0cmFjZWFiaWxpdHkSRwoFZmlsZXMYCCADKAsyMS5kb2tpbWUuaG9zdC52",
+            "MS5jb250ZW50LkV4ZWN1dGlvbkZpbGVzR2V0UmVzcG9uc2VSBWZpbGVzEkcK",
+            "B3NjaGVtYXMYCSADKAsyLS5kb2tpbWUuaG9zdC52MS5leGVjdXRpb25zLlNj",
+            "aGVtYXNHZXRSZXNwb25zZVIHc2NoZW1hcyJ5CgpSZXBvcnRGaWxlEjIKBGZp",
+            "bGUYASABKAsyHi5oYXJtb3MubW9kZWwudjEuRmlsZVJlZmVyZW5jZVIEZmls",
+            "ZRI3CgVyZWFkcxgCIAMoCzIhLmRva2ltZS5ob3N0LnYxLkZpbGVzUmVhZFJl",
+            "c3BvbnNlUgVyZWFkcypiCgxSZXBvcnRPcmlnaW4SHQoZUkVQT1JUX09SSUdJ",
+            "Tl9VTlNQRUNJRklFRBAAEhgKFFJFUE9SVF9PUklHSU5fU0VBTEVEEAESGQoV",
+            "UkVQT1JUX09SSUdJTl9DVVJSRU5UEAIymgIKB1JlcG9ydHMSUgoDR2V0EiEu",
+            "ZG9raW1lLmhvc3QudjEuUmVwb3J0c0dldFJlcXVlc3QaIi5kb2tpbWUuaG9z",
+            "dC52MS5SZXBvcnRzR2V0UmVzcG9uc2UiBMjzGAESWwoGQ3JlYXRlEiQuZG9r",
+            "aW1lLmhvc3QudjEuUmVwb3J0c0NyZWF0ZVJlcXVlc3QaJS5kb2tpbWUuaG9z",
+            "dC52MS5SZXBvcnRzQ3JlYXRlUmVzcG9uc2UiBMjzGAESXgoHUHVibGlzaBIl",
+            "LmRva2ltZS5ob3N0LnYxLlJlcG9ydHNQdWJsaXNoUmVxdWVzdBomLmRva2lt",
+            "ZS5ob3N0LnYxLlJlcG9ydHNQdWJsaXNoUmVzcG9uc2UiBMjzGAFCEaoCDkRv",
+            "a2ltZS5DbGllbnRzYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
-          new pbr::FileDescriptor[] { global::Dokime.MetadataReflection.Descriptor, global::Google.Protobuf.WellKnownTypes.TimestampReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.FileReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, global::Harmos.ReceiptReflection.Descriptor, },
+          new pbr::FileDescriptor[] { global::Dokime.Clients.BackendReflection.Descriptor, global::Dokime.Clients.BackendResources.OverviewReflection.Descriptor, global::Dokime.Clients.CasesReflection.Descriptor, global::Dokime.Clients.ContentResources.ArtifactsReflection.Descriptor, global::Dokime.Clients.ContentResources.ExecutionFilesReflection.Descriptor, global::Dokime.Clients.CyclesReflection.Descriptor, global::Dokime.Clients.DocumentsReflection.Descriptor, global::Dokime.Clients.EvidenceResources.HealthEventsReflection.Descriptor, global::Dokime.Clients.EvidenceResources.NotesReflection.Descriptor, global::Dokime.Clients.EvidenceResources.RecordsReflection.Descriptor, global::Dokime.Clients.EvidenceResources.TraceabilityReflection.Descriptor, global::Dokime.Clients.ExecutionsReflection.Descriptor, global::Dokime.Clients.ExecutionsResources.SchemasReflection.Descriptor, global::Dokime.Clients.FilesReflection.Descriptor, global::Dokime.Clients.PlotsResources.SnapshotsReflection.Descriptor, global::Dokime.Clients.SuitesReflection.Descriptor, global::Dokime.MetadataReflection.Descriptor, global::Google.Protobuf.WellKnownTypes.TimestampReflection.Descriptor, global::Harmos.CallersReflection.Descriptor, global::Harmos.FileReflection.Descriptor, global::Harmos.PositionReflection.Descriptor, global::Harmos.ReceiptReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Dokime.Clients.ReportOrigin), }, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportsGetRequest), global::Dokime.Clients.ReportsGetRequest.Parser, new[]{ "Subject", "Name", "At" }, new[]{ "At" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportsGetResponse), global::Dokime.Clients.ReportsGetResponse.Parser, new[]{ "Report", "File", "ResolvedAt" }, null, null, null, null),
@@ -83,7 +135,11 @@ namespace Dokime.Clients;
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportsPublishRequest), global::Dokime.Clients.ReportsPublishRequest.Parser, new[]{ "Name", "Subject", "ExpectedRevision", "RequestId" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportsPublishResponse), global::Dokime.Clients.ReportsPublishResponse.Parser, new[]{ "Report", "Seal", "Receipt" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportMetadata), global::Dokime.Clients.ReportMetadata.Parser, new[]{ "TestCycleId", "TestExecutionId", "Identifier", "Metadata", "GeneratedAt", "Origin", "Warnings" }, new[]{ "TestExecutionId" }, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportSubject), global::Dokime.Clients.ReportSubject.Parser, new[]{ "Execution", "Cycle" }, new[]{ "Kind" }, null, null, null)
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportSubject), global::Dokime.Clients.ReportSubject.Parser, new[]{ "Execution", "Cycle" }, new[]{ "Kind" }, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportCapture), global::Dokime.Clients.ReportCapture.Parser, new[]{ "Report", "Cycle", "Cases", "Executions", "Document", "Appearance", "Notes", "Health", "Records", "Artifacts", "Files", "Suites", "Overview" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportCase), global::Dokime.Clients.ReportCase.Parser, new[]{ "Detail", "Parameters" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportExecution), global::Dokime.Clients.ReportExecution.Parser, new[]{ "Detail", "Inputs", "Outputs", "Steps", "Document", "Plots", "Traceability", "Files", "Schemas" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Dokime.Clients.ReportFile), global::Dokime.Clients.ReportFile.Parser, new[]{ "File", "Reads" }, null, null, null, null)
           }));
     }
     #endregion
@@ -2650,6 +2706,1606 @@ namespace Dokime.Clients;
           }
           case 18: {
             Cycle = input.ReadString();
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ReportCapture : pb::IMessage<ReportCapture>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ReportCapture> _parser = new pb::MessageParser<ReportCapture>(() => new ReportCapture());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ReportCapture> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::Dokime.Clients.ReportsReflection.Descriptor.MessageTypes[8]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportCapture() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportCapture(ReportCapture other) : this() {
+      report_ = other.report_ != null ? other.report_.Clone() : null;
+      cycle_ = other.cycle_ != null ? other.cycle_.Clone() : null;
+      cases_ = other.cases_.Clone();
+      executions_ = other.executions_.Clone();
+      document_ = other.document_ != null ? other.document_.Clone() : null;
+      appearance_ = other.appearance_ != null ? other.appearance_.Clone() : null;
+      notes_ = other.notes_.Clone();
+      health_ = other.health_.Clone();
+      records_ = other.records_.Clone();
+      artifacts_ = other.artifacts_.Clone();
+      files_ = other.files_.Clone();
+      suites_ = other.suites_.Clone();
+      overview_ = other.overview_ != null ? other.overview_.Clone() : null;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportCapture Clone() {
+      return new ReportCapture(this);
+    }
+
+    /// <summary>Field number for the "report" field.</summary>
+    public const int ReportFieldNumber = 1;
+    private global::Dokime.Clients.ReportMetadata report_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.ReportMetadata Report {
+      get { return report_; }
+      set {
+        report_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "cycle" field.</summary>
+    public const int CycleFieldNumber = 2;
+    private global::Dokime.Clients.CyclesGetResponse cycle_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.CyclesGetResponse Cycle {
+      get { return cycle_; }
+      set {
+        cycle_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "cases" field.</summary>
+    public const int CasesFieldNumber = 3;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.ReportCase> _repeated_cases_codec
+        = pb::FieldCodec.ForMessage(26, global::Dokime.Clients.ReportCase.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.ReportCase> cases_ = new pbc::RepeatedField<global::Dokime.Clients.ReportCase>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.ReportCase> Cases {
+      get { return cases_; }
+    }
+
+    /// <summary>Field number for the "executions" field.</summary>
+    public const int ExecutionsFieldNumber = 4;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.ReportExecution> _repeated_executions_codec
+        = pb::FieldCodec.ForMessage(34, global::Dokime.Clients.ReportExecution.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.ReportExecution> executions_ = new pbc::RepeatedField<global::Dokime.Clients.ReportExecution>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.ReportExecution> Executions {
+      get { return executions_; }
+    }
+
+    /// <summary>Field number for the "document" field.</summary>
+    public const int DocumentFieldNumber = 5;
+    private global::Dokime.Clients.DocumentsGetResponse document_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.DocumentsGetResponse Document {
+      get { return document_; }
+      set {
+        document_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "appearance" field.</summary>
+    public const int AppearanceFieldNumber = 6;
+    private global::Dokime.Clients.BackendAppearanceResponse appearance_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.BackendAppearanceResponse Appearance {
+      get { return appearance_; }
+      set {
+        appearance_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "notes" field.</summary>
+    public const int NotesFieldNumber = 7;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.EvidenceResources.NotesListResponse> _repeated_notes_codec
+        = pb::FieldCodec.ForMessage(58, global::Dokime.Clients.EvidenceResources.NotesListResponse.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.NotesListResponse> notes_ = new pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.NotesListResponse>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.NotesListResponse> Notes {
+      get { return notes_; }
+    }
+
+    /// <summary>Field number for the "health" field.</summary>
+    public const int HealthFieldNumber = 8;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.EvidenceResources.HealthEventsListResponse> _repeated_health_codec
+        = pb::FieldCodec.ForMessage(66, global::Dokime.Clients.EvidenceResources.HealthEventsListResponse.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.HealthEventsListResponse> health_ = new pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.HealthEventsListResponse>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.HealthEventsListResponse> Health {
+      get { return health_; }
+    }
+
+    /// <summary>Field number for the "records" field.</summary>
+    public const int RecordsFieldNumber = 9;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.EvidenceResources.RecordsListResponse> _repeated_records_codec
+        = pb::FieldCodec.ForMessage(74, global::Dokime.Clients.EvidenceResources.RecordsListResponse.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.RecordsListResponse> records_ = new pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.RecordsListResponse>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.RecordsListResponse> Records {
+      get { return records_; }
+    }
+
+    /// <summary>Field number for the "artifacts" field.</summary>
+    public const int ArtifactsFieldNumber = 10;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.ContentResources.ArtifactsGetResponse> _repeated_artifacts_codec
+        = pb::FieldCodec.ForMessage(82, global::Dokime.Clients.ContentResources.ArtifactsGetResponse.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.ContentResources.ArtifactsGetResponse> artifacts_ = new pbc::RepeatedField<global::Dokime.Clients.ContentResources.ArtifactsGetResponse>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.ContentResources.ArtifactsGetResponse> Artifacts {
+      get { return artifacts_; }
+    }
+
+    /// <summary>Field number for the "files" field.</summary>
+    public const int FilesFieldNumber = 11;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.ReportFile> _repeated_files_codec
+        = pb::FieldCodec.ForMessage(90, global::Dokime.Clients.ReportFile.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.ReportFile> files_ = new pbc::RepeatedField<global::Dokime.Clients.ReportFile>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.ReportFile> Files {
+      get { return files_; }
+    }
+
+    /// <summary>Field number for the "suites" field.</summary>
+    public const int SuitesFieldNumber = 12;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.SuitesGetResponse> _repeated_suites_codec
+        = pb::FieldCodec.ForMessage(98, global::Dokime.Clients.SuitesGetResponse.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.SuitesGetResponse> suites_ = new pbc::RepeatedField<global::Dokime.Clients.SuitesGetResponse>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.SuitesGetResponse> Suites {
+      get { return suites_; }
+    }
+
+    /// <summary>Field number for the "overview" field.</summary>
+    public const int OverviewFieldNumber = 13;
+    private global::Dokime.Clients.BackendResources.OverviewGetResponse overview_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.BackendResources.OverviewGetResponse Overview {
+      get { return overview_; }
+      set {
+        overview_ = value;
+      }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ReportCapture);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ReportCapture other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (!object.Equals(Report, other.Report)) return false;
+      if (!object.Equals(Cycle, other.Cycle)) return false;
+      if(!cases_.Equals(other.cases_)) return false;
+      if(!executions_.Equals(other.executions_)) return false;
+      if (!object.Equals(Document, other.Document)) return false;
+      if (!object.Equals(Appearance, other.Appearance)) return false;
+      if(!notes_.Equals(other.notes_)) return false;
+      if(!health_.Equals(other.health_)) return false;
+      if(!records_.Equals(other.records_)) return false;
+      if(!artifacts_.Equals(other.artifacts_)) return false;
+      if(!files_.Equals(other.files_)) return false;
+      if(!suites_.Equals(other.suites_)) return false;
+      if (!object.Equals(Overview, other.Overview)) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (report_ != null) hash ^= Report.GetHashCode();
+      if (cycle_ != null) hash ^= Cycle.GetHashCode();
+      hash ^= cases_.GetHashCode();
+      hash ^= executions_.GetHashCode();
+      if (document_ != null) hash ^= Document.GetHashCode();
+      if (appearance_ != null) hash ^= Appearance.GetHashCode();
+      hash ^= notes_.GetHashCode();
+      hash ^= health_.GetHashCode();
+      hash ^= records_.GetHashCode();
+      hash ^= artifacts_.GetHashCode();
+      hash ^= files_.GetHashCode();
+      hash ^= suites_.GetHashCode();
+      if (overview_ != null) hash ^= Overview.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (report_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(Report);
+      }
+      if (cycle_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Cycle);
+      }
+      cases_.WriteTo(output, _repeated_cases_codec);
+      executions_.WriteTo(output, _repeated_executions_codec);
+      if (document_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Document);
+      }
+      if (appearance_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Appearance);
+      }
+      notes_.WriteTo(output, _repeated_notes_codec);
+      health_.WriteTo(output, _repeated_health_codec);
+      records_.WriteTo(output, _repeated_records_codec);
+      artifacts_.WriteTo(output, _repeated_artifacts_codec);
+      files_.WriteTo(output, _repeated_files_codec);
+      suites_.WriteTo(output, _repeated_suites_codec);
+      if (overview_ != null) {
+        output.WriteRawTag(106);
+        output.WriteMessage(Overview);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (report_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(Report);
+      }
+      if (cycle_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Cycle);
+      }
+      cases_.WriteTo(ref output, _repeated_cases_codec);
+      executions_.WriteTo(ref output, _repeated_executions_codec);
+      if (document_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Document);
+      }
+      if (appearance_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Appearance);
+      }
+      notes_.WriteTo(ref output, _repeated_notes_codec);
+      health_.WriteTo(ref output, _repeated_health_codec);
+      records_.WriteTo(ref output, _repeated_records_codec);
+      artifacts_.WriteTo(ref output, _repeated_artifacts_codec);
+      files_.WriteTo(ref output, _repeated_files_codec);
+      suites_.WriteTo(ref output, _repeated_suites_codec);
+      if (overview_ != null) {
+        output.WriteRawTag(106);
+        output.WriteMessage(Overview);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (report_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Report);
+      }
+      if (cycle_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Cycle);
+      }
+      size += cases_.CalculateSize(_repeated_cases_codec);
+      size += executions_.CalculateSize(_repeated_executions_codec);
+      if (document_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Document);
+      }
+      if (appearance_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Appearance);
+      }
+      size += notes_.CalculateSize(_repeated_notes_codec);
+      size += health_.CalculateSize(_repeated_health_codec);
+      size += records_.CalculateSize(_repeated_records_codec);
+      size += artifacts_.CalculateSize(_repeated_artifacts_codec);
+      size += files_.CalculateSize(_repeated_files_codec);
+      size += suites_.CalculateSize(_repeated_suites_codec);
+      if (overview_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Overview);
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ReportCapture other) {
+      if (other == null) {
+        return;
+      }
+      if (other.report_ != null) {
+        if (report_ == null) {
+          Report = new global::Dokime.Clients.ReportMetadata();
+        }
+        Report.MergeFrom(other.Report);
+      }
+      if (other.cycle_ != null) {
+        if (cycle_ == null) {
+          Cycle = new global::Dokime.Clients.CyclesGetResponse();
+        }
+        Cycle.MergeFrom(other.Cycle);
+      }
+      cases_.Add(other.cases_);
+      executions_.Add(other.executions_);
+      if (other.document_ != null) {
+        if (document_ == null) {
+          Document = new global::Dokime.Clients.DocumentsGetResponse();
+        }
+        Document.MergeFrom(other.Document);
+      }
+      if (other.appearance_ != null) {
+        if (appearance_ == null) {
+          Appearance = new global::Dokime.Clients.BackendAppearanceResponse();
+        }
+        Appearance.MergeFrom(other.Appearance);
+      }
+      notes_.Add(other.notes_);
+      health_.Add(other.health_);
+      records_.Add(other.records_);
+      artifacts_.Add(other.artifacts_);
+      files_.Add(other.files_);
+      suites_.Add(other.suites_);
+      if (other.overview_ != null) {
+        if (overview_ == null) {
+          Overview = new global::Dokime.Clients.BackendResources.OverviewGetResponse();
+        }
+        Overview.MergeFrom(other.Overview);
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10: {
+            if (report_ == null) {
+              Report = new global::Dokime.Clients.ReportMetadata();
+            }
+            input.ReadMessage(Report);
+            break;
+          }
+          case 18: {
+            if (cycle_ == null) {
+              Cycle = new global::Dokime.Clients.CyclesGetResponse();
+            }
+            input.ReadMessage(Cycle);
+            break;
+          }
+          case 26: {
+            cases_.AddEntriesFrom(input, _repeated_cases_codec);
+            break;
+          }
+          case 34: {
+            executions_.AddEntriesFrom(input, _repeated_executions_codec);
+            break;
+          }
+          case 42: {
+            if (document_ == null) {
+              Document = new global::Dokime.Clients.DocumentsGetResponse();
+            }
+            input.ReadMessage(Document);
+            break;
+          }
+          case 50: {
+            if (appearance_ == null) {
+              Appearance = new global::Dokime.Clients.BackendAppearanceResponse();
+            }
+            input.ReadMessage(Appearance);
+            break;
+          }
+          case 58: {
+            notes_.AddEntriesFrom(input, _repeated_notes_codec);
+            break;
+          }
+          case 66: {
+            health_.AddEntriesFrom(input, _repeated_health_codec);
+            break;
+          }
+          case 74: {
+            records_.AddEntriesFrom(input, _repeated_records_codec);
+            break;
+          }
+          case 82: {
+            artifacts_.AddEntriesFrom(input, _repeated_artifacts_codec);
+            break;
+          }
+          case 90: {
+            files_.AddEntriesFrom(input, _repeated_files_codec);
+            break;
+          }
+          case 98: {
+            suites_.AddEntriesFrom(input, _repeated_suites_codec);
+            break;
+          }
+          case 106: {
+            if (overview_ == null) {
+              Overview = new global::Dokime.Clients.BackendResources.OverviewGetResponse();
+            }
+            input.ReadMessage(Overview);
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10: {
+            if (report_ == null) {
+              Report = new global::Dokime.Clients.ReportMetadata();
+            }
+            input.ReadMessage(Report);
+            break;
+          }
+          case 18: {
+            if (cycle_ == null) {
+              Cycle = new global::Dokime.Clients.CyclesGetResponse();
+            }
+            input.ReadMessage(Cycle);
+            break;
+          }
+          case 26: {
+            cases_.AddEntriesFrom(ref input, _repeated_cases_codec);
+            break;
+          }
+          case 34: {
+            executions_.AddEntriesFrom(ref input, _repeated_executions_codec);
+            break;
+          }
+          case 42: {
+            if (document_ == null) {
+              Document = new global::Dokime.Clients.DocumentsGetResponse();
+            }
+            input.ReadMessage(Document);
+            break;
+          }
+          case 50: {
+            if (appearance_ == null) {
+              Appearance = new global::Dokime.Clients.BackendAppearanceResponse();
+            }
+            input.ReadMessage(Appearance);
+            break;
+          }
+          case 58: {
+            notes_.AddEntriesFrom(ref input, _repeated_notes_codec);
+            break;
+          }
+          case 66: {
+            health_.AddEntriesFrom(ref input, _repeated_health_codec);
+            break;
+          }
+          case 74: {
+            records_.AddEntriesFrom(ref input, _repeated_records_codec);
+            break;
+          }
+          case 82: {
+            artifacts_.AddEntriesFrom(ref input, _repeated_artifacts_codec);
+            break;
+          }
+          case 90: {
+            files_.AddEntriesFrom(ref input, _repeated_files_codec);
+            break;
+          }
+          case 98: {
+            suites_.AddEntriesFrom(ref input, _repeated_suites_codec);
+            break;
+          }
+          case 106: {
+            if (overview_ == null) {
+              Overview = new global::Dokime.Clients.BackendResources.OverviewGetResponse();
+            }
+            input.ReadMessage(Overview);
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ReportCase : pb::IMessage<ReportCase>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ReportCase> _parser = new pb::MessageParser<ReportCase>(() => new ReportCase());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ReportCase> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::Dokime.Clients.ReportsReflection.Descriptor.MessageTypes[9]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportCase() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportCase(ReportCase other) : this() {
+      detail_ = other.detail_ != null ? other.detail_.Clone() : null;
+      parameters_ = other.parameters_ != null ? other.parameters_.Clone() : null;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportCase Clone() {
+      return new ReportCase(this);
+    }
+
+    /// <summary>Field number for the "detail" field.</summary>
+    public const int DetailFieldNumber = 1;
+    private global::Dokime.Clients.CasesGetResponse detail_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.CasesGetResponse Detail {
+      get { return detail_; }
+      set {
+        detail_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "parameters" field.</summary>
+    public const int ParametersFieldNumber = 2;
+    private global::Dokime.Clients.CasesParametersResponse parameters_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.CasesParametersResponse Parameters {
+      get { return parameters_; }
+      set {
+        parameters_ = value;
+      }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ReportCase);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ReportCase other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (!object.Equals(Detail, other.Detail)) return false;
+      if (!object.Equals(Parameters, other.Parameters)) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (detail_ != null) hash ^= Detail.GetHashCode();
+      if (parameters_ != null) hash ^= Parameters.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (detail_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(Detail);
+      }
+      if (parameters_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Parameters);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (detail_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(Detail);
+      }
+      if (parameters_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Parameters);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (detail_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Detail);
+      }
+      if (parameters_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Parameters);
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ReportCase other) {
+      if (other == null) {
+        return;
+      }
+      if (other.detail_ != null) {
+        if (detail_ == null) {
+          Detail = new global::Dokime.Clients.CasesGetResponse();
+        }
+        Detail.MergeFrom(other.Detail);
+      }
+      if (other.parameters_ != null) {
+        if (parameters_ == null) {
+          Parameters = new global::Dokime.Clients.CasesParametersResponse();
+        }
+        Parameters.MergeFrom(other.Parameters);
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10: {
+            if (detail_ == null) {
+              Detail = new global::Dokime.Clients.CasesGetResponse();
+            }
+            input.ReadMessage(Detail);
+            break;
+          }
+          case 18: {
+            if (parameters_ == null) {
+              Parameters = new global::Dokime.Clients.CasesParametersResponse();
+            }
+            input.ReadMessage(Parameters);
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10: {
+            if (detail_ == null) {
+              Detail = new global::Dokime.Clients.CasesGetResponse();
+            }
+            input.ReadMessage(Detail);
+            break;
+          }
+          case 18: {
+            if (parameters_ == null) {
+              Parameters = new global::Dokime.Clients.CasesParametersResponse();
+            }
+            input.ReadMessage(Parameters);
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ReportExecution : pb::IMessage<ReportExecution>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ReportExecution> _parser = new pb::MessageParser<ReportExecution>(() => new ReportExecution());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ReportExecution> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::Dokime.Clients.ReportsReflection.Descriptor.MessageTypes[10]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportExecution() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportExecution(ReportExecution other) : this() {
+      detail_ = other.detail_ != null ? other.detail_.Clone() : null;
+      inputs_ = other.inputs_ != null ? other.inputs_.Clone() : null;
+      outputs_ = other.outputs_ != null ? other.outputs_.Clone() : null;
+      steps_ = other.steps_ != null ? other.steps_.Clone() : null;
+      document_ = other.document_ != null ? other.document_.Clone() : null;
+      plots_ = other.plots_ != null ? other.plots_.Clone() : null;
+      traceability_ = other.traceability_.Clone();
+      files_ = other.files_.Clone();
+      schemas_ = other.schemas_.Clone();
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportExecution Clone() {
+      return new ReportExecution(this);
+    }
+
+    /// <summary>Field number for the "detail" field.</summary>
+    public const int DetailFieldNumber = 1;
+    private global::Dokime.Clients.ExecutionsGetResponse detail_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.ExecutionsGetResponse Detail {
+      get { return detail_; }
+      set {
+        detail_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "inputs" field.</summary>
+    public const int InputsFieldNumber = 2;
+    private global::Dokime.Clients.ExecutionsParametersResponse inputs_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.ExecutionsParametersResponse Inputs {
+      get { return inputs_; }
+      set {
+        inputs_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "outputs" field.</summary>
+    public const int OutputsFieldNumber = 3;
+    private global::Dokime.Clients.ExecutionsParametersResponse outputs_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.ExecutionsParametersResponse Outputs {
+      get { return outputs_; }
+      set {
+        outputs_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "steps" field.</summary>
+    public const int StepsFieldNumber = 4;
+    private global::Dokime.Clients.ExecutionsStepsResponse steps_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.ExecutionsStepsResponse Steps {
+      get { return steps_; }
+      set {
+        steps_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "document" field.</summary>
+    public const int DocumentFieldNumber = 5;
+    private global::Dokime.Clients.DocumentsGetResponse document_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.DocumentsGetResponse Document {
+      get { return document_; }
+      set {
+        document_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "plots" field.</summary>
+    public const int PlotsFieldNumber = 6;
+    private global::Dokime.Clients.PlotsResources.SnapshotsListResponse plots_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Dokime.Clients.PlotsResources.SnapshotsListResponse Plots {
+      get { return plots_; }
+      set {
+        plots_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "traceability" field.</summary>
+    public const int TraceabilityFieldNumber = 7;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse> _repeated_traceability_codec
+        = pb::FieldCodec.ForMessage(58, global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse> traceability_ = new pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse> Traceability {
+      get { return traceability_; }
+    }
+
+    /// <summary>Field number for the "files" field.</summary>
+    public const int FilesFieldNumber = 8;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse> _repeated_files_codec
+        = pb::FieldCodec.ForMessage(66, global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse> files_ = new pbc::RepeatedField<global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse> Files {
+      get { return files_; }
+    }
+
+    /// <summary>Field number for the "schemas" field.</summary>
+    public const int SchemasFieldNumber = 9;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.ExecutionsResources.SchemasGetResponse> _repeated_schemas_codec
+        = pb::FieldCodec.ForMessage(74, global::Dokime.Clients.ExecutionsResources.SchemasGetResponse.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.ExecutionsResources.SchemasGetResponse> schemas_ = new pbc::RepeatedField<global::Dokime.Clients.ExecutionsResources.SchemasGetResponse>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.ExecutionsResources.SchemasGetResponse> Schemas {
+      get { return schemas_; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ReportExecution);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ReportExecution other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (!object.Equals(Detail, other.Detail)) return false;
+      if (!object.Equals(Inputs, other.Inputs)) return false;
+      if (!object.Equals(Outputs, other.Outputs)) return false;
+      if (!object.Equals(Steps, other.Steps)) return false;
+      if (!object.Equals(Document, other.Document)) return false;
+      if (!object.Equals(Plots, other.Plots)) return false;
+      if(!traceability_.Equals(other.traceability_)) return false;
+      if(!files_.Equals(other.files_)) return false;
+      if(!schemas_.Equals(other.schemas_)) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (detail_ != null) hash ^= Detail.GetHashCode();
+      if (inputs_ != null) hash ^= Inputs.GetHashCode();
+      if (outputs_ != null) hash ^= Outputs.GetHashCode();
+      if (steps_ != null) hash ^= Steps.GetHashCode();
+      if (document_ != null) hash ^= Document.GetHashCode();
+      if (plots_ != null) hash ^= Plots.GetHashCode();
+      hash ^= traceability_.GetHashCode();
+      hash ^= files_.GetHashCode();
+      hash ^= schemas_.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (detail_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(Detail);
+      }
+      if (inputs_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Inputs);
+      }
+      if (outputs_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Outputs);
+      }
+      if (steps_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Steps);
+      }
+      if (document_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Document);
+      }
+      if (plots_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Plots);
+      }
+      traceability_.WriteTo(output, _repeated_traceability_codec);
+      files_.WriteTo(output, _repeated_files_codec);
+      schemas_.WriteTo(output, _repeated_schemas_codec);
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (detail_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(Detail);
+      }
+      if (inputs_ != null) {
+        output.WriteRawTag(18);
+        output.WriteMessage(Inputs);
+      }
+      if (outputs_ != null) {
+        output.WriteRawTag(26);
+        output.WriteMessage(Outputs);
+      }
+      if (steps_ != null) {
+        output.WriteRawTag(34);
+        output.WriteMessage(Steps);
+      }
+      if (document_ != null) {
+        output.WriteRawTag(42);
+        output.WriteMessage(Document);
+      }
+      if (plots_ != null) {
+        output.WriteRawTag(50);
+        output.WriteMessage(Plots);
+      }
+      traceability_.WriteTo(ref output, _repeated_traceability_codec);
+      files_.WriteTo(ref output, _repeated_files_codec);
+      schemas_.WriteTo(ref output, _repeated_schemas_codec);
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (detail_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Detail);
+      }
+      if (inputs_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Inputs);
+      }
+      if (outputs_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Outputs);
+      }
+      if (steps_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Steps);
+      }
+      if (document_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Document);
+      }
+      if (plots_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(Plots);
+      }
+      size += traceability_.CalculateSize(_repeated_traceability_codec);
+      size += files_.CalculateSize(_repeated_files_codec);
+      size += schemas_.CalculateSize(_repeated_schemas_codec);
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ReportExecution other) {
+      if (other == null) {
+        return;
+      }
+      if (other.detail_ != null) {
+        if (detail_ == null) {
+          Detail = new global::Dokime.Clients.ExecutionsGetResponse();
+        }
+        Detail.MergeFrom(other.Detail);
+      }
+      if (other.inputs_ != null) {
+        if (inputs_ == null) {
+          Inputs = new global::Dokime.Clients.ExecutionsParametersResponse();
+        }
+        Inputs.MergeFrom(other.Inputs);
+      }
+      if (other.outputs_ != null) {
+        if (outputs_ == null) {
+          Outputs = new global::Dokime.Clients.ExecutionsParametersResponse();
+        }
+        Outputs.MergeFrom(other.Outputs);
+      }
+      if (other.steps_ != null) {
+        if (steps_ == null) {
+          Steps = new global::Dokime.Clients.ExecutionsStepsResponse();
+        }
+        Steps.MergeFrom(other.Steps);
+      }
+      if (other.document_ != null) {
+        if (document_ == null) {
+          Document = new global::Dokime.Clients.DocumentsGetResponse();
+        }
+        Document.MergeFrom(other.Document);
+      }
+      if (other.plots_ != null) {
+        if (plots_ == null) {
+          Plots = new global::Dokime.Clients.PlotsResources.SnapshotsListResponse();
+        }
+        Plots.MergeFrom(other.Plots);
+      }
+      traceability_.Add(other.traceability_);
+      files_.Add(other.files_);
+      schemas_.Add(other.schemas_);
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10: {
+            if (detail_ == null) {
+              Detail = new global::Dokime.Clients.ExecutionsGetResponse();
+            }
+            input.ReadMessage(Detail);
+            break;
+          }
+          case 18: {
+            if (inputs_ == null) {
+              Inputs = new global::Dokime.Clients.ExecutionsParametersResponse();
+            }
+            input.ReadMessage(Inputs);
+            break;
+          }
+          case 26: {
+            if (outputs_ == null) {
+              Outputs = new global::Dokime.Clients.ExecutionsParametersResponse();
+            }
+            input.ReadMessage(Outputs);
+            break;
+          }
+          case 34: {
+            if (steps_ == null) {
+              Steps = new global::Dokime.Clients.ExecutionsStepsResponse();
+            }
+            input.ReadMessage(Steps);
+            break;
+          }
+          case 42: {
+            if (document_ == null) {
+              Document = new global::Dokime.Clients.DocumentsGetResponse();
+            }
+            input.ReadMessage(Document);
+            break;
+          }
+          case 50: {
+            if (plots_ == null) {
+              Plots = new global::Dokime.Clients.PlotsResources.SnapshotsListResponse();
+            }
+            input.ReadMessage(Plots);
+            break;
+          }
+          case 58: {
+            traceability_.AddEntriesFrom(input, _repeated_traceability_codec);
+            break;
+          }
+          case 66: {
+            files_.AddEntriesFrom(input, _repeated_files_codec);
+            break;
+          }
+          case 74: {
+            schemas_.AddEntriesFrom(input, _repeated_schemas_codec);
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10: {
+            if (detail_ == null) {
+              Detail = new global::Dokime.Clients.ExecutionsGetResponse();
+            }
+            input.ReadMessage(Detail);
+            break;
+          }
+          case 18: {
+            if (inputs_ == null) {
+              Inputs = new global::Dokime.Clients.ExecutionsParametersResponse();
+            }
+            input.ReadMessage(Inputs);
+            break;
+          }
+          case 26: {
+            if (outputs_ == null) {
+              Outputs = new global::Dokime.Clients.ExecutionsParametersResponse();
+            }
+            input.ReadMessage(Outputs);
+            break;
+          }
+          case 34: {
+            if (steps_ == null) {
+              Steps = new global::Dokime.Clients.ExecutionsStepsResponse();
+            }
+            input.ReadMessage(Steps);
+            break;
+          }
+          case 42: {
+            if (document_ == null) {
+              Document = new global::Dokime.Clients.DocumentsGetResponse();
+            }
+            input.ReadMessage(Document);
+            break;
+          }
+          case 50: {
+            if (plots_ == null) {
+              Plots = new global::Dokime.Clients.PlotsResources.SnapshotsListResponse();
+            }
+            input.ReadMessage(Plots);
+            break;
+          }
+          case 58: {
+            traceability_.AddEntriesFrom(ref input, _repeated_traceability_codec);
+            break;
+          }
+          case 66: {
+            files_.AddEntriesFrom(ref input, _repeated_files_codec);
+            break;
+          }
+          case 74: {
+            schemas_.AddEntriesFrom(ref input, _repeated_schemas_codec);
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class ReportFile : pb::IMessage<ReportFile>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<ReportFile> _parser = new pb::MessageParser<ReportFile>(() => new ReportFile());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<ReportFile> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::Dokime.Clients.ReportsReflection.Descriptor.MessageTypes[11]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportFile() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportFile(ReportFile other) : this() {
+      file_ = other.file_ != null ? other.file_.Clone() : null;
+      reads_ = other.reads_.Clone();
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public ReportFile Clone() {
+      return new ReportFile(this);
+    }
+
+    /// <summary>Field number for the "file" field.</summary>
+    public const int FileFieldNumber = 1;
+    private global::Harmos.FileReference file_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Harmos.FileReference File {
+      get { return file_; }
+      set {
+        file_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "reads" field.</summary>
+    public const int ReadsFieldNumber = 2;
+    private static readonly pb::FieldCodec<global::Dokime.Clients.FilesReadResponse> _repeated_reads_codec
+        = pb::FieldCodec.ForMessage(18, global::Dokime.Clients.FilesReadResponse.Parser);
+    private readonly pbc::RepeatedField<global::Dokime.Clients.FilesReadResponse> reads_ = new pbc::RepeatedField<global::Dokime.Clients.FilesReadResponse>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<global::Dokime.Clients.FilesReadResponse> Reads {
+      get { return reads_; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as ReportFile);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(ReportFile other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (!object.Equals(File, other.File)) return false;
+      if(!reads_.Equals(other.reads_)) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (file_ != null) hash ^= File.GetHashCode();
+      hash ^= reads_.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (file_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(File);
+      }
+      reads_.WriteTo(output, _repeated_reads_codec);
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (file_ != null) {
+        output.WriteRawTag(10);
+        output.WriteMessage(File);
+      }
+      reads_.WriteTo(ref output, _repeated_reads_codec);
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (file_ != null) {
+        size += 1 + pb::CodedOutputStream.ComputeMessageSize(File);
+      }
+      size += reads_.CalculateSize(_repeated_reads_codec);
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(ReportFile other) {
+      if (other == null) {
+        return;
+      }
+      if (other.file_ != null) {
+        if (file_ == null) {
+          File = new global::Harmos.FileReference();
+        }
+        File.MergeFrom(other.File);
+      }
+      reads_.Add(other.reads_);
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10: {
+            if (file_ == null) {
+              File = new global::Harmos.FileReference();
+            }
+            input.ReadMessage(File);
+            break;
+          }
+          case 18: {
+            reads_.AddEntriesFrom(input, _repeated_reads_codec);
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10: {
+            if (file_ == null) {
+              File = new global::Harmos.FileReference();
+            }
+            input.ReadMessage(File);
+            break;
+          }
+          case 18: {
+            reads_.AddEntriesFrom(ref input, _repeated_reads_codec);
             break;
           }
         }

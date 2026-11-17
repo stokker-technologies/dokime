@@ -15,17 +15,16 @@
 /* === External Imports === */
 
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 /* === Local Imports === */
 
 import { DokimeToaster } from "@/components/DokimeToaster";
 import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
+import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import { CycleSnapshotProvider, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
-import type { ReportPayload } from "@/lib/report-types";
 import { ReportCycleWorkspace } from "./ReportCycleWorkspace";
 import { ReportShell } from "./ReportShell";
-import { cycleSnapshotSource } from "./report-snapshot";
 
 /* === Constants === */
 
@@ -36,9 +35,7 @@ const reportRouter = createRouter({
 
 /* === Components === */
 
-export function ReportApp({ payload }: { payload: ReportPayload }) {
-  const source = useMemo(() => cycleSnapshotSource(payload), [payload]);
-
+export function ReportApp({ source }: { source: CycleSnapshotSource }) {
   /* The snapshot is provided above the router, and the selection lives inside
      it: a component the router owns must hold its own state, or the router
      never re-renders it when that state changes. */
@@ -58,7 +55,9 @@ export function ReportApp({ payload }: { payload: ReportPayload }) {
 /** The routed surface: the shell, the workspace, and which case is open. */
 function ReportSurface() {
   const source = useCycleSnapshotSource();
-  const [selection, setSelection] = useState<CycleSelection>({});
+  const [selection, setSelection] = useState<CycleSelection>(
+    source?.executions.length === 1 ? { executionId: source.executions[0].test_execution_id } : {},
+  );
 
   if (!source) return null;
 

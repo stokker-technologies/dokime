@@ -7,7 +7,7 @@
  * ***
  */
 
-// Fixed Snapshot Document Rendering
+// Frozen Document Declaration Selection
 
 /* === Modules === */
 
@@ -16,36 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::fs::{self, File};
-use std::sync::Weak;
-use std::{
-    io::{BufWriter, Read, Seek, Write},
-    num::NonZeroUsize,
-    path::Path,
-};
+use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos_protocol::model::Declarations;
-use harmos_protocol::model::{History, Position, ReadCut};
 use prost::Message;
-use prost_reflect::{DescriptorPool, DynamicMessage, Value};
-
-use tempfile::NamedTempFile;
 
 // Local Imports
 use crate::{Error, Host, Result};
-use dokime_operations::host::HostIdentity;
 use dokime_protocol::host::DocumentScope;
-use dokime_protocol::host::ReportMetadata;
-use dokime_protocol::host::evidence::RecordsAppendRequest;
-use dokime_protocol::host::{ReportOrigin, ReportSubject, report_subject};
-use dokime_protocol::model::Plot;
-use dokime_protocol::model::PlotFilter;
-use dokime_protocol::model::Section;
-use dokime_protocol::model::{
-    ArtifactMetadata, Card, Document, EvidenceCard, EvidenceScope, Metadata, RecordContracts, Suites, card, origin,
-};
-use dokime_storage::{Execution, ExecutionCut, ExecutionState, OutcomeCounts, ReadCancellation, Report, Store};
+use dokime_protocol::model::{Card, Document, EvidenceCard, Metadata, Section, Suites, card, origin};
+use dokime_storage::{ExecutionCut, Report, Store};
 
 /* === Constants === */
 
@@ -55,145 +36,13 @@ use dokime_storage::{Execution, ExecutionCut, ExecutionState, OutcomeCounts, Rea
 
 /* === Structs === */
 
-pub struct FixedSnapshot {
-    store: Store,
-    cut: ExecutionCut,
-    counts: OutcomeCounts,
-    artifacts: Vec<ArtifactMetadata>,
-    _read_cancellation: Option<ReadCancellation>,
-}
-
-#[derive(Clone, Copy)]
-pub struct RenderSettings {
-    pub page_size: NonZeroUsize,
-    pub display_points: NonZeroUsize,
-}
-
-pub struct RenderedDocument {
-    output: NamedTempFile,
-    pub(crate) execution: String,
-    pub(crate) execution_seal: Vec<u8>,
-    pub(crate) document: Document,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
-impl FixedSnapshot {
-    pub fn execution(&self) -> &Execution {
-        &self.cut.execution
-    }
-    pub fn seal(&self) -> &[u8] {
-        &self.cut.seal
-    }
-}
-impl RenderedDocument {
-    pub fn path(&self) -> &Path {
-        self.output.path()
-    }
-    pub fn into_file(self) -> File {
-        self.output.into_file()
-    }
-    pub fn html(&self) -> Result<Vec<u8>> {
-        Ok(fs::read(self.path())?)
-    }
-}
 impl Host {
-    pub(crate) async fn render_report(
-        &self, subject: &ReportSubject, document_id: &str, identity: &HostIdentity, render_settings: RenderSettings,
-    ) -> dokime_operations::Result<(File, ReportMetadata, ReadCut)> {
-        let (store, _read_cancellation) = self.store.read_session()?;
-        let (execution, cycle) = match subject.kind.as_ref() {
-            Some(report_subject::Kind::Execution(id)) => (Some(id.as_str()), store.metadata(id)?.execution.cycle),
-            Some(report_subject::Kind::Cycle(id)) => (None, id.clone()),
-            None => return Err(dokime_operations::Error::Invalid("Render Report: Select an Execution or Cycle".into())),
-        };
-        let mut snapshots = Vec::new();
-        let mut positions = Vec::new();
-        let mut after = String::new();
-        loop {
-            let page = store.cycle_execution_page(&cycle, &after, render_settings.page_size)?;
-            if page.is_empty() {
-                break;
-            }
-            for id in page {
-                after = id.clone();
-                if execution.is_some_and(|selected| selected != id) {
-                    continue;
-                }
-                let cut = store.metadata(&id)?;
-                if cut.execution.cycle != cycle {
-                    continue;
-                }
-                if cut.state != ExecutionState::Sealed {
-                    let action = if execution.is_some() { "execution" } else { "cycle" };
-                    return Err(dokime_operations::Error::Precondition(format!(
-                        "Create Report: Wait until the {action} has ended, then create the report"
-                    )));
-                }
-                let scope = DocumentScope {
-                    cycle_id: cycle.clone(),
-                    execution_id: id,
-                };
-                let (document, cut) = self
-                    .current_document_in(&store, &scope, document_id)
-                    .map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-                positions.push(Position {
-                    history: Some(History {
-                        store: identity.backend_id.clone(),
-                        epoch: scope.execution_id.clone(),
-                    }),
-                    sequence: cut.frontier,
-                });
-                snapshots.push((
-                    document,
-                    self.snapshot_in(store.clone(), cut).await.map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?,
-                ));
-            }
-        }
-        if snapshots.is_empty() {
-            return Err(dokime_operations::Error::Invalid("Render Report: Select an Existing Execution or Cycle".into()));
-        }
-        let file = if snapshots.len() == 1 {
-            let (document, snapshot) = snapshots.remove(0);
-            self.render_document(&snapshot, document, render_settings)
-                .map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?
-                .into_file()
-        } else {
-            let mut output = tempfile::tempfile().map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-            output
-                .write_all(b"<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Cycle Report</title><body>")
-                .map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-            for (document, snapshot) in snapshots {
-                let rendered = self
-                    .render_document(&snapshot, document, render_settings)
-                    .map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-                let mut file = rendered.into_file();
-                // Each Execution Is an Independent Embedded HTML Document.
-                let mut bytes = String::new();
-                file.read_to_string(&mut bytes).map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-                let body = bytes.split_once("<body>").map_or(bytes.as_str(), |(_, body)| body).trim_end_matches("</body></html>");
-                output.write_all(b"<article>").map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-                output.write_all(body.as_bytes()).map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-                output.write_all(b"</article>").map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-            }
-            output.write_all(b"</body></html>").map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-            output.rewind().map_err(|error| dokime_operations::Error::Invalid(error.to_string()))?;
-            output
-        };
-        let metadata = ReportMetadata {
-            test_cycle_id: cycle,
-            test_execution_id: execution.map(str::to_owned),
-            identifier: if execution.is_some() { "execution".into() } else { "cycle".into() },
-            origin: ReportOrigin::Current as i32,
-            ..Default::default()
-        };
-        Ok((file, metadata, ReadCut { positions, revisions: Vec::new() }))
-    }
-
     pub fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)> {
         self.current_document_in(&self.store, scope, identifier)
     }
@@ -215,7 +64,7 @@ impl Host {
                 ("media", "Media", EvidenceCard::Media),
             ]
             .into_iter()
-            .map(|(id, label, kind)| dokime_protocol::model::Section {
+            .map(|(id, label, kind)| Section {
                 metadata: Some(Metadata {
                     identifier: format!("cycle.{id}"),
                     label: label.into(),
@@ -291,98 +140,6 @@ impl Host {
         Ok((document, cut))
     }
 
-    pub async fn snapshot(&self, execution: &str) -> Result<FixedSnapshot> {
-        let cut = self.store.cut(execution)?;
-        self.snapshot_cut(cut).await
-    }
-    pub async fn snapshot_cut(&self, cut: ExecutionCut) -> Result<FixedSnapshot> {
-        let (store, guard) = self.store.read_session()?;
-        let mut snapshot = self.snapshot_in(store, cut).await?;
-        snapshot._read_cancellation = Some(guard);
-        Ok(snapshot)
-    }
-    pub(crate) async fn snapshot_in(&self, store: Store, cut: ExecutionCut) -> Result<FixedSnapshot> {
-        let outcomes = store.cycle_outcomes(&cut.execution.cycle)?;
-        let counts = OutcomeCounts::from_outcomes(&outcomes);
-        let context = self
-            .executions
-            .inner
-            .context
-            .get()
-            .and_then(Weak::upgrade)
-            .ok_or_else(|| Error::Invalid("Capture Document: Open the Host Before Reading Content".into()))?;
-        let artifacts =
-            dokime_operations::host::content::artifact_records(&context).await?.into_iter().filter_map(|entry| entry.artifact).collect();
-        Ok(FixedSnapshot {
-            store,
-            cut,
-            counts,
-            artifacts,
-            _read_cancellation: None,
-        })
-    }
-    pub fn render_document(&self, snapshot: &FixedSnapshot, document: Document, settings: RenderSettings) -> Result<RenderedDocument> {
-        let (store, cancellation) = snapshot.store.read_session()?;
-        let snapshot = FixedSnapshot {
-            store,
-            cut: snapshot.cut.clone(),
-            counts: snapshot.counts.clone(),
-            artifacts: snapshot.artifacts.clone(),
-            _read_cancellation: Some(cancellation),
-        };
-        let mut file = NamedTempFile::with_prefix("dokime-render-")?;
-        let mut output = BufWriter::new(&mut file);
-        let title = document.metadata.as_ref().map_or("", |metadata| metadata.label.as_str());
-        write!(
-            output,
-            "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>{}</title><body><h1>{}</h1>",
-            escape(title),
-            escape(title)
-        )?;
-        write!(
-            output,
-            "<dl><dt>Execution</dt><dd>{}</dd><dt>Cycle</dt><dd>{}</dd></dl>",
-            escape(&snapshot.cut.execution.identifier),
-            escape(&snapshot.cut.execution.cycle)
-        )?;
-        let counts = &snapshot.counts;
-        write!(
-            output,
-            "<dl><dt>Evaluated</dt><dd>{}</dd><dt>Not Evaluated</dt><dd>{}</dd><dt>Declared</dt><dd>{}</dd></dl>",
-            counts.evaluated, counts.not_evaluated, counts.declared
-        )?;
-        let catalog = Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
-        let mut offset = 0;
-        loop {
-            let expansion = dokime_operations::host::documents::expansion::expand(
-                &snapshot.store,
-                &snapshot.cut,
-                &document,
-                offset,
-                settings.page_size.get(),
-            )
-            .map_err(|error| Error::Invalid(error.to_string()))?;
-            for section in &expansion.document.sections {
-                render_section(&mut output, &snapshot, section, &catalog, settings)?;
-            }
-            match expansion.next {
-                Some(next) => offset = next,
-                None => break,
-            }
-        }
-        write!(output, "</body></html>")?;
-        output.flush()?;
-        drop(output);
-        Ok(RenderedDocument {
-            output: file,
-            execution: snapshot.cut.execution.identifier.clone(),
-            execution_seal: snapshot.cut.seal.clone(),
-            document,
-        })
-    }
-    pub fn publish_report(&self, output: &RenderedDocument) -> Result<Report> {
-        self.reports.publish(output)
-    }
     pub fn reports(&self, execution: &str) -> Result<Vec<Report>> {
         Ok(self.store.reports(execution)?)
     }
@@ -392,215 +149,6 @@ impl Host {
 
 /* === Private Functions === */
 
-fn render_section(
-    output: &mut impl Write, snapshot: &FixedSnapshot, section: &Section, catalog: &Declarations, settings: RenderSettings,
-) -> Result<()> {
-    if section.repeat.is_some() {
-        return Err(Error::Invalid("Render Document: Expand Repeated Sections Before Rendering".into()));
-    }
-    let label = section.metadata.as_ref().map_or("", |metadata| metadata.label.as_str());
-    write!(output, "<section><h2>{}</h2>", escape(label))?;
-    for card in &section.cards {
-        let filters = card
-            .filters
-            .iter()
-            .map(|filter| PlotFilter {
-                expression: filter.expression.clone(),
-                operator: filter.operator,
-                value: filter.value.clone(),
-            })
-            .collect::<Vec<_>>();
-        match card.body.as_ref() {
-            Some(card::Body::Markdown(text)) => write!(output, "<pre>{}</pre>", escape(text))?,
-            Some(card::Body::Plot(plot)) => render_plot(output, snapshot, plot, &filters, catalog, settings)?,
-            Some(card::Body::Table(table)) => {
-                write!(output, "<table>")?;
-                for row in &table.rows {
-                    write!(output, "<tr>")?;
-                    let mut cells = row.cells.iter().collect::<Vec<_>>();
-                    cells.sort_by_key(|(key, _)| *key);
-                    for (key, value) in cells {
-                        write!(output, "<td data-column=\"{}\">{}</td>", escape(key), escape(&crate::plot_html::display(value)))?;
-                    }
-                    write!(output, "</tr>")?;
-                }
-                write!(output, "</table>")?;
-            }
-            Some(card::Body::Summary(summary)) => {
-                write!(output, "<dl>")?;
-                for tile in &summary.tiles {
-                    let value =
-                        tile.value.as_ref().ok_or_else(|| Error::Invalid("Render Summary: Supply Each Tile's Expression".into()))?;
-                    let value = snapshot.store.document_value_filtered(&snapshot.cut, value, &filters)?;
-                    write!(
-                        output,
-                        "<dt>{}</dt><dd>{}</dd>",
-                        escape(tile.metadata.as_ref().map_or("", |metadata| metadata.label.as_str())),
-                        escape(&crate::plot_html::display(&value))
-                    )?;
-                }
-                write!(output, "</dl>")?;
-            }
-            Some(card::Body::Evidence(kind)) => {
-                if !filters.is_empty() {
-                    return Err(Error::Invalid("Render Evidence Card: Clear Its Filters Until Evidence-Card Filtering Is Served".into()));
-                }
-                render_evidence(output, snapshot, *kind, settings)?;
-            }
-            None => return Err(Error::Invalid("Render Document: Supply Each Card's Body".into())),
-        }
-    }
-    for child in &section.sections {
-        render_section(output, snapshot, child, catalog, settings)?;
-    }
-    write!(output, "</section>")?;
-    Ok(())
-}
-
-fn render_plot(
-    output: &mut impl Write, snapshot: &FixedSnapshot, plot: &Plot, filters: &[PlotFilter], _catalog: &Declarations,
-    settings: RenderSettings,
-) -> Result<()> {
-    let scope = EvidenceScope {
-        execution_id: Some(snapshot.cut.execution.identifier.clone()),
-        cycle_id: Some(snapshot.cut.execution.cycle.clone()),
-        ..Default::default()
-    };
-    let mut request = dokime_operations::host::documents::plot::request(plot, scope).map_err(|error| Error::Invalid(error.to_string()))?;
-    request.filters.extend_from_slice(filters);
-    request.max_points = Some(plot.display_points.unwrap_or(settings.display_points.get() as u32) as u64);
-    let envelope = dokime_operations::host::plots::snapshots::list::snapshot_at(
-        &snapshot.store,
-        &snapshot.cut,
-        &request,
-        settings.display_points.get().max(4),
-        0,
-        "v1",
-    )
-    .map_err(|error| Error::Invalid(error.to_string()))?;
-    let presentation = dokime_operations::host::documents::plot::presentation(&snapshot.store, &snapshot.cut, plot)?;
-    crate::plot_html::render(output, plot, &envelope, &presentation)
-}
-fn render_evidence(output: &mut impl Write, snapshot: &FixedSnapshot, kind: i32, settings: RenderSettings) -> Result<()> {
-    let kind = EvidenceCard::try_from(kind).map_err(|_| Error::Invalid("Render Evidence: Select a Declared Card Kind".into()))?;
-    write!(output, "<ol>")?;
-    if kind == EvidenceCard::Notes {
-        let mut after = String::new();
-        loop {
-            let page = snapshot.store.notes_page(
-                Some(&snapshot.cut.execution.cycle),
-                Some(&snapshot.cut.execution.identifier),
-                true,
-                &after,
-                settings.page_size.get(),
-            )?;
-            if page.is_empty() {
-                break;
-            }
-            for note in page {
-                after = note.note_id.clone();
-                write!(output, "<li data-note=\"{}\">{}</li>", escape(&note.note_id), escape(&note.message))?;
-            }
-        }
-    } else if matches!(kind, EvidenceCard::Artifacts | EvidenceCard::Media) {
-        for artifact in &snapshot.artifacts {
-            if artifact.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) != Some(&snapshot.cut.execution.identifier) {
-                continue;
-            }
-            let media = artifact
-                .content_type
-                .as_ref()
-                .is_some_and(|mime| mime.starts_with("image/") || mime.starts_with("audio/") || mime.starts_with("video/"));
-            if kind == EvidenceCard::Media && !media {
-                continue;
-            }
-            write!(
-                output,
-                "<li data-artifact=\"{}\">{} ({} bytes)</li>",
-                escape(&artifact.artifact_id),
-                escape(&artifact.filename),
-                artifact.size_bytes
-            )?;
-        }
-    } else if kind == EvidenceCard::StreamContext {
-        let catalog = Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
-        for stream in catalog.streams {
-            write!(output, "<li>{}</li>", escape(&stream.id))?;
-        }
-    } else {
-        let mut after = 0;
-        loop {
-            let page =
-                snapshot.store.evidence_page(&snapshot.cut.execution.identifier, after, snapshot.cut.frontier, settings.page_size)?;
-            if page.is_empty() {
-                break;
-            }
-            for evidence in page {
-                after = evidence.position;
-                let selected = match kind {
-                    EvidenceCard::Steps => evidence.kind.starts_with("step:"),
-                    EvidenceCard::Criteria => evidence.kind.starts_with("criterion:"),
-                    EvidenceCard::Traceability => evidence.kind.starts_with("traceability"),
-                    EvidenceCard::Records => evidence.kind.starts_with("record:"),
-                    EvidenceCard::Health => evidence.kind.starts_with("health:"),
-                    _ => return Err(Error::Invalid("Render Evidence: Select a Declared Card Kind".into())),
-                };
-                if !selected {
-                    continue;
-                }
-                if kind == EvidenceCard::Records {
-                    let record = RecordsAppendRequest::decode(evidence.payload.as_slice())?;
-                    let catalog = Declarations::decode(snapshot.cut.execution.catalog.as_slice())?;
-                    let mut message = None;
-                    for section in &catalog.sections {
-                        if section.r#type == "dokime.model.v1.RecordContracts" {
-                            let records = RecordContracts::decode(section.payload.as_slice())?;
-                            message = records
-                                .records
-                                .into_iter()
-                                .find(|contract| contract.metadata.as_ref().is_some_and(|metadata| metadata.identifier == record.kind))
-                                .map(|contract| contract.message);
-                        }
-                    }
-                    let pool = DescriptorPool::from_file_descriptor_set(
-                        catalog.types.ok_or_else(|| Error::Invalid("Render Records: Restore Frozen Descriptors".into()))?,
-                    )
-                    .map_err(|error| Error::Invalid(error.to_string()))?;
-                    let descriptor = message
-                        .and_then(|message| pool.get_message_by_name(&message))
-                        .ok_or_else(|| Error::Invalid("Render Records: Restore This Record's Frozen Descriptor".into()))?;
-                    let row = DynamicMessage::decode(descriptor, record.payload.as_slice())?;
-                    write!(output, "<li>{}<dl>", escape(&record.kind))?;
-                    for (field, value) in row.fields() {
-                        let value = match value {
-                            Value::String(value) => value.clone(),
-                            Value::Bool(value) => value.to_string(),
-                            Value::I32(value) => value.to_string(),
-                            Value::I64(value) => value.to_string(),
-                            Value::U32(value) => value.to_string(),
-                            Value::U64(value) => value.to_string(),
-                            Value::F32(value) => value.to_string(),
-                            Value::F64(value) => value.to_string(),
-                            _ => continue,
-                        };
-                        write!(output, "<dt>{}</dt><dd>{}</dd>", escape(field.name()), escape(&value))?;
-                    }
-                    write!(output, "</dl></li>")?;
-                } else {
-                    write!(
-                        output,
-                        "<li data-position=\"{}\">{} {}</li>",
-                        evidence.position,
-                        escape(&evidence.kind),
-                        escape(&evidence.step)
-                    )?;
-                }
-            }
-        }
-    }
-    write!(output, "</ol>")?;
-    Ok(())
-}
 fn apply_preferences(store: &Store, execution: &str, document: &str, sections: &mut [Section]) -> Result<()> {
     for section in sections {
         for card in &mut section.cards {
@@ -614,9 +162,6 @@ fn apply_preferences(store: &Store, execution: &str, document: &str, sections: &
         apply_preferences(store, execution, document, &mut section.sections)?;
     }
     Ok(())
-}
-fn escape(text: &str) -> String {
-    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
 }
 
 /* === Tests === */

@@ -1,23 +1,29 @@
+import * as hostModel from "@host/model";
 // Dokime — SPDX-License-Identifier: Apache-2.0
 // History Projects Final Execution Resources and Their Retained Cuts.
 
 /* === External Imports === */
 
 import { create, fromJson, toJson } from "@bufbuild/protobuf";
-import { ReadCutSchema, type ReadCut } from "@host/model";
-import type { ExecutionDetail } from "@host/model";
-import type { CapturedRecord } from "@host/model";
-import { type ExecutionOutcome, ExecutionState, ResultStatus } from "@host/model";
-import { ArtifactState } from "@host/model";
-import { ExecutionFileKind, type ExecutionFileMetadata as HostExecutionFileMetadata, ExecutionFileState } from "@host/model";
-import { Severity as HostSeverity } from "@host/model";
+import type { CapturedRecord, ExecutionDetail } from "@host/model";
+import {
+  ArtifactState,
+  ExecutionFileKind,
+  ExecutionFileState,
+  ExecutionState,
+  ReadCutSchema,
+  ResultStatus,
+  type ExecutionOutcome,
+  type ReadCut,
+} from "@host/model";
+
 import { CyclePhase, type CycleSummary } from "@host/model";
 
 /* === Local Imports === */
 
 import * as rpc from "@/lib/host/client";
 import { executionSchemas } from "@/lib/host/schemas";
-import { required, cutKey, type Wire } from "@/lib/rpc/canonical";
+import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   ExecutionBrowseCycle,
@@ -26,11 +32,12 @@ import type {
   ExecutionCheckpoint,
   SavedCycleSummary,
 } from "@/lib/types/view-contracts";
-import { mapCyclePhase, mapStepStatus, projectExecutionStatus, listNativeCycles } from "./native-planning";
-import { decodeFrozenRecords } from "./native-evidence";
-import { fetchNativeDocument } from "./native-documents";
 import { readFileReference } from "./native-content";
-import { NATIVE_PAGE_SIZE, NATIVE_MAX_PAGES, safeNumber, timestampIso } from "./native-values";
+import { fetchNativeDocument } from "./native-document-session";
+import { listNativeCycles } from "./native-planning";
+import { mapCyclePhase, mapStepStatus, projectExecutionStatus } from "./native-planning-projection";
+import { decodeFrozenRecords } from "./native-record-projection";
+import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, safeNumber, timestampIso } from "./native-values";
 
 /* === Constants === */
 
@@ -40,8 +47,8 @@ export const NATIVE_CHECKPOINT_ARTIFACT_BYTES = 33_554_432;
 /* === Types === */
 
 type ExecutionStatus = ExecutionState;
-type Severity = HostSeverity;
-type ExecutionFileMetadata = Wire<HostExecutionFileMetadata>;
+type Severity = hostModel.Severity;
+type ExecutionFileMetadata = Wire<hostModel.ExecutionFileMetadata>;
 export interface NativeCheckpointSession extends SessionIdentity {
   own(dispose: () => void): () => void;
 }
@@ -514,7 +521,7 @@ export function nativeRecordText(
 }
 
 function severityLabel(value: Severity | undefined): string {
-  return value === undefined ? "unspecified" : (HostSeverity[value]?.toLowerCase() ?? "unspecified");
+  return value === undefined ? "unspecified" : (hostModel.Severity[value]?.toLowerCase() ?? "unspecified");
 }
 
 export const checkpointStepStatus = mapStepStatus;

@@ -25,7 +25,7 @@ use std::{
 use harmos_protocol::model::FileReference;
 
 // Local Imports
-use crate::{Error, RenderedDocument, Result, host::lock};
+use crate::{Error, Result, host::lock};
 
 use dokime_storage::{Report, Store};
 
@@ -60,13 +60,6 @@ impl ReportManager {
             store,
             state: Arc::new(Mutex::new(Publication::default())),
         }
-    }
-    pub(crate) fn publish(&self, output: &RenderedDocument) -> Result<Report> {
-        let state = lock(&self.state)?;
-        if state.closed {
-            return Err(Error::Invalid("Publish Report: Reconnect to a Running Host".into()));
-        }
-        Ok(self.store.publish_report(&output.execution, &output.execution_seal, output.document.clone(), output.html()?)?)
     }
     pub(crate) fn publish_prepared(&self, prepared: Report) -> Result<Report> {
         let state = lock(&self.state)?;

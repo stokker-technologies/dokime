@@ -56,7 +56,6 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
-use crate::RenderSettings;
 use crate::{Error, Host, HostSettings, Result};
 use composition::Application;
 use dokime_operations::host::Context;
@@ -319,10 +318,6 @@ pub(crate) async fn assemble(host: &Host, root: &Path, settings: &ClientSettings
         host: host.clone(),
         operations: runtime.operations.clone(),
         catalogs: catalogs.clone(),
-        render_settings: RenderSettings {
-            page_size: NonZeroUsize::new(settings.page_items).unwrap(),
-            display_points: NonZeroUsize::new(settings.page_items).unwrap(),
-        },
         identity,
         temporary_report_limit: settings.max_cases,
     };

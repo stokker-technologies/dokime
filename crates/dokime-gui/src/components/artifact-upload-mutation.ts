@@ -15,7 +15,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowDocuments, invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
-import { type NativeArtifactUploadOptions, nativeContentSession, uploadNativeArtifact } from "@/lib/api/native-content";
+import { nativeContentSession, uploadNativeArtifact } from "@/lib/api/native-content";
+import { type NativeArtifactUploadOptions } from "../lib/api/native-content-projection";
 
 /* === Hooks === */
 

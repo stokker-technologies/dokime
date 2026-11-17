@@ -18,16 +18,16 @@
 // Third Party Imports
 
 // Local Imports
+import { useNativeSession } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
+import { workflowQueryKeys } from "@/features/cycle/server-state";
+import { useCyclesQuery } from "@/features/cycles-home/cycles-queries";
+import { fetchNativeTestCycleDetail, fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { useQueries } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNativeSession } from "@/app/native-session/context";
-import { useCyclesQuery } from "@/features/cycles-home/cycles-queries";
-import { workflowQueryKeys } from "@/features/cycle/server-state";
-import { fetchNativeTestCycleDetail, fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
-import { isNativeCycleLive } from "@/lib/api/native-planning";
+import { isNativeCycleLive } from "../lib/api/native-planning-projection";
 import { activeRunFocus, elapsedMinutes, runDestination, runElapsed } from "./run-focus";
 
 /* === Re-Exports === */

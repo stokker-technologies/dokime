@@ -1576,6 +1576,7 @@ name = "dokime-runtime"
 version = "0.1.5"
 dependencies = [
  "async-trait",
+ "base64 0.23.1",
  "criterion",
  "dokime",
  "dokime-operations",

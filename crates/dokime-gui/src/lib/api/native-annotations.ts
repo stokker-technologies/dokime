@@ -13,12 +13,12 @@
 
 /* === Local Imports === */
 
+import { cutKey, required } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@host/model";
-import { required, cutKey } from "@/lib/rpc/canonical";
-import { Severity } from "@host/model";
+import { NativeHealthItem, NativeOperatorNote, mapNativeHealth, mapNativeNote } from "./native-annotation-projection";
 
-import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, HealthItem, OperatorNote } from "@/lib/types";
 import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, nowIso, timestampIso } from "./native-values";
@@ -27,8 +27,6 @@ import { NATIVE_MAX_PAGES, NATIVE_SMALL_PAGE_SIZE, NativeApiLimitError, nowIso, 
 
 type AnnotationOwner = Wire<NonNullable<Parameters<typeof rpc.evidenceNotesCreate>[1]["owner"]>>;
 type AnnotationSelection = Wire<NonNullable<Parameters<typeof rpc.evidenceNotesList>[1]["selection"]>>;
-type NativeOperatorNote = Wire<Awaited<ReturnType<typeof rpc.evidenceNotesList>>["notes"][number]>;
-type NativeHealthItem = Wire<Awaited<ReturnType<typeof rpc.evidenceHealthEventsList>>["events"][number]>;
 
 /* === Public API === */
 
@@ -112,39 +110,6 @@ export async function editNativeNote(session: SessionIdentity, noteId: string, t
 }
 
 /* === Mapping === */
-
-function mapNativeNote(note: NativeOperatorNote): OperatorNote {
-  const timestamp = timestampIso(note.createdAt);
-  if (!timestamp) throw new Error(`Native note ${note.noteId} has no valid creation timestamp.`);
-  return {
-    note_id: note.noteId,
-    author: note.author ?? null,
-    text: note.message,
-    timestamp,
-    scope: note.scope ?? null,
-  };
-}
-
-function mapNativeHealth(item: NativeHealthItem): HealthItem {
-  const createdAt = timestampIso(item.observedAt);
-  if (!createdAt) throw new Error(`Native health item ${item.healthItemId} has no valid observation timestamp.`);
-  return {
-    health_id: item.healthItemId,
-    level:
-      item.severity === Severity.FAILURE
-        ? "error"
-        : item.severity === Severity.WARNING
-          ? "warning"
-          : item.severity === Severity.DEBUG
-            ? "debug"
-            : "info",
-    title: item.message,
-    message: item.detail ?? null,
-    details: {},
-    created_at: createdAt,
-    scope: item.scope ?? null,
-  };
-}
 
 export function annotationOwner(scope?: Wire<EvidenceScope> | null): AnnotationOwner {
   const cycleId = scope?.cycleId;

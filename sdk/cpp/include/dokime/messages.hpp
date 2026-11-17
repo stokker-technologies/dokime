@@ -869,6 +869,10 @@ using ::dokime::detail::payloads::client::PromptView;
 using ::dokime::detail::payloads::client::REPORT_ORIGIN_CURRENT;
 using ::dokime::detail::payloads::client::REPORT_ORIGIN_SEALED;
 using ::dokime::detail::payloads::client::REPORT_ORIGIN_UNSPECIFIED;
+using ::dokime::detail::payloads::client::ReportCapture;
+using ::dokime::detail::payloads::client::ReportCase;
+using ::dokime::detail::payloads::client::ReportExecution;
+using ::dokime::detail::payloads::client::ReportFile;
 using ::dokime::detail::payloads::client::ReportMetadata;
 using ::dokime::detail::payloads::client::ReportOrigin;
 using ::dokime::detail::payloads::client::ReportsCreateResponse;
@@ -877,6 +881,8 @@ using ::dokime::detail::payloads::client::ReportsPublishResponse;
 using ::dokime::detail::payloads::client::ReportSubject;
 using ::dokime::detail::payloads::client::SecretRequirement;
 using ::dokime::detail::payloads::client::SecretsSetResponse;
+using ::dokime::detail::payloads::client::SuitesGetResponse;
+using ::dokime::detail::payloads::client::SuitesListResponse;
 namespace host {
 using ::dokime::detail::payloads::client::host::SecretsListResponse;
 }
@@ -950,8 +956,6 @@ using ::dokime::detail::payloads::client::StorageSource;
 using ::dokime::detail::payloads::client::StorageSources;
 using ::dokime::detail::payloads::client::StreamSchemasGetResponse;
 using ::dokime::detail::payloads::client::StreamSchemasListResponse;
-using ::dokime::detail::payloads::client::SuitesGetResponse;
-using ::dokime::detail::payloads::client::SuitesListResponse;
 using ::dokime::detail::payloads::client::TelemetryPreferences;
 using ::dokime::detail::payloads::client::THEME_MODE_DARK;
 using ::dokime::detail::payloads::client::THEME_MODE_LIGHT;

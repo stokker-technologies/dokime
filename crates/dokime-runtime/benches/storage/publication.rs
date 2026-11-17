@@ -35,20 +35,16 @@ use tokio::runtime::Runtime;
 // Local Imports
 use dokime::plugin::HostOperation;
 use dokime::prelude::*;
-use dokime_protocol::builders::Plot;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::evidence_client::EvidenceClient;
 use dokime_protocol::host::files_client::FilesClient;
+use dokime_protocol::host::reports_client::ReportsClient;
 use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceSubject, FilesReadRequest, PromptsCreateResponse, evidence_subject};
-use dokime_runtime::{ControlledClock, Cycle, Host, HostSettings, PlacementSettings, PluginProcess, RenderSettings, services};
+use dokime_protocol::host::{ReportSubject, ReportsCreateRequest, ReportsPublishRequest, report_subject};
+use dokime_runtime::{ControlledClock, Cycle, Host, HostSettings, PlacementSettings, PluginProcess, services};
 use dokime_storage::storage_defaults;
 
-use dokime_protocol::model::Card;
-use dokime_protocol::model::Document;
-use dokime_protocol::model::FieldReference;
-use dokime_protocol::model::Section;
 use dokime_protocol::model::Value;
-use dokime_protocol::model::card;
 use dokime_protocol::model::value;
 
 /* === Constants === */
@@ -306,33 +302,6 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                 let Fixture { host, root, cycle, execution } = fixture;
                 let completed = cycle.wait().await.unwrap();
                 assert_eq!(completed.executions[0].samples.len(), 16384, "Prepare Runtime Archive: Retain Every Sample");
-                let snapshot = host.snapshot(&execution).await.unwrap();
-                let mut pulse = Plot::time_series(FieldReference::new("pulse").field("value")).message;
-                pulse.display_points = Some(400);
-                let mut spectrum = Plot::frequency_series(FieldReference::new("spectrum").field("value")).message;
-                spectrum.sample_rate_hz = Some(100.0);
-                let document = Document::new("Report").section(
-                    Section::new("Readings")
-                        .card(Card {
-                            body: Some(card::Body::Plot(pulse)),
-                            ..Default::default()
-                        })
-                        .card(Card {
-                            body: Some(card::Body::Plot(spectrum)),
-                            ..Default::default()
-                        }),
-                );
-                let report = host
-                    .render_document(
-                        &snapshot,
-                        document,
-                        RenderSettings {
-                            page_size: NonZeroUsize::new(256).unwrap(),
-                            display_points: NonZeroUsize::new(1500).unwrap(),
-                        },
-                    )
-                    .unwrap();
-                host.publish_report(&report).unwrap();
                 host.shutdown().await.unwrap();
                 let bounds = services::ClientSettings {
                     read_timeout: Duration::from_secs(30),
@@ -345,6 +314,30 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                 };
                 let server = services::serve(([127, 0, 0, 1], 0).into(), root.as_path(), settings(), bounds).await.unwrap();
                 let endpoint = format!("http://{}", server.endpoint());
+                let mut reports = ReportsClient::connect(endpoint.clone()).await.unwrap();
+                let subject = ReportSubject {
+                    kind: Some(report_subject::Kind::Execution(execution.clone())),
+                };
+                let prepared = reports
+                    .create(ReportsCreateRequest {
+                        subject: Some(subject.clone()),
+                        request_id: "archive-report".into(),
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap()
+                    .into_inner();
+                let file = prepared.file.unwrap();
+                reports
+                    .publish(ReportsPublishRequest {
+                        name: file.metadata.unwrap().id,
+                        subject: Some(subject),
+                        expected_revision: file.sha256,
+                        request_id: "archive-publish".into(),
+                    })
+                    .await
+                    .unwrap();
+
                 let evidence = EvidenceClient::connect(endpoint.clone()).await.unwrap();
                 let files = FilesClient::connect(endpoint).await.unwrap();
                 (server, root, execution, evidence, files)

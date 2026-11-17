@@ -2,11 +2,11 @@
 
 /* === Imports === */
 
-import { ThemeModePolicy } from "@host/model";
+import { appearanceFrameFromNative } from "./native-appearance";
 
 import { failureOf } from "@/lib/notification-details";
-import { type ReactNode, useEffect, useMemo } from "react";
 import { toast } from "@/lib/notifications";
+import { useEffect, useMemo, type ReactNode } from "react";
 
 /* === Local Imports === */
 
@@ -15,8 +15,7 @@ import { BrandProvider, bootOrganization, brandFromLogos, defaultBrand, organiza
 
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
 import { applyBrandFavicon } from "@/lib/favicon";
-import type { AppearanceResource } from "@/lib/rpc/appearance";
-import type { RuntimeAppearanceFrame, RuntimeAppLogo, ThemeModePolicy as RuntimeThemeModePolicy } from "@/lib/types/view-contracts";
+import type { RuntimeAppLogo, RuntimeAppearanceFrame } from "@/lib/types/view-contracts";
 import { isReportBuild } from "@/lib/ui-mode";
 
 import { AppearanceContext, defaultAppearanceFrame, packOrganization, type Appearance } from "./appearance";
@@ -90,66 +89,4 @@ function withOrganizationPack(frame: RuntimeAppearanceFrame): RuntimeAppearanceF
       alt: logo.alt ?? null,
     })),
   };
-}
-
-function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppearanceFrame {
-  const snapshot = resource.appearance;
-  return {
-    app_name: snapshot.appName || defaultBrand.label,
-    organization: snapshot.organization
-      ? {
-          name: snapshot.organization.name,
-          unit: snapshot.organization.unit ?? null,
-          website: snapshot.organization.website ?? null,
-        }
-      : null,
-    title_template: snapshot.titleTemplate ?? "{app}",
-    logos: resource.logos,
-    themes: snapshot.themes.map((theme) => ({
-      plugin_id: theme.pluginId,
-      theme_id: theme.themeId,
-      label: theme.label,
-      description: theme.description ?? null,
-      stylesheet: theme.stylesheet ?? null,
-      variables: { ...theme.variables },
-      corner_radii: theme.cornerRadii
-        ? {
-            base: theme.cornerRadii.base ?? null,
-            sm: theme.cornerRadii.sm ?? null,
-            md: theme.cornerRadii.md ?? null,
-            lg: theme.cornerRadii.lg ?? null,
-            xl: theme.cornerRadii.xl ?? null,
-            "2xl": theme.cornerRadii.twoXl ?? null,
-            "3xl": theme.cornerRadii.threeXl ?? null,
-            "4xl": theme.cornerRadii.fourXl ?? null,
-          }
-        : undefined,
-      light: {
-        variables: { ...theme.light?.variables },
-        plot_palette: [...(theme.light?.plotPalette ?? [])],
-      },
-      dark: {
-        variables: { ...theme.dark?.variables },
-        plot_palette: [...(theme.dark?.plotPalette ?? [])],
-      },
-    })),
-    active_theme: snapshot.activeTheme ?? null,
-    theme_family_locked: snapshot.themeFamilyLocked,
-    mode_policy: nativeModePolicy(snapshot.modePolicy),
-    mode_locked: snapshot.modeLocked,
-    source_plugin_id: snapshot.sourcePluginId ?? null,
-  };
-}
-
-function nativeModePolicy(policy: AppearanceResource["appearance"]["modePolicy"]): RuntimeThemeModePolicy {
-  switch (policy) {
-    case ThemeModePolicy.FORCE_SYSTEM:
-      return "force_system";
-    case ThemeModePolicy.FORCE_LIGHT:
-      return "force_light";
-    case ThemeModePolicy.FORCE_DARK:
-      return "force_dark";
-    default:
-      return "user_or_system";
-  }
 }

@@ -1223,7 +1223,23 @@ from dokime._wire.host.v1.record_schemas_pb2 import ValueFormatKind
 
 ValueFormatKind.__module__ = "dokime.client"
 ValueFormatKind.__qualname__ = "ValueFormatKind"
-from dokime._wire.host.v1.reports_pb2 import REPORT_ORIGIN_CURRENT, REPORT_ORIGIN_SEALED, REPORT_ORIGIN_UNSPECIFIED, ReportMetadata
+from dokime._wire.host.v1.reports_pb2 import REPORT_ORIGIN_CURRENT, REPORT_ORIGIN_SEALED, REPORT_ORIGIN_UNSPECIFIED, ReportCapture
+
+ReportCapture.__module__ = "dokime.client"
+ReportCapture.__qualname__ = "ReportCapture"
+from dokime._wire.host.v1.reports_pb2 import ReportCase
+
+ReportCase.__module__ = "dokime.client"
+ReportCase.__qualname__ = "ReportCase"
+from dokime._wire.host.v1.reports_pb2 import ReportExecution
+
+ReportExecution.__module__ = "dokime.client"
+ReportExecution.__qualname__ = "ReportExecution"
+from dokime._wire.host.v1.reports_pb2 import ReportFile
+
+ReportFile.__module__ = "dokime.client"
+ReportFile.__qualname__ = "ReportFile"
+from dokime._wire.host.v1.reports_pb2 import ReportMetadata
 
 ReportMetadata.__module__ = "dokime.client"
 ReportMetadata.__qualname__ = "ReportMetadata"
@@ -2155,7 +2171,11 @@ __all__ = [
     "RegisteredSelectionFilesEntry",
     "RegisteredSelectionParametersEntry",
     "RemoteListenerSettings",
+    "ReportCapture",
+    "ReportCase",
     "ReportDefaults",
+    "ReportExecution",
+    "ReportFile",
     "ReportMetadata",
     "ReportOrigin",
     "ReportState",

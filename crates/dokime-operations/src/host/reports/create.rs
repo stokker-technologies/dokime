@@ -18,11 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::{FileMetadata, OperationContract};
+use base64::{Engine, engine::general_purpose::STANDARD};
+use harmos_protocol::model::FileMetadata;
+use prost::Message;
+use std::io::{Seek, Write};
 
 // Local Imports
-use super::PreparedReport;
-use crate::host::ClientSettings;
+use super::{PreparedReport, capture};
 use crate::host::files::uploads::{append, create, delete, publish};
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
@@ -50,13 +52,25 @@ pub const ID: &str = "dokime.host.v1.Reports/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ReportsCreateRequest, ReportsCreateResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<ReportsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        let subject = request.subject.as_ref().ok_or_else(|| Error::Invalid("Create Report: Select Its Execution or Cycle".into()))?;
-        let (file, metadata, resolved_at) = context.host.render_report(subject, &request.document_id).await?;
+        let (capture, resolved_at) = capture::collect(context, &request).await?;
+        let metadata = capture.report.clone().ok_or_else(|| Error::Invalid("Create Report: Capture Its Metadata".into()))?;
+        let template = context.host.report_template();
+        let marker = b"<!-- DOKIME_REPORT_DATA -->";
+        let insertion = template
+            .windows(marker.len())
+            .position(|window| window == marker)
+            .ok_or_else(|| Error::Invalid("Create Report: Rebuild the Template with `mise run generate`".into()))?;
+        let data = STANDARD.encode(capture.encode_to_vec());
+        let mut file =
+            tempfile::tempfile().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+        file.write_all(&template[..insertion])
+            .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+        file.write_all(data.as_bytes()).map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+        file.write_all(&template[insertion + marker.len()..])
+            .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+        file.rewind().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
         let (retained, length, digest) = crate::host::content::transfer::temporary(file)?;
         let digest =
             (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();

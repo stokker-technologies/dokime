@@ -380,6 +380,14 @@ struct PromptsAnswersCreateOptions {
   std::optional<std::string> request_id;
   std::shared_ptr<grpc::ClientContext> context;
 };
+struct SuitesGetOptions {
+  std::optional<::harmos::ReadCut> at;
+  std::shared_ptr<grpc::ClientContext> context;
+};
+struct SuitesListOptions {
+  std::optional<::harmos::ReadCut> at;
+  std::shared_ptr<grpc::ClientContext> context;
+};
 struct ReportsGetOptions {
   std::optional<::harmos::ReadCut> at;
   std::shared_ptr<grpc::ClientContext> context;
@@ -445,14 +453,6 @@ struct StreamSchemasGetOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct StreamSchemasListOptions {
-  std::optional<::harmos::ReadCut> at;
-  std::shared_ptr<grpc::ClientContext> context;
-};
-struct SuitesGetOptions {
-  std::optional<::harmos::ReadCut> at;
-  std::shared_ptr<grpc::ClientContext> context;
-};
-struct SuitesListOptions {
   std::optional<::harmos::ReadCut> at;
   std::shared_ptr<grpc::ClientContext> context;
 };

@@ -17,17 +17,17 @@
 
 // Standard Library Imports
 use std::error::Error;
-use std::num::NonZeroUsize;
 
 // Third Party Imports
+use base64::{Engine, engine::general_purpose::STANDARD};
+use prost::Message;
 
 // Local Imports
-use dokime::Document;
-use dokime::FieldReference;
-use dokime::model::Section;
-use dokime_protocol::builders::Plot;
-use dokime_runtime::Host;
-use dokime_runtime::RenderSettings;
+use dokime_protocol::host::files_client::FilesClient;
+use dokime_protocol::host::reports_client::ReportsClient;
+use dokime_protocol::host::{FilesReadRequest, ReportCapture, ReportSubject, ReportsCreateRequest, ReportsPublishRequest, report_subject};
+use dokime_runtime::{Host, services};
+use dokime_storage::Store;
 
 /* === Constants === */
 
@@ -44,6 +44,15 @@ use dokime_runtime::RenderSettings;
 /* === Implementations === */
 
 /* === Public Functions === */
+
+pub(super) fn decode_report(html: &[u8]) -> Result<ReportCapture, Box<dyn Error>> {
+    let html = str::from_utf8(html)?;
+    let start = html.find("id=\"hub-report-data\"").or_else(|| html.find("id=hub-report-data")).ok_or("Report Data Element Is Missing")?;
+    let element = &html[start..];
+    let data = element.split_once('>').ok_or("Report Data Is Missing")?.1.split_once("</script>").ok_or("Report Data Is Incomplete")?.0;
+    let bytes = STANDARD.decode(data.trim())?;
+    Ok(ReportCapture::decode(bytes.as_slice())?)
+}
 
 /* === Private Functions === */
 
@@ -64,49 +73,82 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             let prompt = host.next_prompt(&execution).await?;
             super::support::answer(&host, &execution, prompt)?;
             let result = cycle.wait().await?;
-            let fixed = host.snapshot(&execution).await?;
             let before = host.execution(&execution)?;
-
-            // Render Real HTML with Bounded Stored-Sample Queries and No Publication
-            let settings = RenderSettings {
-                page_size: NonZeroUsize::new(2).unwrap(),
-                display_points: NonZeroUsize::new(3).unwrap(),
-            };
-            let output = host.render_document(&fixed, document.clone(), settings)?;
-            let html = output.html()?;
-            let text = std::str::from_utf8(&html)?;
-            assert!(text.contains("<svg") && text.contains("<polyline"));
-            assert!(text.contains(&format!("data-count=\"{}\"", result.executions[0].samples.len())));
-            assert!(output.path().is_file());
-            assert!(host.reports(&execution)?.is_empty());
-            assert_eq!(host.execution(&execution)?, before);
-            let one_at_a_time = host.render_document(
-                &fixed,
-                document.clone(),
-                RenderSettings {
-                    page_size: NonZeroUsize::new(1).unwrap(),
-                    ..settings
-                },
-            )?;
-            assert_eq!(one_at_a_time.html()?, html);
-
-            // Refuse an Unresolvable Plot Without Publishing Any Partial Output
-            let invalid = Document::new("Missing Field")
-                .section(Section::new("Measurements").plot(Plot::time_series(FieldReference::new("execution.reading").field("absent"))));
-            assert!(host.render_document(&fixed, invalid, settings).is_err());
-            assert!(host.reports(&execution)?.is_empty());
-
-            // Publish Explicitly and Reopen the Frozen Document and HTML
-            let published = host.publish_report(&output)?;
-            assert_eq!(published.document, Some(document));
-            assert_eq!(published.html, html);
-            assert_eq!(host.reports(&execution)?, vec![published.clone()]);
-            assert_eq!(host.execution(&execution)?, before);
-            let temporary = output.path().to_owned();
-            drop(output);
-            assert!(!temporary.exists());
             host.shutdown().await?;
             drop(host);
+
+            // Create Through the Active Host Operation Without Publication.
+            let server =
+                services::serve(([127, 0, 0, 1], 0).into(), root.path(), super::support::settings(), super::support::service_settings())
+                    .await?;
+            let endpoint = format!("http://{}", server.endpoint());
+            let mut reports = ReportsClient::connect(endpoint.clone()).await?;
+            let mut files = FilesClient::connect(endpoint).await?;
+            let subject = ReportSubject {
+                kind: Some(report_subject::Kind::Execution(execution.clone())),
+            };
+            let prepared = reports
+                .create(ReportsCreateRequest {
+                    subject: Some(subject.clone()),
+                    document_id: document.metadata.as_ref().unwrap().identifier.clone(),
+                    request_id: "document-report".into(),
+                })
+                .await?
+                .into_inner();
+            let file = prepared.file.unwrap();
+            let store = Store::open(root.path())?;
+            assert!(store.reports(&execution)?.is_empty());
+            assert_eq!(store.read(&execution)?, before);
+            let mut html = Vec::new();
+            let mut at = None;
+            while (html.len() as u64) < file.length {
+                let reply = files
+                    .read(FilesReadRequest {
+                        file: Some(file.clone()),
+                        offset: html.len() as u64,
+                        max_bytes: 0,
+                        at,
+                    })
+                    .await?
+                    .into_inner();
+                assert!(!reply.data.is_empty());
+                at = reply.resolved_at;
+                html.extend(reply.data);
+            }
+            let capture = decode_report(&html)?;
+            assert_eq!(capture.executions.len(), 1);
+            let captured = &capture.executions[0];
+            assert_eq!(captured.detail.as_ref().unwrap().execution.as_ref().unwrap().summary.as_ref().unwrap().execution_id, execution);
+            assert!(
+                captured
+                    .plots
+                    .as_ref()
+                    .unwrap()
+                    .envelopes
+                    .iter()
+                    .any(|plot| plot.diagnostics.as_ref().unwrap().raw_point_count == result.executions[0].samples.len() as u64)
+            );
+            assert!(!captured.document.as_ref().unwrap().frames.is_empty());
+            assert_eq!(
+                captured.inputs.as_ref().unwrap().resolved_at.as_ref().unwrap().sequence,
+                prepared.resolved_at.as_ref().unwrap().positions[0].sequence
+            );
+
+            // Publication Retains the Same Inputs and File Across Restart.
+            reports
+                .publish(ReportsPublishRequest {
+                    name: file.metadata.unwrap().id,
+                    subject: Some(subject),
+                    expected_revision: file.sha256,
+                    request_id: "publish-document-report".into(),
+                })
+                .await?;
+            let published = store.reports(&execution)?.remove(0);
+            assert_eq!(published.document, Some(document));
+            assert_eq!(published.html, html);
+            assert_eq!(store.read(&execution)?, before);
+            server.close().await?;
+            drop(store);
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             assert_eq!(host.reports(&execution)?, vec![published]);
             assert_eq!(host.execution(&execution)?, before);

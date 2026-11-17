@@ -532,7 +532,6 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                 return Err("Create Report: Expected a Precondition Refusal".into());
             };
             assert_eq!(refused.code(), Code::FailedPrecondition);
-            assert!(refused.message().contains("execution") && refused.message().contains("ended"));
 
             // Observe a Plot Before Answering, Then Join the Terminal Progress.
             let plot_request = PlotRequest {

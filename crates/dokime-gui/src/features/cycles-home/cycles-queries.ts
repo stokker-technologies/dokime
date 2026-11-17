@@ -12,18 +12,17 @@
 
 /* === External Imports === */
 
-import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 
 /* === Local Imports === */
 
-import { ArchiveScope } from "@host/model";
-import { CycleOrderKey } from "@host/model";
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
-import type { CycleSummary } from "@/lib/api/native-planning";
 import type { PromptRequest } from "@/lib/types";
+import { ArchiveScope, CycleOrderKey } from "@host/model";
+import type { CycleSummary } from "../../lib/api/native-planning-projection";
 
 /* === Types === */
 

@@ -8,6 +8,22 @@ package dokime.host.v1;
 
 // === Imports === //
 
+import "dokime/host/v1/backend.proto";
+import "dokime/host/v1/backend/overview.proto";
+import "dokime/host/v1/cases.proto";
+import "dokime/host/v1/content/artifacts.proto";
+import "dokime/host/v1/content/execution_files.proto";
+import "dokime/host/v1/cycles.proto";
+import "dokime/host/v1/documents.proto";
+import "dokime/host/v1/evidence/health_events.proto";
+import "dokime/host/v1/evidence/notes.proto";
+import "dokime/host/v1/evidence/records.proto";
+import "dokime/host/v1/evidence/traceability.proto";
+import "dokime/host/v1/executions.proto";
+import "dokime/host/v1/executions/schemas.proto";
+import "dokime/host/v1/files.proto";
+import "dokime/host/v1/plots/snapshots.proto";
+import "dokime/host/v1/suites.proto";
 import "dokime/model/v1/metadata.proto";
 import "google/protobuf/timestamp.proto";
 import "harmos/model/v1/callers.proto";
@@ -108,6 +124,48 @@ message ReportSubject {
     string execution = 1;
     string cycle = 2;
   }
+}
+
+// Native responses captured by Reports.Create; no alternate presentation model.
+message ReportCapture {
+  .dokime.host.v1.ReportMetadata report = 1;
+  .dokime.host.v1.CyclesGetResponse cycle = 2;
+  repeated .dokime.host.v1.ReportCase cases = 3;
+  repeated .dokime.host.v1.ReportExecution executions = 4;
+  .dokime.host.v1.DocumentsGetResponse document = 5;
+  .dokime.host.v1.BackendAppearanceResponse appearance = 6;
+  repeated .dokime.host.v1.evidence.NotesListResponse notes = 7;
+  repeated .dokime.host.v1.evidence.HealthEventsListResponse health = 8;
+  repeated .dokime.host.v1.evidence.RecordsListResponse records = 9;
+  repeated .dokime.host.v1.content.ArtifactsGetResponse artifacts = 10;
+  repeated .dokime.host.v1.ReportFile files = 11;
+  repeated .dokime.host.v1.SuitesGetResponse suites = 12;
+  .dokime.host.v1.backend.OverviewGetResponse overview = 13;
+}
+
+// One case's native detail and resolved parameters.
+message ReportCase {
+  .dokime.host.v1.CasesGetResponse detail = 1;
+  .dokime.host.v1.CasesParametersResponse parameters = 2;
+}
+
+// One ended execution's native responses, computed at its final evidence cut.
+message ReportExecution {
+  .dokime.host.v1.ExecutionsGetResponse detail = 1;
+  .dokime.host.v1.ExecutionsParametersResponse inputs = 2;
+  .dokime.host.v1.ExecutionsParametersResponse outputs = 3;
+  .dokime.host.v1.ExecutionsStepsResponse steps = 4;
+  .dokime.host.v1.DocumentsGetResponse document = 5;
+  .dokime.host.v1.plots.SnapshotsListResponse plots = 6;
+  repeated .dokime.host.v1.evidence.TraceabilityGetResponse traceability = 7;
+  repeated .dokime.host.v1.content.ExecutionFilesGetResponse files = 8;
+  repeated .dokime.host.v1.executions.SchemasGetResponse schemas = 9;
+}
+
+// Immutable file bytes delivered by the host's bounded Files.Read responses.
+message ReportFile {
+  .harmos.model.v1.FileReference file = 1;
+  repeated .dokime.host.v1.FilesReadResponse reads = 2;
 }
 
 // === Enums === //

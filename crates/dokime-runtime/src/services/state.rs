@@ -17,7 +17,6 @@
 
 // Standard Library Imports
 use std::collections::HashMap;
-use std::fs::File;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
@@ -28,7 +27,6 @@ use harmos_protocol::host::PluginEntry;
 use harmos_protocol::host::PluginState;
 use harmos_protocol::host::PluginsListRequest;
 use harmos_protocol::model::FileReference;
-use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
 use harmos_protocol::model::Visibility;
 use harmos_runtime::operations::OperationManager;
@@ -49,8 +47,6 @@ use dokime_protocol::host::ExecutionControls;
 use dokime_protocol::host::ExecutionMode;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
-use dokime_protocol::host::ReportMetadata;
-use dokime_protocol::host::ReportSubject;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::Document;
@@ -77,7 +73,6 @@ pub(super) struct State {
     pub catalogs: Arc<RwLock<Vec<PluginEntry>>>,
     pub status: Arc<Status>,
     pub root: PathBuf,
-    pub render_settings: crate::RenderSettings,
     pub identity: HostIdentity,
     pub temporary_report_limit: usize,
 }
@@ -150,8 +145,8 @@ impl host::Host for State {
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, dokime_storage::ExecutionCut)> {
         self.host.current_document(scope, identifier).map_err(convert)
     }
-    async fn render_report(&self, subject: &ReportSubject, document_id: &str) -> Result<(File, ReportMetadata, ReadCut)> {
-        self.host.render_report(subject, document_id, &self.identity, self.render_settings).await
+    fn report_template(&self) -> &'static [u8] {
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/generated/report/report.html"))
     }
     fn retain_report(&self, reference: FileReference) -> Result<()> {
         self.host.reports.retain(reference, self.temporary_report_limit).map_err(convert)

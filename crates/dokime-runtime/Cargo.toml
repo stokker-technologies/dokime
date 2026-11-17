@@ -91,7 +91,6 @@ tonic = { workspace = true, features = ["tls-ring"] }
 # === Dev Dependencies === #
 
 [dev-dependencies]
-rusqlite = { workspace = true }
 # Local
 dokime = { path = "../../sdk/rust" }
 
@@ -102,11 +101,11 @@ dokime = { path = "../../sdk/rust" }
 # Logging
 
 # Utilities
+sha2 = { workspace = true }
 
 # Serialization
+base64 = { workspace = true }
 zip = { workspace = true }
-# Cryptography
-sha2 = { workspace = true }
 
 # Configuration
 
@@ -122,6 +121,7 @@ tempfile = { workspace = true }
 # Networking
 
 # Storage
+rusqlite = { workspace = true }
 
 # UI
 

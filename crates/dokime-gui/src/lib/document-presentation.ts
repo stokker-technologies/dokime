@@ -20,7 +20,7 @@
 // Local Imports
 
 import { COMPACT_DECIMAL_CHARACTERS, formatCompactDecimal, formatUnitLabel } from "@/lib/format";
-import type { DocumentCardLayout, TelemetrySummaryTilePayload_Serialize } from "./document-contracts";
+import type { DocumentCardLayout, TelemetrySummaryFormat, TelemetrySummaryPresentation, TelemetrySummaryState } from "./document-contracts";
 import { formatRecordValue } from "./record-display";
 import type {
   DocumentDataExpression,
@@ -42,10 +42,15 @@ const DOCUMENTS_UNAVAILABLE_REASON_BYTES = 512;
 
 /* === Types === */
 
-type SummaryTile = Omit<TelemetrySummaryTilePayload_Serialize, "value" | "stat" | "metadata"> & {
+type SummaryTile = {
   metadata: Metadata;
   value: unknown;
-  stat?: TelemetrySummaryTilePayload_Serialize["stat"];
+  unavailable?: string | null;
+  stat?: "latest";
+  format: TelemetrySummaryFormat;
+  presentation: TelemetrySummaryPresentation;
+  unit?: string | null;
+  state?: TelemetrySummaryState | null;
 };
 
 type PlotDeclaration = Omit<Partial<DocumentViewPlot>, "fft" | "interval" | "histogram" | "reference_lines" | "reference_bands"> &

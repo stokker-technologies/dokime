@@ -13,25 +13,30 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
+import { openNativeExecutionProgressStream, openNativeRuntimeStream } from "@/lib/api/native-observation";
+import { previewNativeTestCycle } from "@/lib/api/native-planning";
+import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
+import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
+import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { FieldDescriptorProto_Type, FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
+import {
+  ExecutionMode,
+  ExecutionState,
+  LiveExecutionState,
+  PromptFieldKind,
+  PromptKind,
+  ResultStatus,
+  Severity,
+  StreamMatchOperator,
+} from "@host/model";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
-import { ExecutionMode, LiveExecutionState } from "@host/model";
-import { PromptKind } from "@host/model";
-import { ExecutionState, ResultStatus } from "@host/model";
-import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { PromptFieldKind } from "@host/model";
-import { StreamMatchOperator } from "@host/model";
-import { FileDescriptorSetSchema, FieldDescriptorProto_Type } from "@bufbuild/protobuf/wkt";
-import { fetchNativeArtifactBytes } from "@/lib/api/native-content";
-import { fetchNativeDocument } from "@/lib/api/native-documents";
-import { Severity } from "@host/model";
-import { previewNativeTestCycle, projectExecutionStatus } from "@/lib/api/native-planning";
-import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
-import { openNativeRuntimeStream, openNativeExecutionProgressStream } from "@/lib/api/native-observation";
-import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
-import { NativeIntegerValue, NativeNumberValue } from "@/lib/api/native-values";
+import { fetchNativeDocument } from "../../../src/lib/api/native-document-session";
+import { projectExecutionStatus } from "../../../src/lib/api/native-planning-projection";
 
 // Local Imports
 import { ControlCard } from "@/features/cycle/ControlCard";

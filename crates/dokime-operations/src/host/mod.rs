@@ -50,7 +50,7 @@ pub use secrets::store::{register_redactions, remove_root_secrets};
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::HashMap, fs::File, future::Future, result, sync::Arc, time::Duration};
+use std::{collections::HashMap, future::Future, result, sync::Arc, time::Duration};
 
 // Third Party Imports
 use async_trait::async_trait;
@@ -58,7 +58,6 @@ use harmos_protocol::host::PluginEntry;
 use harmos_protocol::model;
 use harmos_protocol::model::FileReference;
 use harmos_protocol::model::OperationContract;
-use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
 use harmos_runtime::operations::{NativeOperation, OperationManager};
 use prost::Message;
@@ -79,8 +78,6 @@ use dokime_protocol::host::ExecutionControls;
 use dokime_protocol::host::ExecutionMode;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
-use dokime_protocol::host::ReportMetadata;
-use dokime_protocol::host::ReportSubject;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::Document;
@@ -168,7 +165,7 @@ pub trait Host: Send + Sync {
     fn register_sensitive(&self, value: &str) -> Result<()>;
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
-    async fn render_report(&self, subject: &ReportSubject, document_id: &str) -> Result<(File, ReportMetadata, ReadCut)>;
+    fn report_template(&self) -> &'static [u8];
     fn retain_report(&self, reference: FileReference) -> Result<()>;
     fn temporary_report(&self, identifier: &str) -> Result<Option<FileReference>>;
     fn publish_report(&self, prepared: Report) -> Result<Report>;

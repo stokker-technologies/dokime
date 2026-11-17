@@ -16,24 +16,24 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::error::Error;
+use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
-use dokime::Document;
 use dokime::Termination;
 use dokime::Value;
 use dokime_protocol::host::PromptsCreateResponse;
 use dokime_protocol::model::value;
 use dokime_runtime::ControlledClock;
 
-use dokime_runtime::Host;
-use dokime_runtime::RenderSettings;
+use dokime_protocol::host::reports_client::ReportsClient;
+use dokime_protocol::host::{ReportSubject, ReportsCreateRequest, ReportsPublishRequest, report_subject};
+use dokime_runtime::{Host, services};
 use dokime_storage::ExecutionState;
-use std::collections::HashMap;
-use std::error::Error;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
+use dokime_storage::Store;
 
 /* === Constants === */
 
@@ -172,41 +172,42 @@ fn reports_publish_atomically_and_close_admission() -> Result<(), Box<dyn Error>
             super::support::answer(&host, &execution, question)?;
             cycle.wait().await?;
             let before = host.execution(&execution)?;
-            let document = Document::new("Execution Evidence");
-            let snapshot = host.snapshot(&execution).await?;
-            let output = host.render_document(
-                &snapshot,
-                document,
-                RenderSettings {
-                    page_size: NonZeroUsize::new(2).unwrap(),
-                    display_points: NonZeroUsize::new(2).unwrap(),
-                },
-            )?;
-            assert!(host.reports(&execution)?.is_empty());
-            assert_eq!(host.execution(&execution)?, before);
-
-            // Explicit Publication Commits the Whole Document and HTML
-            let report = host.publish_report(&output)?;
-            assert_eq!(report.html, output.html()?);
-            assert_eq!(host.reports(&execution)?, vec![report.clone()]);
-            assert_eq!(host.execution(&execution)?, before);
-
-            // Shutdown Closes Publication but Preserves Storage Reads and Pure Rendering
             host.shutdown().await?;
-            assert!(host.publish_report(&output).is_err());
-            assert_eq!(host.reports(&execution)?, vec![report.clone()]);
-            let rendered = host.render_document(
-                &snapshot,
-                Document::new("Preview"),
-                RenderSettings {
-                    page_size: NonZeroUsize::new(2).unwrap(),
-                    display_points: NonZeroUsize::new(2).unwrap(),
-                },
-            )?;
-            assert!(!rendered.html()?.is_empty());
-            assert_eq!(host.reports(&execution)?, vec![report.clone()]);
-            drop(snapshot);
             drop(host);
+            let server =
+                services::serve(([127, 0, 0, 1], 0).into(), root.path(), settings.clone(), super::support::service_settings()).await?;
+            let mut reports = ReportsClient::connect(format!("http://{}", server.endpoint())).await?;
+            let subject = ReportSubject {
+                kind: Some(report_subject::Kind::Execution(execution.clone())),
+            };
+            let prepared = reports
+                .create(ReportsCreateRequest {
+                    subject: Some(subject.clone()),
+                    request_id: "lifecycle-report".into(),
+                    ..Default::default()
+                })
+                .await?
+                .into_inner();
+            let file = prepared.file.unwrap();
+            let store = Store::open(root.path())?;
+            assert!(store.reports(&execution)?.is_empty());
+            assert_eq!(store.read(&execution)?, before);
+            let request = ReportsPublishRequest {
+                name: file.metadata.unwrap().id,
+                subject: Some(subject),
+                expected_revision: file.sha256,
+                request_id: "lifecycle-publish".into(),
+            };
+            reports.publish(request.clone()).await?;
+            let report = store.reports(&execution)?.remove(0);
+            assert_eq!(store.read(&execution)?, before);
+
+            // Shutdown Closes Publication and Preserves Published Reports.
+            server.close().await?;
+            assert!(reports.publish(request).await.is_err());
+            assert_eq!(store.reports(&execution)?, vec![report.clone()]);
+            assert_eq!(store.read(&execution)?, before);
+            drop(store);
             let host = Host::open(root.path(), settings, super::support::service_settings()).await?;
             assert_eq!(host.reports(&execution)?, vec![report]);
             assert_eq!(host.execution(&execution)?, before);

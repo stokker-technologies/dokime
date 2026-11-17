@@ -11,83 +11,90 @@
 /* === Imports === */
 
 // Standard Library Imports
-import assert from "node:assert/strict";
 import { create } from "@bufbuild/protobuf";
-import { PlotCartesianMode, PlotStreamKind, SnapshotsWatchResponseSchema } from "@host/model";
-import { PlotKind, Reduction, XyInterval } from "@host/model";
-import { ElapsedUnit, LineStyle, ValueFormatSchema } from "@host/model";
+import {
+  ElapsedUnit,
+  LineStyle,
+  PlotCartesianMode,
+  PlotKind,
+  PlotStreamKind,
+  Reduction,
+  SnapshotsWatchResponseSchema,
+  ValueFormatSchema,
+  XyInterval,
+} from "@host/model";
+import assert from "node:assert/strict";
 
 // Third Party Imports
-import { act, type ComponentProps, createElement } from "react";
+import { Connection } from "@/app/native-session/context";
+import type { ConnectedSession } from "@/app/native-session/session";
+import { act, createElement, type ComponentProps } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import type uPlot from "uplot";
 import { onTestFinished, test, vi } from "vitest";
-import { Connection } from "@/app/native-session/context";
-import type { ConnectedSession } from "@/app/native-session/session";
 // Local Imports
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
+import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import { PlotWindowControl, plotWindowOptions, usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import {
   mapNativePlotWatchPage,
   toNativePlotRequest,
-  type NativePlotPayloadEnvelope,
   type NativePlotStreamMessage,
   type NativePlotStreamUpdate,
 } from "@/lib/api/native-plots";
-import { jsonToNativeValue } from "@/lib/host/values";
+import { NativeApiLimitError } from "@/lib/api/native-values";
 import * as appearance from "@/lib/appearance";
 import { ApplicationThemeProvider } from "@/lib/application-theme";
 import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
+import { jsonToNativeValue } from "@/lib/host/values";
 import {
   formatSummaryValue,
   nearestDrawnPoint,
-  type SeriesSummary,
-  seriesLegendColumns,
   seriesLegendColumnWidth,
+  seriesLegendColumns,
   seriesLegendRows,
   statsSummaryCells,
   summaryInFlight,
   toggleTrace,
+  type SeriesSummary,
 } from "@/lib/statistics";
+import { applyThemeVariables } from "@/lib/theme";
 import type { DocumentViewPlot, HubRecord, PlotPayload, PlotPayloadStreamMessage, TelemetryColumnSpec, TelemetryStream } from "@/lib/types";
-import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import { CartesianPlot, cursorPointOptions, drawnData, facetedSeriesPaths, seriesPointMarks } from "@/plots/CartesianPlot";
-import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
+import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
+import { formatBooleanState, formatCursorX } from "@/plots/axis";
 import { BarPlot } from "@/plots/catalog/BarPlot";
-import { PiePlot } from "@/plots/catalog/PiePlot";
 import { ContourPlot } from "@/plots/catalog/ContourPlot";
 import { GridChartPlot } from "@/plots/catalog/GridChartPlot";
+import { PiePlot } from "@/plots/catalog/PiePlot";
+import { TimeSeriesPlot } from "@/plots/catalog/TimeSeriesPlot";
 import { TrajectoryPlot } from "@/plots/catalog/TrajectoryPlot";
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyPlot } from "@/plots/catalog/XyPlot";
-import { instantTime, orderedInstants, PlotPlayback, usePlotPlayback } from "@/plots/playback";
 import { documentPlotSpec, groupRepeatsPlotTitle } from "@/plots/grouping";
 import {
   HISTOGRAM_COUNT_LABEL,
-  type HistogramColumn,
-  type HistogramDeclaration,
   histogramAxes,
   histogramAxisTitle,
+  type HistogramColumn,
+  type HistogramDeclaration,
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
-import { NativeApiLimitError } from "@/lib/api/native-values";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import { plotRequestForDocumentPlot, useLivePlotPayloads } from "@/plots/live-data";
 import { applyPendingNotice, applyPlotMessages, emptyLivePlotState, plotWaitingLabel } from "@/plots/live-frames";
 import { drawMarkerKinds, markerKinds, markerTooltip, nearestMarker } from "@/plots/markers";
-import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
-import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, STREAM_ERROR, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
+import { PlotPlayback, instantTime, orderedInstants, usePlotPlayback } from "@/plots/playback";
+import { NO_NUMERIC_SAMPLES, STREAM_ERROR, WAITING_FOR_SAMPLES, plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import { PlotSettingsEditorContext } from "@/plots/plot-settings";
 import { promptMarkerLabel, promptMarkers } from "@/plots/prompt-markers";
 import { m4Indices, windowIndices } from "@/plots/reduce";
 import { usePlotPalette } from "@/plots/use-plot-palette";
-import { attachPan, heldViewport, PLOT_DRAG_OPTIONS, pannedRange } from "@/plots/viewport";
-import { readReportPayload } from "@/report/report-data";
+import { PLOT_DRAG_OPTIONS, attachPan, heldViewport, pannedRange } from "@/plots/viewport";
 import { applyReportAppearance } from "@/report/report-appearance";
-import { applyThemeVariables } from "@/lib/theme";
 import { useSummaryWindowStore } from "@/stores/summary-window-store";
+import { type NativePlotPayloadEnvelope } from "../../../src/lib/api/native-plot-projection";
 
 /* === Re-Exports === */
 
@@ -1877,46 +1884,6 @@ test("Bounded Report Envelopes", () => {
     assert.doesNotMatch(missingFrame, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
     assert.deepEqual(windowIndices(x, values, null, 640, true), null);
   }
-});
-
-test("Report Metadata Subtitles", () => {
-  const captured = hostFrame([1, 2], [[-61, -59]]);
-  captured.context = {
-    wifi_ssid: { type: "text", value: "fixture-network" },
-    wifi_radio: { type: "text", value: "radio-2" },
-    wifi_channel: { type: "integer", value: "6" },
-  };
-  const textContent = JSON.stringify({ plots: { signal: captured }, case_runs: [{ plots: { signal: captured } }] });
-  vi.stubGlobal("document", { getElementById: () => ({ textContent }) });
-  let payload: PlotPayload;
-  try {
-    const report = readReportPayload();
-    payload = report.case_runs[0].plots.signal;
-    assert.deepEqual(payload.context, { wifi_ssid: "fixture-network", wifi_radio: "radio-2", wifi_channel: 6 });
-    assert.deepEqual(report.plots.signal.context, payload.context);
-  } finally {
-    vi.unstubAllGlobals();
-  }
-  const plot = {
-    plot_id: "fixture.rssi",
-    stream: "host.wifi.link",
-    title: "Wi-Fi RSSI",
-    plot_type: "time_series",
-    y: ["rssi"],
-  } as DocumentViewPlot;
-  const spec = documentPlotSpec({ plot, payload, plotPalette: [] });
-  assert.ok(spec.contextSummary?.includes("fixture-network"));
-  assert.ok(spec.contextSummary?.includes("radio-2"));
-  const html = renderToStaticMarkup(
-    createElement(CartesianPlot, {
-      title: spec.title,
-      series: spec.series,
-      cartesian: spec.cartesian,
-      contextSummary: spec.contextSummary,
-    }),
-  );
-  assert.match(html, /<button\b[^>]*data-slot="button"[^>]*aria-pressed="true"/);
-  assert.ok(html.includes("fixture-network"));
 });
 
 test("Reference Values Resolve Constants Parameters and Tolerances Per Case in Live and Frozen Plots", () => {

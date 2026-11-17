@@ -13,19 +13,17 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { progressCount } from "@/features/cycle/ControlCard";
+import { executionControlState, inputNeededLabel, rerunNoticeLines } from "@/features/cycle/control-model";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
-import { progressCount } from "@/features/cycle/ControlCard";
-import { executionControlState, inputNeededLabel, rerunNoticeLines } from "@/features/cycle/control-model";
 // Local Imports
-import { failureOf } from "@/lib/notification-details";
+import { SettingsFields, cycleSettingsReadOnly } from "@/features/cycle/SettingsForm";
 import {
+  CYCLE_STATE_LABELS,
   archiveRefusal,
   buildCycleExecutionRows,
-  CYCLE_STATE_LABELS,
-  type CycleCase,
-  type CycleSelection,
   cycleRowSelection,
   cycleState,
   followSelection,
@@ -37,6 +35,8 @@ import {
   reportFilename,
   rowOffersRunAgain,
   selectedCycleRow,
+  type CycleCase,
+  type CycleSelection,
 } from "@/features/cycle/cycle-workspace-model";
 import {
   RECONNECT_MAX_MS,
@@ -53,17 +53,15 @@ import {
   refuseLabel,
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
-import { cycleSettingsReadOnly, SettingsFields } from "@/features/cycle/SettingsForm";
 import { CycleStatusPill } from "@/features/cycles-home/CycleStatusPill";
-import { archivedCycleGroups, type CycleRow, groupCycleRows } from "@/features/cycles-home/cycles-model";
+import { archivedCycleGroups, groupCycleRows, type CycleRow } from "@/features/cycles-home/cycles-model";
 import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 import { sameFrontiers } from "@/lib/api/native-documents";
-import { appendRecordTail, RECORD_TAIL } from "@/lib/api/native-evidence";
+import { RECORD_TAIL, appendRecordTail } from "@/lib/api/native-evidence";
+import { failureOf } from "@/lib/notification-details";
 import { defaultCycleLabel } from "@/lib/time-format";
 import type { HubRecord } from "@/lib/types";
 import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/use-row-window";
-import { reportFixturePayload } from "./report-fixture";
-import { cycleSnapshotSource } from "@/report/report-snapshot";
 import { focusPresentation } from "@/shell/focus-mode";
 
 /* === Re-Exports === */
@@ -554,28 +552,6 @@ test("Follow Active", () => {
   assert.deepEqual(statuses.map(isUnstartedExecution), [true, true, false, false]);
 });
 
-test("Report Steps", () => {
-  // A Written Report Carries Its Steps Under Their Own Execution
-  const payload = reportFixturePayload();
-
-  assert.equal("test_steps" in payload, false);
-  for (const item of payload.test_executions) {
-    assert.deepEqual(
-      item.steps.map((row) => row.record_type),
-      ["step", "criterion"],
-    );
-    assert.ok(item.steps.every((row) => row.test_execution_id === item.test_execution_id));
-  }
-
-  // A Written Report Carries Each Artifact Complete with Its Download Target
-  assert.ok(payload.snapshot);
-  const [artifact] = payload.snapshot.artifacts;
-
-  assert.equal("artifact_links" in payload, false);
-  assert.equal(artifact.downloadHref, artifact.href);
-  assert.equal(artifact.group_label, "Execution Artifacts");
-});
-
 test("Focus Keeps Controls", () => {
   // Focus Drops the Heading but Keeps Start, Stop and a Labelled Exit
   const focused = focusPresentation(true);
@@ -680,12 +656,4 @@ test("New Cycle Form", () => {
     description: "Night run",
     label: "Bench B",
   });
-});
-
-test("Combined Report Notices Reach the Frozen Surface", () => {
-  const payload = reportFixturePayload();
-  const notice = "revision.reading.value";
-  payload.warnings.push(`report.stream_column_type_changed: ${notice}`);
-  const source = cycleSnapshotSource(payload);
-  assert.deepEqual(source.warnings, [notice]);
 });
