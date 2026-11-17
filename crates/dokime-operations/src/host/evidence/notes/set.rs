@@ -18,18 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
+use prost::Message;
 
 // Local Imports
 use crate::host::storage::administration;
-use crate::{Error, Result, host::Context};
-use dokime_protocol::host::evidence::{NoteWritable, OperatorNote};
-use prost::Message;
-
-use dokime_protocol::host::evidence::NotesSetRequest;
-use dokime_protocol::host::evidence::NotesSetResponse;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::OperationContract;
+use crate::host::{ClientSettings, Context};
+use crate::{Error, Result};
+use dokime_protocol::host::evidence::{NoteWritable, NotesSetRequest, NotesSetResponse, OperatorNote};
 
 /* === Constants === */
 
@@ -79,13 +75,11 @@ pub async fn handle(context: &Context, request: NotesSetRequest) -> Result<Notes
         let (saved, receipt) =
             administration::replace(context, &key, request.expected_revision, &request.request_id, note.encode_to_vec()).await?;
         let note = OperatorNote::decode(saved.payload.as_slice())?;
-        let reply = NotesSetResponse {
+        Ok(NotesSetResponse {
             value: Some(NoteWritable { message: note.message }),
             revision: saved.revision,
             receipt: Some(receipt),
-        };
-        context.host.signal_change();
-        Ok(reply)
+        })
     })
     .await
 }
