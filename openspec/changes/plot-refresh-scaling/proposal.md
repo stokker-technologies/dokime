@@ -8,7 +8,7 @@ dependencies rather than the whole document or selected history.
 
 ## What Changes
 
-Implement **after `plot-kinds` lands**, because both changes edit plot code.
+The plot-kind migration is present; implement against the current host/storage owners.
 The following order is locked; step 1 precedes every optimization, and steps
 2–7 each record comparable before/after measurements from that harness.
 
@@ -90,10 +90,8 @@ None.
   frame reduction, without changing explicit bucket query intervals.
 - `query-snapshots`: bounded sharing of canonical work at identical readable cuts.
 - `document-query-evaluation`: cards follow scoped durable telemetry progress.
-- `plot-pipeline`: replace the unconditional pushed-delta requirement with the
-  measured per-kind policy. This delta applies after that capability lands.
-  Archive `plot-pipeline` before archiving this change; until then OpenSpec can
-  strictly validate this dependent delta but cannot fold it into the main specs.
+- `plot-pipeline` already records the superseding measured per-kind policy in its
+  unlanded requirement; this change implements that policy without a second delta.
 
 ## Impact and Related Ownership
 
@@ -113,12 +111,12 @@ authors only specification files; implementation must resolve relocated paths.
   Coarser resolutions and refresh scaling move here; no duplicate implementation
   task is added there. This change supersedes its permissive selection-sized
   memory direction for fallback reductions and its unconditional delta policy.
-- `plot-kinds` owns catalog, contour/grid frame semantics, SDK/report consumers
-  and loaded-data playback. It lands first; this change changes refresh policy,
+- The plot-kind catalog, contour/grid frame semantics and loaded-data playback
+  are present; grpc-plugins retains parity proof. This change changes refresh policy,
   not kind definitions, grid reduction, contour masking or playback behavior.
-- `storage-interface` owns upstream generic storage capabilities and eventual
-  extraction after gRPC wave 5. Reuse its progress, projection, cut and late-update
-  contracts; do not create another storage owner or perform extraction here.
+- `operation-boundary` owns the canonical storage operations, durable row watches
+  and Harmos bucket/merge transforms. Extraction is already landed; consume those
+  owners without a private aggregation or notification history.
   Publish and pin any required Harmos extension before final validation.
 - `grpc-plugins` owns operation/protocol migration and removal of the server
   adapter crate. Implement refresh in whichever owner has landed, migrating its

@@ -11,6 +11,17 @@ update, every request asks for a fixed 2,000 points whatever the panel
 width, zooming does not fetch more detail, each live update sends a full
 replacement, and the same data travels in two representations.
 
+## Current Ownership
+
+The host replacement retains width-aware frames and preview code, but
+`host/plots/snapshots/watch.rs` currently emits snapshots. plot-refresh-scaling owns
+the measured per-kind invalidate/refetch versus delta policy; its task 5.1 replaces
+the unconditional pushed-delta requirement. operation-boundary owns generic
+aggregation/bucket merges and operations-only storage access. Product FFT and
+presentation remain local. The plot-kind catalog is present; grpc-plugins retains
+its behavior/report parity proof. Historical implementation paths below are replaced
+by the current storage/operations owners.
+
 ## What Changes
 
 1. **Time-bucket envelopes for windowed plots.** The existing preview
@@ -27,9 +38,8 @@ replacement, and the same data travels in two representations.
    bucket it falls in.
 4. **One columnar frame on the wire,** with a shared time column, in place of
    point series plus arrays.
-5. **Dokime owns the private signal kernels.** The FFT, statistics and downsampling kernels are hand-maintained private
-   Dokime modules. `tsdownsample` is excluded because it requires nightly Rust. Copy only the FFT, statistics and downsampling kernels Dokime
-   calls from the former Harmos implementation, with their relevant tests.
+5. **Product FFT stays private.** Generic statistics, downsampling and bucket merge
+   compose Harmos operations under operation-boundary. `tsdownsample` is excluded because it requires nightly Rust. Preserve product FFT behavior and meaningful numerical tests.
 
 ## Memory
 

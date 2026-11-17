@@ -2,7 +2,7 @@
 
 ### Requirement: Exact Coarser Preview Resolutions
 
-The existing preview owner SHALL maintain coarser time-bucket resolutions for wide plot windows. Reads SHALL choose covered summaries at the requested cut, with exact partial/uncovered edges. Late samples SHALL update affected resolutions without exposing newer evidence at older cuts. Explicit telemetry every intervals SHALL retain their requested resolution and exact reducers.
+The product SHALL use Harmos operations and bucket-summary transforms under operation-boundary to maintain coarser time-bucket resolutions for wide plot windows. Reads SHALL choose covered summaries at the requested cut, with exact partial/uncovered edges. Late samples SHALL update affected resolutions without exposing newer evidence at older cuts. Explicit telemetry every intervals SHALL retain their requested resolution and exact reducers.
 
 #### Scenario: Wide Window
 
@@ -21,7 +21,7 @@ The existing preview owner SHALL maintain coarser time-bucket resolutions for wi
 
 ### Requirement: Bounded Fallback Frame Reduction
 
-Fallback plot projections SHALL reduce incrementally without collecting the full selected point population. Peak working memory SHALL be bounded by the frame and admitted decode/reducer/spill buffers, independently of selected rows. Exact operations SHALL retain exactness through bounded spill or fail explicitly on resource exhaustion, never approximate or return partial results.
+Fallback plot projections SHALL use bounded Harmos query transforms to reduce incrementally without collecting the full selected point population. Peak working memory SHALL be bounded by the frame and admitted decode/reducer/spill buffers, independently of selected rows. Exact operations SHALL retain exactness through bounded spill or fail explicitly on resource exhaustion, never approximate or return partial results.
 
 #### Scenario: Growing Selection at Fixed Frame
 

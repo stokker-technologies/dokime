@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Atomic Timed Watch Revisions
 
@@ -23,8 +23,6 @@ A timed watch SHALL tag affected plot outcomes with their captured readable cut 
 
 - **WHEN** one plot exceeds its frame budget
 - **THEN** its own reduction or typed error does not reduce another plot's density or prevent another plot from completing
-
-## ADDED Requirements
 
 ### Requirement: Desktop Round-Trip Measurement
 
