@@ -105,7 +105,8 @@ jobs:
       matrix:
         include:
         - platform: unix
-          runner: ubuntu-22.04
+          # Build and Run Native Artifacts on the Same Linux Image.
+          runner: ubuntu-latest
           minutes: 120
           inputs: ''
           outputs: '[{"archive":"target/ci/build-cli-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/bin"]},{"archive":"target/ci/build-clients-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/generated/typescript","target/build/{profile}/{target}/generated/host"]},{"archive":"target/ci/build-packaging-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/product"]}]'

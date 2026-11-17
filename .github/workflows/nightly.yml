@@ -114,7 +114,7 @@ jobs:
       matrix:
         include:
         - platform: unix
-          runner: ubuntu-22.04
+          runner: ubuntu-latest
           bootstrap: '["mise run ci:prerequisites -- --gui-runtime --desktop"]'
         - platform: windows
           runner: windows-latest
