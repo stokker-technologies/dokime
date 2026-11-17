@@ -45,6 +45,7 @@ def configuration(root: Path) -> Configuration:
     """Declare Product Names, Compiler Inputs and Public Call Selectors."""
     return Configuration(
         namespace="dokime",
+        csharp_namespace="Dokime",
         csharp_tools=root / "target/cs/packages/grpc.tools/2.76.0/tools",
         rustfmt=root / "rustfmt.toml",
         python_style=root / "sdk/python/ruff.toml",
@@ -82,7 +83,6 @@ def main() -> None:
         check=options.check,
         root=root,
         descriptors=root / "crates/dokime-protocol/src/descriptors.bin",
-        composition=root / "protocol/composition.toml",
         configuration=selected,
     )
     if not options.check:

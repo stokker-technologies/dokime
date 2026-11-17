@@ -18,7 +18,6 @@
 // Standard Library Imports
 
 // Third Party Imports
-use dokime::Failure as ReportedFailure;
 use harmos_runtime::Failure;
 use tonic::Status;
 
@@ -120,7 +119,7 @@ impl From<String> for Error {
 
 fn status_message(status: &Status) -> String {
     match Failure::decode(status.details()) {
-        Ok(failure) => format!("{status}: {}", ReportedFailure::from(&failure).message),
+        Ok(failure) => format!("{status}: {}", dokime::harmos::model::Failure::from(&failure).message),
         Err(_) => status.to_string(),
     }
 }

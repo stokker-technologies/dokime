@@ -16,37 +16,21 @@ from harmos._wire.host.v1.invocations_pb2 import (
     InvocationsWatchRequest,
     InvocationsWatchResponse,
 )
-from harmos._wire.host.v1.plugins.settings_pb2 import (
-    SettingsListRequest,
-    SettingsListResponse,
-)
-from harmos._wire.host.v1.time_pb2 import (
-    TimeGetRequest,
-    TimeGetResponse,
-    TimeSleepRequest,
-    TimeSleepResponse,
-)
+from harmos._wire.host.v1.operations_pb2 import OperationsGetRequest, OperationsGetResponse, OperationsListRequest, OperationsListResponse
+from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListRequest, SettingsListResponse
+from harmos._wire.host.v1.time_pb2 import TimeGetRequest, TimeGetResponse, TimeSleepRequest, TimeSleepResponse
 from harmos._wire.model.v1.file_pb2 import FileMetadata, FileReference, Upload
 from harmos._wire.model.v1.invocation_pb2 import InstanceState
-from harmos._wire.model.v1.operation_pb2 import VISIBILITY_PUBLIC
+from harmos._wire.model.v1.operation_pb2 import VISIBILITY_PUBLIC, DiscoveredOperation
 from harmos._wire.model.v1.page_pb2 import PageRequest
 from harmos._wire.model.v1.policy_pb2 import OperationPolicy
 from harmos._wire.model.v1.position_pb2 import Position, ReadCut
 from harmos._wire.model.v1.receipt_pb2 import Receipt
 
 import dokime._wire.model.v1.metadata_pb2
-from dokime._wire.host.v1.backend_pb2 import (
-    BackendEnvironmentRequest,
-    BackendEnvironmentResponse,
-)
-from dokime._wire.host.v1.content.artifacts_pb2 import (
-    ArtifactsCreateRequest,
-    ArtifactsCreateResponse,
-)
-from dokime._wire.host.v1.documents_pb2 import (
-    DocumentsAppendPartsRequest,
-    DocumentsAppendPartsResponse,
-)
+from dokime._wire.host.v1.backend_pb2 import BackendEnvironmentRequest, BackendEnvironmentResponse
+from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateRequest, ArtifactsCreateResponse
+from dokime._wire.host.v1.documents_pb2 import DocumentsAppendPartsRequest, DocumentsAppendPartsResponse
 from dokime._wire.host.v1.effects_pb2 import (
     EffectsCreateRequest,
     EffectsCreateResponse,
@@ -71,17 +55,8 @@ from dokime._wire.host.v1.evidence.traceability_pb2 import (
     TraceabilitySetRequest,
     TraceabilitySetResponse,
 )
-from dokime._wire.host.v1.evidence_pb2 import (
-    EvidenceStatisticsRequest,
-    EvidenceStatisticsResponse,
-    Output,
-)
-from dokime._wire.host.v1.executions.progress_pb2 import (
-    ProgressGetRequest,
-    ProgressGetResponse,
-    ProgressSetRequest,
-    ProgressSetResponse,
-)
+from dokime._wire.host.v1.evidence_pb2 import EvidenceStatisticsRequest, EvidenceStatisticsResponse, Output
+from dokime._wire.host.v1.executions.progress_pb2 import ProgressGetRequest, ProgressGetResponse, ProgressSetRequest, ProgressSetResponse
 from dokime._wire.host.v1.files.captures_pb2 import (
     CaptureMode,
     CapturesStartRequest,
@@ -118,12 +93,7 @@ from dokime._wire.host.v1.files_pb2 import (
 from dokime._wire.host.v1.prompts_pb2 import PromptsCreateRequest, PromptsCreateResponse
 from dokime._wire.host.v1.secrets_pb2 import SecretsGetRequest, SecretsGetResponse
 from dokime._wire.model.v1.documents_pb2 import Card, Section
-from dokime._wire.model.v1.evidence_pb2 import (
-    ArtifactScope,
-    EvidenceScope,
-    Severity,
-    Window,
-)
+from dokime._wire.model.v1.evidence_pb2 import ArtifactScope, EvidenceScope, Severity, Window
 from dokime._wire.model.v1.execution_pb2 import ExecutionProgressValue
 from dokime._wire.model.v1.files_pb2 import FileSource
 from dokime._wire.model.v1.prompts_pb2 import Prompt
@@ -167,6 +137,8 @@ class HostOperation(Enum):
     INVOCATIONS_GET = "harmos.host.v1.Invocations/Get"
     INVOCATIONS_CANCEL = "harmos.host.v1.Invocations/Cancel"
     INVOCATIONS_WATCH = "harmos.host.v1.Invocations/Watch"
+    OPERATIONS_LIST = "harmos.host.v1.Operations/List"
+    OPERATIONS_GET = "harmos.host.v1.Operations/Get"
     PLUGINS_SETTINGS_LIST = "harmos.host.v1.plugins.Settings/List"
     TIME_GET = "harmos.host.v1.Time/Get"
     TIME_SLEEP = "harmos.host.v1.Time/Sleep"
@@ -180,11 +152,7 @@ _BACKEND_ENVIRONMENT = Operation(
     watch=False,
 )
 _CONTENT_ARTIFACTS_CREATE = Operation(
-    HostOperation.CONTENT_ARTIFACTS_CREATE.value,
-    ArtifactsCreateRequest,
-    ArtifactsCreateResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.CONTENT_ARTIFACTS_CREATE.value, ArtifactsCreateRequest, ArtifactsCreateResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _DOCUMENTS_APPEND_PARTS = Operation(
     HostOperation.DOCUMENTS_APPEND_PARTS.value,
@@ -194,46 +162,18 @@ _DOCUMENTS_APPEND_PARTS = Operation(
     watch=False,
 )
 _EFFECTS_CREATE = Operation(
-    HostOperation.EFFECTS_CREATE.value,
-    EffectsCreateRequest,
-    EffectsCreateResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.EFFECTS_CREATE.value, EffectsCreateRequest, EffectsCreateResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
-_EFFECTS_GET = Operation(
-    HostOperation.EFFECTS_GET.value,
-    EffectsGetRequest,
-    EffectsGetResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
-)
-_EFFECTS_SET = Operation(
-    HostOperation.EFFECTS_SET.value,
-    EffectsSetRequest,
-    EffectsSetResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
-)
+_EFFECTS_GET = Operation(HostOperation.EFFECTS_GET.value, EffectsGetRequest, EffectsGetResponse, visibility=VISIBILITY_PUBLIC, watch=False)
+_EFFECTS_SET = Operation(HostOperation.EFFECTS_SET.value, EffectsSetRequest, EffectsSetResponse, visibility=VISIBILITY_PUBLIC, watch=False)
 _EVIDENCE_LOGS_APPEND = Operation(
-    HostOperation.EVIDENCE_LOGS_APPEND.value,
-    LogsAppendRequest,
-    LogsAppendResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.EVIDENCE_LOGS_APPEND.value, LogsAppendRequest, LogsAppendResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _EVIDENCE_RECORDS_LIST = Operation(
-    HostOperation.EVIDENCE_RECORDS_LIST.value,
-    RecordsListRequest,
-    RecordsListResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.EVIDENCE_RECORDS_LIST.value, RecordsListRequest, RecordsListResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _EVIDENCE_RECORDS_APPEND = Operation(
-    HostOperation.EVIDENCE_RECORDS_APPEND.value,
-    RecordsAppendRequest,
-    RecordsAppendResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.EVIDENCE_RECORDS_APPEND.value, RecordsAppendRequest, RecordsAppendResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _EVIDENCE_TRACEABILITY_GET = Operation(
     HostOperation.EVIDENCE_TRACEABILITY_GET.value,
@@ -257,166 +197,68 @@ _EVIDENCE_STATISTICS = Operation(
     watch=False,
 )
 _EXECUTIONS_PROGRESS_GET = Operation(
-    HostOperation.EXECUTIONS_PROGRESS_GET.value,
-    ProgressGetRequest,
-    ProgressGetResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.EXECUTIONS_PROGRESS_GET.value, ProgressGetRequest, ProgressGetResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _EXECUTIONS_PROGRESS_SET = Operation(
-    HostOperation.EXECUTIONS_PROGRESS_SET.value,
-    ProgressSetRequest,
-    ProgressSetResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.EXECUTIONS_PROGRESS_SET.value, ProgressSetRequest, ProgressSetResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _FILES_CAPTURES_START = Operation(
-    HostOperation.FILES_CAPTURES_START.value,
-    CapturesStartRequest,
-    CapturesStartResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_CAPTURES_START.value, CapturesStartRequest, CapturesStartResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _FILES_CAPTURES_STOP = Operation(
-    HostOperation.FILES_CAPTURES_STOP.value,
-    CapturesStopRequest,
-    CapturesStopResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_CAPTURES_STOP.value, CapturesStopRequest, CapturesStopResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _FILES_UPLOADS_CREATE = Operation(
-    HostOperation.FILES_UPLOADS_CREATE.value,
-    UploadsCreateRequest,
-    UploadsCreateResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_UPLOADS_CREATE.value, UploadsCreateRequest, UploadsCreateResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _FILES_UPLOADS_GET = Operation(
-    HostOperation.FILES_UPLOADS_GET.value,
-    UploadsGetRequest,
-    UploadsGetResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_UPLOADS_GET.value, UploadsGetRequest, UploadsGetResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _FILES_UPLOADS_RESUME = Operation(
-    HostOperation.FILES_UPLOADS_RESUME.value,
-    UploadsResumeRequest,
-    UploadsResumeResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_UPLOADS_RESUME.value, UploadsResumeRequest, UploadsResumeResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _FILES_UPLOADS_APPEND = Operation(
-    HostOperation.FILES_UPLOADS_APPEND.value,
-    UploadsAppendRequest,
-    UploadsAppendResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_UPLOADS_APPEND.value, UploadsAppendRequest, UploadsAppendResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _FILES_UPLOADS_PUBLISH = Operation(
-    HostOperation.FILES_UPLOADS_PUBLISH.value,
-    UploadsPublishRequest,
-    UploadsPublishResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_UPLOADS_PUBLISH.value, UploadsPublishRequest, UploadsPublishResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _FILES_UPLOADS_DELETE = Operation(
-    HostOperation.FILES_UPLOADS_DELETE.value,
-    UploadsDeleteRequest,
-    UploadsDeleteResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_UPLOADS_DELETE.value, UploadsDeleteRequest, UploadsDeleteResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
-_FILES_GET = Operation(
-    HostOperation.FILES_GET.value,
-    FilesGetRequest,
-    FilesGetResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
-)
-_FILES_READ = Operation(
-    HostOperation.FILES_READ.value,
-    FilesReadRequest,
-    FilesReadResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
-)
-_FILES_WATCH = Operation(
-    HostOperation.FILES_WATCH.value,
-    FilesWatchRequest,
-    FilesWatchResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=True,
-)
+_FILES_GET = Operation(HostOperation.FILES_GET.value, FilesGetRequest, FilesGetResponse, visibility=VISIBILITY_PUBLIC, watch=False)
+_FILES_READ = Operation(HostOperation.FILES_READ.value, FilesReadRequest, FilesReadResponse, visibility=VISIBILITY_PUBLIC, watch=False)
+_FILES_WATCH = Operation(HostOperation.FILES_WATCH.value, FilesWatchRequest, FilesWatchResponse, visibility=VISIBILITY_PUBLIC, watch=True)
 _FILES_DELETE = Operation(
-    HostOperation.FILES_DELETE.value,
-    FilesDeleteRequest,
-    FilesDeleteResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_DELETE.value, FilesDeleteRequest, FilesDeleteResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _FILES_CAPTURE = Operation(
-    HostOperation.FILES_CAPTURE.value,
-    FilesCaptureRequest,
-    FilesCaptureResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.FILES_CAPTURE.value, FilesCaptureRequest, FilesCaptureResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _PROMPTS_CREATE = Operation(
-    HostOperation.PROMPTS_CREATE.value,
-    PromptsCreateRequest,
-    PromptsCreateResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.PROMPTS_CREATE.value, PromptsCreateRequest, PromptsCreateResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
-_SECRETS_GET = Operation(
-    HostOperation.SECRETS_GET.value,
-    SecretsGetRequest,
-    SecretsGetResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
-)
+_SECRETS_GET = Operation(HostOperation.SECRETS_GET.value, SecretsGetRequest, SecretsGetResponse, visibility=VISIBILITY_PUBLIC, watch=False)
 _INVOCATIONS_GET = Operation(
-    HostOperation.INVOCATIONS_GET.value,
-    InvocationsGetRequest,
-    InvocationsGetResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.INVOCATIONS_GET.value, InvocationsGetRequest, InvocationsGetResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _INVOCATIONS_CANCEL = Operation(
-    HostOperation.INVOCATIONS_CANCEL.value,
-    InvocationsCancelRequest,
-    InvocationsCancelResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.INVOCATIONS_CANCEL.value, InvocationsCancelRequest, InvocationsCancelResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _INVOCATIONS_WATCH = Operation(
-    HostOperation.INVOCATIONS_WATCH.value,
-    InvocationsWatchRequest,
-    InvocationsWatchResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=True,
+    HostOperation.INVOCATIONS_WATCH.value, InvocationsWatchRequest, InvocationsWatchResponse, visibility=VISIBILITY_PUBLIC, watch=True
+)
+_OPERATIONS_LIST = Operation(
+    HostOperation.OPERATIONS_LIST.value, OperationsListRequest, OperationsListResponse, visibility=VISIBILITY_PUBLIC, watch=False
+)
+_OPERATIONS_GET = Operation(
+    HostOperation.OPERATIONS_GET.value, OperationsGetRequest, OperationsGetResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
 _PLUGINS_SETTINGS_LIST = Operation(
-    HostOperation.PLUGINS_SETTINGS_LIST.value,
-    SettingsListRequest,
-    SettingsListResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
+    HostOperation.PLUGINS_SETTINGS_LIST.value, SettingsListRequest, SettingsListResponse, visibility=VISIBILITY_PUBLIC, watch=False
 )
-_TIME_GET = Operation(
-    HostOperation.TIME_GET.value,
-    TimeGetRequest,
-    TimeGetResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
-)
-_TIME_SLEEP = Operation(
-    HostOperation.TIME_SLEEP.value,
-    TimeSleepRequest,
-    TimeSleepResponse,
-    visibility=VISIBILITY_PUBLIC,
-    watch=False,
-)
+_TIME_GET = Operation(HostOperation.TIME_GET.value, TimeGetRequest, TimeGetResponse, visibility=VISIBILITY_PUBLIC, watch=False)
+_TIME_SLEEP = Operation(HostOperation.TIME_SLEEP.value, TimeSleepRequest, TimeSleepResponse, visibility=VISIBILITY_PUBLIC, watch=False)
 
 
 def host_requirement(operation: HostOperation) -> Operation[Message, Message]:
@@ -485,6 +327,10 @@ def host_requirement(operation: HostOperation) -> Operation[Message, Message]:
             return cast(Operation[Message, Message], _INVOCATIONS_CANCEL)
         case HostOperation.INVOCATIONS_WATCH:
             return cast(Operation[Message, Message], _INVOCATIONS_WATCH)
+        case HostOperation.OPERATIONS_LIST:
+            return cast(Operation[Message, Message], _OPERATIONS_LIST)
+        case HostOperation.OPERATIONS_GET:
+            return cast(Operation[Message, Message], _OPERATIONS_GET)
         case HostOperation.PLUGINS_SETTINGS_LIST:
             return cast(Operation[Message, Message], _PLUGINS_SETTINGS_LIST)
         case HostOperation.TIME_GET:
@@ -504,6 +350,7 @@ class HostRoot:
         self.executions = HostExecutionsResource(context)
         self.files = HostFilesResource(context)
         self.invocations = HostInvocationsResource(context)
+        self.operations = HostOperationsResource(context)
         self.plugins = HostPluginsResource(context)
         self.prompts = HostPromptsResource(context)
         self.secrets = HostSecretsResource(context)
@@ -606,13 +453,7 @@ class HostEffectsResource:
         response = await self._context.call(_EFFECTS_CREATE, request, policy=policy)
         return response
 
-    async def get(
-        self,
-        name: str,
-        *,
-        at: Position | None = None,
-        policy: OperationPolicy | None = None,
-    ) -> EffectsGetResponse:
+    async def get(self, name: str, *, at: Position | None = None, policy: OperationPolicy | None = None) -> EffectsGetResponse:
         request = EffectsGetRequest(name=name, at=at)
         response = await self._context.call(_EFFECTS_GET, request, policy=policy)
         return response
@@ -627,10 +468,7 @@ class HostEffectsResource:
         policy: OperationPolicy | None = None,
     ) -> EffectsSetResponse:
         request = EffectsSetRequest(
-            name=name,
-            value=value,
-            expected_revision=expected_revision,
-            request_id=request_id if request_id is not None else str(uuid4()),
+            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
         )
         response = await self._context.call(_EFFECTS_SET, request, policy=policy)
         return response
@@ -657,14 +495,7 @@ class HostEvidenceResource:
         policy: OperationPolicy | None = None,
     ) -> EvidenceStatisticsResponse:
         request = EvidenceStatisticsRequest(
-            scope=scope,
-            stream=stream,
-            versions=versions,
-            between=between,
-            outputs=outputs,
-            field=field,
-            step=step,
-            at=at,
+            scope=scope, stream=stream, versions=versions, between=between, outputs=outputs, field=field, step=step, at=at
         )
         response = await self._context.call(_EVIDENCE_STATISTICS, request, policy=policy)
         return response
@@ -715,14 +546,7 @@ class HostEvidenceRecordsResource:
         policy: OperationPolicy | None = None,
     ) -> RecordsListResponse:
         request = RecordsListRequest(
-            scope=scope,
-            record_type=record_type,
-            versions=versions,
-            between=between,
-            step=step,
-            selection=selection,
-            at=at,
-            page=page,
+            scope=scope, record_type=record_type, versions=versions, between=between, step=step, selection=selection, at=at, page=page
         )
         response = await self._context.call(_EVIDENCE_RECORDS_LIST, request, policy=policy)
         return response
@@ -797,11 +621,7 @@ class HostExecutionsProgressResource:
         self._context = context
 
     async def get(
-        self,
-        *,
-        name: str | None = None,
-        at: Position | None = None,
-        policy: OperationPolicy | None = None,
+        self, *, name: str | None = None, at: Position | None = None, policy: OperationPolicy | None = None
     ) -> ProgressGetResponse:
         request = ProgressGetRequest(name=name, at=at)
         response = await self._context.call(_EXECUTIONS_PROGRESS_GET, request, policy=policy)
@@ -817,10 +637,7 @@ class HostExecutionsProgressResource:
         policy: OperationPolicy | None = None,
     ) -> ProgressSetResponse:
         request = ProgressSetRequest(
-            name=name,
-            value=value,
-            expected_revision=expected_revision,
-            request_id=request_id if request_id is not None else str(uuid4()),
+            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
         )
         response = await self._context.call(_EXECUTIONS_PROGRESS_SET, request, policy=policy)
         return response
@@ -832,25 +649,13 @@ class HostFilesResource:
         self.captures = HostFilesCapturesResource(context)
         self.uploads = HostFilesUploadsResource(context)
 
-    async def get(
-        self,
-        file: FileReference,
-        *,
-        at: ReadCut | None = None,
-        policy: OperationPolicy | None = None,
-    ) -> FilesGetResponse:
+    async def get(self, file: FileReference, *, at: ReadCut | None = None, policy: OperationPolicy | None = None) -> FilesGetResponse:
         request = FilesGetRequest(file=file, at=at)
         response = await self._context.call(_FILES_GET, request, policy=policy)
         return response
 
     async def read(
-        self,
-        file: FileReference,
-        offset: int,
-        max_bytes: int,
-        *,
-        at: ReadCut | None = None,
-        policy: OperationPolicy | None = None,
+        self, file: FileReference, offset: int, max_bytes: int, *, at: ReadCut | None = None, policy: OperationPolicy | None = None
     ) -> FilesReadResponse:
         request = FilesReadRequest(file=file, offset=offset, max_bytes=max_bytes, at=at)
         response = await self._context.call(_FILES_READ, request, policy=policy)
@@ -873,13 +678,7 @@ class HostFilesResource:
         finally:
             await call.aclose()
 
-    async def delete(
-        self,
-        file: FileReference,
-        *,
-        request_id: str | None = None,
-        policy: OperationPolicy | None = None,
-    ) -> Receipt:
+    async def delete(self, file: FileReference, *, request_id: str | None = None, policy: OperationPolicy | None = None) -> Receipt:
         request = FilesDeleteRequest(file=file, request_id=request_id if request_id is not None else str(uuid4()))
         response = await self._context.call(_FILES_DELETE, request, policy=policy)
         if not response.HasField("receipt"):
@@ -896,14 +695,7 @@ class HostFilesCapturesResource:
     def __init__(self, context: "Context") -> None:
         self._context = context
 
-    async def start(
-        self,
-        source: FileSource,
-        output: str,
-        mode: CaptureMode,
-        *,
-        policy: OperationPolicy | None = None,
-    ) -> int:
+    async def start(self, source: FileSource, output: str, mode: CaptureMode, *, policy: OperationPolicy | None = None) -> int:
         request = CapturesStartRequest(source=source, output=output, mode=mode)
         response = await self._context.call(_FILES_CAPTURES_START, request, policy=policy)
         return response.capture_id
@@ -919,91 +711,46 @@ class HostFilesUploadsResource:
         self._context = context
 
     async def create(
-        self,
-        metadata: FileMetadata,
-        *,
-        request_id: str | None = None,
-        policy: OperationPolicy | None = None,
+        self, metadata: FileMetadata, *, request_id: str | None = None, policy: OperationPolicy | None = None
     ) -> UploadsCreateResponse:
-        request = UploadsCreateRequest(
-            metadata=metadata,
-            request_id=request_id if request_id is not None else str(uuid4()),
-        )
+        request = UploadsCreateRequest(metadata=metadata, request_id=request_id if request_id is not None else str(uuid4()))
         response = await self._context.call(_FILES_UPLOADS_CREATE, request, policy=policy)
         return response
 
-    async def get(
-        self,
-        upload: Upload,
-        *,
-        at: ReadCut | None = None,
-        policy: OperationPolicy | None = None,
-    ) -> UploadsGetResponse:
+    async def get(self, upload: Upload, *, at: ReadCut | None = None, policy: OperationPolicy | None = None) -> UploadsGetResponse:
         request = UploadsGetRequest(upload=upload, at=at)
         response = await self._context.call(_FILES_UPLOADS_GET, request, policy=policy)
         return response
 
     async def resume(
-        self,
-        upload: Upload,
-        *,
-        request_id: str | None = None,
-        policy: OperationPolicy | None = None,
+        self, upload: Upload, *, request_id: str | None = None, policy: OperationPolicy | None = None
     ) -> UploadsResumeResponse:
-        request = UploadsResumeRequest(
-            upload=upload,
-            request_id=request_id if request_id is not None else str(uuid4()),
-        )
+        request = UploadsResumeRequest(upload=upload, request_id=request_id if request_id is not None else str(uuid4()))
         response = await self._context.call(_FILES_UPLOADS_RESUME, request, policy=policy)
         return response
 
     async def append(
-        self,
-        upload: Upload,
-        offset: int,
-        data: bytes,
-        *,
-        request_id: str | None = None,
-        policy: OperationPolicy | None = None,
+        self, upload: Upload, offset: int, data: bytes, *, request_id: str | None = None, policy: OperationPolicy | None = None
     ) -> UploadsAppendResponse:
         request = UploadsAppendRequest(
-            upload=upload,
-            offset=offset,
-            data=data,
-            request_id=request_id if request_id is not None else str(uuid4()),
+            upload=upload, offset=offset, data=data, request_id=request_id if request_id is not None else str(uuid4())
         )
         response = await self._context.call(_FILES_UPLOADS_APPEND, request, policy=policy)
         return response
 
     async def publish(
-        self,
-        upload: Upload,
-        length: int,
-        sha256: bytes,
-        *,
-        request_id: str | None = None,
-        policy: OperationPolicy | None = None,
+        self, upload: Upload, length: int, sha256: bytes, *, request_id: str | None = None, policy: OperationPolicy | None = None
     ) -> UploadsPublishResponse:
         request = UploadsPublishRequest(
-            upload=upload,
-            length=length,
-            sha256=sha256,
-            request_id=request_id if request_id is not None else str(uuid4()),
+            upload=upload, length=length, sha256=sha256, request_id=request_id if request_id is not None else str(uuid4())
         )
         response = await self._context.call(_FILES_UPLOADS_PUBLISH, request, policy=policy)
         return response
 
     async def delete(
-        self,
-        upload: Upload,
-        *,
-        request_id: str | None = None,
-        policy: OperationPolicy | None = None,
+        self, upload: Upload, *, request_id: str | None = None, policy: OperationPolicy | None = None
     ) -> UploadsDeleteResponse:
-        request = UploadsDeleteRequest(
-            upload=upload,
-            request_id=request_id if request_id is not None else str(uuid4()),
-        )
+        request = UploadsDeleteRequest(upload=upload, request_id=request_id if request_id is not None else str(uuid4()))
         response = await self._context.call(_FILES_UPLOADS_DELETE, request, policy=policy)
         return response
 
@@ -1038,6 +785,23 @@ class HostInvocationsResource:
             await call.aclose()
 
 
+class HostOperationsResource:
+    def __init__(self, context: "Context") -> None:
+        self._context = context
+
+    async def list(self, *, policy: OperationPolicy | None = None) -> list[DiscoveredOperation]:
+        request = OperationsListRequest()
+        response = await self._context.call(_OPERATIONS_LIST, request, policy=policy)
+        return list(response.operations)
+
+    async def get(self, id: str, *, policy: OperationPolicy | None = None) -> DiscoveredOperation:
+        request = OperationsGetRequest(id=id)
+        response = await self._context.call(_OPERATIONS_GET, request, policy=policy)
+        if not response.HasField("operation"):
+            raise ValueError("Read OPERATIONS_GET: Missing Payload")
+        return response.operation
+
+
 class HostPluginsResource:
     def __init__(self, context: "Context") -> None:
         self._context = context
@@ -1049,11 +813,7 @@ class HostPluginsSettingsResource:
         self._context = context
 
     async def list(
-        self,
-        *,
-        name: str | None = None,
-        at: ReadCut | None = None,
-        policy: OperationPolicy | None = None,
+        self, *, name: str | None = None, at: ReadCut | None = None, policy: OperationPolicy | None = None
     ) -> SettingsListResponse:
         request = SettingsListRequest(name=name, at=at)
         response = await self._context.call(_PLUGINS_SETTINGS_LIST, request, policy=policy)
@@ -1082,13 +842,7 @@ class HostSecretsResource:
     def __init__(self, context: "Context") -> None:
         self._context = context
 
-    async def get(
-        self,
-        name: str,
-        *,
-        at: ReadCut | None = None,
-        policy: OperationPolicy | None = None,
-    ) -> SecretsGetResponse:
+    async def get(self, name: str, *, at: ReadCut | None = None, policy: OperationPolicy | None = None) -> SecretsGetResponse:
         request = SecretsGetRequest(name=name, at=at)
         response = await self._context.call(_SECRETS_GET, request, policy=policy)
         return response

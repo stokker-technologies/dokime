@@ -22,21 +22,19 @@
 #include <google/protobuf/wrappers.pb.h>
 
 using dokime::Client;
+using dokime::EvidenceScope;
+using dokime::client::EvidenceStatisticsOptions;
 using dokime::client::ExecutionDetail;
 using dokime::client::FrozenSchemaCache;
+using dokime::client::PlotRequest;
 using dokime::client::StatusGetOptions;
 using dokime::client::StatusLogsWatchOptions;
-using WireEvidence = dokime::host::v1::Evidence;
-using WireSnapshots = dokime::host::v1::plots::Snapshots;
-using dokime::EvidenceScope;
-using dokime::client::PlotsPlotRequest;
 using dokime::host::v1::EvidenceStatisticsRequest;
 using dokime::host::v1::EvidenceStatisticsResponse;
-using dokime::host::v1::plots::SnapshotsListRequest;
-using dokime::host::v1::plots::SnapshotsListResponse;
-using WireSchemas = dokime::host::v1::executions::Schemas;
 using dokime::host::v1::executions::SchemasGetRequest;
 using dokime::host::v1::executions::SchemasGetResponse;
+using dokime::host::v1::plots::SnapshotsListRequest;
+using dokime::host::v1::plots::SnapshotsListResponse;
 using google::protobuf::BoolValue;
 using google::protobuf::Empty;
 using google::protobuf::FileDescriptorSet;
@@ -49,6 +47,7 @@ using harmos::client::PLUGIN_STATE_CONNECTING;
 using harmos::client::PluginPlacement;
 using harmos::client::PluginValue;
 
+using std::atomic;
 using std::make_shared;
 using std::runtime_error;
 
@@ -60,7 +59,7 @@ using std::runtime_error;
 
 /* === Classes === */
 
-class Evidence final : public WireEvidence::Service {
+class Evidence final : public dokime::host::v1::Evidence::Service {
   Status Statistics(ServerContext *, const EvidenceStatisticsRequest *request, EvidenceStatisticsResponse *reply) override {
     if (request->scope().execution_id() != "execution" || request->stream() != "measurements")
       return {StatusCode::INVALID_ARGUMENT, "Read Statistics: Select Execution Measurements"};
@@ -75,7 +74,7 @@ class Evidence final : public WireEvidence::Service {
   }
 };
 
-class Snapshots final : public WireSnapshots::Service {
+class Snapshots final : public dokime::host::v1::plots::Snapshots::Service {
   Status List(ServerContext *, const SnapshotsListRequest *request, SnapshotsListResponse *reply) override {
     if (request->requests_size() != 1 || request->requests(0).stream() != "measurements")
       return {StatusCode::INVALID_ARGUMENT, "Read Snapshots: Select Measurements"};
@@ -90,10 +89,10 @@ class Snapshots final : public WireSnapshots::Service {
   }
 };
 
-class Schemas : public WireSchemas::Service {
+class Schemas : public dokime::host::v1::executions::Schemas::Service {
 public:
   FileDescriptorSet types;
-  std::atomic<int> calls = 0;
+  atomic<int> calls = 0;
   Schemas() {
     BoolValue::descriptor()->file()->CopyTo(types.add_file());
     Empty::descriptor()->file()->CopyTo(types.add_file());
@@ -206,13 +205,15 @@ TEST_CASE("Client Reads the Backend") {
   // Read Exact Statistics and Plot Values Through the Generated Client.
   EvidenceScope scope;
   scope.set_execution_id("execution");
-  const auto measured = client.evidence.statistics(scope, "measurements", {}, {}, {}, "", "");
+  EvidenceStatisticsOptions statistics_options;
+  statistics_options.scope = scope;
+  const auto measured = client.evidence.statistics("measurements", {}, {}, {}, "", "", statistics_options);
   const auto &statistics = measured.statistics();
   check(statistics.has_sum() && statistics.sum().has_exact() && statistics.sum().exact().numerator() == "36893488147419103229",
         "Statistics Sum Was Coerced");
   check(statistics.mean().has_exact() && statistics.mean().exact().denominator() == "2", "Statistics Mean Was Coerced");
   check(statistics.max().unsigned_integer() == 18446744073709551615ULL && !statistics.has_min(), "Typed Statistics Presence Was Lost");
-  PlotsPlotRequest plot_request;
+  PlotRequest plot_request;
   plot_request.set_stream("measurements");
   const auto plots = client.plots.snapshots.list({plot_request});
   const auto &payload = plots.envelopes(0).payload();

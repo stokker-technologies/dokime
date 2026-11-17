@@ -442,7 +442,7 @@ extension; sequential scope calls cannot claim atomicity. No new cascade is intr
 | Harmos Groups 6–7 | Consolidated statistics/box summaries and bucket-summary continuation (slice 5). |
 | Harmos Group 9 | Typed facade, authoring exports and operation-owned batch DTOs (slice 6, including final archive DTO adoption). |
 
-Harmos `ee16bf8a70152b82c881dcccf5f0108a5a859091` supplies G1–G3,
+Harmos `c2cfb153ab136159f07741d1061fcb3a1191e86c` supplies G1–G3,
 consolidated statistics/bucket summaries, storage-only maintenance and
 scale/offset/contains transforms. The descriptions above record the original
 upstream findings; product backend and consumer adoption and proof remain open.

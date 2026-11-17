@@ -26,14 +26,14 @@ from typing import TYPE_CHECKING
 from harmos import FileReference, PageRequest, ReadCut
 
 # Local Imports
-from dokime import EvidenceScope, Window
+from dokime import EvidenceScope, model
 
 from .client import (
     EXECUTION_STATE_CLOSED,
     EXECUTION_STATE_OPEN,
     EXECUTION_STATE_SEALED,
-    Client,
-    EvidenceBucketRequest,
+    BucketRequest,
+    ClientRoot,
     EvidenceSubject,
     ExecutionDetail,
     ExecutionFilter,
@@ -81,11 +81,11 @@ class Telemetry:
 
     def __init__(
         self,
-        client: Client,
+        client: ClientRoot,
         execution_id: str,
         stream: str,
         fields: Sequence[str],
-        between: Window | None,
+        between: model.Window | None,
         at: ReadCut | None,
         page_size: int,
     ) -> None:
@@ -93,7 +93,7 @@ class Telemetry:
         self._execution_id = execution_id
         self._stream = stream
         self._fields = list(fields)
-        self._between = between or Window()
+        self._between = between or model.Window()
         self.snapshot = at
         self._page_size = page_size
         # Wire Kinds Seen per Field Choose Exact Dataframe Types; Python Magnitudes Cannot.
@@ -110,7 +110,7 @@ class Telemetry:
                 [],
                 self._fields,
                 self._between,
-                EvidenceBucketRequest(),
+                BucketRequest(),
                 False,
                 at=self.snapshot,
                 page=PageRequest(page_size=self._page_size, page_token=token),
@@ -207,7 +207,7 @@ class Telemetry:
 class Cycle:
     """A Cycle Selected by Identifier for Archive Export."""
 
-    def __init__(self, client: Client, identifier: str) -> None:
+    def __init__(self, client: ClientRoot, identifier: str) -> None:
         self.client = client
         self.id = identifier
 
@@ -218,7 +218,7 @@ class Cycle:
 class Execution:
     """A Retained Execution with Finite Telemetry Reads and Archive Export."""
 
-    def __init__(self, client: Client, detail: ExecutionDetail) -> None:
+    def __init__(self, client: ClientRoot, detail: ExecutionDetail) -> None:
         self.client = client
         self.detail = detail
 
@@ -235,7 +235,7 @@ class Execution:
         stream: str,
         *,
         fields: Sequence[str] = (),
-        between: Window | None = None,
+        between: model.Window | None = None,
         at: ReadCut | None = None,
         page_size: int = 0,
     ) -> Telemetry:
@@ -249,7 +249,7 @@ class Execution:
 
 
 async def executions(
-    client: Client, *, template: str | None = None, status: str | None = None, cycle: str | None = None
+    client: ClientRoot, *, template: str | None = None, status: str | None = None, cycle: str | None = None
 ) -> AsyncIterator[Execution]:
     """Yield Retained Executions at One Fixed Cut, Without Starting or Following Any."""
     if status is not None and status not in STATUSES:
@@ -271,18 +271,18 @@ async def executions(
             return
 
 
-async def execution(client: Client, identifier: str) -> Execution:
+async def execution(client: ClientRoot, identifier: str) -> Execution:
     return Execution(client, (await client.executions.get(identifier)).execution)
 
 
-def cycle(client: Client, identifier: str) -> Cycle:
+def cycle(client: ClientRoot, identifier: str) -> Cycle:
     return Cycle(client, identifier)
 
 
 # === Private Functions === #
 
 
-async def _export(client: Client, subject: EvidenceSubject, path: Path, overwrite: bool) -> Path:
+async def _export(client: ClientRoot, subject: EvidenceSubject, path: Path, overwrite: bool) -> Path:
     # Refuse an Existing Destination Before Asking the Host to Build the Archive.
     if path.exists() and not overwrite:
         raise FileExistsError(f"Export Evidence: {path} Exists; Choose a New Path or Pass overwrite=True")
@@ -312,7 +312,7 @@ async def _export(client: Client, subject: EvidenceSubject, path: Path, overwrit
         raise
 
 
-async def _download(client: Client, file: FileReference, target: FileIO) -> int:
+async def _download(client: ClientRoot, file: FileReference, target: FileIO) -> int:
     limits = await client.files.get(file)
     if limits.chunk_bytes <= 0:
         raise ValueError("Export Evidence: The Host Returned No Transfer Chunk Bound")

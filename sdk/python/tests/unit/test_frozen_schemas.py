@@ -24,8 +24,7 @@ from harmos import PageRequest, Position
 
 # Local Imports
 from dokime._wire.host.v1.executions.schemas_pb2 import SchemasGetRequest
-from dokime.client import ExecutionDetail
-from dokime.client import ExecutionsSchemasGetResponse as SchemasGetResponse
+from dokime.client import ExecutionDetail, SchemasGetResponse
 from dokime.schemas import FrozenSchemaCache
 
 # Type Checking Imports

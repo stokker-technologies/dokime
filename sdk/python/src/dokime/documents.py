@@ -58,7 +58,7 @@ class Document:
 
 class Section:
     def __init__(self, label: str) -> None:
-        self.message = dokime.Section(metadata=metadata(label))
+        self.message = dokime.model.Section(metadata=metadata(label))
 
     def id(self, identifier: str) -> Self:
         self.message.metadata.identifier = identifier
@@ -122,7 +122,7 @@ def plot_card(plot: Plot, columns: int = 12) -> Card:
 
 
 def records_card(identifier: str) -> Card:
-    return Card(metadata=Metadata(identifier=identifier, label="Records"), evidence=dokime.EvidenceCard.Value("EVIDENCE_CARD_RECORDS"))
+    return Card(metadata=Metadata(identifier=identifier, label="Records"), evidence=dokime.EVIDENCE_CARD_RECORDS)
 
 
 def metadata(label: str) -> Metadata:

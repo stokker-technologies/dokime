@@ -30,7 +30,7 @@ use crate::suites::{self, parameters, read_supply, supply, timing};
 use dokime::plugin::{Context, Criterion, Observer, Prompt, Record, Step, Stream, Template};
 use dokime::{
     Card, ContourRender, DataExpression, Document, FieldReference, GridAxisEntry, GridChart, Plot, PlotKind, PlotStyle, PromptArchetype,
-    Reduction, ReferenceBand, ReferenceLine, Result, Section, Value, XyInterval, data_expression, value,
+    Reduction, ReferenceBand, ReferenceLine, Result, Value, XyInterval, data_expression, model, value,
 };
 
 /* === Constants === */
@@ -175,7 +175,7 @@ pub fn document() -> Document {
         label: "Nominal RMS ±23 V".into(),
         ..Default::default()
     });
-    let timeline = Section::new("Signal Timeline").id("obc.benchmark.plots.timeline").plot(voltage);
+    let timeline = model::Section::new("Signal Timeline").id("obc.benchmark.plots.timeline").plot(voltage);
 
     // Scattered Electrical Samples and the Independent Thermal Survey
     let mut surface = Plot::new("obc.benchmark.plots.power_map", "Input Power Map", PlotKind::Contour).unit("W");
@@ -199,7 +199,7 @@ pub fn document() -> Document {
         summary_label: "Total Rise".into(),
         ..Default::default()
     });
-    let maps = Section::new("Signal Maps")
+    let maps = model::Section::new("Signal Maps")
         .id("obc.benchmark.plots.maps")
         .card(Card::plot(surface).columns(6))
         .card(Card::plot(trajectory).columns(6))
@@ -217,7 +217,7 @@ pub fn document() -> Document {
     let mut spectrum = Plot::new("obc.benchmark.plots.spectrum", "Voltage Spectrum", PlotKind::FrequencySeries).unit("V");
     spectrum.y = vec![FieldReference::new(SAMPLES).field("voltage_v")];
     spectrum.sample_rate_hz = Some(1000.0);
-    let distributions = Section::new("Signal Distributions")
+    let distributions = model::Section::new("Signal Distributions")
         .id("obc.benchmark.plots.distributions")
         .plot(voltages)
         .plot(currents)
@@ -244,7 +244,7 @@ pub fn document() -> Document {
     correlation.y = vec![FieldReference::new(SAMPLES).field("current_a")];
     correlation.series_by = Some(FieldReference::new(SAMPLES).field("phase"));
     correlation.interval = Some(XyInterval::Sigma as i32);
-    let breakdown = Section::new("Phase Breakdown")
+    let breakdown = model::Section::new("Phase Breakdown")
         .id("obc.benchmark.plots.breakdown")
         .plot(means)
         .plot(counts)
@@ -259,10 +259,10 @@ pub fn document() -> Document {
         label: "RMS Current Limit".into(),
         ..Default::default()
     });
-    let ac_current = Section::new("AC Current").id("obc.benchmark.plots.ac_current").plot(current);
-    let evidence = Section::new("Evidence").id("obc.benchmark.plots.evidence").card(Card::records("obc.benchmark.plots.records"));
+    let ac_current = model::Section::new("AC Current").id("obc.benchmark.plots.ac_current").plot(current);
+    let evidence = model::Section::new("Evidence").id("obc.benchmark.plots.evidence").card(Card::records("obc.benchmark.plots.records"));
 
-    let mut load = Section::new("Plot Load").id(format!("{TEMPLATE}.load"));
+    let mut load = model::Section::new("Plot Load").id(format!("{TEMPLATE}.load"));
     for index in 0..100 {
         let mut plot = Plot::line(format!("{TEMPLATE}.signal_{index}"), format!("Signal {}", index + 1)).unit("V");
         plot.y.push(FieldReference::new(SAMPLES).field("voltage_v"));

@@ -26,19 +26,18 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use crate::EvidenceRecordsListResponse;
 use crate::EvidenceStatisticsResponse;
 use crate::OperationPolicy;
 use crate::Record;
+use crate::RecordsListResponse;
 use crate::operation::FutureResult;
-use crate::plugin::EvidenceRecordsAppendResponse;
+use crate::plugin::RecordsAppendResponse;
 use crate::wire::host::EvidenceStatisticsRequest;
 use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
-use crate::{Error, Message, OperationRequest, Result, data, host, host::Call};
+use crate::{Error, Message, OperationRequest, Result, data, host, host::Wire};
 use crate::{ExecutionProgressValue, PageRequest, Severity};
 use crate::{Origin, Termination, TestCase, origin};
-use harmos::plugin::Context as HarmosContext;
-use harmos::plugin::Watching as HarmosWatching;
+use ::harmos::plugin;
 use uuid::Uuid;
 
 /* === Constants === */
@@ -81,7 +80,7 @@ pub(crate) struct EndExecution {
 }
 
 pub(crate) struct Watching<T: prost_reflect::ReflectMessage + Default + 'static> {
-    incoming: HarmosWatching<Call<T>>,
+    incoming: plugin::Watching<Wire<T>>,
 }
 impl<T: prost_reflect::ReflectMessage + Default + 'static> Watching<T> {
     pub(crate) async fn next(&mut self) -> Result<Option<T>> {
@@ -93,7 +92,7 @@ impl<T: prost_reflect::ReflectMessage + Default + 'static> Watching<T> {
 
 #[derive(Clone)]
 enum Transport {
-    Harmos(Box<HarmosContext>),
+    Harmos(Box<plugin::Context>),
     Local(Arc<Local>),
 }
 
@@ -122,7 +121,7 @@ impl Execution {
 
 impl Context {
     pub(crate) fn execution(
-        transport: &HarmosContext, executions: &Executions, identifier: &str, test_case: Option<TestCase>, origin: Option<Origin>,
+        transport: &plugin::Context, executions: &Executions, identifier: &str, test_case: Option<TestCase>, origin: Option<Origin>,
         template: &str,
     ) -> Result<Self> {
         if identifier.is_empty() || transport.scope()? != identifier {
@@ -158,7 +157,7 @@ impl Context {
         })
     }
 
-    pub(crate) fn invocation(transport: &HarmosContext, executions: &Executions) -> Result<Self> {
+    pub(crate) fn invocation(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
         let executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         let execution = executions.get(transport.scope().unwrap_or_default()).cloned().unwrap_or_else(|| {
             Arc::new(Execution {
@@ -174,7 +173,7 @@ impl Context {
         })
     }
 
-    pub(crate) fn publication(transport: &HarmosContext, executions: &Executions) -> Result<Self> {
+    pub(crate) fn publication(transport: &plugin::Context, executions: &Executions) -> Result<Self> {
         let mut executions = executions.lock().map_err(|_| Error::Invalid("Execution Store Poisoned".into()))?;
         if transport.scope().is_err() {
             executions.entry(String::new()).or_insert_with(|| {
@@ -267,7 +266,7 @@ impl Context {
 
     pub(crate) async fn call_with<Q: host::Request>(&self, request: Q, policy: Option<OperationPolicy>) -> Result<Q::Response> {
         match &self.transport {
-            Transport::Harmos(transport) => Ok(transport.call_with(Call(request), policy).await?.0),
+            Transport::Harmos(transport) => Ok(transport.call_with(Wire(request), policy).await?.0),
             Transport::Local(local) => {
                 let reply = local.host.call(Q::ID, prost::Message::encode_to_vec(&request)).await?;
                 <Q::Response as prost::Message>::decode(reply.as_slice()).map_err(|error| Error::Invalid(format!("{}: {error}", Q::ID)))
@@ -279,7 +278,7 @@ impl Context {
     ) -> Result<Watching<Q::Response>> {
         match &self.transport {
             Transport::Harmos(transport) => Ok(Watching {
-                incoming: transport.watch(Call(request), max_item_bytes).await?,
+                incoming: transport.watch(Wire(request), max_item_bytes).await?,
             }),
             Transport::Local(_) => Err(unsimulated(Q::ID)),
         }
@@ -305,7 +304,7 @@ impl Context {
         crate::data::decode_settings(response.value.ok_or_else(|| Error::Invalid("Read Settings: Missing Values".into()))?)
     }
 
-    pub async fn record<T: Message>(&self, record: &Record<T>, value: T) -> Result<EvidenceRecordsAppendResponse> {
+    pub async fn record<T: Message>(&self, record: &Record<T>, value: T) -> Result<RecordsAppendResponse> {
         self.call_with(
             RecordsAppendRequest {
                 execution: self.execution_id().into(),
@@ -318,9 +317,7 @@ impl Context {
         )
         .await
     }
-    pub async fn records(
-        &self, record_type: impl Into<String>, step: impl Into<String>, limit: u32,
-    ) -> Result<EvidenceRecordsListResponse> {
+    pub async fn records(&self, record_type: impl Into<String>, step: impl Into<String>, limit: u32) -> Result<RecordsListResponse> {
         self.call_with(
             RecordsListRequest {
                 record_type: record_type.into(),

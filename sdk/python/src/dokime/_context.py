@@ -17,26 +17,25 @@ from uuid import uuid4
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
-from harmos import FileMetadata, OperationPolicy, PageRequest, Receipt, SettingValue
-from harmos.plugin import Context as InvocationContext
+from harmos import FileMetadata, OperationPolicy, PageRequest, Receipt, SettingValue, plugin
 from harmos.plugin import Operation
 
 from ._generated.host import HostRoot
 from ._generated.plugin_types import (
     BackendEnvironmentResponse,
+    CaptureMode,
     EffectsCreateResponse,
     EffectsSetResponse,
     EffectWritable,
-    EvidenceRecordsAppendResponse,
-    FilesCaptureMode,
-    FilesCapturesStopResponse,
+    RecordsAppendResponse,
+    host,
 )
 from ._generated.shared import (
-    EvidenceCapturedRecordSelection,
-    EvidenceRecordsListResponse,
+    CapturedRecordSelection,
     EvidenceStatisticsResponse,
     ExecutionProgressValue,
     Prompt,
+    RecordsListResponse,
     TraceabilityEntry,
 )
 from ._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateResponse
@@ -61,7 +60,7 @@ __all__ = ["Context"]
 class Context:
     def __init__(
         self,
-        transport: InvocationContext,
+        transport: plugin.Context,
         parameters: dict[str, Scalar],
         operations: Sequence[Operation[Any, Any]],
         records: Sequence[Record] = (),
@@ -105,7 +104,7 @@ class Context:
 
     async def record(
         self, kind: str, payload: Message | None = None, *, request_id: str | None = None, **fields: object
-    ) -> EvidenceRecordsAppendResponse:
+    ) -> RecordsAppendResponse:
         definition = self._records.get(kind)
         if definition is None:
             raise ValueError(f"Append Record: Undeclared Record Kind {kind}")
@@ -182,10 +181,10 @@ class Context:
             request_id=f"{identity}/attach",
         )
 
-    async def start_capture(self, source: FileSource, output: str, mode: FilesCaptureMode) -> int:
+    async def start_capture(self, source: FileSource, output: str, mode: CaptureMode) -> int:
         return await self.host.files.captures.start(source, output, mode)
 
-    async def stop_capture(self, capture_id: int) -> FilesCapturesStopResponse:
+    async def stop_capture(self, capture_id: int) -> host.files.CapturesStopResponse:
         return await self.host.files.captures.stop(capture_id)
 
     async def environment(self) -> BackendEnvironmentResponse:
@@ -207,7 +206,7 @@ class Context:
 class BoundOperation[RequestT: Message, ResponseT: Message]:
     __type_params__: ClassVar[tuple[TypeVar, ...]]
 
-    def __init__(self, transport: InvocationContext, operation: Operation[RequestT, ResponseT]) -> None:
+    def __init__(self, transport: plugin.Context, operation: Operation[RequestT, ResponseT]) -> None:
         self._transport = transport
         self._operation = operation
 
@@ -221,9 +220,9 @@ class RecordsQuery:
         self._definition = definition
         self._step = step
 
-    async def read(self, *, limit: int = 0) -> EvidenceRecordsListResponse:
+    async def read(self, *, limit: int = 0) -> RecordsListResponse:
         return await self._context.host.evidence.records.list(
-            self._definition.identifier, [], Window(), self._step, EvidenceCapturedRecordSelection(), page=PageRequest(page_size=limit)
+            self._definition.identifier, [], Window(), self._step, CapturedRecordSelection(), page=PageRequest(page_size=limit)
         )
 
     async def count(self) -> int:

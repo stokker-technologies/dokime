@@ -20,21 +20,21 @@ mod types;
 
 /* === Re-Exports === */
 
-pub use harmos::client::{CallOptions, ClientTransport, Watching};
+pub use ::harmos::client::{CallOptions, ClientTransport, Watching};
 pub use resources::*;
 pub use types::*;
 
 pub use schemas::FrozenSchemaCache;
 
-pub use harmos::ClientSettings;
-pub use harmos::client::{Input, Method, NoItems, Running};
+pub use ::harmos::ClientSettings;
+pub use ::harmos::client::{Input, Method, NoItems, Running};
 /* === Imports === */
 
 // Standard Library Imports
 
 // Third Party Imports
 use prost_reflect::ReflectMessage;
-use tonic::{Status as RpcStatus, transport::Channel};
+use tonic::transport::Channel;
 
 // Local Imports
 use crate::DiscoveredContract;
@@ -51,7 +51,7 @@ use std::ops::Deref;
 // A Thin Typed Client over Harmos's Generated-Message Transport.
 #[derive(Clone)]
 pub struct Client {
-    transport: harmos::Client,
+    transport: ::harmos::Client,
     resources: resources::Root,
 }
 
@@ -62,32 +62,32 @@ pub struct Client {
 /* === Implementations === */
 
 impl Client {
-    pub fn new(transport: harmos::Client) -> Self {
+    pub fn new(transport: ::harmos::Client) -> Self {
         let resources = resources::Root::new(transport.transport_handle());
         Self { transport, resources }
     }
-    pub fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, RpcStatus> {
-        Ok(Self::new(harmos::Client::new(channel, settings)?))
+    pub fn from_channel(channel: Channel, settings: ClientSettings) -> Result<Self, tonic::Status> {
+        Ok(Self::new(::harmos::Client::new(channel, settings)?))
     }
-    pub fn transport(&self) -> &harmos::Client {
+    pub fn transport(&self) -> &::harmos::Client {
         &self.transport
     }
 
     // Bind Authoritative Host Discovery to Generated Dokime Messages, Checking Their Schema.
     pub fn method<Q: ReflectMessage + Default, R: ReflectMessage + Default>(
         &self, contract: DiscoveredContract,
-    ) -> Result<Method<Q, R>, RpcStatus> {
+    ) -> Result<Method<Q, R>, tonic::Status> {
         Method::new(contract)
     }
 
-    pub async fn call<Q, R>(&self, method: &Method<Q, R>, request: Q) -> Result<R, RpcStatus>
+    pub async fn call<Q, R>(&self, method: &Method<Q, R>, request: Q) -> Result<R, tonic::Status>
     where
         Q: prost::Message + Default + Send + 'static,
         R: prost::Message + Default + Send + 'static,
     {
         self.transport.call(method, request).await
     }
-    pub async fn call_with<Q, R>(&self, method: &Method<Q, R>, request: Q, context: CallOptions) -> Result<R, RpcStatus>
+    pub async fn call_with<Q, R>(&self, method: &Method<Q, R>, request: Q, context: CallOptions) -> Result<R, tonic::Status>
     where
         Q: prost::Message + Default + Send + 'static,
         R: prost::Message + Default + Send + 'static,
@@ -96,7 +96,7 @@ impl Client {
     }
 
     // Upload, Download, Watch and Duplex Calls Retain Harmos's Explicit Finish and Join.
-    pub async fn start<Q, R, I, O>(&self, method: &Method<Q, R, I, O>, request: Q) -> Result<Running<R, I, O>, RpcStatus>
+    pub async fn start<Q, R, I, O>(&self, method: &Method<Q, R, I, O>, request: Q) -> Result<Running<R, I, O>, tonic::Status>
     where
         Q: prost::Message + Default + Send + 'static,
         R: prost::Message + Default + Send + 'static,
@@ -107,7 +107,7 @@ impl Client {
     }
     pub async fn start_with<Q, R, I, O>(
         &self, method: &Method<Q, R, I, O>, request: Q, context: CallOptions,
-    ) -> Result<Running<R, I, O>, RpcStatus>
+    ) -> Result<Running<R, I, O>, tonic::Status>
     where
         Q: prost::Message + Default + Send + 'static,
         R: prost::Message + Default + Send + 'static,

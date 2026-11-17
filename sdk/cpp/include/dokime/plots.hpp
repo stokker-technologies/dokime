@@ -248,11 +248,11 @@ inline Plot box_plot(const Expression &value) {
   return plot;
 }
 
-inline Document &section(Document &document, const Section &value) {
+inline Document &section(Document &document, const model::Section &value) {
   *document.add_sections() = value;
   return document;
 }
-inline Section &plot(Section &section, const Plot &value) {
+inline model::Section &plot(model::Section &section, const Plot &value) {
   auto *card = section.add_cards();
   *card->mutable_metadata() = value.message.metadata();
   *card->mutable_plot() = value.message;

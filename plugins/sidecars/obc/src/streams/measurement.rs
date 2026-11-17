@@ -24,7 +24,7 @@ use crate::device::Bench;
 use crate::device::Reading;
 use crate::{settings, suites};
 use dokime::plugin::{Context, DeclarationTypes, Observer, Plugin, Stream};
-use dokime::{Document, FieldReference, Plot, PlotKind, Result, Section};
+use dokime::{Document, FieldReference, Plot, PlotKind, Result, model};
 
 /* === Constants === */
 
@@ -97,7 +97,7 @@ async fn measure(ctx: &Context) -> Result<Measurement> {
 
 /// AC Waveforms Against Model Time and the Battery Charging Outputs.
 pub fn document(stream: &str, id: &str, title: &str) -> Document {
-    let mut waveforms = Section::new("AC Waveforms").id(format!("{id}.waveforms"));
+    let mut waveforms = model::Section::new("AC Waveforms").id(format!("{id}.waveforms"));
     for (name, label, unit) in [("voltage_v", "Voltage", "V"), ("current_a", "Current", "A")] {
         let mut chart = Plot::new(format!("{id}.{name}"), label, PlotKind::Xy).unit(unit);
         chart.x = Some(FieldReference::new(stream).field("elapsed_s"));
@@ -108,8 +108,8 @@ pub fn document(stream: &str, id: &str, title: &str) -> Document {
 }
 
 /// Battery Voltage, Charging Current and AC Input Power Over Time.
-pub fn charging(stream: &str, id: &str) -> Section {
-    let mut section = Section::new("Battery Charging").id(format!("{id}.charging"));
+pub fn charging(stream: &str, id: &str) -> model::Section {
+    let mut section = model::Section::new("Battery Charging").id(format!("{id}.charging"));
     for (name, label, unit) in
         [("dc_voltage_v", "Battery Voltage", "V"), ("dc_current_a", "Charging Current", "A"), ("input_power_w", "AC Input Power", "W")]
     {

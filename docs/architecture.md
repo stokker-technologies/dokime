@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `ee16bf8a70152b82c881dcccf5f0108a5a859091`, rather than
+[Cargo.toml](../Cargo.toml), `c2cfb153ab136159f07741d1061fcb3a1191e86c`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -1004,7 +1004,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/ee16bf8a70152b82c881dcccf5f0108a5a859091/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/c2cfb153ab136159f07741d1061fcb3a1191e86c/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -1115,11 +1115,22 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `ee16bf8a70152b82c881dcccf5f0108a5a859091`.
+The shared-generator adoption pins Harmos at `c2cfb153ab136159f07741d1061fcb3a1191e86c`.
 The table below records consumer repairs at this pin. Plugin Boundary replaces
 direct plugin-service composition and author-facing Harmos values; product SDKs
 use carrier helpers internally and expose Dokime values only.
 The pin and generated contracts do not establish consumer compilation.
+Generator tooling is pinned separately at
+`609341697fcab051638389eb0f6a920fd64b7249`; carrier and SDK dependencies retain
+the revision above until the coordinator publishes the repair commit. The
+generator imports shared payloads from their defining protocol modules and the
+Python exception from its authored module, preserving original names behind the
+product barrels. Rust qualifies resource/payload collisions and isolates plugin
+payload packages from the local host resource module; C# optional assignments
+retain wire property casing. Generated consumers in all four SDKs compile, as do
+the Rust SDK, CLI, OBC, storage, operations and runtime. Stored-envelope
+continuation coarsening and the focused SDK unit tests pass. Broader runtime
+admission and application proof remain owned by their existing changes.
 The storage candidate uses the native definitions from `harmos-operations` after
 the runtime removed its `builtins` reexport. Descriptor-declared audiences replace
 composition caller overrides. The typed facade remains the later 6.2 adoption.
@@ -1152,7 +1163,7 @@ one-sample observer, called once per sample of a host window, and the window
 observer, which returns a columns message mirroring the row (Rust
 `Observer::window`, Python `@window_observer`, C# `WindowObserver<Row, Columns>`,
 C++ `WindowObserver<Row, Columns>`), each with an optional window setting. The grant is
-`SampleWindow` in Rust, Python and C++ (C# passes `Harmos.Plugins.Window`), because
+`SampleWindow` in Rust and C++, `dokime.plugin.Window` in Python (C# passes `Harmos.Plugins.Window`), because
 `Window` already names the evidence time selection. The host
 sets `PlacementSettings::interval_window` from `interval_window_ms`
 (`dokime_runtime::INTERVAL_WINDOW` by default) and `PlacementSettings::interval_lag`

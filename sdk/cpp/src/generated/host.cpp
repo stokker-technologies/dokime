@@ -15,26 +15,16 @@
 #include "dokime/host/v1/prompts.pb.h"
 #include "dokime/host/v1/secrets.pb.h"
 #include "harmos/host/v1/invocations.pb.h"
+#include "harmos/host/v1/operations.pb.h"
 #include "harmos/host/v1/plugins/settings.pb.h"
 #include "harmos/host/v1/time.pb.h"
-using ::dokime::ContentArtifactsCreateResponse;
-using ::dokime::EvidenceCapturedRecordSelection;
-using ::dokime::EvidenceRecordsListResponse;
-using ::dokime::EvidenceTraceabilityGetResponse;
+using ::dokime::CapturedRecordSelection;
 using ::dokime::ExecutionProgressValue;
-using ::dokime::ExecutionsProgressGetResponse;
 using ::dokime::FileSource;
-using ::dokime::FilesUploadsAppendResponse;
-using ::dokime::FilesUploadsCreateResponse;
-using ::dokime::FilesUploadsDeleteResponse;
-using ::dokime::FilesUploadsGetResponse;
-using ::dokime::FilesUploadsPublishResponse;
-using ::dokime::FilesUploadsResumeResponse;
 using ::dokime::Output;
 using ::dokime::Severity;
 using ::dokime::TraceabilityEntry;
 using ::dokime::Value;
-using ::dokime::Window;
 using ::dokime::host::v1::BackendEnvironmentRequest;
 using ::dokime::host::v1::BackendEnvironmentResponse;
 using ::dokime::host::v1::DocumentsAppendPartsRequest;
@@ -93,14 +83,12 @@ using ::dokime::host::v1::files::UploadsPublishRequest;
 using ::dokime::host::v1::files::UploadsPublishResponse;
 using ::dokime::host::v1::files::UploadsResumeRequest;
 using ::dokime::host::v1::files::UploadsResumeResponse;
+using ::dokime::model::Window;
+using ::dokime::plugin::CaptureMode;
 using ::dokime::plugin::EffectWritable;
-using ::dokime::plugin::EvidenceRecordsAppendResponse;
-using ::dokime::plugin::EvidenceTraceabilitySetResponse;
-using ::dokime::plugin::ExecutionsProgressSetResponse;
-using ::dokime::plugin::FilesCaptureMode;
-using ::dokime::plugin::FilesCapturesStopResponse;
 using ::google::protobuf::Duration;
 using ::google::protobuf::Timestamp;
+using ::harmos::DiscoveredOperation;
 using ::harmos::FileMetadata;
 using ::harmos::FileReference;
 using ::harmos::InstanceState;
@@ -112,6 +100,10 @@ using ::harmos::host::v1::InvocationsGetRequest;
 using ::harmos::host::v1::InvocationsGetResponse;
 using ::harmos::host::v1::InvocationsWatchRequest;
 using ::harmos::host::v1::InvocationsWatchResponse;
+using ::harmos::host::v1::OperationsGetRequest;
+using ::harmos::host::v1::OperationsGetResponse;
+using ::harmos::host::v1::OperationsListRequest;
+using ::harmos::host::v1::OperationsListResponse;
 using ::harmos::host::v1::TimeGetRequest;
 using ::harmos::host::v1::TimeGetResponse;
 using ::harmos::host::v1::TimeSleepRequest;
@@ -146,7 +138,7 @@ TimeSleepResponse HostTimeResource::sleep(const Duration &duration, HostTimeSlee
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-SecretsGetResponse HostSecretsResource::get(const string &name, HostSecretsGetOptions options) {
+::dokime::SecretsGetResponse HostSecretsResource::get(const string &name, HostSecretsGetOptions options) {
   SecretsGetRequest request;
   request.set_name(name);
   if (options.at) {
@@ -156,8 +148,9 @@ SecretsGetResponse HostSecretsResource::get(const string &name, HostSecretsGetOp
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-PromptsCreateResponse HostPromptsResource::create(const string &prompt, const string &prompt_type, const std::map<string, Value> &values,
-                                                  HostPromptsCreateOptions options) {
+::dokime::plugin::PromptsCreateResponse HostPromptsResource::create(const string &prompt, const string &prompt_type,
+                                                                    const std::map<string, Value> &values,
+                                                                    HostPromptsCreateOptions options) {
   PromptsCreateRequest request;
   request.set_prompt(prompt);
   request.set_prompt_type(prompt_type);
@@ -182,6 +175,22 @@ SettingsListResponse HostPluginsSettingsResource::list(HostPluginsSettingsListOp
   auto operation = Operation<SettingsListRequest, SettingsListResponse>("harmos.host.v1.plugins.Settings/List", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   return response;
+}
+vector<DiscoveredOperation> HostOperationsResource::list(HostOperationsListOptions options) {
+  OperationsListRequest request;
+  auto operation = Operation<OperationsListRequest, OperationsListResponse>("harmos.host.v1.Operations/List", VISIBILITY_PUBLIC);
+  auto response = context.call(operation, request, options.policy).get();
+  return vector<DiscoveredOperation>(response.operations().begin(), response.operations().end());
+}
+DiscoveredOperation HostOperationsResource::get(const string &id, HostOperationsGetOptions options) {
+  OperationsGetRequest request;
+  request.set_id(id);
+  auto operation = Operation<OperationsGetRequest, OperationsGetResponse>("harmos.host.v1.Operations/Get", VISIBILITY_PUBLIC);
+  auto response = context.call(operation, request, options.policy).get();
+  if (!response.has_operation()) {
+    throw runtime_error("Read OperationsGet: Missing Payload");
+  }
+  return std::move(*response.mutable_operation());
 }
 InstanceState HostInvocationsResource::get(const uint64_t &instance, HostInvocationsGetOptions options) {
   InvocationsGetRequest request;
@@ -222,7 +231,7 @@ HostInvocationsWatch HostInvocationsResource::watch(const uint64_t &instance, si
     return std::move(*response->mutable_invocation());
   });
 }
-FilesUploadsCreateResponse HostFilesUploadsResource::create(const FileMetadata &metadata, HostFilesUploadsCreateOptions options) {
+::dokime::UploadsCreateResponse HostFilesUploadsResource::create(const FileMetadata &metadata, HostFilesUploadsCreateOptions options) {
   UploadsCreateRequest request;
   *request.mutable_metadata() = metadata;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -230,7 +239,7 @@ FilesUploadsCreateResponse HostFilesUploadsResource::create(const FileMetadata &
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-FilesUploadsGetResponse HostFilesUploadsResource::get(const Upload &upload, HostFilesUploadsGetOptions options) {
+::dokime::UploadsGetResponse HostFilesUploadsResource::get(const Upload &upload, HostFilesUploadsGetOptions options) {
   UploadsGetRequest request;
   *request.mutable_upload() = upload;
   if (options.at) {
@@ -240,7 +249,7 @@ FilesUploadsGetResponse HostFilesUploadsResource::get(const Upload &upload, Host
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-FilesUploadsResumeResponse HostFilesUploadsResource::resume(const Upload &upload, HostFilesUploadsResumeOptions options) {
+::dokime::UploadsResumeResponse HostFilesUploadsResource::resume(const Upload &upload, HostFilesUploadsResumeOptions options) {
   UploadsResumeRequest request;
   *request.mutable_upload() = upload;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -248,8 +257,8 @@ FilesUploadsResumeResponse HostFilesUploadsResource::resume(const Upload &upload
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-FilesUploadsAppendResponse HostFilesUploadsResource::append(const Upload &upload, const uint64_t &offset, const string &data,
-                                                            HostFilesUploadsAppendOptions options) {
+::dokime::UploadsAppendResponse HostFilesUploadsResource::append(const Upload &upload, const uint64_t &offset, const string &data,
+                                                                 HostFilesUploadsAppendOptions options) {
   UploadsAppendRequest request;
   *request.mutable_upload() = upload;
   request.set_offset(offset);
@@ -259,8 +268,8 @@ FilesUploadsAppendResponse HostFilesUploadsResource::append(const Upload &upload
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-FilesUploadsPublishResponse HostFilesUploadsResource::publish(const Upload &upload, const uint64_t &length, const string &sha256,
-                                                              HostFilesUploadsPublishOptions options) {
+::dokime::UploadsPublishResponse HostFilesUploadsResource::publish(const Upload &upload, const uint64_t &length, const string &sha256,
+                                                                   HostFilesUploadsPublishOptions options) {
   UploadsPublishRequest request;
   *request.mutable_upload() = upload;
   request.set_length(length);
@@ -270,7 +279,7 @@ FilesUploadsPublishResponse HostFilesUploadsResource::publish(const Upload &uplo
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-FilesUploadsDeleteResponse HostFilesUploadsResource::delete_(const Upload &upload, HostFilesUploadsDeleteOptions options) {
+::dokime::UploadsDeleteResponse HostFilesUploadsResource::delete_(const Upload &upload, HostFilesUploadsDeleteOptions options) {
   UploadsDeleteRequest request;
   *request.mutable_upload() = upload;
   request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -278,7 +287,7 @@ FilesUploadsDeleteResponse HostFilesUploadsResource::delete_(const Upload &uploa
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-uint64_t HostFilesCapturesResource::start(const FileSource &source, const string &output, const FilesCaptureMode &mode,
+uint64_t HostFilesCapturesResource::start(const FileSource &source, const string &output, const CaptureMode &mode,
                                           HostFilesCapturesStartOptions options) {
   CapturesStartRequest request;
   *request.mutable_source() = source;
@@ -288,14 +297,15 @@ uint64_t HostFilesCapturesResource::start(const FileSource &source, const string
   auto response = context.call(operation, request, options.policy).get();
   return response.capture_id();
 }
-FilesCapturesStopResponse HostFilesCapturesResource::stop(const uint64_t &capture_id, HostFilesCapturesStopOptions options) {
+::dokime::plugin::host::files::CapturesStopResponse HostFilesCapturesResource::stop(const uint64_t &capture_id,
+                                                                                    HostFilesCapturesStopOptions options) {
   CapturesStopRequest request;
   request.set_capture_id(capture_id);
   auto operation = Operation<CapturesStopRequest, CapturesStopResponse>("dokime.host.v1.files.Captures/Stop", VISIBILITY_PUBLIC);
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-FilesGetResponse HostFilesResource::get(const FileReference &file, HostFilesGetOptions options) {
+::dokime::FilesGetResponse HostFilesResource::get(const FileReference &file, HostFilesGetOptions options) {
   FilesGetRequest request;
   *request.mutable_file() = file;
   if (options.at) {
@@ -305,8 +315,8 @@ FilesGetResponse HostFilesResource::get(const FileReference &file, HostFilesGetO
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-FilesReadResponse HostFilesResource::read(const FileReference &file, const uint64_t &offset, const uint64_t &max_bytes,
-                                          HostFilesReadOptions options) {
+::dokime::FilesReadResponse HostFilesResource::read(const FileReference &file, const uint64_t &offset, const uint64_t &max_bytes,
+                                                    HostFilesReadOptions options) {
   FilesReadRequest request;
   *request.mutable_file() = file;
   request.set_offset(offset);
@@ -334,7 +344,7 @@ HostFilesWatch HostFilesResource::watch(const uint64_t &offset, size_t max_item_
   (void)options;
   operation.watch();
   auto incoming = std::make_shared<Watching<FilesWatchResponse>>(context.watch(operation, request, max_item_bytes));
-  return HostFilesWatch([incoming]() -> optional<FilesWatchResponse> {
+  return HostFilesWatch([incoming]() -> optional<::dokime::FilesWatchResponse> {
     auto response = incoming->next();
     if (!response) {
       return {};
@@ -353,7 +363,8 @@ Receipt HostFilesResource::delete_(const FileReference &file, HostFilesDeleteOpt
   }
   return std::move(*response.mutable_receipt());
 }
-FilesCaptureResponse HostFilesResource::capture(const FileSource &source, const string &output, HostFilesCaptureOptions options) {
+::dokime::plugin::FilesCaptureResponse HostFilesResource::capture(const FileSource &source, const string &output,
+                                                                  HostFilesCaptureOptions options) {
   FilesCaptureRequest request;
   *request.mutable_source() = source;
   request.set_output(output);
@@ -361,7 +372,7 @@ FilesCaptureResponse HostFilesResource::capture(const FileSource &source, const 
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-ExecutionsProgressGetResponse HostExecutionsProgressResource::get(HostExecutionsProgressGetOptions options) {
+::dokime::ProgressGetResponse HostExecutionsProgressResource::get(HostExecutionsProgressGetOptions options) {
   ProgressGetRequest request;
   if (options.name) {
     request.set_name(*options.name);
@@ -373,8 +384,9 @@ ExecutionsProgressGetResponse HostExecutionsProgressResource::get(HostExecutions
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-ExecutionsProgressSetResponse HostExecutionsProgressResource::set(const ExecutionProgressValue &value, const string &expected_revision,
-                                                                  HostExecutionsProgressSetOptions options) {
+::dokime::plugin::ProgressSetResponse HostExecutionsProgressResource::set(const ExecutionProgressValue &value,
+                                                                          const string &expected_revision,
+                                                                          HostExecutionsProgressSetOptions options) {
   ProgressSetRequest request;
   if (options.name) {
     request.set_name(*options.name);
@@ -386,7 +398,7 @@ ExecutionsProgressSetResponse HostExecutionsProgressResource::set(const Executio
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-EvidenceTraceabilityGetResponse HostEvidenceTraceabilityResource::get(HostEvidenceTraceabilityGetOptions options) {
+::dokime::TraceabilityGetResponse HostEvidenceTraceabilityResource::get(HostEvidenceTraceabilityGetOptions options) {
   TraceabilityGetRequest request;
   if (options.scope) {
     *request.mutable_scope() = *options.scope;
@@ -405,8 +417,9 @@ EvidenceTraceabilityGetResponse HostEvidenceTraceabilityResource::get(HostEviden
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-EvidenceTraceabilitySetResponse HostEvidenceTraceabilityResource::set(const TraceabilityEntry &value, const string &expected_revision,
-                                                                      const string &entry, HostEvidenceTraceabilitySetOptions options) {
+::dokime::plugin::TraceabilitySetResponse HostEvidenceTraceabilityResource::set(const TraceabilityEntry &value,
+                                                                                const string &expected_revision, const string &entry,
+                                                                                HostEvidenceTraceabilitySetOptions options) {
   TraceabilitySetRequest request;
   if (options.name) {
     request.set_name(*options.name);
@@ -420,10 +433,10 @@ EvidenceTraceabilitySetResponse HostEvidenceTraceabilityResource::set(const Trac
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-EvidenceRecordsListResponse HostEvidenceRecordsResource::list(const string &record_type, const vector<uint32_t> &versions,
-                                                              const Window &between, const string &step,
-                                                              const EvidenceCapturedRecordSelection &selection,
-                                                              HostEvidenceRecordsListOptions options) {
+::dokime::RecordsListResponse HostEvidenceRecordsResource::list(const string &record_type, const vector<uint32_t> &versions,
+                                                                const Window &between, const string &step,
+                                                                const CapturedRecordSelection &selection,
+                                                                HostEvidenceRecordsListOptions options) {
   RecordsListRequest request;
   if (options.scope) {
     *request.mutable_scope() = *options.scope;
@@ -443,8 +456,9 @@ EvidenceRecordsListResponse HostEvidenceRecordsResource::list(const string &reco
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-EvidenceRecordsAppendResponse HostEvidenceRecordsResource::append(const string &execution, const string &kind, const string &payload,
-                                                                  const Timestamp &source_at, HostEvidenceRecordsAppendOptions options) {
+::dokime::plugin::RecordsAppendResponse HostEvidenceRecordsResource::append(const string &execution, const string &kind,
+                                                                            const string &payload, const Timestamp &source_at,
+                                                                            HostEvidenceRecordsAppendOptions options) {
   RecordsAppendRequest request;
   request.set_execution(execution);
   request.set_kind(kind);
@@ -470,9 +484,10 @@ Receipt HostEvidenceLogsResource::append(const string &execution, const Severity
   }
   return std::move(*response.mutable_receipt());
 }
-EvidenceStatisticsResponse HostEvidenceResource::statistics(const string &stream, const vector<uint32_t> &versions, const Window &between,
-                                                            const vector<Output> &outputs, const string &field, const string &step,
-                                                            HostEvidenceStatisticsOptions options) {
+::dokime::EvidenceStatisticsResponse HostEvidenceResource::statistics(const string &stream, const vector<uint32_t> &versions,
+                                                                      const Window &between, const vector<Output> &outputs,
+                                                                      const string &field, const string &step,
+                                                                      HostEvidenceStatisticsOptions options) {
   EvidenceStatisticsRequest request;
   if (options.scope) {
     *request.mutable_scope() = *options.scope;
@@ -491,8 +506,9 @@ EvidenceStatisticsResponse HostEvidenceResource::statistics(const string &stream
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-EffectsCreateResponse HostEffectsResource::create(const string &resource, const string &inverse_operation, const string &inverse,
-                                                  const string &description, HostEffectsCreateOptions options) {
+::dokime::plugin::EffectsCreateResponse HostEffectsResource::create(const string &resource, const string &inverse_operation,
+                                                                    const string &inverse, const string &description,
+                                                                    HostEffectsCreateOptions options) {
   EffectsCreateRequest request;
   request.set_resource(resource);
   request.set_inverse_operation(inverse_operation);
@@ -503,7 +519,7 @@ EffectsCreateResponse HostEffectsResource::create(const string &resource, const 
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-EffectsGetResponse HostEffectsResource::get(const string &name, HostEffectsGetOptions options) {
+::dokime::plugin::EffectsGetResponse HostEffectsResource::get(const string &name, HostEffectsGetOptions options) {
   EffectsGetRequest request;
   request.set_name(name);
   if (options.at) {
@@ -513,8 +529,8 @@ EffectsGetResponse HostEffectsResource::get(const string &name, HostEffectsGetOp
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-EffectsSetResponse HostEffectsResource::set(const string &name, const EffectWritable &value, const string &expected_revision,
-                                            HostEffectsSetOptions options) {
+::dokime::plugin::EffectsSetResponse HostEffectsResource::set(const string &name, const EffectWritable &value,
+                                                              const string &expected_revision, HostEffectsSetOptions options) {
   EffectsSetRequest request;
   request.set_name(name);
   *request.mutable_value() = value;
@@ -545,8 +561,9 @@ Receipt HostDocumentsResource::append_parts(const string &execution, const strin
   }
   return std::move(*response.mutable_receipt());
 }
-ContentArtifactsCreateResponse HostContentArtifactsResource::create(const FileReference &file, const string &filename,
-                                                                    const string &content_type, HostContentArtifactsCreateOptions options) {
+::dokime::ArtifactsCreateResponse HostContentArtifactsResource::create(const FileReference &file, const string &filename,
+                                                                       const string &content_type,
+                                                                       HostContentArtifactsCreateOptions options) {
   ArtifactsCreateRequest request;
   *request.mutable_file() = file;
   if (options.scope) {
@@ -562,7 +579,7 @@ ContentArtifactsCreateResponse HostContentArtifactsResource::create(const FileRe
   auto response = context.call(operation, request, options.policy).get();
   return response;
 }
-BackendEnvironmentResponse HostBackendResource::environment(HostBackendEnvironmentOptions options) {
+::dokime::plugin::BackendEnvironmentResponse HostBackendResource::environment(HostBackendEnvironmentOptions options) {
   BackendEnvironmentRequest request;
   if (options.at) {
     *request.mutable_at() = *options.at;
@@ -575,7 +592,7 @@ BackendEnvironmentResponse HostBackendResource::environment(HostBackendEnvironme
 } // namespace dokime::plugin
 namespace dokime::plugin {
 HostRoot Context::host() {
-  return {{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}};
+  return {{*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}, {*this}};
 }
 Plugin &Plugin::requires_operation(HostOperation operation) {
   switch (operation) {
@@ -663,6 +680,11 @@ Plugin &Plugin::requires_operation(HostOperation operation) {
   case HostOperation::InvocationsWatch:
     return requires_operation(
         Operation<InvocationsWatchRequest, InvocationsWatchResponse>("harmos.host.v1.Invocations/Watch", VISIBILITY_PUBLIC).watch());
+  case HostOperation::OperationsList:
+    return requires_operation(
+        Operation<OperationsListRequest, OperationsListResponse>("harmos.host.v1.Operations/List", VISIBILITY_PUBLIC));
+  case HostOperation::OperationsGet:
+    return requires_operation(Operation<OperationsGetRequest, OperationsGetResponse>("harmos.host.v1.Operations/Get", VISIBILITY_PUBLIC));
   case HostOperation::PluginsSettingsList:
     return requires_operation(
         Operation<SettingsListRequest, SettingsListResponse>("harmos.host.v1.plugins.Settings/List", VISIBILITY_PUBLIC));

@@ -16,7 +16,6 @@ using dokime::Metadata;
 using dokime::REDUCTION_MAX;
 using dokime::REDUCTION_MEAN;
 using dokime::ReferenceBand;
-using dokime::Section;
 
 TEST_CASE("Documents Preserve Composed Plot Operands") {
   using namespace dokime::authoring;
@@ -34,7 +33,7 @@ TEST_CASE("Documents Preserve Composed Plot Operands") {
   band.mutable_center()->set_parameter("target");
   band.mutable_tolerance()->set_parameter("tolerance");
   surface.reference_band(band);
-  Section target;
+  dokime::model::Section target;
   target.mutable_metadata()->set_identifier("map");
   target.mutable_metadata()->set_label("Map");
   plot(target, surface);

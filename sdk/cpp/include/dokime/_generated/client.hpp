@@ -211,7 +211,7 @@ struct EvidenceHealthEventsWatchOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct EvidenceRecordsListOptions {
-  std::optional<::dokime::EvidenceRecordScope> scope;
+  std::optional<::dokime::RecordScope> scope;
   std::optional<::harmos::ReadCut> at;
   std::optional<::harmos::PageRequest> page;
   std::shared_ptr<grpc::ClientContext> context;
@@ -577,7 +577,7 @@ struct TimeSleepOptions {
 } // namespace client
 struct AccessCertificatesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit AccessCertificatesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit AccessCertificatesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   std::string create(client::AccessCertificatesCreateOptions options = {}) {
     detail::packages::harmos::host::access::CertificatesCreateRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
@@ -591,7 +591,7 @@ struct AccessCertificatesResource {
 };
 struct AccessListenerResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit AccessListenerResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit AccessListenerResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::harmos::client::ListenerGetResponse get(client::AccessListenerGetOptions options = {}) {
     detail::packages::harmos::host::access::ListenerGetRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
@@ -618,7 +618,7 @@ struct AccessListenerResource {
 };
 struct AccessPairingsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit AccessPairingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit AccessPairingsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::harmos::client::PairingsCreateResponse create(const std::string &label, client::AccessPairingsCreateOptions options = {}) {
     detail::packages::harmos::host::access::PairingsCreateRequest request;
     request.set_label(label);
@@ -657,8 +657,8 @@ struct AccessPairingsResource {
 };
 struct BackendOverviewResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit BackendOverviewResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::BackendOverviewGetResponse get(client::BackendOverviewGetOptions options = {}) {
+  explicit BackendOverviewResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::OverviewGetResponse get(client::BackendOverviewGetOptions options = {}) {
     detail::packages::dokime::host::backend::OverviewGetRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -671,7 +671,7 @@ struct BackendOverviewResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::BackendOverviewWatchResponse> watch(client::BackendOverviewWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::OverviewWatchResponse> watch(client::BackendOverviewWatchOptions options = {}) {
     detail::packages::dokime::host::backend::OverviewWatchRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -679,7 +679,7 @@ struct BackendOverviewResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::backend::OverviewWatchResponse>>(
         detail::packages::dokime::host::backend::Overview::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::BackendOverviewWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::OverviewWatchResponse> {
               detail::packages::dokime::host::backend::OverviewWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -694,8 +694,8 @@ struct BackendOverviewResource {
 };
 struct ContentArtifactsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit ContentArtifactsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::ContentArtifactsGetResponse get(const std::string &name, client::ContentArtifactsGetOptions options = {}) {
+  explicit ContentArtifactsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::ArtifactsGetResponse get(const std::string &name, client::ContentArtifactsGetOptions options = {}) {
     detail::packages::dokime::host::content::ArtifactsGetRequest request;
     request.set_name(name);
     if (options.at) {
@@ -709,8 +709,8 @@ struct ContentArtifactsResource {
     }
     return response;
   }
-  ::dokime::ContentArtifactsCreateResponse create(const ::harmos::FileReference &file, const std::string &filename,
-                                                  const std::string &content_type, client::ContentArtifactsCreateOptions options = {}) {
+  ::dokime::ArtifactsCreateResponse create(const ::harmos::FileReference &file, const std::string &filename,
+                                           const std::string &content_type, client::ContentArtifactsCreateOptions options = {}) {
     detail::packages::dokime::host::content::ArtifactsCreateRequest request;
     *request.mutable_file() = file;
     if (options.scope) {
@@ -730,8 +730,7 @@ struct ContentArtifactsResource {
     }
     return response;
   }
-  ::dokime::client::ContentArtifactsListResponse list(const ::dokime::ArtifactScope &scope,
-                                                      client::ContentArtifactsListOptions options = {}) {
+  ::dokime::client::ArtifactsListResponse list(const ::dokime::ArtifactScope &scope, client::ContentArtifactsListOptions options = {}) {
     detail::packages::dokime::host::content::ArtifactsListRequest request;
     *request.mutable_scope() = scope;
     if (options.at) {
@@ -748,8 +747,8 @@ struct ContentArtifactsResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::ContentArtifactsWatchResponse> watch(const ::dokime::ArtifactScope &scope,
-                                                                                client::ContentArtifactsWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::ArtifactsWatchResponse> watch(const ::dokime::ArtifactScope &scope,
+                                                                         client::ContentArtifactsWatchOptions options = {}) {
     detail::packages::dokime::host::content::ArtifactsWatchRequest request;
     *request.mutable_scope() = scope;
     if (options.at) {
@@ -761,7 +760,7 @@ struct ContentArtifactsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::content::ArtifactsWatchResponse>>(
         detail::packages::dokime::host::content::Artifacts::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::ContentArtifactsWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::ArtifactsWatchResponse> {
               detail::packages::dokime::host::content::ArtifactsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -776,9 +775,9 @@ struct ContentArtifactsResource {
 };
 struct ContentExecutionFilesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit ContentExecutionFilesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::ContentExecutionFilesGetResponse get(const std::string &parent, const std::string &name,
-                                                         client::ContentExecutionFilesGetOptions options = {}) {
+  explicit ContentExecutionFilesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::ExecutionFilesGetResponse get(const std::string &parent, const std::string &name,
+                                                  client::ContentExecutionFilesGetOptions options = {}) {
     detail::packages::dokime::host::content::ExecutionFilesGetRequest request;
     request.set_parent(parent);
     request.set_name(name);
@@ -793,8 +792,7 @@ struct ContentExecutionFilesResource {
     }
     return response;
   }
-  ::dokime::client::ContentExecutionFilesListResponse list(const std::string &parent,
-                                                           client::ContentExecutionFilesListOptions options = {}) {
+  ::dokime::client::ExecutionFilesListResponse list(const std::string &parent, client::ContentExecutionFilesListOptions options = {}) {
     detail::packages::dokime::host::content::ExecutionFilesListRequest request;
     request.set_parent(parent);
     if (options.at) {
@@ -811,8 +809,8 @@ struct ContentExecutionFilesResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::ContentExecutionFilesWatchResponse>
-  watch(const std::string &parent, client::ContentExecutionFilesWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::ExecutionFilesWatchResponse> watch(const std::string &parent,
+                                                                              client::ContentExecutionFilesWatchOptions options = {}) {
     detail::packages::dokime::host::content::ExecutionFilesWatchRequest request;
     request.set_parent(parent);
     if (options.at) {
@@ -824,7 +822,7 @@ struct ContentExecutionFilesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::content::ExecutionFilesWatchResponse>>(
         detail::packages::dokime::host::content::ExecutionFiles::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::ContentExecutionFilesWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::ExecutionFilesWatchResponse> {
               detail::packages::dokime::host::content::ExecutionFilesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -839,9 +837,9 @@ struct ContentExecutionFilesResource {
 };
 struct EvidenceHealthEventsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit EvidenceHealthEventsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::EvidenceHealthEventsListResponse list(const ::dokime::client::EvidenceAnnotationSelection &selection,
-                                                          client::EvidenceHealthEventsListOptions options = {}) {
+  explicit EvidenceHealthEventsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::HealthEventsListResponse list(const ::dokime::client::AnnotationSelection &selection,
+                                                  client::EvidenceHealthEventsListOptions options = {}) {
     detail::packages::dokime::host::evidence::HealthEventsListRequest request;
     *request.mutable_selection() = selection;
     if (options.at) {
@@ -858,8 +856,8 @@ struct EvidenceHealthEventsResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::EvidenceHealthEventsWatchResponse>
-  watch(const ::dokime::client::EvidenceAnnotationSelection &selection, client::EvidenceHealthEventsWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::HealthEventsWatchResponse> watch(const ::dokime::client::AnnotationSelection &selection,
+                                                                            client::EvidenceHealthEventsWatchOptions options = {}) {
     detail::packages::dokime::host::evidence::HealthEventsWatchRequest request;
     *request.mutable_selection() = selection;
     if (options.at) {
@@ -871,7 +869,7 @@ struct EvidenceHealthEventsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::HealthEventsWatchResponse>>(
         detail::packages::dokime::host::evidence::HealthEvents::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::EvidenceHealthEventsWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::HealthEventsWatchResponse> {
               detail::packages::dokime::host::evidence::HealthEventsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -886,8 +884,8 @@ struct EvidenceHealthEventsResource {
 };
 struct EvidenceNotesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit EvidenceNotesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::EvidenceNotesGetResponse get(const std::string &name, client::EvidenceNotesGetOptions options = {}) {
+  explicit EvidenceNotesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::NotesGetResponse get(const std::string &name, client::EvidenceNotesGetOptions options = {}) {
     detail::packages::dokime::host::evidence::NotesGetRequest request;
     request.set_name(name);
     if (options.at) {
@@ -901,8 +899,8 @@ struct EvidenceNotesResource {
     }
     return response;
   }
-  ::dokime::client::EvidenceNotesSetResponse set(const std::string &name, const ::dokime::client::EvidenceNoteWritable &value,
-                                                 const std::string &expected_revision, client::EvidenceNotesSetOptions options = {}) {
+  ::dokime::client::NotesSetResponse set(const std::string &name, const ::dokime::client::NoteWritable &value,
+                                         const std::string &expected_revision, client::EvidenceNotesSetOptions options = {}) {
     detail::packages::dokime::host::evidence::NotesSetRequest request;
     request.set_name(name);
     *request.mutable_value() = value;
@@ -916,8 +914,8 @@ struct EvidenceNotesResource {
     }
     return response;
   }
-  ::dokime::client::EvidenceNotesListResponse list(const ::dokime::client::EvidenceAnnotationSelection &selection,
-                                                   client::EvidenceNotesListOptions options = {}) {
+  ::dokime::client::NotesListResponse list(const ::dokime::client::AnnotationSelection &selection,
+                                           client::EvidenceNotesListOptions options = {}) {
     detail::packages::dokime::host::evidence::NotesListRequest request;
     *request.mutable_selection() = selection;
     if (options.at) {
@@ -934,8 +932,8 @@ struct EvidenceNotesResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::EvidenceNotesWatchResponse> watch(const ::dokime::client::EvidenceAnnotationSelection &selection,
-                                                                             client::EvidenceNotesWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::NotesWatchResponse> watch(const ::dokime::client::AnnotationSelection &selection,
+                                                                     client::EvidenceNotesWatchOptions options = {}) {
     detail::packages::dokime::host::evidence::NotesWatchRequest request;
     *request.mutable_selection() = selection;
     if (options.at) {
@@ -947,7 +945,7 @@ struct EvidenceNotesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::NotesWatchResponse>>(
         detail::packages::dokime::host::evidence::Notes::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::EvidenceNotesWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::NotesWatchResponse> {
               detail::packages::dokime::host::evidence::NotesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -959,9 +957,8 @@ struct EvidenceNotesResource {
               return response;
             }};
   }
-  ::dokime::client::EvidenceNotesCreateResponse create(const ::dokime::client::EvidenceAnnotationOwner &owner,
-                                                       const ::dokime::client::EvidenceNoteWritable &value,
-                                                       client::EvidenceNotesCreateOptions options = {}) {
+  ::dokime::client::NotesCreateResponse create(const ::dokime::client::AnnotationOwner &owner, const ::dokime::client::NoteWritable &value,
+                                               client::EvidenceNotesCreateOptions options = {}) {
     detail::packages::dokime::host::evidence::NotesCreateRequest request;
     *request.mutable_owner() = owner;
     *request.mutable_value() = value;
@@ -977,11 +974,10 @@ struct EvidenceNotesResource {
 };
 struct EvidenceRecordsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit EvidenceRecordsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::EvidenceRecordsListResponse list(const std::string &record_type, const std::vector<std::uint32_t> &versions,
-                                             const ::dokime::Window &between, const std::string &step,
-                                             const ::dokime::EvidenceCapturedRecordSelection &selection,
-                                             client::EvidenceRecordsListOptions options = {}) {
+  explicit EvidenceRecordsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::RecordsListResponse list(const std::string &record_type, const std::vector<std::uint32_t> &versions,
+                                     const ::dokime::model::Window &between, const std::string &step,
+                                     const ::dokime::CapturedRecordSelection &selection, client::EvidenceRecordsListOptions options = {}) {
     detail::packages::dokime::host::evidence::RecordsListRequest request;
     if (options.scope) {
       *request.mutable_scope() = *options.scope;
@@ -1005,10 +1001,11 @@ struct EvidenceRecordsResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::EvidenceRecordsWatchResponse>
-  watch(const ::dokime::EvidenceRecordScope &scope, const std::string &record_type, const std::vector<std::uint32_t> &versions,
-        const ::dokime::Window &between, const std::string &step, const ::dokime::EvidenceCapturedRecordSelection &selection,
-        client::EvidenceRecordsWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::RecordsWatchResponse> watch(const ::dokime::RecordScope &scope, const std::string &record_type,
+                                                                       const std::vector<std::uint32_t> &versions,
+                                                                       const ::dokime::model::Window &between, const std::string &step,
+                                                                       const ::dokime::CapturedRecordSelection &selection,
+                                                                       client::EvidenceRecordsWatchOptions options = {}) {
     detail::packages::dokime::host::evidence::RecordsWatchRequest request;
     *request.mutable_scope() = scope;
     request.set_record_type(record_type);
@@ -1025,7 +1022,7 @@ struct EvidenceRecordsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::RecordsWatchResponse>>(
         detail::packages::dokime::host::evidence::Records::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::EvidenceRecordsWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::RecordsWatchResponse> {
               detail::packages::dokime::host::evidence::RecordsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -1040,12 +1037,12 @@ struct EvidenceRecordsResource {
 };
 struct EvidenceSamplesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit EvidenceSamplesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::EvidenceSamplesListResponse list(const ::dokime::EvidenceScope &scope, const std::vector<std::string> &streams,
-                                                     const std::vector<std::uint32_t> &versions, const std::vector<std::string> &fields,
-                                                     const std::vector<std::string> &sources, const std::vector<std::string> &signals,
-                                                     const ::dokime::Window &between, const ::dokime::client::EvidenceBucketRequest &bucket,
-                                                     const bool &latest, client::EvidenceSamplesListOptions options = {}) {
+  explicit EvidenceSamplesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::SamplesListResponse list(const ::dokime::EvidenceScope &scope, const std::vector<std::string> &streams,
+                                             const std::vector<std::uint32_t> &versions, const std::vector<std::string> &fields,
+                                             const std::vector<std::string> &sources, const std::vector<std::string> &signals,
+                                             const ::dokime::model::Window &between, const ::dokime::client::BucketRequest &bucket,
+                                             const bool &latest, client::EvidenceSamplesListOptions options = {}) {
     detail::packages::dokime::host::evidence::SamplesListRequest request;
     *request.mutable_scope() = scope;
     request.mutable_streams()->Assign(streams.begin(), streams.end());
@@ -1070,10 +1067,10 @@ struct EvidenceSamplesResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::EvidenceSamplesWatchResponse>
+  ::harmos::ClientStream<::dokime::client::SamplesWatchResponse>
   watch(const ::dokime::EvidenceScope &scope, const std::vector<std::string> &streams, const std::vector<std::uint32_t> &versions,
         const std::vector<std::string> &fields, const std::vector<std::string> &sources, const std::vector<std::string> &signals,
-        const ::dokime::Window &between, const ::dokime::client::EvidenceBucketRequest &bucket, const bool &latest,
+        const ::dokime::model::Window &between, const ::dokime::client::BucketRequest &bucket, const bool &latest,
         client::EvidenceSamplesWatchOptions options = {}) {
     detail::packages::dokime::host::evidence::SamplesWatchRequest request;
     *request.mutable_scope() = scope;
@@ -1094,7 +1091,7 @@ struct EvidenceSamplesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::SamplesWatchResponse>>(
         detail::packages::dokime::host::evidence::Samples::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::EvidenceSamplesWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::SamplesWatchResponse> {
               detail::packages::dokime::host::evidence::SamplesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -1109,8 +1106,8 @@ struct EvidenceSamplesResource {
 };
 struct EvidenceTraceabilityResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit EvidenceTraceabilityResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::EvidenceTraceabilityGetResponse get(client::EvidenceTraceabilityGetOptions options = {}) {
+  explicit EvidenceTraceabilityResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::TraceabilityGetResponse get(client::EvidenceTraceabilityGetOptions options = {}) {
     detail::packages::dokime::host::evidence::TraceabilityGetRequest request;
     if (options.scope) {
       *request.mutable_scope() = *options.scope;
@@ -1132,8 +1129,8 @@ struct EvidenceTraceabilityResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::EvidenceTraceabilityWatchResponse> watch(const ::dokime::EvidenceScope &scope,
-                                                                                    client::EvidenceTraceabilityWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::TraceabilityWatchResponse> watch(const ::dokime::EvidenceScope &scope,
+                                                                            client::EvidenceTraceabilityWatchOptions options = {}) {
     detail::packages::dokime::host::evidence::TraceabilityWatchRequest request;
     *request.mutable_scope() = scope;
     if (options.page) {
@@ -1145,7 +1142,7 @@ struct EvidenceTraceabilityResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::TraceabilityWatchResponse>>(
         detail::packages::dokime::host::evidence::Traceability::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::EvidenceTraceabilityWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::TraceabilityWatchResponse> {
               detail::packages::dokime::host::evidence::TraceabilityWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -1160,9 +1157,9 @@ struct EvidenceTraceabilityResource {
 };
 struct ExecutionsCommandsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit ExecutionsCommandsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::ExecutionsCommandsGetResponse get(const std::string &name, const std::string &parent,
-                                                      client::ExecutionsCommandsGetOptions options = {}) {
+  explicit ExecutionsCommandsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::CommandsGetResponse get(const std::string &name, const std::string &parent,
+                                            client::ExecutionsCommandsGetOptions options = {}) {
     detail::packages::dokime::host::executions::CommandsGetRequest request;
     request.set_name(name);
     request.set_parent(parent);
@@ -1177,9 +1174,9 @@ struct ExecutionsCommandsResource {
     }
     return response;
   }
-  ::dokime::client::ExecutionsCommandsCreateResponse create(const std::string &parent, const std::string &command_id,
-                                                            const ::dokime::client::ExecutionsExecutionCommandAction &action,
-                                                            client::ExecutionsCommandsCreateOptions options = {}) {
+  ::dokime::client::CommandsCreateResponse create(const std::string &parent, const std::string &command_id,
+                                                  const ::dokime::client::ExecutionCommandAction &action,
+                                                  client::ExecutionsCommandsCreateOptions options = {}) {
     detail::packages::dokime::host::executions::CommandsCreateRequest request;
     request.set_parent(parent);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -1199,8 +1196,8 @@ struct ExecutionsCommandsResource {
 };
 struct ExecutionsProgressResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit ExecutionsProgressResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::ExecutionsProgressGetResponse get(client::ExecutionsProgressGetOptions options = {}) {
+  explicit ExecutionsProgressResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::ProgressGetResponse get(client::ExecutionsProgressGetOptions options = {}) {
     detail::packages::dokime::host::executions::ProgressGetRequest request;
     if (options.name) {
       request.set_name(*options.name);
@@ -1216,8 +1213,8 @@ struct ExecutionsProgressResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::ExecutionsProgressWatchResponse> watch(const std::string &name,
-                                                                                  client::ExecutionsProgressWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::ProgressWatchResponse> watch(const std::string &name,
+                                                                        client::ExecutionsProgressWatchOptions options = {}) {
     detail::packages::dokime::host::executions::ProgressWatchRequest request;
     request.set_name(name);
     if (options.at) {
@@ -1226,7 +1223,7 @@ struct ExecutionsProgressResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::executions::ProgressWatchResponse>>(
         detail::packages::dokime::host::executions::Progress::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::ExecutionsProgressWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::ProgressWatchResponse> {
               detail::packages::dokime::host::executions::ProgressWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -1241,8 +1238,8 @@ struct ExecutionsProgressResource {
 };
 struct ExecutionsSchemasResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit ExecutionsSchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::ExecutionsSchemasGetResponse get(const std::string &name, client::ExecutionsSchemasGetOptions options = {}) {
+  explicit ExecutionsSchemasResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::SchemasGetResponse get(const std::string &name, client::ExecutionsSchemasGetOptions options = {}) {
     detail::packages::dokime::host::executions::SchemasGetRequest request;
     request.set_name(name);
     if (options.at) {
@@ -1262,8 +1259,8 @@ struct ExecutionsSchemasResource {
 };
 struct FilesUploadsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit FilesUploadsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::FilesUploadsCreateResponse create(const ::harmos::FileMetadata &metadata, client::FilesUploadsCreateOptions options = {}) {
+  explicit FilesUploadsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::UploadsCreateResponse create(const ::harmos::FileMetadata &metadata, client::FilesUploadsCreateOptions options = {}) {
     detail::packages::dokime::host::files::UploadsCreateRequest request;
     *request.mutable_metadata() = metadata;
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -1275,7 +1272,7 @@ struct FilesUploadsResource {
     }
     return response;
   }
-  ::dokime::FilesUploadsGetResponse get(const ::harmos::Upload &upload, client::FilesUploadsGetOptions options = {}) {
+  ::dokime::UploadsGetResponse get(const ::harmos::Upload &upload, client::FilesUploadsGetOptions options = {}) {
     detail::packages::dokime::host::files::UploadsGetRequest request;
     *request.mutable_upload() = upload;
     if (options.at) {
@@ -1289,7 +1286,7 @@ struct FilesUploadsResource {
     }
     return response;
   }
-  ::dokime::FilesUploadsResumeResponse resume(const ::harmos::Upload &upload, client::FilesUploadsResumeOptions options = {}) {
+  ::dokime::UploadsResumeResponse resume(const ::harmos::Upload &upload, client::FilesUploadsResumeOptions options = {}) {
     detail::packages::dokime::host::files::UploadsResumeRequest request;
     *request.mutable_upload() = upload;
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -1301,8 +1298,8 @@ struct FilesUploadsResource {
     }
     return response;
   }
-  ::dokime::FilesUploadsAppendResponse append(const ::harmos::Upload &upload, const std::uint64_t &offset, const std::string &data,
-                                              client::FilesUploadsAppendOptions options = {}) {
+  ::dokime::UploadsAppendResponse append(const ::harmos::Upload &upload, const std::uint64_t &offset, const std::string &data,
+                                         client::FilesUploadsAppendOptions options = {}) {
     detail::packages::dokime::host::files::UploadsAppendRequest request;
     *request.mutable_upload() = upload;
     request.set_offset(offset);
@@ -1316,8 +1313,8 @@ struct FilesUploadsResource {
     }
     return response;
   }
-  ::dokime::FilesUploadsPublishResponse publish(const ::harmos::Upload &upload, const std::uint64_t &length, const std::string &sha256,
-                                                client::FilesUploadsPublishOptions options = {}) {
+  ::dokime::UploadsPublishResponse publish(const ::harmos::Upload &upload, const std::uint64_t &length, const std::string &sha256,
+                                           client::FilesUploadsPublishOptions options = {}) {
     detail::packages::dokime::host::files::UploadsPublishRequest request;
     *request.mutable_upload() = upload;
     request.set_length(length);
@@ -1331,7 +1328,7 @@ struct FilesUploadsResource {
     }
     return response;
   }
-  ::dokime::FilesUploadsDeleteResponse delete_(const ::harmos::Upload &upload, client::FilesUploadsDeleteOptions options = {}) {
+  ::dokime::UploadsDeleteResponse delete_(const ::harmos::Upload &upload, client::FilesUploadsDeleteOptions options = {}) {
     detail::packages::dokime::host::files::UploadsDeleteRequest request;
     *request.mutable_upload() = upload;
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -1346,10 +1343,10 @@ struct FilesUploadsResource {
 };
 struct MediaCapturesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit MediaCapturesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::MediaCapturesCreateResponse create(const ::dokime::ArtifactScope &scope, const ::dokime::client::MediaCaptureKind &kind,
-                                                       const ::dokime::client::MediaRecordingAudio &audio,
-                                                       client::MediaCapturesCreateOptions options = {}) {
+  explicit MediaCapturesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::CapturesCreateResponse create(const ::dokime::ArtifactScope &scope, const ::dokime::client::CaptureKind &kind,
+                                                  const ::dokime::client::RecordingAudio &audio,
+                                                  client::MediaCapturesCreateOptions options = {}) {
     detail::packages::dokime::host::media::CapturesCreateRequest request;
     *request.mutable_scope() = scope;
     request.set_kind(kind);
@@ -1375,7 +1372,7 @@ struct MediaCapturesResource {
     }
     return response;
   }
-  ::dokime::client::MediaCapturesGetResponse get(const std::string &name, client::MediaCapturesGetOptions options = {}) {
+  ::dokime::client::CapturesGetResponse get(const std::string &name, client::MediaCapturesGetOptions options = {}) {
     detail::packages::dokime::host::media::CapturesGetRequest request;
     request.set_name(name);
     if (options.at) {
@@ -1389,8 +1386,8 @@ struct MediaCapturesResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::MediaCapturesWatchResponse> watch(const std::string &name,
-                                                                             client::MediaCapturesWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::CapturesWatchResponse> watch(const std::string &name,
+                                                                        client::MediaCapturesWatchOptions options = {}) {
     detail::packages::dokime::host::media::CapturesWatchRequest request;
     request.set_name(name);
     if (options.at) {
@@ -1399,7 +1396,7 @@ struct MediaCapturesResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::media::CapturesWatchResponse>>(
         detail::packages::dokime::host::media::Captures::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::MediaCapturesWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::CapturesWatchResponse> {
               detail::packages::dokime::host::media::CapturesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -1411,7 +1408,7 @@ struct MediaCapturesResource {
               return response;
             }};
   }
-  ::dokime::client::MediaCapturesStopResponse stop(const std::string &name, client::MediaCapturesStopOptions options = {}) {
+  ::dokime::client::host::media::CapturesStopResponse stop(const std::string &name, client::MediaCapturesStopOptions options = {}) {
     detail::packages::dokime::host::media::CapturesStopRequest request;
     request.set_name(name);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -1426,9 +1423,9 @@ struct MediaCapturesResource {
 };
 struct PlotsSettingsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit PlotsSettingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::PlotsSettingsGetResponse get(const ::dokime::client::DocumentScope &scope, const std::string &document_id,
-                                                 const std::string &plot_id, client::PlotsSettingsGetOptions options = {}) {
+  explicit PlotsSettingsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::host::plots::SettingsGetResponse get(const ::dokime::client::DocumentScope &scope, const std::string &document_id,
+                                                         const std::string &plot_id, client::PlotsSettingsGetOptions options = {}) {
     detail::packages::dokime::host::plots::SettingsGetRequest request;
     *request.mutable_scope() = scope;
     request.set_document_id(document_id);
@@ -1444,9 +1441,10 @@ struct PlotsSettingsResource {
     }
     return response;
   }
-  ::dokime::client::PlotsSettingsSetResponse set(const ::dokime::client::DocumentScope &scope, const std::string &document_id,
-                                                 const std::string &plot_id, const ::dokime::client::PlotsPlotSettingsValue &value,
-                                                 const std::string &expected_revision, client::PlotsSettingsSetOptions options = {}) {
+  ::dokime::client::host::plots::SettingsSetResponse set(const ::dokime::client::DocumentScope &scope, const std::string &document_id,
+                                                         const std::string &plot_id, const ::dokime::client::PlotSettingsValue &value,
+                                                         const std::string &expected_revision,
+                                                         client::PlotsSettingsSetOptions options = {}) {
     detail::packages::dokime::host::plots::SettingsSetRequest request;
     *request.mutable_scope() = scope;
     request.set_document_id(document_id);
@@ -1465,9 +1463,9 @@ struct PlotsSettingsResource {
 };
 struct PlotsSnapshotsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit PlotsSnapshotsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::PlotsSnapshotsListResponse list(const std::vector<::dokime::client::PlotsPlotRequest> &requests,
-                                                    client::PlotsSnapshotsListOptions options = {}) {
+  explicit PlotsSnapshotsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::SnapshotsListResponse list(const std::vector<::dokime::client::PlotRequest> &requests,
+                                               client::PlotsSnapshotsListOptions options = {}) {
     detail::packages::dokime::host::plots::SnapshotsListRequest request;
     request.mutable_requests()->Assign(requests.begin(), requests.end());
     if (options.at) {
@@ -1484,8 +1482,8 @@ struct PlotsSnapshotsResource {
     }
     return response;
   }
-  ::harmos::ClientStream<::dokime::client::PlotsSnapshotsWatchResponse>
-  watch(const std::vector<::dokime::client::PlotsPlotRequest> &requests, client::PlotsSnapshotsWatchOptions options = {}) {
+  ::harmos::ClientStream<::dokime::client::SnapshotsWatchResponse> watch(const std::vector<::dokime::client::PlotRequest> &requests,
+                                                                         client::PlotsSnapshotsWatchOptions options = {}) {
     detail::packages::dokime::host::plots::SnapshotsWatchRequest request;
     request.mutable_requests()->Assign(requests.begin(), requests.end());
     if (options.at) {
@@ -1497,7 +1495,7 @@ struct PlotsSnapshotsResource {
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::plots::SnapshotsWatchResponse>>(
         detail::packages::dokime::host::plots::Snapshots::NewStub(channel)->Watch(context.get(), request));
-    return {context, [reader]() -> std::optional<::dokime::client::PlotsSnapshotsWatchResponse> {
+    return {context, [reader]() -> std::optional<::dokime::client::SnapshotsWatchResponse> {
               detail::packages::dokime::host::plots::SnapshotsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
@@ -1512,8 +1510,8 @@ struct PlotsSnapshotsResource {
 };
 struct PluginsSecretsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit PluginsSecretsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::PluginsSecretsListResponse list(client::PluginsSecretsListOptions options = {}) {
+  explicit PluginsSecretsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::host::plugins::SecretsListResponse list(client::PluginsSecretsListOptions options = {}) {
     detail::packages::dokime::host::plugins::SecretsListRequest request;
     if (options.name) {
       request.set_name(*options.name);
@@ -1532,7 +1530,7 @@ struct PluginsSecretsResource {
 };
 struct PluginsSettingsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit PluginsSettingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit PluginsSettingsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::harmos::SettingsListResponse list(const std::string &name, client::PluginsSettingsListOptions options = {}) {
     detail::packages::harmos::host::plugins::SettingsListRequest request;
     request.set_name(name);
@@ -1565,10 +1563,9 @@ struct PluginsSettingsResource {
 };
 struct PromptsAnswersResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit PromptsAnswersResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::PromptsAnswersCreateResponse create(const std::string &parent, const std::string &action,
-                                                        const ::dokime::MapValue &values, const bool &accepted,
-                                                        client::PromptsAnswersCreateOptions options = {}) {
+  explicit PromptsAnswersResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::AnswersCreateResponse create(const std::string &parent, const std::string &action, const ::dokime::MapValue &values,
+                                                 const bool &accepted, client::PromptsAnswersCreateOptions options = {}) {
     detail::packages::dokime::host::prompts::AnswersCreateRequest request;
     request.set_parent(parent);
     request.set_action(action);
@@ -1586,7 +1583,7 @@ struct PromptsAnswersResource {
 };
 struct StatusDiagnosticsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit StatusDiagnosticsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit StatusDiagnosticsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::harmos::client::DiagnosticsGetResponse get(const std::string &name, const std::uint64_t &offset, const std::uint64_t &max_bytes,
                                                client::StatusDiagnosticsGetOptions options = {}) {
     detail::packages::harmos::host::status::DiagnosticsGetRequest request;
@@ -1604,7 +1601,7 @@ struct StatusDiagnosticsResource {
 };
 struct StatusLogsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit StatusLogsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit StatusLogsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::harmos::client::LogsListResponse list(client::StatusLogsListOptions options = {}) {
     detail::packages::harmos::host::status::LogsListRequest request;
     if (options.at) {
@@ -1647,7 +1644,7 @@ struct StatusLogsResource {
 };
 struct StatusTraceEventsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit StatusTraceEventsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit StatusTraceEventsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::harmos::client::TraceEventsListResponse list(client::StatusTraceEventsListOptions options = {}) {
     detail::packages::harmos::host::status::TraceEventsListRequest request;
     if (options.at) {
@@ -1690,8 +1687,8 @@ struct StatusTraceEventsResource {
 };
 struct StorageSourcesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit StorageSourcesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::StorageSourcesGetResponse get(client::StorageSourcesGetOptions options = {}) {
+  explicit StorageSourcesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::SourcesGetResponse get(client::StorageSourcesGetOptions options = {}) {
     detail::packages::dokime::host::storage::SourcesGetRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -1704,8 +1701,8 @@ struct StorageSourcesResource {
     }
     return response;
   }
-  ::dokime::client::StorageSourcesSetResponse set(const ::dokime::client::StorageStorageSources &value,
-                                                  const std::string &expected_revision, client::StorageSourcesSetOptions options = {}) {
+  ::dokime::client::SourcesSetResponse set(const ::dokime::client::StorageSources &value, const std::string &expected_revision,
+                                           client::StorageSourcesSetOptions options = {}) {
     detail::packages::dokime::host::storage::SourcesSetRequest request;
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
@@ -1723,11 +1720,12 @@ struct AccessResource {
   AccessCertificatesResource certificates;
   AccessListenerResource listener;
   AccessPairingsResource pairings;
-  explicit AccessResource(std::shared_ptr<grpc::Channel> channel) : certificates(channel), listener(channel), pairings(channel) {}
+  explicit AccessResource(std::shared_ptr<grpc::Channel> channel_value)
+      : certificates(channel_value), listener(channel_value), pairings(channel_value) {}
 };
 struct AggregatesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit AggregatesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit AggregatesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::client::AggregatesGetResponse get(const ::dokime::client::QuerySource &source,
                                               const std::vector<::dokime::client::QueryFilter> &filters,
                                               const std::vector<std::string> &group_by,
@@ -1754,7 +1752,7 @@ struct AggregatesResource {
 struct BackendResource {
   std::shared_ptr<grpc::Channel> channel;
   BackendOverviewResource overview;
-  explicit BackendResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), overview(channel) {}
+  explicit BackendResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value), overview(channel_value) {}
   ::dokime::client::BackendAppearanceResponse appearance(client::BackendAppearanceOptions options = {}) {
     detail::packages::dokime::host::BackendAppearanceRequest request;
     if (options.at) {
@@ -1771,7 +1769,7 @@ struct BackendResource {
 };
 struct CasesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit CasesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit CasesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::client::CasesCreateResponse create(const ::dokime::client::SelectionPlan &plan, const bool &validate_only,
                                                client::CasesCreateOptions options = {}) {
     detail::packages::dokime::host::CasesCreateRequest request;
@@ -1872,11 +1870,11 @@ struct CasesResource {
 struct ContentResource {
   ContentArtifactsResource artifacts;
   ContentExecutionFilesResource execution_files;
-  explicit ContentResource(std::shared_ptr<grpc::Channel> channel) : artifacts(channel), execution_files(channel) {}
+  explicit ContentResource(std::shared_ptr<grpc::Channel> channel_value) : artifacts(channel_value), execution_files(channel_value) {}
 };
 struct CyclesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit CyclesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit CyclesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::client::CyclesGetResponse get(const std::string &name, client::CyclesGetOptions options = {}) {
     detail::packages::dokime::host::CyclesGetRequest request;
     request.set_name(name);
@@ -1987,7 +1985,7 @@ struct CyclesResource {
 };
 struct DocumentsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit DocumentsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit DocumentsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::client::DocumentsGetResponse get(const ::dokime::client::DocumentScope &scope, const std::string &document_id,
                                              const bool &structure_only, const std::vector<std::string> &card_ids,
                                              const std::string &page_token, const std::uint64_t &max_bytes, const std::uint32_t &max_frames,
@@ -2049,10 +2047,11 @@ struct EvidenceResource {
   EvidenceRecordsResource records;
   EvidenceSamplesResource samples;
   EvidenceTraceabilityResource traceability;
-  explicit EvidenceResource(std::shared_ptr<grpc::Channel> channel)
-      : channel(channel), health_events(channel), notes(channel), records(channel), samples(channel), traceability(channel) {}
+  explicit EvidenceResource(std::shared_ptr<grpc::Channel> channel_value)
+      : channel(channel_value), health_events(channel_value), notes(channel_value), records(channel_value), samples(channel_value),
+        traceability(channel_value) {}
   ::dokime::EvidenceStatisticsResponse statistics(const std::string &stream, const std::vector<std::uint32_t> &versions,
-                                                  const ::dokime::Window &between, const std::vector<::dokime::Output> &outputs,
+                                                  const ::dokime::model::Window &between, const std::vector<::dokime::Output> &outputs,
                                                   const std::string &field, const std::string &step,
                                                   client::EvidenceStatisticsOptions options = {}) {
     detail::packages::dokime::host::EvidenceStatisticsRequest request;
@@ -2097,8 +2096,8 @@ struct ExecutionsResource {
   ExecutionsCommandsResource commands;
   ExecutionsProgressResource progress;
   ExecutionsSchemasResource schemas;
-  explicit ExecutionsResource(std::shared_ptr<grpc::Channel> channel)
-      : channel(channel), commands(channel), progress(channel), schemas(channel) {}
+  explicit ExecutionsResource(std::shared_ptr<grpc::Channel> channel_value)
+      : channel(channel_value), commands(channel_value), progress(channel_value), schemas(channel_value) {}
   ::dokime::client::ExecutionsGetResponse get(const std::string &name, client::ExecutionsGetOptions options = {}) {
     detail::packages::dokime::host::ExecutionsGetRequest request;
     request.set_name(name);
@@ -2244,11 +2243,12 @@ struct ExecutionsResource {
     }
     return response;
   }
-  ::dokime::client::ExecutionsParametersResponse parameters(const std::string &name, const ::dokime::client::ExecutionParameterSet &set,
+  ::dokime::client::ExecutionsParametersResponse parameters(const std::string &name,
+                                                            const ::dokime::client::ExecutionParameterSet &set_value,
                                                             client::ExecutionsParametersOptions options = {}) {
     detail::packages::dokime::host::ExecutionsParametersRequest request;
     request.set_name(name);
-    request.set_set(set);
+    request.set_set(set_value);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
@@ -2278,7 +2278,7 @@ struct ExecutionsResource {
 struct FilesResource {
   std::shared_ptr<grpc::Channel> channel;
   FilesUploadsResource uploads;
-  explicit FilesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), uploads(channel) {}
+  explicit FilesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value), uploads(channel_value) {}
   ::dokime::FilesGetResponse get(const ::harmos::FileReference &file, client::FilesGetOptions options = {}) {
     detail::packages::dokime::host::FilesGetRequest request;
     *request.mutable_file() = file;
@@ -2355,11 +2355,11 @@ struct FilesResource {
 };
 struct InvocationsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit InvocationsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  std::string create(const std::string &operation, const std::string &fingerprint, const std::string &payload,
+  explicit InvocationsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  std::string create(const std::string &operation_value, const std::string &fingerprint, const std::string &payload,
                      client::InvocationsCreateOptions options = {}) {
     detail::packages::harmos::host::InvocationsCreateRequest request;
-    request.set_operation(operation);
+    request.set_operation(operation_value);
     request.set_fingerprint(fingerprint);
     request.set_payload(payload);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
@@ -2423,11 +2423,11 @@ struct InvocationsResource {
 };
 struct MediaResource {
   MediaCapturesResource captures;
-  explicit MediaResource(std::shared_ptr<grpc::Channel> channel) : captures(channel) {}
+  explicit MediaResource(std::shared_ptr<grpc::Channel> channel_value) : captures(channel_value) {}
 };
 struct OperationsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit OperationsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit OperationsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   std::vector<::harmos::DiscoveredOperation> list(client::OperationsListOptions options = {}) {
     detail::packages::harmos::host::OperationsListRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
@@ -2456,13 +2456,14 @@ struct OperationsResource {
 struct PlotsResource {
   PlotsSettingsResource settings;
   PlotsSnapshotsResource snapshots;
-  explicit PlotsResource(std::shared_ptr<grpc::Channel> channel) : settings(channel), snapshots(channel) {}
+  explicit PlotsResource(std::shared_ptr<grpc::Channel> channel_value) : settings(channel_value), snapshots(channel_value) {}
 };
 struct PluginsResource {
   std::shared_ptr<grpc::Channel> channel;
   PluginsSecretsResource secrets;
   PluginsSettingsResource settings;
-  explicit PluginsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), secrets(channel), settings(channel) {}
+  explicit PluginsResource(std::shared_ptr<grpc::Channel> channel_value)
+      : channel(channel_value), secrets(channel_value), settings(channel_value) {}
   ::harmos::client::PluginsGetResponse get(const std::string &name, client::PluginsGetOptions options = {}) {
     detail::packages::harmos::host::PluginsGetRequest request;
     request.set_name(name);
@@ -2591,7 +2592,7 @@ struct PluginsResource {
 };
 struct PromptDefinitionsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit PromptDefinitionsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit PromptDefinitionsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::client::PromptDefinitionsGetResponse get(const std::string &name, const std::string &parent,
                                                      const std::uint32_t &schema_version,
                                                      client::PromptDefinitionsGetOptions options = {}) {
@@ -2628,7 +2629,7 @@ struct PromptDefinitionsResource {
 struct PromptsResource {
   std::shared_ptr<grpc::Channel> channel;
   PromptsAnswersResource answers;
-  explicit PromptsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), answers(channel) {}
+  explicit PromptsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value), answers(channel_value) {}
   ::dokime::client::PromptsGetResponse get(const std::string &name, client::PromptsGetOptions options = {}) {
     detail::packages::dokime::host::PromptsGetRequest request;
     request.set_name(name);
@@ -2702,7 +2703,7 @@ struct PromptsResource {
 };
 struct RecordSchemasResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit RecordSchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit RecordSchemasResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::client::RecordSchemasGetResponse get(const std::string &name, const std::string &parent, const std::uint32_t &schema_version,
                                                  client::RecordSchemasGetOptions options = {}) {
     detail::packages::dokime::host::RecordSchemasGetRequest request;
@@ -2737,7 +2738,7 @@ struct RecordSchemasResource {
 };
 struct ReportsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit ReportsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit ReportsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::client::ReportsGetResponse get(const ::dokime::client::ReportSubject &subject, const std::string &name,
                                            client::ReportsGetOptions options = {}) {
     detail::packages::dokime::host::ReportsGetRequest request;
@@ -2789,7 +2790,7 @@ struct ReportsResource {
 };
 struct SchemasResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit SchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit SchemasResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   std::vector<::harmos::client::SchemaDescription> list(client::SchemasListOptions options = {}) {
     detail::packages::harmos::host::SchemasListRequest request;
     if (options.schema) {
@@ -2806,7 +2807,7 @@ struct SchemasResource {
 };
 struct SecretsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit SecretsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit SecretsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::SecretsGetResponse get(const std::string &name, client::SecretsGetOptions options = {}) {
     detail::packages::dokime::host::SecretsGetRequest request;
     request.set_name(name);
@@ -2836,7 +2837,7 @@ struct SecretsResource {
     }
     return response;
   }
-  ::dokime::client::SecretsListResponse list(client::SecretsListOptions options = {}) {
+  ::dokime::client::host::SecretsListResponse list(client::SecretsListOptions options = {}) {
     detail::packages::dokime::host::SecretsListRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -2919,8 +2920,8 @@ struct SecretsResource {
 };
 struct SettingsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit SettingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::client::SettingsGetResponse get(client::SettingsGetOptions options = {}) {
+  explicit SettingsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
+  ::dokime::client::host::SettingsGetResponse get(client::SettingsGetOptions options = {}) {
     detail::packages::dokime::host::SettingsGetRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -2933,8 +2934,8 @@ struct SettingsResource {
     }
     return response;
   }
-  ::dokime::client::SettingsSetResponse set(const ::dokime::client::ApplicationSettings &value, const std::string &expected_revision,
-                                            client::SettingsSetOptions options = {}) {
+  ::dokime::client::host::SettingsSetResponse set(const ::dokime::client::ApplicationSettings &value, const std::string &expected_revision,
+                                                  client::SettingsSetOptions options = {}) {
     detail::packages::dokime::host::SettingsSetRequest request;
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
@@ -2966,8 +2967,8 @@ struct StatusResource {
   StatusDiagnosticsResource diagnostics;
   StatusLogsResource logs;
   StatusTraceEventsResource trace_events;
-  explicit StatusResource(std::shared_ptr<grpc::Channel> channel)
-      : channel(channel), diagnostics(channel), logs(channel), trace_events(channel) {}
+  explicit StatusResource(std::shared_ptr<grpc::Channel> channel_value)
+      : channel(channel_value), diagnostics(channel_value), logs(channel_value), trace_events(channel_value) {}
   ::harmos::client::StatusGetResponse get(client::StatusGetOptions options = {}) {
     detail::packages::harmos::host::StatusGetRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
@@ -3001,11 +3002,11 @@ struct StatusResource {
 };
 struct StorageResource {
   StorageSourcesResource sources;
-  explicit StorageResource(std::shared_ptr<grpc::Channel> channel) : sources(channel) {}
+  explicit StorageResource(std::shared_ptr<grpc::Channel> channel_value) : sources(channel_value) {}
 };
 struct StreamSchemasResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit StreamSchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit StreamSchemasResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::client::StreamSchemasGetResponse get(const std::string &name, const std::string &parent, const std::uint32_t &schema_version,
                                                  client::StreamSchemasGetOptions options = {}) {
     detail::packages::dokime::host::StreamSchemasGetRequest request;
@@ -3040,7 +3041,7 @@ struct StreamSchemasResource {
 };
 struct StreamsResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit StreamsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit StreamsResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   std::vector<::harmos::client::StreamIdentity> list(client::StreamsListOptions options = {}) {
     detail::packages::harmos::host::StreamsListRequest request;
     if (options.schema) {
@@ -3057,7 +3058,7 @@ struct StreamsResource {
 };
 struct SuitesResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit SuitesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit SuitesResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::dokime::client::SuitesGetResponse get(const std::string &name, const std::string &parent, const std::uint32_t &schema_version,
                                           client::SuitesGetOptions options = {}) {
     detail::packages::dokime::host::SuitesGetRequest request;
@@ -3092,7 +3093,7 @@ struct SuitesResource {
 };
 struct TimeResource {
   std::shared_ptr<grpc::Channel> channel;
-  explicit TimeResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
+  explicit TimeResource(std::shared_ptr<grpc::Channel> channel_value) : channel(channel_value) {}
   ::google::protobuf::Timestamp get(client::TimeGetOptions options = {}) {
     detail::packages::harmos::host::TimeGetRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
@@ -3147,12 +3148,13 @@ struct Client {
   StreamsResource streams;
   SuitesResource suites;
   TimeResource time;
-  explicit Client(std::shared_ptr<grpc::Channel> channel)
-      : access(channel), aggregates(channel), backend(channel), cases(channel), content(channel), cycles(channel), documents(channel),
-        evidence(channel), executions(channel), files(channel), invocations(channel), media(channel), operations(channel), plots(channel),
-        plugins(channel), prompt_definitions(channel), prompts(channel), record_schemas(channel), reports(channel), schemas(channel),
-        secrets(channel), settings(channel), status(channel), storage(channel), stream_schemas(channel), streams(channel), suites(channel),
-        time(channel) {}
+  explicit Client(std::shared_ptr<grpc::Channel> channel_value)
+      : access(channel_value), aggregates(channel_value), backend(channel_value), cases(channel_value), content(channel_value),
+        cycles(channel_value), documents(channel_value), evidence(channel_value), executions(channel_value), files(channel_value),
+        invocations(channel_value), media(channel_value), operations(channel_value), plots(channel_value), plugins(channel_value),
+        prompt_definitions(channel_value), prompts(channel_value), record_schemas(channel_value), reports(channel_value),
+        schemas(channel_value), secrets(channel_value), settings(channel_value), status(channel_value), storage(channel_value),
+        stream_schemas(channel_value), streams(channel_value), suites(channel_value), time(channel_value) {}
   static Client connect(std::string address, const ::harmos::StorageTransferSettings &transfer = {},
                         std::optional<int> message_bytes = {}) {
     const auto maximum = ::harmos::transfer_message_bytes(transfer, message_bytes);

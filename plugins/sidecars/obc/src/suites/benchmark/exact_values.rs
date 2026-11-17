@@ -25,7 +25,7 @@ use crate::device::{Bench, Supply};
 use crate::records::charger;
 use crate::{settings, suites};
 use dokime::plugin::{Context, Criterion, Observer, Prompt, Record, SampleWindow, Step, Stream, Template};
-use dokime::{Aggregate, Document, Error, FieldReference, Parameter, PromptArchetype, Result, Section, Summary, Value, value};
+use dokime::{Aggregate, Document, Error, FieldReference, Parameter, PromptArchetype, Result, Summary, Value, model, value};
 
 /* === Constants === */
 
@@ -111,7 +111,7 @@ pub fn document() -> Document {
         let value = if kind == Aggregate::Percentile { register().percentile(rank) } else { register().aggregate(kind) };
         summary = summary.tile(name, value);
     }
-    let metering = Section::new("Metering")
+    let metering = model::Section::new("Metering")
         .id("obc.benchmark.exact_values.metering")
         .summary("Exact Statistics", summary)
         .card(dokime::Card::records("obc.benchmark.exact_values.records"));

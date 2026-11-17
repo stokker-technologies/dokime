@@ -43,7 +43,6 @@ def main() -> None:
         check=True,
         root=root,
         descriptors=root / "crates/dokime-protocol/src/descriptors.bin",
-        composition=root / "protocol/composition.toml",
         configuration=configuration(root),
     )
 

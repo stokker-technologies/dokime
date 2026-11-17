@@ -20,7 +20,7 @@ from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from google.protobuf.message import Message
 from harmos import PageRequest, Position
 
-from .client import ExecutionDetail, ExecutionsSchemasGetResponse
+from .client import ExecutionDetail, SchemasGetResponse
 
 # Local Imports
 # Type Checking Imports
@@ -37,7 +37,7 @@ __all__ = ["FrozenSchemaCache"]
 
 
 class SchemasReader(Protocol):
-    async def get(self, name: str, *, at: Position | None = None, page: PageRequest | None = None) -> ExecutionsSchemasGetResponse: ...
+    async def get(self, name: str, *, at: Position | None = None, page: PageRequest | None = None) -> SchemasGetResponse: ...
 
 
 class ExecutionsReader(Protocol):

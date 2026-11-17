@@ -1,7 +1,7 @@
 # Dokime Python SDK
 
 `dokime-sdk` is a pure Python package for async clients and remote plugin authoring.
-It composes Harmos at immutable revision `ee16bf8a70152b82c881dcccf5f0108a5a859091`.
+It composes Harmos at immutable revision `c2cfb153ab136159f07741d1061fcb3a1191e86c`.
 Python connects to an existing host; the application owns the plugin endpoint and its shutdown.
 
 ## Install
@@ -38,7 +38,7 @@ async def inspect(endpoint: str) -> None:
         await client.close()
 ```
 
-`dokime.client.Client` exposes one composed resource tree.
+`dokime.client.ClientRoot` exposes one composed resource tree.
 Pass request content as arguments, such as `client.executions.get(name)` and
 `client.plugins.settings.list(name)`. Operations with one response field return
 that field; operations with several return their typed response. Client calls accept
@@ -117,20 +117,20 @@ scalar observers use DoubleValue rows.
 The host grants each interval stream one window at a time: `count` samples from
 `start`, one `period` apart. `@observer(interval_ms=...)` is called once per sample
 of a window; `@window_observer(columns=..., interval_ms=...)` receives the context and
-the `SampleWindow` and returns a columns message that repeats every row field, which suits
+the `Window` and returns a columns message that repeats every row field, which suits
 high-rate streams. `interval_ms` may be fractional (`0.001` is 1 MHz).
 `window_setting` names a plugin duration setting that replaces the host's window
 length for that stream. Interval rows hold one value per field.
 
 ```python
 from dokime.authoring import stream, window_observer
-from dokime.plugin import Context, SampleWindow
+from dokime.plugin import Context, Window
 
 
 class Bench:
     @stream("Exact Counter", identifier="bench.counter", row=Counter)
     @window_observer(columns=CounterColumns, interval_ms=1, window_setting="counter_window")
-    def counter(self, ctx: Context, window: SampleWindow) -> CounterColumns:
+    def counter(self, ctx: Context, window: Window) -> CounterColumns:
         return CounterColumns(value=[1] * window.count)
 ```
 
