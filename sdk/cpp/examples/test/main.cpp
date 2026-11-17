@@ -10,13 +10,15 @@
 /* === Imports === */
 
 #include <dokime/dokime.hpp>
+#include <grpc/event_engine/event_engine.h>
 #include <iostream>
 
 using dokime::plugin::Context;
+using dokime::plugin::metadata;
 using dokime::plugin::Plugin;
 using dokime::plugin::Template;
+using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 
-using dokime::plugin::metadata;
 using std::exception;
 using std::invalid_argument;
 using std::make_shared;
@@ -40,6 +42,7 @@ using std::string;
 /* === Entry Point === */
 
 int main(int argc, char **argv) {
+  int result = 0;
   try {
     // Compose the Suite from Ordinary Values.
     Template value;
@@ -65,6 +68,9 @@ int main(int argc, char **argv) {
       throw invalid_argument("Usage: dokime-plugin [--address ADDRESS]");
   } catch (const exception &error) {
     std::cerr << error.what() << '\n';
-    return 1;
+    result = 1;
   }
+  // Drain EventEngine Work Before Windows Begins DLL Teardown.
+  ShutdownDefaultEventEngine();
+  return result;
 }

@@ -13,9 +13,13 @@
 #include <iostream>
 
 // Third Party Imports
+#include <grpc/event_engine/event_engine.h>
 
 // Local Imports
 #include <dokime/client.hpp>
+
+using dokime::Client;
+using grpc_event_engine::experimental::ShutdownDefaultEventEngine;
 
 using std::exception;
 using std::invalid_argument;
@@ -36,9 +40,8 @@ using std::invalid_argument;
 
 /* === Entry Point === */
 
-using dokime::Client;
-
 int main(int argc, char **argv) {
+  int result = 0;
   try {
     // Connect to the Selected Host.
     if (argc != 2)
@@ -52,6 +55,9 @@ int main(int argc, char **argv) {
     std::cout << plugins.entries_size() << " Plugins\n";
   } catch (const exception &error) {
     std::cerr << error.what() << '\n';
-    return 1;
+    result = 1;
   }
+  // Drain EventEngine Work Before Windows Begins DLL Teardown.
+  ShutdownDefaultEventEngine();
+  return result;
 }
