@@ -26,8 +26,6 @@ use std::{
 };
 
 // Third Party Imports
-use crate::services::composition::Application;
-use crate::streams::SampleScope;
 use harmos_protocol::host::PluginEntry;
 use harmos_runtime::plugin::manager;
 use tokio::{
@@ -38,6 +36,8 @@ use tokio_util::sync::CancellationToken;
 
 // Local Imports
 use crate::run_control::RunControl;
+use crate::services::composition::Application;
+use crate::streams::SampleScope;
 use crate::{
     Cycle, Error, HostSettings, Result,
     host::{RootLease, lock},

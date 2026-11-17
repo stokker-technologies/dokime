@@ -19,6 +19,8 @@
 use std::sync::{Arc, Weak, atomic::AtomicU32};
 
 // Third Party Imports
+use harmos_protocol::host::PluginEntry;
+use harmos_runtime::plugin::grpc::{self, ScopedBinding};
 use prost::Message;
 use tokio::sync::oneshot::{self, Receiver};
 use tokio::task::JoinSet;
@@ -44,8 +46,6 @@ use dokime_protocol::plugin::{
     ExecutionsInitializeResponse, StepsExecuteRequest, StepsExecuteResponse,
 };
 use dokime_storage::{Execution, ExecutionSnapshot, OutcomeCounts};
-use harmos_protocol::host::PluginEntry;
-use harmos_runtime::plugin::grpc::{self, ScopedBinding};
 
 /* === Constants === */
 

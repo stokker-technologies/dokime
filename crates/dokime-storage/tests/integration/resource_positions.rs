@@ -23,17 +23,16 @@ use prost::Message;
 use rusqlite::Connection;
 
 // Local Imports
-
-use dokime_storage::{Error, Result, Store};
-
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::ExecutionsDeleteResponse;
 use dokime_protocol::host::content::ArtifactsCreateRequest;
+use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::ArtifactScope;
 use dokime_protocol::model::Import;
 use dokime_protocol::model::Origin;
 use dokime_protocol::model::Termination;
 use dokime_protocol::model::origin;
+use dokime_storage::{Error, Result, Store};
 
 /* === Constants === */
 
@@ -82,7 +81,7 @@ fn superseded_command_journal_refuses_admission_without_deleting_receipts() -> R
     // Retain a Command From the Superseded SQL Journal
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
-    let command = dokime_protocol::host::executions::ExecutionCommandReceipt {
+    let command = ExecutionCommandReceipt {
         execution_id: "execution".into(),
         command_id: "command".into(),
         ..Default::default()

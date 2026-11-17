@@ -16,8 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
@@ -53,9 +56,6 @@ use dokime::client::SelectionPlan;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement;
-use std::error::Error;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 

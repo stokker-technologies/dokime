@@ -43,10 +43,9 @@ use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::model::Origin;
 use dokime_protocol::model::Suites;
 use dokime_protocol::model::Value;
-use dokime_storage::{ExecutionSnapshot, Store};
-
 use dokime_storage::OutcomeCounts;
 use dokime_storage::StorageSettings;
+use dokime_storage::{ExecutionSnapshot, Store};
 
 /* === Constants === */
 

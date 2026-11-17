@@ -18,13 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::{OperationContract, Receipt};
 
 // Local Imports
 use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::CommandsCreateResponse;
-use harmos_protocol::model::{OperationContract, Receipt};
 
 /* === Constants === */
 

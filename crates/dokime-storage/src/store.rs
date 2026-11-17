@@ -16,6 +16,12 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::num::NonZeroUsize;
+use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -23,33 +29,26 @@ use std::{
 };
 
 // Third Party Imports
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::History;
+use harmos_protocol::model::Receipt;
 use prost::Message;
+use prost_reflect::DescriptorPool;
+use prost_reflect::DynamicMessage;
 use rusqlite::Transaction;
 use rusqlite::TransactionBehavior;
 use rusqlite::{Connection, OptionalExtension, params, types::ValueRef};
 use sha2::{Digest, Sha256};
+use tokio::sync::watch::Sender;
 
 // Local Imports
 use crate::StorageSettings;
 use crate::{Error, Evidence, Execution, ExecutionSnapshot, ExecutionState, Result, Sample};
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::host::execution_outcome;
 use dokime_protocol::model::RecordContracts;
 use dokime_protocol::model::Termination;
-use harmos_protocol::model::Declarations;
-use harmos_protocol::model::History;
-use harmos_protocol::model::Receipt;
-use prost_reflect::DescriptorPool;
-use prost_reflect::DynamicMessage;
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use tokio::sync::watch::Sender;
-
-use dokime_protocol::host::execution_outcome;
 use dokime_protocol::model::origin;
 
 /* === Constants === */
