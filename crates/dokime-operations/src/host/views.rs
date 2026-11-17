@@ -256,7 +256,7 @@ async fn retain(context: &Context, scope: &Identifier, key: &str, payload: &[u8]
     if saved != file {
         let file = storage::FileReference::try_from(file)
             .map_err(|source| Error::Invalid(format!("Retain View: Remove Its Unused Native File: {source}")))?;
-        let mutation = transfer::mutation(context, "Retain View", &request_id).await?;
+        let mutation = transfer::mutation(context, "Discard Unused View", &request_id).await?;
         context
             .storage::<DeleteFile>(DeleteFileRequest {
                 file: Some(StagedFile {

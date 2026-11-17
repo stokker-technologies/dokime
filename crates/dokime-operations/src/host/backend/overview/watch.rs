@@ -15,24 +15,19 @@
 
 /* === Imports === */
 
-use crate::host::Output;
-
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::{Failure, OperationContract};
+use tokio::sync::mpsc;
+use tokio::time;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::Status;
 
 // Local Imports
-use crate::{Result, host::Context};
-
-use dokime_protocol::host::backend::OverviewGetRequest;
-use dokime_protocol::host::backend::OverviewWatchRequest;
-use dokime_protocol::host::backend::OverviewWatchResponse;
-
-use harmos_protocol::model::OperationContract;
-
-use harmos_protocol::model::Failure;
+use crate::Result;
+use crate::host::{ClientSettings, Context, Output};
+use dokime_protocol::host::backend::{OverviewGetRequest, OverviewWatchRequest, OverviewWatchResponse};
 
 /* === Constants === */
 
@@ -62,42 +57,38 @@ pub async fn handle(context: &Context, request: OverviewWatchRequest) -> Result<
         let mut selection = OverviewGetRequest { at: request.at };
         let first = crate::host::backend::overview::get::handle(context, selection.clone()).await?;
         let context = context.clone();
-        let (sender, output) = tokio::sync::mpsc::channel(context.settings.stream_buffer);
+        let (sender, output) = mpsc::channel(context.settings.stream_buffer);
         tokio::spawn(async move {
             let work = async {
                 let mut page = first;
                 let mut opening = true;
                 loop {
-                    let cut = page.resolved_at.clone();
-                    let token = String::new();
+                    let cut = page.resolved_at;
                     // The Watch Ends After Sending a Snapshot Read While the Host Shuts Down, Never Before.
                     let stopping = page.overview.as_ref().is_some_and(|overview| overview.shutting_down);
                     let response = OverviewWatchResponse {
                         overview: page.overview,
-                        resolved_at: cut.clone(),
+                        resolved_at: cut,
                         opening,
                         resync_required: None,
                     };
                     if sender.send(Ok(response)).await.is_err() {
                         return;
                     }
-                    if !token.is_empty() {
-                        selection.at = cut;
-                    } else {
-                        if stopping {
-                            return;
-                        }
-                        tokio::select! {
-                            _ = sender.closed() => return,
-                            changed = storage.changed() => if changed.is_err() { return; },
-                            changed = runtime.changed() => if changed.is_err() { return; },
-                        }
-                        opening = false;
-                        selection.at = None;
+                    if stopping {
+                        return;
                     }
+                    tokio::select! {
+                        _ = sender.closed() => return,
+                        changed = storage.changed() => if changed.is_err() { return; },
+                        changed = runtime.changed() => if changed.is_err() { return; },
+                    }
+                    opening = false;
+                    selection.at = None;
                     page = match crate::host::backend::overview::get::handle(&context, selection.clone()).await {
                         Ok(page) => page,
                         Err(error) => {
+                            tracing::warn!(error = %error, "Publish Runtime Overview: Resynchronize the Watch After Its Snapshot Failed");
                             let _ = sender
                                 .send(Ok(OverviewWatchResponse {
                                     resync_required: Some(Failure {
@@ -113,11 +104,11 @@ pub async fn handle(context: &Context, request: OverviewWatchRequest) -> Result<
                     };
                 }
             };
-            if tokio::time::timeout(context.settings.watch_timeout, work).await.is_err() {
-                let _ = sender.try_send(Err(tonic::Status::deadline_exceeded(format!("{ID}: Reopen After Its Deadline"))));
+            if time::timeout(context.settings.watch_timeout, work).await.is_err() {
+                let _ = sender.try_send(Err(Status::deadline_exceeded(format!("{ID}: Reopen After Its Deadline"))));
             }
         });
-        Ok(tokio_stream::wrappers::ReceiverStream::new(output))
+        Ok(ReceiverStream::new(output))
     })
     .await
 }

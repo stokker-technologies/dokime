@@ -16,19 +16,19 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
+use std::sync::Arc;
 
 // Third Party Imports
+use harmos_protocol::host::ComponentState;
+use tokio::sync::mpsc::UnboundedSender;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime::Client;
 use dokime::client::StatusWatchOptions;
 use dokime_runtime::ControlledClock;
 use dokime_runtime::SchedulerClock;
-use harmos_protocol::host::ComponentState;
-use std::error::Error;
-use std::sync::Arc;
-use tokio::sync::mpsc::UnboundedSender;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -113,8 +113,7 @@ fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Result<()
             "dokime.host.v1.Effects/Get",
             "dokime.host.v1.Effects/Set",
         ] {
-            let contract =
-                dokime_operations::declarations()?.iter().find(|contract| contract.id == id).ok_or("Find Plugin-Only Contract")?;
+            let contract = client.operations.get(id).await?.contract.ok_or("Find Plugin-Only Contract")?;
             let refused = client.invocations.create(id, contract.fingerprint.clone(), Vec::new()).await.unwrap_err();
             assert_eq!(refused.code(), Code::PermissionDenied);
         }

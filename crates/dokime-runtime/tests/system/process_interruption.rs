@@ -17,8 +17,8 @@
 
 // Standard Library Imports
 use std::error::Error;
-use std::io::Write;
 use std::io;
+use std::io::Write;
 use std::path::Path;
 use std::process::Stdio;
 
