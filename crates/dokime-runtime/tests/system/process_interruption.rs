@@ -16,8 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
+use std::io::Write;
+use std::io;
+use std::path::Path;
+use std::process::Stdio;
 
 // Third Party Imports
+use harmos_protocol::host::PluginState;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::BufReader;
+use tokio::process::Command;
 
 // Local Imports
 use dokime::Termination;
@@ -25,15 +34,6 @@ use dokime_runtime::Host;
 use dokime_runtime::PluginProcess;
 use dokime_storage::ExecutionState;
 use dokime_storage::Store;
-use harmos_protocol::host::PluginState;
-use std::error::Error;
-use std::io::Error as IoError;
-use std::io::Write;
-use std::path::Path;
-use std::process::Stdio;
-use tokio::io::AsyncBufReadExt;
-use tokio::io::BufReader;
-use tokio::process::Command;
 
 /* === Constants === */
 
@@ -77,7 +77,7 @@ fn process_interruption() -> Result<(), Box<dyn Error>> {
             let settings = super::support::settings();
             let mut plugin = PluginProcess::start(&super::support::execution_fixture()?, true, &settings.placement).await?;
             let mut child = Command::from(dokime_runtime::process::command(std::env::current_exe()?))
-                .args(["--exact", "process_interruption::process_interruption", "--nocapture"])
+                .args(["--exact", "system::process_interruption::process_interruption", "--nocapture"])
                 .env("DOKIME_INTERRUPTION_CHILD", root.path())
                 .env("DOKIME_CREDENTIAL_NAMESPACE", super::support::namespace().as_str())
                 .env("DOKIME_INTERRUPTION_ENDPOINT", plugin.endpoint())
@@ -89,10 +89,10 @@ fn process_interruption() -> Result<(), Box<dyn Error>> {
             let execution = async {
                 while let Some(line) = lines.next_line().await? {
                     if let Some(identifier) = line.strip_prefix("HOST_READY ") {
-                        return Ok::<_, IoError>(identifier.to_owned());
+                        return Ok::<_, io::Error>(identifier.to_owned());
                     }
                 }
-                Err(IoError::other("Host Exited Before the Step Prompt"))
+                Err(io::Error::other("Host Exited Before the Step Prompt"))
             }
             .await?;
             let store = Store::open(root.path())?;

@@ -24,6 +24,7 @@ use harmos_protocol::host::plugin_placement;
 use tonic::transport::Endpoint;
 
 // Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Client;
 use dokime::EvidenceScope;
 use dokime::MapValue;
@@ -39,7 +40,6 @@ use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
 use dokime::record_scope;
 use dokime_runtime::PluginProcess;
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
 
 /* === Constants === */
 
@@ -141,10 +141,13 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
                 .evidence
                 .traceability
                 .clone()
-                .get_with(EvidenceTraceabilityGetOptions { scope: Some(EvidenceScope {
-                    execution_id: Some(identifier.clone()),
+                .get_with(EvidenceTraceabilityGetOptions {
+                    scope: Some(EvidenceScope {
+                        execution_id: Some(identifier.clone()),
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }), ..Default::default() })
+                })
                 .await?;
             assert!(traceability.snapshots.is_empty());
             let mut cancelled = observation.watch().await?;

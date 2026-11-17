@@ -30,6 +30,7 @@ use tonic::Code;
 use tonic::transport::Endpoint;
 
 // Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Client;
 use dokime::MapValue;
 use dokime::RecordScope;
@@ -42,7 +43,6 @@ use dokime::client::PluginValue;
 use dokime::record_scope;
 use dokime_protocol::host::executions::SchemasGetRequest;
 use dokime_runtime::PluginProcess;
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
 
 /* === Constants === */
 
@@ -117,29 +117,37 @@ fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
             let records = client
                 .evidence
                 .records
-                .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
-                        kind: Some(record_scope::Kind::Execution(executions[0].clone())),
-                    }),
+                .list_with(
+                    String::new(),
+                    EvidenceRecordsListOptions {
+                        scope: Some(RecordScope {
+                            kind: Some(record_scope::Kind::Execution(executions[0].clone())),
+                        }),
                         versions: Some(Vec::new()),
                         between: Some(Default::default()),
                         step: Some(String::new()),
                         selection: Some(Default::default()),
                         ..Default::default()
-                    })
+                    },
+                )
                 .await?
                 .records;
             let second_records = client
                 .evidence
                 .records
-                .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
-                        kind: Some(record_scope::Kind::Execution(executions[1].clone())),
-                    }),
+                .list_with(
+                    String::new(),
+                    EvidenceRecordsListOptions {
+                        scope: Some(RecordScope {
+                            kind: Some(record_scope::Kind::Execution(executions[1].clone())),
+                        }),
                         versions: Some(Vec::new()),
                         between: Some(Default::default()),
                         step: Some(String::new()),
                         selection: Some(Default::default()),
                         ..Default::default()
-                    })
+                    },
+                )
                 .await?
                 .records;
 

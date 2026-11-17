@@ -154,12 +154,12 @@ fn owned_processes() -> Result<(), Box<dyn Error>> {
         std::fs::create_dir(work.path().join("Opened Files"))?;
         let launch = work.path().join("Opened Files").join("launch.cmd");
         let script = format!(
-            "@echo off\r\nset DOKIME_OWNED_HOST_ROOT=\r\nset DOKIME_OWNED_PARK=1\r\n\"{}\" --exact owned_processes::owned_processes --nocapture\r\n",
+            "@echo off\r\nset DOKIME_OWNED_HOST_ROOT=\r\nset DOKIME_OWNED_PARK=1\r\n\"{}\" --exact system::owned_processes::owned_processes --nocapture\r\n",
             std::env::current_exe()?.display()
         );
         std::fs::write(&launch, script)?;
         let mut host = Command::from(process::command(std::env::current_exe()?))
-            .args(["--exact", "owned_processes::owned_processes", "--nocapture"])
+            .args(["--exact", "system::owned_processes::owned_processes", "--nocapture"])
             .env("DOKIME_OWNED_HOST_ROOT", root.path())
             .env("DOKIME_CREDENTIAL_NAMESPACE", support::namespace().as_str())
             .env("DOKIME_OWNED_LAUNCH", &launch)

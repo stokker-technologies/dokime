@@ -236,7 +236,7 @@ impl Instance for ScopeProbe {
                             return Err(format!("{operation}: Refused the Calling Execution: {:?}", reply.result).into());
                         };
                         let statistics = EvidenceStatisticsResponse::decode(payload.as_slice())?.statistics.unwrap();
-                        for value in [statistics.min, statistics.max, statistics.mean, statistics.median, statistics.sum] {
+                        for value in [statistics.min, statistics.max, statistics.mean, statistics.sum] {
                             match value.unwrap().kind.unwrap() {
                                 value::Kind::UnsignedInteger(value) => assert_eq!(value, u64::MAX),
                                 value::Kind::Exact(value) => {

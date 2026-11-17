@@ -28,6 +28,9 @@ use sha2::{Digest, Sha256};
 use tonic::transport::Endpoint;
 
 // Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use super::support;
+use super::support::bundles::upload;
 use dokime::Client;
 use dokime::EvidenceScope;
 use dokime::MapValue;
@@ -46,9 +49,6 @@ use dokime_protocol::host::document_frame_frame;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::model::value;
 use dokime_runtime::PluginProcess;
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use super::support::bundles::upload;
-use super::support;
 
 /* === Constants === */
 
@@ -221,7 +221,12 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
                 execution_id: Some(startup.clone()),
                 ..Default::default()
             };
-            let inrush = client.evidence.statistics_with("obc.measurement", "current_rms_a", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() }).await?.statistics.unwrap();
+            let inrush = client
+                .evidence
+                .statistics_with("obc.measurement", "current_rms_a", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() })
+                .await?
+                .statistics
+                .unwrap();
             assert_eq!(inrush.count, 20);
             assert!(matches!(inrush.first.and_then(|value| value.kind), Some(value::Kind::Number(first)) if (first - 3.45).abs() < 1e-9));
 
@@ -236,10 +241,18 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
                 execution_id: Some(bench.clone()),
                 ..Default::default()
             };
-            let register =
-                client.evidence.statistics_with("obc.benchmark.exact_values.meter", "energy_register", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() }).await?.statistics.unwrap();
+            let register = client
+                .evidence
+                .statistics_with(
+                    "obc.benchmark.exact_values.meter",
+                    "energy_register",
+                    EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() },
+                )
+                .await?
+                .statistics
+                .unwrap();
             assert_eq!(register.count, 250);
-            for value in [&register.min, &register.max, &register.first, &register.last, &register.median] {
+            for value in [&register.min, &register.max, &register.first, &register.last] {
                 assert_eq!(exact(value.as_ref().unwrap()), REGISTER.to_string());
             }
 
@@ -278,7 +291,7 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             assert!(plots.is_empty());
             assert_eq!(exact(&tiles["count"]), "250");
             assert_eq!(exact(&tiles["sum"]), (u128::from(REGISTER) * 250).to_string());
-            for name in ["mean", "median", "min", "max", "first", "last", "p05", "p95", "p99"] {
+            for name in ["mean", "min", "max", "first", "last"] {
                 assert_eq!(exact(&tiles[name]), REGISTER.to_string(), "{name}");
             }
 

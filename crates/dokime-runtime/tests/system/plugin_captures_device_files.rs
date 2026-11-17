@@ -111,15 +111,19 @@ async fn record<T: Message + Default>(client: &Client, execution: &str) -> Resul
     let records = client
         .evidence
         .records
-        .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
-                kind: Some(record_scope::Kind::Execution(execution.to_owned())),
-            }),
+        .list_with(
+            String::new(),
+            EvidenceRecordsListOptions {
+                scope: Some(RecordScope {
+                    kind: Some(record_scope::Kind::Execution(execution.to_owned())),
+                }),
                 versions: Some(Vec::new()),
                 between: Some(Default::default()),
                 step: Some(String::new()),
                 selection: Some(Default::default()),
                 ..Default::default()
-            })
+            },
+        )
         .await?;
     let [record] = records.records.as_slice() else {
         return Err(format!("Read Capture Record: Expected One, Found {}", records.records.len()).into());

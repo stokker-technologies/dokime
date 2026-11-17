@@ -91,15 +91,19 @@ async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadRes
     let records = client
         .evidence
         .records
-        .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
-                kind: Some(record_scope::Kind::Execution(cycle[0].clone())),
-            }),
+        .list_with(
+            String::new(),
+            EvidenceRecordsListOptions {
+                scope: Some(RecordScope {
+                    kind: Some(record_scope::Kind::Execution(cycle[0].clone())),
+                }),
                 versions: Some(Vec::new()),
                 between: Some(Default::default()),
                 step: Some(String::new()),
                 selection: Some(Default::default()),
                 ..Default::default()
-            })
+            },
+        )
         .await?;
     assert_eq!(records.records.len(), 1);
     Ok(ReadResult::decode(records.records[0].payload.as_slice())?)

@@ -23,6 +23,7 @@ use harmos_protocol::host::plugin_placement;
 use tonic::transport::Endpoint;
 
 // Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Client;
 use dokime::MapValue;
 use dokime::Metadata;
@@ -55,7 +56,6 @@ use dokime::client::SelectionPlan;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_runtime::PluginProcess;
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
 
 /* === Constants === */
 

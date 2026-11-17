@@ -25,6 +25,8 @@ use harmos_protocol::model::ReadCut;
 use tonic::transport::Endpoint;
 
 // Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use super::support;
 use dokime::Client;
 use dokime::MapValue;
 use dokime::client::CyclesCreateOptions;
@@ -37,8 +39,6 @@ use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
 use dokime_protocol::host::executions::ProgressGetRequest;
 use dokime_runtime::PluginProcess;
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use super::support;
 
 /* === Constants === */
 
@@ -136,8 +136,15 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                     break;
                 }
             }
-            let first =
-                client.executions.progress.get_with(ExecutionsProgressGetOptions { name: Some(name.clone()), at: None, ..Default::default() }).await?;
+            let first = client
+                .executions
+                .progress
+                .get_with(ExecutionsProgressGetOptions {
+                    name: Some(name.clone()),
+                    at: None,
+                    ..Default::default()
+                })
+                .await?;
             assert_eq!(first.value.as_ref().unwrap().completed, 1);
             let prompt = host.prompts.list(name.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
             host.prompts.answers.create(prompt, "continue", MapValue::default(), true).await?;
@@ -148,8 +155,15 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
             assert!(finished);
 
             // Whole-Value Replacement Clears Fields and Execution Detail Agrees
-            let current =
-                client.executions.progress.get_with(ExecutionsProgressGetOptions { name: Some(name.clone()), at: None, ..Default::default() }).await?;
+            let current = client
+                .executions
+                .progress
+                .get_with(ExecutionsProgressGetOptions {
+                    name: Some(name.clone()),
+                    at: None,
+                    ..Default::default()
+                })
+                .await?;
             assert_eq!(current.value.as_ref().unwrap().completed, 2);
             assert!(current.value.as_ref().unwrap().label.is_empty());
             assert_ne!(current.revision, first.revision);
@@ -170,10 +184,11 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 client
                     .executions
                     .progress
-                    .get_with(ExecutionsProgressGetOptions { name: Some(((pinned.clone()).name).unwrap_or_default()),
-                            at: (pinned.clone()).at,
-                            ..Default::default()
-                        })
+                    .get_with(ExecutionsProgressGetOptions {
+                        name: Some(((pinned.clone()).name).unwrap_or_default()),
+                        at: (pinned.clone()).at,
+                        ..Default::default()
+                    })
                     .await?,
                 first
             );
@@ -183,10 +198,11 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 client
                     .executions
                     .progress
-                    .get_with(ExecutionsProgressGetOptions { name: Some(((unavailable.clone()).name).unwrap_or_default()),
-                            at: (unavailable.clone()).at,
-                            ..Default::default()
-                        })
+                    .get_with(ExecutionsProgressGetOptions {
+                        name: Some(((unavailable.clone()).name).unwrap_or_default()),
+                        at: (unavailable.clone()).at,
+                        ..Default::default()
+                    })
                     .await
                     .is_err()
             );
@@ -200,10 +216,11 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 client
                     .executions
                     .progress
-                    .get_with(ExecutionsProgressGetOptions { name: Some(((pinned.clone()).name).unwrap_or_default()),
-                            at: (pinned.clone()).at,
-                            ..Default::default()
-                        })
+                    .get_with(ExecutionsProgressGetOptions {
+                        name: Some(((pinned.clone()).name).unwrap_or_default()),
+                        at: (pinned.clone()).at,
+                        ..Default::default()
+                    })
                     .await?,
                 first
             );

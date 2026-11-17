@@ -22,8 +22,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 // Third Party Imports
 use harmos_protocol::host::plugin_placement;
-use harmos_runtime::clock::Controller;
 use harmos_runtime::clock;
+use harmos_runtime::clock::Controller;
 use tonic::transport::Endpoint;
 
 // Local Imports
@@ -144,7 +144,13 @@ async fn sealed(client: &Client, execution: &str) -> Result<(Termination, u64), 
         execution_id: Some(execution.into()),
         ..Default::default()
     };
-    let count = client.evidence.statistics_with("execution.boundary", "value", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() }).await?.statistics.unwrap().count;
+    let count = client
+        .evidence
+        .statistics_with("execution.boundary", "value", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() })
+        .await?
+        .statistics
+        .unwrap()
+        .count;
     Ok((termination, count))
 }
 

@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::error::Error;
 
 // Third Party Imports
@@ -28,8 +28,10 @@ use sha2::Sha256;
 use tonic::transport::Endpoint;
 
 // Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::ArtifactScope;
 use dokime::Client;
+use dokime::FileReference;
 use dokime::MapValue;
 use dokime::client::ContentArtifactsCreateOptions;
 use dokime::client::ContentArtifactsListOptions;
@@ -51,7 +53,6 @@ use dokime_protocol::model::{Metadata, Value, value};
 use dokime_runtime::Host;
 use dokime_runtime::PluginProcess;
 use dokime_storage::CONTENT_CHUNK_BYTES;
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
 
 /* === Constants === */
 
@@ -93,7 +94,10 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
             let process = HostProcess::start_with_environment(root.path(), &[]).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
-            let scope = ArtifactScope { execution_id: Some(execution.clone()), ..Default::default() };
+            let scope = ArtifactScope {
+                execution_id: Some(execution.clone()),
+                ..Default::default()
+            };
             let artifact = client.content.artifacts.list(scope).await?.artifacts.remove(0);
             let reference = client.content.artifacts.get(artifact.artifact_id.clone()).await?.file.unwrap();
             let bytes = b"replacement\n".to_vec();
@@ -117,16 +121,26 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
             let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes_out))?;
             let manifest: serde_json::Value = serde_json::from_reader(archive.by_name("manifest.json")?)?;
             assert_eq!(manifest["version"], 1);
-            assert_eq!(manifest["files"].as_array().unwrap().len(), 1);
-            let member = &manifest["files"][0];
-            let mut original = Vec::new();
-            archive.by_name(member["path"].as_str().unwrap())?.read_to_end(&mut original)?;
-            assert_eq!(original, bytes);
-            let mut retained = Vec::new();
-            archive.by_name(member["reference"].as_str().unwrap())?.read_to_end(&mut retained)?;
-            assert_eq!(harmos_protocol::model::FileReference::decode(retained.as_slice())?, reference);
-            assert_eq!(member["size"], original.len());
-            assert_eq!(member["sha256"], Sha256::digest(&original).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
+            let mut references = BTreeSet::new();
+            let mut retained_content = 0;
+            for member in manifest["files"].as_array().unwrap() {
+                let mut original = Vec::new();
+                archive.by_name(member["path"].as_str().unwrap())?.read_to_end(&mut original)?;
+                let mut retained = Vec::new();
+                archive.by_name(member["reference"].as_str().unwrap())?.read_to_end(&mut retained)?;
+                let embedded = FileReference::decode(retained.as_slice())?;
+                assert!(references.insert(embedded.encode_to_vec()));
+                assert_eq!(embedded.metadata.as_ref().unwrap().scope.as_deref(), Some(format!("execution/{execution}").as_str()));
+                assert_eq!(embedded.length, original.len() as u64);
+                assert_eq!(embedded.sha256, Sha256::digest(&original).as_slice());
+                assert_eq!(member["size"], original.len());
+                assert_eq!(member["sha256"], Sha256::digest(&original).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
+                if embedded == reference {
+                    assert_eq!(original, bytes);
+                    retained_content += 1;
+                }
+            }
+            assert_eq!(retained_content, 1);
             let mut evidence = Vec::new();
             archive.by_name("evidence.pb")?.read_to_end(&mut evidence)?;
             let evidence = dokime_storage::ExecutionArchive::decode(evidence.as_slice())?;
@@ -153,9 +167,18 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
-            let entry = client.plugins.create("content", PluginPlacement {
-                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
-            }, PluginValue { enabled: true }).await?.entry.unwrap();
+            let entry = client
+                .plugins
+                .create(
+                    "content",
+                    PluginPlacement {
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                    },
+                    PluginValue { enabled: true },
+                )
+                .await?
+                .entry
+                .unwrap();
             super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
             let cases = super::support::materialize(&client, "content", "content.progress", HashMap::new()).await?;
             let executions = super::support::admit(&client, vec![cases[0].clone(), cases[0].clone()]).await?;
@@ -165,7 +188,9 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             for id in &executions {
                 let mut progress = client.executions.progress.watch(id.clone()).await?;
                 while let Some(frame) = progress.next().await? {
-                    if frame.phase == "prompt" { break; }
+                    if frame.phase == "prompt" {
+                        break;
+                    }
                 }
             }
             let bytes = vec![42; 140003];
@@ -173,11 +198,19 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             let uploaded = client
                 .content
                 .artifacts
-                .create_with(reference, "capture.bin", "application/octet-stream", ContentArtifactsCreateOptions { scope: Some(ArtifactScope {
-                        execution_id: Some(execution.clone()),
-                        cycle_id: Some(cycle.clone()),
+                .create_with(
+                    reference,
+                    "capture.bin",
+                    "application/octet-stream",
+                    ContentArtifactsCreateOptions {
+                        scope: Some(ArtifactScope {
+                            execution_id: Some(execution.clone()),
+                            cycle_id: Some(cycle.clone()),
+                            ..Default::default()
+                        }),
                         ..Default::default()
-                    }), ..Default::default() })
+                    },
+                )
                 .await?
                 .artifact
                 .unwrap();
@@ -220,19 +253,31 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 }),
             };
             let attached = artifacts
-                .create_with(((request.clone()).file).unwrap_or_default(), (request.clone()).filename, (request.clone()).content_type, ContentArtifactsCreateOptions { scope: Some(((request.clone()).scope).unwrap_or_default()),
+                .create_with(
+                    ((request.clone()).file).unwrap_or_default(),
+                    (request.clone()).filename,
+                    (request.clone()).content_type,
+                    ContentArtifactsCreateOptions {
+                        scope: Some(((request.clone()).scope).unwrap_or_default()),
                         request_id: Some((request.clone()).request_id),
                         metadata: (request.clone()).metadata,
                         ..Default::default()
-                    })
+                    },
+                )
                 .await?;
             assert_eq!(
                 artifacts
-                    .create_with(((request.clone()).file).unwrap_or_default(), (request.clone()).filename, (request.clone()).content_type, ContentArtifactsCreateOptions { scope: Some(((request.clone()).scope).unwrap_or_default()),
+                    .create_with(
+                        ((request.clone()).file).unwrap_or_default(),
+                        (request.clone()).filename,
+                        (request.clone()).content_type,
+                        ContentArtifactsCreateOptions {
+                            scope: Some(((request.clone()).scope).unwrap_or_default()),
                             request_id: Some((request.clone()).request_id),
                             metadata: (request.clone()).metadata,
                             ..Default::default()
-                        })
+                        }
+                    )
                     .await?,
                 attached
             );
@@ -240,11 +285,17 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             changed.filename = "changed.bin".into();
             assert!(
                 artifacts
-                    .create_with(changed.file.unwrap(), changed.filename, changed.content_type, ContentArtifactsCreateOptions { scope: Some(changed.scope.unwrap()),
+                    .create_with(
+                        changed.file.unwrap(),
+                        changed.filename,
+                        changed.content_type,
+                        ContentArtifactsCreateOptions {
+                            scope: Some(changed.scope.unwrap()),
                             request_id: Some(changed.request_id),
                             metadata: changed.metadata,
                             ..Default::default()
-                        })
+                        }
+                    )
                     .await
                     .is_err()
             );
@@ -252,11 +303,17 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             foreign.scope.as_mut().unwrap().execution_id = Some(other.clone());
             assert!(
                 artifacts
-                    .create_with(((foreign.clone()).file).unwrap_or_default(), (foreign.clone()).filename, (foreign.clone()).content_type, ContentArtifactsCreateOptions { scope: Some(((foreign.clone()).scope).unwrap_or_default()),
+                    .create_with(
+                        ((foreign.clone()).file).unwrap_or_default(),
+                        (foreign.clone()).filename,
+                        (foreign.clone()).content_type,
+                        ContentArtifactsCreateOptions {
+                            scope: Some(((foreign.clone()).scope).unwrap_or_default()),
                             request_id: Some((foreign.clone()).request_id),
                             metadata: (foreign.clone()).metadata,
                             ..Default::default()
-                        })
+                        }
+                    )
                     .await
                     .is_err()
             );
@@ -478,11 +535,17 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                     .artifacts
                     .clone();
             let replay = artifacts
-                .create_with(request.file.clone().unwrap(), request.filename.clone(), request.content_type.clone(), ContentArtifactsCreateOptions { scope: Some(request.scope.clone().unwrap()),
+                .create_with(
+                    request.file.clone().unwrap(),
+                    request.filename.clone(),
+                    request.content_type.clone(),
+                    ContentArtifactsCreateOptions {
+                        scope: Some(request.scope.clone().unwrap()),
                         request_id: Some(request.request_id.clone()),
                         metadata: request.metadata.clone(),
                         ..Default::default()
-                    })
+                    },
+                )
                 .await?;
             assert_eq!(replay, committed);
             let restored = artifacts.get(attached.artifact_id.clone()).await?;

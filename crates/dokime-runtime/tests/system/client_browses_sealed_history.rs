@@ -25,6 +25,7 @@ use harmos_protocol::model::PageRequest;
 use tonic::transport::Endpoint;
 
 // Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::CapturedRecordSelection;
 use dokime::Client;
 use dokime::EvidenceScope;
@@ -51,7 +52,6 @@ use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::evidence::SamplesListRequest;
 use dokime_runtime::Host;
 use dokime_runtime::PluginProcess;
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
 
 /* === Constants === */
 
@@ -103,7 +103,9 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             assert!(!retained.execution.as_ref().unwrap().seal.is_empty());
             let mut invalid = retained.resolved_at.clone().unwrap();
             invalid.history.as_mut().unwrap().store = "foreign".into();
-            assert!(executions.get_with(retained_id.clone(), ExecutionsGetOptions { at: Some(invalid), ..Default::default() }).await.is_err());
+            assert!(
+                executions.get_with(retained_id.clone(), ExecutionsGetOptions { at: Some(invalid), ..Default::default() }).await.is_err()
+            );
 
             // Complete a Plugin Run and Inspect Each Retained Resource at Its Own Cut.
             let settings = super::support::settings();
@@ -192,7 +194,10 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
             );
             let records = Client::from_channel(channel.clone(), super::support::client_settings())?.evidence.records.clone();
             let page = records
-                .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(Default::default()),
+                .list_with(
+                    String::new(),
+                    EvidenceRecordsListOptions {
+                        scope: Some(Default::default()),
                         versions: Some(Default::default()),
                         between: Some(Default::default()),
                         step: Some(String::new()),
@@ -205,7 +210,8 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                         }),
                         page: Some(PageRequest { page_size: 1, ..Default::default() }),
                         ..Default::default()
-                    })
+                    },
+                )
                 .await?;
             assert_eq!(page.records.len(), 1);
             let telemetry = Client::from_channel(channel, super::support::client_settings())?.evidence.samples.clone();

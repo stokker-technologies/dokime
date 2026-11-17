@@ -25,6 +25,7 @@ use tonic::Code;
 use tonic::transport::Endpoint;
 
 // Local Imports
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Client;
 use dokime::MapValue;
 use dokime::Metadata;
@@ -44,7 +45,6 @@ use dokime::client::PromptsListOptions;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
 use dokime_protocol::model::origin;
 use dokime_runtime::PluginProcess;
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
 
 /* === Constants === */
 

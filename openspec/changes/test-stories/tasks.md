@@ -2,6 +2,7 @@
 - [ ] 1.2 Measure the surviving slow stories and lock their current fixture/consumer inventory before consolidation; do not recreate removed server/lease tests.
 - [ ] 2.1 Consolidate repeated current runtime/CLI/desktop backend, catalog and evidence-read setup into cohesive shared mechanics; one story owns its actor, edge cases and assertions.
   - [x] 2.1.1 Port current runtime stories and shared fixtures to the final generated SDK signatures; retire superseded direct Store-seeded client stories and the unused file-registration helper.
+  - [x] 2.1.2 Run the OBC, sealed-history, archive and traceability journeys, then the runtime system target once; classify every remaining failure without changing product semantics.
 - [ ] 2.2 Move the surviving desktop connection fixture mechanics from `tests/integration/connection/fixture/` to shared support where multiple stories need them; the retired server wire stack is not restored.
 - [ ] 3.1 Split surviving multi-scenario drivers and consolidate redundant fixture startups into complete stories; retain independent behavioral coverage and current native driver routing.
 - [ ] 4.1 Move oversized correctness workloads such as the desktop RPC archive fixture to benchmarks, retaining small deterministic boundary-crossing cases as correctness tests; the direct Store-seeded plot-window story is superseded.
