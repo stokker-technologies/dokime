@@ -120,9 +120,9 @@ test("Page Sections", () => {
 
   // A Prompt Has One Home: The Execution That Asked It, Or The Cycle When No Execution Owns It
   const prompts = [
-    { correlation_id: "own", scope: { test_execution_id: "e1" } },
-    { correlation_id: "other", scope: { test_execution_id: "e2" } },
-    { correlation_id: "cycle", scope: { test_execution_id: null } },
+    { correlation_id: "own", scope: { executionId: "e1" } },
+    { correlation_id: "other", scope: { executionId: "e2" } },
+    { correlation_id: "cycle", scope: { executionId: null } },
     { correlation_id: "unscoped" },
   ] as unknown as PromptRequest[];
   assert.deepEqual(
@@ -491,7 +491,7 @@ test("Prompt Answering", () => {
   type Owned = ScopedPrompt & { correlation_id: string };
   const scoped = (id: string, executionId: string): Owned => ({
     correlation_id: id,
-    scope: { test_execution_id: executionId },
+    scope: { executionId: executionId },
   });
   const pending: Owned[] = [scoped("running", "one"), scoped("interrupted", "two"), { correlation_id: "cycle" }];
   const owners = (cycleEnded: boolean) => ({
@@ -551,7 +551,7 @@ test("Media Cards and Tree Share Live Uploads", () => {
     path: `media/${name}`,
     media_type: "image/png",
     group_id: "execution-files",
-    scope: { test_execution_id: "running" },
+    scope: { executionId: "running" },
     href: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
   };
   const audio = { ...image, artifact_id: "audio", path: "media/recording.wav", media_type: "audio/wav", href: "blob:audio" };

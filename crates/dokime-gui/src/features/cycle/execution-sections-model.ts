@@ -125,7 +125,7 @@ export function executionParameterColumns(rows: readonly Pick<ExecutionParameter
  * — the prompts no execution owns.
  */
 export function executionPagePrompts<T extends Pick<PromptRequest, "scope">>(prompts: readonly T[], executionId: string | null): T[] {
-  return prompts.filter((prompt) => (prompt.scope?.test_execution_id ?? null) === executionId);
+  return prompts.filter((prompt) => (prompt.scope?.executionId ?? null) === executionId);
 }
 
 /* === Private Functions === */

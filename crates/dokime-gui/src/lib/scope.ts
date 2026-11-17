@@ -9,23 +9,24 @@
 
 /* === Local Imports === */
 
-import type { RecordScope } from "@/lib/types";
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 
 /* === Types === */
 
 /* === Public Functions === */
 
 /** Every selected owner must be present and equal in the record. */
-export function scopeVisibleIn(scope: RecordScope | null | undefined, filter: RecordScope): boolean {
+export function scopeVisibleIn(scope: Wire<EvidenceScope> | null | undefined, filter: Wire<EvidenceScope>): boolean {
   return (
-    fieldVisibleIn(scope?.session_id, filter.session_id) &&
-    fieldVisibleIn(scope?.test_cycle_id, filter.test_cycle_id) &&
-    fieldVisibleIn(scope?.test_case_id, filter.test_case_id) &&
-    fieldVisibleIn(scope?.test_execution_id, filter.test_execution_id) &&
-    fieldVisibleIn(scope?.step_id, filter.step_id) &&
-    fieldVisibleIn(scope?.criterion_id, filter.criterion_id) &&
-    fieldVisibleIn(scope?.template_id, filter.template_id) &&
-    fieldVisibleIn(scope?.suite_id, filter.suite_id)
+    fieldVisibleIn(scope?.sessionId, filter.sessionId) &&
+    fieldVisibleIn(scope?.cycleId, filter.cycleId) &&
+    fieldVisibleIn(scope?.caseId, filter.caseId) &&
+    fieldVisibleIn(scope?.executionId, filter.executionId) &&
+    fieldVisibleIn(scope?.stepId, filter.stepId) &&
+    fieldVisibleIn(scope?.criterionId, filter.criterionId) &&
+    fieldVisibleIn(scope?.templateId, filter.templateId) &&
+    fieldVisibleIn(scope?.suiteId, filter.suiteId)
   );
 }
 

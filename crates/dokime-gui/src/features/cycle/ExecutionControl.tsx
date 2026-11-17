@@ -157,7 +157,7 @@ export function useExecutionActions({
           total: progress.total,
         }
       : null,
-    promptWaiting: prompts.some((prompt) => prompt.scope?.test_execution_id === execution.test_execution_id),
+    promptWaiting: prompts.some((prompt) => prompt.scope?.executionId === execution.test_execution_id),
     status: execution.status,
     stopping: commands.stopExecution.isPending,
   });

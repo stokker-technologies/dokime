@@ -14,10 +14,11 @@
 
 /* === Imports === */
 
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { Camera, Mic, Monitor } from "lucide-react";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
-import type { RecordScope } from "@/lib/types";
 
 /* === Re-Exports === */
 
@@ -25,7 +26,7 @@ import type { RecordScope } from "@/lib/types";
 
 /* === Types === */
 
-type MediaCaptureControlsProps = { scope: RecordScope };
+type MediaCaptureControlsProps = { scope: Wire<EvidenceScope> };
 
 /* === Components === */
 

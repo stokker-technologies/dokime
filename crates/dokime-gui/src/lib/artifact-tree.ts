@@ -1,3 +1,5 @@
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 /* ***
  *
  * Dokime
@@ -26,13 +28,7 @@ export type ArtifactTreeInput = {
   size_bytes?: number | null;
   group_id?: string | null;
   group_label?: string | null;
-  scope?: {
-    test_cycle_id?: string | null;
-    test_execution_id?: string | null;
-    queue_item_id?: string | null;
-    case_id?: string | null;
-    template_id?: string | null;
-  } | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type ArtifactTreeFile = ArtifactTreeInput & {

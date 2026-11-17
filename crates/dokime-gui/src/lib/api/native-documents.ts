@@ -573,7 +573,7 @@ function mapNativePlot(definition: NativePlotDefinition, fallbackId: string): Do
             column: mapNativeExpression(highlight.column) ?? invalid("grid highlight column is missing"),
             label: highlight.label,
           })),
-          summary_label: request.grid.summaryLabel,
+          summaryLabel: request.grid.summaryLabel,
         }
       : null,
     histogram: {

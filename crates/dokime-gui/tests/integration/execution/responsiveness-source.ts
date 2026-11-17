@@ -43,7 +43,7 @@ export function record(): HubRecord {
     level: "info",
     timestamp: new Date(1_800_000_000_000 + sequence).toISOString(),
     sequence,
-    scope: { test_cycle_id: "cycle" },
+    scope: { cycleId: "cycle" },
     display: { icon: "clock", tone: "info" },
     message: `Sample ${sequence}`,
     details: {

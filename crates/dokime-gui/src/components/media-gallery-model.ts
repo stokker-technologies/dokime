@@ -17,10 +17,12 @@
 
 // Third Party Imports
 
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 // Local Imports
 import type { MediaArtifactKind } from "@/lib/media";
-import type { ExecutionFileLifecycle, RecordScope } from "@/lib/types";
+import type { ExecutionFileLifecycle } from "@/lib/types";
 
 /* === Re-Exports === */
 
@@ -42,7 +44,7 @@ export type MediaGalleryArtifact = {
   stream_state?: ExecutionFileLifecycle | null;
   group_id?: string | null;
   group_label?: string | null;
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 export type MediaGalleryProps = {
@@ -81,7 +83,7 @@ export function artifactContentKey(artifact: MediaGalleryArtifact): string {
     artifact.media_type ?? "",
     artifact.size_bytes ?? "",
     artifact.stream_state ?? "",
-    artifact.scope?.test_execution_id ?? "",
+    artifact.scope?.executionId ?? "",
   ].join("\u0000");
 }
 
@@ -115,7 +117,7 @@ function safeMediaType(value: string): boolean {
 
 export function isNativeArtifactSource(artifact: MediaGalleryArtifact): boolean {
   if (artifact.group_id === "execution-files") {
-    return Boolean(artifact.scope?.test_execution_id?.trim() && artifact.path.trim());
+    return Boolean(artifact.scope?.executionId?.trim() && artifact.path.trim());
   }
   return true;
 }
@@ -123,7 +125,7 @@ export function isNativeArtifactSource(artifact: MediaGalleryArtifact): boolean 
 /** Route registry artifacts and execution-file snapshots to their distinct verified pull source. */
 export function mediaArtifactSource(artifact: MediaGalleryArtifact): ArtifactSource {
   if (artifact.group_id === "execution-files") {
-    const executionId = artifact.scope?.test_execution_id?.trim();
+    const executionId = artifact.scope?.executionId?.trim();
     if (!executionId) {
       throw new Error("Execution media requires a test execution scope.");
     }

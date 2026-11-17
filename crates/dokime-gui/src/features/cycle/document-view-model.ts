@@ -18,6 +18,8 @@
 // Third Party Imports
 
 // Local Imports
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { localArtifactHref } from "@/lib/artifact-tree";
 import { orderedDocumentSections } from "@/lib/document-layout";
@@ -31,7 +33,6 @@ import type {
   HubLiveState,
   HubRecord,
   OperatorNote,
-  RecordScope,
   TestExecution,
   TraceabilitySnapshot,
 } from "@/lib/types";
@@ -51,7 +52,7 @@ export type DocumentViewOptions = {
   /** Start of the run a note's elapsed label counts from. */
   noteElapsedStart: string | null | undefined;
   execution: TestExecution | null;
-  scope: RecordScope;
+  scope: Wire<EvidenceScope>;
   live: boolean;
   /** The parameter scopes a plot resolves an expression against. */
   parameters: {
@@ -65,7 +66,7 @@ export type DocumentSurfaceOptions = {
   execution: TestExecution | null;
   live: boolean;
   snapshot: HubLiveState | null;
-  scope: RecordScope;
+  scope: Wire<EvidenceScope>;
   parameters: DocumentViewOptions["parameters"];
   noteElapsedStart: string | null | undefined;
   plotWindow: PlotWindowOption;

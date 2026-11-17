@@ -76,7 +76,7 @@ export function CycleEvidenceView({
   trail,
   pageActions,
 }: CycleEvidenceViewProps) {
-  const cycleRecords = surface.view.records.filter((record) => !record.scope?.test_execution_id);
+  const cycleRecords = surface.view.records.filter((record) => !record.scope?.executionId);
   return (
     <div className="grid min-h-0">
       <PageShell actions={pageActions} className="min-h-0 overflow-y-auto" trail={trail}>

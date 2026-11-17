@@ -9,6 +9,8 @@
 
 /* === External Imports === */
 
+import type { ContourGrid } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { contours } from "d3-contour";
 import { geoPath, geoTransform } from "d3-geo";
 import { scaleLinear, scaleLog, scaleSequential } from "d3-scale";
@@ -18,7 +20,7 @@ import { useEffect, useId, useRef } from "react";
 /* === Local Imports === */
 
 import { formatNumber, formatUnitLabel } from "@/lib/format";
-import type { ContourGrid } from "@/lib/types";
+
 import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
 import { plotPlaceholderText } from "@/plots/plot-placeholder";
 import type { PlotCardSpec } from "@/plots/types";
@@ -72,14 +74,14 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
   const domain: [number, number] = min === max ? [min - 1, max + 1] : [min, max];
   const color = scaleSequential(interpolateYlOrRd).domain(domain);
   const x = (plot.xScale === "log" ? scaleLog : scaleLinear)(
-    [grid.x_edges[0], grid.x_edges[grid.columns]],
+    [grid.xEdges[0], grid.xEdges[grid.columns]],
     [MARGIN.left, MARGIN.left + width],
   );
-  const y = (plot.yScale === "log" ? scaleLog : scaleLinear)([grid.y_edges[0], grid.y_edges[grid.rows]], [MARGIN.top + height, MARGIN.top]);
+  const y = (plot.yScale === "log" ? scaleLog : scaleLinear)([grid.yEdges[0], grid.yEdges[grid.rows]], [MARGIN.top + height, MARGIN.top]);
   const path = geoPath(
     geoTransform({
       point(column, row) {
-        this.stream.point(gridCoordinate(column, grid.x_edges, x), gridCoordinate(row, grid.y_edges, y));
+        this.stream.point(gridCoordinate(column, grid.xEdges, x), gridCoordinate(row, grid.yEdges, y));
       },
     }),
   );
@@ -99,10 +101,10 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
         index,
         column,
         row,
-        left: x(grid.x_edges[column]),
-        right: x(grid.x_edges[column + 1]),
-        top: y(grid.y_edges[row + 1]),
-        bottom: y(grid.y_edges[row]),
+        left: x(grid.xEdges[column]),
+        right: x(grid.xEdges[column + 1]),
+        top: y(grid.yEdges[row + 1]),
+        bottom: y(grid.yEdges[row]),
       },
     ];
   });
@@ -144,7 +146,7 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
               height={cell.bottom - cell.top}
               fill={color(cell.value)}
             >
-              <title>{`${formatNumber(grid.x_edges[cell.column], plot.xFormat ?? null)}–${formatNumber(grid.x_edges[cell.column + 1], plot.xFormat ?? null)}, ${formatNumber(grid.y_edges[cell.row], plot.yFormat ?? null)}–${formatNumber(grid.y_edges[cell.row + 1], plot.yFormat ?? null)}: ${formatUnitLabel(formatNumber(cell.value, null), plot.unit)}`}</title>
+              <title>{`${formatNumber(grid.xEdges[cell.column], plot.xFormat ?? null)}–${formatNumber(grid.xEdges[cell.column + 1], plot.xFormat ?? null)}, ${formatNumber(grid.yEdges[cell.row], plot.yFormat ?? null)}–${formatNumber(grid.yEdges[cell.row + 1], plot.yFormat ?? null)}: ${formatUnitLabel(formatNumber(cell.value, null), plot.unit)}`}</title>
             </rect>
           ))}
           {plot.render === "bands" ? (
@@ -222,7 +224,7 @@ export function ContourPlot({ plot }: { plot: PlotCardSpec }) {
 
 /* === Public Functions === */
 
-export function validContourGrid(grid: ContourGrid): boolean {
+export function validContourGrid(grid: Wire<ContourGrid>): boolean {
   const count = grid.columns * grid.rows;
   return (
     Number.isSafeInteger(count) &&
@@ -230,10 +232,10 @@ export function validContourGrid(grid: ContourGrid): boolean {
     grid.rows > 0 &&
     grid.values.length === count &&
     grid.valid.length === count &&
-    grid.x_edges.length === grid.columns + 1 &&
-    grid.y_edges.length === grid.rows + 1 &&
-    grid.x_edges.every(Number.isFinite) &&
-    grid.y_edges.every(Number.isFinite) &&
+    grid.xEdges.length === grid.columns + 1 &&
+    grid.yEdges.length === grid.rows + 1 &&
+    grid.xEdges.every(Number.isFinite) &&
+    grid.yEdges.every(Number.isFinite) &&
     grid.values.every((value, index) => !grid.valid[index] || Number.isFinite(value))
   );
 }

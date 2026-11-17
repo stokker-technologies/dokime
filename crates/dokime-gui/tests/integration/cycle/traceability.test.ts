@@ -28,7 +28,7 @@ import { required, type Wire } from "@/lib/rpc/canonical";
 const boundary = vi.hoisted(() => ({ unary: vi.fn() }));
 vi.mock("@/lib/rpc/transport", () => ({ unary: boundary.unary }));
 const session = { generation: "7", isCurrent: () => true };
-const scope = { test_cycle_id: "cycle", test_execution_id: "execution", step_id: "step" };
+const scope = { cycleId: "cycle", executionId: "execution", stepId: "step" };
 
 /* === Types === */
 
@@ -84,7 +84,7 @@ test("Traceability Pages Retain Scope, Read Cut and Snapshot Order", async () =>
   assert.equal(boundary.unary.mock.calls[0][4].at, undefined);
   assert.deepEqual(boundary.unary.mock.calls[1][4].at, first.resolvedAt);
   assert.equal(boundary.unary.mock.calls[1][4].page.pageToken, "opaque-page");
-  assert.equal(result.scope?.test_execution_id, "execution");
+  assert.equal(result.scope?.executionId, "execution");
   assert.deepEqual(
     result.groups.flatMap((group) => group.items.map((item) => item.value)),
     ["value-2", "value-5"],
@@ -97,7 +97,7 @@ test("Empty Traceability Keeps Its Requested Scope and Cut", async () => {
   boundary.unary.mockResolvedValueOnce(response);
   const result = await fetchNativeTraceability(session, scope);
   assert.deepEqual(result.groups, []);
-  assert.equal(result.scope?.step_id, "step");
+  assert.equal(result.scope?.stepId, "step");
 });
 
 test.each([

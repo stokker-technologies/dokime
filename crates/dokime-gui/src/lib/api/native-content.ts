@@ -13,10 +13,8 @@
 
 /* === Local Imports === */
 
-import { UPLOAD_SLICE_BYTES as DESKTOP_UPLOAD_SLICE_BYTES } from "@generated/desktop-protocol";
-
-import { ArtifactState as HostArtifactState } from "@host/model";
-import { ExecutionFileKind as HostExecutionFileKind, ExecutionFileState as HostExecutionFileState } from "@host/model";
+import * as desktopProtocol from "@generated/desktop-protocol";
+import * as hostModel from "@host/model";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import { EXECUTION_FILE_WINDOW_BYTES } from "@/lib/execution-file-paging";
 import { openNativeArtifactUpload } from "@/lib/rpc/artifact-upload";
@@ -48,7 +46,7 @@ type ExecutionFileState = ExecutionFileMetadata["state"];
 type ArtifactState = ArtifactMetadata["state"];
 
 const NATIVE_CONTENT_BYTES = GUI_CONTENT_BYTES;
-const NATIVE_UPLOAD_SLICE_BYTES = DESKTOP_UPLOAD_SLICE_BYTES;
+const NATIVE_UPLOAD_SLICE_BYTES = desktopProtocol.UPLOAD_SLICE_BYTES;
 
 export interface NativeContentSession extends SessionIdentity {
   own(dispose: () => void): () => void;
@@ -147,9 +145,9 @@ export async function followNativeExecutionFile(
         kind: "metadata",
         identity: { store: history.store, epoch: history.epoch, fileId: id, executionId, relativePath: path },
         phase:
-          state === HostExecutionFileState.STREAMING
+          state === hostModel.ExecutionFileState.STREAMING
             ? "producing"
-            : state === HostExecutionFileState.INTERRUPTED
+            : state === hostModel.ExecutionFileState.INTERRUPTED
               ? "abandoned"
               : "finished",
         availableLength: safeNumber(file.length, "Follow File Length"),
@@ -171,7 +169,7 @@ export async function followNativeExecutionFile(
       const finalFile = required((await rpc.filesGet(session, { file })).file, "Follow Finalized File");
       yield {
         kind: "terminal",
-        phase: state === HostExecutionFileState.INTERRUPTED ? "abandoned" : "finished",
+        phase: state === hostModel.ExecutionFileState.INTERRUPTED ? "abandoned" : "finished",
         length,
         sha256: [...finalFile.sha256].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
       } as ExecutionFileFollowEvent;
@@ -297,12 +295,12 @@ export async function uploadNativeArtifact(session: NativeContentSession, option
 
 /** Maps an artifact record scope to the native upload scope; refuses records without a cycle and execution. */
 export function uploadScope(scope: ArtifactRecord["scope"]): ArtifactScope {
-  const cycleId = scope?.test_cycle_id?.trim();
-  const executionId = scope?.test_execution_id?.trim();
+  const cycleId = scope?.cycleId?.trim();
+  const executionId = scope?.executionId?.trim();
   if (!cycleId || !executionId) {
     throw new Error("Native artifact upload requires a cycle and execution scope.");
   }
-  const caseId = scope?.test_case_id?.trim();
+  const caseId = scope?.caseId?.trim();
   return {
     cycleId,
     ...(caseId ? { caseId } : {}),
@@ -311,7 +309,7 @@ export function uploadScope(scope: ArtifactRecord["scope"]): ArtifactScope {
 }
 
 function mapArtifactMetadata(metadata: ArtifactMetadata, overrides?: NativeArtifactUploadOptions): ArtifactRecord {
-  const scope = mapArtifactScope(metadata.scope);
+  const scope = metadata.scope ?? null;
   const filename = metadata.filename || overrides?.filename || metadata.artifactId;
   const contentType = overrides?.mediaType ?? metadata.contentType;
   return {
@@ -349,7 +347,7 @@ function nativeExecutionFileReference(artifact: Pick<ArtifactRecord, "path" | "s
   executionId: string;
   relativePath: string;
 } {
-  const executionId = artifact.scope?.test_execution_id?.trim();
+  const executionId = artifact.scope?.executionId?.trim();
   const relativePath = artifact.path;
   if (!executionId || !relativePath.trim()) {
     throw new Error("Execution-file content requires a test execution scope and relative path.");
@@ -370,23 +368,13 @@ function nativeArtifactSource(artifact: Pick<ArtifactRecord, "artifact_id" | "gr
   return { kind: "artifact", artifactId: artifact.artifact_id };
 }
 
-function mapArtifactScope(scope?: ArtifactScope): ArtifactRecord["scope"] {
-  if (!scope) return null;
-  const caseId = scope.caseId ?? null;
-  return {
-    test_cycle_id: scope.cycleId ?? null,
-    test_execution_id: scope.executionId ?? null,
-    test_case_id: caseId,
-  };
-}
-
 function mapArtifactState(state: ArtifactState): "static" | "streaming" | "finalized" | "interrupted" {
   switch (state) {
-    case HostArtifactState.COMPLETE:
+    case hostModel.ArtifactState.COMPLETE:
       return "finalized";
-    case HostArtifactState.CANCELLED:
-    case HostArtifactState.REJECTED:
-    case HostArtifactState.FAILED:
+    case hostModel.ArtifactState.CANCELLED:
+    case hostModel.ArtifactState.REJECTED:
+    case hostModel.ArtifactState.FAILED:
       return "interrupted";
     default:
       return "static";
@@ -424,17 +412,17 @@ function mapExecutionFile(executionId: string, file: ExecutionFileMetadata): Art
     group_id: "execution-files",
     group_label: "Execution Files",
     created_at: createdAt,
-    scope: { test_execution_id: executionId },
+    scope: { executionId: executionId },
   };
 }
 
 function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "unknown" {
   switch (kind) {
-    case HostExecutionFileKind.TEXT:
+    case hostModel.ExecutionFileKind.TEXT:
       return "text";
-    case HostExecutionFileKind.BINARY:
+    case hostModel.ExecutionFileKind.BINARY:
       return "binary";
-    case HostExecutionFileKind.MEDIA:
+    case hostModel.ExecutionFileKind.MEDIA:
       return "media";
     default:
       return "unknown";
@@ -443,11 +431,11 @@ function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "un
 
 function mapFileState(state: ExecutionFileState): ExecutionFileLifecycle {
   switch (state) {
-    case HostExecutionFileState.STREAMING:
+    case hostModel.ExecutionFileState.STREAMING:
       return "streaming";
-    case HostExecutionFileState.FINALIZED:
+    case hostModel.ExecutionFileState.FINALIZED:
       return "finalized";
-    case HostExecutionFileState.INTERRUPTED:
+    case hostModel.ExecutionFileState.INTERRUPTED:
       return "interrupted";
     default:
       return "static";

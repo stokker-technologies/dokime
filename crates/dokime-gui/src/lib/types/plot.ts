@@ -7,12 +7,13 @@
  * ***
  */
 
+import type { PlotDomain, ContourGrid, GridFrames, GridAxisEntry, PlotPayloadDiagnostics } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { SeriesSummary, StatsSummary } from "../statistics";
 import type { JsonObject } from "../types";
 import type {
   PlotCartesianFrame as NativePlotCartesianFrame,
   PlotCartesianSeriesFrame as NativePlotCartesianSeriesFrame,
-  PlotDomain as NativePlotDomain,
   PlotMarker as NativePlotMarker,
   PlotPayload_Serialize as NativePlotPayload,
   PlotPayloadEnvelope_Serialize as NativePlotPayloadEnvelope,
@@ -20,9 +21,7 @@ import type {
   PlotSeries_Serialize as NativePlotSeries,
 } from "./view-contracts";
 
-export type { PlotPayloadDiagnostics } from "./view-contracts";
-
-import type { PlotPayloadDiagnostics, PlotPayloadStreamKind } from "./view-contracts";
+import type { PlotPayloadStreamKind } from "./view-contracts";
 
 /* === Plot & telemetry types ===
    PlotPoint/Series/Domain/Cartesian/Marker, the document plot-config types
@@ -55,12 +54,10 @@ export type PlotPoint = Omit<NativePlotPoint, "x"> & {
 
 export type PlotSeries = Omit<NativePlotSeries, "points" | "unit"> & Partial<Pick<NativePlotSeries, "unit">> & { points: PlotPoint[] };
 
-export type PlotDomain = { [Key in keyof NativePlotDomain]: NonNullable<NativePlotDomain[Key]> };
-
 export type PlotCartesianFrame = Omit<NativePlotCartesianFrame, "series" | "x_domain" | "y_domain"> & {
   series: Array<Omit<NativePlotCartesianSeriesFrame, "x"> & { x: number[] }>;
-  x_domain?: PlotDomain | null;
-  y_domain?: PlotDomain | null;
+  x_domain?: Wire<PlotDomain> | null;
+  y_domain?: Wire<PlotDomain> | null;
 };
 
 export type PlotMarker = Omit<NativePlotMarker, "x"> & { x: unknown };
@@ -163,19 +160,9 @@ export type PlotAnalysis =
         raw_points: number;
       }[];
     }
-  | { kind: "contour"; grid: ContourGrid }
-  | { kind: "grid_chart"; data: GridFrames };
+  | { kind: "contour"; grid: Wire<ContourGrid> }
+  | { kind: "grid_chart"; data: Wire<GridFrames> };
 
-export type ContourGrid = {
-  columns: number;
-  rows: number;
-  x_edges: number[];
-  y_edges: number[];
-  values: number[];
-  valid: boolean[];
-};
-
-export type GridAxisEntry = { key: string; label: string; order: number; group?: string | null };
 export type GridHighlight = {
   row: import("./document").DocumentDataExpression;
   column: import("./document").DocumentDataExpression;
@@ -185,18 +172,11 @@ export type GridDefinition = {
   row?: import("./document").DocumentDataExpression | null;
   column?: import("./document").DocumentDataExpression | null;
   frame?: import("./document").DocumentDataExpression | null;
-  rows: GridAxisEntry[];
-  columns: GridAxisEntry[];
+  rows: Wire<GridAxisEntry>[];
+  columns: Wire<GridAxisEntry>[];
   highlights: GridHighlight[];
-  summary_label: string;
+  summaryLabel: string;
 };
-export type GridFrame = {
-  instant: string;
-  values: number[];
-  valid: boolean[];
-  highlights: { row: number; column: number; label: string }[];
-};
-export type GridFrames = { rows: GridAxisEntry[]; columns: GridAxisEntry[]; frames: GridFrame[]; summary_label: string };
 
 // Renderer payloads also represent locally materialized, partial plot data.
 export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_points" | "generated_at"> &
@@ -215,7 +195,7 @@ export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_poin
 
 export type PlotPayloadEnvelope = Omit<NativePlotPayloadEnvelope, "payload" | "diagnostics"> & {
   payload: PlotPayload;
-  diagnostics?: PlotPayloadDiagnostics;
+  diagnostics?: Wire<PlotPayloadDiagnostics>;
 };
 
 export type PlotPayloadStreamMessage = PlotPayloadEnvelope & {

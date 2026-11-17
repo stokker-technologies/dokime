@@ -168,7 +168,7 @@ function compactCaseLabel(label: string, record: HubRecord): string {
   if (parenIndex > 0) {
     return label.slice(0, parenIndex);
   }
-  const scopedTemplate = record.scope?.template_id ?? record.template_id;
+  const scopedTemplate = record.scope?.templateId ?? record.template_id;
   if (scopedTemplate && label.includes(scopedTemplate)) {
     return titleFromIdentifier(scopedTemplate);
   }

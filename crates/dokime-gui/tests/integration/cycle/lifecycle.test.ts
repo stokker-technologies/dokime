@@ -373,7 +373,7 @@ test("Prompt Read and Answer Keep Canonical Fields and Unsigned Values", async (
   assert.equal(prompt.level, "warning");
   assert.equal(prompt.fields[0].kind, "int");
   assert.equal(prompt.actions[0].id, "confirm");
-  assert.equal(prompt.scope?.test_execution_id, "execution");
+  assert.equal(prompt.scope?.executionId, "execution");
   assert.equal(prompt.verification?.condition.kind, "host");
   const receipt = await respondNativePrompt(session, prompt.correlation_id, "confirm", { count: prompt.fields[0].default });
   assert.equal(receipt.command_id, "answer");
@@ -606,7 +606,7 @@ test("Notes Publish Through Canonical Owner and Keep Their Mutation Identity", a
     assert.ok(request.requestId);
     return { note: { noteId: "note", createdAt: { seconds: 1n, nanos: 0 } }, receipt: { completed: true, requestId: request.requestId } };
   });
-  const receipt = await createNativeNote(session, "Measured", { test_cycle_id: "cycle", test_execution_id: "run" });
+  const receipt = await createNativeNote(session, "Measured", { cycleId: "cycle", executionId: "run" });
   assert.equal(receipt.result?.accepted, true);
 });
 

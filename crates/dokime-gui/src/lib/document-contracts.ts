@@ -1,3 +1,5 @@
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 /* ***
  *
  * Dokime
@@ -110,7 +112,7 @@ export type DocumentFilter = {
 export type DocumentId = string;
 
 export type DocumentSelection = {
-  scope: RecordScope;
+  scope: Wire<EvidenceScope>;
 };
 
 export type DocumentWarning = {
@@ -221,7 +223,7 @@ export type PlotInput = {
   render?: "cells" | "bands";
   grid?: import("./types/plot").GridDefinition | null;
   plot_id: Identifier;
-  scope: RecordScope;
+  scope: Wire<EvidenceScope>;
   plot_type: PlotType;
   x_field: string | null;
   series_fields: string[];
@@ -259,17 +261,6 @@ export type PlotStyle = "line" | "points" | "line_points" | "step";
 export type DownsampleTechnique = "lttb" | "min_max" | "raw";
 
 export type PlotType = import("./types/plot").DocumentPlotType;
-
-export type RecordScope = {
-  session_id?: SessionId | null;
-  test_cycle_id?: TestCycleId | null;
-  test_case_id?: CaseId | null;
-  test_execution_id?: TestExecutionId | null;
-  step_id?: StepId | null;
-  criterion_id?: CriterionId | null;
-  template_id?: TemplateId | null;
-  suite_id?: SuiteId | null;
-};
 
 export type ReferenceValue = number | DataExpression;
 

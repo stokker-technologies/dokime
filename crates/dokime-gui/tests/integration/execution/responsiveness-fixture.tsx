@@ -65,7 +65,7 @@ const options: DocumentViewOptions = {
   execution: null,
   liveSnapshot: null,
   noteElapsedStart: null,
-  scope: { test_cycle_id: "cycle" },
+  scope: { cycleId: "cycle" },
   live: true,
   parameters: { case: null, execution: null },
 };

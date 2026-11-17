@@ -260,7 +260,7 @@ async function mountPlotView(ids = ["pulse", "current"], visibleIds = ids) {
       display_points: 100,
     }),
   );
-  const scope = { test_cycle_id: "cycle" };
+  const scope = { cycleId: "cycle" };
   useSummaryWindowStore.setState({ visible: Object.fromEntries(ids.map((id) => [id, visibleIds.includes(id)])) });
   const session = { identity: { generation: "1", isCurrent: () => true }, own: () => () => {} } as unknown as ConnectedSession;
   const host = document.createElement("div");
@@ -809,7 +809,7 @@ test("Slider Selects Storage Query Range", () => {
     y: ["voltage"],
     display_points: 100,
   };
-  const scope = { test_cycle_id: "cycle" };
+  const scope = { cycleId: "cycle" };
   const plots = [plot, { ...plot, plot_id: "current", y: ["current"] }];
   for (const definition of plots) {
     const initial = plotRequestForDocumentPlot(definition, { scope });
@@ -2162,7 +2162,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
     generated_at: "2026-01-01T00:00:00Z",
     analysis: {
       kind: "contour",
-      grid: { columns: 2, rows: 2, x_edges: [0, 2, 3], y_edges: [0, 1, 4], values: [0, 0, 0, 4], valid: [true, false, false, true] },
+      grid: { columns: 2, rows: 2, xEdges: [0, 2, 3], yEdges: [0, 1, 4], values: [0, 0, 0, 4], valid: [true, false, false, true] },
     },
   };
   const plot = documentPlotSpec({ plot: declaration, payload });
@@ -2205,7 +2205,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
         frames: [
           { instant: "2026-01-01T00:00:00Z", values: [0, 0], valid: [true, false], highlights: [{ row: 0, column: 0, label: "Selected" }] },
         ],
-        summary_label: "Readings",
+        summaryLabel: "Readings",
       },
     },
   };
@@ -2232,7 +2232,7 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
       rows: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.rows : [],
       columns: grid.analysis?.kind === "grid_chart" ? grid.analysis.data.columns : [],
       highlights: [],
-      summary_label: "Readings",
+      summaryLabel: "Readings",
     },
   });
   assert.equal(request.reduction, Reduction.MAX);
@@ -2565,10 +2565,7 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
   const replacement = session("3");
   const states = new Map<string, ReturnType<typeof useLivePlotPayloads>>();
   function Probe({ name }: { name: string }) {
-    states.set(
-      name,
-      useLivePlotPayloads({ enabled: true, plots, scope: { test_cycle_id: "cycle", test_execution_id: "execution" }, windowS: 300 }),
-    );
+    states.set(name, useLivePlotPayloads({ enabled: true, plots, scope: { cycleId: "cycle", executionId: "execution" }, windowS: 300 }));
     return null;
   }
   const roots = [createRoot(document.createElement("div")), createRoot(document.createElement("div"))];

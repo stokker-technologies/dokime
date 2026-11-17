@@ -174,7 +174,7 @@ export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true
   const waitingRows = useMemo(
     () =>
       rows.filter(
-        (row) => row.execution !== null && prompts.some((prompt) => prompt.scope?.test_execution_id === row.execution?.test_execution_id),
+        (row) => row.execution !== null && prompts.some((prompt) => prompt.scope?.executionId === row.execution?.test_execution_id),
       ),
     [prompts, rows],
   );

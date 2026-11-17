@@ -6,6 +6,7 @@
  * server API types.
  */
 
+import type { PlotDomain, PlotPayloadDiagnostics } from "@host/model";
 import type { ValueFormat } from "./format";
 import type { Origin, ExecutionOutcome } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
@@ -185,8 +186,8 @@ export type Path = {
 export type PlotCartesianFrame = {
   mode: PlotCartesianMode;
   series: PlotCartesianSeriesFrame[];
-  x_domain: PlotDomain | null;
-  y_domain: PlotDomain | null;
+  x_domain: Wire<PlotDomain> | null;
+  y_domain: Wire<PlotDomain> | null;
   point_count: number;
   signature: string;
 };
@@ -198,25 +199,11 @@ export type PlotCartesianSeriesFrame = {
   y: (number | null)[];
 };
 
-export type PlotDomain = {
-  min: number | null;
-  max: number | null;
-};
-
 export type PlotMarker = {
   x: Value;
   label: string;
   record_type: string;
   color: string;
-};
-
-export type PlotPayloadDiagnostics = {
-  series_count: number;
-  point_count: number;
-  raw_point_count: number;
-  downsampled: boolean;
-  max_points: number;
-  window_s: number | null;
 };
 
 export type PlotPayloadEnvelope_Serialize = {
@@ -225,7 +212,7 @@ export type PlotPayloadEnvelope_Serialize = {
   epoch: string;
   selection: string;
   payload: PlotPayload_Serialize;
-  diagnostics: PlotPayloadDiagnostics;
+  diagnostics: Wire<PlotPayloadDiagnostics>;
   warnings: string[];
 };
 
@@ -263,18 +250,6 @@ export type PlotSeries_Serialize = {
   downsampled: boolean;
   /** The resolved winner of the y-axis format precedence chain; `null` when none applies. */
   format?: ValueFormat | null;
-};
-
-export type RecordScope = {
-  origin?: { kind: "default" | "initialization" | "cleanup" } | { kind: "step_attempt"; attemptId: string };
-  session_id?: SessionId | null;
-  test_cycle_id?: TestCycleId | null;
-  test_case_id?: CaseId | null;
-  test_execution_id?: TestExecutionId | null;
-  step_id?: StepId | null;
-  criterion_id?: CriterionId | null;
-  template_id?: TemplateId | null;
-  suite_id?: SuiteId | null;
 };
 
 export type SecretAvailability = { identifier: string; available: boolean };

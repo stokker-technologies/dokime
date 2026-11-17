@@ -49,8 +49,8 @@ function ConnectedDocumentWorkspace(props: Extract<DocumentWorkspaceViewProps, {
     [plotSettingsOverrides, scopeKey],
   );
   const nativeSession = useNativeSessionOptional();
-  const cycleId = props.scope?.test_cycle_id ?? null;
-  const executionId = props.scope?.test_execution_id ?? null;
+  const cycleId = props.scope?.cycleId ?? null;
+  const executionId = props.scope?.executionId ?? null;
   const documentId = props.document?.document_id;
   const onPlotSettingsChange = useCallback(
     async (plotId: string, settings: PlotDisplaySettings) => {

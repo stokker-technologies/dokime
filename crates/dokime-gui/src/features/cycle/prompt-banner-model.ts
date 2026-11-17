@@ -1,3 +1,5 @@
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 /* ***
  *
  * Dokime
@@ -39,7 +41,7 @@ export type RankedPrompt = {
 
 /** The owner fields that decide whether a prompt can still be answered. */
 export type ScopedPrompt = {
-  scope?: { test_execution_id?: string | null } | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 /** What the workspace knows about the prompt owners it shows. */
@@ -98,7 +100,7 @@ export function highestPromptLevel(prompts: readonly RankedPrompt[]): Severity |
  */
 export function answerablePrompts<T extends ScopedPrompt>(prompts: readonly T[], owners: PromptOwners): T[] {
   return prompts.filter((prompt) => {
-    const executionId = prompt.scope?.test_execution_id;
+    const executionId = prompt.scope?.executionId;
     return executionId ? owners.executionActive(executionId) : !owners.cycleEnded;
   });
 }

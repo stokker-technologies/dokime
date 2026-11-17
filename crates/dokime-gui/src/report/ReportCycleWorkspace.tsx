@@ -82,16 +82,16 @@ export function ReportCycleWorkspace({ selection, source }: ReportCycleWorkspace
     snapshot: source.runtimeShell,
     scope: started
       ? {
-          test_cycle_id: plan.test_cycle.test_cycle_id,
-          test_execution_id: started.test_execution_id,
-          test_case_id: started.case_id,
+          cycleId: plan.test_cycle.test_cycle_id,
+          executionId: started.test_execution_id,
+          caseId: started.case_id,
         }
       : row
         ? {
-            test_cycle_id: plan.test_cycle.test_cycle_id,
-            test_case_id: row.case.caseId,
+            cycleId: plan.test_cycle.test_cycle_id,
+            caseId: row.case.caseId,
           }
-        : { test_cycle_id: plan.test_cycle.test_cycle_id },
+        : { cycleId: plan.test_cycle.test_cycle_id },
     parameters: { case: row?.case.testCase?.parameters, execution: execution?.parameters },
     noteElapsedStart: started?.started_at ?? plan.test_cycle.started_at ?? null,
     plotWindow: plotWindow.option,

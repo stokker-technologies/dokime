@@ -15,6 +15,8 @@
 
 /* === External Imports === */
 
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { type ReactNode, useCallback } from "react";
 
 /* === Local Imports === */
@@ -37,7 +39,6 @@ import type {
   Metadata,
   OperatorNote,
   PlotPayload,
-  RecordScope,
   StepExecutionRecord,
   TelemetryStream,
   TraceabilitySnapshot,
@@ -82,7 +83,7 @@ type LiveDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
   plotWindowS?: number | null;
   plotRefresh?: PlotRefreshState;
   renderMode: "live";
-  scope: RecordScope | null;
+  scope: Wire<EvidenceScope> | null;
 };
 
 type ReportDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
@@ -176,9 +177,9 @@ function documentCardContentProps(
 
   return {
     ...shared,
-    captureScope: props.scope?.test_cycle_id && props.scope.test_execution_id ? props.scope : null,
+    captureScope: props.scope?.cycleId && props.scope.executionId ? props.scope : null,
     livePlotStates,
-    noteScope: props.scope?.test_cycle_id ? props.scope : null,
+    noteScope: props.scope?.cycleId ? props.scope : null,
     plotContextTelemetry: props.plotContextTelemetry,
     plotResetKey: props.plotResetKey,
     renderMode: "live",

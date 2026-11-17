@@ -7,16 +7,18 @@
  * ***
  */
 
+import type { EvidenceScope } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { notesNewestFirst } from "@/features/cycle/operator-notes-model";
 /* === Local Imports === */
 import { useAddNoteMutation, useEditNoteMutation } from "@/features/cycle/server-state";
-import type { OperatorNote, RecordScope } from "@/lib/types";
+import type { OperatorNote } from "@/lib/types";
 import { EditableOperatorNotes, FrozenOperatorNotes } from "./OperatorNotesView";
 
 /* === Types === */
 type OperatorNotesContentProps = {
   notes: OperatorNote[];
-  scope?: RecordScope | null;
+  scope?: Wire<EvidenceScope> | null;
 };
 
 /* === Components === */
@@ -25,7 +27,7 @@ export function OperatorNotesContent({ notes, scope = null }: OperatorNotesConte
 }
 
 /* === Private Components === */
-function ConnectedOperatorNotes({ notes, scope }: { notes: OperatorNote[]; scope: RecordScope }) {
+function ConnectedOperatorNotes({ notes, scope }: { notes: OperatorNote[]; scope: Wire<EvidenceScope> }) {
   const addNote = useAddNoteMutation();
   const editNote = useEditNoteMutation();
   return (
