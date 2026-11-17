@@ -25,17 +25,17 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray, StructArray};
 use harmos_protocol::model::{FileReference, PageRequest, Receipt};
+use harmos_query::arrow::ArrowBatch;
 use harmos_query::scalar::ScalarValue;
 use harmos_query::transform::{
     Transform,
     expression::Contains,
     filter::{Clause, Compare, Condition, Filter, Term},
 };
-use harmos_query::{QueryOutput, arrow::ArrowBatch};
 use harmos_runtime::Identifier;
 use harmos_runtime::builtins::storage::{
-    CompoundOutcome, ListRows, ListRowsRequest, Mutate, MutateRequest, MutationId, MutationItem, SchemaInput, SetObject, SetObjectRequest,
-    Source, set_object_response,
+    CompoundOutcome, ListRows, ListRowsRequest, Mutate, MutateRequest, MutationId, MutationItem, RowOutput, SchemaInput, SetObject,
+    SetObjectRequest, Source, set_object_response,
 };
 use harmos_runtime::storage::{
     ObjectDefinition,
@@ -49,9 +49,10 @@ use crate::{
     Error, Result,
     host::{Context, files, storage::administration},
 };
+use dokime_protocol::host::FilesGetRequest;
 use dokime_protocol::host::content::{ArtifactsCreateRequest, ArtifactsCreateResponse, ExecutionFileMetadata, ExecutionFileState};
 use dokime_protocol::model::{ArtifactMetadata, ArtifactState};
-use dokime_storage::{Store, StoredArtifact, StoredExecutionFile};
+use dokime_storage::{ExecutionState, Store, StoredArtifact, StoredExecutionFile};
 
 /* === Constants === */
 
@@ -145,7 +146,7 @@ pub(crate) async fn retained(context: &Context, file: &FileReference) -> Result<
             .await?;
         at = response.resolved_at;
         for row in response.rows {
-            let QueryOutput::Batch(bytes) = row else { continue };
+            let RowOutput::Batch(bytes) = row else { continue };
             let page = ArrowBatch::from_ipc(bytes).map_err(|source| Error::Invalid(format!("Check Retained Files: {source}")))?;
             let payload = page
                 .as_record_batch()
@@ -222,7 +223,7 @@ pub async fn attach_artifact(context: &Context, request: ArtifactsCreateRequest)
     let (mut saved, revision) = administration::message::<ArtifactCommit>(context, &key).await?;
     if revision.is_empty() {
         let snapshot = crate::host::execution_state::read(context, execution)?;
-        if snapshot.state != dokime_storage::ExecutionState::Open {
+        if snapshot.state != ExecutionState::Open {
             return Err(Error::Precondition("Create Artifact: Select an Open Execution".into()));
         }
         let mutation = files::transfer::mutation(context, &key, &request.request_id).await?;
@@ -300,9 +301,9 @@ pub async fn attach_execution_file(
     if file.metadata.as_ref().and_then(|metadata| metadata.scope.as_deref()) != Some(execution) {
         return Err(Error::Invalid("Attach Execution File: Select a Native File in This Execution's Scope".into()));
     }
-    crate::host::files::get::handle(context, dokime_protocol::host::FilesGetRequest { file: Some(file.clone()), at: None }).await?;
+    crate::host::files::get::handle(context, FilesGetRequest { file: Some(file.clone()), at: None }).await?;
     let _guard = context.administration.lock().await;
-    if crate::host::execution_state::read(context, execution)?.state != dokime_storage::ExecutionState::Open {
+    if crate::host::execution_state::read(context, execution)?.state != ExecutionState::Open {
         return Err(Error::Precondition("Attach Execution File: Select an Open Execution".into()));
     }
     metadata.size_bytes = file.length;

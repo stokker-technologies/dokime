@@ -417,7 +417,10 @@ consolidated statistics/bucket summaries, storage-only maintenance and
 scale/offset/contains transforms. The descriptions above record the original
 upstream findings; product backend and consumer adoption and proof remain open.
 The storage cutover keeps the current operation-calling API. Group 9's typed
-facade and its dependent wrapper/DTO changes remain a later delivery.
+facade and its dependent wrapper changes remain a later delivery. The current
+pin already supplies operation-owned column kinds and row/IPC result DTOs;
+existing administration, retained-content and archive operation callers adopt
+those DTOs without introducing the facade.
 
 ## Risks / Trade-Offs
 

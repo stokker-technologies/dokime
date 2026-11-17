@@ -700,6 +700,9 @@ mixed-owner batches preserves source order and permits whole-file reclamation. E
 is synced before its catalog transaction commits; startup collects uncataloged
 owned files after a failed transaction. Native row reads reconstruct Postcard
 values from those Arrow columns, preserving optional messages and repeated values.
+Administration, retained-content and archive readers consume the operation-owned
+column kinds and row/IPC result DTOs, decoding their Arrow batches in the product.
+They retain the current operation-calling API; typed facade adoption is separate.
 Compound mutation commits ordered object changes, records and their replayable
 receipt in one SQLite transaction. A late conditional conflict rolls back every
 effect and commits its original refusal receipt. Snapshot admission rejects cuts
