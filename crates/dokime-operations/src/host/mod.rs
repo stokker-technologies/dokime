@@ -161,7 +161,7 @@ pub trait Host: Send + Sync {
     fn signal_change(&self);
     async fn start_existing(&self, execution: &str, mode: ExecutionMode) -> Result<StartedCycle>;
     fn control_execution(&self, execution: &str, action: RunAction) -> Result<()>;
-    fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt>;
+    async fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt>;
     fn now_ns(&self) -> i64;
     fn identity(&self) -> HostIdentity;
     fn credential_namespace(&self) -> credentials::CredentialNamespace;

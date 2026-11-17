@@ -118,8 +118,8 @@ impl host::Host for State {
         self.host.signal_change();
         Ok(())
     }
-    fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
-        self.host.submit_execution_command(request).map_err(|error| Error::Precondition(error.to_string()))
+    async fn submit_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
+        self.host.submit_execution_command(request).await.map_err(|error| Error::Precondition(error.to_string()))
     }
     fn now_ns(&self) -> i64 {
         self.host.now_ns()

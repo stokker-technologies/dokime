@@ -24,7 +24,7 @@ use std::{
 
 // Third Party Imports
 use harmos_protocol::host::PluginDescription;
-use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginRemote, PluginState};
 use harmos_protocol::model::Receipt;
 use prost::Message;
@@ -138,7 +138,7 @@ impl Host {
     }
     pub async fn add_remote(&self, name: &str, endpoint: &str) -> Result<String> {
         let placement = PluginPlacement {
-            kind: Some(PlacementKind::Remote(PluginRemote { url: endpoint.into() })),
+            kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: endpoint.into() })),
         };
         self.create_plugin(name.into(), placement).await
     }
@@ -203,7 +203,7 @@ impl Host {
         .upload
         .ok_or_else(|| Error::Invalid("Add Plugin: Publish Its Bundle".into()))?;
         let placement = PluginPlacement {
-            kind: Some(PlacementKind::Managed(PluginManaged {
+            kind: Some(plugin_placement::Kind::Managed(PluginManaged {
                 sha256: content.sha256.clone(),
                 content: Some(content),
             })),
@@ -363,8 +363,8 @@ impl Host {
     pub async fn start_execution(&self, execution: &str) -> Result<Cycle> {
         self.start_execution_mode(execution, dokime_protocol::host::ExecutionMode::Automatic).await
     }
-    pub fn submit_execution_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
-        self.executions.submit_execution_command(request)
+    pub async fn submit_execution_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
+        self.executions.submit_execution_command(request).await
     }
     pub async fn rerun(&self, execution: &str) -> Result<Cycle> {
         if !self.capabilities(execution)?.rerun {

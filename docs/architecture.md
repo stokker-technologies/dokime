@@ -190,6 +190,13 @@ ownership changes below are locked direction, not implemented source.
    archives; `client_reads_runtime` proves status observation and stable restart identity.
    **Status:** the ownership/facade amendments are locked direction. The following
    composition describes landed behavior to migrate, not the target contract.
+   Execution command receipts use Harmos object operations under their execution
+   scope (`crates/dokime-operations/src/host/executions/commands/`). The execution
+   manager owns command admission through durable publication and queueing even
+   after client observation ends. Command reads and acknowledgements carry native
+   storage positions; startup interrupts unfinished command receipts
+   after binding the storage operation context. Roots with superseded SQL command
+   receipts are refused and preserved at baseline v1.
    Retained resource-view indexes use `GetObject` and create-only `SetObject` in
    `crates/dokime-operations/src/host/views.rs`; their immutable protobuf payloads use
    chunked native files, so a complete collection can exceed one response page without

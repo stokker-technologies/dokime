@@ -21,10 +21,10 @@
 
 // Local Imports
 use crate::host::ClientSettings;
-use crate::{Result, host::Context};
+use crate::{Error, Result, host::Context};
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::CommandsCreateResponse;
-use harmos_protocol::model::OperationContract;
+use harmos_protocol::model::{OperationContract, Receipt};
 
 /* === Constants === */
 
@@ -49,10 +49,18 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: CommandsCreateRequest) -> Result<CommandsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        let command = context.host.submit_command(request.clone())?;
+        context.host.submit_command(request.clone()).await?;
+        let (command, position) = super::read(context, &request.parent, &request.command_id, None).await?;
         Ok(CommandsCreateResponse {
-            command: Some(command),
-            receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
+            command: Some(
+                command.ok_or_else(|| Error::NotFound("Create Execution Command: Inspect Its Execution Before Retrying".into()))?,
+            ),
+            receipt: Some(Receipt {
+                request_id: request.request_id,
+                accepted_at: Some(position.clone()),
+                durable_at: Some(position),
+                completed: true,
+            }),
         })
     })
     .await

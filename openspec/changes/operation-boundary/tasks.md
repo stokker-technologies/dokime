@@ -69,6 +69,8 @@ the **bucket-summary kernel**.
 - [ ] 6.1 Move execution, case, cycle and progress transitions (`crates/dokime-operations/src/host/{cases,cycles,executions}`, `crates/dokime-runtime/src/{execution,execution_manager,run_control}.rs`) onto `GetObject` and compound mutation, keeping transition rules and planning in Dokime. Prove with stories `client_controls_execution_lifecycle`, `execution_outcomes`, `client_reads_interrupted_execution` and `manager_lifecycles`.
 - [ ] 6.2 Make seal one compound mutation that records the seal and clears the execution's stored envelope and every preview; reports and prompts (`crates/dokime-runtime/src/{reports,prompts}.rs`, `host/reports`) use operations, and reports of a sealed execution, whenever created, read the sealed cut through Harmos bucket summaries. Prove with stories `client_publishes_execution_report`, `client_answers_operator_prompts`, `client_browses_sealed_history` and a new story `seal_clears_stored_previews`.
 
+- [ ] 6.3 Move execution command admission, state updates, reads and restart recovery to execution-scoped Harmos object operations; refuse roots retaining the superseded SQL command journal. Prove storage refusal/preservation and `client_controls_execution_lifecycle` including retained command reads and interruption of unfinished receipts after host restart. This is the command sub-slice of 6.1; the execution/evidence state cutover stays open.
+
 ## 7. Files, Content and Deletion
 
 Native file production/read operations are already composed. Compound mutation and

@@ -49,12 +49,8 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: CommandsGetRequest) -> Result<CommandsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let command = context
-            .host
-            .store()
-            .command(&request.parent, &request.name)?
-            .ok_or_else(|| Error::NotFound("Get Execution Command: Use Its Accepted Execution and Command IDs".into()))?;
-        let resolved_at = context.host.store().resource_value(&request.parent, "progress", request.at.as_ref())?.resolved_at;
+        let (command, resolved_at) = super::read(context, &request.parent, &request.name, request.at).await?;
+        let command = command.ok_or_else(|| Error::NotFound("Get Execution Command: Use Its Accepted Execution and Command IDs".into()))?;
         Ok(CommandsGetResponse {
             command: Some(command),
             resolved_at: Some(resolved_at),

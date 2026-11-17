@@ -78,6 +78,27 @@ fn superseded_journals_refuse_admission_without_deleting_their_values() -> Resul
 }
 
 #[test]
+fn superseded_command_journal_refuses_admission_without_deleting_receipts() -> Result<()> {
+    // Retain a Command From the Superseded SQL Journal
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let command = dokime_protocol::host::executions::ExecutionCommandReceipt {
+        execution_id: "execution".into(),
+        command_id: "command".into(),
+        ..Default::default()
+    };
+    store.save_command(&command)?;
+    drop(store);
+
+    // Refuse Admission and Preserve the Original Receipt
+    assert!(matches!(Store::open(root.path()), Err(Error::Incompatible(_))));
+    let connection = Connection::open(root.path().join("execution.sqlite3"))?;
+    let payload: Vec<u8> = connection.query_row("SELECT payload FROM commands", [], |row| row.get(0))?;
+    assert_eq!(payload, command.encode_to_vec());
+    Ok(())
+}
+
+#[test]
 fn artifact_metadata_commits_with_evidence_and_replays_after_sealing() -> Result<()> {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;

@@ -172,7 +172,8 @@ impl Store {
                 [],
                 |row| row.get(0),
             )?;
-            if !response_column || !evidence_kind || !preview_bounds || superseded_journals {
+            let superseded_commands: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM commands)", [], |row| row.get(0))?;
+            if !response_column || !evidence_kind || !preview_bounds || superseded_journals || superseded_commands {
                 return Err(Error::Incompatible(root.display().to_string()));
             }
         } else {

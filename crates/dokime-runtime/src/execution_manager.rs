@@ -29,13 +29,9 @@ use std::{
 use crate::services::composition::Application;
 use crate::streams::SampleScope;
 use harmos_protocol::host::PluginEntry;
-use harmos_runtime::Runtime as ComposedRuntime;
-use harmos_runtime::plugin::manager::Manager as PluginManager;
+use harmos_runtime::plugin::manager;
 use tokio::{
-    sync::{
-        Mutex as AsyncMutex,
-        watch::{self, Receiver, Sender},
-    },
+    sync::watch::{self, Receiver, Sender},
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
@@ -49,8 +45,9 @@ use crate::{
 };
 use dokime_operations::host::{Context, Progress};
 use dokime_protocol::host::execution_outcome::Attribution;
+use dokime_protocol::host::executions::{CommandsCreateRequest, ExecutionCommandReceipt};
 use dokime_protocol::host::{CycleSummary, ExecutionMode, ExecutionOutcome, UnevaluatedOutcome};
-use dokime_protocol::model::origin::Kind as OriginKind;
+use dokime_protocol::model::origin;
 use dokime_protocol::model::{Origin, Termination, Value};
 use dokime_storage::{ExecutionState, Store};
 
@@ -75,9 +72,9 @@ pub(crate) struct Runtime {
     pub context: OnceLock<Weak<Context>>,
     pub sample_scopes: Arc<Mutex<HashMap<String, SampleScope>>>,
     pub sample_failures: Arc<Mutex<HashMap<String, String>>>,
-    pub runtime: OnceLock<Weak<ComposedRuntime<Application>>>,
-    pub library_plugins: OnceLock<PluginManager>,
-    admission: AsyncMutex<()>,
+    pub runtime: OnceLock<Weak<harmos_runtime::Runtime<Application>>>,
+    pub library_plugins: OnceLock<manager::Manager>,
+    admission: tokio::sync::Mutex<()>,
     shutting_down: AtomicBool,
     tasks: Mutex<Vec<JoinHandle<()>>>,
     progress: Mutex<HashMap<String, Sender<Progress>>>,
@@ -102,7 +99,7 @@ impl ExecutionManager {
         // Recover Only Executions Driven by a Plugin Run
         for identifier in store.identifiers()? {
             let snapshot = store.cut(&identifier)?;
-            let is_run = snapshot.execution.origin.as_ref().is_some_and(|origin| matches!(origin.kind, Some(OriginKind::PluginRun(_))));
+            let is_run = snapshot.execution.origin.as_ref().is_some_and(|origin| matches!(origin.kind, Some(origin::Kind::PluginRun(_))));
             if snapshot.state == ExecutionState::Open && is_run {
                 store.close_streams(&identifier)?;
                 store.close(
@@ -120,11 +117,6 @@ impl ExecutionManager {
                 store.seal(&identifier)?;
             }
         }
-        let now = settings.clock.now_ns();
-        store.interrupt_commands(prost_types::Timestamp {
-            seconds: now.div_euclid(1_000_000_000),
-            nanos: now.rem_euclid(1_000_000_000) as i32,
-        })?;
 
         Ok(Self {
             inner: Arc::new(Runtime {
@@ -139,7 +131,7 @@ impl ExecutionManager {
                 runtime: OnceLock::new(),
                 library_plugins: OnceLock::new(),
                 active: Mutex::new(HashMap::new()),
-                admission: AsyncMutex::new(()),
+                admission: tokio::sync::Mutex::new(()),
                 shutting_down: AtomicBool::new(false),
                 tasks: Mutex::new(Vec::new()),
                 progress: Mutex::new(HashMap::new()),
@@ -148,6 +140,19 @@ impl ExecutionManager {
     }
     pub(crate) fn bind_context(&self, context: &Arc<Context>) -> Result<()> {
         self.inner.context.set(Arc::downgrade(context)).map_err(|_| Error::Invalid("Bind Host Context: Assemble the Host Only Once".into()))
+    }
+    pub(crate) async fn submit_execution_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        {
+            let _admission = self.inner.admission.lock().await;
+            self.admit("Submit Execution Command")?;
+            let manager = self.clone();
+            self.spawn(async move {
+                let response = manager.admit_execution_command(request).await;
+                let _ = sender.send(response);
+            })?;
+        }
+        receiver.await.map_err(|_| Error::Invalid("Submit Execution Command: Reconnect and Inspect Its Durable Receipt".into()))?
     }
     pub(crate) async fn start_cycle(&self, origins: Vec<Origin>) -> Result<Cycle> {
         let _admission = self.inner.admission.lock().await;
