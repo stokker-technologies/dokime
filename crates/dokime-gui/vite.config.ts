@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     chunkSizeWarningLimit: 800,
-    outDir: mode === "report" ? "dist-report" : "dist",
+    outDir: mode === "report" ? fileURLToPath(new URL("../../target/generated/report", import.meta.url)) : "dist",
     emptyOutDir: true,
     rolldownOptions: {
       checks: {

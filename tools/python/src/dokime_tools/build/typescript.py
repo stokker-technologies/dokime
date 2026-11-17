@@ -45,9 +45,13 @@ def build(profile: str) -> list[str]:
     organization.generate_icons()
     subprocess.run(["pnpm", "run", "typecheck"], cwd=frontend.WEB_ROOT, check=True, creationflags=spawn_flags())
     web = frontend.build(profile)
-    frontend.build_report([])
     files = []
-    for files_directory in (configuration.ROOT / "target/generated/typescript", configuration.ROOT / "target/generated/host", web):
+    for files_directory in (
+        configuration.ROOT / "target/generated/typescript",
+        configuration.ROOT / "target/generated/host",
+        configuration.ROOT / "target/generated/report",
+        web,
+    ):
         for files_path in files_directory.rglob("*"):
             if not (files_path.is_file()):
                 continue

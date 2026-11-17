@@ -23,7 +23,7 @@ from pathlib import Path
 # isort: split
 
 # Local Imports
-from dokime_tools.build import cargo, paths
+from dokime_tools.build import cargo, frontend, paths
 from dokime_tools.package.staging import sync_output
 
 from ..build import configuration
@@ -74,6 +74,7 @@ def prepare() -> None:
         check=True,
         creationflags=spawn_flags(),
     )
+    frontend.build_report([])
 
 
 def stage(profile: str) -> Path:

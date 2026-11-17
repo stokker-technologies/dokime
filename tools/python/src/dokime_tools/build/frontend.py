@@ -64,11 +64,12 @@ def build(profile: str, args: list[str] | None = None) -> Path:
     return output
 
 
-def build_report(args: list[str]) -> None:
+def build_report(args: list[str]) -> Path:
     """Generate the Desktop's Standalone Report Renderer."""
     organization.generate()
-    directory_directory = tempfile.TemporaryDirectory(prefix="dokime-gui-report-")
-    directory = directory_directory.name
+    output = configuration.ROOT / "target/generated/report"
+    temporary = tempfile.TemporaryDirectory(prefix="dokime-gui-report-")
+    directory = temporary.name
     try:
         subprocess.run(
             ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--mode", "report", "--outDir", directory, *args],
@@ -79,9 +80,10 @@ def build_report(args: list[str]) -> None:
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
-        sync_output(Path(directory), WEB_ROOT / "dist-report")
+        sync_output(Path(directory), output)
     finally:
-        directory_directory.cleanup()
+        temporary.cleanup()
+    return output
 
 
 def main() -> None:
