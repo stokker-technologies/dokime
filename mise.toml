@@ -686,7 +686,7 @@ run = "{{vars.tools}} dokime_tools.build.generation{% if usage.language %} --lan
 [tasks."generate:typescript"]
 hide = true
 description = "Generate Desktop Messages from Frozen Definitions"
-run = ["{{vars.tools}} dokime_tools.prepare.generated --generate", "mise -C crates/dokime-gui run generate:host"]
+run = "{{vars.tools}} dokime_tools.prepare.generated --generate"
 
 [tasks."ci:impact"]
 hide = true
