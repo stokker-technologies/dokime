@@ -33,11 +33,11 @@ export const COMPACT_DECIMAL_CHARACTERS = 12;
 const COMPACT_SIGNIFICANT_DIGITS = 6;
 
 /** Presentation for each serialized elapsed unit; generated messages stay outside the report bundle. */
-const ELAPSED_UNITS: Record<ElapsedUnit, { divisor: number; digits: number; suffix: string }> = {
-  0: { divisor: 1, digits: 1, suffix: "s" },
-  1: { divisor: 1, digits: 1, suffix: "s" },
-  2: { divisor: 0.001, digits: 0, suffix: "ms" },
-  3: { divisor: 60, digits: 1, suffix: "m" },
+const ELAPSED_FORMATTERS: Record<ElapsedUnit, (seconds: number) => string> = {
+  0: (seconds) => `${seconds.toFixed(1)}s`,
+  1: (seconds) => `${seconds.toFixed(1)}s`,
+  2: (seconds) => `${Math.round(seconds * 1000)}ms`,
+  3: (seconds) => `${(seconds / 60).toFixed(1)}m`,
 };
 
 const TITLE_SMALL_WORDS = new Set([
@@ -332,10 +332,8 @@ function significant(value: number): number {
 
 /** Elapsed seconds since the format's origin, rendered with the declared unit. */
 function elapsedText(elapsedSeconds: number, unit: ElapsedUnit): string {
-  const presentation = ELAPSED_UNITS[unit] ?? ELAPSED_UNITS[0];
-  const value = elapsedSeconds / presentation.divisor;
-  const text = presentation.digits === 0 ? String(Math.round(value)) : value.toFixed(presentation.digits);
-  return `${text}${presentation.suffix}`;
+  const format = ELAPSED_FORMATTERS[unit] ?? ELAPSED_FORMATTERS[0];
+  return format(elapsedSeconds);
 }
 
 /** Substitutes `%Y %m %d %H %M %S %L %%`; every other run of text, including an unknown token, is literal. */
