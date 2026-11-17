@@ -193,11 +193,13 @@ ownership changes below are locked direction, not implemented source.
    Execution command receipts use Harmos object operations under their execution
    scope (`crates/dokime-operations/src/host/executions/commands/`). The execution
    manager owns command admission through durable publication and queueing even
-   after client observation ends. Command reads and acknowledgements carry native
+   after client observation ends. Each command retains its original native mutation
+   identity and input so retries replay Harmos's original durable receipt even after
+   the current phase advances or the host restarts. Command reads and acknowledgements carry native
    storage positions and retain their selection while native history is available;
    retired cuts refuse with resynchronization guidance. Startup interrupts unfinished receipts
-   after binding the storage operation context. Roots with superseded SQL command
-   receipts are refused and preserved at baseline v1.
+   after binding the storage operation context. Roots with superseded command
+   journals are refused and preserved at baseline v1.
    Retained resource-view indexes use `GetObject` and create-only `SetObject` in
    `crates/dokime-operations/src/host/views.rs`; their immutable protobuf payloads use
    chunked native files, so a complete collection can exceed one response page without

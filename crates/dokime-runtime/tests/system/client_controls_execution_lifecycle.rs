@@ -336,13 +336,6 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             }
             runtime.next().await?.unwrap();
         }
-        // Retain the Command State at Its Native Admission Cut
-        let retained = client.executions.commands.get_with(command.command_id.clone(), identifier.clone(), ExecutionsCommandsGetOptions {
-            at: admitted.receipt.as_ref().and_then(|receipt| receipt.durable_at.clone()),
-            ..Default::default()
-        }).await?;
-        assert_eq!(retained.command, admitted.command);
-
         let repeated = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
             .executions
             .commands
@@ -357,9 +350,9 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                     ..Default::default()
                 },
             )
-            .await?
-            .command
-            .unwrap();
+            .await?;
+        assert_eq!(repeated.receipt, admitted.receipt);
+        let repeated = repeated.command.unwrap();
         assert_eq!(repeated.phase, ExecutionsExecutionCommandPhase::Completed as i32);
         assert_eq!(
             Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
@@ -404,6 +397,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 break;
             }
         }
+        let held = client.executions.commands.get("hold-command", identifier.clone()).await?;
         let prompt = client.prompts.list(identifier.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
         client.prompts.answers.create(prompt, "yes", MapValue::default(), true).await?;
         loop {
@@ -421,6 +415,13 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             }
             runtime.next().await?.unwrap();
         }
+        // Retain the Running Command at Its Issued Read Cut
+        let retained = client.executions.commands.get_with("hold-command", identifier.clone(), ExecutionsCommandsGetOptions {
+            at: held.resolved_at,
+            ..Default::default()
+        }).await?;
+        assert_eq!(retained.command, held.command);
+
         let exhausted = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
             .executions
             .commands
@@ -697,7 +698,8 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
                 }
             }
             assert!(prompted);
-            let running = client.executions.commands.get("interrupted-command", identifier.clone()).await?.command.unwrap();
+            let held = client.executions.commands.get("interrupted-command", identifier.clone()).await?;
+            let running = held.command.clone().unwrap();
             assert_eq!(running.phase, ExecutionsExecutionCommandPhase::Running as i32);
             drop(progress);
 
@@ -709,12 +711,12 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
                     "interrupted-command",
                     identifier.clone(),
                     ExecutionsCommandsGetOptions {
-                        at: admitted.receipt.and_then(|receipt| receipt.durable_at),
+                        at: held.resolved_at,
                         ..Default::default()
                     },
                 )
                 .await?;
-            assert_eq!(retained.command, admitted.command);
+            assert_eq!(retained.command, held.command);
 
             // Interrupt the Process and Recover the Command Receipt
             process.kill().await?;
@@ -727,6 +729,24 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
             assert_eq!(recovered.command_id, running.command_id);
             assert_eq!(recovered.action, running.action);
             assert_eq!(recovered.accepted_at, running.accepted_at);
+
+            // Replay the Original Durable Admission Receipt After Recovery
+            let replayed = client
+                .executions
+                .commands
+                .create_with(
+                    identifier,
+                    "interrupted-command",
+                    ExecutionsExecutionCommandAction::RunStep,
+                    ExecutionsCommandsCreateOptions {
+                        request_id: Some(running.request_id),
+                        step_id: Some("hold".into()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(replayed.command, Some(recovered));
+            assert_eq!(replayed.receipt, admitted.receipt);
 
             process.close().await?;
             plugin.close().await?;
