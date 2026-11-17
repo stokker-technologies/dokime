@@ -333,7 +333,7 @@ fn clients_cannot_call_plugin_operations_over_typed_or_encoded_grpc() -> Result<
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel.clone(), support::client_settings())?;
             let operation = "dokime.host.v1.evidence.Logs/Append";
-            let contract = dokime_operations::declarations()?.iter().find(|contract| contract.id == operation).unwrap();
+            let contract = client.operations.get(operation).await?.contract.ok_or("Discover Plugin Operation: Missing Contract")?;
             let request = LogsAppendRequest::default();
             let typed = LogsClient::new(channel).append(request.clone()).await.unwrap_err();
             let encoded = client.invocations.create(operation, contract.fingerprint.clone(), request.encode_to_vec()).await.unwrap_err();
@@ -427,18 +427,29 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                     ..Default::default()
                 }],
             };
-            let requires: Vec<Requirement> = dokime_operations::declarations()?
+            // Read Required Contracts from the Active Host Registration
+            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
+            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
+            let client = Client::from_channel(channel, support::client_settings())?;
+            let mut host_contracts = Vec::new();
+            let required_operations = [
+                "dokime.host.v1.content.Artifacts/Create",
+                "dokime.host.v1.Evidence/Statistics",
+                "dokime.host.v1.evidence.Records/List",
+                "dokime.host.v1.evidence.Traceability/Get",
+                "dokime.host.v1.executions.Progress/Get",
+            ];
+            for id in required_operations.into_iter().chain([
+                "dokime.host.v1.Settings/Get",
+                "harmos.host.v1.Operations/List",
+                "harmos.host.v1.Operations/Get",
+            ]) {
+                let contract = client.operations.get(id).await?.contract.ok_or("Discover Required Operation: Missing Contract")?;
+                host_contracts.push(contract);
+            }
+            let requires: Vec<Requirement> = host_contracts
                 .iter()
-                .filter(|contract| {
-                    matches!(
-                        contract.id.as_str(),
-                        "dokime.host.v1.content.Artifacts/Create"
-                            | "dokime.host.v1.Evidence/Statistics"
-                            | "dokime.host.v1.evidence.Records/List"
-                            | "dokime.host.v1.evidence.Traceability/Get"
-                            | "dokime.host.v1.executions.Progress/Get"
-                    )
-                })
+                .filter(|contract| required_operations.contains(&contract.id.as_str()))
                 .map(|contract| Requirement {
                     id: contract.id.clone(),
                     fingerprint: contract.fingerprint.clone(),
@@ -447,7 +458,6 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
             let mut roots =
                 operations.iter().flat_map(|operation| [operation.request.as_str(), operation.response.as_str()]).collect::<Vec<_>>();
             roots.extend(["harmos.model.v1.Position", "dokime.model.v1.Suites"]);
-            let host_contracts = dokime_operations::declarations()?;
             roots.extend(
                 host_contracts
                     .iter()
@@ -458,7 +468,8 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                                 "dokime.host.v1.Settings/Get" | "harmos.host.v1.Operations/List" | "harmos.host.v1.Operations/Get"
                             )
                     })
-                    .flat_map(|contract| [contract.request.as_str(), contract.response.as_str()]),
+                    .filter_map(|contract| contract.protobuf.as_ref())
+                    .flat_map(|protobuf| [protobuf.request.as_str(), protobuf.response.as_str()]),
             );
             let types = harmos_protocol::schema::operation_types(&types, &roots)?;
             let mut catalog = Declarations {
@@ -507,9 +518,6 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
             });
 
             // Admit the Plugin and Run Its Scope Probes on the Real Child Carrier
-            let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
-            let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
-            let client = Client::from_channel(channel, support::client_settings())?;
             let created = client
                 .plugins
                 .create(

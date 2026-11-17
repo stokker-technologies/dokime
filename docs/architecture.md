@@ -87,12 +87,13 @@ ownership changes below are locked direction, not implemented source.
    **Why:** Exposure exists to permit plugin composition while preserving host policy.
    **Where:** [routing requirement](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-visibility-and-host-mediated-plugin-invocation),
    [current dispatcher](../crates/dokime-runtime/src/dispatch.rs),
-   [host-only child dispatch table](../crates/dokime-operations/src/lib.rs).
+   [native host registration and admission](../crates/dokime-operations/src/native.rs).
    **Proof:** No proof yet in this repository for Public peer success plus Private
    refusal; A1 is the first task. Harmos's
    `child_calls_reach_host_and_public_peer_without_start_order` in `Harmos:crates/harmos-runtime/tests/plugin_grpc/child_calls.rs`
-   proves the library route, but the additive product dispatcher currently resolves
-   only its nine host operations, not peer providers. **Status:** locked direction (`operation-grammar`).
+   proves the library route. Product host operations use the native registration
+   and admission path; the unused encoded child router and its descriptor-only
+   inventory are removed. Complete product peer-routing proof remains open. **Status:** locked direction (`operation-grammar`).
 
 4. **Unary Operations and Deliberate Streams.** Plugin operations have one request
    and one result; carrier frames do not turn their payload into a streaming API.
@@ -132,8 +133,11 @@ ownership changes below are locked direction, not implemented source.
    redacted diagnostics, and waits for product watches to settle after execution
    shutdown before detaching its gRPC listener; every product watch ends on shutdown
    and settles when its transport sends the final status, so detaching never cuts a
-   finished watch's last frames. A client that stops reading is cut by the detach
-   after the host's close timeout (the client mutation timeout). Cycles group execution-manager tasks and
+   finished watch's last frames. Retaining a resource view gives file creation
+   and duplicate-file cleanup distinct mutation identities, so concurrent publication
+   cannot terminate a watch with a replay-payload conflict. A client that stops
+   reading is cut by the detach after the host's close timeout (the client mutation
+   timeout). Cycles group execution-manager tasks and
    do not own an independent scheduler.
    **Where:** [manager ownership table](../openspec/changes/operation-grammar/design.md#ownership-and-managers),
    [current Host](../crates/dokime-runtime/src/host.rs),

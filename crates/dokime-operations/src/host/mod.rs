@@ -60,7 +60,6 @@ use harmos_protocol::model::FileReference;
 use harmos_protocol::model::OperationContract;
 use harmos_protocol::model::ReadCut;
 use harmos_protocol::model::Receipt;
-use harmos_runtime::Failure;
 use harmos_runtime::operations::{NativeOperation, OperationManager};
 use prost::Message;
 use prost_reflect::ReflectMessage;
@@ -189,22 +188,6 @@ pub trait Host: Send + Sync {
 /* === Implementations === */
 
 impl Context {
-    pub fn authorize(&self, action: &str, caller: model::Callers) -> result::Result<(), Failure> {
-        if let Some(method) = self.operations.grpc_methods().into_iter().find(|method| method.contract.operation().id.as_str() == action) {
-            let allowed = matches!(
-                (method.callers, caller),
-                (model::Callers::All, model::Callers::Clients | model::Callers::Plugins)
-                    | (model::Callers::Clients, model::Callers::Clients)
-                    | (model::Callers::Plugins, model::Callers::Plugins)
-            );
-            if !allowed {
-                return Err(Failure::wrong_caller(action));
-            }
-            return Ok(());
-        }
-        crate::authorize(action, caller)
-    }
-
     pub fn resolve_execution<'a>(&'a self, selected: Option<&'a str>, action: &str) -> Result<&'a str> {
         let trusted = self.caller.as_ref().map(|caller| caller.execution.as_str());
         crate::resources::resolve_execution(trusted, selected, action)
