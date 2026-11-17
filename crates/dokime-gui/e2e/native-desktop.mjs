@@ -238,14 +238,8 @@ async function exactBench() {
 }
 
 async function reportsAndHistory() {
-  const subject = { execution: executionId };
-  const preview = await call(desktop, "Reports", "Create", { subject, requestId: crypto.randomUUID() });
-  await call(desktop, "Reports", "Publish", {
-    subject,
-    name: preview.file.metadata.id,
-    expectedRevision: preview.file.sha256,
-    requestId: crypto.randomUUID(),
-  });
+  const before = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
+  assert.equal(before.report.state, "REPORT_STATE_PENDING");
   const status = await invoke(desktop, "desktop_session_status");
   const path = join(work, "thermal-execution.html");
   await desktop.execute(
