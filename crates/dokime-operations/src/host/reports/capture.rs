@@ -15,15 +15,21 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+use std::collections::BTreeSet;
+use std::num::NonZeroUsize;
+
+// Third Party Imports
+use harmos_protocol::model::{Declarations, FileReference, History, PageRequest, Position, ReadCut};
+use prost::Message;
+
+// Local Imports
+use super::PreparedReport;
 use crate::host::{Context, documents};
 use crate::{Error, Result};
 use dokime_protocol::host::{self, content, evidence, executions, plots};
 use dokime_protocol::model::{ArtifactScope, EvidenceScope, Suites};
 use dokime_storage::ExecutionState;
-use harmos_protocol::model::{Declarations, FileReference, History, PageRequest, Position, ReadCut};
-use prost::Message;
-use std::collections::BTreeSet;
-use std::num::NonZeroUsize;
 
 /* === Constants === */
 
@@ -41,7 +47,9 @@ use std::num::NonZeroUsize;
 
 /* === Public Functions === */
 
-pub(super) async fn collect(context: &Context, request: &host::ReportsCreateRequest) -> Result<(host::ReportCapture, ReadCut)> {
+pub(super) async fn collect(
+    context: &Context, request: &host::ReportsCreateRequest,
+) -> Result<(host::ReportCapture, ReadCut, Option<PreparedReport>)> {
     let subject = request
         .subject
         .as_ref()
@@ -148,6 +156,7 @@ pub(super) async fn collect(context: &Context, request: &host::ReportsCreateRequ
         });
     }
     let mut suites = BTreeSet::new();
+    let mut prepared = None;
     for cut in &cuts {
         let id = &cut.execution.identifier;
         let declarations = Declarations::decode(cut.execution.catalog.as_slice())?;
@@ -167,6 +176,14 @@ pub(super) async fn collect(context: &Context, request: &host::ReportsCreateRequ
             execution_id: id.clone(),
         };
         let (document, _) = context.host.current_document(&scope, &request.document_id)?;
+        if execution.is_some() {
+            prepared = Some(PreparedReport {
+                execution: id.clone(),
+                execution_seal: cut.seal.clone(),
+                document: Some(document.clone()),
+                file: None,
+            });
+        }
         let document = documents::get::response_at(
             context,
             &host::DocumentsGetRequest {
@@ -443,7 +460,7 @@ pub(super) async fn collect(context: &Context, request: &host::ReportsCreateRequ
             }
         }
     }
-    Ok((capture, resolved_at))
+    Ok((capture, resolved_at, prepared))
 }
 
 /* === Private Functions === */

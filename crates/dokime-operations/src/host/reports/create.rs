@@ -16,19 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::io::{Seek, Write};
 
 // Third Party Imports
 use base64::{Engine, engine::general_purpose::STANDARD};
 use harmos_protocol::model::FileMetadata;
 use prost::Message;
-use std::io::{Seek, Write};
 
 // Local Imports
-use super::{PreparedReport, capture};
+use super::capture;
 use crate::host::files::uploads::{append, create, delete, publish};
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::ReportsCreateResponse;
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
@@ -54,7 +53,7 @@ pub const ID: &str = "dokime.host.v1.Reports/Create";
 
 pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<ReportsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        let (capture, resolved_at) = capture::collect(context, &request).await?;
+        let (capture, resolved_at, prepared) = capture::collect(context, &request).await?;
         let metadata = capture.report.clone().ok_or_else(|| Error::Invalid("Create Report: Capture Its Metadata".into()))?;
         let template = context.host.report_template();
         let marker = b"<!-- DOKIME_REPORT_DATA -->";
@@ -143,19 +142,9 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
             }
         };
 
-        if let Some(execution) = &metadata.test_execution_id {
-            let scope = DocumentScope {
-                cycle_id: metadata.test_cycle_id.clone(),
-                execution_id: execution.clone(),
-            };
-            let (document, cut) = context.host.current_document(&scope, &request.document_id)?;
-            let prepared = PreparedReport {
-                execution: execution.clone(),
-                execution_seal: cut.seal,
-                document: Some(document),
-                file: Some(reference.clone()),
-            };
-            administration::retain(context, &name, Scope::Execution(execution).identifier()?, &prepared).await?;
+        if let Some(mut prepared) = prepared {
+            prepared.file = Some(reference.clone());
+            administration::retain(context, &name, Scope::Execution(&prepared.execution).identifier()?, &prepared).await?;
         }
         context.host.retain_report(reference.clone())?;
         Ok(ReportsCreateResponse {

@@ -8,7 +8,7 @@
  */
 
 /**
- * Shared Native Response Projection
+ * Native Document Operations
  */
 
 /* === Imports === */
