@@ -18,9 +18,6 @@
 #include <limits>
 #include <set>
 
-using ModelSuite = dokime::Suite;
-using NativePlugin = harmos::plugin::Plugin;
-using TransportContext = harmos::plugin::Context;
 using google::protobuf::util::MessageDifferencer;
 using harmos::Declarations;
 using harmos::Failure;
@@ -72,7 +69,7 @@ void identifier(const string &value) {
     throw invalid_argument("Identifier Is Required");
 }
 template <class Q>
-Context execution_context(TransportContext &transport, const Q &request, const string &template_id,
+Context execution_context(harmos::plugin::Context &transport, const Q &request, const string &template_id,
                           const shared_ptr<detail::Executions> &executions, const string &action, string item = {}) {
   const auto &origin = request.origin();
   const bool same_case = MessageDifferencer::Equals(request.test_case(), origin.plugin_run().test_case());
@@ -98,7 +95,9 @@ Metadata metadata(string identifier, string label) {
 }
 Plugin::Plugin(string identifier, string version)
     : native_(identifier, move(version)), identifier_(move(identifier)), executions_(make_shared<detail::Executions>()) {
-  native_.on_stop([state = executions_] { state->clear(); });
+  native_.on_stop([state = executions_] {
+    state->clear();
+  });
 }
 
 Plugin &Plugin::suite(Suite suite) {
@@ -106,7 +105,7 @@ Plugin &Plugin::suite(Suite suite) {
   for (const auto &existing : suites_.suites())
     if (existing.metadata().identifier() == suite.metadata.identifier())
       throw invalid_argument("Duplicate Suite Identifier");
-  ModelSuite declaration;
+  dokime::Suite declaration;
   *declaration.mutable_metadata() = move(suite.metadata);
   for (auto &value : suite.templates) {
     const auto id = value.definition.metadata().identifier();
@@ -136,7 +135,7 @@ Plugin &Plugin::suite(Suite suite) {
       const auto item = step.metadata.identifier();
       Operation<StepsExecuteRequest, StepsExecuteResponse> operation(
           operation_id, VISIBILITY_PROTECTED,
-          [state, id, item, run = move(step.run)](TransportContext &transport, StepsExecuteRequest request) {
+          [state, id, item, run = move(step.run)](harmos::plugin::Context &transport, StepsExecuteRequest request) {
             if (request.step() != item)
               throw invalid_argument("Execute Step: Identifier Does Not Match Its Operation");
             auto ctx = execution_context(transport, request, id, state, "Execute Step", item);
@@ -165,7 +164,7 @@ Plugin &Plugin::suite(Suite suite) {
       const auto item = criterion.metadata.identifier();
       native_.operation(Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(
           operation_id, VISIBILITY_PROTECTED,
-          [state, id, item, evaluate = move(criterion.evaluate)](TransportContext &transport, CriteriaEvaluateRequest request) {
+          [state, id, item, evaluate = move(criterion.evaluate)](harmos::plugin::Context &transport, CriteriaEvaluateRequest request) {
             if (request.criterion() != item)
               throw invalid_argument("Evaluate Criterion: Identifier Does Not Match Its Operation");
             auto ctx = execution_context(transport, request, id, state, "Evaluate Criterion", item);
@@ -179,7 +178,7 @@ Plugin &Plugin::suite(Suite suite) {
     value.definition.set_materialize(id + ".materialize");
     native_.operation(Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(
         id + ".materialize", VISIBILITY_PROTECTED,
-        [id, test_case, materialize = move(value.materialize)](TransportContext &transport, TestCasesMaterializeRequest request) {
+        [id, test_case, materialize = move(value.materialize)](harmos::plugin::Context &transport, TestCasesMaterializeRequest request) {
           try {
             transport.scope();
             throw invalid_argument("Materialize Requires No Execution Scope");
@@ -201,7 +200,7 @@ Plugin &Plugin::suite(Suite suite) {
       value.definition.set_initialize(id + ".initialize");
       native_.operation(Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(
           id + ".initialize", VISIBILITY_PROTECTED,
-          [state, id, initialize = move(value.initialize)](TransportContext &transport, ExecutionsInitializeRequest request) {
+          [state, id, initialize = move(value.initialize)](harmos::plugin::Context &transport, ExecutionsInitializeRequest request) {
             auto ctx = execution_context(transport, request, id, state, "Initialize Execution");
             try {
               initialize(ctx);
@@ -216,7 +215,7 @@ Plugin &Plugin::suite(Suite suite) {
     value.definition.set_cleanup(id + ".cleanup");
     native_.operation(Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(
         id + ".cleanup", VISIBILITY_PROTECTED,
-        [state, id, cleanup = move(value.cleanup)](TransportContext &transport, ExecutionsCleanupRequest request) {
+        [state, id, cleanup = move(value.cleanup)](harmos::plugin::Context &transport, ExecutionsCleanupRequest request) {
           auto ctx = execution_context(transport, request, id, state, "Clean Up Execution");
           try {
             if (cleanup)
@@ -260,7 +259,7 @@ Plugin &Plugin::context_operations() {
   requires_operation(HostOperation::TimeSleep);
   return *this;
 }
-NativePlugin Plugin::compose() const {
+harmos::plugin::Plugin Plugin::compose() const {
   auto result = native_;
   if (suites_.suites_size())
     result.section(suites_);
@@ -270,8 +269,12 @@ NativePlugin Plugin::compose() const {
     result.section(records_);
   return result;
 }
-Declarations Plugin::declarations() const { return compose().declarations(); }
-void Plugin::serve(string address) const { compose().serve(move(address)); }
+Declarations Plugin::declarations() const {
+  return compose().declarations();
+}
+void Plugin::serve(string address) const {
+  compose().serve(move(address));
+}
 } // namespace dokime::plugin
 
 /* === Private Functions === */

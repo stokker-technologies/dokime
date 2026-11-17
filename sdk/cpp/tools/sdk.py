@@ -149,7 +149,11 @@ def main() -> None:
             sources = [path for path in sources if not path.read_text(encoding="utf-8").startswith("// @generated")]
         if not sources:
             raise RuntimeError("Format C++ SDK: Select a Handwritten SDK Source")
-        command = [formatter or "clang-format", "-style={BasedOnStyle: LLVM, ColumnLimit: 140}"]
+        # Match the Shared Resource Renderer's Formatting Policy.
+        command = [
+            formatter or "clang-format",
+            "-style={BasedOnStyle: LLVM, ColumnLimit: 140, AllowShortFunctionsOnASingleLine: Empty, AllowShortLambdasOnASingleLine: None}",
+        ]
         command += ["--dry-run", "--Werror"] if options.check else ["-i"]
         command += [str(path) for path in sources]
     elif options.action in ("check", "build"):

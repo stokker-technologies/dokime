@@ -62,9 +62,15 @@ TEST_CASE("Author Materializes a Suite") {
   // Compose a Suite and Hand Its Values to the Plugin.
   Template value;
   *value.definition.mutable_metadata() = metadata("sample.measure", "Measure");
-  value.initialize = [](Context &) {};
-  value.steps.push_back({metadata("capture", "Capture"), [](Context &) {}, 2});
-  value.criteria.push_back({metadata("valid", "Valid"), [](Context &) { return true; }});
+  value.initialize = [](Context &) {
+  };
+  value.steps.push_back({metadata("capture", "Capture"),
+                         [](Context &) {
+                         },
+                         2});
+  value.criteria.push_back({metadata("valid", "Valid"), [](Context &) {
+                              return true;
+                            }});
   Plugin plugin("sample", "1.0.0");
   plugin.suite({metadata("sample", "Sample"), {value}});
   Prompt prompt;

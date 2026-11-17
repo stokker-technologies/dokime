@@ -56,7 +56,9 @@ public:
   void OnWriteDone(bool success) override {
     Finish(success ? grpc::Status::OK : grpc::Status(grpc::StatusCode::CANCELLED, "Read Logs: Client Closed"));
   }
-  void OnDone() override { delete this; }
+  void OnDone() override {
+    delete this;
+  }
 };
 class Logs final : public harmos::host::v1::status::Logs::CallbackService {
   grpc::ServerWriteReactor<harmos::host::v1::status::LogsWatchResponse> *

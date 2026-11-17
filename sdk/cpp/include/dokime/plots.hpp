@@ -53,8 +53,12 @@ struct Expression {
     value.message.mutable_aggregate()->set_kind(kind);
     return value;
   }
-  Expression mean() const { return aggregate(AGGREGATE_MEAN); }
-  Expression std() const { return aggregate(AGGREGATE_STDDEV); }
+  Expression mean() const {
+    return aggregate(AGGREGATE_MEAN);
+  }
+  Expression std() const {
+    return aggregate(AGGREGATE_STDDEV);
+  }
 };
 
 struct Plot {

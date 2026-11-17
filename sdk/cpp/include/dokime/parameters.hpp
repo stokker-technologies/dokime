@@ -101,7 +101,9 @@ struct Parameter {
       message.set_max_items(*maximum);
     return *this;
   }
-  dokime::Parameter build() const { return message; }
+  dokime::Parameter build() const {
+    return message;
+  }
 };
 
 /* === Templates === */

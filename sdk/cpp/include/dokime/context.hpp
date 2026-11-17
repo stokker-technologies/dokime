@@ -73,10 +73,18 @@ struct Executions {
 class Context {
 public:
   Context(harmos::plugin::Context &transport, TestCase test_case, std::string item, std::shared_ptr<detail::Resources> resources);
-  const Parameters &parameters() const { return test_case_.parameters(); }
-  const std::string &execution() const { return transport_.scope(); }
-  const std::string &item() const { return item_; }
-  std::uint32_t attempt() const { return transport_.attempt; }
+  const Parameters &parameters() const {
+    return test_case_.parameters();
+  }
+  const std::string &execution() const {
+    return transport_.scope();
+  }
+  const std::string &item() const {
+    return item_;
+  }
+  std::uint32_t attempt() const {
+    return transport_.attempt;
+  }
   template <class T> void set(std::shared_ptr<T> value) {
     std::lock_guard lock(resources_->mutex);
     resources_->values[typeid(T)] = std::move(value);
@@ -88,8 +96,12 @@ public:
       throw std::invalid_argument("Execution Resource Is Missing");
     return std::static_pointer_cast<T>(found->second);
   }
-  void sleep(google::protobuf::Duration duration) { transport_.sleep(duration); }
-  google::protobuf::Timestamp now() { return transport_.now(); }
+  void sleep(google::protobuf::Duration duration) {
+    transport_.sleep(duration);
+  }
+  google::protobuf::Timestamp now() {
+    return transport_.now();
+  }
   HostRoot host();
   template <class Q, class R>
   harmos::plugin::Call<R> call(const harmos::plugin::Operation<Q, R> &operation, const Q &request,
