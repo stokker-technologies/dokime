@@ -526,7 +526,8 @@ fn histogram_medians_match_native_integer_medians() -> Result<()> {
             };
             let expected = store.document_value(&cut, &expression)?;
             let histogram = store.histogram_window(numeric(through), 2)?;
-            assert_eq!(histogram.statistics.unwrap().median, Some(expected));
+            assert_eq!(histogram.statistics.unwrap().median, Some(expected.clone()));
+            assert_eq!(store.numeric_statistics(&numeric(through))?.median, Some(expected));
         }
     }
     Ok(())
@@ -611,7 +612,6 @@ fn integer_statistics_keep_exact_values_and_float_ranks_across_reopen() -> Resul
         (&statistics.first, base),
         (&statistics.last, base + 10_000),
         (&statistics.mean, base + 5_000),
-        (&statistics.median, base + 5_000),
     ] {
         assert_eq!(value.as_ref().unwrap().kind, Some(value::Kind::UnsignedInteger(expected)));
     }
