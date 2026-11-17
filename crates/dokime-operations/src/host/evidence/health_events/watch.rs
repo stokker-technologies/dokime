@@ -18,17 +18,13 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::Failure;
 
 // Local Imports
 use crate::{Result, host::Context};
-
 use dokime_protocol::host::evidence::HealthEventsListRequest;
 use dokime_protocol::host::evidence::HealthEventsWatchRequest;
 use dokime_protocol::host::evidence::HealthEventsWatchResponse;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::Failure;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -48,9 +44,6 @@ pub const ID: &str = "dokime.host.v1.evidence.HealthEvents/Watch";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<HealthEventsWatchRequest, HealthEventsWatchResponse>(ID, settings.watch_timeout)
-}
 pub async fn handle(context: &Context, request: HealthEventsWatchRequest) -> Result<crate::host::Output<HealthEventsWatchResponse>> {
     crate::host::complete(ID, context.settings.watch_timeout, async {
         let mut storage = context.host.store().subscribe();

@@ -20,12 +20,10 @@
 // Third Party Imports
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::ExecutionMode;
 use dokime_protocol::host::ExecutionsStartRequest;
 use dokime_protocol::host::ExecutionsStartResponse;
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -45,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.Executions/Start";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ExecutionsStartRequest, ExecutionsStartResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: ExecutionsStartRequest) -> Result<ExecutionsStartResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let controls = context.host.controls(&request.name)?;

@@ -22,11 +22,8 @@ use prost::Message;
 
 // Local Imports
 use crate::{Resources, Result};
-
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::host::evidence::RecordsAppendResponse;
-
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -46,12 +43,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Records/Append";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<OperationContract> {
-    crate::declaration::<RecordsAppendRequest, RecordsAppendResponse>(
-        ID,
-        prost_types::FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET)?,
-    )
-}
 pub async fn handle(resources: &Resources, request: RecordsAppendRequest) -> Result<RecordsAppendResponse> {
     resources.check_action_scope(&request.execution, ID)?;
     let source = request.source_at.as_ref().map(crate::resources::timestamp_ns).transpose()?;

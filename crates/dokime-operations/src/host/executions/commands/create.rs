@@ -18,10 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_protocol::host::executions::CommandsCreateResponse;
@@ -44,9 +42,6 @@ pub const ID: &str = "dokime.host.v1.executions.Commands/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<CommandsCreateRequest, CommandsCreateResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: CommandsCreateRequest) -> Result<CommandsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let command = context.host.submit_command(request.clone()).await?;

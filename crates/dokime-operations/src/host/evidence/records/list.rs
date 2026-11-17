@@ -16,28 +16,24 @@
 /* === Imports === */
 
 // Standard Library Imports
-
-// Third Party Imports
-use crate::{Error, Result, host::Context};
-use dokime_protocol::host::evidence::RecordsListRequest;
-use dokime_protocol::host::evidence::RecordsListResponse;
-use dokime_protocol::host::evidence::record_scope::Kind as RecordScopeKind;
-use prost::Message;
-use sha2::{Digest, Sha256};
 use std::num::NonZeroUsize;
 
-// Local Imports
+// Third Party Imports
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::ReadCut;
+use prost::Message;
+use prost_reflect::{DescriptorPool, Kind};
+use sha2::{Digest, Sha256};
 
+// Local Imports
+use crate::{Error, Result, host::Context};
 use dokime_protocol::host::evidence::CapturedRecord;
+use dokime_protocol::host::evidence::RecordsListRequest;
+use dokime_protocol::host::evidence::RecordsListResponse;
+use dokime_protocol::host::evidence::record_scope;
 use dokime_protocol::host::{Field, FieldType, Schema};
 use dokime_protocol::model::RecordContracts;
 use dokime_storage::ExecutionCut;
-use harmos_protocol::model::Declarations;
-use prost_reflect::{DescriptorPool, Kind};
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::OperationContract;
-use harmos_protocol::model::ReadCut;
 
 /* === Constants === */
 
@@ -57,10 +53,6 @@ pub const ID: &str = "dokime.host.v1.evidence.Records/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<RecordsListRequest, RecordsListResponse>(ID, settings.read_timeout)
-}
-
 pub async fn handle(context: &Context, request: RecordsListRequest) -> Result<RecordsListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async { read_page(context, request, None) }).await
 }
@@ -71,13 +63,13 @@ pub(crate) fn read_page(context: &Context, mut request: RecordsListRequest, afte
     let mut scope = selection.scope.clone().unwrap_or_default();
     if let Some(selected) = request.scope.as_ref().and_then(|scope| scope.kind.as_ref()) {
         match selected {
-            RecordScopeKind::Execution(id) => {
+            record_scope::Kind::Execution(id) => {
                 if scope.execution_id.as_ref().is_some_and(|value| value != id) {
                     return Err(Error::Invalid("List Records: Keep Both Scope Selections Consistent".into()));
                 }
                 scope.execution_id = Some(id.clone());
             }
-            RecordScopeKind::Cycle(cycle) => {
+            record_scope::Kind::Cycle(cycle) => {
                 if let Some(execution) = &cycle.execution_id {
                     if scope.execution_id.as_ref().is_some_and(|value| value != execution) {
                         return Err(Error::Invalid("List Records: Keep Both Execution Selections Consistent".into()));
@@ -92,7 +84,7 @@ pub(crate) fn read_page(context: &Context, mut request: RecordsListRequest, afte
         }
     }
     if context.caller.is_some() {
-        if matches!(request.scope.as_ref().and_then(|scope| scope.kind.as_ref()), Some(RecordScopeKind::Cycle(_))) {
+        if matches!(request.scope.as_ref().and_then(|scope| scope.kind.as_ref()), Some(record_scope::Kind::Cycle(_))) {
             return Err(Error::Permission("List Records: Select the Calling Execution Instead of a Cycle".into()));
         }
         let execution = context.resolve_execution(scope.execution_id.as_deref(), ID)?.to_owned();

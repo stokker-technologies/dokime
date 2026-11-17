@@ -18,10 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::StreamSchemasListRequest;
 use dokime_protocol::host::StreamSchemasListResponse;
@@ -45,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.StreamSchemas/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<StreamSchemasListRequest, StreamSchemasListResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: StreamSchemasListRequest) -> Result<StreamSchemasListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let at = request.at.clone();

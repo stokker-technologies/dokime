@@ -19,11 +19,9 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 use prost::Message;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::backend::EvidenceCounts;
 use dokime_protocol::host::backend::OverviewGetRequest;
@@ -49,9 +47,6 @@ pub const ID: &str = "dokime.host.v1.backend.Overview/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<OverviewGetRequest, OverviewGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: OverviewGetRequest) -> Result<OverviewGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;

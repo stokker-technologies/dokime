@@ -19,10 +19,8 @@
 
 // Third Party Imports
 use harmos_protocol::host::PluginState;
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::evidence::HealthEventsListRequest;
 use dokime_protocol::host::evidence::HealthEventsListResponse;
@@ -48,9 +46,6 @@ pub const ID: &str = "dokime.host.v1.evidence.HealthEvents/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<HealthEventsListRequest, HealthEventsListResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: HealthEventsListRequest) -> Result<HealthEventsListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;

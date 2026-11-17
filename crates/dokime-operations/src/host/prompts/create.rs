@@ -22,11 +22,8 @@ use prost::Message;
 
 // Local Imports
 use crate::{Resources, Result};
-use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
-use harmos_protocol::model::OperationContract;
-use prost_types::FileDescriptorSet;
 
 /* === Constants === */
 
@@ -46,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.Prompts/Create";
 
 /* === Public Functions === */
 
-pub fn declaration() -> Result<OperationContract> {
-    crate::declaration::<PromptsCreateRequest, PromptsCreateResponse>(ID, FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)?)
-}
 pub async fn handle(resources: &Resources, request: PromptsCreateRequest) -> Result<PromptsCreateResponse> {
     resources.check_action_scope(&resources.execution, ID)?;
     resources.evidence("prompt", request.encode_to_vec(), None)?;

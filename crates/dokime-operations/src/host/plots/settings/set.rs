@@ -18,22 +18,17 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 use prost::Message;
 
 // Local Imports
 use crate::host::storage::administration;
-use crate::{
-    Error, Result,
-    host::{ClientSettings, Context},
-};
-use dokime_storage::persisted::Scope;
-
+use crate::{Error, Result, host::Context};
 use dokime_protocol::host::plots::PlotSettingsValue;
 use dokime_protocol::host::plots::SettingsSetRequest;
 use dokime_protocol::host::plots::SettingsSetResponse;
 use dokime_protocol::model::Downsample;
 use dokime_protocol::model::card;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -53,9 +48,6 @@ pub const ID: &str = "dokime.host.v1.plots.Settings/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SettingsSetRequest, SettingsSetResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: SettingsSetRequest) -> Result<SettingsSetResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let scope = request.scope.as_ref().ok_or_else(|| Error::Invalid("Set Plot Settings: Select Its Document Scope".into()))?;

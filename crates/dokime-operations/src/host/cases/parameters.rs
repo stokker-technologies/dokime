@@ -18,10 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::CasesParametersRequest;
 use dokime_protocol::host::CasesParametersResponse;
@@ -45,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.Cases/Parameters";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<CasesParametersRequest, CasesParametersResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: CasesParametersRequest) -> Result<CasesParametersResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let owner = Scope::Case(&request.name).identifier()?;

@@ -19,10 +19,8 @@
 use std::cmp::Ordering;
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::CycleOrderKey;
 use dokime_protocol::host::CycleStatus;
@@ -48,9 +46,6 @@ pub const ID: &str = "dokime.host.v1.Cycles/List";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<CyclesListRequest, CyclesListResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: CyclesListRequest) -> Result<CyclesListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;

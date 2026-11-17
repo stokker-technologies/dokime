@@ -19,12 +19,11 @@
 
 // Third Party Imports
 use harmos_operations::storage::{CreateFileProduction, CreateFileProductionRequest};
-use harmos_protocol::model::OperationContract;
 use harmos_runtime::storage;
 
 // Local Imports
+use crate::host::Context;
 use crate::host::files::transfer;
-use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::files::{UploadsCreateRequest, UploadsCreateResponse};
 use dokime_storage::persisted::Scope;
@@ -47,9 +46,6 @@ pub const ID: &str = "dokime.host.v1.files.Uploads/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<UploadsCreateRequest, UploadsCreateResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: UploadsCreateRequest) -> Result<UploadsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let mut metadata = request.metadata.ok_or_else(|| Error::Invalid(format!("{ID}: Supply File Metadata")))?;

@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from argparse import Namespace
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
@@ -30,6 +31,7 @@ from unittest.mock import patch
 
 # Local Imports
 import dokime_tools.build.rust.__main__
+import dokime_tools.task.test
 from dokime_tools.build import cargo, organization
 from dokime_tools.ci import tasks
 from dokime_tools.test import archive
@@ -273,19 +275,17 @@ class FocusedCargoTests(unittest.TestCase):
         execute.assert_not_called()
 
 
-# === Public Functions === #
-
-
-def setUpModule() -> None:
-    isolate_environment()
-
-
-# === Private Functions === #
-
-# === Entry Point === #
-
-
 class TaskSelectionTests(unittest.TestCase):
+    def test_python_integration_selection_respects_project(self) -> None:
+        profile = ["--profile", "dev"]
+        tooling = ("test:python:integration", [*profile, "--project", "tools/python", "--select", "selected"])
+        sdk = ("test:python:integration", [*profile, "--select", "selected"])
+        for project, expected in ((None, [tooling, sdk]), ("tools/python", [tooling]), ("sdk/python", [sdk])):
+            arguments = Namespace(wheel=False, coverage=False, layer="integration", project=project, select="selected")
+            with self.subTest(project=project), patch.object(Path, "is_dir", return_value=True):
+                selected = dokime_tools.task.test.select(arguments, ["python"], profile)
+                self.assertEqual(selected, expected)
+
     def test_focused_build_and_check_dispatch_only_the_package(self) -> None:
         for check in (False, True):
             with self.subTest(check=check), patch.object(tasks.cargo, "focused", return_value=7) as focused:
@@ -378,3 +378,15 @@ class TaskSelectionTests(unittest.TestCase):
             ):
                 self.assertEqual(tasks.main(arguments), 9)
                 self.assertEqual(run.call_args.args[0], ["mise", "run", *command])
+
+
+# === Public Functions === #
+
+
+def setUpModule() -> None:
+    isolate_environment()
+
+
+# === Private Functions === #
+
+# === Entry Point === #

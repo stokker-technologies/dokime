@@ -20,17 +20,13 @@ use std::collections::BTreeSet;
 
 // Third Party Imports
 use harmos_protocol::model::History;
-use harmos_protocol::model::OperationContract;
 use harmos_protocol::model::Position;
 use harmos_protocol::model::ReadCut;
 use prost::Message;
 
 // Local Imports
 use crate::host::storage::administration;
-use crate::{
-    Error, Result,
-    host::{ClientSettings, Context},
-};
+use crate::{Error, Result, host::Context};
 use dokime_protocol::host::DocumentBinding;
 use dokime_protocol::host::DocumentBindingResult;
 use dokime_protocol::host::DocumentCard;
@@ -94,9 +90,6 @@ pub const ID: &str = "dokime.host.v1.Documents/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<DocumentsGetRequest, DocumentsGetResponse>(ID, settings.read_timeout)
-}
 #[tracing::instrument(name = "document.operation", skip_all)]
 pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<DocumentsGetResponse> {
     crate::host::complete(
