@@ -137,7 +137,6 @@ pub async fn attach(ctx: &Context, filename: &str, content_type: &str, bytes: &[
     let uploads = ctx.host().files.uploads;
     let sha256 = Sha256::digest(bytes).to_vec();
     let metadata = FileMetadata {
-        scope: Some(ctx.execution_id().into()),
         media_type: content_type.into(),
         expected_length: Some(bytes.len() as u64),
         expected_sha256: Some(sha256.clone()),

@@ -161,7 +161,7 @@ macro_rules! unary {
             };
             use harmos_protocol::policy::UNBOUNDED;
             use std::time::Duration;
-            use std::result::Result as NativeResult;
+            use std::result;
             use crate::native::{Binding, context, failure};
             pub struct Operation;
             impl ProtobufOperation for Operation {
@@ -180,7 +180,7 @@ macro_rules! unary {
                 const RESOURCES: &'static [Resource] = &[Resource::of::<Binding>(), Resource::of::<HostContext>()];
                 async fn run(
                     execution: ExecutionContext, request: Self::Request, _: &(),
-                ) -> NativeResult<Self::Response, ServingError> {
+                ) -> result::Result<Self::Response, ServingError> {
                     let context = context(&execution, Self::ID).map_err(failure)?;
                     crate::native::unary!(@call $caller, context, request)
                 }
@@ -208,7 +208,7 @@ macro_rules! download {
                 ExecutionContext, Grpc, HostContext, OperationPolicy, ProtobufOperation, ProtobufOutput, Resource, RetryPolicy,
                 ServingError, Visibility,
             };
-            use std::result::Result as NativeResult;
+            use std::result;
             use std::{sync::Arc, time::Duration};
             use tokio_stream::StreamExt;
             pub struct Operation;
@@ -228,7 +228,7 @@ macro_rules! download {
                 const RESOURCES: &'static [Resource] = &[Resource::of::<Binding>(), Resource::of::<HostContext>()];
                 async fn run(
                     execution: ExecutionContext, request: Self::Request, output: &Self::Endpoints,
-                ) -> NativeResult<Self::Response, ServingError> {
+                ) -> result::Result<Self::Response, ServingError> {
                     let context = context(&execution, Self::ID).map_err(failure)?;
                     let mut stream = super::handle(&context, request).await.map_err(failure)?;
                     while let Some(response) = stream.next().await {
@@ -289,6 +289,7 @@ pub fn context(execution: &ExecutionContext, action: &str) -> Result<Context> {
 }
 
 pub fn failure(source: Error) -> ServingError {
+    tracing::warn!(error = %source, "Host Operation Failed");
     ServingError::Native(Arc::new(crate::host::status(source)))
 }
 

@@ -116,6 +116,10 @@ let now = ctx.host().time.get().await?;
 let settings = ctx.host().plugins.settings.list().await?;
 ```
 
+Plugin uploads inherit the active execution's storage scope when
+`FileMetadata.scope` is omitted. Use that form for execution artifacts; an explicit
+scope must match the calling execution's exact storage scope.
+
 `ctx.sleep` and `ctx.now` compose library Time operations. Controlled time advances
 through host waits; no SDK retry loop or wall-clock wait drives execution. A scoped
 sleep settles after every observer window due by its end has been answered and

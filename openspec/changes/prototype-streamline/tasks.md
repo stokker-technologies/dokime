@@ -6,6 +6,8 @@
 - [x] 12.2 Route package-script and profile live frontend builds through one implementation, preserving profile web output and the separate report build; remove obsolete ordered-merge deletion guidance.
 - [x] 12.3 Run frontend and Python format checks, affected host-independent GUI unit tests and deterministic live/report build orchestration proof.
 - [ ] 12.4 Complete scoped frontend typecheck, build and affected cycle/plot unit/integration proof against prepared generated modules without Rust builds.
+- [x] 12.5 Prove the native Windows dev-profile host/CLI/OBC and frontend builds, disposable desktop startup and default OBC single-phase execution through evaluated criteria, sealing and document/plot reads after restart; repair fresh traceability cuts and inherited artifact upload scope.
+- [ ] 12.6 Run the focused packaged-OBC, fixed-document and plot-window system stories after their shared harness compiles against the current generated SDK.
 - [ ] 8.5 Review retained settings, bootstrap-path, exact-wire-bound and decoder-retention acceptance against the final combined consumers; close source only after operation-boundary, plugin-boundary and plugin-lifecycle handoff.
 - [ ] 8.6 After source closure and authorization, verify the remote candidate and actual native Windows/Linux hosted proof; this worktree grants no push authority.
 - [ ] 8.7 Retire this change only after its retained acceptance, measurement and final proof obligations close.
