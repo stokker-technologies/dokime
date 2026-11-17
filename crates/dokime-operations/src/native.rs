@@ -171,6 +171,7 @@ pub fn context(execution: &ExecutionContext, action: &str) -> Result<Context> {
 }
 
 pub fn failure(source: Error) -> ServingError {
+    tracing::warn!(error = %source, "Host Operation Failed");
     ServingError::Native(Arc::new(crate::host::status(source)))
 }
 

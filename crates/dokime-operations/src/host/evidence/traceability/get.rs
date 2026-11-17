@@ -19,22 +19,15 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_protocol::model::{OperationContract, Position, ReadCut};
 use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use crate::{Error, Result, host::Context};
-use dokime_protocol::host::evidence::TraceabilityGetRequest;
-use dokime_protocol::host::evidence::TraceabilityGetResponse;
-
-use dokime_protocol::host::evidence::TraceabilitySnapshot;
-use dokime_protocol::model::EvidenceScope;
-use dokime_protocol::model::TraceabilityEntry;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::OperationContract;
-use harmos_protocol::model::Position;
-use harmos_protocol::model::ReadCut;
+use crate::host::{ClientSettings, Context};
+use crate::{Error, Result};
+use dokime_protocol::host::evidence::{TraceabilityGetRequest, TraceabilityGetResponse, TraceabilitySnapshot};
+use dokime_protocol::model::{EvidenceScope, TraceabilityEntry};
 
 /* === Constants === */
 
@@ -201,7 +194,9 @@ pub(crate) fn read_page(context: &Context, request: TraceabilityGetRequest, afte
     };
     if let Some(entry) = &request.entry {
         let execution = scope.execution_id.as_deref().unwrap();
-        let saved = reader.resource_value(execution, &format!("traceability/{entry}"), cut.positions.first())?;
+        // A Fresh Cut Is Still Internal; Both Reads Share the Same Database Snapshot.
+        let at = if supplied { cut.positions.first() } else { None };
+        let saved = reader.resource_value(execution, &format!("traceability/{entry}"), at)?;
         response.value = (!saved.payload.is_empty()).then(|| TraceabilityEntry::decode(saved.payload.as_slice())).transpose()?;
         response.revision = saved.revision;
     }
