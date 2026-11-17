@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `fa52a0e6619803c824af5112eb28b9a85430b359`, rather than
+[Cargo.toml](../Cargo.toml), `ee16bf8a70152b82c881dcccf5f0108a5a859091`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -1000,7 +1000,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/fa52a0e6619803c824af5112eb28b9a85430b359/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/ee16bf8a70152b82c881dcccf5f0108a5a859091/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -1111,11 +1111,14 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `fa52a0e6619803c824af5112eb28b9a85430b359`.
+The definition pass pins Harmos at `ee16bf8a70152b82c881dcccf5f0108a5a859091`.
 The table below records consumer repairs at this pin. Plugin Boundary replaces
 direct plugin-service composition and author-facing Harmos values; product SDKs
 use carrier helpers internally and expose Dokime values only.
 The pin and generated contracts do not establish consumer compilation.
+The storage candidate uses the native definitions from `harmos-operations` after
+the runtime removed its `builtins` reexport. Descriptor-declared audiences replace
+composition caller overrides. The typed facade remains the later 6.2 adoption.
 
 | Consumer | Required Change at This Pin |
 | --- | --- |

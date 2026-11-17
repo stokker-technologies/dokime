@@ -19,7 +19,7 @@
 
 // Third Party Imports
 use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{GetFileBytes, GetFileBytesRequest};
+use harmos_operations::storage::{GetFileBytes, GetFileBytesRequest};
 use harmos_runtime::storage;
 
 // Local Imports

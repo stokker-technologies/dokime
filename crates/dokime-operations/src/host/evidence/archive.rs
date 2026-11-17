@@ -24,7 +24,7 @@ use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::FileReference;
 use harmos_protocol::model::{History, OperationContract, PageRequest, Position};
 use harmos_query::arrow::ArrowBatch;
-use harmos_runtime::builtins::storage::{
+use harmos_operations::storage::{
     CreateSnapshot, CreateSnapshotRequest, DeleteSnapshot, DeleteSnapshotRequest, GetFileBytes, GetFileBytesRequest, ListRows,
     ListRowsRequest, RowOutput, Source,
 };

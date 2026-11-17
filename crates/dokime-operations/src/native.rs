@@ -30,124 +30,6 @@ use crate::{Error, Resources, Result};
 
 /* === Constants === */
 
-const OPERATIONS: &[&str] = &[
-    crate::host::aggregates::get::ID,
-    crate::host::effects::create::ID,
-    crate::host::effects::get::ID,
-    crate::host::effects::set::ID,
-    crate::host::media::captures::create::ID,
-    crate::host::media::captures::get::ID,
-    crate::host::media::captures::stop::ID,
-    crate::host::media::captures::watch::ID,
-    crate::host::content::artifacts::create::ID,
-    crate::host::files::capture::ID,
-    crate::host::files::captures::start::ID,
-    crate::host::files::captures::stop::ID,
-    crate::host::backend::overview::watch::ID,
-    crate::host::cases::watch::ID,
-    crate::host::content::artifacts::watch::ID,
-    crate::host::content::execution_files::watch::ID,
-    crate::host::cycles::watch::ID,
-    crate::host::documents::watch::ID,
-    crate::host::evidence::health_events::watch::ID,
-    crate::host::evidence::notes::watch::ID,
-    crate::host::evidence::records::watch::ID,
-    crate::host::evidence::samples::watch::ID,
-    crate::host::evidence::traceability::watch::ID,
-    crate::host::executions::progress::watch::ID,
-    crate::host::executions::watch::ID,
-    crate::host::files::watch::ID,
-    crate::host::plots::snapshots::watch::ID,
-    crate::host::prompts::watch::ID,
-    crate::host::secrets::watch::ID,
-    crate::host::backend::appearance::ID,
-    crate::host::backend::environment::ID,
-    crate::host::backend::overview::get::ID,
-    crate::host::cases::create::ID,
-    crate::host::cases::delete::ID,
-    crate::host::cases::get::ID,
-    crate::host::cases::list::ID,
-    crate::host::cases::parameters::ID,
-    crate::host::content::artifacts::get::ID,
-    crate::host::content::artifacts::list::ID,
-    crate::host::content::execution_files::get::ID,
-    crate::host::content::execution_files::list::ID,
-    crate::host::cycles::create::ID,
-    crate::host::cycles::get::ID,
-    crate::host::cycles::list::ID,
-    crate::host::cycles::seal::ID,
-    crate::host::cycles::set::ID,
-    crate::host::documents::append_parts::ID,
-    crate::host::documents::get::ID,
-    crate::host::evidence::archive::ID,
-    crate::host::evidence::health_events::list::ID,
-    crate::host::evidence::logs::append::ID,
-    crate::host::evidence::notes::create::ID,
-    crate::host::evidence::notes::get::ID,
-    crate::host::evidence::notes::list::ID,
-    crate::host::evidence::notes::set::ID,
-    crate::host::evidence::records::append::ID,
-    crate::host::evidence::records::list::ID,
-    crate::host::evidence::samples::list::ID,
-    crate::host::evidence::statistics::ID,
-    crate::host::evidence::traceability::get::ID,
-    crate::host::evidence::traceability::set::ID,
-    crate::host::executions::cancel::ID,
-    crate::host::executions::commands::create::ID,
-    crate::host::executions::commands::get::ID,
-    crate::host::executions::create::ID,
-    crate::host::executions::delete::ID,
-    crate::host::executions::get::ID,
-    crate::host::executions::list::ID,
-    crate::host::executions::parameters::ID,
-    crate::host::executions::progress::get::ID,
-    crate::host::executions::progress::set::ID,
-    crate::host::executions::schemas::get::ID,
-    crate::host::executions::set::ID,
-    crate::host::executions::start::ID,
-    crate::host::executions::steps::ID,
-    crate::host::executions::stop::ID,
-    crate::host::files::delete::ID,
-    crate::host::files::get::ID,
-    crate::host::files::read::ID,
-    crate::host::files::uploads::append::ID,
-    crate::host::files::uploads::create::ID,
-    crate::host::files::uploads::delete::ID,
-    crate::host::files::uploads::get::ID,
-    crate::host::files::uploads::publish::ID,
-    crate::host::files::uploads::resume::ID,
-    crate::host::plots::settings::get::ID,
-    crate::host::plots::settings::set::ID,
-    crate::host::plots::snapshots::list::ID,
-    crate::host::plugins::secrets::list::ID,
-    crate::host::prompt_definitions::get::ID,
-    crate::host::prompt_definitions::list::ID,
-    crate::host::prompts::answers::create::ID,
-    crate::host::prompts::create::ID,
-    crate::host::prompts::get::ID,
-    crate::host::prompts::list::ID,
-    crate::host::record_schemas::get::ID,
-    crate::host::record_schemas::list::ID,
-    crate::host::reports::create::ID,
-    crate::host::reports::get::ID,
-    crate::host::reports::publish::ID,
-    crate::host::secrets::delete::ID,
-    crate::host::secrets::export::ID,
-    crate::host::secrets::get::ID,
-    crate::host::secrets::import::ID,
-    crate::host::secrets::list::ID,
-    crate::host::secrets::set::ID,
-    crate::host::settings::get::ID,
-    crate::host::settings::schema::ID,
-    crate::host::settings::set::ID,
-    crate::host::storage::sources::get::ID,
-    crate::host::storage::sources::set::ID,
-    crate::host::stream_schemas::get::ID,
-    crate::host::stream_schemas::list::ID,
-    crate::host::suites::get::ID,
-    crate::host::suites::list::ID,
-];
-
 /* === Macros === */
 
 macro_rules! unary {
@@ -161,7 +43,7 @@ macro_rules! unary {
             };
             use harmos_protocol::policy::UNBOUNDED;
             use std::time::Duration;
-            use std::result::Result as NativeResult;
+            use std::result;
             use crate::native::{Binding, context, failure};
             pub struct Operation;
             impl ProtobufOperation for Operation {
@@ -180,7 +62,7 @@ macro_rules! unary {
                 const RESOURCES: &'static [Resource] = &[Resource::of::<Binding>(), Resource::of::<HostContext>()];
                 async fn run(
                     execution: ExecutionContext, request: Self::Request, _: &(),
-                ) -> NativeResult<Self::Response, ServingError> {
+                ) -> result::Result<Self::Response, ServingError> {
                     let context = context(&execution, Self::ID).map_err(failure)?;
                     crate::native::unary!(@call $caller, context, request)
                 }
@@ -208,7 +90,7 @@ macro_rules! download {
                 ExecutionContext, Grpc, HostContext, OperationPolicy, ProtobufOperation, ProtobufOutput, Resource, RetryPolicy,
                 ServingError, Visibility,
             };
-            use std::result::Result as NativeResult;
+            use std::result;
             use std::{sync::Arc, time::Duration};
             use tokio_stream::StreamExt;
             pub struct Operation;
@@ -228,7 +110,7 @@ macro_rules! download {
                 const RESOURCES: &'static [Resource] = &[Resource::of::<Binding>(), Resource::of::<HostContext>()];
                 async fn run(
                     execution: ExecutionContext, request: Self::Request, output: &Self::Endpoints,
-                ) -> NativeResult<Self::Response, ServingError> {
+                ) -> result::Result<Self::Response, ServingError> {
                     let context = context(&execution, Self::ID).map_err(failure)?;
                     let mut stream = super::handle(&context, request).await.map_err(failure)?;
                     while let Some(response) = stream.next().await {
@@ -306,28 +188,6 @@ pub fn factory<O: ProtobufOperation>(timeout: Duration) -> Result<OperationFacto
     )
     .map_err(|source| Error::Invalid(format!("Register {}: {source}", O::ID)))?;
     Ok(factory.with_contract(contract))
-}
-
-pub fn callers() -> Result<String> {
-    let mut composition = String::from("[callers]\n");
-    for service in dokime_protocol::descriptor_pool().services().filter(|service| service.full_name().starts_with("dokime.host.v1.")) {
-        for method in service.methods() {
-            let id = format!("{}/{}", service.full_name(), method.name());
-            if !OPERATIONS.contains(&id.as_str()) {
-                continue;
-            }
-            let callers =
-                harmos_protocol::schema::method_callers(&method).map_err(|source| Error::Invalid(format!("Compose Callers: {source}")))?;
-            let callers = match callers {
-                Callers::Clients => "CLIENTS",
-                Callers::Plugins => "PLUGINS",
-                Callers::All => "ALL",
-                _ => return Err(Error::Invalid(format!("Compose {}: Declare Its Callers", method.full_name()))),
-            };
-            composition.push_str(&format!("\"{}/{}\" = \"{callers}\"\n", service.full_name(), method.name()));
-        }
-    }
-    Ok(composition)
 }
 
 pub fn registration(settings: &ClientSettings) -> Result<harmos_runtime::operations::Registration> {

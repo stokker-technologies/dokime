@@ -20,7 +20,7 @@
 // Third Party Imports
 use harmos_protocol::model::{FileReference, History, Upload, UploadState};
 use harmos_runtime::Identifier;
-use harmos_runtime::builtins::storage::{Info, InfoRequest};
+use harmos_operations::storage::{Info, InfoRequest};
 use harmos_runtime::storage::{FilePhase, FileProducer, FileProgress, FileSession, MutationId, StagedFile, StoreHistory};
 use sha2::{Digest, Sha256};
 

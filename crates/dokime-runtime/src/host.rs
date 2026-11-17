@@ -30,9 +30,9 @@ use harmos_protocol::host::{PluginEntry, PluginManaged, PluginPlacement, PluginR
 use harmos_protocol::host::{PluginState, PluginsWatchRequest};
 use harmos_protocol::host::{PluginValue, PluginsCreateRequest};
 use harmos_protocol::model::{FileMetadata, FileReference, Receipt};
-use harmos_runtime::builtins::plugins::Create;
-use harmos_runtime::builtins::plugins::Delete;
-use harmos_runtime::builtins::plugins::Watch;
+use harmos_operations::plugins::Create;
+use harmos_operations::plugins::Delete;
+use harmos_operations::plugins::Watch;
 use harmos_runtime::bundle::Identity;
 use harmos_runtime::operations::StreamSettings;
 use prost::Message;

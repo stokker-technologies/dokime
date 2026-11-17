@@ -20,8 +20,8 @@ use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::{FilesGetRequest, FilesGetResponse};
 use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{GetFileBytes, GetFileBytesRequest};
-use harmos_runtime::storage::FileReference as NativeFileReference;
+use harmos_operations::storage::{GetFileBytes, GetFileBytesRequest};
+use harmos_runtime::storage;
 
 /* === Constants === */
 
@@ -48,7 +48,7 @@ pub async fn handle(context: &Context, request: FilesGetRequest) -> Result<Files
     crate::host::complete(ID, context.settings.read_timeout, async {
         let file = request.file.ok_or_else(|| Error::Invalid(format!("{ID}: Supply Its Reference")))?;
         transfer::authorize(context, &file)?;
-        let selected = NativeFileReference::try_from(file.clone()).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
+        let selected = storage::FileReference::try_from(file.clone()).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
         let response = context
             .storage::<GetFileBytes>(GetFileBytesRequest {
                 file: Some(selected),

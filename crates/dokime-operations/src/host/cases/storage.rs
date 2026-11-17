@@ -22,13 +22,13 @@ use std::{num::NonZeroUsize, result};
 use arrow_array::{Array, BinaryArray, StringArray};
 use harmos_protocol::model::{PageRequest, Position, Receipt};
 use harmos_query::arrow::ArrowBatch;
-use harmos_runtime::builtins::storage::{
+use harmos_operations::storage::{
     ColumnKind, ColumnSelection, ColumnSource, GetObject, GetObjectRequest, ListColumnRows, ListColumnRowsRequest,
 };
-use harmos_runtime::builtins::storage::{
+use harmos_operations::storage::{
     CompoundOutcome, DeleteScope, DeleteScopeRequest, Mutate, MutateRequest, MutationId, MutationItem,
 };
-use harmos_runtime::builtins::storage::{Info, InfoRequest};
+use harmos_operations::storage::{Info, InfoRequest};
 use harmos_runtime::storage::{ObjectDefinition, ObjectValue, ReadLimits, StoredObject};
 use prost::Message;
 use sha2::{Digest, Sha256};

@@ -20,7 +20,7 @@ use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
 use dokime_protocol::host::files::{UploadsDeleteRequest, UploadsDeleteResponse};
 use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{DeleteFileProduction, DeleteFileProductionRequest};
+use harmos_operations::storage::{DeleteFileProduction, DeleteFileProductionRequest};
 use harmos_runtime::storage::StagedFile;
 
 /* === Constants === */

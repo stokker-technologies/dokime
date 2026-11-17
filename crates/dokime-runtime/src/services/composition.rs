@@ -38,7 +38,7 @@ use harmos_runtime::storage::Cursor;
 use harmos_runtime::storage::{
     StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings, StorageSettings,
 };
-use harmos_runtime::{AssemblyError, Lifecycle};
+use harmos_runtime::Lifecycle;
 use harmos_runtime::{
     Runtime, Setup, Startup,
     clock::{Reading, Sleep},
@@ -78,15 +78,12 @@ struct Clock {
 
 impl Lifecycle for Application {
     type Config = Option<ClientSettings>;
-    type Error = AssemblyError;
+    type Error = Error;
     type Context = Startup<Self>;
     async fn prepare(settings: Option<ClientSettings>, setup: &mut Setup<Self>) -> result::Result<Self, Self::Error> {
-        let settings = settings.ok_or_else(|| AssemblyError("Compose Host: Supply Operation Settings".into()))?;
-        let registration = dokime_operations::native::registration(&settings).map_err(|source| AssemblyError(source.to_string()))?;
+        let settings = settings.ok_or_else(|| Error::Invalid("Compose Host: Supply Operation Settings".into()))?;
+        let registration = dokime_operations::native::registration(&settings).map_err(|source| Error::Invalid(source.to_string()))?;
         setup.settings().with_registration(registration);
-        let callers = dokime_operations::native::callers().map_err(|source| AssemblyError(source.to_string()))?;
-        setup.composition(&callers)?;
-        setup.composition(include_str!("../../../../protocol/composition.toml"))?;
         Ok(Self)
     }
 }
@@ -216,9 +213,9 @@ pub(super) async fn launch(
             preparation_bytes: Some(bytes),
             ..Default::default()
         });
-        setup.catalog(harmos_runtime::builtins::host_catalog(), Lane::default());
-        setup.catalog(harmos_runtime::builtins::storage_catalog(), Lane::default());
-        setup.catalog(harmos_runtime::builtins::lifecycle_catalog(), Lane::default());
+        setup.catalog(harmos_operations::host_catalog(), Lane::default());
+        setup.catalog(harmos_operations::storage_catalog(), Lane::default());
+        setup.catalog(harmos_operations::lifecycle_catalog(), Lane::default());
     }))
     .await
     .map_err(|error| Error::ComposedStartup(Box::new(error)))?;

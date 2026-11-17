@@ -24,8 +24,8 @@ use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::{ReadCut, Receipt};
 use harmos_query::arrow::ArrowBatch;
 use harmos_runtime::Identifier;
-use harmos_runtime::builtins::storage::{ColumnKind, ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
-use harmos_runtime::builtins::storage::{
+use harmos_operations::storage::{ColumnKind, ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
+use harmos_operations::storage::{
     GetObject, GetObjectRequest, SchemaInput, SetObject, SetObjectRequest, set_object_response::Outcome,
 };
 use harmos_runtime::storage::{ObjectDefinition, ReadLimits};

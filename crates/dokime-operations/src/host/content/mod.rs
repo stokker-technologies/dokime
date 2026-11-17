@@ -33,7 +33,7 @@ use harmos_query::transform::{
     filter::{Clause, Compare, Condition, Filter, Term},
 };
 use harmos_runtime::Identifier;
-use harmos_runtime::builtins::storage::{
+use harmos_operations::storage::{
     CompoundOutcome, ListRows, ListRowsRequest, Mutate, MutateRequest, MutationId, MutationItem, RowOutput, SchemaInput, SetObject,
     SetObjectRequest, Source, set_object_response,
 };

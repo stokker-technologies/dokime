@@ -116,7 +116,7 @@ async fn watch_upload(
     context: &Context, upload: harmos_protocol::model::Upload, offset: u64, at: Option<harmos_protocol::model::ReadCut>,
 ) -> Result<Output<FilesWatchResponse>> {
     use crate::host::files::transfer;
-    use harmos_runtime::builtins::storage::{WatchFileProduction, WatchFileProductionRequest, watch_file_production_response::Event};
+    use harmos_operations::storage::{WatchFileProduction, WatchFileProductionRequest, watch_file_production_response::Event};
     use harmos_runtime::operations::{StreamSettings, native_stream};
     use harmos_runtime::storage::FilePhase;
     use std::num::NonZeroUsize;

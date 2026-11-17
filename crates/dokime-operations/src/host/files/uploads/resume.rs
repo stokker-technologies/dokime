@@ -20,7 +20,7 @@ use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
 use dokime_protocol::host::files::{UploadsResumeRequest, UploadsResumeResponse};
 use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{CreateFileWriter, CreateFileWriterRequest};
+use harmos_operations::storage::{CreateFileWriter, CreateFileWriterRequest};
 
 /* === Constants === */
 

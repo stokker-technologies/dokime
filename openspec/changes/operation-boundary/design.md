@@ -442,7 +442,7 @@ extension; sequential scope calls cannot claim atomicity. No new cascade is intr
 | Harmos Groups 6–7 | Consolidated statistics/box summaries and bucket-summary continuation (slice 5). |
 | Harmos Group 9 | Typed facade, authoring exports and operation-owned batch DTOs (slice 6, including final archive DTO adoption). |
 
-Harmos `fa52a0e6619803c824af5112eb28b9a85430b359` supplies G1–G3,
+Harmos `ee16bf8a70152b82c881dcccf5f0108a5a859091` supplies G1–G3,
 consolidated statistics/bucket summaries, storage-only maintenance and
 scale/offset/contains transforms. The descriptions above record the original
 upstream findings; product backend and consumer adoption and proof remain open.
@@ -454,28 +454,10 @@ those DTOs without introducing the facade.
 
 ## Snapshot Operation Admission at the Pinned Revision
 
-Consumer evidence at `fa52a0e6619803c824af5112eb28b9a85430b359`:
-`client_transfers_execution_content::{native_archive_preserves_file_bytes_and_history,client_transfers_execution_content}`
-both fail in `host/evidence/archive.rs::native_files` when
-`Context::storage::<CreateSnapshot>(CreateSnapshotRequest { at: None })` calls the
-registered native operation. Admission refuses it with
-`invalid operation retry: Call retries require declared replay safety` before
-the backend snapshot hook runs.
-
-Harmos `crates/harmos-operations/src/storage/native/handlers.rs` declares
-`CreateSnapshot::REPLAY = ReplaySafety::Unknown` while using `native/mod.rs::POLICY`,
-whose retries are `OnTransient`. `RetainSnapshot` has the same declaration pair.
-The supported current API is the operation call; a product retry-policy override,
-direct manager call or bypass of retained snapshot protection would contradict
-the callee-owned policy and storage contract.
-
-The smallest upstream repair is an admissible operation-owned policy for snapshot
-creation/retention, preserving the existing deadlines and replay guarantees, plus
-native operation admission tests. Disposition: pending the upstream owner's repair,
-validated published revision and authorization to adopt it. This worker is limited
-to the current worktree and the locked pin; no upstream files, pins, deadlines or
-retry settings were changed. The archive proof remains a repair obligation; the
-passing backend conformance kit does not close it.
+The pinned revision repairs native snapshot admission: `CreateSnapshot` and
+`RetainSnapshot` use operation-owned policies that never retry. Product snapshot
+calls retain their existing deadlines and require no caller override. Archive and
+execution-owned retention proof must run against this repaired pin.
 
 ## Risks / Trade-Offs
 

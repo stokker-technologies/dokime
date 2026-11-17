@@ -20,7 +20,7 @@ use std::future::Future;
 
 // Third Party Imports
 use harmos_protocol::model::{FileReference, PageRequest, ReadCut, Receipt, ResourceRevision};
-use harmos_runtime::builtins::storage::{
+use harmos_operations::storage::{
     CreateFileProduction, CreateFileProductionRequest, DeleteFile, DeleteFileRequest, GetFileBytes, GetFileBytesRequest,
 };
 use harmos_runtime::storage::{self, Identifier, StagedFile};

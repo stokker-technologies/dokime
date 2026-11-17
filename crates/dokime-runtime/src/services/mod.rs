@@ -40,7 +40,7 @@ use std::{collections::BTreeSet, net::SocketAddr, path::Path, sync::Arc};
 use composition::Application;
 use harmos_protocol::host::plugin_change::Kind;
 use harmos_protocol::host::{PluginsWatchRequest, plugins_watch_response::Event};
-use harmos_runtime::builtins::plugins::Watch;
+use harmos_operations::plugins::Watch;
 use harmos_runtime::grpc::Attached;
 use harmos_runtime::grpc::middleware::{Enter, Invocation, Middleware, Observation};
 use harmos_runtime::operations::OperationManager;

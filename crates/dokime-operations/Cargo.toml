@@ -33,6 +33,7 @@ dokime-storage = { workspace = true }
 # Git
 harmos-protocol = { workspace = true }
 harmos-query = { workspace = true }
+harmos-operations = { workspace = true }
 harmos-runtime = { workspace = true }
 
 # Error Handling

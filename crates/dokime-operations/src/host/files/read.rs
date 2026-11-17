@@ -20,8 +20,8 @@ use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::{FilesReadRequest, FilesReadResponse};
 use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{GetFileBytes, GetFileBytesRequest};
-use harmos_runtime::storage::FileReference as NativeFileReference;
+use harmos_operations::storage::{GetFileBytes, GetFileBytesRequest};
+use harmos_runtime::storage;
 
 /* === Constants === */
 
@@ -53,7 +53,7 @@ pub async fn handle(context: &Context, request: FilesReadRequest) -> Result<File
         if max_bytes > maximum {
             return Err(Error::Bound(format!("{ID}: Respect the Returned Chunk Bound")));
         }
-        let file = NativeFileReference::try_from(file).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
+        let file = storage::FileReference::try_from(file).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
         let response = context
             .storage::<GetFileBytes>(GetFileBytesRequest {
                 file: Some(file),

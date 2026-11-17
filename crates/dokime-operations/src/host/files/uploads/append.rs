@@ -20,7 +20,7 @@ use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsAppendResponse};
 use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{AppendFileBytes, AppendFileBytesRequest};
+use harmos_operations::storage::{AppendFileBytes, AppendFileBytesRequest};
 
 /* === Constants === */
 
