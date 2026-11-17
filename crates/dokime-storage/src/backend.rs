@@ -15,7 +15,6 @@ mod definition_mutations;
 mod files;
 mod index;
 mod objects;
-mod payload;
 mod projection;
 mod recovery;
 mod rows;
@@ -25,11 +24,18 @@ mod rows;
 /* === Imports === */
 
 // Standard Library Imports
-use std::{cell::Cell, collections::BTreeMap, num::NonZeroUsize, path::Path, sync::Arc};
+use std::{
+    cell::Cell,
+    collections::BTreeMap,
+    fs::{File, OpenOptions},
+    num::NonZeroUsize,
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 // Third Party Imports
 use rusqlite::{Connection, OptionalExtension, params};
-use tokio::sync::Mutex;
+use tokio::sync;
 
 // Local Imports
 use harmos_query::columnar::ArrowPage;
@@ -79,10 +85,10 @@ struct BackendSettings {
 #[derive(Clone)]
 pub struct Backend {
     history: StoreHistory,
-    state: Arc<Mutex<State>>,
+    state: Arc<sync::Mutex<State>>,
 }
 
-pub struct BackendLease(Arc<std::sync::Mutex<Option<std::fs::File>>>);
+pub struct BackendLease(Arc<Mutex<Option<File>>>);
 
 impl BackendLease {
     pub fn close(&self) -> Result<()> {
@@ -104,7 +110,7 @@ impl Drop for BackendLease {
 
 struct State {
     connection: Connection,
-    lease: Arc<std::sync::Mutex<Option<std::fs::File>>>,
+    lease: Arc<Mutex<Option<File>>>,
     history: StoreHistory,
     settings: BackendSettings,
     catalog: ObjectCatalog,
@@ -161,7 +167,7 @@ impl Backend {
         let path = path.as_ref();
         let mut lock_path = path.as_os_str().to_os_string();
         lock_path.push(".lock");
-        let lease = std::fs::OpenOptions::new()
+        let lease = OpenOptions::new()
             .create(true)
             .truncate(false)
             .read(true)
@@ -172,7 +178,7 @@ impl Backend {
         Self::connect(Connection::open(path).map_err(db)?, history, settings, Some(lease))
     }
 
-    fn connect(mut connection: Connection, history: StoreHistory, settings: BackendSettings, lease: Option<std::fs::File>) -> Result<Self> {
+    fn connect(mut connection: Connection, history: StoreHistory, settings: BackendSettings, lease: Option<File>) -> Result<Self> {
         integer(settings.chunk_rows.get() as u64)?;
         integer(settings.chunk_bytes.get() as u64)?;
         let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0)).map_err(db)?;
@@ -248,9 +254,9 @@ impl Backend {
         columns::collect_orphans(&connection)?;
         Ok(Self {
             history: history.clone(),
-            state: Arc::new(Mutex::new(State {
+            state: Arc::new(sync::Mutex::new(State {
                 connection,
-                lease: Arc::new(std::sync::Mutex::new(lease)),
+                lease: Arc::new(Mutex::new(lease)),
                 history,
                 settings,
                 catalog: ObjectCatalog::new(),

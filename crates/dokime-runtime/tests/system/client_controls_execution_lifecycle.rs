@@ -26,6 +26,7 @@ use dokime::MapValue;
 use dokime::Metadata;
 use dokime::Termination;
 use dokime::client::CasesCreateOptions;
+use dokime::client::CasesListOptions;
 use dokime::client::CyclesCreateOptions;
 use dokime::client::CyclesGetOptions;
 use dokime::client::CyclesSealOptions;
@@ -48,10 +49,10 @@ use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
 use dokime::client::RegisteredSelection;
 use dokime::client::SelectionPlan;
-use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
+use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
+use harmos_protocol::host::plugin_placement;
 use std::error::Error;
 use tonic::transport::Endpoint;
 
@@ -93,7 +94,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .create(
                 "thermal",
                 PluginPlacement {
-                    kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                    kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                 },
                 PluginValue { enabled: true },
             )
@@ -120,7 +121,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             )
             .await?;
         let cycle = cycle.cycle.unwrap();
-        let cases = Client::from_channel(channel.clone(), super::support::client_settings())?
+        let registered = Client::from_channel(channel.clone(), super::support::client_settings())?
             .cases
             .clone()
             .create_with(
@@ -130,7 +131,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                         suite_id: "thermal".into(),
                         template_id: "thermal.cycle".into(),
                         ..Default::default()
-                    }],
+                    }; 2],
                     ..Default::default()
                 },
                 false,
@@ -139,15 +140,45 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                     ..Default::default()
                 },
             )
-            .await?
-            .cases;
+            .await?;
+        let cases = registered.cases.clone();
         let case_id = cases[0].case_id.clone();
         let listed = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
             .cases
             .clone()
             .list(cycle.cycle_id.clone())
             .await?;
-        assert_eq!(listed.cases.len(), 1);
+        assert_eq!(listed.cases.len(), 2);
+
+        // Delete Only the Unexecuted Case and Preserve Its Retained Cut.
+        let deleted = client.cases.delete(cases[1].case_id.clone(), cycle.cycle_id.clone()).await?;
+        assert!(deleted.completed);
+        assert_eq!(deleted.accepted_at, deleted.durable_at);
+        let current = client.cases.list(cycle.cycle_id.clone()).await?;
+        assert_eq!(current.cases.iter().map(|case| &case.case_id).collect::<Vec<_>>(), vec![&case_id]);
+        let retained = client.cases.list_with(cycle.cycle_id.clone(), CasesListOptions {
+            at: listed.resolved_at.clone(),
+            ..Default::default()
+        }).await?;
+        assert_eq!(retained, listed);
+        assert!(client.cases.get(cases[1].case_id.clone(), cycle.cycle_id.clone()).await.is_err());
+
+        // Replaying Registration Returns the Original Receipt Without Recreating a Deleted Case.
+        let replayed = client.cases.create_with(SelectionPlan {
+            cycle_id: cycle.cycle_id.clone(),
+            selections: vec![RegisteredSelection {
+                suite_id: "thermal".into(),
+                template_id: "thermal.cycle".into(),
+                ..Default::default()
+            }; 2],
+            ..Default::default()
+        }, false, CasesCreateOptions {
+            request_id: Some("lifecycle-plan".into()),
+            ..Default::default()
+        }).await?;
+        assert_eq!(replayed, registered);
+        let current = client.cases.list(cycle.cycle_id.clone()).await?;
+        assert_eq!(current.cases.iter().map(|case| &case.case_id).collect::<Vec<_>>(), vec![&case_id]);
         assert_eq!(
             Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                 .cases
@@ -564,7 +595,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .await?;
         while watch.next().await?.is_some() {}
         assert!(
-            matches!(Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?.executions.clone().get(run).await?.execution.unwrap().outcome.unwrap().attribution, Some(ExecutionOutcomeAttribution::NotEvaluated(outcome)) if outcome.termination == Termination::Cancelled as i32)
+            matches!(Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?.executions.clone().get(run).await?.execution.unwrap().outcome.unwrap().attribution, Some(execution_outcome::Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::Cancelled as i32)
         );
         drop(runtime);
         process.close().await?;

@@ -568,6 +568,52 @@ async fn pinned_native_arrow_pages_keep_their_saved_cut() -> StoryResult {
 }
 
 #[tokio::test]
+async fn native_sample_pages_preserve_valid_rows_before_an_oversized_payload() -> StoryResult {
+    // Store a Small Row and a Larger Row in the Same Native Arrow Batch.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
+    let backend = &backends.primary;
+    backend.create_session().await?;
+    let schema = schema(backend.get_history())?;
+    backend.append_schemas(StorageBatch::new(vec![schema.clone()]).into()).await?;
+    let mut expected = rows(&schema, 2, 2, "execution")?;
+    expected[1].record.payload = Reading {
+        value: 1,
+        label: "large".repeat(1024),
+        details: None,
+        values: vec![i64::MIN, i64::MAX],
+        choice: Choice::Empty,
+        fraction: 1.25,
+        bytes: vec![0, 255],
+    }
+    .encode();
+    let at = backend.append_samples(StorageBatch::new(expected.clone())).await?;
+    let snapshot = backend.create_snapshot(&at).await?;
+    let selection = selection(&schema.key, "execution")?;
+
+    // Return the First Page Before Refusing an Individually Oversized Row.
+    let mut page = ScanPage {
+        after: 0,
+        rows: limits().rows,
+        bytes: NonZeroUsize::new(1024).unwrap(),
+    };
+    let first = backend.list_samples(&snapshot, &selection, page).await?;
+    assert_eq!(first, expected[..1]);
+    page.after = first.last().unwrap().record.position.sequence;
+    let refused = backend.list_samples(&snapshot, &selection, page).await;
+    assert!(matches!(refused, Err(harmos_storage::Error::ResourceExhausted { .. })));
+
+    // A Larger Bound Returns the Exact Remaining Native Payload.
+    page.bytes = limits().bytes;
+    let remaining = backend.list_samples(&snapshot, &selection, page).await?;
+    assert_eq!(remaining, expected[1..]);
+    backend.delete_snapshot(&snapshot).await?;
+    backend.delete_session().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn recovery_snapshot_and_entries_survive_reopening_the_root() -> StoryResult {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;

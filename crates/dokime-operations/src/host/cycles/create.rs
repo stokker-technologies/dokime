@@ -60,7 +60,7 @@ pub async fn handle(context: &Context, request: CyclesCreateRequest) -> Result<C
         let mut request = request;
         let mut skipped = Vec::new();
         if !request.source_cycle.is_empty() {
-            let source = crate::host::execution_state::cycle(context, &request.source_cycle)?;
+            let source = crate::host::execution_state::cycle(context, &request.source_cycle).await?;
             if source.running_count > 0 || source.queued_count > 0 {
                 return Err(Error::Precondition("Create Cycle: Finish the Source Before Rerunning".into()));
             }
@@ -118,13 +118,15 @@ pub async fn handle(context: &Context, request: CyclesCreateRequest) -> Result<C
                     })
                     .collect::<Result<Vec<_>>>()?;
                 context.host.store().save_cycle(&cycle)?;
-                let registered = context.host.store().register_cases(
-                    None,
+                let registration_id = format!("cycle/{}", cycle.cycle_id);
+                let registered = crate::host::cases::storage::register(
+                    context,
+                    &registration_id,
                     &[],
                     &cycle.cycle_id,
                     CasesCreateResponse { cases, ..Default::default() },
-                    context.settings.message_bytes,
-                )?;
+                )
+                .await?;
                 let bindings = registered
                     .cases
                     .into_iter()

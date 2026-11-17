@@ -28,7 +28,6 @@ use dokime_protocol::host::CycleSummary;
 use dokime_protocol::host::executions::ExecutionCommandReceipt;
 use dokime_protocol::host::{CyclesSetRequest, CyclesSetResponse};
 
-use dokime_protocol::host::PlannedCase;
 use dokime_protocol::host::executions::ExecutionCommandPhase;
 
 /* === Constants === */
@@ -158,24 +157,19 @@ impl Store {
         let payloads = statement.query_map([], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(payloads.iter().map(|payload| CycleSummary::decode(payload.as_slice())).collect::<std::result::Result<_, _>>()?)
     }
-    pub fn bind_executions(&self, cycle: &str, executions: &[(Execution, String)]) -> Result<()> {
+    pub fn bind_executions(&self, cycle: &str, executions: &[(Execution, String, String)]) -> Result<()> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
         let payload: Vec<u8> = transaction.query_row("SELECT payload FROM cycles WHERE id=?1", [cycle], |row| row.get(0))?;
         if CycleSummary::decode(payload.as_slice())?.sealed {
             return Err(Error::Invalid("Append Executions: Create a New Cycle; This Cycle Is Sealed".into()));
         }
-        for (execution, case) in executions {
+        for (execution, case, label) in executions {
             transaction.execute(
                 "INSERT INTO executions VALUES (?1,?2,0,?3,X'')",
                 params![execution.identifier, cycle, execution.encode_to_vec()],
             )?;
-            let case_payload: Vec<u8> = transaction.query_row("SELECT payload FROM cases WHERE id=?1", [case], |row| row.get(0))?;
-            let case = PlannedCase::decode(case_payload.as_slice())?;
-            transaction.execute(
-                "INSERT INTO bindings VALUES (?1,?2,?3,0)",
-                params![execution.identifier, case.case_id, case.metadata.map(|metadata| metadata.label).unwrap_or_default()],
-            )?;
+            transaction.execute("INSERT INTO bindings VALUES (?1,?2,?3,0)", params![execution.identifier, case, label])?;
         }
         transaction.commit()?;
         Ok(())
@@ -193,21 +187,6 @@ impl Store {
         self.read(execution)?;
         let (case, previous_label, previous_archived) = self.execution_presentation(execution)?;
         self.lock()?.execute("INSERT INTO bindings VALUES (?1,?2,?3,?4) ON CONFLICT(execution) DO UPDATE SET label=excluded.label,archived=excluded.archived", params![execution,case,label.unwrap_or(&previous_label),archived.unwrap_or(previous_archived)])?;
-        Ok(())
-    }
-    pub fn delete_planned_case(&self, cycle: &str, case: &str) -> Result<()> {
-        let connection = self.lock()?;
-        let bound: bool = connection.query_row(
-            "SELECT EXISTS(SELECT 1 FROM bindings b JOIN executions e ON e.id=b.execution WHERE e.cycle=?1 AND b.case_id=?2)",
-            params![cycle, case],
-            |row| row.get(0),
-        )?;
-        if bound {
-            return Err(Error::Invalid("Delete Case: Only Unexecuted Cases Can Be Removed".into()));
-        }
-        if connection.execute("DELETE FROM cases WHERE id=?1 AND cycle=?2", params![case, cycle])? == 0 {
-            return Err(Error::Invalid("Delete Case: Select an Unexecuted Case in This Cycle".into()));
-        }
         Ok(())
     }
     pub fn command(&self, request: &str, id: &str) -> Result<Option<ExecutionCommandReceipt>> {

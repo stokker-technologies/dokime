@@ -43,10 +43,12 @@ access credentials/root claims, CLI doctor copies and desktop native archive/dis
 
 ## 4. Schemas, Objects and Administration
 
-- [ ] 4.1 Move resources, views, execution state, catalog inventory, record schemas, plans, notes, client reads, resource values, evidence positions and administration onto `SetSchema`, `GetObject`, `SetObject` and `ListRows`; delete their direct SQL. Prove with stories `client_browses_catalog`, `client_keeps_execution_notes`, `client_plans_parameter_selections`, `client_edits_settings` and `client_reuses_frozen_schemas`.
+- [ ] 4.1 Move resources, views, execution state, catalog inventory, record schemas, notes, client reads, resource values, evidence positions and administration onto `SetSchema`, `GetObject`, `SetObject` and `ListRows`; delete their direct SQL. Prove with stories `client_browses_catalog`, `client_keeps_execution_notes`, `client_plans_parameter_selections`, `client_edits_settings` and `client_reuses_frozen_schemas`.
 - [ ] 4.2 Remove direct administration deletion in `crates/dokime-operations/src/host/secrets/store.rs` and the backend overview scan in `host/backend/overview/get.rs` (counts through `list_rows`). Prove with stories `client_manages_secret_storage` and `client_inspects_health`.
 
 - [x] 4.3 Retain catalog/document/plot/evidence view payloads through bounded Harmos file operations and immutable object indexes, preserving the first published image for each product cut even when the complete collection exceeds one response bound. Remove the unused SQL administration revision/receipt implementation and inline native view payloads. Refuse superseded roots without deleting their values. Prove retained catalog reads across host restart, oversized paged collections with `client_queries_advanced_plots`, plus focused operations/storage and affected document/plot stories.
+
+- [x] 4.4 Replace planned-case registration, reads and deletion with Harmos objects and compound mutation; delete the SQL registration API and tables, migrate planning and execution-admission consumers, and refuse incompatible roots without resetting them. Prove `client_plans_parameter_selections`, `client_controls_execution_lifecycle` and `storage_root_admission`.
 
 ## 5. Records and Sample Ingestion
 
@@ -82,12 +84,14 @@ publication and execution/case deletion remain open product implementation work.
 The coupled evidence source cutover above blocks replacing its Store readers with
 row operations. Additional blockers are **expression transforms scale/offset/contains**
 and **consolidated statistics** (including multi-percentile and box summaries).
-The native Arrow-to-Postcard encoder in
-`backend/payload.rs` also needs an exported Harmos encoder; no equivalent public
-encoder is exposed at the current pin, so it cannot yet be deleted.
+The pinned Harmos revision already exports
+`harmos_storage::writes::convert::encode_payloads`; the native backend uses it
+instead of a product payload encoder.
 
 - [ ] 8.1 Compile product expression bindings (`crates/dokime-storage/src/expressions.rs`, `document_values.rs`, `plot_selection.rs`) into Harmos query plans using filter, project, scale, offset, contains, aggregate, histogram, box summary, downsample and time merge transforms; implement `host/aggregates/get.rs` over `list_rows`. Prove with stories `client_queries_advanced_plots`, `client_queries_plot_kinds` and `client_renders_fixed_documents`.
-- [ ] 8.2 Delete Dokime moments, ranks, persisted summaries and integer folds (`telemetry/aggregates.rs`), scanned bins (`stream_windows.rs`), statistics, histogram and box code (`plot_windows.rs`) and the payload encoder duplicate (`backend/payload.rs`). Accept when no aggregation kernel remains in Dokime; prove with stories `client_reads_bounded_telemetry` and `client_queries_plot_windows`.
+- [ ] 8.2 Delete Dokime moments, ranks, persisted summaries and integer folds (`telemetry/aggregates.rs`), scanned bins (`stream_windows.rs`), statistics, histogram and box code (`plot_windows.rs`). Accept when no aggregation kernel remains in Dokime; prove with stories `client_reads_bounded_telemetry` and `client_queries_plot_windows`.
+
+- [x] 8.3 Replace native Arrow-to-Postcard reconstruction with Harmos `writes::convert::encode_payloads` and delete `backend/payload.rs`; preserve bounded pages and lossless round trips. Prove with the backend conformance kit and native stream read/restart tests in `dokime-storage` integration.
 
 ## 9. Previews, Documents and Plots
 
@@ -111,6 +115,8 @@ product execution ledger. Do not add a mirror notification path.
 - [ ] 11.1 Delete the `Store` facade, telemetry reader and query entry points and every remaining consumer path so `crates/dokime-storage` holds only the backend implementation and product persisted shapes; migrate or remove tests whose code is gone. Accept when no crate outside the backend registration imports storage internals; prove with `mise run build -- --package dokime-storage --check` and `mise run test -- --package dokime-storage --target integration`.
 
 ## 12. Adopt the Harmos Facade
+
+Blocked at the current pin on the **typed facade** and its authoring exports.
 
 - [ ] 12.1 Adopt the revision that landed Harmos group 9; build the runtime through the Harmos builder with backend pair, catalog and settings, call Harmos only through the typed facade (`runtime.for_call(&ctx)`) instead of the operation manager (`services/state.rs`), drive plugin activation, clock binding and sample start/stop through facade calls (`execution.rs`, `dispatch.rs`), make the evidence archive decode operation-owned batch DTOs instead of engine types (`host/evidence/archive.rs`) and make the filesystem publication helper product-owned. Prove with stories `manager_lifecycles`, `execution_isolation` and `client_browses_sealed_history`.
 - [ ] 12.2 Amend `docs/architecture.md` invariant 7 and Final Library Assembly and Storage Contract, quoting "Compose library services directly, without redeclaring or forwarding them" and replacing it with the owner's 2026-11-16 decision: Dokime composes Harmos through the typed in-process facade over native operations and forwards remote calls through its own wrappers; keep the purpose and record the Harmos SDK scope (design.md D7). Prove with `mise run check -- --repository`.

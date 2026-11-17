@@ -25,8 +25,9 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
 - Duplicated kernels: moments, ranks and persisted summaries in
   `crates/dokime-storage/src/telemetry/aggregates.rs`; adaptive envelope merge in
   `telemetry/previews.rs`; scanned bins in `stream_windows.rs`; statistics, histogram and
-  Tukey boxes in `plot_windows.rs`; expression arithmetic and filters in `expressions.rs`;
-  payload encoding in `backend/payload.rs`.
+  Tukey boxes in `plot_windows.rs`; expression arithmetic and filters in `expressions.rs`.
+  Native payload reconstruction uses Harmos's exported
+  `harmos-storage/src/writes/convert.rs::encode_payloads`; no product encoder remains.
 - Offline paths: desktop archive/disposal in
   `crates/dokime-gui/src-tauri/src/native_session/storage.rs`; CLI doctor copies in
   `crates/dokime-cli/src/commands/doctor.rs`.
@@ -47,6 +48,12 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   reads and file reclamation. Harmos's public backend conformance kit runs in
   `crates/dokime-storage/tests/integration/backend.rs`. Maintenance copy/dispose remains
   dependent on offline/minimal-assembly storage operations; no substitute is introduced.
+- Planned-case ownership is `host/cases/storage.rs`: registration replay, atomic
+  publication, frozen plans and deletion use native object operations. Its consumers
+  are planning, cases, execution-state projections and execution admission. The SQL
+  `plans.rs` API and `cases`/`registrations` tables are deleted; execution bindings
+  remain owned by the coupled lifecycle cutover. Existing development roots with
+  those tables are refused at baseline v1 and preserved.
 - Composition: `protocol/composition.toml` is read by `services/composition.rs`
   (`setup.composition`), `native::callers()` in `crates/dokime-operations/src/native.rs`,
   `sdk/cpp/tools/generate.py`, `sdk/csharp/tools/generate.py` and

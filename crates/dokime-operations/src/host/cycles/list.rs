@@ -58,7 +58,7 @@ pub async fn handle(context: &Context, request: CyclesListRequest) -> Result<Cyc
         selection.page = None;
         let key = format!("cycles/{}", crate::host::views::hex(&crate::host::paging::bytes(&selection)));
         let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
-            let mut cycles = crate::host::execution_state::cycles(context)?;
+            let mut cycles = crate::host::execution_state::cycles(context).await?;
             let filter = request.filter.clone().unwrap_or_default();
             if filter.statuses.iter().any(|status| CycleStatus::try_from(*status).is_err()) {
                 return Err(Error::Invalid("List Cycles: Choose Valid Status Filters".into()));

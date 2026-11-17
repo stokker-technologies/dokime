@@ -25,7 +25,7 @@ use dokime_runtime::Error;
 use dokime_runtime::Host;
 use dokime_storage::{Execution, Store};
 use rusqlite::Connection;
-use std::error::Error as ErrorError;
+use std::error;
 use std::fs::OpenOptions;
 
 /* === Constants === */
@@ -49,7 +49,7 @@ use std::fs::OpenOptions;
 /* === Tests === */
 
 #[test]
-fn incompatible_content_roots_are_refused_without_resetting_evidence() -> Result<(), Box<dyn ErrorError>> {
+fn incompatible_content_roots_are_refused_without_resetting_evidence() -> Result<(), Box<dyn error::Error>> {
     super::support::run(Box::pin(async {
         let root = tempfile::tempdir()?;
         let store = Store::open(root.path())?;
@@ -77,7 +77,7 @@ fn incompatible_content_roots_are_refused_without_resetting_evidence() -> Result
 }
 
 #[test]
-fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn ErrorError>> {
+fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn error::Error>> {
     super::support::run(Box::pin(async {
         // Refuse An External Lease Before Creating The Evidence Database
         let root = super::support::tempdir()?;
@@ -115,6 +115,39 @@ fn hosts_refuse_occupied_roots_before_opening_evidence() -> Result<(), Box<dyn E
         drop(second);
         let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
         host.shutdown().await?;
+        Ok(())
+    }))
+}
+
+#[test]
+fn superseded_plan_tables_are_refused_without_resetting_the_root() -> Result<(), Box<dyn error::Error>> {
+    super::support::run(Box::pin(async {
+        for table in ["cases", "registrations"] {
+            // Preserve the Incompatible Journal Alongside Existing Execution Evidence.
+            let root = tempfile::tempdir()?;
+            let store = Store::open(root.path())?;
+            store.create(&Execution {
+                identifier: "retained-execution".into(),
+                cycle: "cycle".into(),
+                origin: Some(Origin {
+                    kind: Some(Kind::Import(Import::default())),
+                }),
+                ..Default::default()
+            })?;
+            drop(store);
+            let database = Connection::open(root.path().join("execution.sqlite3"))?;
+            database.execute_batch(&format!("CREATE TABLE {table}(payload BLOB); INSERT INTO {table} VALUES(X'010203')"))?;
+            drop(database);
+
+            // Admission Refuses the Old Shape Without Migrating or Deleting It.
+            let refused = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await;
+            assert!(matches!(refused, Err(Error::Storage(dokime_storage::Error::Incompatible(_)))));
+            let database = Connection::open(root.path().join("execution.sqlite3"))?;
+            let execution: String = database.query_row("SELECT id FROM executions", [], |row| row.get(0))?;
+            assert_eq!(execution, "retained-execution");
+            let payload: Vec<u8> = database.query_row(&format!("SELECT payload FROM {table}"), [], |row| row.get(0))?;
+            assert_eq!(payload, vec![1, 2, 3]);
+        }
         Ok(())
     }))
 }

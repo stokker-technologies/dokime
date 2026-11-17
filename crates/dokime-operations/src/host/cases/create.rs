@@ -60,13 +60,13 @@ pub async fn handle(context: &Context, request: CasesCreateRequest) -> Result<Ca
             return Err(Error::Invalid("Create Cases: Select Templates Instead of Already Registered Cases".into()));
         }
         let bytes = crate::host::paging::bytes(&plan);
-        if let Some(reply) =
-            context.host.store().registration(&request.request_id, &bytes).map_err(|error| Error::Precondition(error.to_string()))?
-        {
+        if let Some(reply) = super::storage::registration(context, &request.request_id, &bytes).await? {
             return Ok(reply);
         }
         let reply = crate::host::planning::resolve(context, &plan).await?;
-        Ok(context.host.store().register_cases(Some(&request.request_id), &bytes, &plan.cycle_id, reply, context.settings.message_bytes)?)
+        let reply = super::storage::register(context, &request.request_id, &bytes, &plan.cycle_id, reply).await?;
+        context.host.signal_change();
+        Ok(reply)
     })
     .await
 }

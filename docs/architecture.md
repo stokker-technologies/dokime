@@ -752,7 +752,16 @@ it through `GetFileBytes`; the final product report transaction still awaits the
 compound-mutation cutover.
 The bounded live report registry retains native references only; it owns no second
 copy of the file bytes or file handles after upload.
-Roots containing the superseded SQL view or prepared-report journals are refused
+Case registration and frozen plans use Harmos object operations in
+`crates/dokime-operations/src/host/cases/storage.rs`. One compound mutation
+publishes the registration and every planned case. Replaying its request reads the
+original registration and its native mutation window/key, then replays that same
+mutation. Its durable receipt survives restart without rematerializing the plugin
+or substituting the new admission window. Case deletion keeps
+Dokime's cycle and execution-ownership guards and calls `DeleteObject`; retained
+cuts still see the previous case. No SQL registration or planned-case table remains.
+Execution bindings still belong to the coupled execution/evidence cutover.
+Roots containing the superseded SQL registration/case tables, view or prepared-report journals are refused
 with fresh-root guidance at baseline v1. Admission preserves their stored values;
 there is no migration, fallback reader or automatic reset.
 
@@ -798,7 +807,9 @@ At this pin the native PayloadEncoding enum still contains only PostcardV1.
 The backend consumer must encode native object/record/sample values and their
 schemas truthfully; protobuf bytes must never be relabeled as Postcard. Preserve
 the frozen protobuf definitions and map product values losslessly at the native
-port. Arrow scans supply projected batches to the library query engine directly;
+port. Native Arrow-to-Postcard reconstruction calls Harmos's bounded
+`writes::convert::encode_payloads`; Dokime owns no second payload encoder.
+Arrow scans supply projected batches to the library query engine directly;
 this is no permission for a duplicate durable row representation or new wire codec.
 
 

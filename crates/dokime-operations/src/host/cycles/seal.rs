@@ -52,7 +52,7 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: CyclesSealRequest) -> Result<CyclesSealResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let _guard = context.administration.lock().await;
-        let mut cycle = crate::host::execution_state::cycle(context, &request.name)?;
+        let mut cycle = crate::host::execution_state::cycle(context, &request.name).await?;
         for row in crate::host::execution_state::snapshots(context, &request.name)? {
             if row.state != ExecutionState::Sealed {
                 return Err(Error::Precondition("Seal Cycle: Finish or Cancel Its Executions Before Sealing".into()));
