@@ -135,8 +135,18 @@ pub(super) async fn launch(
         .checked_sub(TransferFraming::Bytes as usize)
         .and_then(NonZeroUsize::new)
         .ok_or_else(|| Error::Invalid("Start Storage Transfers: Allow Transfer Framing Within the Message Capacity".into()))?;
+    let (clock, controller) = source.execution_clock();
+    let clock = if controller.is_some() {
+        clock::Clock::real_at(clock.date())
+    } else {
+        clock::Clock::with_clock(Clock {
+            origin_ns: source.now_ns(),
+            source,
+            origin: Instant::now(),
+        })
+    };
     let catalog = harmos_runtime::plugin::manager::catalog().extend(dokime_storage::persisted::catalog());
-    let (backends, lease) = Backend::open(store, catalog.clone())?;
+    let (backends, lease) = Backend::open_with_execution(store, catalog.clone(), clock.clone())?;
     let storage = StorageManager::with_catalog(
         catalog,
         backends,
@@ -189,16 +199,6 @@ pub(super) async fn launch(
         },
     )
     .map_err(|source| Error::ComposedStartup(Box::new(source)))?;
-    let (clock, controller) = source.execution_clock();
-    let clock = if controller.is_some() {
-        clock::Clock::real_at(clock.date())
-    } else {
-        clock::Clock::with_clock(Clock {
-            origin_ns: source.now_ns(),
-            source,
-            origin: Instant::now(),
-        })
-    };
     let runtime = Box::pin(Runtime::<Application>::launch_with((), Some(settings.clone()), |setup| {
         setup.resource::<Binding>(binding);
         setup.settings().operation_middleware(Arc::new(Timing));

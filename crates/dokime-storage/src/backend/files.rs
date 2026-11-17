@@ -438,6 +438,7 @@ pub(super) fn reclaim(state: &mut State) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use harmos_storage::execution::Execution;
     use harmos_storage::{FileSession, Identifier};
 
     #[tokio::test]
@@ -453,7 +454,7 @@ mod tests {
             chunk_rows: NonZeroUsize::new(4).unwrap(),
             chunk_bytes: NonZeroUsize::new(4096).unwrap(),
         };
-        let backend = Backend::new(&path, history.clone(), settings).unwrap();
+        let backend = Backend::new(&path, history.clone(), settings, Execution::default()).unwrap();
         backend.create_session().await.unwrap();
         let metadata = FileMetadata {
             id: Identifier::new("upload").unwrap(),
@@ -483,7 +484,7 @@ mod tests {
         drop(backend);
 
         // Recover Only the Durable Prefix and Fence the Old Writer.
-        let backend = Backend::new(&path, history, settings).unwrap();
+        let backend = Backend::new(&path, history, settings, Execution::default()).unwrap();
         backend.create_session().await.unwrap();
         assert_eq!(
             backend
