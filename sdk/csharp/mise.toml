@@ -11,6 +11,13 @@
 [tools]
 dotnet = "10.0.403"
 
+[tasks."prepare:protocol"]
+hide = true
+description = "Restore the Pinned Protocol Compiler"
+run = [
+  '"{{tools.dotnet.path}}/dotnet" restore tools/Harmos.csproj --packages ../../target/cs/packages --locked-mode -p:ManagePackageVersionsCentrally=false',
+]
+
 [tasks."prepare:harmos"]
 hide = true
 description = "Prepare the Pinned Harmos Project and NuGet Feed"
@@ -28,12 +35,12 @@ run = [
 
 [tasks."generate"]
 description = "Verify Frozen C# Generation"
-depends = ["restore"]
+depends = ["prepare:protocol"]
 run = ['uv run --no-sync --project ../../tools/python python tools/generate.py']
 
 [tasks."build"]
 description = "Build the C# Solution"
-depends = ["generate"]
+depends = ["restore", "generate"]
 run = ['"{{tools.dotnet.path}}/dotnet" build Dokime.slnx --configuration Release --no-restore']
 
 [tasks."format"]
@@ -134,5 +141,5 @@ hide = true
 description = "Compile the Generated Client and Plugin Consumer"
 run = [
   '"{{tools.dotnet.path}}/dotnet" restore tests/Generation/Generation.csproj --configfile NuGet.Config --locked-mode',
-  '"{{tools.dotnet.path}}/dotnet" build tests/Generation/Generation.csproj --configuration Release --no-restore',
+  '"{{tools.dotnet.path}}/dotnet" build tests/Generation/Generation.csproj --configuration Debug --no-restore',
 ]

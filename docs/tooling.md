@@ -48,8 +48,28 @@ transport, crate publishing, Python publishing and review evidence have their
 own modules under `release/registry/`. Package definitions, assembly, executable
 verification and installer checks have separate modules under `package/`. Test lane execution, coverage,
 benchmarks and child-process execution have separate owners under `test/`.
-Descriptor projection and each language renderer live under `build/resources/`;
-public names and C++ type mappings belong to one generation invocation.
+The tools package depends on `harmos-tools` from the same immutable git revision
+as the Cargo carrier dependencies. `tools/python/pyproject.toml` declares its
+`tools/python` subdirectory source; the root `uv.lock` records that resolution.
+No sibling library checkout is needed. When changing the carrier pin, update this
+source revision and refresh the root lock together.
+
+`build/protocol.py` passes the product namespace, formatter inputs, restored
+Grpc.Tools path and request selector policy to
+`harmos_tools.build.resources.sdk.generate`. Shared tooling owns descriptor
+analysis, the four language renderers, output inventory/drift and C# wire
+projection. SDK C++ and C# generation checks use the same product configuration and complete
+shared SDK inventory; both restore the C# protocol compiler without compiling it.
+`build/protocol_callers.py` retains product public-surface policy; caller option
+decoding comes from `harmos_tools.source.protocol`.
+
+The current pinned shared `sdk.generate` still requires `composition`, and emits
+`Wire as Call`, `ClientRoot as Client` and `Window as SampleWindow`. Removing those
+renames requires adopting a library revision with the corrected generator; do not
+post-process generated output or restore local renderers. The shared public-surface
+checker also lacks a product namespace parameter, so product policy remains local.
+`protocol/composition.toml` remains required by the pinned generator, runtime
+composition and desktop host-binding generator.
 
 Disposable directory owners expose their path and explicit `close()` operation.
 Scratch roots, private credential stores, headless displays and build phases
@@ -64,7 +84,8 @@ Run the tooling stories through the public selection:
 
 ```sh
 mise run test -- --language python --layer integration --project tools/python
-mise run lint -- --language python
+mise run format:python -- --project tools/python
+mise run check:python:tools
 ```
 
 ## Focused Development

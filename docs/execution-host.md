@@ -1696,10 +1696,12 @@ unchanged. No library operation is widened or shadowed by a product declaration.
 
 `mise run generate -- --protocol` owns the protocol crate, composed resource table,
 all four SDK surfaces, private Python wire modules and C# wire output. Dokime owns
-`tools/protocol/src/protocol.rs`, `tools/python/src/dokime_tools/build/{protocol,
-protocol_callers,resource_roots,csharp_protocol}.py`, the language renderers in
-`tools/python/src/dokime_tools/build/resources/` and
-`sdk/python/tools/generate.py`; none imports or executes library tooling.
+`tools/protocol/src/protocol.rs`, the product configuration and task entry point in
+`tools/python/src/dokime_tools/build/protocol.py`, public-surface policy in
+`build/protocol_callers.py` and `sdk/python/tools/generate.py`. The tools package
+consumes `harmos-tools` from the same immutable revision pinned by Cargo; its shared
+SDK generator owns descriptor analysis, language renderers and C# wire projection.
+See [Repository Tooling](tooling.md#python-tooling) for the invocation and pin limitations.
 C++ wire messages/stubs are produced by its own CMake generation rule at build time.
 Root model names take precedence; conflicting library value names receive a Harmos
 prefix in the composed barrel (for example HarmosSection).

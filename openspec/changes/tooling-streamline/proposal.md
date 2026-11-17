@@ -99,10 +99,12 @@ check:
 
 ## Settled
 
-- Tooling is duplicated between Dokime and Harmos on purpose: each project is
-  an independent module with its own copy. The copies are kept harmonized,
-  with the same task names, arguments, module layout and behaviour, and a
-  fix made in one is made in the other.
+- Repository automation remains project-owned. The generator-adoption owner
+  decision supersedes copied SDK tooling: `harmos-tools` is consumed from the
+  same immutable revision as Cargo's carrier dependencies. Shared tooling owns
+  descriptor analysis, four SDK renderers and C# wire projection; product code
+  supplies explicit configuration and task entry points. Other project-owned
+  automation copies remain harmonized until their owners decide otherwise.
 - The owner decision on 2026-11-16 restores impact planning through one hidden
   `ci:impact` task. Pure `classify(paths)` and `plan(classes, event)` functions own
   job selection and matrices; workflows route from those outputs. Markdown,

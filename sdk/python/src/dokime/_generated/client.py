@@ -4,26 +4,32 @@
 from collections.abc import AsyncGenerator, Sequence
 from uuid import uuid4
 
+import harmos._wire.host.v1.plugins.settings_pb2
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.timestamp_pb2 import Timestamp
 from grpc import CallCredentials
 from grpc.aio import AioRpcError, Channel
-from harmos._client_transport import Metadata as CallMetadata
-from harmos._client_transport import call_error, stream, unary
-from harmos._connection import Connection as LibraryConnection
-from harmos._wire.host.v1.access.certificates_pb2 import CertificatesCreateRequest as AccessCertificatesCreateRequest
-from harmos._wire.host.v1.access.certificates_pb2 import CertificatesCreateResponse as AccessCertificatesCreateResponse
-from harmos._wire.host.v1.access.listener_pb2 import ListenerGetRequest as AccessListenerGetRequest
-from harmos._wire.host.v1.access.listener_pb2 import ListenerGetResponse as AccessListenerGetResponse
-from harmos._wire.host.v1.access.listener_pb2 import ListenerSetRequest as AccessListenerSetRequest
-from harmos._wire.host.v1.access.listener_pb2 import ListenerSetResponse as AccessListenerSetResponse
-from harmos._wire.host.v1.access.listener_pb2 import ListenerValue as AccessListenerValue
-from harmos._wire.host.v1.access.pairings_pb2 import PairingsCreateRequest as AccessPairingsCreateRequest
-from harmos._wire.host.v1.access.pairings_pb2 import PairingsCreateResponse as AccessPairingsCreateResponse
-from harmos._wire.host.v1.access.pairings_pb2 import PairingsDeleteRequest as AccessPairingsDeleteRequest
-from harmos._wire.host.v1.access.pairings_pb2 import PairingsDeleteResponse as AccessPairingsDeleteResponse
-from harmos._wire.host.v1.access.pairings_pb2 import PairingsListRequest as AccessPairingsListRequest
-from harmos._wire.host.v1.access.pairings_pb2 import PairingsListResponse as AccessPairingsListResponse
+from harmos import _connection
+from harmos._client_transport import Metadata, call_error, stream, unary
+from harmos._wire.host.v1.access.certificates_pb2 import (
+    CertificatesCreateRequest,
+    CertificatesCreateResponse,
+)
+from harmos._wire.host.v1.access.listener_pb2 import (
+    ListenerGetRequest,
+    ListenerGetResponse,
+    ListenerSetRequest,
+    ListenerSetResponse,
+    ListenerValue,
+)
+from harmos._wire.host.v1.access.pairings_pb2 import (
+    PairingsCreateRequest,
+    PairingsCreateResponse,
+    PairingsDeleteRequest,
+    PairingsDeleteResponse,
+    PairingsListRequest,
+    PairingsListResponse,
+)
 from harmos._wire.host.v1.invocations_pb2 import (
     InvocationsCancelRequest,
     InvocationsCancelResponse,
@@ -34,11 +40,16 @@ from harmos._wire.host.v1.invocations_pb2 import (
     InvocationsWatchRequest,
     InvocationsWatchResponse,
 )
-from harmos._wire.host.v1.operations_pb2 import OperationsGetRequest, OperationsGetResponse, OperationsListRequest, OperationsListResponse
-from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListRequest as PluginsSettingsListRequest
-from harmos._wire.host.v1.plugins.settings_pb2 import SettingsListResponse as PluginsSettingsListResponse
-from harmos._wire.host.v1.plugins.settings_pb2 import SettingsSetRequest as PluginsSettingsSetRequest
-from harmos._wire.host.v1.plugins.settings_pb2 import SettingsSetResponse as PluginsSettingsSetResponse
+from harmos._wire.host.v1.operations_pb2 import (
+    OperationsGetRequest,
+    OperationsGetResponse,
+    OperationsListRequest,
+    OperationsListResponse,
+)
+from harmos._wire.host.v1.plugins.settings_pb2 import (
+    SettingsListRequest,
+    SettingsListResponse,
+)
 from harmos._wire.host.v1.plugins_pb2 import (
     PluginEntry,
     PluginPlacement,
@@ -60,20 +71,44 @@ from harmos._wire.host.v1.plugins_pb2 import (
     PluginsWatchResponse,
     PluginValue,
 )
-from harmos._wire.host.v1.schemas_pb2 import SchemaDescription, SchemasListRequest, SchemasListResponse
-from harmos._wire.host.v1.status.diagnostics_pb2 import DiagnosticsGetRequest as StatusDiagnosticsGetRequest
-from harmos._wire.host.v1.status.diagnostics_pb2 import DiagnosticsGetResponse as StatusDiagnosticsGetResponse
-from harmos._wire.host.v1.status.logs_pb2 import LogsListRequest as StatusLogsListRequest
-from harmos._wire.host.v1.status.logs_pb2 import LogsListResponse as StatusLogsListResponse
-from harmos._wire.host.v1.status.logs_pb2 import LogsWatchRequest as StatusLogsWatchRequest
-from harmos._wire.host.v1.status.logs_pb2 import LogsWatchResponse as StatusLogsWatchResponse
-from harmos._wire.host.v1.status.trace_events_pb2 import TraceEventsListRequest as StatusTraceEventsListRequest
-from harmos._wire.host.v1.status.trace_events_pb2 import TraceEventsListResponse as StatusTraceEventsListResponse
-from harmos._wire.host.v1.status.trace_events_pb2 import TraceEventsWatchRequest as StatusTraceEventsWatchRequest
-from harmos._wire.host.v1.status.trace_events_pb2 import TraceEventsWatchResponse as StatusTraceEventsWatchResponse
-from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusGetResponse, StatusWatchRequest, StatusWatchResponse
-from harmos._wire.host.v1.streams_pb2 import StreamIdentity, StreamsListRequest, StreamsListResponse
-from harmos._wire.host.v1.time_pb2 import TimeGetRequest, TimeGetResponse, TimeSleepRequest, TimeSleepResponse
+from harmos._wire.host.v1.schemas_pb2 import (
+    SchemaDescription,
+    SchemasListRequest,
+    SchemasListResponse,
+)
+from harmos._wire.host.v1.status.diagnostics_pb2 import (
+    DiagnosticsGetRequest,
+    DiagnosticsGetResponse,
+)
+from harmos._wire.host.v1.status.logs_pb2 import (
+    LogsListRequest,
+    LogsListResponse,
+    LogsWatchRequest,
+    LogsWatchResponse,
+)
+from harmos._wire.host.v1.status.trace_events_pb2 import (
+    TraceEventsListRequest,
+    TraceEventsListResponse,
+    TraceEventsWatchRequest,
+    TraceEventsWatchResponse,
+)
+from harmos._wire.host.v1.status_pb2 import (
+    StatusGetRequest,
+    StatusGetResponse,
+    StatusWatchRequest,
+    StatusWatchResponse,
+)
+from harmos._wire.host.v1.streams_pb2 import (
+    StreamIdentity,
+    StreamsListRequest,
+    StreamsListResponse,
+)
+from harmos._wire.host.v1.time_pb2 import (
+    TimeGetRequest,
+    TimeGetResponse,
+    TimeSleepRequest,
+    TimeSleepResponse,
+)
 from harmos._wire.model.v1.file_pb2 import FileMetadata, FileReference, Upload
 from harmos._wire.model.v1.invocation_pb2 import InstanceState
 from harmos._wire.model.v1.operation_pb2 import DiscoveredOperation
@@ -82,12 +117,28 @@ from harmos._wire.model.v1.position_pb2 import Position, ReadCut
 from harmos._wire.model.v1.receipt_pb2 import Receipt
 from harmos._wire.model.v1.setting_pb2 import SettingValues
 
-from dokime._wire.host.v1.aggregates_pb2 import AggregatesGetRequest, AggregatesGetResponse, QueryAggregate, QueryFilter, QuerySource
-from dokime._wire.host.v1.backend.overview_pb2 import OverviewGetRequest as BackendOverviewGetRequest
-from dokime._wire.host.v1.backend.overview_pb2 import OverviewGetResponse as BackendOverviewGetResponse
-from dokime._wire.host.v1.backend.overview_pb2 import OverviewWatchRequest as BackendOverviewWatchRequest
-from dokime._wire.host.v1.backend.overview_pb2 import OverviewWatchResponse as BackendOverviewWatchResponse
-from dokime._wire.host.v1.backend_pb2 import BackendAppearanceRequest, BackendAppearanceResponse
+import dokime._wire.host.v1.plots.settings_pb2
+import dokime._wire.host.v1.plugins.secrets_pb2
+import dokime._wire.host.v1.secrets_pb2
+import dokime._wire.host.v1.settings_pb2
+import dokime._wire.model.v1.metadata_pb2
+from dokime._wire.host.v1.aggregates_pb2 import (
+    AggregatesGetRequest,
+    AggregatesGetResponse,
+    QueryAggregate,
+    QueryFilter,
+    QuerySource,
+)
+from dokime._wire.host.v1.backend.overview_pb2 import (
+    OverviewGetRequest,
+    OverviewGetResponse,
+    OverviewWatchRequest,
+    OverviewWatchResponse,
+)
+from dokime._wire.host.v1.backend_pb2 import (
+    BackendAppearanceRequest,
+    BackendAppearanceResponse,
+)
 from dokime._wire.host.v1.cases_pb2 import (
     CasesCreateRequest,
     CasesCreateResponse,
@@ -103,20 +154,24 @@ from dokime._wire.host.v1.cases_pb2 import (
     CasesWatchResponse,
     SelectionPlan,
 )
-from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateRequest as ContentArtifactsCreateRequest
-from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsCreateResponse as ContentArtifactsCreateResponse
-from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsGetRequest as ContentArtifactsGetRequest
-from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsGetResponse as ContentArtifactsGetResponse
-from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsListRequest as ContentArtifactsListRequest
-from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsListResponse as ContentArtifactsListResponse
-from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsWatchRequest as ContentArtifactsWatchRequest
-from dokime._wire.host.v1.content.artifacts_pb2 import ArtifactsWatchResponse as ContentArtifactsWatchResponse
-from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesGetRequest as ContentExecutionFilesGetRequest
-from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesGetResponse as ContentExecutionFilesGetResponse
-from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesListRequest as ContentExecutionFilesListRequest
-from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesListResponse as ContentExecutionFilesListResponse
-from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesWatchRequest as ContentExecutionFilesWatchRequest
-from dokime._wire.host.v1.content.execution_files_pb2 import ExecutionFilesWatchResponse as ContentExecutionFilesWatchResponse
+from dokime._wire.host.v1.content.artifacts_pb2 import (
+    ArtifactsCreateRequest,
+    ArtifactsCreateResponse,
+    ArtifactsGetRequest,
+    ArtifactsGetResponse,
+    ArtifactsListRequest,
+    ArtifactsListResponse,
+    ArtifactsWatchRequest,
+    ArtifactsWatchResponse,
+)
+from dokime._wire.host.v1.content.execution_files_pb2 import (
+    ExecutionFilesGetRequest,
+    ExecutionFilesGetResponse,
+    ExecutionFilesListRequest,
+    ExecutionFilesListResponse,
+    ExecutionFilesWatchRequest,
+    ExecutionFilesWatchResponse,
+)
 from dokime._wire.host.v1.cycles_pb2 import (
     CycleFilter,
     CycleOrder,
@@ -142,38 +197,48 @@ from dokime._wire.host.v1.documents_pb2 import (
     DocumentsWatchRequest,
     DocumentsWatchResponse,
 )
-from dokime._wire.host.v1.evidence.health_events_pb2 import HealthEventsListRequest as EvidenceHealthEventsListRequest
-from dokime._wire.host.v1.evidence.health_events_pb2 import HealthEventsListResponse as EvidenceHealthEventsListResponse
-from dokime._wire.host.v1.evidence.health_events_pb2 import HealthEventsWatchRequest as EvidenceHealthEventsWatchRequest
-from dokime._wire.host.v1.evidence.health_events_pb2 import HealthEventsWatchResponse as EvidenceHealthEventsWatchResponse
-from dokime._wire.host.v1.evidence.notes_pb2 import AnnotationOwner as EvidenceAnnotationOwner
-from dokime._wire.host.v1.evidence.notes_pb2 import AnnotationSelection as EvidenceAnnotationSelection
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesCreateRequest as EvidenceNotesCreateRequest
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesCreateResponse as EvidenceNotesCreateResponse
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesGetRequest as EvidenceNotesGetRequest
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesGetResponse as EvidenceNotesGetResponse
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesListRequest as EvidenceNotesListRequest
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesListResponse as EvidenceNotesListResponse
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesSetRequest as EvidenceNotesSetRequest
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesSetResponse as EvidenceNotesSetResponse
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesWatchRequest as EvidenceNotesWatchRequest
-from dokime._wire.host.v1.evidence.notes_pb2 import NotesWatchResponse as EvidenceNotesWatchResponse
-from dokime._wire.host.v1.evidence.notes_pb2 import NoteWritable as EvidenceNoteWritable
-from dokime._wire.host.v1.evidence.records_pb2 import CapturedRecordSelection as EvidenceCapturedRecordSelection
-from dokime._wire.host.v1.evidence.records_pb2 import RecordScope as EvidenceRecordScope
-from dokime._wire.host.v1.evidence.records_pb2 import RecordsListRequest as EvidenceRecordsListRequest
-from dokime._wire.host.v1.evidence.records_pb2 import RecordsListResponse as EvidenceRecordsListResponse
-from dokime._wire.host.v1.evidence.records_pb2 import RecordsWatchRequest as EvidenceRecordsWatchRequest
-from dokime._wire.host.v1.evidence.records_pb2 import RecordsWatchResponse as EvidenceRecordsWatchResponse
-from dokime._wire.host.v1.evidence.samples_pb2 import BucketRequest as EvidenceBucketRequest
-from dokime._wire.host.v1.evidence.samples_pb2 import SamplesListRequest as EvidenceSamplesListRequest
-from dokime._wire.host.v1.evidence.samples_pb2 import SamplesListResponse as EvidenceSamplesListResponse
-from dokime._wire.host.v1.evidence.samples_pb2 import SamplesWatchRequest as EvidenceSamplesWatchRequest
-from dokime._wire.host.v1.evidence.samples_pb2 import SamplesWatchResponse as EvidenceSamplesWatchResponse
-from dokime._wire.host.v1.evidence.traceability_pb2 import TraceabilityGetRequest as EvidenceTraceabilityGetRequest
-from dokime._wire.host.v1.evidence.traceability_pb2 import TraceabilityGetResponse as EvidenceTraceabilityGetResponse
-from dokime._wire.host.v1.evidence.traceability_pb2 import TraceabilityWatchRequest as EvidenceTraceabilityWatchRequest
-from dokime._wire.host.v1.evidence.traceability_pb2 import TraceabilityWatchResponse as EvidenceTraceabilityWatchResponse
+from dokime._wire.host.v1.evidence.health_events_pb2 import (
+    HealthEventsListRequest,
+    HealthEventsListResponse,
+    HealthEventsWatchRequest,
+    HealthEventsWatchResponse,
+)
+from dokime._wire.host.v1.evidence.notes_pb2 import (
+    AnnotationOwner,
+    AnnotationSelection,
+    NotesCreateRequest,
+    NotesCreateResponse,
+    NotesGetRequest,
+    NotesGetResponse,
+    NotesListRequest,
+    NotesListResponse,
+    NotesSetRequest,
+    NotesSetResponse,
+    NotesWatchRequest,
+    NotesWatchResponse,
+    NoteWritable,
+)
+from dokime._wire.host.v1.evidence.records_pb2 import (
+    CapturedRecordSelection,
+    RecordScope,
+    RecordsListRequest,
+    RecordsListResponse,
+    RecordsWatchRequest,
+    RecordsWatchResponse,
+)
+from dokime._wire.host.v1.evidence.samples_pb2 import (
+    BucketRequest,
+    SamplesListRequest,
+    SamplesListResponse,
+    SamplesWatchRequest,
+    SamplesWatchResponse,
+)
+from dokime._wire.host.v1.evidence.traceability_pb2 import (
+    TraceabilityGetRequest,
+    TraceabilityGetResponse,
+    TraceabilityWatchRequest,
+    TraceabilityWatchResponse,
+)
 from dokime._wire.host.v1.evidence_pb2 import (
     EvidenceArchiveRequest,
     EvidenceArchiveResponse,
@@ -182,17 +247,23 @@ from dokime._wire.host.v1.evidence_pb2 import (
     EvidenceSubject,
     Output,
 )
-from dokime._wire.host.v1.executions.commands_pb2 import CommandsCreateRequest as ExecutionsCommandsCreateRequest
-from dokime._wire.host.v1.executions.commands_pb2 import CommandsCreateResponse as ExecutionsCommandsCreateResponse
-from dokime._wire.host.v1.executions.commands_pb2 import CommandsGetRequest as ExecutionsCommandsGetRequest
-from dokime._wire.host.v1.executions.commands_pb2 import CommandsGetResponse as ExecutionsCommandsGetResponse
-from dokime._wire.host.v1.executions.commands_pb2 import ExecutionCommandAction as ExecutionsExecutionCommandAction
-from dokime._wire.host.v1.executions.progress_pb2 import ProgressGetRequest as ExecutionsProgressGetRequest
-from dokime._wire.host.v1.executions.progress_pb2 import ProgressGetResponse as ExecutionsProgressGetResponse
-from dokime._wire.host.v1.executions.progress_pb2 import ProgressWatchRequest as ExecutionsProgressWatchRequest
-from dokime._wire.host.v1.executions.progress_pb2 import ProgressWatchResponse as ExecutionsProgressWatchResponse
-from dokime._wire.host.v1.executions.schemas_pb2 import SchemasGetRequest as ExecutionsSchemasGetRequest
-from dokime._wire.host.v1.executions.schemas_pb2 import SchemasGetResponse as ExecutionsSchemasGetResponse
+from dokime._wire.host.v1.executions.commands_pb2 import (
+    CommandsCreateRequest,
+    CommandsCreateResponse,
+    CommandsGetRequest,
+    CommandsGetResponse,
+    ExecutionCommandAction,
+)
+from dokime._wire.host.v1.executions.progress_pb2 import (
+    ProgressGetRequest,
+    ProgressGetResponse,
+    ProgressWatchRequest,
+    ProgressWatchResponse,
+)
+from dokime._wire.host.v1.executions.schemas_pb2 import (
+    SchemasGetRequest,
+    SchemasGetResponse,
+)
 from dokime._wire.host.v1.executions_pb2 import (
     ExecutionBinding,
     ExecutionFilter,
@@ -224,18 +295,20 @@ from dokime._wire.host.v1.executions_pb2 import (
     ExecutionsWatchResponse,
     ExecutionWritable,
 )
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsAppendRequest as FilesUploadsAppendRequest
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsAppendResponse as FilesUploadsAppendResponse
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsCreateRequest as FilesUploadsCreateRequest
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsCreateResponse as FilesUploadsCreateResponse
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsDeleteRequest as FilesUploadsDeleteRequest
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsDeleteResponse as FilesUploadsDeleteResponse
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsGetRequest as FilesUploadsGetRequest
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsGetResponse as FilesUploadsGetResponse
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsPublishRequest as FilesUploadsPublishRequest
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsPublishResponse as FilesUploadsPublishResponse
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsResumeRequest as FilesUploadsResumeRequest
-from dokime._wire.host.v1.files.uploads_pb2 import UploadsResumeResponse as FilesUploadsResumeResponse
+from dokime._wire.host.v1.files.uploads_pb2 import (
+    UploadsAppendRequest,
+    UploadsAppendResponse,
+    UploadsCreateRequest,
+    UploadsCreateResponse,
+    UploadsDeleteRequest,
+    UploadsDeleteResponse,
+    UploadsGetRequest,
+    UploadsGetResponse,
+    UploadsPublishRequest,
+    UploadsPublishResponse,
+    UploadsResumeRequest,
+    UploadsResumeResponse,
+)
 from dokime._wire.host.v1.files_pb2 import (
     FilesDeleteRequest,
     FilesDeleteResponse,
@@ -246,36 +319,36 @@ from dokime._wire.host.v1.files_pb2 import (
     FilesWatchRequest,
     FilesWatchResponse,
 )
-from dokime._wire.host.v1.media.captures_pb2 import CaptureKind as MediaCaptureKind
-from dokime._wire.host.v1.media.captures_pb2 import CapturesCreateRequest as MediaCapturesCreateRequest
-from dokime._wire.host.v1.media.captures_pb2 import CapturesCreateResponse as MediaCapturesCreateResponse
-from dokime._wire.host.v1.media.captures_pb2 import CapturesGetRequest as MediaCapturesGetRequest
-from dokime._wire.host.v1.media.captures_pb2 import CapturesGetResponse as MediaCapturesGetResponse
-from dokime._wire.host.v1.media.captures_pb2 import CapturesStopRequest as MediaCapturesStopRequest
-from dokime._wire.host.v1.media.captures_pb2 import CapturesStopResponse as MediaCapturesStopResponse
-from dokime._wire.host.v1.media.captures_pb2 import CapturesWatchRequest as MediaCapturesWatchRequest
-from dokime._wire.host.v1.media.captures_pb2 import CapturesWatchResponse as MediaCapturesWatchResponse
-from dokime._wire.host.v1.media.captures_pb2 import RecordingAudio as MediaRecordingAudio
-from dokime._wire.host.v1.plots.settings_pb2 import PlotSettingsValue as PlotsPlotSettingsValue
-from dokime._wire.host.v1.plots.settings_pb2 import SettingsGetRequest as PlotsSettingsGetRequest
-from dokime._wire.host.v1.plots.settings_pb2 import SettingsGetResponse as PlotsSettingsGetResponse
-from dokime._wire.host.v1.plots.settings_pb2 import SettingsSetRequest as PlotsSettingsSetRequest
-from dokime._wire.host.v1.plots.settings_pb2 import SettingsSetResponse as PlotsSettingsSetResponse
-from dokime._wire.host.v1.plots.snapshots_pb2 import PlotRequest as PlotsPlotRequest
-from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsListRequest as PlotsSnapshotsListRequest
-from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsListResponse as PlotsSnapshotsListResponse
-from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsWatchRequest as PlotsSnapshotsWatchRequest
-from dokime._wire.host.v1.plots.snapshots_pb2 import SnapshotsWatchResponse as PlotsSnapshotsWatchResponse
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsListRequest as PluginsSecretsListRequest
-from dokime._wire.host.v1.plugins.secrets_pb2 import SecretsListResponse as PluginsSecretsListResponse
+from dokime._wire.host.v1.media.captures_pb2 import (
+    CaptureKind,
+    CapturesCreateRequest,
+    CapturesCreateResponse,
+    CapturesGetRequest,
+    CapturesGetResponse,
+    CapturesStopRequest,
+    CapturesStopResponse,
+    CapturesWatchRequest,
+    CapturesWatchResponse,
+    RecordingAudio,
+)
+from dokime._wire.host.v1.plots.settings_pb2 import PlotSettingsValue
+from dokime._wire.host.v1.plots.snapshots_pb2 import (
+    PlotRequest,
+    SnapshotsListRequest,
+    SnapshotsListResponse,
+    SnapshotsWatchRequest,
+    SnapshotsWatchResponse,
+)
 from dokime._wire.host.v1.prompt_definitions_pb2 import (
     PromptDefinitionsGetRequest,
     PromptDefinitionsGetResponse,
     PromptDefinitionsListRequest,
     PromptDefinitionsListResponse,
 )
-from dokime._wire.host.v1.prompts.answers_pb2 import AnswersCreateRequest as PromptsAnswersCreateRequest
-from dokime._wire.host.v1.prompts.answers_pb2 import AnswersCreateResponse as PromptsAnswersCreateResponse
+from dokime._wire.host.v1.prompts.answers_pb2 import (
+    AnswersCreateRequest,
+    AnswersCreateResponse,
+)
 from dokime._wire.host.v1.prompts_pb2 import (
     PromptsGetRequest,
     PromptsGetResponse,
@@ -309,8 +382,6 @@ from dokime._wire.host.v1.secrets_pb2 import (
     SecretsGetResponse,
     SecretsImportRequest,
     SecretsImportResponse,
-    SecretsListRequest,
-    SecretsListResponse,
     SecretsSetRequest,
     SecretsSetResponse,
     SecretsWatchRequest,
@@ -319,28 +390,30 @@ from dokime._wire.host.v1.secrets_pb2 import (
 )
 from dokime._wire.host.v1.settings_pb2 import (
     ApplicationSettings,
-    SettingsGetRequest,
-    SettingsGetResponse,
     SettingsSchemaRequest,
     SettingsSchemaResponse,
-    SettingsSetRequest,
-    SettingsSetResponse,
 )
-from dokime._wire.host.v1.storage.sources_pb2 import SourcesGetRequest as StorageSourcesGetRequest
-from dokime._wire.host.v1.storage.sources_pb2 import SourcesGetResponse as StorageSourcesGetResponse
-from dokime._wire.host.v1.storage.sources_pb2 import SourcesSetRequest as StorageSourcesSetRequest
-from dokime._wire.host.v1.storage.sources_pb2 import SourcesSetResponse as StorageSourcesSetResponse
-from dokime._wire.host.v1.storage.sources_pb2 import StorageSources as StorageStorageSources
+from dokime._wire.host.v1.storage.sources_pb2 import (
+    SourcesGetRequest,
+    SourcesGetResponse,
+    SourcesSetRequest,
+    SourcesSetResponse,
+    StorageSources,
+)
 from dokime._wire.host.v1.stream_schemas_pb2 import (
     StreamSchemasGetRequest,
     StreamSchemasGetResponse,
     StreamSchemasListRequest,
     StreamSchemasListResponse,
 )
-from dokime._wire.host.v1.suites_pb2 import SuitesGetRequest, SuitesGetResponse, SuitesListRequest, SuitesListResponse
+from dokime._wire.host.v1.suites_pb2 import (
+    SuitesGetRequest,
+    SuitesGetResponse,
+    SuitesListRequest,
+    SuitesListResponse,
+)
 from dokime._wire.model.v1.evidence_pb2 import ArtifactScope, EvidenceScope, Window
 from dokime._wire.model.v1.execution_pb2 import Origin
-from dokime._wire.model.v1.metadata_pb2 import Metadata
 from dokime._wire.model.v1.scalar_pb2 import MapValue
 
 
@@ -349,14 +422,18 @@ class AccessCertificatesResource:
         self._channel = channel
 
     async def create(
-        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
+        self,
+        *,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
     ) -> str:
-        request = AccessCertificatesCreateRequest()
+        request = CertificatesCreateRequest()
         response = await unary(
             self._channel,
             "/harmos.host.v1.access.Certificates/Create",
             request,
-            AccessCertificatesCreateResponse,
+            CertificatesCreateResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -370,14 +447,18 @@ class AccessListenerResource:
         self._channel = channel
 
     async def get(
-        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
-    ) -> AccessListenerGetResponse:
-        request = AccessListenerGetRequest()
+        self,
+        *,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ListenerGetResponse:
+        request = ListenerGetRequest()
         response = await unary(
             self._channel,
             "/harmos.host.v1.access.Listener/Get",
             request,
-            AccessListenerGetResponse,
+            ListenerGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -387,19 +468,19 @@ class AccessListenerResource:
 
     async def set(
         self,
-        value: AccessListenerValue,
+        value: ListenerValue,
         expected_revision: bytes,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AccessListenerSetResponse:
-        request = AccessListenerSetRequest(value=value, expected_revision=expected_revision)
+    ) -> ListenerSetResponse:
+        request = ListenerSetRequest(value=value, expected_revision=expected_revision)
         response = await unary(
             self._channel,
             "/harmos.host.v1.access.Listener/Set",
             request,
-            AccessListenerSetResponse,
+            ListenerSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -416,16 +497,16 @@ class AccessPairingsResource:
         self,
         label: str,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AccessPairingsCreateResponse:
-        request = AccessPairingsCreateRequest(label=label)
+    ) -> PairingsCreateResponse:
+        request = PairingsCreateRequest(label=label)
         response = await unary(
             self._channel,
             "/harmos.host.v1.access.Pairings/Create",
             request,
-            AccessPairingsCreateResponse,
+            PairingsCreateResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -437,16 +518,16 @@ class AccessPairingsResource:
         self,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AccessPairingsListResponse:
-        request = AccessPairingsListRequest(at=at)
+    ) -> PairingsListResponse:
+        request = PairingsListRequest(at=at)
         response = await unary(
             self._channel,
             "/harmos.host.v1.access.Pairings/List",
             request,
-            AccessPairingsListResponse,
+            PairingsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -458,16 +539,16 @@ class AccessPairingsResource:
         self,
         name: str,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AccessPairingsDeleteResponse:
-        request = AccessPairingsDeleteRequest(name=name)
+    ) -> PairingsDeleteResponse:
+        request = PairingsDeleteRequest(name=name)
         response = await unary(
             self._channel,
             "/harmos.host.v1.access.Pairings/Delete",
             request,
-            AccessPairingsDeleteResponse,
+            PairingsDeleteResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -484,16 +565,16 @@ class BackendOverviewResource:
         self,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> BackendOverviewGetResponse:
-        request = BackendOverviewGetRequest(at=at)
+    ) -> OverviewGetResponse:
+        request = OverviewGetRequest(at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.backend.Overview/Get",
             request,
-            BackendOverviewGetResponse,
+            OverviewGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -505,16 +586,16 @@ class BackendOverviewResource:
         self,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[BackendOverviewWatchResponse]:
-        request = BackendOverviewWatchRequest(at=at)
+    ) -> AsyncGenerator[OverviewWatchResponse]:
+        request = OverviewWatchRequest(at=at)
         call = stream(
             self._channel,
             "/dokime.host.v1.backend.Overview/Watch",
             request,
-            BackendOverviewWatchResponse,
+            OverviewWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -537,16 +618,16 @@ class ContentArtifactsResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> ContentArtifactsGetResponse:
-        request = ContentArtifactsGetRequest(name=name, at=at)
+    ) -> ArtifactsGetResponse:
+        request = ArtifactsGetRequest(name=name, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.content.Artifacts/Get",
             request,
-            ContentArtifactsGetResponse,
+            ArtifactsGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -557,17 +638,17 @@ class ContentArtifactsResource:
     async def create(
         self,
         file: FileReference,
-        scope: ArtifactScope,
         filename: str,
         content_type: str,
         *,
+        scope: ArtifactScope | None = None,
         request_id: str | None = None,
-        metadata: Metadata | None = None,
-        call_metadata: CallMetadata | None = None,
+        metadata: dokime._wire.model.v1.metadata_pb2.Metadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> ContentArtifactsCreateResponse:
-        request = ContentArtifactsCreateRequest(
+    ) -> ArtifactsCreateResponse:
+        request = ArtifactsCreateRequest(
             file=file,
             scope=scope,
             filename=filename,
@@ -579,7 +660,7 @@ class ContentArtifactsResource:
             self._channel,
             "/dokime.host.v1.content.Artifacts/Create",
             request,
-            ContentArtifactsCreateResponse,
+            ArtifactsCreateResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -593,16 +674,16 @@ class ContentArtifactsResource:
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> ContentArtifactsListResponse:
-        request = ContentArtifactsListRequest(scope=scope, at=at, page=page)
+    ) -> ArtifactsListResponse:
+        request = ArtifactsListRequest(scope=scope, at=at, page=page)
         response = await unary(
             self._channel,
             "/dokime.host.v1.content.Artifacts/List",
             request,
-            ContentArtifactsListResponse,
+            ArtifactsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -616,16 +697,16 @@ class ContentArtifactsResource:
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[ContentArtifactsWatchResponse]:
-        request = ContentArtifactsWatchRequest(scope=scope, at=at, page=page)
+    ) -> AsyncGenerator[ArtifactsWatchResponse]:
+        request = ArtifactsWatchRequest(scope=scope, at=at, page=page)
         call = stream(
             self._channel,
             "/dokime.host.v1.content.Artifacts/Watch",
             request,
-            ContentArtifactsWatchResponse,
+            ArtifactsWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -649,16 +730,16 @@ class ContentExecutionFilesResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> ContentExecutionFilesGetResponse:
-        request = ContentExecutionFilesGetRequest(parent=parent, name=name, at=at)
+    ) -> ExecutionFilesGetResponse:
+        request = ExecutionFilesGetRequest(parent=parent, name=name, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.content.ExecutionFiles/Get",
             request,
-            ContentExecutionFilesGetResponse,
+            ExecutionFilesGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -672,16 +753,16 @@ class ContentExecutionFilesResource:
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> ContentExecutionFilesListResponse:
-        request = ContentExecutionFilesListRequest(parent=parent, at=at, page=page)
+    ) -> ExecutionFilesListResponse:
+        request = ExecutionFilesListRequest(parent=parent, at=at, page=page)
         response = await unary(
             self._channel,
             "/dokime.host.v1.content.ExecutionFiles/List",
             request,
-            ContentExecutionFilesListResponse,
+            ExecutionFilesListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -695,16 +776,16 @@ class ContentExecutionFilesResource:
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[ContentExecutionFilesWatchResponse]:
-        request = ContentExecutionFilesWatchRequest(parent=parent, at=at, page=page)
+    ) -> AsyncGenerator[ExecutionFilesWatchResponse]:
+        request = ExecutionFilesWatchRequest(parent=parent, at=at, page=page)
         call = stream(
             self._channel,
             "/dokime.host.v1.content.ExecutionFiles/Watch",
             request,
-            ContentExecutionFilesWatchResponse,
+            ExecutionFilesWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -724,20 +805,20 @@ class EvidenceHealthEventsResource:
 
     async def list(
         self,
-        selection: EvidenceAnnotationSelection,
+        selection: AnnotationSelection,
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> EvidenceHealthEventsListResponse:
-        request = EvidenceHealthEventsListRequest(selection=selection, at=at, page=page)
+    ) -> HealthEventsListResponse:
+        request = HealthEventsListRequest(selection=selection, at=at, page=page)
         response = await unary(
             self._channel,
             "/dokime.host.v1.evidence.HealthEvents/List",
             request,
-            EvidenceHealthEventsListResponse,
+            HealthEventsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -747,20 +828,20 @@ class EvidenceHealthEventsResource:
 
     async def watch(
         self,
-        selection: EvidenceAnnotationSelection,
+        selection: AnnotationSelection,
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[EvidenceHealthEventsWatchResponse]:
-        request = EvidenceHealthEventsWatchRequest(selection=selection, at=at, page=page)
+    ) -> AsyncGenerator[HealthEventsWatchResponse]:
+        request = HealthEventsWatchRequest(selection=selection, at=at, page=page)
         call = stream(
             self._channel,
             "/dokime.host.v1.evidence.HealthEvents/Watch",
             request,
-            EvidenceHealthEventsWatchResponse,
+            HealthEventsWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -783,16 +864,16 @@ class EvidenceNotesResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> EvidenceNotesGetResponse:
-        request = EvidenceNotesGetRequest(name=name, at=at)
+    ) -> NotesGetResponse:
+        request = NotesGetRequest(name=name, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.evidence.Notes/Get",
             request,
-            EvidenceNotesGetResponse,
+            NotesGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -803,22 +884,25 @@ class EvidenceNotesResource:
     async def set(
         self,
         name: str,
-        value: EvidenceNoteWritable,
+        value: NoteWritable,
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> EvidenceNotesSetResponse:
-        request = EvidenceNotesSetRequest(
-            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+    ) -> NotesSetResponse:
+        request = NotesSetRequest(
+            name=name,
+            value=value,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
             "/dokime.host.v1.evidence.Notes/Set",
             request,
-            EvidenceNotesSetResponse,
+            NotesSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -828,20 +912,20 @@ class EvidenceNotesResource:
 
     async def list(
         self,
-        selection: EvidenceAnnotationSelection,
+        selection: AnnotationSelection,
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> EvidenceNotesListResponse:
-        request = EvidenceNotesListRequest(selection=selection, at=at, page=page)
+    ) -> NotesListResponse:
+        request = NotesListRequest(selection=selection, at=at, page=page)
         response = await unary(
             self._channel,
             "/dokime.host.v1.evidence.Notes/List",
             request,
-            EvidenceNotesListResponse,
+            NotesListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -851,20 +935,20 @@ class EvidenceNotesResource:
 
     async def watch(
         self,
-        selection: EvidenceAnnotationSelection,
+        selection: AnnotationSelection,
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[EvidenceNotesWatchResponse]:
-        request = EvidenceNotesWatchRequest(selection=selection, at=at, page=page)
+    ) -> AsyncGenerator[NotesWatchResponse]:
+        request = NotesWatchRequest(selection=selection, at=at, page=page)
         call = stream(
             self._channel,
             "/dokime.host.v1.evidence.Notes/Watch",
             request,
-            EvidenceNotesWatchResponse,
+            NotesWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -879,20 +963,24 @@ class EvidenceNotesResource:
 
     async def create(
         self,
-        owner: EvidenceAnnotationOwner,
-        value: EvidenceNoteWritable,
+        owner: AnnotationOwner,
+        value: NoteWritable,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> EvidenceNotesCreateResponse:
-        request = EvidenceNotesCreateRequest(owner=owner, value=value, request_id=request_id if request_id is not None else str(uuid4()))
+    ) -> NotesCreateResponse:
+        request = NotesCreateRequest(
+            owner=owner,
+            value=value,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
         response = await unary(
             self._channel,
             "/dokime.host.v1.evidence.Notes/Create",
             request,
-            EvidenceNotesCreateResponse,
+            NotesCreateResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -907,27 +995,34 @@ class EvidenceRecordsResource:
 
     async def list(
         self,
-        scope: EvidenceRecordScope,
         record_type: str,
         versions: Sequence[int],
         between: Window,
         step: str,
-        selection: EvidenceCapturedRecordSelection,
+        selection: CapturedRecordSelection,
         *,
+        scope: RecordScope | None = None,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> EvidenceRecordsListResponse:
-        request = EvidenceRecordsListRequest(
-            scope=scope, record_type=record_type, versions=versions, between=between, step=step, selection=selection, at=at, page=page
+    ) -> RecordsListResponse:
+        request = RecordsListRequest(
+            scope=scope,
+            record_type=record_type,
+            versions=versions,
+            between=between,
+            step=step,
+            selection=selection,
+            at=at,
+            page=page,
         )
         response = await unary(
             self._channel,
             "/dokime.host.v1.evidence.Records/List",
             request,
-            EvidenceRecordsListResponse,
+            RecordsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -937,27 +1032,34 @@ class EvidenceRecordsResource:
 
     async def watch(
         self,
-        scope: EvidenceRecordScope,
+        scope: RecordScope,
         record_type: str,
         versions: Sequence[int],
         between: Window,
         step: str,
-        selection: EvidenceCapturedRecordSelection,
+        selection: CapturedRecordSelection,
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[EvidenceRecordsWatchResponse]:
-        request = EvidenceRecordsWatchRequest(
-            scope=scope, record_type=record_type, versions=versions, between=between, step=step, selection=selection, at=at, page=page
+    ) -> AsyncGenerator[RecordsWatchResponse]:
+        request = RecordsWatchRequest(
+            scope=scope,
+            record_type=record_type,
+            versions=versions,
+            between=between,
+            step=step,
+            selection=selection,
+            at=at,
+            page=page,
         )
         call = stream(
             self._channel,
             "/dokime.host.v1.evidence.Records/Watch",
             request,
-            EvidenceRecordsWatchResponse,
+            RecordsWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -984,16 +1086,16 @@ class EvidenceSamplesResource:
         sources: Sequence[str],
         signals: Sequence[str],
         between: Window,
-        bucket: EvidenceBucketRequest,
+        bucket: BucketRequest,
         latest: bool,
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> EvidenceSamplesListResponse:
-        request = EvidenceSamplesListRequest(
+    ) -> SamplesListResponse:
+        request = SamplesListRequest(
             scope=scope,
             streams=streams,
             versions=versions,
@@ -1010,7 +1112,7 @@ class EvidenceSamplesResource:
             self._channel,
             "/dokime.host.v1.evidence.Samples/List",
             request,
-            EvidenceSamplesListResponse,
+            SamplesListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1027,16 +1129,16 @@ class EvidenceSamplesResource:
         sources: Sequence[str],
         signals: Sequence[str],
         between: Window,
-        bucket: EvidenceBucketRequest,
+        bucket: BucketRequest,
         latest: bool,
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[EvidenceSamplesWatchResponse]:
-        request = EvidenceSamplesWatchRequest(
+    ) -> AsyncGenerator[SamplesWatchResponse]:
+        request = SamplesWatchRequest(
             scope=scope,
             streams=streams,
             versions=versions,
@@ -1053,7 +1155,7 @@ class EvidenceSamplesResource:
             self._channel,
             "/dokime.host.v1.evidence.Samples/Watch",
             request,
-            EvidenceSamplesWatchResponse,
+            SamplesWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1073,21 +1175,21 @@ class EvidenceTraceabilityResource:
 
     async def get(
         self,
-        scope: EvidenceScope,
         *,
+        scope: EvidenceScope | None = None,
         page: PageRequest | None = None,
         at: ReadCut | None = None,
         entry: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> EvidenceTraceabilityGetResponse:
-        request = EvidenceTraceabilityGetRequest(scope=scope, page=page, at=at, entry=entry)
+    ) -> TraceabilityGetResponse:
+        request = TraceabilityGetRequest(scope=scope, page=page, at=at, entry=entry)
         response = await unary(
             self._channel,
             "/dokime.host.v1.evidence.Traceability/Get",
             request,
-            EvidenceTraceabilityGetResponse,
+            TraceabilityGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1101,16 +1203,16 @@ class EvidenceTraceabilityResource:
         *,
         page: PageRequest | None = None,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[EvidenceTraceabilityWatchResponse]:
-        request = EvidenceTraceabilityWatchRequest(scope=scope, page=page, at=at)
+    ) -> AsyncGenerator[TraceabilityWatchResponse]:
+        request = TraceabilityWatchRequest(scope=scope, page=page, at=at)
         call = stream(
             self._channel,
             "/dokime.host.v1.evidence.Traceability/Watch",
             request,
-            EvidenceTraceabilityWatchResponse,
+            TraceabilityWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1134,16 +1236,16 @@ class ExecutionsCommandsResource:
         parent: str,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> ExecutionsCommandsGetResponse:
-        request = ExecutionsCommandsGetRequest(name=name, parent=parent, at=at)
+    ) -> CommandsGetResponse:
+        request = CommandsGetRequest(name=name, parent=parent, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.executions.Commands/Get",
             request,
-            ExecutionsCommandsGetResponse,
+            CommandsGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1155,15 +1257,15 @@ class ExecutionsCommandsResource:
         self,
         parent: str,
         command_id: str,
-        action: ExecutionsExecutionCommandAction,
+        action: ExecutionCommandAction,
         *,
         request_id: str | None = None,
         step_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> ExecutionsCommandsCreateResponse:
-        request = ExecutionsCommandsCreateRequest(
+    ) -> CommandsCreateResponse:
+        request = CommandsCreateRequest(
             parent=parent,
             request_id=request_id if request_id is not None else str(uuid4()),
             command_id=command_id,
@@ -1174,7 +1276,7 @@ class ExecutionsCommandsResource:
             self._channel,
             "/dokime.host.v1.executions.Commands/Create",
             request,
-            ExecutionsCommandsCreateResponse,
+            CommandsCreateResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1189,19 +1291,19 @@ class ExecutionsProgressResource:
 
     async def get(
         self,
-        name: str,
         *,
+        name: str | None = None,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> ExecutionsProgressGetResponse:
-        request = ExecutionsProgressGetRequest(name=name, at=at)
+    ) -> ProgressGetResponse:
+        request = ProgressGetRequest(name=name, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.executions.Progress/Get",
             request,
-            ExecutionsProgressGetResponse,
+            ProgressGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1214,16 +1316,16 @@ class ExecutionsProgressResource:
         name: str,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[ExecutionsProgressWatchResponse]:
-        request = ExecutionsProgressWatchRequest(name=name, at=at)
+    ) -> AsyncGenerator[ProgressWatchResponse]:
+        request = ProgressWatchRequest(name=name, at=at)
         call = stream(
             self._channel,
             "/dokime.host.v1.executions.Progress/Watch",
             request,
-            ExecutionsProgressWatchResponse,
+            ProgressWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1247,16 +1349,16 @@ class ExecutionsSchemasResource:
         *,
         at: Position | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> ExecutionsSchemasGetResponse:
-        request = ExecutionsSchemasGetRequest(name=name, at=at, page=page)
+    ) -> SchemasGetResponse:
+        request = SchemasGetRequest(name=name, at=at, page=page)
         response = await unary(
             self._channel,
             "/dokime.host.v1.executions.Schemas/Get",
             request,
-            ExecutionsSchemasGetResponse,
+            SchemasGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1274,16 +1376,19 @@ class FilesUploadsResource:
         metadata: FileMetadata,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> FilesUploadsCreateResponse:
-        request = FilesUploadsCreateRequest(metadata=metadata, request_id=request_id if request_id is not None else str(uuid4()))
+    ) -> UploadsCreateResponse:
+        request = UploadsCreateRequest(
+            metadata=call_metadata,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
         response = await unary(
             self._channel,
             "/dokime.host.v1.files.Uploads/Create",
             request,
-            FilesUploadsCreateResponse,
+            UploadsCreateResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1296,16 +1401,16 @@ class FilesUploadsResource:
         upload: Upload,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> FilesUploadsGetResponse:
-        request = FilesUploadsGetRequest(upload=upload, at=at)
+    ) -> UploadsGetResponse:
+        request = UploadsGetRequest(upload=upload, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.files.Uploads/Get",
             request,
-            FilesUploadsGetResponse,
+            UploadsGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1318,16 +1423,19 @@ class FilesUploadsResource:
         upload: Upload,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> FilesUploadsResumeResponse:
-        request = FilesUploadsResumeRequest(upload=upload, request_id=request_id if request_id is not None else str(uuid4()))
+    ) -> UploadsResumeResponse:
+        request = UploadsResumeRequest(
+            upload=upload,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
         response = await unary(
             self._channel,
             "/dokime.host.v1.files.Uploads/Resume",
             request,
-            FilesUploadsResumeResponse,
+            UploadsResumeResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1342,18 +1450,21 @@ class FilesUploadsResource:
         data: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> FilesUploadsAppendResponse:
-        request = FilesUploadsAppendRequest(
-            upload=upload, offset=offset, data=data, request_id=request_id if request_id is not None else str(uuid4())
+    ) -> UploadsAppendResponse:
+        request = UploadsAppendRequest(
+            upload=upload,
+            offset=offset,
+            data=data,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
             "/dokime.host.v1.files.Uploads/Append",
             request,
-            FilesUploadsAppendResponse,
+            UploadsAppendResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1368,18 +1479,21 @@ class FilesUploadsResource:
         sha256: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> FilesUploadsPublishResponse:
-        request = FilesUploadsPublishRequest(
-            upload=upload, length=length, sha256=sha256, request_id=request_id if request_id is not None else str(uuid4())
+    ) -> UploadsPublishResponse:
+        request = UploadsPublishRequest(
+            upload=upload,
+            length=length,
+            sha256=sha256,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
             "/dokime.host.v1.files.Uploads/Publish",
             request,
-            FilesUploadsPublishResponse,
+            UploadsPublishResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1392,16 +1506,19 @@ class FilesUploadsResource:
         upload: Upload,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> FilesUploadsDeleteResponse:
-        request = FilesUploadsDeleteRequest(upload=upload, request_id=request_id if request_id is not None else str(uuid4()))
+    ) -> UploadsDeleteResponse:
+        request = UploadsDeleteRequest(
+            upload=upload,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
         response = await unary(
             self._channel,
             "/dokime.host.v1.files.Uploads/Delete",
             request,
-            FilesUploadsDeleteResponse,
+            UploadsDeleteResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1417,19 +1534,19 @@ class MediaCapturesResource:
     async def create(
         self,
         scope: ArtifactScope,
-        kind: MediaCaptureKind,
-        audio: MediaRecordingAudio,
+        kind: CaptureKind,
+        audio: RecordingAudio,
         *,
         input: int | None = None,
         camera: int | None = None,
         display: int | None = None,
         maximum_seconds: int | None = None,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> MediaCapturesCreateResponse:
-        request = MediaCapturesCreateRequest(
+    ) -> CapturesCreateResponse:
+        request = CapturesCreateRequest(
             scope=scope,
             kind=kind,
             input=input,
@@ -1443,7 +1560,7 @@ class MediaCapturesResource:
             self._channel,
             "/dokime.host.v1.media.Captures/Create",
             request,
-            MediaCapturesCreateResponse,
+            CapturesCreateResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1456,16 +1573,16 @@ class MediaCapturesResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> MediaCapturesGetResponse:
-        request = MediaCapturesGetRequest(name=name, at=at)
+    ) -> CapturesGetResponse:
+        request = CapturesGetRequest(name=name, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.media.Captures/Get",
             request,
-            MediaCapturesGetResponse,
+            CapturesGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1478,16 +1595,16 @@ class MediaCapturesResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[MediaCapturesWatchResponse]:
-        request = MediaCapturesWatchRequest(name=name, at=at)
+    ) -> AsyncGenerator[CapturesWatchResponse]:
+        request = CapturesWatchRequest(name=name, at=at)
         call = stream(
             self._channel,
             "/dokime.host.v1.media.Captures/Watch",
             request,
-            MediaCapturesWatchResponse,
+            CapturesWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1505,16 +1622,16 @@ class MediaCapturesResource:
         name: str,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> MediaCapturesStopResponse:
-        request = MediaCapturesStopRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()))
+    ) -> CapturesStopResponse:
+        request = CapturesStopRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()))
         response = await unary(
             self._channel,
             "/dokime.host.v1.media.Captures/Stop",
             request,
-            MediaCapturesStopResponse,
+            CapturesStopResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1534,16 +1651,16 @@ class PlotsSettingsResource:
         plot_id: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> PlotsSettingsGetResponse:
-        request = PlotsSettingsGetRequest(scope=scope, document_id=document_id, plot_id=plot_id, at=at)
+    ) -> dokime._wire.host.v1.plots.settings_pb2.SettingsGetResponse:
+        request = dokime._wire.host.v1.plots.settings_pb2.SettingsGetRequest(scope=scope, document_id=document_id, plot_id=plot_id, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.plots.Settings/Get",
             request,
-            PlotsSettingsGetResponse,
+            dokime._wire.host.v1.plots.settings_pb2.SettingsGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1556,15 +1673,15 @@ class PlotsSettingsResource:
         scope: DocumentScope,
         document_id: str,
         plot_id: str,
-        value: PlotsPlotSettingsValue,
+        value: PlotSettingsValue,
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> PlotsSettingsSetResponse:
-        request = PlotsSettingsSetRequest(
+    ) -> dokime._wire.host.v1.plots.settings_pb2.SettingsSetResponse:
+        request = dokime._wire.host.v1.plots.settings_pb2.SettingsSetRequest(
             scope=scope,
             document_id=document_id,
             plot_id=plot_id,
@@ -1576,7 +1693,7 @@ class PlotsSettingsResource:
             self._channel,
             "/dokime.host.v1.plots.Settings/Set",
             request,
-            PlotsSettingsSetResponse,
+            dokime._wire.host.v1.plots.settings_pb2.SettingsSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1591,20 +1708,20 @@ class PlotsSnapshotsResource:
 
     async def list(
         self,
-        requests: Sequence[PlotsPlotRequest],
+        requests: Sequence[PlotRequest],
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> PlotsSnapshotsListResponse:
-        request = PlotsSnapshotsListRequest(requests=requests, at=at, page=page)
+    ) -> SnapshotsListResponse:
+        request = SnapshotsListRequest(requests=requests, at=at, page=page)
         response = await unary(
             self._channel,
             "/dokime.host.v1.plots.Snapshots/List",
             request,
-            PlotsSnapshotsListResponse,
+            SnapshotsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1614,20 +1731,20 @@ class PlotsSnapshotsResource:
 
     async def watch(
         self,
-        requests: Sequence[PlotsPlotRequest],
+        requests: Sequence[PlotRequest],
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[PlotsSnapshotsWatchResponse]:
-        request = PlotsSnapshotsWatchRequest(requests=requests, at=at, page=page)
+    ) -> AsyncGenerator[SnapshotsWatchResponse]:
+        request = SnapshotsWatchRequest(requests=requests, at=at, page=page)
         call = stream(
             self._channel,
             "/dokime.host.v1.plots.Snapshots/Watch",
             request,
-            PlotsSnapshotsWatchResponse,
+            SnapshotsWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1650,16 +1767,16 @@ class PluginsSecretsResource:
         *,
         name: str | None = None,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> PluginsSecretsListResponse:
-        request = PluginsSecretsListRequest(name=name, at=at)
+    ) -> dokime._wire.host.v1.plugins.secrets_pb2.SecretsListResponse:
+        request = dokime._wire.host.v1.plugins.secrets_pb2.SecretsListRequest(name=name, at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.plugins.Secrets/List",
             request,
-            PluginsSecretsListResponse,
+            dokime._wire.host.v1.plugins.secrets_pb2.SecretsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1677,16 +1794,16 @@ class PluginsSettingsResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> PluginsSettingsListResponse:
-        request = PluginsSettingsListRequest(name=name, at=at)
+    ) -> SettingsListResponse:
+        request = SettingsListRequest(name=name, at=at)
         response = await unary(
             self._channel,
             "/harmos.host.v1.plugins.Settings/List",
             request,
-            PluginsSettingsListResponse,
+            SettingsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1701,18 +1818,21 @@ class PluginsSettingsResource:
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> PluginsSettingsSetResponse:
-        request = PluginsSettingsSetRequest(
-            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+    ) -> harmos._wire.host.v1.plugins.settings_pb2.SettingsSetResponse:
+        request = harmos._wire.host.v1.plugins.settings_pb2.SettingsSetRequest(
+            name=name,
+            value=value,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
             "/harmos.host.v1.plugins.Settings/Set",
             request,
-            PluginsSettingsSetResponse,
+            harmos._wire.host.v1.plugins.settings_pb2.SettingsSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1733,11 +1853,11 @@ class PromptsAnswersResource:
         accepted: bool,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> PromptsAnswersCreateResponse:
-        request = PromptsAnswersCreateRequest(
+    ) -> AnswersCreateResponse:
+        request = AnswersCreateRequest(
             parent=parent,
             action=action,
             values=values,
@@ -1748,7 +1868,7 @@ class PromptsAnswersResource:
             self._channel,
             "/dokime.host.v1.prompts.Answers/Create",
             request,
-            PromptsAnswersCreateResponse,
+            AnswersCreateResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1767,16 +1887,16 @@ class StatusDiagnosticsResource:
         offset: int,
         max_bytes: int,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> StatusDiagnosticsGetResponse:
-        request = StatusDiagnosticsGetRequest(name=name, offset=offset, max_bytes=max_bytes)
+    ) -> DiagnosticsGetResponse:
+        request = DiagnosticsGetRequest(name=name, offset=offset, max_bytes=max_bytes)
         response = await unary(
             self._channel,
             "/harmos.host.v1.status.Diagnostics/Get",
             request,
-            StatusDiagnosticsGetResponse,
+            DiagnosticsGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1794,16 +1914,16 @@ class StatusLogsResource:
         *,
         at: Position | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> StatusLogsListResponse:
-        request = StatusLogsListRequest(at=at, page=page)
+    ) -> LogsListResponse:
+        request = LogsListRequest(at=at, page=page)
         response = await unary(
             self._channel,
             "/harmos.host.v1.status.Logs/List",
             request,
-            StatusLogsListResponse,
+            LogsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1817,16 +1937,16 @@ class StatusLogsResource:
         max_events: int,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[StatusLogsWatchResponse]:
-        request = StatusLogsWatchRequest(at=at, max_bytes=max_bytes, max_events=max_events)
+    ) -> AsyncGenerator[LogsWatchResponse]:
+        request = LogsWatchRequest(at=at, max_bytes=max_bytes, max_events=max_events)
         call = stream(
             self._channel,
             "/harmos.host.v1.status.Logs/Watch",
             request,
-            StatusLogsWatchResponse,
+            LogsWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1849,16 +1969,16 @@ class StatusTraceEventsResource:
         *,
         at: Position | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> StatusTraceEventsListResponse:
-        request = StatusTraceEventsListRequest(at=at, page=page)
+    ) -> TraceEventsListResponse:
+        request = TraceEventsListRequest(at=at, page=page)
         response = await unary(
             self._channel,
             "/harmos.host.v1.status.TraceEvents/List",
             request,
-            StatusTraceEventsListResponse,
+            TraceEventsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1872,16 +1992,16 @@ class StatusTraceEventsResource:
         max_events: int,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> AsyncGenerator[StatusTraceEventsWatchResponse]:
-        request = StatusTraceEventsWatchRequest(at=at, max_bytes=max_bytes, max_events=max_events)
+    ) -> AsyncGenerator[TraceEventsWatchResponse]:
+        request = TraceEventsWatchRequest(at=at, max_bytes=max_bytes, max_events=max_events)
         call = stream(
             self._channel,
             "/harmos.host.v1.status.TraceEvents/Watch",
             request,
-            StatusTraceEventsWatchResponse,
+            TraceEventsWatchResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1903,16 +2023,16 @@ class StorageSourcesResource:
         self,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> StorageSourcesGetResponse:
-        request = StorageSourcesGetRequest(at=at)
+    ) -> SourcesGetResponse:
+        request = SourcesGetRequest(at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.storage.Sources/Get",
             request,
-            StorageSourcesGetResponse,
+            SourcesGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1922,22 +2042,24 @@ class StorageSourcesResource:
 
     async def set(
         self,
-        value: StorageStorageSources,
+        value: StorageSources,
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> StorageSourcesSetResponse:
-        request = StorageSourcesSetRequest(
-            value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+    ) -> SourcesSetResponse:
+        request = SourcesSetRequest(
+            value=value,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
             "/dokime.host.v1.storage.Sources/Set",
             request,
-            StorageSourcesSetResponse,
+            SourcesSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -1979,11 +2101,18 @@ class AggregatesResource:
         limit: int,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AggregatesGetResponse:
-        request = AggregatesGetRequest(source=source, filters=filters, group_by=group_by, aggregates=aggregates, limit=limit, at=at)
+        request = AggregatesGetRequest(
+            source=source,
+            filters=filters,
+            group_by=group_by,
+            aggregates=aggregates,
+            limit=limit,
+            at=at,
+        )
         response = await unary(
             self._channel,
             "/dokime.host.v1.Aggregates/Get",
@@ -2010,7 +2139,7 @@ class BackendResource:
         self,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> BackendAppearanceResponse:
@@ -2038,12 +2167,14 @@ class CasesResource:
         validate_only: bool,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> CasesCreateResponse:
         request = CasesCreateRequest(
-            plan=plan, validate_only=validate_only, request_id=request_id if request_id is not None else str(uuid4())
+            plan=plan,
+            validate_only=validate_only,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
@@ -2063,7 +2194,7 @@ class CasesResource:
         parent: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> CasesGetResponse:
@@ -2085,7 +2216,7 @@ class CasesResource:
         parent: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> CasesListResponse:
@@ -2107,7 +2238,7 @@ class CasesResource:
         parent: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[CasesWatchResponse]:
@@ -2135,11 +2266,15 @@ class CasesResource:
         parent: str,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> Receipt:
-        request = CasesDeleteRequest(name=name, parent=parent, request_id=request_id if request_id is not None else str(uuid4()))
+        request = CasesDeleteRequest(
+            name=name,
+            parent=parent,
+            request_id=request_id if request_id is not None else str(uuid4()),
+        )
         response = await unary(
             self._channel,
             "/dokime.host.v1.Cases/Delete",
@@ -2160,7 +2295,7 @@ class CasesResource:
         parent: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> CasesParametersResponse:
@@ -2202,7 +2337,7 @@ class CyclesResource:
         name: str,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> CyclesGetResponse:
@@ -2226,12 +2361,15 @@ class CyclesResource:
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> CyclesSetResponse:
         request = CyclesSetRequest(
-            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+            name=name,
+            value=value,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
@@ -2253,7 +2391,7 @@ class CyclesResource:
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> CyclesListResponse:
@@ -2278,7 +2416,7 @@ class CyclesResource:
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[CyclesWatchResponse]:
@@ -2303,18 +2441,18 @@ class CyclesResource:
     async def create(
         self,
         origins: Sequence[Origin],
-        metadata: Metadata,
+        metadata: dokime._wire.model.v1.metadata_pb2.Metadata,
         continue_automatically: bool,
         source_cycle: str,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> CyclesCreateResponse:
         request = CyclesCreateRequest(
             origins=origins,
-            metadata=metadata,
+            metadata=call_metadata,
             continue_automatically=continue_automatically,
             source_cycle=source_cycle,
             request_id=request_id if request_id is not None else str(uuid4()),
@@ -2336,7 +2474,7 @@ class CyclesResource:
         name: str,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> CyclesSealResponse:
@@ -2369,7 +2507,7 @@ class DocumentsResource:
         max_frames: int,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> DocumentsGetResponse:
@@ -2406,7 +2544,7 @@ class DocumentsResource:
         max_frames: int,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[DocumentsWatchResponse]:
@@ -2469,7 +2607,6 @@ class EvidenceResource:
 
     async def statistics(
         self,
-        scope: EvidenceScope,
         stream: str,
         versions: Sequence[int],
         between: Window,
@@ -2477,13 +2614,21 @@ class EvidenceResource:
         field: str,
         step: str,
         *,
+        scope: EvidenceScope | None = None,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> EvidenceStatisticsResponse:
         request = EvidenceStatisticsRequest(
-            scope=scope, stream=stream, versions=versions, between=between, outputs=outputs, field=field, step=step, at=at
+            scope=scope,
+            stream=stream,
+            versions=versions,
+            between=between,
+            outputs=outputs,
+            field=field,
+            step=step,
+            at=at,
         )
         response = await unary(
             self._channel,
@@ -2502,7 +2647,7 @@ class EvidenceResource:
         subject: EvidenceSubject,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> EvidenceArchiveResponse:
@@ -2544,7 +2689,7 @@ class ExecutionsResource:
         name: str,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsGetResponse:
@@ -2568,12 +2713,15 @@ class ExecutionsResource:
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsSetResponse:
         request = ExecutionsSetRequest(
-            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+            name=name,
+            value=value,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
@@ -2596,11 +2744,18 @@ class ExecutionsResource:
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsListResponse:
-        request = ExecutionsListRequest(parent=parent, selection=selection, filter=filter, order=order, at=at, page=page)
+        request = ExecutionsListRequest(
+            parent=parent,
+            selection=selection,
+            filter=filter,
+            order=order,
+            at=at,
+            page=page,
+        )
         response = await unary(
             self._channel,
             "/dokime.host.v1.Executions/List",
@@ -2622,11 +2777,18 @@ class ExecutionsResource:
         *,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[ExecutionsWatchResponse]:
-        request = ExecutionsWatchRequest(parent=parent, selection=selection, filter=filter, order=order, at=at, page=page)
+        request = ExecutionsWatchRequest(
+            parent=parent,
+            selection=selection,
+            filter=filter,
+            order=order,
+            at=at,
+            page=page,
+        )
         call = stream(
             self._channel,
             "/dokime.host.v1.Executions/Watch",
@@ -2650,12 +2812,14 @@ class ExecutionsResource:
         executions: Sequence[ExecutionBinding],
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsCreateResponse:
         request = ExecutionsCreateRequest(
-            parent=parent, executions=executions, request_id=request_id if request_id is not None else str(uuid4())
+            parent=parent,
+            executions=executions,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
@@ -2675,11 +2839,15 @@ class ExecutionsResource:
         mode: ExecutionMode,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsStartResponse:
-        request = ExecutionsStartRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()), mode=mode)
+        request = ExecutionsStartRequest(
+            name=name,
+            request_id=request_id if request_id is not None else str(uuid4()),
+            mode=mode,
+        )
         response = await unary(
             self._channel,
             "/dokime.host.v1.Executions/Start",
@@ -2697,7 +2865,7 @@ class ExecutionsResource:
         name: str,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsStopResponse:
@@ -2719,7 +2887,7 @@ class ExecutionsResource:
         name: str,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsCancelResponse:
@@ -2741,7 +2909,7 @@ class ExecutionsResource:
         name: str,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsDeleteResponse:
@@ -2764,7 +2932,7 @@ class ExecutionsResource:
         set: ExecutionParameterSet,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsParametersResponse:
@@ -2786,7 +2954,7 @@ class ExecutionsResource:
         name: str,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ExecutionsStepsResponse:
@@ -2818,7 +2986,7 @@ class FilesResource:
         file: FileReference,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> FilesGetResponse:
@@ -2842,7 +3010,7 @@ class FilesResource:
         max_bytes: int,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> FilesReadResponse:
@@ -2866,10 +3034,21 @@ class FilesResource:
         file: FileReference | None = None,
         upload: Upload | None = None,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[FilesWatchResponse]:
+        if (
+            sum(
+                value is not None
+                for value in (
+                    file,
+                    upload,
+                )
+            )
+            > 1
+        ):
+            raise ValueError("Choose At Most One target Variant")
         request = FilesWatchRequest(file=file, upload=upload, offset=offset, at=at)
         call = stream(
             self._channel,
@@ -2893,7 +3072,7 @@ class FilesResource:
         file: FileReference,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> Receipt:
@@ -2923,7 +3102,7 @@ class InvocationsResource:
         fingerprint: bytes,
         payload: bytes,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> bytes:
@@ -2944,7 +3123,7 @@ class InvocationsResource:
         self,
         instance: int,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> InstanceState:
@@ -2968,7 +3147,7 @@ class InvocationsResource:
         instance: int,
         reason: str,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> InstanceState:
@@ -2991,7 +3170,7 @@ class InvocationsResource:
         self,
         instance: int,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[InstanceState]:
@@ -3031,7 +3210,11 @@ class OperationsResource:
         self._channel = channel
 
     async def list(
-        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
+        self,
+        *,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
     ) -> list[DiscoveredOperation]:
         request = OperationsListRequest()
         response = await unary(
@@ -3050,7 +3233,7 @@ class OperationsResource:
         self,
         id: str,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> DiscoveredOperation:
@@ -3104,7 +3287,7 @@ class PluginsResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PluginsGetResponse:
@@ -3125,7 +3308,7 @@ class PluginsResource:
         self,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PluginsListResponse:
@@ -3147,7 +3330,7 @@ class PluginsResource:
         *,
         name: str | None = None,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[PluginsWatchResponse]:
@@ -3176,12 +3359,15 @@ class PluginsResource:
         value: PluginValue,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PluginsCreateResponse:
         request = PluginsCreateRequest(
-            request_id=request_id if request_id is not None else str(uuid4()), name=name, placement=placement, value=value
+            request_id=request_id if request_id is not None else str(uuid4()),
+            name=name,
+            placement=placement,
+            value=value,
         )
         response = await unary(
             self._channel,
@@ -3201,7 +3387,7 @@ class PluginsResource:
         value: PluginValue,
         expected_revision: bytes,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PluginsSetResponse:
@@ -3223,7 +3409,7 @@ class PluginsResource:
         name: str,
         expected_revision: bytes,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> Receipt:
@@ -3247,7 +3433,7 @@ class PluginsResource:
         name: str,
         expected_revision: bytes,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PluginEntry:
@@ -3273,7 +3459,7 @@ class PluginsResource:
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PluginsReplaceResponse:
@@ -3307,7 +3493,7 @@ class PromptDefinitionsResource:
         schema_version: int,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PromptDefinitionsGetResponse:
@@ -3329,7 +3515,7 @@ class PromptDefinitionsResource:
         parent: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PromptDefinitionsListResponse:
@@ -3361,7 +3547,7 @@ class PromptsResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PromptsGetResponse:
@@ -3387,12 +3573,17 @@ class PromptsResource:
         execution_id: str | None = None,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> PromptsListResponse:
         request = PromptsListRequest(
-            parent=parent, cycle_id=cycle_id, execution_id=execution_id, pending_only=pending_only, at=at, page=page
+            parent=parent,
+            cycle_id=cycle_id,
+            execution_id=execution_id,
+            pending_only=pending_only,
+            at=at,
+            page=page,
         )
         response = await unary(
             self._channel,
@@ -3415,12 +3606,17 @@ class PromptsResource:
         execution_id: str | None = None,
         at: ReadCut | None = None,
         page: PageRequest | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[PromptsWatchResponse]:
         request = PromptsWatchRequest(
-            parent=parent, cycle_id=cycle_id, execution_id=execution_id, pending_only=pending_only, at=at, page=page
+            parent=parent,
+            cycle_id=cycle_id,
+            execution_id=execution_id,
+            pending_only=pending_only,
+            at=at,
+            page=page,
         )
         call = stream(
             self._channel,
@@ -3451,7 +3647,7 @@ class RecordSchemasResource:
         schema_version: int,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> RecordSchemasGetResponse:
@@ -3473,7 +3669,7 @@ class RecordSchemasResource:
         parent: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> RecordSchemasListResponse:
@@ -3501,7 +3697,7 @@ class ReportsResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ReportsGetResponse:
@@ -3525,12 +3721,15 @@ class ReportsResource:
         *,
         at: ReadCut | None = None,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ReportsCreateResponse:
         request = ReportsCreateRequest(
-            subject=subject, document_id=document_id, at=at, request_id=request_id if request_id is not None else str(uuid4())
+            subject=subject,
+            document_id=document_id,
+            at=at,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
@@ -3551,7 +3750,7 @@ class ReportsResource:
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ReportsPublishResponse:
@@ -3582,7 +3781,7 @@ class SchemasResource:
         self,
         *,
         schema: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> list[SchemaDescription]:
@@ -3609,7 +3808,7 @@ class SecretsResource:
         name: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> SecretsGetResponse:
@@ -3633,12 +3832,15 @@ class SecretsResource:
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> SecretsSetResponse:
         request = SecretsSetRequest(
-            name=name, value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+            name=name,
+            value=value,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
@@ -3656,16 +3858,16 @@ class SecretsResource:
         self,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> SecretsListResponse:
-        request = SecretsListRequest(at=at)
+    ) -> dokime._wire.host.v1.secrets_pb2.SecretsListResponse:
+        request = dokime._wire.host.v1.secrets_pb2.SecretsListRequest(at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.Secrets/List",
             request,
-            SecretsListResponse,
+            dokime._wire.host.v1.secrets_pb2.SecretsListResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -3677,7 +3879,7 @@ class SecretsResource:
         self,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[SecretsWatchResponse]:
@@ -3705,12 +3907,14 @@ class SecretsResource:
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> SecretsDeleteResponse:
         request = SecretsDeleteRequest(
-            names=names, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+            names=names,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
@@ -3730,7 +3934,7 @@ class SecretsResource:
         generation: int,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> SecretsExportResponse:
@@ -3755,7 +3959,7 @@ class SecretsResource:
         validate_only: bool,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> SecretsImportResponse:
@@ -3787,16 +3991,16 @@ class SettingsResource:
         self,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> SettingsGetResponse:
-        request = SettingsGetRequest(at=at)
+    ) -> dokime._wire.host.v1.settings_pb2.SettingsGetResponse:
+        request = dokime._wire.host.v1.settings_pb2.SettingsGetRequest(at=at)
         response = await unary(
             self._channel,
             "/dokime.host.v1.Settings/Get",
             request,
-            SettingsGetResponse,
+            dokime._wire.host.v1.settings_pb2.SettingsGetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -3810,18 +4014,20 @@ class SettingsResource:
         expected_revision: bytes,
         *,
         request_id: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
-    ) -> SettingsSetResponse:
-        request = SettingsSetRequest(
-            value=value, expected_revision=expected_revision, request_id=request_id if request_id is not None else str(uuid4())
+    ) -> dokime._wire.host.v1.settings_pb2.SettingsSetResponse:
+        request = dokime._wire.host.v1.settings_pb2.SettingsSetRequest(
+            value=value,
+            expected_revision=expected_revision,
+            request_id=request_id if request_id is not None else str(uuid4()),
         )
         response = await unary(
             self._channel,
             "/dokime.host.v1.Settings/Set",
             request,
-            SettingsSetResponse,
+            dokime._wire.host.v1.settings_pb2.SettingsSetResponse,
             metadata=call_metadata,
             timeout=timeout,
             credentials=credentials,
@@ -3833,7 +4039,7 @@ class SettingsResource:
         self,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> SettingsSchemaResponse:
@@ -3871,7 +4077,11 @@ class StatusResource:
         return self._composed_trace_events
 
     async def get(
-        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
+        self,
+        *,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
     ) -> StatusGetResponse:
         request = StatusGetRequest()
         response = await unary(
@@ -3890,7 +4100,7 @@ class StatusResource:
         self,
         *,
         at: Position | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> AsyncGenerator[StatusWatchResponse]:
@@ -3934,7 +4144,7 @@ class StreamSchemasResource:
         schema_version: int,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> StreamSchemasGetResponse:
@@ -3956,7 +4166,7 @@ class StreamSchemasResource:
         parent: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> StreamSchemasListResponse:
@@ -3982,7 +4192,7 @@ class StreamsResource:
         self,
         *,
         schema: str | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> list[StreamIdentity]:
@@ -4011,7 +4221,7 @@ class SuitesResource:
         schema_version: int,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> SuitesGetResponse:
@@ -4033,7 +4243,7 @@ class SuitesResource:
         parent: str,
         *,
         at: ReadCut | None = None,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> SuitesListResponse:
@@ -4056,7 +4266,11 @@ class TimeResource:
         self._channel = channel
 
     async def get(
-        self, *, call_metadata: CallMetadata | None = None, timeout: float | None = None, credentials: CallCredentials | None = None
+        self,
+        *,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
     ) -> Timestamp:
         request = TimeGetRequest()
         response = await unary(
@@ -4077,7 +4291,7 @@ class TimeResource:
         self,
         duration: Duration,
         *,
-        call_metadata: CallMetadata | None = None,
+        call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> TimeSleepResponse:
@@ -4095,7 +4309,7 @@ class TimeResource:
         return response
 
 
-class ClientRoot(LibraryConnection):
+class ClientRoot(_connection.Connection):
     def __init__(self, channel: Channel) -> None:
         super().__init__(channel)
         self._channel = channel

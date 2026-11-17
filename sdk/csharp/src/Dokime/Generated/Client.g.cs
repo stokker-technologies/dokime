@@ -1,299 +1,28 @@
 // @generated from protocol descriptors; do not edit.
 #nullable enable
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Runtime.CompilerServices;
-using Grpc.Core;
-using Grpc.Net.Client;
+using Dokime;
+using Dokime.Clients;
+using Dokime.Clients.BackendResources;
+using Dokime.Clients.ContentResources;
+using Dokime.Clients.EvidenceResources;
+using Dokime.Clients.ExecutionsResources;
+using Dokime.Clients.FilesResources;
+using Dokime.Clients.MediaResources;
+using Dokime.Clients.PlotsResources;
+using Dokime.Clients.PluginsResources;
+using Dokime.Clients.PromptsResources;
+using Dokime.Clients.StorageResources;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using StorageTransferSettings = global::Harmos.StorageTransferSettings;
-using Transfer = global::Harmos.Transfer;
-using ArtifactScope = global::Dokime.ArtifactScope;
-using AggregatesGetRequest = global::Dokime.Clients.AggregatesGetRequest;
-using AggregatesGetResponse = global::Dokime.Clients.AggregatesGetResponse;
-using ApplicationSettings = global::Dokime.Clients.ApplicationSettings;
-using BackendAppearanceRequest = global::Dokime.Clients.BackendAppearanceRequest;
-using BackendAppearanceResponse = global::Dokime.Clients.BackendAppearanceResponse;
-using OverviewGetRequest = global::Dokime.Clients.BackendResources.OverviewGetRequest;
-using OverviewGetResponse = global::Dokime.Clients.BackendResources.OverviewGetResponse;
-using OverviewWatchRequest = global::Dokime.Clients.BackendResources.OverviewWatchRequest;
-using OverviewWatchResponse = global::Dokime.Clients.BackendResources.OverviewWatchResponse;
-using CasesCreateRequest = global::Dokime.Clients.CasesCreateRequest;
-using CasesCreateResponse = global::Dokime.Clients.CasesCreateResponse;
-using CasesDeleteRequest = global::Dokime.Clients.CasesDeleteRequest;
-using CasesDeleteResponse = global::Dokime.Clients.CasesDeleteResponse;
-using CasesGetRequest = global::Dokime.Clients.CasesGetRequest;
-using CasesGetResponse = global::Dokime.Clients.CasesGetResponse;
-using CasesListRequest = global::Dokime.Clients.CasesListRequest;
-using CasesListResponse = global::Dokime.Clients.CasesListResponse;
-using CasesParametersRequest = global::Dokime.Clients.CasesParametersRequest;
-using CasesParametersResponse = global::Dokime.Clients.CasesParametersResponse;
-using CasesWatchRequest = global::Dokime.Clients.CasesWatchRequest;
-using CasesWatchResponse = global::Dokime.Clients.CasesWatchResponse;
-using ArtifactsCreateRequest = global::Dokime.Clients.ContentResources.ArtifactsCreateRequest;
-using ArtifactsCreateResponse = global::Dokime.Clients.ContentResources.ArtifactsCreateResponse;
-using ArtifactsGetRequest = global::Dokime.Clients.ContentResources.ArtifactsGetRequest;
-using ArtifactsGetResponse = global::Dokime.Clients.ContentResources.ArtifactsGetResponse;
-using ArtifactsListRequest = global::Dokime.Clients.ContentResources.ArtifactsListRequest;
-using ArtifactsListResponse = global::Dokime.Clients.ContentResources.ArtifactsListResponse;
-using ArtifactsWatchRequest = global::Dokime.Clients.ContentResources.ArtifactsWatchRequest;
-using ArtifactsWatchResponse = global::Dokime.Clients.ContentResources.ArtifactsWatchResponse;
-using ExecutionFilesGetRequest = global::Dokime.Clients.ContentResources.ExecutionFilesGetRequest;
-using ExecutionFilesGetResponse = global::Dokime.Clients.ContentResources.ExecutionFilesGetResponse;
-using ExecutionFilesListRequest = global::Dokime.Clients.ContentResources.ExecutionFilesListRequest;
-using ExecutionFilesListResponse = global::Dokime.Clients.ContentResources.ExecutionFilesListResponse;
-using ExecutionFilesWatchRequest = global::Dokime.Clients.ContentResources.ExecutionFilesWatchRequest;
-using ExecutionFilesWatchResponse = global::Dokime.Clients.ContentResources.ExecutionFilesWatchResponse;
-using CycleFilter = global::Dokime.Clients.CycleFilter;
-using CycleOrder = global::Dokime.Clients.CycleOrder;
-using CycleSelection = global::Dokime.Clients.CycleSelection;
-using CycleWritable = global::Dokime.Clients.CycleWritable;
-using CyclesCreateRequest = global::Dokime.Clients.CyclesCreateRequest;
-using CyclesCreateResponse = global::Dokime.Clients.CyclesCreateResponse;
-using CyclesGetRequest = global::Dokime.Clients.CyclesGetRequest;
-using CyclesGetResponse = global::Dokime.Clients.CyclesGetResponse;
-using CyclesListRequest = global::Dokime.Clients.CyclesListRequest;
-using CyclesListResponse = global::Dokime.Clients.CyclesListResponse;
-using CyclesSealRequest = global::Dokime.Clients.CyclesSealRequest;
-using CyclesSealResponse = global::Dokime.Clients.CyclesSealResponse;
-using CyclesSetRequest = global::Dokime.Clients.CyclesSetRequest;
-using CyclesSetResponse = global::Dokime.Clients.CyclesSetResponse;
-using CyclesWatchRequest = global::Dokime.Clients.CyclesWatchRequest;
-using CyclesWatchResponse = global::Dokime.Clients.CyclesWatchResponse;
-using DocumentScope = global::Dokime.Clients.DocumentScope;
-using DocumentsGetRequest = global::Dokime.Clients.DocumentsGetRequest;
-using DocumentsGetResponse = global::Dokime.Clients.DocumentsGetResponse;
-using DocumentsWatchRequest = global::Dokime.Clients.DocumentsWatchRequest;
-using DocumentsWatchResponse = global::Dokime.Clients.DocumentsWatchResponse;
-using EvidenceArchiveRequest = global::Dokime.Clients.EvidenceArchiveRequest;
-using EvidenceArchiveResponse = global::Dokime.Clients.EvidenceArchiveResponse;
-using AnnotationOwner = global::Dokime.Clients.EvidenceResources.AnnotationOwner;
-using AnnotationSelection = global::Dokime.Clients.EvidenceResources.AnnotationSelection;
-using BucketRequest = global::Dokime.Clients.EvidenceResources.BucketRequest;
-using CapturedRecordSelection = global::Dokime.Clients.EvidenceResources.CapturedRecordSelection;
-using HealthEventsListRequest = global::Dokime.Clients.EvidenceResources.HealthEventsListRequest;
-using HealthEventsListResponse = global::Dokime.Clients.EvidenceResources.HealthEventsListResponse;
-using HealthEventsWatchRequest = global::Dokime.Clients.EvidenceResources.HealthEventsWatchRequest;
-using HealthEventsWatchResponse = global::Dokime.Clients.EvidenceResources.HealthEventsWatchResponse;
-using NoteWritable = global::Dokime.Clients.EvidenceResources.NoteWritable;
-using NotesCreateRequest = global::Dokime.Clients.EvidenceResources.NotesCreateRequest;
-using NotesCreateResponse = global::Dokime.Clients.EvidenceResources.NotesCreateResponse;
-using NotesGetRequest = global::Dokime.Clients.EvidenceResources.NotesGetRequest;
-using NotesGetResponse = global::Dokime.Clients.EvidenceResources.NotesGetResponse;
-using NotesListRequest = global::Dokime.Clients.EvidenceResources.NotesListRequest;
-using NotesListResponse = global::Dokime.Clients.EvidenceResources.NotesListResponse;
-using NotesSetRequest = global::Dokime.Clients.EvidenceResources.NotesSetRequest;
-using NotesSetResponse = global::Dokime.Clients.EvidenceResources.NotesSetResponse;
-using NotesWatchRequest = global::Dokime.Clients.EvidenceResources.NotesWatchRequest;
-using NotesWatchResponse = global::Dokime.Clients.EvidenceResources.NotesWatchResponse;
-using RecordScope = global::Dokime.Clients.EvidenceResources.RecordScope;
-using RecordsListRequest = global::Dokime.Clients.EvidenceResources.RecordsListRequest;
-using RecordsListResponse = global::Dokime.Clients.EvidenceResources.RecordsListResponse;
-using RecordsWatchRequest = global::Dokime.Clients.EvidenceResources.RecordsWatchRequest;
-using RecordsWatchResponse = global::Dokime.Clients.EvidenceResources.RecordsWatchResponse;
-using SamplesListRequest = global::Dokime.Clients.EvidenceResources.SamplesListRequest;
-using SamplesListResponse = global::Dokime.Clients.EvidenceResources.SamplesListResponse;
-using SamplesWatchRequest = global::Dokime.Clients.EvidenceResources.SamplesWatchRequest;
-using SamplesWatchResponse = global::Dokime.Clients.EvidenceResources.SamplesWatchResponse;
-using TraceabilityGetRequest = global::Dokime.Clients.EvidenceResources.TraceabilityGetRequest;
-using TraceabilityGetResponse = global::Dokime.Clients.EvidenceResources.TraceabilityGetResponse;
-using TraceabilityWatchRequest = global::Dokime.Clients.EvidenceResources.TraceabilityWatchRequest;
-using TraceabilityWatchResponse = global::Dokime.Clients.EvidenceResources.TraceabilityWatchResponse;
-using EvidenceStatisticsRequest = global::Dokime.Clients.EvidenceStatisticsRequest;
-using EvidenceStatisticsResponse = global::Dokime.Clients.EvidenceStatisticsResponse;
-using EvidenceSubject = global::Dokime.Clients.EvidenceSubject;
-using ExecutionBinding = global::Dokime.Clients.ExecutionBinding;
-using ExecutionFilter = global::Dokime.Clients.ExecutionFilter;
-using ExecutionMode = global::Dokime.Clients.ExecutionMode;
-using ExecutionOrder = global::Dokime.Clients.ExecutionOrder;
-using ExecutionParameterSet = global::Dokime.Clients.ExecutionParameterSet;
-using ExecutionSelection = global::Dokime.Clients.ExecutionSelection;
-using ExecutionWritable = global::Dokime.Clients.ExecutionWritable;
-using ExecutionsCancelRequest = global::Dokime.Clients.ExecutionsCancelRequest;
-using ExecutionsCancelResponse = global::Dokime.Clients.ExecutionsCancelResponse;
-using ExecutionsCreateRequest = global::Dokime.Clients.ExecutionsCreateRequest;
-using ExecutionsCreateResponse = global::Dokime.Clients.ExecutionsCreateResponse;
-using ExecutionsDeleteRequest = global::Dokime.Clients.ExecutionsDeleteRequest;
-using ExecutionsDeleteResponse = global::Dokime.Clients.ExecutionsDeleteResponse;
-using ExecutionsGetRequest = global::Dokime.Clients.ExecutionsGetRequest;
-using ExecutionsGetResponse = global::Dokime.Clients.ExecutionsGetResponse;
-using ExecutionsListRequest = global::Dokime.Clients.ExecutionsListRequest;
-using ExecutionsListResponse = global::Dokime.Clients.ExecutionsListResponse;
-using ExecutionsParametersRequest = global::Dokime.Clients.ExecutionsParametersRequest;
-using ExecutionsParametersResponse = global::Dokime.Clients.ExecutionsParametersResponse;
-using CommandsCreateRequest = global::Dokime.Clients.ExecutionsResources.CommandsCreateRequest;
-using CommandsCreateResponse = global::Dokime.Clients.ExecutionsResources.CommandsCreateResponse;
-using CommandsGetRequest = global::Dokime.Clients.ExecutionsResources.CommandsGetRequest;
-using CommandsGetResponse = global::Dokime.Clients.ExecutionsResources.CommandsGetResponse;
-using ExecutionCommandAction = global::Dokime.Clients.ExecutionsResources.ExecutionCommandAction;
-using ProgressGetRequest = global::Dokime.Clients.ExecutionsResources.ProgressGetRequest;
-using ProgressGetResponse = global::Dokime.Clients.ExecutionsResources.ProgressGetResponse;
-using ProgressWatchRequest = global::Dokime.Clients.ExecutionsResources.ProgressWatchRequest;
-using ProgressWatchResponse = global::Dokime.Clients.ExecutionsResources.ProgressWatchResponse;
-using SchemasGetRequest = global::Dokime.Clients.ExecutionsResources.SchemasGetRequest;
-using SchemasGetResponse = global::Dokime.Clients.ExecutionsResources.SchemasGetResponse;
-using ExecutionsSetRequest = global::Dokime.Clients.ExecutionsSetRequest;
-using ExecutionsSetResponse = global::Dokime.Clients.ExecutionsSetResponse;
-using ExecutionsStartRequest = global::Dokime.Clients.ExecutionsStartRequest;
-using ExecutionsStartResponse = global::Dokime.Clients.ExecutionsStartResponse;
-using ExecutionsStepsRequest = global::Dokime.Clients.ExecutionsStepsRequest;
-using ExecutionsStepsResponse = global::Dokime.Clients.ExecutionsStepsResponse;
-using ExecutionsStopRequest = global::Dokime.Clients.ExecutionsStopRequest;
-using ExecutionsStopResponse = global::Dokime.Clients.ExecutionsStopResponse;
-using ExecutionsWatchRequest = global::Dokime.Clients.ExecutionsWatchRequest;
-using ExecutionsWatchResponse = global::Dokime.Clients.ExecutionsWatchResponse;
-using FilesDeleteRequest = global::Dokime.Clients.FilesDeleteRequest;
-using FilesDeleteResponse = global::Dokime.Clients.FilesDeleteResponse;
-using FilesGetRequest = global::Dokime.Clients.FilesGetRequest;
-using FilesGetResponse = global::Dokime.Clients.FilesGetResponse;
-using FilesReadRequest = global::Dokime.Clients.FilesReadRequest;
-using FilesReadResponse = global::Dokime.Clients.FilesReadResponse;
-using UploadsAppendRequest = global::Dokime.Clients.FilesResources.UploadsAppendRequest;
-using UploadsAppendResponse = global::Dokime.Clients.FilesResources.UploadsAppendResponse;
-using UploadsCreateRequest = global::Dokime.Clients.FilesResources.UploadsCreateRequest;
-using UploadsCreateResponse = global::Dokime.Clients.FilesResources.UploadsCreateResponse;
-using UploadsDeleteRequest = global::Dokime.Clients.FilesResources.UploadsDeleteRequest;
-using UploadsDeleteResponse = global::Dokime.Clients.FilesResources.UploadsDeleteResponse;
-using UploadsGetRequest = global::Dokime.Clients.FilesResources.UploadsGetRequest;
-using UploadsGetResponse = global::Dokime.Clients.FilesResources.UploadsGetResponse;
-using UploadsPublishRequest = global::Dokime.Clients.FilesResources.UploadsPublishRequest;
-using UploadsPublishResponse = global::Dokime.Clients.FilesResources.UploadsPublishResponse;
-using UploadsResumeRequest = global::Dokime.Clients.FilesResources.UploadsResumeRequest;
-using UploadsResumeResponse = global::Dokime.Clients.FilesResources.UploadsResumeResponse;
-using FilesWatchRequest = global::Dokime.Clients.FilesWatchRequest;
-using FilesWatchResponse = global::Dokime.Clients.FilesWatchResponse;
-using CaptureKind = global::Dokime.Clients.MediaResources.CaptureKind;
-using CapturesCreateRequest = global::Dokime.Clients.MediaResources.CapturesCreateRequest;
-using CapturesCreateResponse = global::Dokime.Clients.MediaResources.CapturesCreateResponse;
-using CapturesGetRequest = global::Dokime.Clients.MediaResources.CapturesGetRequest;
-using CapturesGetResponse = global::Dokime.Clients.MediaResources.CapturesGetResponse;
-using CapturesStopRequest = global::Dokime.Clients.MediaResources.CapturesStopRequest;
-using CapturesStopResponse = global::Dokime.Clients.MediaResources.CapturesStopResponse;
-using CapturesWatchRequest = global::Dokime.Clients.MediaResources.CapturesWatchRequest;
-using CapturesWatchResponse = global::Dokime.Clients.MediaResources.CapturesWatchResponse;
-using RecordingAudio = global::Dokime.Clients.MediaResources.RecordingAudio;
-using Output = global::Dokime.Clients.Output;
-using PlotRequest = global::Dokime.Clients.PlotsResources.PlotRequest;
-using PlotSettingsValue = global::Dokime.Clients.PlotsResources.PlotSettingsValue;
-using DokimeClientsPlotsResourcesSettingsGetRequest = global::Dokime.Clients.PlotsResources.SettingsGetRequest;
-using DokimeClientsPlotsResourcesSettingsGetResponse = global::Dokime.Clients.PlotsResources.SettingsGetResponse;
-using DokimeClientsPlotsResourcesSettingsSetRequest = global::Dokime.Clients.PlotsResources.SettingsSetRequest;
-using DokimeClientsPlotsResourcesSettingsSetResponse = global::Dokime.Clients.PlotsResources.SettingsSetResponse;
-using SnapshotsListRequest = global::Dokime.Clients.PlotsResources.SnapshotsListRequest;
-using SnapshotsListResponse = global::Dokime.Clients.PlotsResources.SnapshotsListResponse;
-using SnapshotsWatchRequest = global::Dokime.Clients.PlotsResources.SnapshotsWatchRequest;
-using SnapshotsWatchResponse = global::Dokime.Clients.PlotsResources.SnapshotsWatchResponse;
-using DokimeClientsPluginsResourcesSecretsListRequest = global::Dokime.Clients.PluginsResources.SecretsListRequest;
-using DokimeClientsPluginsResourcesSecretsListResponse = global::Dokime.Clients.PluginsResources.SecretsListResponse;
-using PromptDefinitionsGetRequest = global::Dokime.Clients.PromptDefinitionsGetRequest;
-using PromptDefinitionsGetResponse = global::Dokime.Clients.PromptDefinitionsGetResponse;
-using PromptDefinitionsListRequest = global::Dokime.Clients.PromptDefinitionsListRequest;
-using PromptDefinitionsListResponse = global::Dokime.Clients.PromptDefinitionsListResponse;
-using PromptsGetRequest = global::Dokime.Clients.PromptsGetRequest;
-using PromptsGetResponse = global::Dokime.Clients.PromptsGetResponse;
-using PromptsListRequest = global::Dokime.Clients.PromptsListRequest;
-using PromptsListResponse = global::Dokime.Clients.PromptsListResponse;
-using AnswersCreateRequest = global::Dokime.Clients.PromptsResources.AnswersCreateRequest;
-using AnswersCreateResponse = global::Dokime.Clients.PromptsResources.AnswersCreateResponse;
-using PromptsWatchRequest = global::Dokime.Clients.PromptsWatchRequest;
-using PromptsWatchResponse = global::Dokime.Clients.PromptsWatchResponse;
-using QueryAggregate = global::Dokime.Clients.QueryAggregate;
-using QueryFilter = global::Dokime.Clients.QueryFilter;
-using QuerySource = global::Dokime.Clients.QuerySource;
-using RecordSchemasGetRequest = global::Dokime.Clients.RecordSchemasGetRequest;
-using RecordSchemasGetResponse = global::Dokime.Clients.RecordSchemasGetResponse;
-using RecordSchemasListRequest = global::Dokime.Clients.RecordSchemasListRequest;
-using RecordSchemasListResponse = global::Dokime.Clients.RecordSchemasListResponse;
-using ReportSubject = global::Dokime.Clients.ReportSubject;
-using ReportsCreateRequest = global::Dokime.Clients.ReportsCreateRequest;
-using ReportsCreateResponse = global::Dokime.Clients.ReportsCreateResponse;
-using ReportsGetRequest = global::Dokime.Clients.ReportsGetRequest;
-using ReportsGetResponse = global::Dokime.Clients.ReportsGetResponse;
-using ReportsPublishRequest = global::Dokime.Clients.ReportsPublishRequest;
-using ReportsPublishResponse = global::Dokime.Clients.ReportsPublishResponse;
-using SecretImportChoice = global::Dokime.Clients.SecretImportChoice;
-using SecretWritable = global::Dokime.Clients.SecretWritable;
-using SecretsDeleteRequest = global::Dokime.Clients.SecretsDeleteRequest;
-using SecretsDeleteResponse = global::Dokime.Clients.SecretsDeleteResponse;
-using SecretsExportRequest = global::Dokime.Clients.SecretsExportRequest;
-using SecretsExportResponse = global::Dokime.Clients.SecretsExportResponse;
-using SecretsGetRequest = global::Dokime.Clients.SecretsGetRequest;
-using SecretsGetResponse = global::Dokime.Clients.SecretsGetResponse;
-using SecretsImportRequest = global::Dokime.Clients.SecretsImportRequest;
-using SecretsImportResponse = global::Dokime.Clients.SecretsImportResponse;
-using DokimeClientsSecretsListRequest = global::Dokime.Clients.SecretsListRequest;
-using DokimeClientsSecretsListResponse = global::Dokime.Clients.SecretsListResponse;
-using SecretsSetRequest = global::Dokime.Clients.SecretsSetRequest;
-using SecretsSetResponse = global::Dokime.Clients.SecretsSetResponse;
-using SecretsWatchRequest = global::Dokime.Clients.SecretsWatchRequest;
-using SecretsWatchResponse = global::Dokime.Clients.SecretsWatchResponse;
-using SelectionPlan = global::Dokime.Clients.SelectionPlan;
-using DokimeClientsSettingsGetRequest = global::Dokime.Clients.SettingsGetRequest;
-using DokimeClientsSettingsGetResponse = global::Dokime.Clients.SettingsGetResponse;
-using SettingsSchemaRequest = global::Dokime.Clients.SettingsSchemaRequest;
-using SettingsSchemaResponse = global::Dokime.Clients.SettingsSchemaResponse;
-using DokimeClientsSettingsSetRequest = global::Dokime.Clients.SettingsSetRequest;
-using DokimeClientsSettingsSetResponse = global::Dokime.Clients.SettingsSetResponse;
-using SourcesGetRequest = global::Dokime.Clients.StorageResources.SourcesGetRequest;
-using SourcesGetResponse = global::Dokime.Clients.StorageResources.SourcesGetResponse;
-using SourcesSetRequest = global::Dokime.Clients.StorageResources.SourcesSetRequest;
-using SourcesSetResponse = global::Dokime.Clients.StorageResources.SourcesSetResponse;
-using StorageSources = global::Dokime.Clients.StorageResources.StorageSources;
-using StreamSchemasGetRequest = global::Dokime.Clients.StreamSchemasGetRequest;
-using StreamSchemasGetResponse = global::Dokime.Clients.StreamSchemasGetResponse;
-using StreamSchemasListRequest = global::Dokime.Clients.StreamSchemasListRequest;
-using StreamSchemasListResponse = global::Dokime.Clients.StreamSchemasListResponse;
-using SuitesGetRequest = global::Dokime.Clients.SuitesGetRequest;
-using SuitesGetResponse = global::Dokime.Clients.SuitesGetResponse;
-using SuitesListRequest = global::Dokime.Clients.SuitesListRequest;
-using SuitesListResponse = global::Dokime.Clients.SuitesListResponse;
-using EvidenceScope = global::Dokime.EvidenceScope;
-using MapValue = global::Dokime.MapValue;
-using Metadata = global::Dokime.Metadata;
-using Origin = global::Dokime.Origin;
-using Window = global::Dokime.Window;
-using Duration = global::Google.Protobuf.WellKnownTypes.Duration;
-using Timestamp = global::Google.Protobuf.WellKnownTypes.Timestamp;
-using ListenerGetResponse = global::Harmos.Clients.ListenerGetResponse;
-using ListenerSetResponse = global::Harmos.Clients.ListenerSetResponse;
-using ListenerValue = global::Harmos.Clients.ListenerValue;
-using PairingsCreateResponse = global::Harmos.Clients.PairingsCreateResponse;
-using PairingsDeleteResponse = global::Harmos.Clients.PairingsDeleteResponse;
-using PairingsListResponse = global::Harmos.Clients.PairingsListResponse;
-using PluginEntry = global::Harmos.Clients.PluginEntry;
-using PluginPlacement = global::Harmos.Clients.PluginPlacement;
-using PluginValue = global::Harmos.Clients.PluginValue;
-using PluginsCreateResponse = global::Harmos.Clients.PluginsCreateResponse;
-using PluginsGetResponse = global::Harmos.Clients.PluginsGetResponse;
-using PluginsListResponse = global::Harmos.Clients.PluginsListResponse;
-using PluginsReplaceResponse = global::Harmos.Clients.PluginsReplaceResponse;
-using SettingsListResponse = global::Harmos.Clients.SettingsListResponse;
-using HarmosHostPluginsResourcesSettingsSetResponse = global::Harmos.Clients.SettingsSetResponse;
-using PluginsSetResponse = global::Harmos.Clients.PluginsSetResponse;
-using PluginsWatchResponse = global::Harmos.Clients.PluginsWatchResponse;
-using SchemaDescription = global::Harmos.Clients.SchemaDescription;
-using StatusGetResponse = global::Harmos.Clients.StatusGetResponse;
-using DiagnosticsGetResponse = global::Harmos.Clients.DiagnosticsGetResponse;
-using LogsListResponse = global::Harmos.Clients.LogsListResponse;
-using LogsWatchResponse = global::Harmos.Clients.LogsWatchResponse;
-using TraceEventsListResponse = global::Harmos.Clients.TraceEventsListResponse;
-using TraceEventsWatchResponse = global::Harmos.Clients.TraceEventsWatchResponse;
-using StatusWatchResponse = global::Harmos.Clients.StatusWatchResponse;
-using StreamIdentity = global::Harmos.Clients.StreamIdentity;
-using TimeSleepResponse = global::Harmos.Clients.TimeSleepResponse;
-using DiscoveredOperation = global::Harmos.DiscoveredOperation;
-using FileMetadata = global::Harmos.FileMetadata;
-using FileReference = global::Harmos.FileReference;
-using InstanceState = global::Harmos.InstanceState;
-using PageRequest = global::Harmos.PageRequest;
-using Position = global::Harmos.Position;
-using ReadCut = global::Harmos.ReadCut;
-using Receipt = global::Harmos.Receipt;
-using SettingValues = global::Harmos.SettingValues;
-using Upload = global::Harmos.Upload;
+using Grpc.Core;
+using Grpc.Net.Client;
+using Harmos;
+using Harmos.Clients;
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 namespace Dokime;
 
 public sealed class Client : IDisposable
@@ -358,9 +87,9 @@ public sealed class Client : IDisposable
     Suites = new SuitesResource(invoker);
     Time = new TimeResource(invoker);
   }
-  public static Client Connect(string address, StorageTransferSettings? transfer = null, int? messageBytes = null)
+  public static Client Connect(string address, global::Harmos.StorageTransferSettings? transfer = null, int? messageBytes = null)
   {
-    var maximum = Transfer.MessageBytes(transfer, messageBytes);
+    var maximum = global::Harmos.Transfer.MessageBytes(transfer, messageBytes);
     var channel = GrpcChannel.ForAddress(address, new() { MaxSendMessageSize = maximum, MaxReceiveMessageSize = maximum });
     return new Client(channel.CreateCallInvoker()) { ownedChannel = channel };
   }
@@ -769,16 +498,19 @@ public sealed class ContentArtifactsResource
     }
     return response;
   }
-  public async Task<ArtifactsCreateResponse> Create(FileReference file, ArtifactScope scope, string filename, string contentType, string? requestId = null, Metadata? metadata = null, CallOptions context = default)
+  public async Task<ArtifactsCreateResponse> Create(FileReference file, string filename, string contentType, ArtifactScope? scope = null, string? requestId = null, Metadata? metadata = null, CallOptions context = default)
   {
     var request = new ArtifactsCreateRequest
     {
       File = file,
-      Scope = scope,
       Filename = filename,
       ContentType = contentType,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
+    if (scope is not null)
+    {
+      request.Scope = scope;
+    }
     if (metadata is not null)
     {
       request.Metadata = metadata;
@@ -1238,11 +970,10 @@ public sealed class EvidenceResource
     Samples = new EvidenceSamplesResource(invoker);
     Traceability = new EvidenceTraceabilityResource(invoker);
   }
-  public async Task<EvidenceStatisticsResponse> Statistics(EvidenceScope scope, string stream, IReadOnlyList<uint> versions, Window between, IReadOnlyList<Output> outputs, string field, string step, ReadCut? at = null, CallOptions context = default)
+  public async Task<EvidenceStatisticsResponse> Statistics(string stream, IReadOnlyList<uint> versions, Window between, IReadOnlyList<Output> outputs, string field, string step, EvidenceScope? scope = null, ReadCut? at = null, CallOptions context = default)
   {
     var request = new EvidenceStatisticsRequest
     {
-      Scope = scope,
       Stream = stream,
       Between = between,
       Field = field,
@@ -1250,6 +981,10 @@ public sealed class EvidenceResource
     };
     request.Versions.Add(versions);
     request.Outputs.Add(outputs);
+    if (scope is not null)
+    {
+      request.Scope = scope;
+    }
     if (at is not null)
     {
       request.At = at;
@@ -1524,17 +1259,20 @@ public sealed class EvidenceRecordsResource
   {
     this.invoker = invoker;
   }
-  public async Task<RecordsListResponse> List(RecordScope scope, string recordType, IReadOnlyList<uint> versions, Window between, string step, CapturedRecordSelection selection, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
+  public async Task<RecordsListResponse> List(string recordType, IReadOnlyList<uint> versions, Window between, string step, CapturedRecordSelection selection, RecordScope? scope = null, ReadCut? at = null, PageRequest? page = null, CallOptions context = default)
   {
     var request = new RecordsListRequest
     {
-      Scope = scope,
       RecordType = recordType,
       Between = between,
       Step = step,
       Selection = selection,
     };
     request.Versions.Add(versions);
+    if (scope is not null)
+    {
+      request.Scope = scope;
+    }
     if (at is not null)
     {
       request.At = at;
@@ -1700,12 +1438,15 @@ public sealed class EvidenceTraceabilityResource
   {
     this.invoker = invoker;
   }
-  public async Task<TraceabilityGetResponse> Get(EvidenceScope scope, PageRequest? page = null, ReadCut? at = null, string? entry = null, CallOptions context = default)
+  public async Task<TraceabilityGetResponse> Get(EvidenceScope? scope = null, PageRequest? page = null, ReadCut? at = null, string? entry = null, CallOptions context = default)
   {
     var request = new TraceabilityGetRequest
     {
-      Scope = scope,
     };
+    if (scope is not null)
+    {
+      request.Scope = scope;
+    }
     if (page is not null)
     {
       request.Page = page;
@@ -2115,7 +1856,7 @@ public sealed class ExecutionsCommandsResource
     };
     if (stepId is not null)
     {
-      request.StepId = stepId;
+      request.Stepid = stepId;
     }
     var method = new Method<CommandsCreateRequest, CommandsCreateResponse>(MethodType.Unary, "dokime.host.v1.executions.Commands", "Create",
         Marshallers.Create<CommandsCreateRequest>(value => value.ToByteArray(), bytes => CommandsCreateRequest.Parser.ParseFrom(bytes)),
@@ -2140,12 +1881,15 @@ public sealed class ExecutionsProgressResource
   {
     this.invoker = invoker;
   }
-  public async Task<ProgressGetResponse> Get(string name, Position? at = null, CallOptions context = default)
+  public async Task<ProgressGetResponse> Get(string? name = null, Position? at = null, CallOptions context = default)
   {
     var request = new ProgressGetRequest
     {
-      Name = name,
     };
+    if (name is not null)
+    {
+      request.Name = name;
+    }
     if (at is not null)
     {
       request.At = at;
@@ -2572,7 +2316,7 @@ public sealed class MediaCapturesResource
     }
     if (maximumSeconds is not null)
     {
-      request.MaximumSeconds = maximumSeconds.Value;
+      request.Maximumseconds = maximumSeconds.Value;
     }
     var method = new Method<CapturesCreateRequest, CapturesCreateResponse>(MethodType.Unary, "dokime.host.v1.media.Captures", "Create",
         Marshallers.Create<CapturesCreateRequest>(value => value.ToByteArray(), bytes => CapturesCreateRequest.Parser.ParseFrom(bytes)),
@@ -2704,9 +2448,9 @@ public sealed class PlotsSettingsResource
   {
     this.invoker = invoker;
   }
-  public async Task<DokimeClientsPlotsResourcesSettingsGetResponse> Get(DocumentScope scope, string documentId, string plotId, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PlotsResources.SettingsGetResponse> Get(DocumentScope scope, string documentId, string plotId, ReadCut? at = null, CallOptions context = default)
   {
-    var request = new DokimeClientsPlotsResourcesSettingsGetRequest
+    var request = new global::Dokime.Clients.PlotsResources.SettingsGetRequest
     {
       Scope = scope,
       DocumentId = documentId,
@@ -2716,11 +2460,11 @@ public sealed class PlotsSettingsResource
     {
       request.At = at;
     }
-    var method = new Method<DokimeClientsPlotsResourcesSettingsGetRequest, DokimeClientsPlotsResourcesSettingsGetResponse>(MethodType.Unary, "dokime.host.v1.plots.Settings", "Get",
-        Marshallers.Create<DokimeClientsPlotsResourcesSettingsGetRequest>(value => value.ToByteArray(), bytes => DokimeClientsPlotsResourcesSettingsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsPlotsResourcesSettingsGetResponse>(value => value.ToByteArray(), bytes => DokimeClientsPlotsResourcesSettingsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PlotsResources.SettingsGetRequest, global::Dokime.Clients.PlotsResources.SettingsGetResponse>(MethodType.Unary, "dokime.host.v1.plots.Settings", "Get",
+        Marshallers.Create<global::Dokime.Clients.PlotsResources.SettingsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PlotsResources.SettingsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PlotsResources.SettingsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PlotsResources.SettingsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsPlotsResourcesSettingsGetResponse response;
+    global::Dokime.Clients.PlotsResources.SettingsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2731,9 +2475,9 @@ public sealed class PlotsSettingsResource
     }
     return response;
   }
-  public async Task<DokimeClientsPlotsResourcesSettingsSetResponse> Set(DocumentScope scope, string documentId, string plotId, PlotSettingsValue value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PlotsResources.SettingsSetResponse> Set(DocumentScope scope, string documentId, string plotId, PlotSettingsValue value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new DokimeClientsPlotsResourcesSettingsSetRequest
+    var request = new global::Dokime.Clients.PlotsResources.SettingsSetRequest
     {
       Scope = scope,
       DocumentId = documentId,
@@ -2742,11 +2486,11 @@ public sealed class PlotsSettingsResource
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<DokimeClientsPlotsResourcesSettingsSetRequest, DokimeClientsPlotsResourcesSettingsSetResponse>(MethodType.Unary, "dokime.host.v1.plots.Settings", "Set",
-        Marshallers.Create<DokimeClientsPlotsResourcesSettingsSetRequest>(value => value.ToByteArray(), bytes => DokimeClientsPlotsResourcesSettingsSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsPlotsResourcesSettingsSetResponse>(value => value.ToByteArray(), bytes => DokimeClientsPlotsResourcesSettingsSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PlotsResources.SettingsSetRequest, global::Dokime.Clients.PlotsResources.SettingsSetResponse>(MethodType.Unary, "dokime.host.v1.plots.Settings", "Set",
+        Marshallers.Create<global::Dokime.Clients.PlotsResources.SettingsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PlotsResources.SettingsSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PlotsResources.SettingsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PlotsResources.SettingsSetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsPlotsResourcesSettingsSetResponse response;
+    global::Dokime.Clients.PlotsResources.SettingsSetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2884,9 +2628,9 @@ public sealed class PluginsSecretsResource
   {
     this.invoker = invoker;
   }
-  public async Task<DokimeClientsPluginsResourcesSecretsListResponse> List(string? name = null, ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.PluginsResources.SecretsListResponse> List(string? name = null, ReadCut? at = null, CallOptions context = default)
   {
-    var request = new DokimeClientsPluginsResourcesSecretsListRequest
+    var request = new global::Dokime.Clients.PluginsResources.SecretsListRequest
     {
     };
     if (name is not null)
@@ -2897,11 +2641,11 @@ public sealed class PluginsSecretsResource
     {
       request.At = at;
     }
-    var method = new Method<DokimeClientsPluginsResourcesSecretsListRequest, DokimeClientsPluginsResourcesSecretsListResponse>(MethodType.Unary, "dokime.host.v1.plugins.Secrets", "List",
-        Marshallers.Create<DokimeClientsPluginsResourcesSecretsListRequest>(value => value.ToByteArray(), bytes => DokimeClientsPluginsResourcesSecretsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsPluginsResourcesSecretsListResponse>(value => value.ToByteArray(), bytes => DokimeClientsPluginsResourcesSecretsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.PluginsResources.SecretsListRequest, global::Dokime.Clients.PluginsResources.SecretsListResponse>(MethodType.Unary, "dokime.host.v1.plugins.Secrets", "List",
+        Marshallers.Create<global::Dokime.Clients.PluginsResources.SecretsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsResources.SecretsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.PluginsResources.SecretsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.PluginsResources.SecretsListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsPluginsResourcesSecretsListResponse response;
+    global::Dokime.Clients.PluginsResources.SecretsListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -2924,7 +2668,7 @@ public sealed class PluginsSettingsResource
   {
     return await new Harmos.Client(invoker).Plugins.Settings.List(name, at, context);
   }
-  public async Task<HarmosHostPluginsResourcesSettingsSetResponse> Set(string name, SettingValues value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Harmos.Clients.SettingsSetResponse> Set(string name, SettingValues value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
     return await new Harmos.Client(invoker).Plugins.Settings.Set(name, value, expectedRevision, requestId, context);
   }
@@ -3032,11 +2776,11 @@ public sealed class PromptsResource
     };
     if (cycleId is not null)
     {
-      request.CycleId = cycleId;
+      request.Cycleid = cycleId;
     }
     if (executionId is not null)
     {
-      request.ExecutionId = executionId;
+      request.Executionid = executionId;
     }
     if (at is not null)
     {
@@ -3070,11 +2814,11 @@ public sealed class PromptsResource
     };
     if (cycleId is not null)
     {
-      request.CycleId = cycleId;
+      request.Cycleid = cycleId;
     }
     if (executionId is not null)
     {
-      request.ExecutionId = executionId;
+      request.Executionid = executionId;
     }
     if (at is not null)
     {
@@ -3355,20 +3099,20 @@ public sealed class SecretsResource
     }
     return response;
   }
-  public async Task<DokimeClientsSecretsListResponse> List(ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SecretsListResponse> List(ReadCut? at = null, CallOptions context = default)
   {
-    var request = new DokimeClientsSecretsListRequest
+    var request = new global::Dokime.Clients.SecretsListRequest
     {
     };
     if (at is not null)
     {
       request.At = at;
     }
-    var method = new Method<DokimeClientsSecretsListRequest, DokimeClientsSecretsListResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "List",
-        Marshallers.Create<DokimeClientsSecretsListRequest>(value => value.ToByteArray(), bytes => DokimeClientsSecretsListRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsSecretsListResponse>(value => value.ToByteArray(), bytes => DokimeClientsSecretsListResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SecretsListRequest, global::Dokime.Clients.SecretsListResponse>(MethodType.Unary, "dokime.host.v1.Secrets", "List",
+        Marshallers.Create<global::Dokime.Clients.SecretsListRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsListRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SecretsListResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SecretsListResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsSecretsListResponse response;
+    global::Dokime.Clients.SecretsListResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3494,20 +3238,20 @@ public sealed class SettingsResource
   {
     this.invoker = invoker;
   }
-  public async Task<DokimeClientsSettingsGetResponse> Get(ReadCut? at = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SettingsGetResponse> Get(ReadCut? at = null, CallOptions context = default)
   {
-    var request = new DokimeClientsSettingsGetRequest
+    var request = new global::Dokime.Clients.SettingsGetRequest
     {
     };
     if (at is not null)
     {
       request.At = at;
     }
-    var method = new Method<DokimeClientsSettingsGetRequest, DokimeClientsSettingsGetResponse>(MethodType.Unary, "dokime.host.v1.Settings", "Get",
-        Marshallers.Create<DokimeClientsSettingsGetRequest>(value => value.ToByteArray(), bytes => DokimeClientsSettingsGetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsSettingsGetResponse>(value => value.ToByteArray(), bytes => DokimeClientsSettingsGetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SettingsGetRequest, global::Dokime.Clients.SettingsGetResponse>(MethodType.Unary, "dokime.host.v1.Settings", "Get",
+        Marshallers.Create<global::Dokime.Clients.SettingsGetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SettingsGetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SettingsGetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SettingsGetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsSettingsGetResponse response;
+    global::Dokime.Clients.SettingsGetResponse response;
     try
     {
       response = await call.ResponseAsync;
@@ -3518,19 +3262,19 @@ public sealed class SettingsResource
     }
     return response;
   }
-  public async Task<DokimeClientsSettingsSetResponse> Set(ApplicationSettings value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.SettingsSetResponse> Set(ApplicationSettings value, ByteString expectedRevision, string? requestId = null, CallOptions context = default)
   {
-    var request = new DokimeClientsSettingsSetRequest
+    var request = new global::Dokime.Clients.SettingsSetRequest
     {
       Value = value,
       ExpectedRevision = expectedRevision,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    var method = new Method<DokimeClientsSettingsSetRequest, DokimeClientsSettingsSetResponse>(MethodType.Unary, "dokime.host.v1.Settings", "Set",
-        Marshallers.Create<DokimeClientsSettingsSetRequest>(value => value.ToByteArray(), bytes => DokimeClientsSettingsSetRequest.Parser.ParseFrom(bytes)),
-        Marshallers.Create<DokimeClientsSettingsSetResponse>(value => value.ToByteArray(), bytes => DokimeClientsSettingsSetResponse.Parser.ParseFrom(bytes)));
+    var method = new Method<global::Dokime.Clients.SettingsSetRequest, global::Dokime.Clients.SettingsSetResponse>(MethodType.Unary, "dokime.host.v1.Settings", "Set",
+        Marshallers.Create<global::Dokime.Clients.SettingsSetRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SettingsSetRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.SettingsSetResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.SettingsSetResponse.Parser.ParseFrom(bytes)));
     using var call = invoker.AsyncUnaryCall(method, null, context, request);
-    DokimeClientsSettingsSetResponse response;
+    global::Dokime.Clients.SettingsSetResponse response;
     try
     {
       response = await call.ResponseAsync;

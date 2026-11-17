@@ -863,8 +863,8 @@ Buf configuration and the [protocol usage guide](protocol-export.md) as README.
 Release packaging verifies every import resolves inside that export before
 creating the self-contained contracts ZIP. The release staging operation in
 `tools/python/src/dokime_tools/release/staging.py` delegates archive closure
-validation to `release/contracts.py`; SDK resource renderers live under
-`tools/python/src/dokime_tools/build/resources/`.
+validation to `release/contracts.py`; SDK resource renderers come from the
+Cargo-pinned `harmos-tools` package, invoked by `tools/python/src/dokime_tools/build/protocol.py` with explicit product configuration.
 
 At the current pin, the product `execution.sqlite3` ledger still owns coupled
 execution, evidence, sample, seal and report transitions, while registered Harmos

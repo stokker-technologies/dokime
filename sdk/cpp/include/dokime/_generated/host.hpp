@@ -153,7 +153,9 @@ struct HostFilesWatchOptions {
 class HostFilesWatch {
 public:
   explicit HostFilesWatch(std::function<std::optional<::dokime::FilesWatchResponse>()> next) : next_(std::move(next)) {}
-  std::optional<::dokime::FilesWatchResponse> next() { return next_(); }
+  std::optional<::dokime::FilesWatchResponse> next() {
+    return next_();
+  }
 
 private:
   std::function<std::optional<::dokime::FilesWatchResponse>()> next_;
@@ -183,7 +185,9 @@ struct HostInvocationsWatchOptions {};
 class HostInvocationsWatch {
 public:
   explicit HostInvocationsWatch(std::function<std::optional<::harmos::InstanceState>()> next) : next_(std::move(next)) {}
-  std::optional<::harmos::InstanceState> next() { return next_(); }
+  std::optional<::harmos::InstanceState> next() {
+    return next_();
+  }
 
 private:
   std::function<std::optional<::harmos::InstanceState>()> next_;
@@ -203,7 +207,7 @@ struct HostTimeResource {
   Context context;
   HostTimeResource(Context value) : context(value) {}
   ::google::protobuf::Timestamp get(HostTimeGetOptions options = {});
-  ::harmos::TimeSleepResponse sleep(const ::google::protobuf::Duration &duration, HostTimeSleepOptions options = {});
+  ::harmos::host::v1::TimeSleepResponse sleep(const ::google::protobuf::Duration &duration, HostTimeSleepOptions options = {});
 };
 struct HostSecretsResource {
   Context context;
@@ -220,7 +224,7 @@ struct HostPromptsResource {
 struct HostPluginsSettingsResource {
   Context context;
   HostPluginsSettingsResource(Context value) : context(value) {}
-  ::harmos::SettingsListResponse list(HostPluginsSettingsListOptions options = {});
+  ::harmos::host::v1::plugins::SettingsListResponse list(HostPluginsSettingsListOptions options = {});
 };
 struct HostPluginsResource {
   Context context;

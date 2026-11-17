@@ -114,19 +114,13 @@ use dokime_protocol::host::SecretsGetRequest;
 use dokime_protocol::host::SecretsGetResponse;
 use dokime_protocol::host::SecretsImportRequest;
 use dokime_protocol::host::SecretsImportResponse;
-use dokime_protocol::host::SecretsListRequest;
-use dokime_protocol::host::SecretsListResponse;
 use dokime_protocol::host::SecretsSetRequest;
 use dokime_protocol::host::SecretsSetResponse;
 use dokime_protocol::host::SecretsWatchRequest;
 use dokime_protocol::host::SecretsWatchResponse;
 use dokime_protocol::host::SelectionPlan;
-use dokime_protocol::host::SettingsGetRequest;
-use dokime_protocol::host::SettingsGetResponse;
 use dokime_protocol::host::SettingsSchemaRequest;
 use dokime_protocol::host::SettingsSchemaResponse;
-use dokime_protocol::host::SettingsSetRequest;
-use dokime_protocol::host::SettingsSetResponse;
 use dokime_protocol::host::StreamSchemasGetRequest;
 use dokime_protocol::host::StreamSchemasGetResponse;
 use dokime_protocol::host::StreamSchemasListRequest;
@@ -135,108 +129,101 @@ use dokime_protocol::host::SuitesGetRequest;
 use dokime_protocol::host::SuitesGetResponse;
 use dokime_protocol::host::SuitesListRequest;
 use dokime_protocol::host::SuitesListResponse;
-use dokime_protocol::host::backend::OverviewGetRequest as BackendOverviewGetRequest;
-use dokime_protocol::host::backend::OverviewGetResponse as BackendOverviewGetResponse;
-use dokime_protocol::host::backend::OverviewWatchRequest as BackendOverviewWatchRequest;
-use dokime_protocol::host::backend::OverviewWatchResponse as BackendOverviewWatchResponse;
-use dokime_protocol::host::content::ArtifactsCreateRequest as ContentArtifactsCreateRequest;
-use dokime_protocol::host::content::ArtifactsCreateResponse as ContentArtifactsCreateResponse;
-use dokime_protocol::host::content::ArtifactsGetRequest as ContentArtifactsGetRequest;
-use dokime_protocol::host::content::ArtifactsGetResponse as ContentArtifactsGetResponse;
-use dokime_protocol::host::content::ArtifactsListRequest as ContentArtifactsListRequest;
-use dokime_protocol::host::content::ArtifactsListResponse as ContentArtifactsListResponse;
-use dokime_protocol::host::content::ArtifactsWatchRequest as ContentArtifactsWatchRequest;
-use dokime_protocol::host::content::ArtifactsWatchResponse as ContentArtifactsWatchResponse;
-use dokime_protocol::host::content::ExecutionFilesGetRequest as ContentExecutionFilesGetRequest;
-use dokime_protocol::host::content::ExecutionFilesGetResponse as ContentExecutionFilesGetResponse;
-use dokime_protocol::host::content::ExecutionFilesListRequest as ContentExecutionFilesListRequest;
-use dokime_protocol::host::content::ExecutionFilesListResponse as ContentExecutionFilesListResponse;
-use dokime_protocol::host::content::ExecutionFilesWatchRequest as ContentExecutionFilesWatchRequest;
-use dokime_protocol::host::content::ExecutionFilesWatchResponse as ContentExecutionFilesWatchResponse;
-use dokime_protocol::host::evidence::AnnotationOwner as EvidenceAnnotationOwner;
-use dokime_protocol::host::evidence::AnnotationSelection as EvidenceAnnotationSelection;
-use dokime_protocol::host::evidence::BucketRequest as EvidenceBucketRequest;
-use dokime_protocol::host::evidence::CapturedRecordSelection as EvidenceCapturedRecordSelection;
-use dokime_protocol::host::evidence::HealthEventsListRequest as EvidenceHealthEventsListRequest;
-use dokime_protocol::host::evidence::HealthEventsListResponse as EvidenceHealthEventsListResponse;
-use dokime_protocol::host::evidence::HealthEventsWatchRequest as EvidenceHealthEventsWatchRequest;
-use dokime_protocol::host::evidence::HealthEventsWatchResponse as EvidenceHealthEventsWatchResponse;
-use dokime_protocol::host::evidence::NoteWritable as EvidenceNoteWritable;
-use dokime_protocol::host::evidence::NotesCreateRequest as EvidenceNotesCreateRequest;
-use dokime_protocol::host::evidence::NotesCreateResponse as EvidenceNotesCreateResponse;
-use dokime_protocol::host::evidence::NotesGetRequest as EvidenceNotesGetRequest;
-use dokime_protocol::host::evidence::NotesGetResponse as EvidenceNotesGetResponse;
-use dokime_protocol::host::evidence::NotesListRequest as EvidenceNotesListRequest;
-use dokime_protocol::host::evidence::NotesListResponse as EvidenceNotesListResponse;
-use dokime_protocol::host::evidence::NotesSetRequest as EvidenceNotesSetRequest;
-use dokime_protocol::host::evidence::NotesSetResponse as EvidenceNotesSetResponse;
-use dokime_protocol::host::evidence::NotesWatchRequest as EvidenceNotesWatchRequest;
-use dokime_protocol::host::evidence::NotesWatchResponse as EvidenceNotesWatchResponse;
-use dokime_protocol::host::evidence::RecordScope as EvidenceRecordScope;
-use dokime_protocol::host::evidence::RecordsListRequest as EvidenceRecordsListRequest;
-use dokime_protocol::host::evidence::RecordsListResponse as EvidenceRecordsListResponse;
-use dokime_protocol::host::evidence::RecordsWatchRequest as EvidenceRecordsWatchRequest;
-use dokime_protocol::host::evidence::RecordsWatchResponse as EvidenceRecordsWatchResponse;
-use dokime_protocol::host::evidence::SamplesListRequest as EvidenceSamplesListRequest;
-use dokime_protocol::host::evidence::SamplesListResponse as EvidenceSamplesListResponse;
-use dokime_protocol::host::evidence::SamplesWatchRequest as EvidenceSamplesWatchRequest;
-use dokime_protocol::host::evidence::SamplesWatchResponse as EvidenceSamplesWatchResponse;
-use dokime_protocol::host::evidence::TraceabilityGetRequest as EvidenceTraceabilityGetRequest;
-use dokime_protocol::host::evidence::TraceabilityGetResponse as EvidenceTraceabilityGetResponse;
-use dokime_protocol::host::evidence::TraceabilityWatchRequest as EvidenceTraceabilityWatchRequest;
-use dokime_protocol::host::evidence::TraceabilityWatchResponse as EvidenceTraceabilityWatchResponse;
-use dokime_protocol::host::executions::CommandsCreateRequest as ExecutionsCommandsCreateRequest;
-use dokime_protocol::host::executions::CommandsCreateResponse as ExecutionsCommandsCreateResponse;
-use dokime_protocol::host::executions::CommandsGetRequest as ExecutionsCommandsGetRequest;
-use dokime_protocol::host::executions::CommandsGetResponse as ExecutionsCommandsGetResponse;
-use dokime_protocol::host::executions::ExecutionCommandAction as ExecutionsExecutionCommandAction;
-use dokime_protocol::host::executions::ProgressGetRequest as ExecutionsProgressGetRequest;
-use dokime_protocol::host::executions::ProgressGetResponse as ExecutionsProgressGetResponse;
-use dokime_protocol::host::executions::ProgressWatchRequest as ExecutionsProgressWatchRequest;
-use dokime_protocol::host::executions::ProgressWatchResponse as ExecutionsProgressWatchResponse;
-use dokime_protocol::host::executions::SchemasGetRequest as ExecutionsSchemasGetRequest;
-use dokime_protocol::host::executions::SchemasGetResponse as ExecutionsSchemasGetResponse;
-use dokime_protocol::host::files::UploadsAppendRequest as FilesUploadsAppendRequest;
-use dokime_protocol::host::files::UploadsAppendResponse as FilesUploadsAppendResponse;
-use dokime_protocol::host::files::UploadsCreateRequest as FilesUploadsCreateRequest;
-use dokime_protocol::host::files::UploadsCreateResponse as FilesUploadsCreateResponse;
-use dokime_protocol::host::files::UploadsDeleteRequest as FilesUploadsDeleteRequest;
-use dokime_protocol::host::files::UploadsDeleteResponse as FilesUploadsDeleteResponse;
-use dokime_protocol::host::files::UploadsGetRequest as FilesUploadsGetRequest;
-use dokime_protocol::host::files::UploadsGetResponse as FilesUploadsGetResponse;
-use dokime_protocol::host::files::UploadsPublishRequest as FilesUploadsPublishRequest;
-use dokime_protocol::host::files::UploadsPublishResponse as FilesUploadsPublishResponse;
-use dokime_protocol::host::files::UploadsResumeRequest as FilesUploadsResumeRequest;
-use dokime_protocol::host::files::UploadsResumeResponse as FilesUploadsResumeResponse;
-use dokime_protocol::host::media::CaptureKind as MediaCaptureKind;
-use dokime_protocol::host::media::CapturesCreateRequest as MediaCapturesCreateRequest;
-use dokime_protocol::host::media::CapturesCreateResponse as MediaCapturesCreateResponse;
-use dokime_protocol::host::media::CapturesGetRequest as MediaCapturesGetRequest;
-use dokime_protocol::host::media::CapturesGetResponse as MediaCapturesGetResponse;
-use dokime_protocol::host::media::CapturesStopRequest as MediaCapturesStopRequest;
-use dokime_protocol::host::media::CapturesStopResponse as MediaCapturesStopResponse;
-use dokime_protocol::host::media::CapturesWatchRequest as MediaCapturesWatchRequest;
-use dokime_protocol::host::media::CapturesWatchResponse as MediaCapturesWatchResponse;
-use dokime_protocol::host::media::RecordingAudio as MediaRecordingAudio;
-use dokime_protocol::host::plots::PlotRequest as PlotsPlotRequest;
-use dokime_protocol::host::plots::PlotSettingsValue as PlotsPlotSettingsValue;
-use dokime_protocol::host::plots::SettingsGetRequest as PlotsSettingsGetRequest;
-use dokime_protocol::host::plots::SettingsGetResponse as PlotsSettingsGetResponse;
-use dokime_protocol::host::plots::SettingsSetRequest as PlotsSettingsSetRequest;
-use dokime_protocol::host::plots::SettingsSetResponse as PlotsSettingsSetResponse;
-use dokime_protocol::host::plots::SnapshotsListRequest as PlotsSnapshotsListRequest;
-use dokime_protocol::host::plots::SnapshotsListResponse as PlotsSnapshotsListResponse;
-use dokime_protocol::host::plots::SnapshotsWatchRequest as PlotsSnapshotsWatchRequest;
-use dokime_protocol::host::plots::SnapshotsWatchResponse as PlotsSnapshotsWatchResponse;
-use dokime_protocol::host::plugins::SecretsListRequest as PluginsSecretsListRequest;
-use dokime_protocol::host::plugins::SecretsListResponse as PluginsSecretsListResponse;
-use dokime_protocol::host::prompts::AnswersCreateRequest as PromptsAnswersCreateRequest;
-use dokime_protocol::host::prompts::AnswersCreateResponse as PromptsAnswersCreateResponse;
-use dokime_protocol::host::storage::SourcesGetRequest as StorageSourcesGetRequest;
-use dokime_protocol::host::storage::SourcesGetResponse as StorageSourcesGetResponse;
-use dokime_protocol::host::storage::SourcesSetRequest as StorageSourcesSetRequest;
-use dokime_protocol::host::storage::SourcesSetResponse as StorageSourcesSetResponse;
-use dokime_protocol::host::storage::StorageSources as StorageStorageSources;
+use dokime_protocol::host::backend::OverviewGetRequest;
+use dokime_protocol::host::backend::OverviewGetResponse;
+use dokime_protocol::host::backend::OverviewWatchRequest;
+use dokime_protocol::host::backend::OverviewWatchResponse;
+use dokime_protocol::host::content::ArtifactsCreateRequest;
+use dokime_protocol::host::content::ArtifactsCreateResponse;
+use dokime_protocol::host::content::ArtifactsGetRequest;
+use dokime_protocol::host::content::ArtifactsGetResponse;
+use dokime_protocol::host::content::ArtifactsListRequest;
+use dokime_protocol::host::content::ArtifactsListResponse;
+use dokime_protocol::host::content::ArtifactsWatchRequest;
+use dokime_protocol::host::content::ArtifactsWatchResponse;
+use dokime_protocol::host::content::ExecutionFilesGetRequest;
+use dokime_protocol::host::content::ExecutionFilesGetResponse;
+use dokime_protocol::host::content::ExecutionFilesListRequest;
+use dokime_protocol::host::content::ExecutionFilesListResponse;
+use dokime_protocol::host::content::ExecutionFilesWatchRequest;
+use dokime_protocol::host::content::ExecutionFilesWatchResponse;
+use dokime_protocol::host::evidence::AnnotationOwner;
+use dokime_protocol::host::evidence::AnnotationSelection;
+use dokime_protocol::host::evidence::BucketRequest;
+use dokime_protocol::host::evidence::CapturedRecordSelection;
+use dokime_protocol::host::evidence::HealthEventsListRequest;
+use dokime_protocol::host::evidence::HealthEventsListResponse;
+use dokime_protocol::host::evidence::HealthEventsWatchRequest;
+use dokime_protocol::host::evidence::HealthEventsWatchResponse;
+use dokime_protocol::host::evidence::NoteWritable;
+use dokime_protocol::host::evidence::NotesCreateRequest;
+use dokime_protocol::host::evidence::NotesCreateResponse;
+use dokime_protocol::host::evidence::NotesGetRequest;
+use dokime_protocol::host::evidence::NotesGetResponse;
+use dokime_protocol::host::evidence::NotesListRequest;
+use dokime_protocol::host::evidence::NotesListResponse;
+use dokime_protocol::host::evidence::NotesSetRequest;
+use dokime_protocol::host::evidence::NotesSetResponse;
+use dokime_protocol::host::evidence::NotesWatchRequest;
+use dokime_protocol::host::evidence::NotesWatchResponse;
+use dokime_protocol::host::evidence::RecordScope;
+use dokime_protocol::host::evidence::RecordsListRequest;
+use dokime_protocol::host::evidence::RecordsListResponse;
+use dokime_protocol::host::evidence::RecordsWatchRequest;
+use dokime_protocol::host::evidence::RecordsWatchResponse;
+use dokime_protocol::host::evidence::SamplesListRequest;
+use dokime_protocol::host::evidence::SamplesListResponse;
+use dokime_protocol::host::evidence::SamplesWatchRequest;
+use dokime_protocol::host::evidence::SamplesWatchResponse;
+use dokime_protocol::host::evidence::TraceabilityGetRequest;
+use dokime_protocol::host::evidence::TraceabilityGetResponse;
+use dokime_protocol::host::evidence::TraceabilityWatchRequest;
+use dokime_protocol::host::evidence::TraceabilityWatchResponse;
+use dokime_protocol::host::executions::CommandsCreateRequest;
+use dokime_protocol::host::executions::CommandsCreateResponse;
+use dokime_protocol::host::executions::CommandsGetRequest;
+use dokime_protocol::host::executions::CommandsGetResponse;
+use dokime_protocol::host::executions::ExecutionCommandAction;
+use dokime_protocol::host::executions::ProgressGetRequest;
+use dokime_protocol::host::executions::ProgressGetResponse;
+use dokime_protocol::host::executions::ProgressWatchRequest;
+use dokime_protocol::host::executions::ProgressWatchResponse;
+use dokime_protocol::host::executions::SchemasGetRequest;
+use dokime_protocol::host::executions::SchemasGetResponse;
+use dokime_protocol::host::files::UploadsAppendRequest;
+use dokime_protocol::host::files::UploadsAppendResponse;
+use dokime_protocol::host::files::UploadsCreateRequest;
+use dokime_protocol::host::files::UploadsCreateResponse;
+use dokime_protocol::host::files::UploadsDeleteRequest;
+use dokime_protocol::host::files::UploadsDeleteResponse;
+use dokime_protocol::host::files::UploadsGetRequest;
+use dokime_protocol::host::files::UploadsGetResponse;
+use dokime_protocol::host::files::UploadsPublishRequest;
+use dokime_protocol::host::files::UploadsPublishResponse;
+use dokime_protocol::host::files::UploadsResumeRequest;
+use dokime_protocol::host::files::UploadsResumeResponse;
+use dokime_protocol::host::media::CaptureKind;
+use dokime_protocol::host::media::CapturesCreateRequest;
+use dokime_protocol::host::media::CapturesCreateResponse;
+use dokime_protocol::host::media::CapturesGetRequest;
+use dokime_protocol::host::media::CapturesGetResponse;
+use dokime_protocol::host::media::CapturesStopRequest;
+use dokime_protocol::host::media::CapturesStopResponse;
+use dokime_protocol::host::media::CapturesWatchRequest;
+use dokime_protocol::host::media::CapturesWatchResponse;
+use dokime_protocol::host::media::RecordingAudio;
+use dokime_protocol::host::plots::PlotRequest;
+use dokime_protocol::host::plots::PlotSettingsValue;
+use dokime_protocol::host::plots::SnapshotsListRequest;
+use dokime_protocol::host::plots::SnapshotsListResponse;
+use dokime_protocol::host::plots::SnapshotsWatchRequest;
+use dokime_protocol::host::plots::SnapshotsWatchResponse;
+use dokime_protocol::host::prompts::AnswersCreateRequest;
+use dokime_protocol::host::prompts::AnswersCreateResponse;
+use dokime_protocol::host::storage::SourcesGetRequest;
+use dokime_protocol::host::storage::SourcesGetResponse;
+use dokime_protocol::host::storage::SourcesSetRequest;
+use dokime_protocol::host::storage::SourcesSetResponse;
 use dokime_protocol::model::ArtifactScope;
 use dokime_protocol::model::EvidenceScope;
 use dokime_protocol::model::MapValue;
@@ -289,33 +276,31 @@ use harmos_protocol::host::TimeGetRequest;
 use harmos_protocol::host::TimeGetResponse;
 use harmos_protocol::host::TimeSleepRequest;
 use harmos_protocol::host::TimeSleepResponse;
-use harmos_protocol::host::access::CertificatesCreateRequest as AccessCertificatesCreateRequest;
-use harmos_protocol::host::access::CertificatesCreateResponse as AccessCertificatesCreateResponse;
-use harmos_protocol::host::access::ListenerGetRequest as AccessListenerGetRequest;
-use harmos_protocol::host::access::ListenerGetResponse as AccessListenerGetResponse;
-use harmos_protocol::host::access::ListenerSetRequest as AccessListenerSetRequest;
-use harmos_protocol::host::access::ListenerSetResponse as AccessListenerSetResponse;
-use harmos_protocol::host::access::ListenerValue as AccessListenerValue;
-use harmos_protocol::host::access::PairingsCreateRequest as AccessPairingsCreateRequest;
-use harmos_protocol::host::access::PairingsCreateResponse as AccessPairingsCreateResponse;
-use harmos_protocol::host::access::PairingsDeleteRequest as AccessPairingsDeleteRequest;
-use harmos_protocol::host::access::PairingsDeleteResponse as AccessPairingsDeleteResponse;
-use harmos_protocol::host::access::PairingsListRequest as AccessPairingsListRequest;
-use harmos_protocol::host::access::PairingsListResponse as AccessPairingsListResponse;
-use harmos_protocol::host::plugins::SettingsListRequest as PluginsSettingsListRequest;
-use harmos_protocol::host::plugins::SettingsListResponse as PluginsSettingsListResponse;
-use harmos_protocol::host::plugins::SettingsSetRequest as PluginsSettingsSetRequest;
-use harmos_protocol::host::plugins::SettingsSetResponse as PluginsSettingsSetResponse;
-use harmos_protocol::host::status::DiagnosticsGetRequest as StatusDiagnosticsGetRequest;
-use harmos_protocol::host::status::DiagnosticsGetResponse as StatusDiagnosticsGetResponse;
-use harmos_protocol::host::status::LogsListRequest as StatusLogsListRequest;
-use harmos_protocol::host::status::LogsListResponse as StatusLogsListResponse;
-use harmos_protocol::host::status::LogsWatchRequest as StatusLogsWatchRequest;
-use harmos_protocol::host::status::LogsWatchResponse as StatusLogsWatchResponse;
-use harmos_protocol::host::status::TraceEventsListRequest as StatusTraceEventsListRequest;
-use harmos_protocol::host::status::TraceEventsListResponse as StatusTraceEventsListResponse;
-use harmos_protocol::host::status::TraceEventsWatchRequest as StatusTraceEventsWatchRequest;
-use harmos_protocol::host::status::TraceEventsWatchResponse as StatusTraceEventsWatchResponse;
+use harmos_protocol::host::access::CertificatesCreateRequest;
+use harmos_protocol::host::access::CertificatesCreateResponse;
+use harmos_protocol::host::access::ListenerGetRequest;
+use harmos_protocol::host::access::ListenerGetResponse;
+use harmos_protocol::host::access::ListenerSetRequest;
+use harmos_protocol::host::access::ListenerSetResponse;
+use harmos_protocol::host::access::ListenerValue;
+use harmos_protocol::host::access::PairingsCreateRequest;
+use harmos_protocol::host::access::PairingsCreateResponse;
+use harmos_protocol::host::access::PairingsDeleteRequest;
+use harmos_protocol::host::access::PairingsDeleteResponse;
+use harmos_protocol::host::access::PairingsListRequest;
+use harmos_protocol::host::access::PairingsListResponse;
+use harmos_protocol::host::plugins::SettingsListRequest;
+use harmos_protocol::host::plugins::SettingsListResponse;
+use harmos_protocol::host::status::DiagnosticsGetRequest;
+use harmos_protocol::host::status::DiagnosticsGetResponse;
+use harmos_protocol::host::status::LogsListRequest;
+use harmos_protocol::host::status::LogsListResponse;
+use harmos_protocol::host::status::LogsWatchRequest;
+use harmos_protocol::host::status::LogsWatchResponse;
+use harmos_protocol::host::status::TraceEventsListRequest;
+use harmos_protocol::host::status::TraceEventsListResponse;
+use harmos_protocol::host::status::TraceEventsWatchRequest;
+use harmos_protocol::host::status::TraceEventsWatchResponse;
 use harmos_protocol::model::DiscoveredOperation;
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::FileReference;
@@ -329,7 +314,6 @@ use harmos_protocol::model::Upload;
 use prost_reflect::ReflectMessage;
 use prost_types::Duration;
 use prost_types::Timestamp;
-use tonic::Status as RpcStatus;
 use tonic::codegen::http::uri::PathAndQuery;
 #[derive(Default)]
 pub struct AggregatesGetOptions {
@@ -821,6 +805,7 @@ impl Clone for ContentArtifactsGetOptions {
 }
 #[derive(Default)]
 pub struct ContentArtifactsCreateOptions {
+    pub scope: Option<ArtifactScope>,
     pub request_id: Option<String>,
     pub metadata: Option<Metadata>,
     pub context: CallOptions,
@@ -828,6 +813,7 @@ pub struct ContentArtifactsCreateOptions {
 impl Clone for ContentArtifactsCreateOptions {
     fn clone(&self) -> Self {
         Self {
+            scope: self.scope.clone(),
             request_id: self.request_id.clone(),
             metadata: self.metadata.clone(),
             context: CallOptions {
@@ -1135,10 +1121,11 @@ impl Clone for EvidenceHealthEventsWatchOptions {
 }
 #[derive(Default)]
 pub struct EvidenceRecordsListOptions {
+    pub scope: Option<RecordScope>,
     pub versions: Option<Vec<u32>>,
     pub between: Option<Window>,
     pub step: Option<String>,
-    pub selection: Option<EvidenceCapturedRecordSelection>,
+    pub selection: Option<CapturedRecordSelection>,
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
@@ -1146,6 +1133,7 @@ pub struct EvidenceRecordsListOptions {
 impl Clone for EvidenceRecordsListOptions {
     fn clone(&self) -> Self {
         Self {
+            scope: self.scope.clone(),
             versions: self.versions.clone(),
             between: self.between,
             step: self.step.clone(),
@@ -1164,7 +1152,7 @@ pub struct EvidenceRecordsWatchOptions {
     pub versions: Option<Vec<u32>>,
     pub between: Option<Window>,
     pub step: Option<String>,
-    pub selection: Option<EvidenceCapturedRecordSelection>,
+    pub selection: Option<CapturedRecordSelection>,
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
     pub context: CallOptions,
@@ -1192,7 +1180,7 @@ pub struct EvidenceSamplesListOptions {
     pub sources: Option<Vec<String>>,
     pub signals: Option<Vec<String>>,
     pub between: Option<Window>,
-    pub bucket: Option<EvidenceBucketRequest>,
+    pub bucket: Option<BucketRequest>,
     pub latest: Option<bool>,
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
@@ -1224,7 +1212,7 @@ pub struct EvidenceSamplesWatchOptions {
     pub sources: Option<Vec<String>>,
     pub signals: Option<Vec<String>>,
     pub between: Option<Window>,
-    pub bucket: Option<EvidenceBucketRequest>,
+    pub bucket: Option<BucketRequest>,
     pub latest: Option<bool>,
     pub at: Option<ReadCut>,
     pub page: Option<PageRequest>,
@@ -1251,6 +1239,7 @@ impl Clone for EvidenceSamplesWatchOptions {
 }
 #[derive(Default)]
 pub struct EvidenceTraceabilityGetOptions {
+    pub scope: Option<EvidenceScope>,
     pub page: Option<PageRequest>,
     pub at: Option<ReadCut>,
     pub entry: Option<String>,
@@ -1259,6 +1248,7 @@ pub struct EvidenceTraceabilityGetOptions {
 impl Clone for EvidenceTraceabilityGetOptions {
     fn clone(&self) -> Self {
         Self {
+            scope: self.scope.clone(),
             page: self.page.clone(),
             at: self.at.clone(),
             entry: self.entry.clone(),
@@ -1289,6 +1279,7 @@ impl Clone for EvidenceTraceabilityWatchOptions {
 }
 #[derive(Default)]
 pub struct EvidenceStatisticsOptions {
+    pub scope: Option<EvidenceScope>,
     pub versions: Option<Vec<u32>>,
     pub between: Option<Window>,
     pub outputs: Option<Vec<Output>>,
@@ -1299,6 +1290,7 @@ pub struct EvidenceStatisticsOptions {
 impl Clone for EvidenceStatisticsOptions {
     fn clone(&self) -> Self {
         Self {
+            scope: self.scope.clone(),
             versions: self.versions.clone(),
             between: self.between,
             outputs: self.outputs.clone(),
@@ -1363,12 +1355,14 @@ impl Clone for ExecutionsCommandsCreateOptions {
 }
 #[derive(Default)]
 pub struct ExecutionsProgressGetOptions {
+    pub name: Option<String>,
     pub at: Option<Position>,
     pub context: CallOptions,
 }
 impl Clone for ExecutionsProgressGetOptions {
     fn clone(&self) -> Self {
         Self {
+            name: self.name.clone(),
             at: self.at.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
@@ -2697,18 +2691,18 @@ impl AccessCertificates {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn create(&self) -> Result<String, RpcStatus> {
+    pub async fn create(&self) -> Result<String, tonic::Status> {
         self.create_with(AccessCertificatesCreateOptions::default()).await
     }
-    pub async fn create_with(&self, options: AccessCertificatesCreateOptions) -> Result<String, RpcStatus> {
-        let value = AccessCertificatesCreateRequest {};
+    pub async fn create_with(&self, options: AccessCertificatesCreateOptions) -> Result<String, tonic::Status> {
+        let value = CertificatesCreateRequest {};
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<AccessCertificatesCreateRequest, AccessCertificatesCreateResponse>(
+            .unary::<CertificatesCreateRequest, CertificatesCreateResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.access.Certificates/Create"),
                 request,
-                AccessCertificatesCreateResponse::default().descriptor(),
+                CertificatesCreateResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("access.certificates.create", error))?;
@@ -2724,38 +2718,38 @@ impl AccessListener {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self) -> Result<AccessListenerGetResponse, RpcStatus> {
+    pub async fn get(&self) -> Result<ListenerGetResponse, tonic::Status> {
         self.get_with(AccessListenerGetOptions::default()).await
     }
-    pub async fn get_with(&self, options: AccessListenerGetOptions) -> Result<AccessListenerGetResponse, RpcStatus> {
-        let value = AccessListenerGetRequest {};
+    pub async fn get_with(&self, options: AccessListenerGetOptions) -> Result<ListenerGetResponse, tonic::Status> {
+        let value = ListenerGetRequest {};
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<AccessListenerGetRequest, AccessListenerGetResponse>(
+            .unary::<ListenerGetRequest, ListenerGetResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.access.Listener/Get"),
                 request,
-                AccessListenerGetResponse::default().descriptor(),
+                ListenerGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("access.listener.get", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn set(&self, value: AccessListenerValue, expected_revision: Vec<u8>) -> Result<AccessListenerSetResponse, RpcStatus> {
+    pub async fn set(&self, value: ListenerValue, expected_revision: Vec<u8>) -> Result<ListenerSetResponse, tonic::Status> {
         self.set_with(value, expected_revision, AccessListenerSetOptions::default()).await
     }
     pub async fn set_with(
-        &self, value: AccessListenerValue, expected_revision: Vec<u8>, options: AccessListenerSetOptions,
-    ) -> Result<AccessListenerSetResponse, RpcStatus> {
-        let value = AccessListenerSetRequest { value: Some(value), expected_revision };
+        &self, value: ListenerValue, expected_revision: Vec<u8>, options: AccessListenerSetOptions,
+    ) -> Result<ListenerSetResponse, tonic::Status> {
+        let value = ListenerSetRequest { value: Some(value), expected_revision };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<AccessListenerSetRequest, AccessListenerSetResponse>(
+            .unary::<ListenerSetRequest, ListenerSetResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.access.Listener/Set"),
                 request,
-                AccessListenerSetResponse::default().descriptor(),
+                ListenerSetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("access.listener.set", error))?;
@@ -2771,58 +2765,58 @@ impl AccessPairings {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn create(&self, label: impl Into<String>) -> Result<AccessPairingsCreateResponse, RpcStatus> {
+    pub async fn create(&self, label: impl Into<String>) -> Result<PairingsCreateResponse, tonic::Status> {
         self.create_with(label, AccessPairingsCreateOptions::default()).await
     }
     pub async fn create_with(
         &self, label: impl Into<String>, options: AccessPairingsCreateOptions,
-    ) -> Result<AccessPairingsCreateResponse, RpcStatus> {
-        let value = AccessPairingsCreateRequest { label: label.into() };
+    ) -> Result<PairingsCreateResponse, tonic::Status> {
+        let value = PairingsCreateRequest { label: label.into() };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<AccessPairingsCreateRequest, AccessPairingsCreateResponse>(
+            .unary::<PairingsCreateRequest, PairingsCreateResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.access.Pairings/Create"),
                 request,
-                AccessPairingsCreateResponse::default().descriptor(),
+                PairingsCreateResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("access.pairings.create", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self) -> Result<AccessPairingsListResponse, RpcStatus> {
+    pub async fn list(&self) -> Result<PairingsListResponse, tonic::Status> {
         self.list_with(AccessPairingsListOptions::default()).await
     }
-    pub async fn list_with(&self, options: AccessPairingsListOptions) -> Result<AccessPairingsListResponse, RpcStatus> {
-        let value = AccessPairingsListRequest { at: options.at };
+    pub async fn list_with(&self, options: AccessPairingsListOptions) -> Result<PairingsListResponse, tonic::Status> {
+        let value = PairingsListRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<AccessPairingsListRequest, AccessPairingsListResponse>(
+            .unary::<PairingsListRequest, PairingsListResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.access.Pairings/List"),
                 request,
-                AccessPairingsListResponse::default().descriptor(),
+                PairingsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("access.pairings.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn delete(&self, name: impl Into<String>) -> Result<AccessPairingsDeleteResponse, RpcStatus> {
+    pub async fn delete(&self, name: impl Into<String>) -> Result<PairingsDeleteResponse, tonic::Status> {
         self.delete_with(name, AccessPairingsDeleteOptions::default()).await
     }
     pub async fn delete_with(
         &self, name: impl Into<String>, options: AccessPairingsDeleteOptions,
-    ) -> Result<AccessPairingsDeleteResponse, RpcStatus> {
-        let value = AccessPairingsDeleteRequest { name: name.into() };
+    ) -> Result<PairingsDeleteResponse, tonic::Status> {
+        let value = PairingsDeleteRequest { name: name.into() };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<AccessPairingsDeleteRequest, AccessPairingsDeleteResponse>(
+            .unary::<PairingsDeleteRequest, PairingsDeleteResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.access.Pairings/Delete"),
                 request,
-                AccessPairingsDeleteResponse::default().descriptor(),
+                PairingsDeleteResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("access.pairings.delete", error))?;
@@ -2840,13 +2834,13 @@ impl Aggregates {
     }
     pub async fn get(
         &self, source: QuerySource, filters: Vec<QueryFilter>, group_by: Vec<String>, aggregates: Vec<QueryAggregate>, limit: u32,
-    ) -> Result<AggregatesGetResponse, RpcStatus> {
+    ) -> Result<AggregatesGetResponse, tonic::Status> {
         self.get_with(source, filters, group_by, aggregates, limit, AggregatesGetOptions::default()).await
     }
     pub async fn get_with(
         &self, source: QuerySource, filters: Vec<QueryFilter>, group_by: Vec<String>, aggregates: Vec<QueryAggregate>, limit: u32,
         options: AggregatesGetOptions,
-    ) -> Result<AggregatesGetResponse, RpcStatus> {
+    ) -> Result<AggregatesGetResponse, tonic::Status> {
         let value = AggregatesGetRequest {
             source: source as i32,
             filters,
@@ -2881,10 +2875,10 @@ impl Backend {
             client,
         }
     }
-    pub async fn appearance(&self) -> Result<BackendAppearanceResponse, RpcStatus> {
+    pub async fn appearance(&self) -> Result<BackendAppearanceResponse, tonic::Status> {
         self.appearance_with(BackendAppearanceOptions::default()).await
     }
-    pub async fn appearance_with(&self, options: BackendAppearanceOptions) -> Result<BackendAppearanceResponse, RpcStatus> {
+    pub async fn appearance_with(&self, options: BackendAppearanceOptions) -> Result<BackendAppearanceResponse, tonic::Status> {
         let value = BackendAppearanceRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -2908,36 +2902,36 @@ impl BackendOverview {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self) -> Result<BackendOverviewGetResponse, RpcStatus> {
+    pub async fn get(&self) -> Result<OverviewGetResponse, tonic::Status> {
         self.get_with(BackendOverviewGetOptions::default()).await
     }
-    pub async fn get_with(&self, options: BackendOverviewGetOptions) -> Result<BackendOverviewGetResponse, RpcStatus> {
-        let value = BackendOverviewGetRequest { at: options.at };
+    pub async fn get_with(&self, options: BackendOverviewGetOptions) -> Result<OverviewGetResponse, tonic::Status> {
+        let value = OverviewGetRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<BackendOverviewGetRequest, BackendOverviewGetResponse>(
+            .unary::<OverviewGetRequest, OverviewGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.backend.Overview/Get"),
                 request,
-                BackendOverviewGetResponse::default().descriptor(),
+                OverviewGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("backend.overview.get", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self) -> Result<Watching<BackendOverviewWatchResponse>, RpcStatus> {
+    pub async fn watch(&self) -> Result<Watching<OverviewWatchResponse>, tonic::Status> {
         self.watch_with(BackendOverviewWatchOptions::default()).await
     }
-    pub async fn watch_with(&self, options: BackendOverviewWatchOptions) -> Result<Watching<BackendOverviewWatchResponse>, RpcStatus> {
-        let value = BackendOverviewWatchRequest { at: options.at };
+    pub async fn watch_with(&self, options: BackendOverviewWatchOptions) -> Result<Watching<OverviewWatchResponse>, tonic::Status> {
+        let value = OverviewWatchRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<BackendOverviewWatchRequest, BackendOverviewWatchResponse>(
+            .watch_known::<OverviewWatchRequest, OverviewWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.backend.Overview/Watch"),
                 request,
-                BackendOverviewWatchResponse::default().descriptor(),
+                OverviewWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("backend.overview.watch", error))?;
@@ -2953,12 +2947,12 @@ impl Cases {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn create(&self, plan: SelectionPlan, validate_only: bool) -> Result<CasesCreateResponse, RpcStatus> {
+    pub async fn create(&self, plan: SelectionPlan, validate_only: bool) -> Result<CasesCreateResponse, tonic::Status> {
         self.create_with(plan, validate_only, CasesCreateOptions::default()).await
     }
     pub async fn create_with(
         &self, plan: SelectionPlan, validate_only: bool, options: CasesCreateOptions,
-    ) -> Result<CasesCreateResponse, RpcStatus> {
+    ) -> Result<CasesCreateResponse, tonic::Status> {
         let value = CasesCreateRequest {
             plan: Some(plan),
             validate_only,
@@ -2980,12 +2974,12 @@ impl Cases {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn get(&self, name: impl Into<String>, parent: impl Into<String>) -> Result<CasesGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>, parent: impl Into<String>) -> Result<CasesGetResponse, tonic::Status> {
         self.get_with(name, parent, CasesGetOptions::default()).await
     }
     pub async fn get_with(
         &self, name: impl Into<String>, parent: impl Into<String>, options: CasesGetOptions,
-    ) -> Result<CasesGetResponse, RpcStatus> {
+    ) -> Result<CasesGetResponse, tonic::Status> {
         let value = CasesGetRequest {
             name: name.into(),
             parent: parent.into(),
@@ -3004,10 +2998,10 @@ impl Cases {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, parent: impl Into<String>) -> Result<CasesListResponse, RpcStatus> {
+    pub async fn list(&self, parent: impl Into<String>) -> Result<CasesListResponse, tonic::Status> {
         self.list_with(parent, CasesListOptions::default()).await
     }
-    pub async fn list_with(&self, parent: impl Into<String>, options: CasesListOptions) -> Result<CasesListResponse, RpcStatus> {
+    pub async fn list_with(&self, parent: impl Into<String>, options: CasesListOptions) -> Result<CasesListResponse, tonic::Status> {
         let value = CasesListRequest { parent: parent.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -3022,12 +3016,12 @@ impl Cases {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, parent: impl Into<String>) -> Result<Watching<CasesWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, parent: impl Into<String>) -> Result<Watching<CasesWatchResponse>, tonic::Status> {
         self.watch_with(parent, CasesWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, parent: impl Into<String>, options: CasesWatchOptions,
-    ) -> Result<Watching<CasesWatchResponse>, RpcStatus> {
+    ) -> Result<Watching<CasesWatchResponse>, tonic::Status> {
         let value = CasesWatchRequest { parent: parent.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -3042,12 +3036,12 @@ impl Cases {
         let response = response.with_action("cases.watch");
         Ok(response)
     }
-    pub async fn delete(&self, name: impl Into<String>, parent: impl Into<String>) -> Result<Receipt, RpcStatus> {
+    pub async fn delete(&self, name: impl Into<String>, parent: impl Into<String>) -> Result<Receipt, tonic::Status> {
         self.delete_with(name, parent, CasesDeleteOptions::default()).await
     }
     pub async fn delete_with(
         &self, name: impl Into<String>, parent: impl Into<String>, options: CasesDeleteOptions,
-    ) -> Result<Receipt, RpcStatus> {
+    ) -> Result<Receipt, tonic::Status> {
         let value = CasesDeleteRequest {
             name: name.into(),
             parent: parent.into(),
@@ -3067,14 +3061,14 @@ impl Cases {
             .await
             .map_err(|error| action_error("cases.delete", error))?;
         let response = response.into_inner();
-        response.receipt.ok_or_else(|| RpcStatus::data_loss("Read Cases.Delete: Missing Payload"))
+        response.receipt.ok_or_else(|| tonic::Status::data_loss("Read Cases.Delete: Missing Payload"))
     }
-    pub async fn parameters(&self, name: impl Into<String>, parent: impl Into<String>) -> Result<CasesParametersResponse, RpcStatus> {
+    pub async fn parameters(&self, name: impl Into<String>, parent: impl Into<String>) -> Result<CasesParametersResponse, tonic::Status> {
         self.parameters_with(name, parent, CasesParametersOptions::default()).await
     }
     pub async fn parameters_with(
         &self, name: impl Into<String>, parent: impl Into<String>, options: CasesParametersOptions,
-    ) -> Result<CasesParametersResponse, RpcStatus> {
+    ) -> Result<CasesParametersResponse, tonic::Status> {
         let value = CasesParametersRequest {
             name: name.into(),
             parent: parent.into(),
@@ -3115,20 +3109,20 @@ impl ContentArtifacts {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<ContentArtifactsGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>) -> Result<ArtifactsGetResponse, tonic::Status> {
         self.get_with(name, ContentArtifactsGetOptions::default()).await
     }
     pub async fn get_with(
         &self, name: impl Into<String>, options: ContentArtifactsGetOptions,
-    ) -> Result<ContentArtifactsGetResponse, RpcStatus> {
-        let value = ContentArtifactsGetRequest { name: name.into(), at: options.at };
+    ) -> Result<ArtifactsGetResponse, tonic::Status> {
+        let value = ArtifactsGetRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<ContentArtifactsGetRequest, ContentArtifactsGetResponse>(
+            .unary::<ArtifactsGetRequest, ArtifactsGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.content.Artifacts/Get"),
                 request,
-                ContentArtifactsGetResponse::default().descriptor(),
+                ArtifactsGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("content.artifacts.get", error))?;
@@ -3136,17 +3130,16 @@ impl ContentArtifacts {
         Ok(response)
     }
     pub async fn create(
-        &self, file: FileReference, scope: ArtifactScope, filename: impl Into<String>, content_type: impl Into<String>,
-    ) -> Result<ContentArtifactsCreateResponse, RpcStatus> {
-        self.create_with(file, scope, filename, content_type, ContentArtifactsCreateOptions::default()).await
+        &self, file: FileReference, filename: impl Into<String>, content_type: impl Into<String>,
+    ) -> Result<ArtifactsCreateResponse, tonic::Status> {
+        self.create_with(file, filename, content_type, ContentArtifactsCreateOptions::default()).await
     }
     pub async fn create_with(
-        &self, file: FileReference, scope: ArtifactScope, filename: impl Into<String>, content_type: impl Into<String>,
-        options: ContentArtifactsCreateOptions,
-    ) -> Result<ContentArtifactsCreateResponse, RpcStatus> {
-        let value = ContentArtifactsCreateRequest {
+        &self, file: FileReference, filename: impl Into<String>, content_type: impl Into<String>, options: ContentArtifactsCreateOptions,
+    ) -> Result<ArtifactsCreateResponse, tonic::Status> {
+        let value = ArtifactsCreateRequest {
             file: Some(file),
-            scope: Some(scope),
+            scope: options.scope,
             filename: filename.into(),
             content_type: content_type.into(),
             request_id: match options.request_id {
@@ -3158,23 +3151,23 @@ impl ContentArtifacts {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<ContentArtifactsCreateRequest, ContentArtifactsCreateResponse>(
+            .unary::<ArtifactsCreateRequest, ArtifactsCreateResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.content.Artifacts/Create"),
                 request,
-                ContentArtifactsCreateResponse::default().descriptor(),
+                ArtifactsCreateResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("content.artifacts.create", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, scope: ArtifactScope) -> Result<ContentArtifactsListResponse, RpcStatus> {
+    pub async fn list(&self, scope: ArtifactScope) -> Result<ArtifactsListResponse, tonic::Status> {
         self.list_with(scope, ContentArtifactsListOptions::default()).await
     }
     pub async fn list_with(
         &self, scope: ArtifactScope, options: ContentArtifactsListOptions,
-    ) -> Result<ContentArtifactsListResponse, RpcStatus> {
-        let value = ContentArtifactsListRequest {
+    ) -> Result<ArtifactsListResponse, tonic::Status> {
+        let value = ArtifactsListRequest {
             scope: Some(scope),
             at: options.at,
             page: options.page,
@@ -3182,23 +3175,23 @@ impl ContentArtifacts {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<ContentArtifactsListRequest, ContentArtifactsListResponse>(
+            .unary::<ArtifactsListRequest, ArtifactsListResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.content.Artifacts/List"),
                 request,
-                ContentArtifactsListResponse::default().descriptor(),
+                ArtifactsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("content.artifacts.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, scope: ArtifactScope) -> Result<Watching<ContentArtifactsWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, scope: ArtifactScope) -> Result<Watching<ArtifactsWatchResponse>, tonic::Status> {
         self.watch_with(scope, ContentArtifactsWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, scope: ArtifactScope, options: ContentArtifactsWatchOptions,
-    ) -> Result<Watching<ContentArtifactsWatchResponse>, RpcStatus> {
-        let value = ContentArtifactsWatchRequest {
+    ) -> Result<Watching<ArtifactsWatchResponse>, tonic::Status> {
+        let value = ArtifactsWatchRequest {
             scope: Some(scope),
             at: options.at,
             page: options.page,
@@ -3206,10 +3199,10 @@ impl ContentArtifacts {
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<ContentArtifactsWatchRequest, ContentArtifactsWatchResponse>(
+            .watch_known::<ArtifactsWatchRequest, ArtifactsWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.content.Artifacts/Watch"),
                 request,
-                ContentArtifactsWatchResponse::default().descriptor(),
+                ArtifactsWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("content.artifacts.watch", error))?;
@@ -3225,13 +3218,13 @@ impl ContentExecutionFiles {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, parent: impl Into<String>, name: impl Into<String>) -> Result<ContentExecutionFilesGetResponse, RpcStatus> {
+    pub async fn get(&self, parent: impl Into<String>, name: impl Into<String>) -> Result<ExecutionFilesGetResponse, tonic::Status> {
         self.get_with(parent, name, ContentExecutionFilesGetOptions::default()).await
     }
     pub async fn get_with(
         &self, parent: impl Into<String>, name: impl Into<String>, options: ContentExecutionFilesGetOptions,
-    ) -> Result<ContentExecutionFilesGetResponse, RpcStatus> {
-        let value = ContentExecutionFilesGetRequest {
+    ) -> Result<ExecutionFilesGetResponse, tonic::Status> {
+        let value = ExecutionFilesGetRequest {
             parent: parent.into(),
             name: name.into(),
             at: options.at,
@@ -3239,23 +3232,23 @@ impl ContentExecutionFiles {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<ContentExecutionFilesGetRequest, ContentExecutionFilesGetResponse>(
+            .unary::<ExecutionFilesGetRequest, ExecutionFilesGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.content.ExecutionFiles/Get"),
                 request,
-                ContentExecutionFilesGetResponse::default().descriptor(),
+                ExecutionFilesGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("content.execution_files.get", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, parent: impl Into<String>) -> Result<ContentExecutionFilesListResponse, RpcStatus> {
+    pub async fn list(&self, parent: impl Into<String>) -> Result<ExecutionFilesListResponse, tonic::Status> {
         self.list_with(parent, ContentExecutionFilesListOptions::default()).await
     }
     pub async fn list_with(
         &self, parent: impl Into<String>, options: ContentExecutionFilesListOptions,
-    ) -> Result<ContentExecutionFilesListResponse, RpcStatus> {
-        let value = ContentExecutionFilesListRequest {
+    ) -> Result<ExecutionFilesListResponse, tonic::Status> {
+        let value = ExecutionFilesListRequest {
             parent: parent.into(),
             at: options.at,
             page: options.page,
@@ -3263,23 +3256,23 @@ impl ContentExecutionFiles {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<ContentExecutionFilesListRequest, ContentExecutionFilesListResponse>(
+            .unary::<ExecutionFilesListRequest, ExecutionFilesListResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.content.ExecutionFiles/List"),
                 request,
-                ContentExecutionFilesListResponse::default().descriptor(),
+                ExecutionFilesListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("content.execution_files.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, parent: impl Into<String>) -> Result<Watching<ContentExecutionFilesWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, parent: impl Into<String>) -> Result<Watching<ExecutionFilesWatchResponse>, tonic::Status> {
         self.watch_with(parent, ContentExecutionFilesWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, parent: impl Into<String>, options: ContentExecutionFilesWatchOptions,
-    ) -> Result<Watching<ContentExecutionFilesWatchResponse>, RpcStatus> {
-        let value = ContentExecutionFilesWatchRequest {
+    ) -> Result<Watching<ExecutionFilesWatchResponse>, tonic::Status> {
+        let value = ExecutionFilesWatchRequest {
             parent: parent.into(),
             at: options.at,
             page: options.page,
@@ -3287,10 +3280,10 @@ impl ContentExecutionFiles {
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<ContentExecutionFilesWatchRequest, ContentExecutionFilesWatchResponse>(
+            .watch_known::<ExecutionFilesWatchRequest, ExecutionFilesWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.content.ExecutionFiles/Watch"),
                 request,
-                ContentExecutionFilesWatchResponse::default().descriptor(),
+                ExecutionFilesWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("content.execution_files.watch", error))?;
@@ -3306,10 +3299,10 @@ impl Cycles {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<CyclesGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>) -> Result<CyclesGetResponse, tonic::Status> {
         self.get_with(name, CyclesGetOptions::default()).await
     }
-    pub async fn get_with(&self, name: impl Into<String>, options: CyclesGetOptions) -> Result<CyclesGetResponse, RpcStatus> {
+    pub async fn get_with(&self, name: impl Into<String>, options: CyclesGetOptions) -> Result<CyclesGetResponse, tonic::Status> {
         let value = CyclesGetRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -3326,12 +3319,12 @@ impl Cycles {
     }
     pub async fn set(
         &self, name: impl Into<String>, value: CycleWritable, expected_revision: Vec<u8>,
-    ) -> Result<CyclesSetResponse, RpcStatus> {
+    ) -> Result<CyclesSetResponse, tonic::Status> {
         self.set_with(name, value, expected_revision, CyclesSetOptions::default()).await
     }
     pub async fn set_with(
         &self, name: impl Into<String>, value: CycleWritable, expected_revision: Vec<u8>, options: CyclesSetOptions,
-    ) -> Result<CyclesSetResponse, RpcStatus> {
+    ) -> Result<CyclesSetResponse, tonic::Status> {
         let value = CyclesSetRequest {
             name: name.into(),
             value: Some(value),
@@ -3354,12 +3347,14 @@ impl Cycles {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, selection: CycleSelection, filter: CycleFilter, order: CycleOrder) -> Result<CyclesListResponse, RpcStatus> {
+    pub async fn list(
+        &self, selection: CycleSelection, filter: CycleFilter, order: CycleOrder,
+    ) -> Result<CyclesListResponse, tonic::Status> {
         self.list_with(selection, filter, order, CyclesListOptions::default()).await
     }
     pub async fn list_with(
         &self, selection: CycleSelection, filter: CycleFilter, order: CycleOrder, options: CyclesListOptions,
-    ) -> Result<CyclesListResponse, RpcStatus> {
+    ) -> Result<CyclesListResponse, tonic::Status> {
         let value = CyclesListRequest {
             selection: Some(selection),
             filter: Some(filter),
@@ -3382,12 +3377,12 @@ impl Cycles {
     }
     pub async fn watch(
         &self, selection: CycleSelection, filter: CycleFilter, order: CycleOrder,
-    ) -> Result<Watching<CyclesWatchResponse>, RpcStatus> {
+    ) -> Result<Watching<CyclesWatchResponse>, tonic::Status> {
         self.watch_with(selection, filter, order, CyclesWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, selection: CycleSelection, filter: CycleFilter, order: CycleOrder, options: CyclesWatchOptions,
-    ) -> Result<Watching<CyclesWatchResponse>, RpcStatus> {
+    ) -> Result<Watching<CyclesWatchResponse>, tonic::Status> {
         let value = CyclesWatchRequest {
             selection: Some(selection),
             filter: Some(filter),
@@ -3410,13 +3405,13 @@ impl Cycles {
     }
     pub async fn create(
         &self, origins: Vec<Origin>, metadata: Metadata, continue_automatically: bool, source_cycle: impl Into<String>,
-    ) -> Result<CyclesCreateResponse, RpcStatus> {
+    ) -> Result<CyclesCreateResponse, tonic::Status> {
         self.create_with(origins, metadata, continue_automatically, source_cycle, CyclesCreateOptions::default()).await
     }
     pub async fn create_with(
         &self, origins: Vec<Origin>, metadata: Metadata, continue_automatically: bool, source_cycle: impl Into<String>,
         options: CyclesCreateOptions,
-    ) -> Result<CyclesCreateResponse, RpcStatus> {
+    ) -> Result<CyclesCreateResponse, tonic::Status> {
         let value = CyclesCreateRequest {
             origins,
             metadata: Some(metadata),
@@ -3440,10 +3435,10 @@ impl Cycles {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn seal(&self, name: impl Into<String>) -> Result<CyclesSealResponse, RpcStatus> {
+    pub async fn seal(&self, name: impl Into<String>) -> Result<CyclesSealResponse, tonic::Status> {
         self.seal_with(name, CyclesSealOptions::default()).await
     }
-    pub async fn seal_with(&self, name: impl Into<String>, options: CyclesSealOptions) -> Result<CyclesSealResponse, RpcStatus> {
+    pub async fn seal_with(&self, name: impl Into<String>, options: CyclesSealOptions) -> Result<CyclesSealResponse, tonic::Status> {
         let value = CyclesSealRequest {
             name: name.into(),
             request_id: match options.request_id {
@@ -3473,12 +3468,12 @@ impl Documents {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, scope: DocumentScope, document_id: impl Into<String>) -> Result<DocumentsGetResponse, RpcStatus> {
+    pub async fn get(&self, scope: DocumentScope, document_id: impl Into<String>) -> Result<DocumentsGetResponse, tonic::Status> {
         self.get_with(scope, document_id, DocumentsGetOptions::default()).await
     }
     pub async fn get_with(
         &self, scope: DocumentScope, document_id: impl Into<String>, options: DocumentsGetOptions,
-    ) -> Result<DocumentsGetResponse, RpcStatus> {
+    ) -> Result<DocumentsGetResponse, tonic::Status> {
         let value = DocumentsGetRequest {
             scope: Some(scope),
             document_id: document_id.into(),
@@ -3502,12 +3497,14 @@ impl Documents {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, scope: DocumentScope, document_id: impl Into<String>) -> Result<Watching<DocumentsWatchResponse>, RpcStatus> {
+    pub async fn watch(
+        &self, scope: DocumentScope, document_id: impl Into<String>,
+    ) -> Result<Watching<DocumentsWatchResponse>, tonic::Status> {
         self.watch_with(scope, document_id, DocumentsWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, scope: DocumentScope, document_id: impl Into<String>, options: DocumentsWatchOptions,
-    ) -> Result<Watching<DocumentsWatchResponse>, RpcStatus> {
+    ) -> Result<Watching<DocumentsWatchResponse>, tonic::Status> {
         let value = DocumentsWatchRequest {
             scope: Some(scope),
             document_id: document_id.into(),
@@ -3553,15 +3550,15 @@ impl Evidence {
         }
     }
     pub async fn statistics(
-        &self, scope: EvidenceScope, stream: impl Into<String>, field: impl Into<String>,
-    ) -> Result<EvidenceStatisticsResponse, RpcStatus> {
-        self.statistics_with(scope, stream, field, EvidenceStatisticsOptions::default()).await
+        &self, stream: impl Into<String>, field: impl Into<String>,
+    ) -> Result<EvidenceStatisticsResponse, tonic::Status> {
+        self.statistics_with(stream, field, EvidenceStatisticsOptions::default()).await
     }
     pub async fn statistics_with(
-        &self, scope: EvidenceScope, stream: impl Into<String>, field: impl Into<String>, options: EvidenceStatisticsOptions,
-    ) -> Result<EvidenceStatisticsResponse, RpcStatus> {
+        &self, stream: impl Into<String>, field: impl Into<String>, options: EvidenceStatisticsOptions,
+    ) -> Result<EvidenceStatisticsResponse, tonic::Status> {
         let value = EvidenceStatisticsRequest {
-            scope: Some(scope),
+            scope: options.scope,
             stream: stream.into(),
             versions: options.versions.unwrap_or_default(),
             between: options.between,
@@ -3583,12 +3580,12 @@ impl Evidence {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn archive(&self, subject: EvidenceSubject) -> Result<EvidenceArchiveResponse, RpcStatus> {
+    pub async fn archive(&self, subject: EvidenceSubject) -> Result<EvidenceArchiveResponse, tonic::Status> {
         self.archive_with(subject, EvidenceArchiveOptions::default()).await
     }
     pub async fn archive_with(
         &self, subject: EvidenceSubject, options: EvidenceArchiveOptions,
-    ) -> Result<EvidenceArchiveResponse, RpcStatus> {
+    ) -> Result<EvidenceArchiveResponse, tonic::Status> {
         let value = EvidenceArchiveRequest { subject: Some(subject), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -3612,13 +3609,13 @@ impl EvidenceHealthEvents {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self, selection: EvidenceAnnotationSelection) -> Result<EvidenceHealthEventsListResponse, RpcStatus> {
+    pub async fn list(&self, selection: AnnotationSelection) -> Result<HealthEventsListResponse, tonic::Status> {
         self.list_with(selection, EvidenceHealthEventsListOptions::default()).await
     }
     pub async fn list_with(
-        &self, selection: EvidenceAnnotationSelection, options: EvidenceHealthEventsListOptions,
-    ) -> Result<EvidenceHealthEventsListResponse, RpcStatus> {
-        let value = EvidenceHealthEventsListRequest {
+        &self, selection: AnnotationSelection, options: EvidenceHealthEventsListOptions,
+    ) -> Result<HealthEventsListResponse, tonic::Status> {
+        let value = HealthEventsListRequest {
             selection: Some(selection),
             at: options.at,
             page: options.page,
@@ -3626,23 +3623,23 @@ impl EvidenceHealthEvents {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<EvidenceHealthEventsListRequest, EvidenceHealthEventsListResponse>(
+            .unary::<HealthEventsListRequest, HealthEventsListResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.HealthEvents/List"),
                 request,
-                EvidenceHealthEventsListResponse::default().descriptor(),
+                HealthEventsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.health_events.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, selection: EvidenceAnnotationSelection) -> Result<Watching<EvidenceHealthEventsWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, selection: AnnotationSelection) -> Result<Watching<HealthEventsWatchResponse>, tonic::Status> {
         self.watch_with(selection, EvidenceHealthEventsWatchOptions::default()).await
     }
     pub async fn watch_with(
-        &self, selection: EvidenceAnnotationSelection, options: EvidenceHealthEventsWatchOptions,
-    ) -> Result<Watching<EvidenceHealthEventsWatchResponse>, RpcStatus> {
-        let value = EvidenceHealthEventsWatchRequest {
+        &self, selection: AnnotationSelection, options: EvidenceHealthEventsWatchOptions,
+    ) -> Result<Watching<HealthEventsWatchResponse>, tonic::Status> {
+        let value = HealthEventsWatchRequest {
             selection: Some(selection),
             at: options.at,
             page: options.page,
@@ -3650,10 +3647,10 @@ impl EvidenceHealthEvents {
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<EvidenceHealthEventsWatchRequest, EvidenceHealthEventsWatchResponse>(
+            .watch_known::<HealthEventsWatchRequest, HealthEventsWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.HealthEvents/Watch"),
                 request,
-                EvidenceHealthEventsWatchResponse::default().descriptor(),
+                HealthEventsWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.health_events.watch", error))?;
@@ -3669,18 +3666,18 @@ impl EvidenceNotes {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<EvidenceNotesGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>) -> Result<NotesGetResponse, tonic::Status> {
         self.get_with(name, EvidenceNotesGetOptions::default()).await
     }
-    pub async fn get_with(&self, name: impl Into<String>, options: EvidenceNotesGetOptions) -> Result<EvidenceNotesGetResponse, RpcStatus> {
-        let value = EvidenceNotesGetRequest { name: name.into(), at: options.at };
+    pub async fn get_with(&self, name: impl Into<String>, options: EvidenceNotesGetOptions) -> Result<NotesGetResponse, tonic::Status> {
+        let value = NotesGetRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<EvidenceNotesGetRequest, EvidenceNotesGetResponse>(
+            .unary::<NotesGetRequest, NotesGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Notes/Get"),
                 request,
-                EvidenceNotesGetResponse::default().descriptor(),
+                NotesGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.notes.get", error))?;
@@ -3688,14 +3685,14 @@ impl EvidenceNotes {
         Ok(response)
     }
     pub async fn set(
-        &self, name: impl Into<String>, value: EvidenceNoteWritable, expected_revision: Vec<u8>,
-    ) -> Result<EvidenceNotesSetResponse, RpcStatus> {
+        &self, name: impl Into<String>, value: NoteWritable, expected_revision: Vec<u8>,
+    ) -> Result<NotesSetResponse, tonic::Status> {
         self.set_with(name, value, expected_revision, EvidenceNotesSetOptions::default()).await
     }
     pub async fn set_with(
-        &self, name: impl Into<String>, value: EvidenceNoteWritable, expected_revision: Vec<u8>, options: EvidenceNotesSetOptions,
-    ) -> Result<EvidenceNotesSetResponse, RpcStatus> {
-        let value = EvidenceNotesSetRequest {
+        &self, name: impl Into<String>, value: NoteWritable, expected_revision: Vec<u8>, options: EvidenceNotesSetOptions,
+    ) -> Result<NotesSetResponse, tonic::Status> {
+        let value = NotesSetRequest {
             name: name.into(),
             value: Some(value),
             expected_revision,
@@ -3707,23 +3704,23 @@ impl EvidenceNotes {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<EvidenceNotesSetRequest, EvidenceNotesSetResponse>(
+            .unary::<NotesSetRequest, NotesSetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Notes/Set"),
                 request,
-                EvidenceNotesSetResponse::default().descriptor(),
+                NotesSetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.notes.set", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, selection: EvidenceAnnotationSelection) -> Result<EvidenceNotesListResponse, RpcStatus> {
+    pub async fn list(&self, selection: AnnotationSelection) -> Result<NotesListResponse, tonic::Status> {
         self.list_with(selection, EvidenceNotesListOptions::default()).await
     }
     pub async fn list_with(
-        &self, selection: EvidenceAnnotationSelection, options: EvidenceNotesListOptions,
-    ) -> Result<EvidenceNotesListResponse, RpcStatus> {
-        let value = EvidenceNotesListRequest {
+        &self, selection: AnnotationSelection, options: EvidenceNotesListOptions,
+    ) -> Result<NotesListResponse, tonic::Status> {
+        let value = NotesListRequest {
             selection: Some(selection),
             at: options.at,
             page: options.page,
@@ -3731,23 +3728,23 @@ impl EvidenceNotes {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<EvidenceNotesListRequest, EvidenceNotesListResponse>(
+            .unary::<NotesListRequest, NotesListResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Notes/List"),
                 request,
-                EvidenceNotesListResponse::default().descriptor(),
+                NotesListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.notes.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, selection: EvidenceAnnotationSelection) -> Result<Watching<EvidenceNotesWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, selection: AnnotationSelection) -> Result<Watching<NotesWatchResponse>, tonic::Status> {
         self.watch_with(selection, EvidenceNotesWatchOptions::default()).await
     }
     pub async fn watch_with(
-        &self, selection: EvidenceAnnotationSelection, options: EvidenceNotesWatchOptions,
-    ) -> Result<Watching<EvidenceNotesWatchResponse>, RpcStatus> {
-        let value = EvidenceNotesWatchRequest {
+        &self, selection: AnnotationSelection, options: EvidenceNotesWatchOptions,
+    ) -> Result<Watching<NotesWatchResponse>, tonic::Status> {
+        let value = NotesWatchRequest {
             selection: Some(selection),
             at: options.at,
             page: options.page,
@@ -3755,25 +3752,23 @@ impl EvidenceNotes {
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<EvidenceNotesWatchRequest, EvidenceNotesWatchResponse>(
+            .watch_known::<NotesWatchRequest, NotesWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Notes/Watch"),
                 request,
-                EvidenceNotesWatchResponse::default().descriptor(),
+                NotesWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.notes.watch", error))?;
         let response = response.with_action("evidence.notes.watch");
         Ok(response)
     }
-    pub async fn create(
-        &self, owner: EvidenceAnnotationOwner, value: EvidenceNoteWritable,
-    ) -> Result<EvidenceNotesCreateResponse, RpcStatus> {
+    pub async fn create(&self, owner: AnnotationOwner, value: NoteWritable) -> Result<NotesCreateResponse, tonic::Status> {
         self.create_with(owner, value, EvidenceNotesCreateOptions::default()).await
     }
     pub async fn create_with(
-        &self, owner: EvidenceAnnotationOwner, value: EvidenceNoteWritable, options: EvidenceNotesCreateOptions,
-    ) -> Result<EvidenceNotesCreateResponse, RpcStatus> {
-        let value = EvidenceNotesCreateRequest {
+        &self, owner: AnnotationOwner, value: NoteWritable, options: EvidenceNotesCreateOptions,
+    ) -> Result<NotesCreateResponse, tonic::Status> {
+        let value = NotesCreateRequest {
             owner: Some(owner),
             value: Some(value),
             request_id: match options.request_id {
@@ -3784,10 +3779,10 @@ impl EvidenceNotes {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<EvidenceNotesCreateRequest, EvidenceNotesCreateResponse>(
+            .unary::<NotesCreateRequest, NotesCreateResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Notes/Create"),
                 request,
-                EvidenceNotesCreateResponse::default().descriptor(),
+                NotesCreateResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.notes.create", error))?;
@@ -3803,14 +3798,14 @@ impl EvidenceRecords {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self, scope: EvidenceRecordScope, record_type: impl Into<String>) -> Result<EvidenceRecordsListResponse, RpcStatus> {
-        self.list_with(scope, record_type, EvidenceRecordsListOptions::default()).await
+    pub async fn list(&self, record_type: impl Into<String>) -> Result<RecordsListResponse, tonic::Status> {
+        self.list_with(record_type, EvidenceRecordsListOptions::default()).await
     }
     pub async fn list_with(
-        &self, scope: EvidenceRecordScope, record_type: impl Into<String>, options: EvidenceRecordsListOptions,
-    ) -> Result<EvidenceRecordsListResponse, RpcStatus> {
-        let value = EvidenceRecordsListRequest {
-            scope: Some(scope),
+        &self, record_type: impl Into<String>, options: EvidenceRecordsListOptions,
+    ) -> Result<RecordsListResponse, tonic::Status> {
+        let value = RecordsListRequest {
+            scope: options.scope,
             record_type: record_type.into(),
             versions: options.versions.unwrap_or_default(),
             between: options.between,
@@ -3822,25 +3817,23 @@ impl EvidenceRecords {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<EvidenceRecordsListRequest, EvidenceRecordsListResponse>(
+            .unary::<RecordsListRequest, RecordsListResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Records/List"),
                 request,
-                EvidenceRecordsListResponse::default().descriptor(),
+                RecordsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.records.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(
-        &self, scope: EvidenceRecordScope, record_type: impl Into<String>,
-    ) -> Result<Watching<EvidenceRecordsWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, scope: RecordScope, record_type: impl Into<String>) -> Result<Watching<RecordsWatchResponse>, tonic::Status> {
         self.watch_with(scope, record_type, EvidenceRecordsWatchOptions::default()).await
     }
     pub async fn watch_with(
-        &self, scope: EvidenceRecordScope, record_type: impl Into<String>, options: EvidenceRecordsWatchOptions,
-    ) -> Result<Watching<EvidenceRecordsWatchResponse>, RpcStatus> {
-        let value = EvidenceRecordsWatchRequest {
+        &self, scope: RecordScope, record_type: impl Into<String>, options: EvidenceRecordsWatchOptions,
+    ) -> Result<Watching<RecordsWatchResponse>, tonic::Status> {
+        let value = RecordsWatchRequest {
             scope: Some(scope),
             record_type: record_type.into(),
             versions: options.versions.unwrap_or_default(),
@@ -3853,10 +3846,10 @@ impl EvidenceRecords {
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<EvidenceRecordsWatchRequest, EvidenceRecordsWatchResponse>(
+            .watch_known::<RecordsWatchRequest, RecordsWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Records/Watch"),
                 request,
-                EvidenceRecordsWatchResponse::default().descriptor(),
+                RecordsWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.records.watch", error))?;
@@ -3872,13 +3865,13 @@ impl EvidenceSamples {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self, scope: EvidenceScope, streams: Vec<String>) -> Result<EvidenceSamplesListResponse, RpcStatus> {
+    pub async fn list(&self, scope: EvidenceScope, streams: Vec<String>) -> Result<SamplesListResponse, tonic::Status> {
         self.list_with(scope, streams, EvidenceSamplesListOptions::default()).await
     }
     pub async fn list_with(
         &self, scope: EvidenceScope, streams: Vec<String>, options: EvidenceSamplesListOptions,
-    ) -> Result<EvidenceSamplesListResponse, RpcStatus> {
-        let value = EvidenceSamplesListRequest {
+    ) -> Result<SamplesListResponse, tonic::Status> {
+        let value = SamplesListRequest {
             scope: Some(scope),
             streams,
             versions: options.versions.unwrap_or_default(),
@@ -3894,23 +3887,23 @@ impl EvidenceSamples {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<EvidenceSamplesListRequest, EvidenceSamplesListResponse>(
+            .unary::<SamplesListRequest, SamplesListResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Samples/List"),
                 request,
-                EvidenceSamplesListResponse::default().descriptor(),
+                SamplesListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.samples.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, scope: EvidenceScope, streams: Vec<String>) -> Result<Watching<EvidenceSamplesWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, scope: EvidenceScope, streams: Vec<String>) -> Result<Watching<SamplesWatchResponse>, tonic::Status> {
         self.watch_with(scope, streams, EvidenceSamplesWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, scope: EvidenceScope, streams: Vec<String>, options: EvidenceSamplesWatchOptions,
-    ) -> Result<Watching<EvidenceSamplesWatchResponse>, RpcStatus> {
-        let value = EvidenceSamplesWatchRequest {
+    ) -> Result<Watching<SamplesWatchResponse>, tonic::Status> {
+        let value = SamplesWatchRequest {
             scope: Some(scope),
             streams,
             versions: options.versions.unwrap_or_default(),
@@ -3926,10 +3919,10 @@ impl EvidenceSamples {
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<EvidenceSamplesWatchRequest, EvidenceSamplesWatchResponse>(
+            .watch_known::<SamplesWatchRequest, SamplesWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Samples/Watch"),
                 request,
-                EvidenceSamplesWatchResponse::default().descriptor(),
+                SamplesWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.samples.watch", error))?;
@@ -3945,14 +3938,12 @@ impl EvidenceTraceability {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, scope: EvidenceScope) -> Result<EvidenceTraceabilityGetResponse, RpcStatus> {
-        self.get_with(scope, EvidenceTraceabilityGetOptions::default()).await
+    pub async fn get(&self) -> Result<TraceabilityGetResponse, tonic::Status> {
+        self.get_with(EvidenceTraceabilityGetOptions::default()).await
     }
-    pub async fn get_with(
-        &self, scope: EvidenceScope, options: EvidenceTraceabilityGetOptions,
-    ) -> Result<EvidenceTraceabilityGetResponse, RpcStatus> {
-        let value = EvidenceTraceabilityGetRequest {
-            scope: Some(scope),
+    pub async fn get_with(&self, options: EvidenceTraceabilityGetOptions) -> Result<TraceabilityGetResponse, tonic::Status> {
+        let value = TraceabilityGetRequest {
+            scope: options.scope,
             page: options.page,
             at: options.at,
             entry: options.entry,
@@ -3960,23 +3951,23 @@ impl EvidenceTraceability {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<EvidenceTraceabilityGetRequest, EvidenceTraceabilityGetResponse>(
+            .unary::<TraceabilityGetRequest, TraceabilityGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Traceability/Get"),
                 request,
-                EvidenceTraceabilityGetResponse::default().descriptor(),
+                TraceabilityGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.traceability.get", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, scope: EvidenceScope) -> Result<Watching<EvidenceTraceabilityWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, scope: EvidenceScope) -> Result<Watching<TraceabilityWatchResponse>, tonic::Status> {
         self.watch_with(scope, EvidenceTraceabilityWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, scope: EvidenceScope, options: EvidenceTraceabilityWatchOptions,
-    ) -> Result<Watching<EvidenceTraceabilityWatchResponse>, RpcStatus> {
-        let value = EvidenceTraceabilityWatchRequest {
+    ) -> Result<Watching<TraceabilityWatchResponse>, tonic::Status> {
+        let value = TraceabilityWatchRequest {
             scope: Some(scope),
             page: options.page,
             at: options.at,
@@ -3984,10 +3975,10 @@ impl EvidenceTraceability {
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<EvidenceTraceabilityWatchRequest, EvidenceTraceabilityWatchResponse>(
+            .watch_known::<TraceabilityWatchRequest, TraceabilityWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.evidence.Traceability/Watch"),
                 request,
-                EvidenceTraceabilityWatchResponse::default().descriptor(),
+                TraceabilityWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("evidence.traceability.watch", error))?;
@@ -4011,10 +4002,10 @@ impl Executions {
             client,
         }
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<ExecutionsGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>) -> Result<ExecutionsGetResponse, tonic::Status> {
         self.get_with(name, ExecutionsGetOptions::default()).await
     }
-    pub async fn get_with(&self, name: impl Into<String>, options: ExecutionsGetOptions) -> Result<ExecutionsGetResponse, RpcStatus> {
+    pub async fn get_with(&self, name: impl Into<String>, options: ExecutionsGetOptions) -> Result<ExecutionsGetResponse, tonic::Status> {
         let value = ExecutionsGetRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -4031,12 +4022,12 @@ impl Executions {
     }
     pub async fn set(
         &self, name: impl Into<String>, value: ExecutionWritable, expected_revision: Vec<u8>,
-    ) -> Result<ExecutionsSetResponse, RpcStatus> {
+    ) -> Result<ExecutionsSetResponse, tonic::Status> {
         self.set_with(name, value, expected_revision, ExecutionsSetOptions::default()).await
     }
     pub async fn set_with(
         &self, name: impl Into<String>, value: ExecutionWritable, expected_revision: Vec<u8>, options: ExecutionsSetOptions,
-    ) -> Result<ExecutionsSetResponse, RpcStatus> {
+    ) -> Result<ExecutionsSetResponse, tonic::Status> {
         let value = ExecutionsSetRequest {
             name: name.into(),
             value: Some(value),
@@ -4061,13 +4052,13 @@ impl Executions {
     }
     pub async fn list(
         &self, parent: impl Into<String>, selection: ExecutionSelection, filter: ExecutionFilter, order: ExecutionOrder,
-    ) -> Result<ExecutionsListResponse, RpcStatus> {
+    ) -> Result<ExecutionsListResponse, tonic::Status> {
         self.list_with(parent, selection, filter, order, ExecutionsListOptions::default()).await
     }
     pub async fn list_with(
         &self, parent: impl Into<String>, selection: ExecutionSelection, filter: ExecutionFilter, order: ExecutionOrder,
         options: ExecutionsListOptions,
-    ) -> Result<ExecutionsListResponse, RpcStatus> {
+    ) -> Result<ExecutionsListResponse, tonic::Status> {
         let value = ExecutionsListRequest {
             parent: parent.into(),
             selection: Some(selection),
@@ -4091,13 +4082,13 @@ impl Executions {
     }
     pub async fn watch(
         &self, parent: impl Into<String>, selection: ExecutionSelection, filter: ExecutionFilter, order: ExecutionOrder,
-    ) -> Result<Watching<ExecutionsWatchResponse>, RpcStatus> {
+    ) -> Result<Watching<ExecutionsWatchResponse>, tonic::Status> {
         self.watch_with(parent, selection, filter, order, ExecutionsWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, parent: impl Into<String>, selection: ExecutionSelection, filter: ExecutionFilter, order: ExecutionOrder,
         options: ExecutionsWatchOptions,
-    ) -> Result<Watching<ExecutionsWatchResponse>, RpcStatus> {
+    ) -> Result<Watching<ExecutionsWatchResponse>, tonic::Status> {
         let value = ExecutionsWatchRequest {
             parent: parent.into(),
             selection: Some(selection),
@@ -4121,12 +4112,12 @@ impl Executions {
     }
     pub async fn create(
         &self, parent: impl Into<String>, executions: Vec<ExecutionBinding>,
-    ) -> Result<ExecutionsCreateResponse, RpcStatus> {
+    ) -> Result<ExecutionsCreateResponse, tonic::Status> {
         self.create_with(parent, executions, ExecutionsCreateOptions::default()).await
     }
     pub async fn create_with(
         &self, parent: impl Into<String>, executions: Vec<ExecutionBinding>, options: ExecutionsCreateOptions,
-    ) -> Result<ExecutionsCreateResponse, RpcStatus> {
+    ) -> Result<ExecutionsCreateResponse, tonic::Status> {
         let value = ExecutionsCreateRequest {
             parent: parent.into(),
             executions,
@@ -4148,12 +4139,12 @@ impl Executions {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn start(&self, name: impl Into<String>, mode: ExecutionMode) -> Result<ExecutionsStartResponse, RpcStatus> {
+    pub async fn start(&self, name: impl Into<String>, mode: ExecutionMode) -> Result<ExecutionsStartResponse, tonic::Status> {
         self.start_with(name, mode, ExecutionsStartOptions::default()).await
     }
     pub async fn start_with(
         &self, name: impl Into<String>, mode: ExecutionMode, options: ExecutionsStartOptions,
-    ) -> Result<ExecutionsStartResponse, RpcStatus> {
+    ) -> Result<ExecutionsStartResponse, tonic::Status> {
         let value = ExecutionsStartRequest {
             name: name.into(),
             request_id: match options.request_id {
@@ -4175,10 +4166,12 @@ impl Executions {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn stop(&self, name: impl Into<String>) -> Result<ExecutionsStopResponse, RpcStatus> {
+    pub async fn stop(&self, name: impl Into<String>) -> Result<ExecutionsStopResponse, tonic::Status> {
         self.stop_with(name, ExecutionsStopOptions::default()).await
     }
-    pub async fn stop_with(&self, name: impl Into<String>, options: ExecutionsStopOptions) -> Result<ExecutionsStopResponse, RpcStatus> {
+    pub async fn stop_with(
+        &self, name: impl Into<String>, options: ExecutionsStopOptions,
+    ) -> Result<ExecutionsStopResponse, tonic::Status> {
         let value = ExecutionsStopRequest {
             name: name.into(),
             request_id: match options.request_id {
@@ -4199,12 +4192,12 @@ impl Executions {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn cancel(&self, name: impl Into<String>) -> Result<ExecutionsCancelResponse, RpcStatus> {
+    pub async fn cancel(&self, name: impl Into<String>) -> Result<ExecutionsCancelResponse, tonic::Status> {
         self.cancel_with(name, ExecutionsCancelOptions::default()).await
     }
     pub async fn cancel_with(
         &self, name: impl Into<String>, options: ExecutionsCancelOptions,
-    ) -> Result<ExecutionsCancelResponse, RpcStatus> {
+    ) -> Result<ExecutionsCancelResponse, tonic::Status> {
         let value = ExecutionsCancelRequest {
             name: name.into(),
             request_id: match options.request_id {
@@ -4225,12 +4218,12 @@ impl Executions {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn delete(&self, name: impl Into<String>) -> Result<ExecutionsDeleteResponse, RpcStatus> {
+    pub async fn delete(&self, name: impl Into<String>) -> Result<ExecutionsDeleteResponse, tonic::Status> {
         self.delete_with(name, ExecutionsDeleteOptions::default()).await
     }
     pub async fn delete_with(
         &self, name: impl Into<String>, options: ExecutionsDeleteOptions,
-    ) -> Result<ExecutionsDeleteResponse, RpcStatus> {
+    ) -> Result<ExecutionsDeleteResponse, tonic::Status> {
         let value = ExecutionsDeleteRequest {
             name: name.into(),
             request_id: match options.request_id {
@@ -4251,12 +4244,14 @@ impl Executions {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn parameters(&self, name: impl Into<String>, set: ExecutionParameterSet) -> Result<ExecutionsParametersResponse, RpcStatus> {
+    pub async fn parameters(
+        &self, name: impl Into<String>, set: ExecutionParameterSet,
+    ) -> Result<ExecutionsParametersResponse, tonic::Status> {
         self.parameters_with(name, set, ExecutionsParametersOptions::default()).await
     }
     pub async fn parameters_with(
         &self, name: impl Into<String>, set: ExecutionParameterSet, options: ExecutionsParametersOptions,
-    ) -> Result<ExecutionsParametersResponse, RpcStatus> {
+    ) -> Result<ExecutionsParametersResponse, tonic::Status> {
         let value = ExecutionsParametersRequest {
             name: name.into(),
             set: set as i32,
@@ -4275,10 +4270,12 @@ impl Executions {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn steps(&self, name: impl Into<String>) -> Result<ExecutionsStepsResponse, RpcStatus> {
+    pub async fn steps(&self, name: impl Into<String>) -> Result<ExecutionsStepsResponse, tonic::Status> {
         self.steps_with(name, ExecutionsStepsOptions::default()).await
     }
-    pub async fn steps_with(&self, name: impl Into<String>, options: ExecutionsStepsOptions) -> Result<ExecutionsStepsResponse, RpcStatus> {
+    pub async fn steps_with(
+        &self, name: impl Into<String>, options: ExecutionsStepsOptions,
+    ) -> Result<ExecutionsStepsResponse, tonic::Status> {
         let value = ExecutionsStepsRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -4302,13 +4299,13 @@ impl ExecutionsCommands {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, name: impl Into<String>, parent: impl Into<String>) -> Result<ExecutionsCommandsGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>, parent: impl Into<String>) -> Result<CommandsGetResponse, tonic::Status> {
         self.get_with(name, parent, ExecutionsCommandsGetOptions::default()).await
     }
     pub async fn get_with(
         &self, name: impl Into<String>, parent: impl Into<String>, options: ExecutionsCommandsGetOptions,
-    ) -> Result<ExecutionsCommandsGetResponse, RpcStatus> {
-        let value = ExecutionsCommandsGetRequest {
+    ) -> Result<CommandsGetResponse, tonic::Status> {
+        let value = CommandsGetRequest {
             name: name.into(),
             parent: parent.into(),
             at: options.at,
@@ -4316,10 +4313,10 @@ impl ExecutionsCommands {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<ExecutionsCommandsGetRequest, ExecutionsCommandsGetResponse>(
+            .unary::<CommandsGetRequest, CommandsGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.executions.Commands/Get"),
                 request,
-                ExecutionsCommandsGetResponse::default().descriptor(),
+                CommandsGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("executions.commands.get", error))?;
@@ -4327,15 +4324,15 @@ impl ExecutionsCommands {
         Ok(response)
     }
     pub async fn create(
-        &self, parent: impl Into<String>, command_id: impl Into<String>, action: ExecutionsExecutionCommandAction,
-    ) -> Result<ExecutionsCommandsCreateResponse, RpcStatus> {
+        &self, parent: impl Into<String>, command_id: impl Into<String>, action: ExecutionCommandAction,
+    ) -> Result<CommandsCreateResponse, tonic::Status> {
         self.create_with(parent, command_id, action, ExecutionsCommandsCreateOptions::default()).await
     }
     pub async fn create_with(
-        &self, parent: impl Into<String>, command_id: impl Into<String>, action: ExecutionsExecutionCommandAction,
+        &self, parent: impl Into<String>, command_id: impl Into<String>, action: ExecutionCommandAction,
         options: ExecutionsCommandsCreateOptions,
-    ) -> Result<ExecutionsCommandsCreateResponse, RpcStatus> {
-        let value = ExecutionsCommandsCreateRequest {
+    ) -> Result<CommandsCreateResponse, tonic::Status> {
+        let value = CommandsCreateRequest {
             parent: parent.into(),
             request_id: match options.request_id {
                 Some(value) => value,
@@ -4348,10 +4345,10 @@ impl ExecutionsCommands {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<ExecutionsCommandsCreateRequest, ExecutionsCommandsCreateResponse>(
+            .unary::<CommandsCreateRequest, CommandsCreateResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.executions.Commands/Create"),
                 request,
-                ExecutionsCommandsCreateResponse::default().descriptor(),
+                CommandsCreateResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("executions.commands.create", error))?;
@@ -4367,40 +4364,38 @@ impl ExecutionsProgress {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<ExecutionsProgressGetResponse, RpcStatus> {
-        self.get_with(name, ExecutionsProgressGetOptions::default()).await
+    pub async fn get(&self) -> Result<ProgressGetResponse, tonic::Status> {
+        self.get_with(ExecutionsProgressGetOptions::default()).await
     }
-    pub async fn get_with(
-        &self, name: impl Into<String>, options: ExecutionsProgressGetOptions,
-    ) -> Result<ExecutionsProgressGetResponse, RpcStatus> {
-        let value = ExecutionsProgressGetRequest { name: Some(name.into()), at: options.at };
+    pub async fn get_with(&self, options: ExecutionsProgressGetOptions) -> Result<ProgressGetResponse, tonic::Status> {
+        let value = ProgressGetRequest { name: options.name, at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<ExecutionsProgressGetRequest, ExecutionsProgressGetResponse>(
+            .unary::<ProgressGetRequest, ProgressGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.executions.Progress/Get"),
                 request,
-                ExecutionsProgressGetResponse::default().descriptor(),
+                ProgressGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("executions.progress.get", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, name: impl Into<String>) -> Result<Watching<ExecutionsProgressWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, name: impl Into<String>) -> Result<Watching<ProgressWatchResponse>, tonic::Status> {
         self.watch_with(name, ExecutionsProgressWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, name: impl Into<String>, options: ExecutionsProgressWatchOptions,
-    ) -> Result<Watching<ExecutionsProgressWatchResponse>, RpcStatus> {
-        let value = ExecutionsProgressWatchRequest { name: name.into(), at: options.at };
+    ) -> Result<Watching<ProgressWatchResponse>, tonic::Status> {
+        let value = ProgressWatchRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<ExecutionsProgressWatchRequest, ExecutionsProgressWatchResponse>(
+            .watch_known::<ProgressWatchRequest, ProgressWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.executions.Progress/Watch"),
                 request,
-                ExecutionsProgressWatchResponse::default().descriptor(),
+                ProgressWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("executions.progress.watch", error))?;
@@ -4416,13 +4411,13 @@ impl ExecutionsSchemas {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<ExecutionsSchemasGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>) -> Result<SchemasGetResponse, tonic::Status> {
         self.get_with(name, ExecutionsSchemasGetOptions::default()).await
     }
     pub async fn get_with(
         &self, name: impl Into<String>, options: ExecutionsSchemasGetOptions,
-    ) -> Result<ExecutionsSchemasGetResponse, RpcStatus> {
-        let value = ExecutionsSchemasGetRequest {
+    ) -> Result<SchemasGetResponse, tonic::Status> {
+        let value = SchemasGetRequest {
             name: name.into(),
             at: options.at,
             page: options.page,
@@ -4430,10 +4425,10 @@ impl ExecutionsSchemas {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<ExecutionsSchemasGetRequest, ExecutionsSchemasGetResponse>(
+            .unary::<SchemasGetRequest, SchemasGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.executions.Schemas/Get"),
                 request,
-                ExecutionsSchemasGetResponse::default().descriptor(),
+                SchemasGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("executions.schemas.get", error))?;
@@ -4453,10 +4448,10 @@ impl Files {
             client,
         }
     }
-    pub async fn get(&self, file: FileReference) -> Result<FilesGetResponse, RpcStatus> {
+    pub async fn get(&self, file: FileReference) -> Result<FilesGetResponse, tonic::Status> {
         self.get_with(file, FilesGetOptions::default()).await
     }
-    pub async fn get_with(&self, file: FileReference, options: FilesGetOptions) -> Result<FilesGetResponse, RpcStatus> {
+    pub async fn get_with(&self, file: FileReference, options: FilesGetOptions) -> Result<FilesGetResponse, tonic::Status> {
         let value = FilesGetRequest { file: Some(file), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -4471,12 +4466,12 @@ impl Files {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn read(&self, file: FileReference, offset: u64, max_bytes: u64) -> Result<FilesReadResponse, RpcStatus> {
+    pub async fn read(&self, file: FileReference, offset: u64, max_bytes: u64) -> Result<FilesReadResponse, tonic::Status> {
         self.read_with(file, offset, max_bytes, FilesReadOptions::default()).await
     }
     pub async fn read_with(
         &self, file: FileReference, offset: u64, max_bytes: u64, options: FilesReadOptions,
-    ) -> Result<FilesReadResponse, RpcStatus> {
+    ) -> Result<FilesReadResponse, tonic::Status> {
         let value = FilesReadRequest {
             file: Some(file),
             offset,
@@ -4496,15 +4491,16 @@ impl Files {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, offset: u64) -> Result<Watching<FilesWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, offset: u64) -> Result<Watching<FilesWatchResponse>, tonic::Status> {
         self.watch_with(offset, FilesWatchOptions::default()).await
     }
-    pub async fn watch_with(&self, offset: u64, options: FilesWatchOptions) -> Result<Watching<FilesWatchResponse>, RpcStatus> {
+    pub async fn watch_with(&self, offset: u64, options: FilesWatchOptions) -> Result<Watching<FilesWatchResponse>, tonic::Status> {
         let value = FilesWatchRequest {
             target: match (options.file, options.upload) {
                 (Some(value), None) => Some(dokime_protocol::host::files_watch_request::Target::File(value)),
                 (None, Some(value)) => Some(dokime_protocol::host::files_watch_request::Target::Upload(value)),
-                _ => return Err(RpcStatus::invalid_argument("Choose Exactly One target Variant")),
+                (None, None) => None,
+                _ => return Err(tonic::Status::invalid_argument("Choose At Most One target Variant")),
             },
             offset,
             at: options.at,
@@ -4522,10 +4518,10 @@ impl Files {
         let response = response.with_action("files.watch");
         Ok(response)
     }
-    pub async fn delete(&self, file: FileReference) -> Result<Receipt, RpcStatus> {
+    pub async fn delete(&self, file: FileReference) -> Result<Receipt, tonic::Status> {
         self.delete_with(file, FilesDeleteOptions::default()).await
     }
-    pub async fn delete_with(&self, file: FileReference, options: FilesDeleteOptions) -> Result<Receipt, RpcStatus> {
+    pub async fn delete_with(&self, file: FileReference, options: FilesDeleteOptions) -> Result<Receipt, tonic::Status> {
         let value = FilesDeleteRequest {
             file: Some(file),
             request_id: match options.request_id {
@@ -4544,7 +4540,7 @@ impl Files {
             .await
             .map_err(|error| action_error("files.delete", error))?;
         let response = response.into_inner();
-        response.receipt.ok_or_else(|| RpcStatus::data_loss("Read Files.Delete: Missing Payload"))
+        response.receipt.ok_or_else(|| tonic::Status::data_loss("Read Files.Delete: Missing Payload"))
     }
 }
 #[derive(Clone)]
@@ -4555,13 +4551,13 @@ impl FilesUploads {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn create(&self, metadata: FileMetadata) -> Result<FilesUploadsCreateResponse, RpcStatus> {
+    pub async fn create(&self, metadata: FileMetadata) -> Result<UploadsCreateResponse, tonic::Status> {
         self.create_with(metadata, FilesUploadsCreateOptions::default()).await
     }
     pub async fn create_with(
         &self, metadata: FileMetadata, options: FilesUploadsCreateOptions,
-    ) -> Result<FilesUploadsCreateResponse, RpcStatus> {
-        let value = FilesUploadsCreateRequest {
+    ) -> Result<UploadsCreateResponse, tonic::Status> {
+        let value = UploadsCreateRequest {
             metadata: Some(metadata),
             request_id: match options.request_id {
                 Some(value) => value,
@@ -4571,39 +4567,39 @@ impl FilesUploads {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<FilesUploadsCreateRequest, FilesUploadsCreateResponse>(
+            .unary::<UploadsCreateRequest, UploadsCreateResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.files.Uploads/Create"),
                 request,
-                FilesUploadsCreateResponse::default().descriptor(),
+                UploadsCreateResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("files.uploads.create", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn get(&self, upload: Upload) -> Result<FilesUploadsGetResponse, RpcStatus> {
+    pub async fn get(&self, upload: Upload) -> Result<UploadsGetResponse, tonic::Status> {
         self.get_with(upload, FilesUploadsGetOptions::default()).await
     }
-    pub async fn get_with(&self, upload: Upload, options: FilesUploadsGetOptions) -> Result<FilesUploadsGetResponse, RpcStatus> {
-        let value = FilesUploadsGetRequest { upload: Some(upload), at: options.at };
+    pub async fn get_with(&self, upload: Upload, options: FilesUploadsGetOptions) -> Result<UploadsGetResponse, tonic::Status> {
+        let value = UploadsGetRequest { upload: Some(upload), at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<FilesUploadsGetRequest, FilesUploadsGetResponse>(
+            .unary::<UploadsGetRequest, UploadsGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.files.Uploads/Get"),
                 request,
-                FilesUploadsGetResponse::default().descriptor(),
+                UploadsGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("files.uploads.get", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn resume(&self, upload: Upload) -> Result<FilesUploadsResumeResponse, RpcStatus> {
+    pub async fn resume(&self, upload: Upload) -> Result<UploadsResumeResponse, tonic::Status> {
         self.resume_with(upload, FilesUploadsResumeOptions::default()).await
     }
-    pub async fn resume_with(&self, upload: Upload, options: FilesUploadsResumeOptions) -> Result<FilesUploadsResumeResponse, RpcStatus> {
-        let value = FilesUploadsResumeRequest {
+    pub async fn resume_with(&self, upload: Upload, options: FilesUploadsResumeOptions) -> Result<UploadsResumeResponse, tonic::Status> {
+        let value = UploadsResumeRequest {
             upload: Some(upload),
             request_id: match options.request_id {
                 Some(value) => value,
@@ -4613,23 +4609,23 @@ impl FilesUploads {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<FilesUploadsResumeRequest, FilesUploadsResumeResponse>(
+            .unary::<UploadsResumeRequest, UploadsResumeResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.files.Uploads/Resume"),
                 request,
-                FilesUploadsResumeResponse::default().descriptor(),
+                UploadsResumeResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("files.uploads.resume", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn append(&self, upload: Upload, offset: u64, data: Vec<u8>) -> Result<FilesUploadsAppendResponse, RpcStatus> {
+    pub async fn append(&self, upload: Upload, offset: u64, data: Vec<u8>) -> Result<UploadsAppendResponse, tonic::Status> {
         self.append_with(upload, offset, data, FilesUploadsAppendOptions::default()).await
     }
     pub async fn append_with(
         &self, upload: Upload, offset: u64, data: Vec<u8>, options: FilesUploadsAppendOptions,
-    ) -> Result<FilesUploadsAppendResponse, RpcStatus> {
-        let value = FilesUploadsAppendRequest {
+    ) -> Result<UploadsAppendResponse, tonic::Status> {
+        let value = UploadsAppendRequest {
             upload: Some(upload),
             offset,
             data,
@@ -4641,23 +4637,23 @@ impl FilesUploads {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<FilesUploadsAppendRequest, FilesUploadsAppendResponse>(
+            .unary::<UploadsAppendRequest, UploadsAppendResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.files.Uploads/Append"),
                 request,
-                FilesUploadsAppendResponse::default().descriptor(),
+                UploadsAppendResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("files.uploads.append", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn publish(&self, upload: Upload, length: u64, sha256: Vec<u8>) -> Result<FilesUploadsPublishResponse, RpcStatus> {
+    pub async fn publish(&self, upload: Upload, length: u64, sha256: Vec<u8>) -> Result<UploadsPublishResponse, tonic::Status> {
         self.publish_with(upload, length, sha256, FilesUploadsPublishOptions::default()).await
     }
     pub async fn publish_with(
         &self, upload: Upload, length: u64, sha256: Vec<u8>, options: FilesUploadsPublishOptions,
-    ) -> Result<FilesUploadsPublishResponse, RpcStatus> {
-        let value = FilesUploadsPublishRequest {
+    ) -> Result<UploadsPublishResponse, tonic::Status> {
+        let value = UploadsPublishRequest {
             upload: Some(upload),
             length,
             sha256,
@@ -4669,21 +4665,21 @@ impl FilesUploads {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<FilesUploadsPublishRequest, FilesUploadsPublishResponse>(
+            .unary::<UploadsPublishRequest, UploadsPublishResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.files.Uploads/Publish"),
                 request,
-                FilesUploadsPublishResponse::default().descriptor(),
+                UploadsPublishResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("files.uploads.publish", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn delete(&self, upload: Upload) -> Result<FilesUploadsDeleteResponse, RpcStatus> {
+    pub async fn delete(&self, upload: Upload) -> Result<UploadsDeleteResponse, tonic::Status> {
         self.delete_with(upload, FilesUploadsDeleteOptions::default()).await
     }
-    pub async fn delete_with(&self, upload: Upload, options: FilesUploadsDeleteOptions) -> Result<FilesUploadsDeleteResponse, RpcStatus> {
-        let value = FilesUploadsDeleteRequest {
+    pub async fn delete_with(&self, upload: Upload, options: FilesUploadsDeleteOptions) -> Result<UploadsDeleteResponse, tonic::Status> {
+        let value = UploadsDeleteRequest {
             upload: Some(upload),
             request_id: match options.request_id {
                 Some(value) => value,
@@ -4693,10 +4689,10 @@ impl FilesUploads {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<FilesUploadsDeleteRequest, FilesUploadsDeleteResponse>(
+            .unary::<UploadsDeleteRequest, UploadsDeleteResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.files.Uploads/Delete"),
                 request,
-                FilesUploadsDeleteResponse::default().descriptor(),
+                UploadsDeleteResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("files.uploads.delete", error))?;
@@ -4712,12 +4708,12 @@ impl Invocations {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn create(&self, operation: impl Into<String>, fingerprint: Vec<u8>, payload: Vec<u8>) -> Result<Vec<u8>, RpcStatus> {
+    pub async fn create(&self, operation: impl Into<String>, fingerprint: Vec<u8>, payload: Vec<u8>) -> Result<Vec<u8>, tonic::Status> {
         self.create_with(operation, fingerprint, payload, InvocationsCreateOptions::default()).await
     }
     pub async fn create_with(
         &self, operation: impl Into<String>, fingerprint: Vec<u8>, payload: Vec<u8>, options: InvocationsCreateOptions,
-    ) -> Result<Vec<u8>, RpcStatus> {
+    ) -> Result<Vec<u8>, tonic::Status> {
         let value = InvocationsCreateRequest {
             operation: operation.into(),
             fingerprint,
@@ -4736,10 +4732,10 @@ impl Invocations {
         let response = response.into_inner();
         Ok(response.payload)
     }
-    pub async fn get(&self, instance: u64) -> Result<InstanceState, RpcStatus> {
+    pub async fn get(&self, instance: u64) -> Result<InstanceState, tonic::Status> {
         self.get_with(instance, InvocationsGetOptions::default()).await
     }
-    pub async fn get_with(&self, instance: u64, options: InvocationsGetOptions) -> Result<InstanceState, RpcStatus> {
+    pub async fn get_with(&self, instance: u64, options: InvocationsGetOptions) -> Result<InstanceState, tonic::Status> {
         let value = InvocationsGetRequest { instance };
         let request = options.context.request(value);
         let response = self
@@ -4752,14 +4748,14 @@ impl Invocations {
             .await
             .map_err(|error| action_error("invocations.get", error))?;
         let response = response.into_inner();
-        response.invocation.ok_or_else(|| RpcStatus::data_loss("Read Invocations.Get: Missing Payload"))
+        response.invocation.ok_or_else(|| tonic::Status::data_loss("Read Invocations.Get: Missing Payload"))
     }
-    pub async fn cancel(&self, instance: u64, reason: impl Into<String>) -> Result<InstanceState, RpcStatus> {
+    pub async fn cancel(&self, instance: u64, reason: impl Into<String>) -> Result<InstanceState, tonic::Status> {
         self.cancel_with(instance, reason, InvocationsCancelOptions::default()).await
     }
     pub async fn cancel_with(
         &self, instance: u64, reason: impl Into<String>, options: InvocationsCancelOptions,
-    ) -> Result<InstanceState, RpcStatus> {
+    ) -> Result<InstanceState, tonic::Status> {
         let value = InvocationsCancelRequest { instance, reason: reason.into() };
         let request = options.context.request(value);
         let response = self
@@ -4772,12 +4768,12 @@ impl Invocations {
             .await
             .map_err(|error| action_error("invocations.cancel", error))?;
         let response = response.into_inner();
-        response.invocation.ok_or_else(|| RpcStatus::data_loss("Read Invocations.Cancel: Missing Payload"))
+        response.invocation.ok_or_else(|| tonic::Status::data_loss("Read Invocations.Cancel: Missing Payload"))
     }
-    pub async fn watch(&self, instance: u64) -> Result<Watching<InstanceState>, RpcStatus> {
+    pub async fn watch(&self, instance: u64) -> Result<Watching<InstanceState>, tonic::Status> {
         self.watch_with(instance, InvocationsWatchOptions::default()).await
     }
-    pub async fn watch_with(&self, instance: u64, options: InvocationsWatchOptions) -> Result<Watching<InstanceState>, RpcStatus> {
+    pub async fn watch_with(&self, instance: u64, options: InvocationsWatchOptions) -> Result<Watching<InstanceState>, tonic::Status> {
         let value = InvocationsWatchRequest { instance };
         let request = options.context.request(value);
         let response = self
@@ -4790,7 +4786,7 @@ impl Invocations {
             .await
             .map_err(|error| action_error("invocations.watch", error))?;
         let response = response.with_action("invocations.watch");
-        Ok(response.map(|response| response.invocation.ok_or_else(|| RpcStatus::data_loss("Read Invocations.Watch: Missing Payload"))))
+        Ok(response.map(|response| response.invocation.ok_or_else(|| tonic::Status::data_loss("Read Invocations.Watch: Missing Payload"))))
     }
 }
 #[derive(Clone)]
@@ -4813,14 +4809,14 @@ impl MediaCaptures {
         Self { client }
     }
     pub async fn create(
-        &self, scope: ArtifactScope, kind: MediaCaptureKind, audio: MediaRecordingAudio,
-    ) -> Result<MediaCapturesCreateResponse, RpcStatus> {
+        &self, scope: ArtifactScope, kind: CaptureKind, audio: RecordingAudio,
+    ) -> Result<CapturesCreateResponse, tonic::Status> {
         self.create_with(scope, kind, audio, MediaCapturesCreateOptions::default()).await
     }
     pub async fn create_with(
-        &self, scope: ArtifactScope, kind: MediaCaptureKind, audio: MediaRecordingAudio, options: MediaCapturesCreateOptions,
-    ) -> Result<MediaCapturesCreateResponse, RpcStatus> {
-        let value = MediaCapturesCreateRequest {
+        &self, scope: ArtifactScope, kind: CaptureKind, audio: RecordingAudio, options: MediaCapturesCreateOptions,
+    ) -> Result<CapturesCreateResponse, tonic::Status> {
+        let value = CapturesCreateRequest {
             scope: Some(scope),
             kind: kind as i32,
             input: options.input,
@@ -4836,61 +4832,61 @@ impl MediaCaptures {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<MediaCapturesCreateRequest, MediaCapturesCreateResponse>(
+            .unary::<CapturesCreateRequest, CapturesCreateResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.media.Captures/Create"),
                 request,
-                MediaCapturesCreateResponse::default().descriptor(),
+                CapturesCreateResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("media.captures.create", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<MediaCapturesGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>) -> Result<CapturesGetResponse, tonic::Status> {
         self.get_with(name, MediaCapturesGetOptions::default()).await
     }
-    pub async fn get_with(&self, name: impl Into<String>, options: MediaCapturesGetOptions) -> Result<MediaCapturesGetResponse, RpcStatus> {
-        let value = MediaCapturesGetRequest { name: name.into(), at: options.at };
+    pub async fn get_with(&self, name: impl Into<String>, options: MediaCapturesGetOptions) -> Result<CapturesGetResponse, tonic::Status> {
+        let value = CapturesGetRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<MediaCapturesGetRequest, MediaCapturesGetResponse>(
+            .unary::<CapturesGetRequest, CapturesGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.media.Captures/Get"),
                 request,
-                MediaCapturesGetResponse::default().descriptor(),
+                CapturesGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("media.captures.get", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, name: impl Into<String>) -> Result<Watching<MediaCapturesWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, name: impl Into<String>) -> Result<Watching<CapturesWatchResponse>, tonic::Status> {
         self.watch_with(name, MediaCapturesWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, name: impl Into<String>, options: MediaCapturesWatchOptions,
-    ) -> Result<Watching<MediaCapturesWatchResponse>, RpcStatus> {
-        let value = MediaCapturesWatchRequest { name: name.into(), at: options.at };
+    ) -> Result<Watching<CapturesWatchResponse>, tonic::Status> {
+        let value = CapturesWatchRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<MediaCapturesWatchRequest, MediaCapturesWatchResponse>(
+            .watch_known::<CapturesWatchRequest, CapturesWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.media.Captures/Watch"),
                 request,
-                MediaCapturesWatchResponse::default().descriptor(),
+                CapturesWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("media.captures.watch", error))?;
         let response = response.with_action("media.captures.watch");
         Ok(response)
     }
-    pub async fn stop(&self, name: impl Into<String>) -> Result<MediaCapturesStopResponse, RpcStatus> {
+    pub async fn stop(&self, name: impl Into<String>) -> Result<CapturesStopResponse, tonic::Status> {
         self.stop_with(name, MediaCapturesStopOptions::default()).await
     }
     pub async fn stop_with(
         &self, name: impl Into<String>, options: MediaCapturesStopOptions,
-    ) -> Result<MediaCapturesStopResponse, RpcStatus> {
-        let value = MediaCapturesStopRequest {
+    ) -> Result<CapturesStopResponse, tonic::Status> {
+        let value = CapturesStopRequest {
             name: name.into(),
             request_id: match options.request_id {
                 Some(value) => value,
@@ -4900,10 +4896,10 @@ impl MediaCaptures {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<MediaCapturesStopRequest, MediaCapturesStopResponse>(
+            .unary::<CapturesStopRequest, CapturesStopResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.media.Captures/Stop"),
                 request,
-                MediaCapturesStopResponse::default().descriptor(),
+                CapturesStopResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("media.captures.stop", error))?;
@@ -4919,10 +4915,10 @@ impl Operations {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self) -> Result<Vec<DiscoveredOperation>, RpcStatus> {
+    pub async fn list(&self) -> Result<Vec<DiscoveredOperation>, tonic::Status> {
         self.list_with(OperationsListOptions::default()).await
     }
-    pub async fn list_with(&self, options: OperationsListOptions) -> Result<Vec<DiscoveredOperation>, RpcStatus> {
+    pub async fn list_with(&self, options: OperationsListOptions) -> Result<Vec<DiscoveredOperation>, tonic::Status> {
         let value = OperationsListRequest {};
         let request = options.context.request(value);
         let response = self
@@ -4937,10 +4933,10 @@ impl Operations {
         let response = response.into_inner();
         Ok(response.operations)
     }
-    pub async fn get(&self, id: impl Into<String>) -> Result<DiscoveredOperation, RpcStatus> {
+    pub async fn get(&self, id: impl Into<String>) -> Result<DiscoveredOperation, tonic::Status> {
         self.get_with(id, OperationsGetOptions::default()).await
     }
-    pub async fn get_with(&self, id: impl Into<String>, options: OperationsGetOptions) -> Result<DiscoveredOperation, RpcStatus> {
+    pub async fn get_with(&self, id: impl Into<String>, options: OperationsGetOptions) -> Result<DiscoveredOperation, tonic::Status> {
         let value = OperationsGetRequest { id: id.into() };
         let request = options.context.request(value);
         let response = self
@@ -4953,7 +4949,7 @@ impl Operations {
             .await
             .map_err(|error| action_error("operations.get", error))?;
         let response = response.into_inner();
-        response.operation.ok_or_else(|| RpcStatus::data_loss("Read Operations.Get: Missing Payload"))
+        response.operation.ok_or_else(|| tonic::Status::data_loss("Read Operations.Get: Missing Payload"))
     }
 }
 #[derive(Clone)]
@@ -4979,13 +4975,13 @@ impl PlotsSettings {
     }
     pub async fn get(
         &self, scope: DocumentScope, document_id: impl Into<String>, plot_id: impl Into<String>,
-    ) -> Result<PlotsSettingsGetResponse, RpcStatus> {
+    ) -> Result<dokime_protocol::host::plots::SettingsGetResponse, tonic::Status> {
         self.get_with(scope, document_id, plot_id, PlotsSettingsGetOptions::default()).await
     }
     pub async fn get_with(
         &self, scope: DocumentScope, document_id: impl Into<String>, plot_id: impl Into<String>, options: PlotsSettingsGetOptions,
-    ) -> Result<PlotsSettingsGetResponse, RpcStatus> {
-        let value = PlotsSettingsGetRequest {
+    ) -> Result<dokime_protocol::host::plots::SettingsGetResponse, tonic::Status> {
+        let value = dokime_protocol::host::plots::SettingsGetRequest {
             scope: Some(scope),
             document_id: document_id.into(),
             plot_id: plot_id.into(),
@@ -4994,10 +4990,10 @@ impl PlotsSettings {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<PlotsSettingsGetRequest, PlotsSettingsGetResponse>(
+            .unary::<dokime_protocol::host::plots::SettingsGetRequest, dokime_protocol::host::plots::SettingsGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.plots.Settings/Get"),
                 request,
-                PlotsSettingsGetResponse::default().descriptor(),
+                dokime_protocol::host::plots::SettingsGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("plots.settings.get", error))?;
@@ -5005,16 +5001,16 @@ impl PlotsSettings {
         Ok(response)
     }
     pub async fn set(
-        &self, scope: DocumentScope, document_id: impl Into<String>, plot_id: impl Into<String>, value: PlotsPlotSettingsValue,
+        &self, scope: DocumentScope, document_id: impl Into<String>, plot_id: impl Into<String>, value: PlotSettingsValue,
         expected_revision: Vec<u8>,
-    ) -> Result<PlotsSettingsSetResponse, RpcStatus> {
+    ) -> Result<dokime_protocol::host::plots::SettingsSetResponse, tonic::Status> {
         self.set_with(scope, document_id, plot_id, value, expected_revision, PlotsSettingsSetOptions::default()).await
     }
     pub async fn set_with(
-        &self, scope: DocumentScope, document_id: impl Into<String>, plot_id: impl Into<String>, value: PlotsPlotSettingsValue,
+        &self, scope: DocumentScope, document_id: impl Into<String>, plot_id: impl Into<String>, value: PlotSettingsValue,
         expected_revision: Vec<u8>, options: PlotsSettingsSetOptions,
-    ) -> Result<PlotsSettingsSetResponse, RpcStatus> {
-        let value = PlotsSettingsSetRequest {
+    ) -> Result<dokime_protocol::host::plots::SettingsSetResponse, tonic::Status> {
+        let value = dokime_protocol::host::plots::SettingsSetRequest {
             scope: Some(scope),
             document_id: document_id.into(),
             plot_id: plot_id.into(),
@@ -5028,10 +5024,10 @@ impl PlotsSettings {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<PlotsSettingsSetRequest, PlotsSettingsSetResponse>(
+            .unary::<dokime_protocol::host::plots::SettingsSetRequest, dokime_protocol::host::plots::SettingsSetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.plots.Settings/Set"),
                 request,
-                PlotsSettingsSetResponse::default().descriptor(),
+                dokime_protocol::host::plots::SettingsSetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("plots.settings.set", error))?;
@@ -5047,13 +5043,13 @@ impl PlotsSnapshots {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self, requests: Vec<PlotsPlotRequest>) -> Result<PlotsSnapshotsListResponse, RpcStatus> {
+    pub async fn list(&self, requests: Vec<PlotRequest>) -> Result<SnapshotsListResponse, tonic::Status> {
         self.list_with(requests, PlotsSnapshotsListOptions::default()).await
     }
     pub async fn list_with(
-        &self, requests: Vec<PlotsPlotRequest>, options: PlotsSnapshotsListOptions,
-    ) -> Result<PlotsSnapshotsListResponse, RpcStatus> {
-        let value = PlotsSnapshotsListRequest {
+        &self, requests: Vec<PlotRequest>, options: PlotsSnapshotsListOptions,
+    ) -> Result<SnapshotsListResponse, tonic::Status> {
+        let value = SnapshotsListRequest {
             requests,
             at: options.at,
             page: options.page,
@@ -5061,23 +5057,23 @@ impl PlotsSnapshots {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<PlotsSnapshotsListRequest, PlotsSnapshotsListResponse>(
+            .unary::<SnapshotsListRequest, SnapshotsListResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.plots.Snapshots/List"),
                 request,
-                PlotsSnapshotsListResponse::default().descriptor(),
+                SnapshotsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("plots.snapshots.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, requests: Vec<PlotsPlotRequest>) -> Result<Watching<PlotsSnapshotsWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, requests: Vec<PlotRequest>) -> Result<Watching<SnapshotsWatchResponse>, tonic::Status> {
         self.watch_with(requests, PlotsSnapshotsWatchOptions::default()).await
     }
     pub async fn watch_with(
-        &self, requests: Vec<PlotsPlotRequest>, options: PlotsSnapshotsWatchOptions,
-    ) -> Result<Watching<PlotsSnapshotsWatchResponse>, RpcStatus> {
-        let value = PlotsSnapshotsWatchRequest {
+        &self, requests: Vec<PlotRequest>, options: PlotsSnapshotsWatchOptions,
+    ) -> Result<Watching<SnapshotsWatchResponse>, tonic::Status> {
+        let value = SnapshotsWatchRequest {
             requests,
             at: options.at,
             page: options.page,
@@ -5085,10 +5081,10 @@ impl PlotsSnapshots {
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<PlotsSnapshotsWatchRequest, PlotsSnapshotsWatchResponse>(
+            .watch_known::<SnapshotsWatchRequest, SnapshotsWatchResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.plots.Snapshots/Watch"),
                 request,
-                PlotsSnapshotsWatchResponse::default().descriptor(),
+                SnapshotsWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("plots.snapshots.watch", error))?;
@@ -5110,10 +5106,10 @@ impl Plugins {
             client,
         }
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<PluginsGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>) -> Result<PluginsGetResponse, tonic::Status> {
         self.get_with(name, PluginsGetOptions::default()).await
     }
-    pub async fn get_with(&self, name: impl Into<String>, options: PluginsGetOptions) -> Result<PluginsGetResponse, RpcStatus> {
+    pub async fn get_with(&self, name: impl Into<String>, options: PluginsGetOptions) -> Result<PluginsGetResponse, tonic::Status> {
         let value = PluginsGetRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5128,10 +5124,10 @@ impl Plugins {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self) -> Result<PluginsListResponse, RpcStatus> {
+    pub async fn list(&self) -> Result<PluginsListResponse, tonic::Status> {
         self.list_with(PluginsListOptions::default()).await
     }
-    pub async fn list_with(&self, options: PluginsListOptions) -> Result<PluginsListResponse, RpcStatus> {
+    pub async fn list_with(&self, options: PluginsListOptions) -> Result<PluginsListResponse, tonic::Status> {
         let value = PluginsListRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5146,10 +5142,10 @@ impl Plugins {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self) -> Result<Watching<PluginsWatchResponse>, RpcStatus> {
+    pub async fn watch(&self) -> Result<Watching<PluginsWatchResponse>, tonic::Status> {
         self.watch_with(PluginsWatchOptions::default()).await
     }
-    pub async fn watch_with(&self, options: PluginsWatchOptions) -> Result<Watching<PluginsWatchResponse>, RpcStatus> {
+    pub async fn watch_with(&self, options: PluginsWatchOptions) -> Result<Watching<PluginsWatchResponse>, tonic::Status> {
         let value = PluginsWatchRequest { name: options.name, at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5166,12 +5162,12 @@ impl Plugins {
     }
     pub async fn create(
         &self, name: impl Into<String>, placement: PluginPlacement, value: PluginValue,
-    ) -> Result<PluginsCreateResponse, RpcStatus> {
+    ) -> Result<PluginsCreateResponse, tonic::Status> {
         self.create_with(name, placement, value, PluginsCreateOptions::default()).await
     }
     pub async fn create_with(
         &self, name: impl Into<String>, placement: PluginPlacement, value: PluginValue, options: PluginsCreateOptions,
-    ) -> Result<PluginsCreateResponse, RpcStatus> {
+    ) -> Result<PluginsCreateResponse, tonic::Status> {
         let value = PluginsCreateRequest {
             request_id: match options.request_id {
                 Some(value) => value,
@@ -5196,12 +5192,12 @@ impl Plugins {
     }
     pub async fn set(
         &self, name: impl Into<String>, value: PluginValue, expected_revision: Vec<u8>,
-    ) -> Result<PluginsSetResponse, RpcStatus> {
+    ) -> Result<PluginsSetResponse, tonic::Status> {
         self.set_with(name, value, expected_revision, PluginsSetOptions::default()).await
     }
     pub async fn set_with(
         &self, name: impl Into<String>, value: PluginValue, expected_revision: Vec<u8>, options: PluginsSetOptions,
-    ) -> Result<PluginsSetResponse, RpcStatus> {
+    ) -> Result<PluginsSetResponse, tonic::Status> {
         let value = PluginsSetRequest {
             name: name.into(),
             value: Some(value),
@@ -5220,12 +5216,12 @@ impl Plugins {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn delete(&self, name: impl Into<String>, expected_revision: Vec<u8>) -> Result<Receipt, RpcStatus> {
+    pub async fn delete(&self, name: impl Into<String>, expected_revision: Vec<u8>) -> Result<Receipt, tonic::Status> {
         self.delete_with(name, expected_revision, PluginsDeleteOptions::default()).await
     }
     pub async fn delete_with(
         &self, name: impl Into<String>, expected_revision: Vec<u8>, options: PluginsDeleteOptions,
-    ) -> Result<Receipt, RpcStatus> {
+    ) -> Result<Receipt, tonic::Status> {
         let value = PluginsDeleteRequest { name: name.into(), expected_revision };
         let request = options.context.request(value);
         let response = self
@@ -5238,14 +5234,14 @@ impl Plugins {
             .await
             .map_err(|error| action_error("plugins.delete", error))?;
         let response = response.into_inner();
-        response.receipt.ok_or_else(|| RpcStatus::data_loss("Read Plugins.Delete: Missing Payload"))
+        response.receipt.ok_or_else(|| tonic::Status::data_loss("Read Plugins.Delete: Missing Payload"))
     }
-    pub async fn restart(&self, name: impl Into<String>, expected_revision: Vec<u8>) -> Result<PluginEntry, RpcStatus> {
+    pub async fn restart(&self, name: impl Into<String>, expected_revision: Vec<u8>) -> Result<PluginEntry, tonic::Status> {
         self.restart_with(name, expected_revision, PluginsRestartOptions::default()).await
     }
     pub async fn restart_with(
         &self, name: impl Into<String>, expected_revision: Vec<u8>, options: PluginsRestartOptions,
-    ) -> Result<PluginEntry, RpcStatus> {
+    ) -> Result<PluginEntry, tonic::Status> {
         let value = PluginsRestartRequest { name: name.into(), expected_revision };
         let request = options.context.request(value);
         let response = self
@@ -5258,16 +5254,16 @@ impl Plugins {
             .await
             .map_err(|error| action_error("plugins.restart", error))?;
         let response = response.into_inner();
-        response.entry.ok_or_else(|| RpcStatus::data_loss("Read Plugins.Restart: Missing Payload"))
+        response.entry.ok_or_else(|| tonic::Status::data_loss("Read Plugins.Restart: Missing Payload"))
     }
     pub async fn replace(
         &self, name: impl Into<String>, placement: PluginPlacement, expected_revision: Vec<u8>,
-    ) -> Result<PluginsReplaceResponse, RpcStatus> {
+    ) -> Result<PluginsReplaceResponse, tonic::Status> {
         self.replace_with(name, placement, expected_revision, PluginsReplaceOptions::default()).await
     }
     pub async fn replace_with(
         &self, name: impl Into<String>, placement: PluginPlacement, expected_revision: Vec<u8>, options: PluginsReplaceOptions,
-    ) -> Result<PluginsReplaceResponse, RpcStatus> {
+    ) -> Result<PluginsReplaceResponse, tonic::Status> {
         let value = PluginsReplaceRequest {
             name: name.into(),
             placement: Some(placement),
@@ -5299,18 +5295,20 @@ impl PluginsSecrets {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self) -> Result<PluginsSecretsListResponse, RpcStatus> {
+    pub async fn list(&self) -> Result<dokime_protocol::host::plugins::SecretsListResponse, tonic::Status> {
         self.list_with(PluginsSecretsListOptions::default()).await
     }
-    pub async fn list_with(&self, options: PluginsSecretsListOptions) -> Result<PluginsSecretsListResponse, RpcStatus> {
-        let value = PluginsSecretsListRequest { name: options.name, at: options.at };
+    pub async fn list_with(
+        &self, options: PluginsSecretsListOptions,
+    ) -> Result<dokime_protocol::host::plugins::SecretsListResponse, tonic::Status> {
+        let value = dokime_protocol::host::plugins::SecretsListRequest { name: options.name, at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<PluginsSecretsListRequest, PluginsSecretsListResponse>(
+            .unary::<dokime_protocol::host::plugins::SecretsListRequest, dokime_protocol::host::plugins::SecretsListResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.plugins.Secrets/List"),
                 request,
-                PluginsSecretsListResponse::default().descriptor(),
+                dokime_protocol::host::plugins::SecretsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("plugins.secrets.list", error))?;
@@ -5326,20 +5324,20 @@ impl PluginsSettings {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self, name: impl Into<String>) -> Result<PluginsSettingsListResponse, RpcStatus> {
+    pub async fn list(&self, name: impl Into<String>) -> Result<SettingsListResponse, tonic::Status> {
         self.list_with(name, PluginsSettingsListOptions::default()).await
     }
     pub async fn list_with(
         &self, name: impl Into<String>, options: PluginsSettingsListOptions,
-    ) -> Result<PluginsSettingsListResponse, RpcStatus> {
-        let value = PluginsSettingsListRequest { name: Some(name.into()), at: options.at };
+    ) -> Result<SettingsListResponse, tonic::Status> {
+        let value = SettingsListRequest { name: Some(name.into()), at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<PluginsSettingsListRequest, PluginsSettingsListResponse>(
+            .unary::<SettingsListRequest, SettingsListResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.plugins.Settings/List"),
                 request,
-                PluginsSettingsListResponse::default().descriptor(),
+                SettingsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("plugins.settings.list", error))?;
@@ -5348,13 +5346,13 @@ impl PluginsSettings {
     }
     pub async fn set(
         &self, name: impl Into<String>, value: SettingValues, expected_revision: Vec<u8>,
-    ) -> Result<PluginsSettingsSetResponse, RpcStatus> {
+    ) -> Result<harmos_protocol::host::plugins::SettingsSetResponse, tonic::Status> {
         self.set_with(name, value, expected_revision, PluginsSettingsSetOptions::default()).await
     }
     pub async fn set_with(
         &self, name: impl Into<String>, value: SettingValues, expected_revision: Vec<u8>, options: PluginsSettingsSetOptions,
-    ) -> Result<PluginsSettingsSetResponse, RpcStatus> {
-        let value = PluginsSettingsSetRequest {
+    ) -> Result<harmos_protocol::host::plugins::SettingsSetResponse, tonic::Status> {
+        let value = harmos_protocol::host::plugins::SettingsSetRequest {
             name: name.into(),
             value: Some(value),
             expected_revision,
@@ -5366,10 +5364,10 @@ impl PluginsSettings {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<PluginsSettingsSetRequest, PluginsSettingsSetResponse>(
+            .unary::<harmos_protocol::host::plugins::SettingsSetRequest, harmos_protocol::host::plugins::SettingsSetResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.plugins.Settings/Set"),
                 request,
-                PluginsSettingsSetResponse::default().descriptor(),
+                harmos_protocol::host::plugins::SettingsSetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("plugins.settings.set", error))?;
@@ -5387,12 +5385,12 @@ impl PromptDefinitions {
     }
     pub async fn get(
         &self, name: impl Into<String>, parent: impl Into<String>, schema_version: u32,
-    ) -> Result<PromptDefinitionsGetResponse, RpcStatus> {
+    ) -> Result<PromptDefinitionsGetResponse, tonic::Status> {
         self.get_with(name, parent, schema_version, PromptDefinitionsGetOptions::default()).await
     }
     pub async fn get_with(
         &self, name: impl Into<String>, parent: impl Into<String>, schema_version: u32, options: PromptDefinitionsGetOptions,
-    ) -> Result<PromptDefinitionsGetResponse, RpcStatus> {
+    ) -> Result<PromptDefinitionsGetResponse, tonic::Status> {
         let value = PromptDefinitionsGetRequest {
             name: name.into(),
             parent: parent.into(),
@@ -5412,12 +5410,12 @@ impl PromptDefinitions {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, parent: impl Into<String>) -> Result<PromptDefinitionsListResponse, RpcStatus> {
+    pub async fn list(&self, parent: impl Into<String>) -> Result<PromptDefinitionsListResponse, tonic::Status> {
         self.list_with(parent, PromptDefinitionsListOptions::default()).await
     }
     pub async fn list_with(
         &self, parent: impl Into<String>, options: PromptDefinitionsListOptions,
-    ) -> Result<PromptDefinitionsListResponse, RpcStatus> {
+    ) -> Result<PromptDefinitionsListResponse, tonic::Status> {
         let value = PromptDefinitionsListRequest { parent: parent.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5445,10 +5443,10 @@ impl Prompts {
             client,
         }
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<PromptsGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>) -> Result<PromptsGetResponse, tonic::Status> {
         self.get_with(name, PromptsGetOptions::default()).await
     }
-    pub async fn get_with(&self, name: impl Into<String>, options: PromptsGetOptions) -> Result<PromptsGetResponse, RpcStatus> {
+    pub async fn get_with(&self, name: impl Into<String>, options: PromptsGetOptions) -> Result<PromptsGetResponse, tonic::Status> {
         let value = PromptsGetRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5463,12 +5461,12 @@ impl Prompts {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, parent: impl Into<String>, pending_only: bool) -> Result<PromptsListResponse, RpcStatus> {
+    pub async fn list(&self, parent: impl Into<String>, pending_only: bool) -> Result<PromptsListResponse, tonic::Status> {
         self.list_with(parent, pending_only, PromptsListOptions::default()).await
     }
     pub async fn list_with(
         &self, parent: impl Into<String>, pending_only: bool, options: PromptsListOptions,
-    ) -> Result<PromptsListResponse, RpcStatus> {
+    ) -> Result<PromptsListResponse, tonic::Status> {
         let value = PromptsListRequest {
             parent: parent.into(),
             cycle_id: options.cycle_id,
@@ -5490,12 +5488,12 @@ impl Prompts {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, parent: impl Into<String>, pending_only: bool) -> Result<Watching<PromptsWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, parent: impl Into<String>, pending_only: bool) -> Result<Watching<PromptsWatchResponse>, tonic::Status> {
         self.watch_with(parent, pending_only, PromptsWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, parent: impl Into<String>, pending_only: bool, options: PromptsWatchOptions,
-    ) -> Result<Watching<PromptsWatchResponse>, RpcStatus> {
+    ) -> Result<Watching<PromptsWatchResponse>, tonic::Status> {
         let value = PromptsWatchRequest {
             parent: parent.into(),
             cycle_id: options.cycle_id,
@@ -5528,13 +5526,13 @@ impl PromptsAnswers {
     }
     pub async fn create(
         &self, parent: impl Into<String>, action: impl Into<String>, values: MapValue, accepted: bool,
-    ) -> Result<PromptsAnswersCreateResponse, RpcStatus> {
+    ) -> Result<AnswersCreateResponse, tonic::Status> {
         self.create_with(parent, action, values, accepted, PromptsAnswersCreateOptions::default()).await
     }
     pub async fn create_with(
         &self, parent: impl Into<String>, action: impl Into<String>, values: MapValue, accepted: bool, options: PromptsAnswersCreateOptions,
-    ) -> Result<PromptsAnswersCreateResponse, RpcStatus> {
-        let value = PromptsAnswersCreateRequest {
+    ) -> Result<AnswersCreateResponse, tonic::Status> {
+        let value = AnswersCreateRequest {
             parent: parent.into(),
             action: action.into(),
             values: Some(values),
@@ -5547,10 +5545,10 @@ impl PromptsAnswers {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<PromptsAnswersCreateRequest, PromptsAnswersCreateResponse>(
+            .unary::<AnswersCreateRequest, AnswersCreateResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.prompts.Answers/Create"),
                 request,
-                PromptsAnswersCreateResponse::default().descriptor(),
+                AnswersCreateResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("prompts.answers.create", error))?;
@@ -5568,12 +5566,12 @@ impl RecordSchemas {
     }
     pub async fn get(
         &self, name: impl Into<String>, parent: impl Into<String>, schema_version: u32,
-    ) -> Result<RecordSchemasGetResponse, RpcStatus> {
+    ) -> Result<RecordSchemasGetResponse, tonic::Status> {
         self.get_with(name, parent, schema_version, RecordSchemasGetOptions::default()).await
     }
     pub async fn get_with(
         &self, name: impl Into<String>, parent: impl Into<String>, schema_version: u32, options: RecordSchemasGetOptions,
-    ) -> Result<RecordSchemasGetResponse, RpcStatus> {
+    ) -> Result<RecordSchemasGetResponse, tonic::Status> {
         let value = RecordSchemasGetRequest {
             name: name.into(),
             parent: parent.into(),
@@ -5593,12 +5591,12 @@ impl RecordSchemas {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, parent: impl Into<String>) -> Result<RecordSchemasListResponse, RpcStatus> {
+    pub async fn list(&self, parent: impl Into<String>) -> Result<RecordSchemasListResponse, tonic::Status> {
         self.list_with(parent, RecordSchemasListOptions::default()).await
     }
     pub async fn list_with(
         &self, parent: impl Into<String>, options: RecordSchemasListOptions,
-    ) -> Result<RecordSchemasListResponse, RpcStatus> {
+    ) -> Result<RecordSchemasListResponse, tonic::Status> {
         let value = RecordSchemasListRequest { parent: parent.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5622,12 +5620,12 @@ impl Reports {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, subject: ReportSubject, name: impl Into<String>) -> Result<ReportsGetResponse, RpcStatus> {
+    pub async fn get(&self, subject: ReportSubject, name: impl Into<String>) -> Result<ReportsGetResponse, tonic::Status> {
         self.get_with(subject, name, ReportsGetOptions::default()).await
     }
     pub async fn get_with(
         &self, subject: ReportSubject, name: impl Into<String>, options: ReportsGetOptions,
-    ) -> Result<ReportsGetResponse, RpcStatus> {
+    ) -> Result<ReportsGetResponse, tonic::Status> {
         let value = ReportsGetRequest {
             subject: Some(subject),
             name: name.into(),
@@ -5646,12 +5644,12 @@ impl Reports {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn create(&self, subject: ReportSubject, document_id: impl Into<String>) -> Result<ReportsCreateResponse, RpcStatus> {
+    pub async fn create(&self, subject: ReportSubject, document_id: impl Into<String>) -> Result<ReportsCreateResponse, tonic::Status> {
         self.create_with(subject, document_id, ReportsCreateOptions::default()).await
     }
     pub async fn create_with(
         &self, subject: ReportSubject, document_id: impl Into<String>, options: ReportsCreateOptions,
-    ) -> Result<ReportsCreateResponse, RpcStatus> {
+    ) -> Result<ReportsCreateResponse, tonic::Status> {
         let value = ReportsCreateRequest {
             subject: Some(subject),
             document_id: document_id.into(),
@@ -5676,12 +5674,12 @@ impl Reports {
     }
     pub async fn publish(
         &self, name: impl Into<String>, subject: ReportSubject, expected_revision: Vec<u8>,
-    ) -> Result<ReportsPublishResponse, RpcStatus> {
+    ) -> Result<ReportsPublishResponse, tonic::Status> {
         self.publish_with(name, subject, expected_revision, ReportsPublishOptions::default()).await
     }
     pub async fn publish_with(
         &self, name: impl Into<String>, subject: ReportSubject, expected_revision: Vec<u8>, options: ReportsPublishOptions,
-    ) -> Result<ReportsPublishResponse, RpcStatus> {
+    ) -> Result<ReportsPublishResponse, tonic::Status> {
         let value = ReportsPublishRequest {
             name: name.into(),
             subject: Some(subject),
@@ -5713,10 +5711,10 @@ impl Schemas {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self) -> Result<Vec<SchemaDescription>, RpcStatus> {
+    pub async fn list(&self) -> Result<Vec<SchemaDescription>, tonic::Status> {
         self.list_with(SchemasListOptions::default()).await
     }
-    pub async fn list_with(&self, options: SchemasListOptions) -> Result<Vec<SchemaDescription>, RpcStatus> {
+    pub async fn list_with(&self, options: SchemasListOptions) -> Result<Vec<SchemaDescription>, tonic::Status> {
         let value = SchemasListRequest { schema: options.schema };
         let request = options.context.request(value);
         let response = self
@@ -5740,10 +5738,10 @@ impl Secrets {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, name: impl Into<String>) -> Result<SecretsGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>) -> Result<SecretsGetResponse, tonic::Status> {
         self.get_with(name, SecretsGetOptions::default()).await
     }
-    pub async fn get_with(&self, name: impl Into<String>, options: SecretsGetOptions) -> Result<SecretsGetResponse, RpcStatus> {
+    pub async fn get_with(&self, name: impl Into<String>, options: SecretsGetOptions) -> Result<SecretsGetResponse, tonic::Status> {
         let value = SecretsGetRequest { name: name.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5760,12 +5758,12 @@ impl Secrets {
     }
     pub async fn set(
         &self, name: impl Into<String>, value: SecretWritable, expected_revision: Vec<u8>,
-    ) -> Result<SecretsSetResponse, RpcStatus> {
+    ) -> Result<SecretsSetResponse, tonic::Status> {
         self.set_with(name, value, expected_revision, SecretsSetOptions::default()).await
     }
     pub async fn set_with(
         &self, name: impl Into<String>, value: SecretWritable, expected_revision: Vec<u8>, options: SecretsSetOptions,
-    ) -> Result<SecretsSetResponse, RpcStatus> {
+    ) -> Result<SecretsSetResponse, tonic::Status> {
         let value = SecretsSetRequest {
             name: name.into(),
             value: Some(value),
@@ -5788,28 +5786,28 @@ impl Secrets {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self) -> Result<SecretsListResponse, RpcStatus> {
+    pub async fn list(&self) -> Result<dokime_protocol::host::SecretsListResponse, tonic::Status> {
         self.list_with(SecretsListOptions::default()).await
     }
-    pub async fn list_with(&self, options: SecretsListOptions) -> Result<SecretsListResponse, RpcStatus> {
-        let value = SecretsListRequest { at: options.at };
+    pub async fn list_with(&self, options: SecretsListOptions) -> Result<dokime_protocol::host::SecretsListResponse, tonic::Status> {
+        let value = dokime_protocol::host::SecretsListRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<SecretsListRequest, SecretsListResponse>(
+            .unary::<dokime_protocol::host::SecretsListRequest, dokime_protocol::host::SecretsListResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.Secrets/List"),
                 request,
-                SecretsListResponse::default().descriptor(),
+                dokime_protocol::host::SecretsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("secrets.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self) -> Result<Watching<SecretsWatchResponse>, RpcStatus> {
+    pub async fn watch(&self) -> Result<Watching<SecretsWatchResponse>, tonic::Status> {
         self.watch_with(SecretsWatchOptions::default()).await
     }
-    pub async fn watch_with(&self, options: SecretsWatchOptions) -> Result<Watching<SecretsWatchResponse>, RpcStatus> {
+    pub async fn watch_with(&self, options: SecretsWatchOptions) -> Result<Watching<SecretsWatchResponse>, tonic::Status> {
         let value = SecretsWatchRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5824,12 +5822,12 @@ impl Secrets {
         let response = response.with_action("secrets.watch");
         Ok(response)
     }
-    pub async fn delete(&self, names: Vec<String>, expected_revision: Vec<u8>) -> Result<SecretsDeleteResponse, RpcStatus> {
+    pub async fn delete(&self, names: Vec<String>, expected_revision: Vec<u8>) -> Result<SecretsDeleteResponse, tonic::Status> {
         self.delete_with(names, expected_revision, SecretsDeleteOptions::default()).await
     }
     pub async fn delete_with(
         &self, names: Vec<String>, expected_revision: Vec<u8>, options: SecretsDeleteOptions,
-    ) -> Result<SecretsDeleteResponse, RpcStatus> {
+    ) -> Result<SecretsDeleteResponse, tonic::Status> {
         let value = SecretsDeleteRequest {
             names,
             expected_revision,
@@ -5851,12 +5849,12 @@ impl Secrets {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn export(&self, names: Vec<String>, generation: u64) -> Result<SecretsExportResponse, RpcStatus> {
+    pub async fn export(&self, names: Vec<String>, generation: u64) -> Result<SecretsExportResponse, tonic::Status> {
         self.export_with(names, generation, SecretsExportOptions::default()).await
     }
     pub async fn export_with(
         &self, names: Vec<String>, generation: u64, options: SecretsExportOptions,
-    ) -> Result<SecretsExportResponse, RpcStatus> {
+    ) -> Result<SecretsExportResponse, tonic::Status> {
         let value = SecretsExportRequest { names, generation, at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5873,12 +5871,12 @@ impl Secrets {
     }
     pub async fn import(
         &self, data: Vec<u8>, choices: Vec<SecretImportChoice>, generation: u64, validate_only: bool,
-    ) -> Result<SecretsImportResponse, RpcStatus> {
+    ) -> Result<SecretsImportResponse, tonic::Status> {
         self.import_with(data, choices, generation, validate_only, SecretsImportOptions::default()).await
     }
     pub async fn import_with(
         &self, data: Vec<u8>, choices: Vec<SecretImportChoice>, generation: u64, validate_only: bool, options: SecretsImportOptions,
-    ) -> Result<SecretsImportResponse, RpcStatus> {
+    ) -> Result<SecretsImportResponse, tonic::Status> {
         let value = SecretsImportRequest {
             data,
             choices,
@@ -5911,31 +5909,33 @@ impl Settings {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self) -> Result<SettingsGetResponse, RpcStatus> {
+    pub async fn get(&self) -> Result<dokime_protocol::host::SettingsGetResponse, tonic::Status> {
         self.get_with(SettingsGetOptions::default()).await
     }
-    pub async fn get_with(&self, options: SettingsGetOptions) -> Result<SettingsGetResponse, RpcStatus> {
-        let value = SettingsGetRequest { at: options.at };
+    pub async fn get_with(&self, options: SettingsGetOptions) -> Result<dokime_protocol::host::SettingsGetResponse, tonic::Status> {
+        let value = dokime_protocol::host::SettingsGetRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<SettingsGetRequest, SettingsGetResponse>(
+            .unary::<dokime_protocol::host::SettingsGetRequest, dokime_protocol::host::SettingsGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.Settings/Get"),
                 request,
-                SettingsGetResponse::default().descriptor(),
+                dokime_protocol::host::SettingsGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("settings.get", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn set(&self, value: ApplicationSettings, expected_revision: Vec<u8>) -> Result<SettingsSetResponse, RpcStatus> {
+    pub async fn set(
+        &self, value: ApplicationSettings, expected_revision: Vec<u8>,
+    ) -> Result<dokime_protocol::host::SettingsSetResponse, tonic::Status> {
         self.set_with(value, expected_revision, SettingsSetOptions::default()).await
     }
     pub async fn set_with(
         &self, value: ApplicationSettings, expected_revision: Vec<u8>, options: SettingsSetOptions,
-    ) -> Result<SettingsSetResponse, RpcStatus> {
-        let value = SettingsSetRequest {
+    ) -> Result<dokime_protocol::host::SettingsSetResponse, tonic::Status> {
+        let value = dokime_protocol::host::SettingsSetRequest {
             value: Some(value),
             expected_revision,
             request_id: match options.request_id {
@@ -5946,20 +5946,20 @@ impl Settings {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<SettingsSetRequest, SettingsSetResponse>(
+            .unary::<dokime_protocol::host::SettingsSetRequest, dokime_protocol::host::SettingsSetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.Settings/Set"),
                 request,
-                SettingsSetResponse::default().descriptor(),
+                dokime_protocol::host::SettingsSetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("settings.set", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn schema(&self) -> Result<SettingsSchemaResponse, RpcStatus> {
+    pub async fn schema(&self) -> Result<SettingsSchemaResponse, tonic::Status> {
         self.schema_with(SettingsSchemaOptions::default()).await
     }
-    pub async fn schema_with(&self, options: SettingsSchemaOptions) -> Result<SettingsSchemaResponse, RpcStatus> {
+    pub async fn schema_with(&self, options: SettingsSchemaOptions) -> Result<SettingsSchemaResponse, tonic::Status> {
         let value = SettingsSchemaRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -5991,10 +5991,10 @@ impl Status {
             client,
         }
     }
-    pub async fn get(&self) -> Result<StatusGetResponse, RpcStatus> {
+    pub async fn get(&self) -> Result<StatusGetResponse, tonic::Status> {
         self.get_with(StatusGetOptions::default()).await
     }
-    pub async fn get_with(&self, options: StatusGetOptions) -> Result<StatusGetResponse, RpcStatus> {
+    pub async fn get_with(&self, options: StatusGetOptions) -> Result<StatusGetResponse, tonic::Status> {
         let value = StatusGetRequest {};
         let request = options.context.request(value);
         let response = self
@@ -6009,10 +6009,10 @@ impl Status {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self) -> Result<Watching<StatusWatchResponse>, RpcStatus> {
+    pub async fn watch(&self) -> Result<Watching<StatusWatchResponse>, tonic::Status> {
         self.watch_with(StatusWatchOptions::default()).await
     }
-    pub async fn watch_with(&self, options: StatusWatchOptions) -> Result<Watching<StatusWatchResponse>, RpcStatus> {
+    pub async fn watch_with(&self, options: StatusWatchOptions) -> Result<Watching<StatusWatchResponse>, tonic::Status> {
         let value = StatusWatchRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -6036,20 +6036,20 @@ impl StatusDiagnostics {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self, name: impl Into<String>, offset: u64, max_bytes: u64) -> Result<StatusDiagnosticsGetResponse, RpcStatus> {
+    pub async fn get(&self, name: impl Into<String>, offset: u64, max_bytes: u64) -> Result<DiagnosticsGetResponse, tonic::Status> {
         self.get_with(name, offset, max_bytes, StatusDiagnosticsGetOptions::default()).await
     }
     pub async fn get_with(
         &self, name: impl Into<String>, offset: u64, max_bytes: u64, options: StatusDiagnosticsGetOptions,
-    ) -> Result<StatusDiagnosticsGetResponse, RpcStatus> {
-        let value = StatusDiagnosticsGetRequest { name: name.into(), offset, max_bytes };
+    ) -> Result<DiagnosticsGetResponse, tonic::Status> {
+        let value = DiagnosticsGetRequest { name: name.into(), offset, max_bytes };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<StatusDiagnosticsGetRequest, StatusDiagnosticsGetResponse>(
+            .unary::<DiagnosticsGetRequest, DiagnosticsGetResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.status.Diagnostics/Get"),
                 request,
-                StatusDiagnosticsGetResponse::default().descriptor(),
+                DiagnosticsGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("status.diagnostics.get", error))?;
@@ -6065,38 +6065,38 @@ impl StatusLogs {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self) -> Result<StatusLogsListResponse, RpcStatus> {
+    pub async fn list(&self) -> Result<LogsListResponse, tonic::Status> {
         self.list_with(StatusLogsListOptions::default()).await
     }
-    pub async fn list_with(&self, options: StatusLogsListOptions) -> Result<StatusLogsListResponse, RpcStatus> {
-        let value = StatusLogsListRequest { at: options.at, page: options.page };
+    pub async fn list_with(&self, options: StatusLogsListOptions) -> Result<LogsListResponse, tonic::Status> {
+        let value = LogsListRequest { at: options.at, page: options.page };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<StatusLogsListRequest, StatusLogsListResponse>(
+            .unary::<LogsListRequest, LogsListResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.status.Logs/List"),
                 request,
-                StatusLogsListResponse::default().descriptor(),
+                LogsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("status.logs.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, max_bytes: u64, max_events: u32) -> Result<Watching<StatusLogsWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, max_bytes: u64, max_events: u32) -> Result<Watching<LogsWatchResponse>, tonic::Status> {
         self.watch_with(max_bytes, max_events, StatusLogsWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, max_bytes: u64, max_events: u32, options: StatusLogsWatchOptions,
-    ) -> Result<Watching<StatusLogsWatchResponse>, RpcStatus> {
-        let value = StatusLogsWatchRequest { at: options.at, max_bytes, max_events };
+    ) -> Result<Watching<LogsWatchResponse>, tonic::Status> {
+        let value = LogsWatchRequest { at: options.at, max_bytes, max_events };
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<StatusLogsWatchRequest, StatusLogsWatchResponse>(
+            .watch_known::<LogsWatchRequest, LogsWatchResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.status.Logs/Watch"),
                 request,
-                StatusLogsWatchResponse::default().descriptor(),
+                LogsWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("status.logs.watch", error))?;
@@ -6112,38 +6112,38 @@ impl StatusTraceEvents {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self) -> Result<StatusTraceEventsListResponse, RpcStatus> {
+    pub async fn list(&self) -> Result<TraceEventsListResponse, tonic::Status> {
         self.list_with(StatusTraceEventsListOptions::default()).await
     }
-    pub async fn list_with(&self, options: StatusTraceEventsListOptions) -> Result<StatusTraceEventsListResponse, RpcStatus> {
-        let value = StatusTraceEventsListRequest { at: options.at, page: options.page };
+    pub async fn list_with(&self, options: StatusTraceEventsListOptions) -> Result<TraceEventsListResponse, tonic::Status> {
+        let value = TraceEventsListRequest { at: options.at, page: options.page };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<StatusTraceEventsListRequest, StatusTraceEventsListResponse>(
+            .unary::<TraceEventsListRequest, TraceEventsListResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.status.TraceEvents/List"),
                 request,
-                StatusTraceEventsListResponse::default().descriptor(),
+                TraceEventsListResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("status.trace_events.list", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn watch(&self, max_bytes: u64, max_events: u32) -> Result<Watching<StatusTraceEventsWatchResponse>, RpcStatus> {
+    pub async fn watch(&self, max_bytes: u64, max_events: u32) -> Result<Watching<TraceEventsWatchResponse>, tonic::Status> {
         self.watch_with(max_bytes, max_events, StatusTraceEventsWatchOptions::default()).await
     }
     pub async fn watch_with(
         &self, max_bytes: u64, max_events: u32, options: StatusTraceEventsWatchOptions,
-    ) -> Result<Watching<StatusTraceEventsWatchResponse>, RpcStatus> {
-        let value = StatusTraceEventsWatchRequest { at: options.at, max_bytes, max_events };
+    ) -> Result<Watching<TraceEventsWatchResponse>, tonic::Status> {
+        let value = TraceEventsWatchRequest { at: options.at, max_bytes, max_events };
         let request = options.context.request(value);
         let response = self
             .client
-            .watch_known::<StatusTraceEventsWatchRequest, StatusTraceEventsWatchResponse>(
+            .watch_known::<TraceEventsWatchRequest, TraceEventsWatchResponse>(
                 PathAndQuery::from_static("/harmos.host.v1.status.TraceEvents/Watch"),
                 request,
-                StatusTraceEventsWatchResponse::default().descriptor(),
+                TraceEventsWatchResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("status.trace_events.watch", error))?;
@@ -6170,31 +6170,33 @@ impl StorageSources {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self) -> Result<StorageSourcesGetResponse, RpcStatus> {
+    pub async fn get(&self) -> Result<SourcesGetResponse, tonic::Status> {
         self.get_with(StorageSourcesGetOptions::default()).await
     }
-    pub async fn get_with(&self, options: StorageSourcesGetOptions) -> Result<StorageSourcesGetResponse, RpcStatus> {
-        let value = StorageSourcesGetRequest { at: options.at };
+    pub async fn get_with(&self, options: StorageSourcesGetOptions) -> Result<SourcesGetResponse, tonic::Status> {
+        let value = SourcesGetRequest { at: options.at };
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<StorageSourcesGetRequest, StorageSourcesGetResponse>(
+            .unary::<SourcesGetRequest, SourcesGetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.storage.Sources/Get"),
                 request,
-                StorageSourcesGetResponse::default().descriptor(),
+                SourcesGetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("storage.sources.get", error))?;
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn set(&self, value: StorageStorageSources, expected_revision: Vec<u8>) -> Result<StorageSourcesSetResponse, RpcStatus> {
+    pub async fn set(
+        &self, value: dokime_protocol::host::storage::StorageSources, expected_revision: Vec<u8>,
+    ) -> Result<SourcesSetResponse, tonic::Status> {
         self.set_with(value, expected_revision, StorageSourcesSetOptions::default()).await
     }
     pub async fn set_with(
-        &self, value: StorageStorageSources, expected_revision: Vec<u8>, options: StorageSourcesSetOptions,
-    ) -> Result<StorageSourcesSetResponse, RpcStatus> {
-        let value = StorageSourcesSetRequest {
+        &self, value: dokime_protocol::host::storage::StorageSources, expected_revision: Vec<u8>, options: StorageSourcesSetOptions,
+    ) -> Result<SourcesSetResponse, tonic::Status> {
+        let value = SourcesSetRequest {
             value: Some(value),
             expected_revision,
             request_id: match options.request_id {
@@ -6205,10 +6207,10 @@ impl StorageSources {
         let request = options.context.request(value);
         let response = self
             .client
-            .unary::<StorageSourcesSetRequest, StorageSourcesSetResponse>(
+            .unary::<SourcesSetRequest, SourcesSetResponse>(
                 PathAndQuery::from_static("/dokime.host.v1.storage.Sources/Set"),
                 request,
-                StorageSourcesSetResponse::default().descriptor(),
+                SourcesSetResponse::default().descriptor(),
             )
             .await
             .map_err(|error| action_error("storage.sources.set", error))?;
@@ -6226,12 +6228,12 @@ impl StreamSchemas {
     }
     pub async fn get(
         &self, name: impl Into<String>, parent: impl Into<String>, schema_version: u32,
-    ) -> Result<StreamSchemasGetResponse, RpcStatus> {
+    ) -> Result<StreamSchemasGetResponse, tonic::Status> {
         self.get_with(name, parent, schema_version, StreamSchemasGetOptions::default()).await
     }
     pub async fn get_with(
         &self, name: impl Into<String>, parent: impl Into<String>, schema_version: u32, options: StreamSchemasGetOptions,
-    ) -> Result<StreamSchemasGetResponse, RpcStatus> {
+    ) -> Result<StreamSchemasGetResponse, tonic::Status> {
         let value = StreamSchemasGetRequest {
             name: name.into(),
             parent: parent.into(),
@@ -6251,12 +6253,12 @@ impl StreamSchemas {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, parent: impl Into<String>) -> Result<StreamSchemasListResponse, RpcStatus> {
+    pub async fn list(&self, parent: impl Into<String>) -> Result<StreamSchemasListResponse, tonic::Status> {
         self.list_with(parent, StreamSchemasListOptions::default()).await
     }
     pub async fn list_with(
         &self, parent: impl Into<String>, options: StreamSchemasListOptions,
-    ) -> Result<StreamSchemasListResponse, RpcStatus> {
+    ) -> Result<StreamSchemasListResponse, tonic::Status> {
         let value = StreamSchemasListRequest { parent: parent.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -6280,10 +6282,10 @@ impl Streams {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn list(&self) -> Result<Vec<StreamIdentity>, RpcStatus> {
+    pub async fn list(&self) -> Result<Vec<StreamIdentity>, tonic::Status> {
         self.list_with(StreamsListOptions::default()).await
     }
-    pub async fn list_with(&self, options: StreamsListOptions) -> Result<Vec<StreamIdentity>, RpcStatus> {
+    pub async fn list_with(&self, options: StreamsListOptions) -> Result<Vec<StreamIdentity>, tonic::Status> {
         let value = StreamsListRequest { schema: options.schema };
         let request = options.context.request(value);
         let response = self
@@ -6309,12 +6311,12 @@ impl Suites {
     }
     pub async fn get(
         &self, name: impl Into<String>, parent: impl Into<String>, schema_version: u32,
-    ) -> Result<SuitesGetResponse, RpcStatus> {
+    ) -> Result<SuitesGetResponse, tonic::Status> {
         self.get_with(name, parent, schema_version, SuitesGetOptions::default()).await
     }
     pub async fn get_with(
         &self, name: impl Into<String>, parent: impl Into<String>, schema_version: u32, options: SuitesGetOptions,
-    ) -> Result<SuitesGetResponse, RpcStatus> {
+    ) -> Result<SuitesGetResponse, tonic::Status> {
         let value = SuitesGetRequest {
             name: name.into(),
             parent: parent.into(),
@@ -6334,10 +6336,10 @@ impl Suites {
         let response = response.into_inner();
         Ok(response)
     }
-    pub async fn list(&self, parent: impl Into<String>) -> Result<SuitesListResponse, RpcStatus> {
+    pub async fn list(&self, parent: impl Into<String>) -> Result<SuitesListResponse, tonic::Status> {
         self.list_with(parent, SuitesListOptions::default()).await
     }
-    pub async fn list_with(&self, parent: impl Into<String>, options: SuitesListOptions) -> Result<SuitesListResponse, RpcStatus> {
+    pub async fn list_with(&self, parent: impl Into<String>, options: SuitesListOptions) -> Result<SuitesListResponse, tonic::Status> {
         let value = SuitesListRequest { parent: parent.into(), at: options.at };
         let request = options.context.request(value);
         let response = self
@@ -6361,10 +6363,10 @@ impl Time {
     pub fn new(client: ClientTransport) -> Self {
         Self { client }
     }
-    pub async fn get(&self) -> Result<Timestamp, RpcStatus> {
+    pub async fn get(&self) -> Result<Timestamp, tonic::Status> {
         self.get_with(TimeGetOptions::default()).await
     }
-    pub async fn get_with(&self, options: TimeGetOptions) -> Result<Timestamp, RpcStatus> {
+    pub async fn get_with(&self, options: TimeGetOptions) -> Result<Timestamp, tonic::Status> {
         let value = TimeGetRequest {};
         let request = options.context.request(value);
         let response = self
@@ -6377,12 +6379,12 @@ impl Time {
             .await
             .map_err(|error| action_error("time.get", error))?;
         let response = response.into_inner();
-        response.now.ok_or_else(|| RpcStatus::data_loss("Read Time.Get: Missing Payload"))
+        response.now.ok_or_else(|| tonic::Status::data_loss("Read Time.Get: Missing Payload"))
     }
-    pub async fn sleep(&self, duration: Duration) -> Result<TimeSleepResponse, RpcStatus> {
+    pub async fn sleep(&self, duration: Duration) -> Result<TimeSleepResponse, tonic::Status> {
         self.sleep_with(duration, TimeSleepOptions::default()).await
     }
-    pub async fn sleep_with(&self, duration: Duration, options: TimeSleepOptions) -> Result<TimeSleepResponse, RpcStatus> {
+    pub async fn sleep_with(&self, duration: Duration, options: TimeSleepOptions) -> Result<TimeSleepResponse, tonic::Status> {
         let value = TimeSleepRequest { duration: Some(duration) };
         let request = options.context.request(value);
         let response = self

@@ -2,7 +2,7 @@
 name = "dokime-tools"
 version = "0.0.0"
 requires-python = ">=3.13,<3.16"
-dependencies = ["packaging==26.3"]
+dependencies = ["packaging==26.3", "harmos-tools"]
 
 [dependency-groups]
 dev = ["hatchling==1.33.0", "ty==0.0.86", "ruff==0.17.0"]
@@ -35,3 +35,7 @@ extend-select = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "AN
 [tool.uv]
 # Use the Workstation Certificate Store for Dependency Downloads.
 system-certs = true
+
+[tool.uv.sources]
+# Match the Immutable Carrier Revision in Cargo.toml.
+harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "fa52a0e6619803c824af5112eb28b9a85430b359", subdirectory = "tools/python" }

@@ -131,6 +131,7 @@ struct ContentArtifactsGetOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct ContentArtifactsCreateOptions {
+  std::optional<::dokime::ArtifactScope> scope;
   std::optional<std::string> request_id;
   std::optional<::dokime::Metadata> metadata;
   std::shared_ptr<grpc::ClientContext> context;
@@ -210,6 +211,7 @@ struct EvidenceHealthEventsWatchOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct EvidenceRecordsListOptions {
+  std::optional<::dokime::EvidenceRecordScope> scope;
   std::optional<::harmos::ReadCut> at;
   std::optional<::harmos::PageRequest> page;
   std::shared_ptr<grpc::ClientContext> context;
@@ -230,6 +232,7 @@ struct EvidenceSamplesWatchOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct EvidenceTraceabilityGetOptions {
+  std::optional<::dokime::EvidenceScope> scope;
   std::optional<::harmos::PageRequest> page;
   std::optional<::harmos::ReadCut> at;
   std::optional<std::string> entry;
@@ -241,6 +244,7 @@ struct EvidenceTraceabilityWatchOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct EvidenceStatisticsOptions {
+  std::optional<::dokime::EvidenceScope> scope;
   std::optional<::harmos::ReadCut> at;
   std::shared_ptr<grpc::ClientContext> context;
 };
@@ -258,6 +262,7 @@ struct ExecutionsCommandsCreateOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct ExecutionsProgressGetOptions {
+  std::optional<std::string> name;
   std::optional<::harmos::Position> at;
   std::shared_ptr<grpc::ClientContext> context;
 };
@@ -574,10 +579,10 @@ struct AccessCertificatesResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit AccessCertificatesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   std::string create(client::AccessCertificatesCreateOptions options = {}) {
-    detail::AccessCertificatesCreateRequest request;
+    detail::packages::harmos::host::access::CertificatesCreateRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::AccessCertificatesCreateResponse response;
-    const auto status = detail::AccessCertificatesCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::harmos::host::access::CertificatesCreateResponse response;
+    const auto status = detail::packages::harmos::host::access::Certificates::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call access.certificates.create: " + status.error_message());
     }
@@ -588,10 +593,10 @@ struct AccessListenerResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit AccessListenerResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::harmos::client::ListenerGetResponse get(client::AccessListenerGetOptions options = {}) {
-    detail::AccessListenerGetRequest request;
+    detail::packages::harmos::host::access::ListenerGetRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::AccessListenerGetResponse response;
-    const auto status = detail::AccessListenerGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::harmos::host::access::ListenerGetResponse response;
+    const auto status = detail::packages::harmos::host::access::Listener::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call access.listener.get: " + status.error_message());
     }
@@ -599,12 +604,12 @@ struct AccessListenerResource {
   }
   ::harmos::client::ListenerSetResponse set(const ::harmos::client::ListenerValue &value, const std::string &expected_revision,
                                             client::AccessListenerSetOptions options = {}) {
-    detail::AccessListenerSetRequest request;
+    detail::packages::harmos::host::access::ListenerSetRequest request;
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::AccessListenerSetResponse response;
-    const auto status = detail::AccessListenerSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::harmos::host::access::ListenerSetResponse response;
+    const auto status = detail::packages::harmos::host::access::Listener::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call access.listener.set: " + status.error_message());
     }
@@ -615,35 +620,35 @@ struct AccessPairingsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit AccessPairingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::harmos::client::PairingsCreateResponse create(const std::string &label, client::AccessPairingsCreateOptions options = {}) {
-    detail::AccessPairingsCreateRequest request;
+    detail::packages::harmos::host::access::PairingsCreateRequest request;
     request.set_label(label);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::AccessPairingsCreateResponse response;
-    const auto status = detail::AccessPairingsCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::harmos::host::access::PairingsCreateResponse response;
+    const auto status = detail::packages::harmos::host::access::Pairings::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call access.pairings.create: " + status.error_message());
     }
     return response;
   }
   ::harmos::client::PairingsListResponse list(client::AccessPairingsListOptions options = {}) {
-    detail::AccessPairingsListRequest request;
+    detail::packages::harmos::host::access::PairingsListRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::AccessPairingsListResponse response;
-    const auto status = detail::AccessPairingsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::harmos::host::access::PairingsListResponse response;
+    const auto status = detail::packages::harmos::host::access::Pairings::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call access.pairings.list: " + status.error_message());
     }
     return response;
   }
   ::harmos::client::PairingsDeleteResponse delete_(const std::string &name, client::AccessPairingsDeleteOptions options = {}) {
-    detail::AccessPairingsDeleteRequest request;
+    detail::packages::harmos::host::access::PairingsDeleteRequest request;
     request.set_name(name);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::AccessPairingsDeleteResponse response;
-    const auto status = detail::AccessPairingsDeleteService::NewStub(channel)->Delete(context.get(), request, &response);
+    detail::packages::harmos::host::access::PairingsDeleteResponse response;
+    const auto status = detail::packages::harmos::host::access::Pairings::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call access.pairings.delete: " + status.error_message());
     }
@@ -654,28 +659,28 @@ struct BackendOverviewResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit BackendOverviewResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::BackendOverviewGetResponse get(client::BackendOverviewGetOptions options = {}) {
-    detail::BackendOverviewGetRequest request;
+    detail::packages::dokime::host::backend::OverviewGetRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::BackendOverviewGetResponse response;
-    const auto status = detail::BackendOverviewGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::backend::OverviewGetResponse response;
+    const auto status = detail::packages::dokime::host::backend::Overview::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call backend.overview.get: " + status.error_message());
     }
     return response;
   }
   ::harmos::ClientStream<::dokime::client::BackendOverviewWatchResponse> watch(client::BackendOverviewWatchOptions options = {}) {
-    detail::BackendOverviewWatchRequest request;
+    detail::packages::dokime::host::backend::OverviewWatchRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::BackendOverviewWatchResponse>>(
-        detail::BackendOverviewWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::backend::OverviewWatchResponse>>(
+        detail::packages::dokime::host::backend::Overview::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::BackendOverviewWatchResponse> {
-              detail::BackendOverviewWatchResponse response;
+              detail::packages::dokime::host::backend::OverviewWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -691,25 +696,26 @@ struct ContentArtifactsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit ContentArtifactsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::ContentArtifactsGetResponse get(const std::string &name, client::ContentArtifactsGetOptions options = {}) {
-    detail::ContentArtifactsGetRequest request;
+    detail::packages::dokime::host::content::ArtifactsGetRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ContentArtifactsGetResponse response;
-    const auto status = detail::ContentArtifactsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::content::ArtifactsGetResponse response;
+    const auto status = detail::packages::dokime::host::content::Artifacts::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call content.artifacts.get: " + status.error_message());
     }
     return response;
   }
-  ::dokime::ContentArtifactsCreateResponse create(const ::harmos::FileReference &file, const ::dokime::ArtifactScope &scope,
-                                                  const std::string &filename, const std::string &content_type,
-                                                  client::ContentArtifactsCreateOptions options = {}) {
-    detail::ContentArtifactsCreateRequest request;
+  ::dokime::ContentArtifactsCreateResponse create(const ::harmos::FileReference &file, const std::string &filename,
+                                                  const std::string &content_type, client::ContentArtifactsCreateOptions options = {}) {
+    detail::packages::dokime::host::content::ArtifactsCreateRequest request;
     *request.mutable_file() = file;
-    *request.mutable_scope() = scope;
+    if (options.scope) {
+      *request.mutable_scope() = *options.scope;
+    }
     request.set_filename(filename);
     request.set_content_type(content_type);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
@@ -717,8 +723,8 @@ struct ContentArtifactsResource {
       *request.mutable_metadata() = *options.metadata;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ContentArtifactsCreateResponse response;
-    const auto status = detail::ContentArtifactsCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::content::ArtifactsCreateResponse response;
+    const auto status = detail::packages::dokime::host::content::Artifacts::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call content.artifacts.create: " + status.error_message());
     }
@@ -726,7 +732,7 @@ struct ContentArtifactsResource {
   }
   ::dokime::client::ContentArtifactsListResponse list(const ::dokime::ArtifactScope &scope,
                                                       client::ContentArtifactsListOptions options = {}) {
-    detail::ContentArtifactsListRequest request;
+    detail::packages::dokime::host::content::ArtifactsListRequest request;
     *request.mutable_scope() = scope;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -735,8 +741,8 @@ struct ContentArtifactsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ContentArtifactsListResponse response;
-    const auto status = detail::ContentArtifactsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::content::ArtifactsListResponse response;
+    const auto status = detail::packages::dokime::host::content::Artifacts::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call content.artifacts.list: " + status.error_message());
     }
@@ -744,7 +750,7 @@ struct ContentArtifactsResource {
   }
   ::harmos::ClientStream<::dokime::client::ContentArtifactsWatchResponse> watch(const ::dokime::ArtifactScope &scope,
                                                                                 client::ContentArtifactsWatchOptions options = {}) {
-    detail::ContentArtifactsWatchRequest request;
+    detail::packages::dokime::host::content::ArtifactsWatchRequest request;
     *request.mutable_scope() = scope;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -753,10 +759,10 @@ struct ContentArtifactsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::ContentArtifactsWatchResponse>>(
-        detail::ContentArtifactsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::content::ArtifactsWatchResponse>>(
+        detail::packages::dokime::host::content::Artifacts::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::ContentArtifactsWatchResponse> {
-              detail::ContentArtifactsWatchResponse response;
+              detail::packages::dokime::host::content::ArtifactsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -773,15 +779,15 @@ struct ContentExecutionFilesResource {
   explicit ContentExecutionFilesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::ContentExecutionFilesGetResponse get(const std::string &parent, const std::string &name,
                                                          client::ContentExecutionFilesGetOptions options = {}) {
-    detail::ContentExecutionFilesGetRequest request;
+    detail::packages::dokime::host::content::ExecutionFilesGetRequest request;
     request.set_parent(parent);
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ContentExecutionFilesGetResponse response;
-    const auto status = detail::ContentExecutionFilesGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::content::ExecutionFilesGetResponse response;
+    const auto status = detail::packages::dokime::host::content::ExecutionFiles::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call content.execution_files.get: " + status.error_message());
     }
@@ -789,7 +795,7 @@ struct ContentExecutionFilesResource {
   }
   ::dokime::client::ContentExecutionFilesListResponse list(const std::string &parent,
                                                            client::ContentExecutionFilesListOptions options = {}) {
-    detail::ContentExecutionFilesListRequest request;
+    detail::packages::dokime::host::content::ExecutionFilesListRequest request;
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -798,8 +804,8 @@ struct ContentExecutionFilesResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ContentExecutionFilesListResponse response;
-    const auto status = detail::ContentExecutionFilesListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::content::ExecutionFilesListResponse response;
+    const auto status = detail::packages::dokime::host::content::ExecutionFiles::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call content.execution_files.list: " + status.error_message());
     }
@@ -807,7 +813,7 @@ struct ContentExecutionFilesResource {
   }
   ::harmos::ClientStream<::dokime::client::ContentExecutionFilesWatchResponse>
   watch(const std::string &parent, client::ContentExecutionFilesWatchOptions options = {}) {
-    detail::ContentExecutionFilesWatchRequest request;
+    detail::packages::dokime::host::content::ExecutionFilesWatchRequest request;
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -816,10 +822,10 @@ struct ContentExecutionFilesResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::ContentExecutionFilesWatchResponse>>(
-        detail::ContentExecutionFilesWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::content::ExecutionFilesWatchResponse>>(
+        detail::packages::dokime::host::content::ExecutionFiles::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::ContentExecutionFilesWatchResponse> {
-              detail::ContentExecutionFilesWatchResponse response;
+              detail::packages::dokime::host::content::ExecutionFilesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -836,7 +842,7 @@ struct EvidenceHealthEventsResource {
   explicit EvidenceHealthEventsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::EvidenceHealthEventsListResponse list(const ::dokime::client::EvidenceAnnotationSelection &selection,
                                                           client::EvidenceHealthEventsListOptions options = {}) {
-    detail::EvidenceHealthEventsListRequest request;
+    detail::packages::dokime::host::evidence::HealthEventsListRequest request;
     *request.mutable_selection() = selection;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -845,8 +851,8 @@ struct EvidenceHealthEventsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceHealthEventsListResponse response;
-    const auto status = detail::EvidenceHealthEventsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::evidence::HealthEventsListResponse response;
+    const auto status = detail::packages::dokime::host::evidence::HealthEvents::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.health_events.list: " + status.error_message());
     }
@@ -854,7 +860,7 @@ struct EvidenceHealthEventsResource {
   }
   ::harmos::ClientStream<::dokime::client::EvidenceHealthEventsWatchResponse>
   watch(const ::dokime::client::EvidenceAnnotationSelection &selection, client::EvidenceHealthEventsWatchOptions options = {}) {
-    detail::EvidenceHealthEventsWatchRequest request;
+    detail::packages::dokime::host::evidence::HealthEventsWatchRequest request;
     *request.mutable_selection() = selection;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -863,10 +869,10 @@ struct EvidenceHealthEventsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::EvidenceHealthEventsWatchResponse>>(
-        detail::EvidenceHealthEventsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::HealthEventsWatchResponse>>(
+        detail::packages::dokime::host::evidence::HealthEvents::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::EvidenceHealthEventsWatchResponse> {
-              detail::EvidenceHealthEventsWatchResponse response;
+              detail::packages::dokime::host::evidence::HealthEventsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -882,14 +888,14 @@ struct EvidenceNotesResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit EvidenceNotesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::EvidenceNotesGetResponse get(const std::string &name, client::EvidenceNotesGetOptions options = {}) {
-    detail::EvidenceNotesGetRequest request;
+    detail::packages::dokime::host::evidence::NotesGetRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceNotesGetResponse response;
-    const auto status = detail::EvidenceNotesGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::evidence::NotesGetResponse response;
+    const auto status = detail::packages::dokime::host::evidence::Notes::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.notes.get: " + status.error_message());
     }
@@ -897,14 +903,14 @@ struct EvidenceNotesResource {
   }
   ::dokime::client::EvidenceNotesSetResponse set(const std::string &name, const ::dokime::client::EvidenceNoteWritable &value,
                                                  const std::string &expected_revision, client::EvidenceNotesSetOptions options = {}) {
-    detail::EvidenceNotesSetRequest request;
+    detail::packages::dokime::host::evidence::NotesSetRequest request;
     request.set_name(name);
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceNotesSetResponse response;
-    const auto status = detail::EvidenceNotesSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::dokime::host::evidence::NotesSetResponse response;
+    const auto status = detail::packages::dokime::host::evidence::Notes::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.notes.set: " + status.error_message());
     }
@@ -912,7 +918,7 @@ struct EvidenceNotesResource {
   }
   ::dokime::client::EvidenceNotesListResponse list(const ::dokime::client::EvidenceAnnotationSelection &selection,
                                                    client::EvidenceNotesListOptions options = {}) {
-    detail::EvidenceNotesListRequest request;
+    detail::packages::dokime::host::evidence::NotesListRequest request;
     *request.mutable_selection() = selection;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -921,8 +927,8 @@ struct EvidenceNotesResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceNotesListResponse response;
-    const auto status = detail::EvidenceNotesListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::evidence::NotesListResponse response;
+    const auto status = detail::packages::dokime::host::evidence::Notes::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.notes.list: " + status.error_message());
     }
@@ -930,7 +936,7 @@ struct EvidenceNotesResource {
   }
   ::harmos::ClientStream<::dokime::client::EvidenceNotesWatchResponse> watch(const ::dokime::client::EvidenceAnnotationSelection &selection,
                                                                              client::EvidenceNotesWatchOptions options = {}) {
-    detail::EvidenceNotesWatchRequest request;
+    detail::packages::dokime::host::evidence::NotesWatchRequest request;
     *request.mutable_selection() = selection;
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -939,10 +945,10 @@ struct EvidenceNotesResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::EvidenceNotesWatchResponse>>(
-        detail::EvidenceNotesWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::NotesWatchResponse>>(
+        detail::packages::dokime::host::evidence::Notes::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::EvidenceNotesWatchResponse> {
-              detail::EvidenceNotesWatchResponse response;
+              detail::packages::dokime::host::evidence::NotesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -956,13 +962,13 @@ struct EvidenceNotesResource {
   ::dokime::client::EvidenceNotesCreateResponse create(const ::dokime::client::EvidenceAnnotationOwner &owner,
                                                        const ::dokime::client::EvidenceNoteWritable &value,
                                                        client::EvidenceNotesCreateOptions options = {}) {
-    detail::EvidenceNotesCreateRequest request;
+    detail::packages::dokime::host::evidence::NotesCreateRequest request;
     *request.mutable_owner() = owner;
     *request.mutable_value() = value;
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceNotesCreateResponse response;
-    const auto status = detail::EvidenceNotesCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::evidence::NotesCreateResponse response;
+    const auto status = detail::packages::dokime::host::evidence::Notes::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.notes.create: " + status.error_message());
     }
@@ -972,12 +978,14 @@ struct EvidenceNotesResource {
 struct EvidenceRecordsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit EvidenceRecordsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::EvidenceRecordsListResponse list(const ::dokime::EvidenceRecordScope &scope, const std::string &record_type,
-                                             const std::vector<std::uint32_t> &versions, const ::dokime::Window &between,
-                                             const std::string &step, const ::dokime::EvidenceCapturedRecordSelection &selection,
+  ::dokime::EvidenceRecordsListResponse list(const std::string &record_type, const std::vector<std::uint32_t> &versions,
+                                             const ::dokime::Window &between, const std::string &step,
+                                             const ::dokime::EvidenceCapturedRecordSelection &selection,
                                              client::EvidenceRecordsListOptions options = {}) {
-    detail::EvidenceRecordsListRequest request;
-    *request.mutable_scope() = scope;
+    detail::packages::dokime::host::evidence::RecordsListRequest request;
+    if (options.scope) {
+      *request.mutable_scope() = *options.scope;
+    }
     request.set_record_type(record_type);
     request.mutable_versions()->Assign(versions.begin(), versions.end());
     *request.mutable_between() = between;
@@ -990,8 +998,8 @@ struct EvidenceRecordsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceRecordsListResponse response;
-    const auto status = detail::EvidenceRecordsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::evidence::RecordsListResponse response;
+    const auto status = detail::packages::dokime::host::evidence::Records::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.records.list: " + status.error_message());
     }
@@ -1001,7 +1009,7 @@ struct EvidenceRecordsResource {
   watch(const ::dokime::EvidenceRecordScope &scope, const std::string &record_type, const std::vector<std::uint32_t> &versions,
         const ::dokime::Window &between, const std::string &step, const ::dokime::EvidenceCapturedRecordSelection &selection,
         client::EvidenceRecordsWatchOptions options = {}) {
-    detail::EvidenceRecordsWatchRequest request;
+    detail::packages::dokime::host::evidence::RecordsWatchRequest request;
     *request.mutable_scope() = scope;
     request.set_record_type(record_type);
     request.mutable_versions()->Assign(versions.begin(), versions.end());
@@ -1015,10 +1023,10 @@ struct EvidenceRecordsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::EvidenceRecordsWatchResponse>>(
-        detail::EvidenceRecordsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::RecordsWatchResponse>>(
+        detail::packages::dokime::host::evidence::Records::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::EvidenceRecordsWatchResponse> {
-              detail::EvidenceRecordsWatchResponse response;
+              detail::packages::dokime::host::evidence::RecordsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1038,7 +1046,7 @@ struct EvidenceSamplesResource {
                                                      const std::vector<std::string> &sources, const std::vector<std::string> &signals,
                                                      const ::dokime::Window &between, const ::dokime::client::EvidenceBucketRequest &bucket,
                                                      const bool &latest, client::EvidenceSamplesListOptions options = {}) {
-    detail::EvidenceSamplesListRequest request;
+    detail::packages::dokime::host::evidence::SamplesListRequest request;
     *request.mutable_scope() = scope;
     request.mutable_streams()->Assign(streams.begin(), streams.end());
     request.mutable_versions()->Assign(versions.begin(), versions.end());
@@ -1055,8 +1063,8 @@ struct EvidenceSamplesResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceSamplesListResponse response;
-    const auto status = detail::EvidenceSamplesListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::evidence::SamplesListResponse response;
+    const auto status = detail::packages::dokime::host::evidence::Samples::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.samples.list: " + status.error_message());
     }
@@ -1067,7 +1075,7 @@ struct EvidenceSamplesResource {
         const std::vector<std::string> &fields, const std::vector<std::string> &sources, const std::vector<std::string> &signals,
         const ::dokime::Window &between, const ::dokime::client::EvidenceBucketRequest &bucket, const bool &latest,
         client::EvidenceSamplesWatchOptions options = {}) {
-    detail::EvidenceSamplesWatchRequest request;
+    detail::packages::dokime::host::evidence::SamplesWatchRequest request;
     *request.mutable_scope() = scope;
     request.mutable_streams()->Assign(streams.begin(), streams.end());
     request.mutable_versions()->Assign(versions.begin(), versions.end());
@@ -1084,10 +1092,10 @@ struct EvidenceSamplesResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::EvidenceSamplesWatchResponse>>(
-        detail::EvidenceSamplesWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::SamplesWatchResponse>>(
+        detail::packages::dokime::host::evidence::Samples::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::EvidenceSamplesWatchResponse> {
-              detail::EvidenceSamplesWatchResponse response;
+              detail::packages::dokime::host::evidence::SamplesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1102,9 +1110,11 @@ struct EvidenceSamplesResource {
 struct EvidenceTraceabilityResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit EvidenceTraceabilityResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::EvidenceTraceabilityGetResponse get(const ::dokime::EvidenceScope &scope, client::EvidenceTraceabilityGetOptions options = {}) {
-    detail::EvidenceTraceabilityGetRequest request;
-    *request.mutable_scope() = scope;
+  ::dokime::EvidenceTraceabilityGetResponse get(client::EvidenceTraceabilityGetOptions options = {}) {
+    detail::packages::dokime::host::evidence::TraceabilityGetRequest request;
+    if (options.scope) {
+      *request.mutable_scope() = *options.scope;
+    }
     if (options.page) {
       *request.mutable_page() = *options.page;
     }
@@ -1115,8 +1125,8 @@ struct EvidenceTraceabilityResource {
       request.set_entry(*options.entry);
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceTraceabilityGetResponse response;
-    const auto status = detail::EvidenceTraceabilityGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::evidence::TraceabilityGetResponse response;
+    const auto status = detail::packages::dokime::host::evidence::Traceability::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.traceability.get: " + status.error_message());
     }
@@ -1124,7 +1134,7 @@ struct EvidenceTraceabilityResource {
   }
   ::harmos::ClientStream<::dokime::client::EvidenceTraceabilityWatchResponse> watch(const ::dokime::EvidenceScope &scope,
                                                                                     client::EvidenceTraceabilityWatchOptions options = {}) {
-    detail::EvidenceTraceabilityWatchRequest request;
+    detail::packages::dokime::host::evidence::TraceabilityWatchRequest request;
     *request.mutable_scope() = scope;
     if (options.page) {
       *request.mutable_page() = *options.page;
@@ -1133,10 +1143,10 @@ struct EvidenceTraceabilityResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::EvidenceTraceabilityWatchResponse>>(
-        detail::EvidenceTraceabilityWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::evidence::TraceabilityWatchResponse>>(
+        detail::packages::dokime::host::evidence::Traceability::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::EvidenceTraceabilityWatchResponse> {
-              detail::EvidenceTraceabilityWatchResponse response;
+              detail::packages::dokime::host::evidence::TraceabilityWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1153,15 +1163,15 @@ struct ExecutionsCommandsResource {
   explicit ExecutionsCommandsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::ExecutionsCommandsGetResponse get(const std::string &name, const std::string &parent,
                                                       client::ExecutionsCommandsGetOptions options = {}) {
-    detail::ExecutionsCommandsGetRequest request;
+    detail::packages::dokime::host::executions::CommandsGetRequest request;
     request.set_name(name);
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsCommandsGetResponse response;
-    const auto status = detail::ExecutionsCommandsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::executions::CommandsGetResponse response;
+    const auto status = detail::packages::dokime::host::executions::Commands::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.commands.get: " + status.error_message());
     }
@@ -1170,7 +1180,7 @@ struct ExecutionsCommandsResource {
   ::dokime::client::ExecutionsCommandsCreateResponse create(const std::string &parent, const std::string &command_id,
                                                             const ::dokime::client::ExecutionsExecutionCommandAction &action,
                                                             client::ExecutionsCommandsCreateOptions options = {}) {
-    detail::ExecutionsCommandsCreateRequest request;
+    detail::packages::dokime::host::executions::CommandsCreateRequest request;
     request.set_parent(parent);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     request.set_command_id(command_id);
@@ -1179,8 +1189,8 @@ struct ExecutionsCommandsResource {
       request.set_step_id(*options.step_id);
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsCommandsCreateResponse response;
-    const auto status = detail::ExecutionsCommandsCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::executions::CommandsCreateResponse response;
+    const auto status = detail::packages::dokime::host::executions::Commands::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.commands.create: " + status.error_message());
     }
@@ -1190,15 +1200,17 @@ struct ExecutionsCommandsResource {
 struct ExecutionsProgressResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit ExecutionsProgressResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
-  ::dokime::ExecutionsProgressGetResponse get(const std::string &name, client::ExecutionsProgressGetOptions options = {}) {
-    detail::ExecutionsProgressGetRequest request;
-    request.set_name(name);
+  ::dokime::ExecutionsProgressGetResponse get(client::ExecutionsProgressGetOptions options = {}) {
+    detail::packages::dokime::host::executions::ProgressGetRequest request;
+    if (options.name) {
+      request.set_name(*options.name);
+    }
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsProgressGetResponse response;
-    const auto status = detail::ExecutionsProgressGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::executions::ProgressGetResponse response;
+    const auto status = detail::packages::dokime::host::executions::Progress::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.progress.get: " + status.error_message());
     }
@@ -1206,16 +1218,16 @@ struct ExecutionsProgressResource {
   }
   ::harmos::ClientStream<::dokime::client::ExecutionsProgressWatchResponse> watch(const std::string &name,
                                                                                   client::ExecutionsProgressWatchOptions options = {}) {
-    detail::ExecutionsProgressWatchRequest request;
+    detail::packages::dokime::host::executions::ProgressWatchRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::ExecutionsProgressWatchResponse>>(
-        detail::ExecutionsProgressWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::executions::ProgressWatchResponse>>(
+        detail::packages::dokime::host::executions::Progress::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::ExecutionsProgressWatchResponse> {
-              detail::ExecutionsProgressWatchResponse response;
+              detail::packages::dokime::host::executions::ProgressWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1231,7 +1243,7 @@ struct ExecutionsSchemasResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit ExecutionsSchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::ExecutionsSchemasGetResponse get(const std::string &name, client::ExecutionsSchemasGetOptions options = {}) {
-    detail::ExecutionsSchemasGetRequest request;
+    detail::packages::dokime::host::executions::SchemasGetRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -1240,8 +1252,8 @@ struct ExecutionsSchemasResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsSchemasGetResponse response;
-    const auto status = detail::ExecutionsSchemasGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::executions::SchemasGetResponse response;
+    const auto status = detail::packages::dokime::host::executions::Schemas::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.schemas.get: " + status.error_message());
     }
@@ -1252,38 +1264,38 @@ struct FilesUploadsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit FilesUploadsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::FilesUploadsCreateResponse create(const ::harmos::FileMetadata &metadata, client::FilesUploadsCreateOptions options = {}) {
-    detail::FilesUploadsCreateRequest request;
+    detail::packages::dokime::host::files::UploadsCreateRequest request;
     *request.mutable_metadata() = metadata;
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::FilesUploadsCreateResponse response;
-    const auto status = detail::FilesUploadsCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::files::UploadsCreateResponse response;
+    const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call files.uploads.create: " + status.error_message());
     }
     return response;
   }
   ::dokime::FilesUploadsGetResponse get(const ::harmos::Upload &upload, client::FilesUploadsGetOptions options = {}) {
-    detail::FilesUploadsGetRequest request;
+    detail::packages::dokime::host::files::UploadsGetRequest request;
     *request.mutable_upload() = upload;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::FilesUploadsGetResponse response;
-    const auto status = detail::FilesUploadsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::files::UploadsGetResponse response;
+    const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call files.uploads.get: " + status.error_message());
     }
     return response;
   }
   ::dokime::FilesUploadsResumeResponse resume(const ::harmos::Upload &upload, client::FilesUploadsResumeOptions options = {}) {
-    detail::FilesUploadsResumeRequest request;
+    detail::packages::dokime::host::files::UploadsResumeRequest request;
     *request.mutable_upload() = upload;
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::FilesUploadsResumeResponse response;
-    const auto status = detail::FilesUploadsResumeService::NewStub(channel)->Resume(context.get(), request, &response);
+    detail::packages::dokime::host::files::UploadsResumeResponse response;
+    const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Resume(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call files.uploads.resume: " + status.error_message());
     }
@@ -1291,14 +1303,14 @@ struct FilesUploadsResource {
   }
   ::dokime::FilesUploadsAppendResponse append(const ::harmos::Upload &upload, const std::uint64_t &offset, const std::string &data,
                                               client::FilesUploadsAppendOptions options = {}) {
-    detail::FilesUploadsAppendRequest request;
+    detail::packages::dokime::host::files::UploadsAppendRequest request;
     *request.mutable_upload() = upload;
     request.set_offset(offset);
     request.set_data(data);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::FilesUploadsAppendResponse response;
-    const auto status = detail::FilesUploadsAppendService::NewStub(channel)->Append(context.get(), request, &response);
+    detail::packages::dokime::host::files::UploadsAppendResponse response;
+    const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Append(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call files.uploads.append: " + status.error_message());
     }
@@ -1306,26 +1318,26 @@ struct FilesUploadsResource {
   }
   ::dokime::FilesUploadsPublishResponse publish(const ::harmos::Upload &upload, const std::uint64_t &length, const std::string &sha256,
                                                 client::FilesUploadsPublishOptions options = {}) {
-    detail::FilesUploadsPublishRequest request;
+    detail::packages::dokime::host::files::UploadsPublishRequest request;
     *request.mutable_upload() = upload;
     request.set_length(length);
     request.set_sha256(sha256);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::FilesUploadsPublishResponse response;
-    const auto status = detail::FilesUploadsPublishService::NewStub(channel)->Publish(context.get(), request, &response);
+    detail::packages::dokime::host::files::UploadsPublishResponse response;
+    const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Publish(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call files.uploads.publish: " + status.error_message());
     }
     return response;
   }
   ::dokime::FilesUploadsDeleteResponse delete_(const ::harmos::Upload &upload, client::FilesUploadsDeleteOptions options = {}) {
-    detail::FilesUploadsDeleteRequest request;
+    detail::packages::dokime::host::files::UploadsDeleteRequest request;
     *request.mutable_upload() = upload;
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::FilesUploadsDeleteResponse response;
-    const auto status = detail::FilesUploadsDeleteService::NewStub(channel)->Delete(context.get(), request, &response);
+    detail::packages::dokime::host::files::UploadsDeleteResponse response;
+    const auto status = detail::packages::dokime::host::files::Uploads::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call files.uploads.delete: " + status.error_message());
     }
@@ -1338,7 +1350,7 @@ struct MediaCapturesResource {
   ::dokime::client::MediaCapturesCreateResponse create(const ::dokime::ArtifactScope &scope, const ::dokime::client::MediaCaptureKind &kind,
                                                        const ::dokime::client::MediaRecordingAudio &audio,
                                                        client::MediaCapturesCreateOptions options = {}) {
-    detail::MediaCapturesCreateRequest request;
+    detail::packages::dokime::host::media::CapturesCreateRequest request;
     *request.mutable_scope() = scope;
     request.set_kind(kind);
     if (options.input) {
@@ -1356,22 +1368,22 @@ struct MediaCapturesResource {
     }
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::MediaCapturesCreateResponse response;
-    const auto status = detail::MediaCapturesCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::media::CapturesCreateResponse response;
+    const auto status = detail::packages::dokime::host::media::Captures::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call media.captures.create: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::MediaCapturesGetResponse get(const std::string &name, client::MediaCapturesGetOptions options = {}) {
-    detail::MediaCapturesGetRequest request;
+    detail::packages::dokime::host::media::CapturesGetRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::MediaCapturesGetResponse response;
-    const auto status = detail::MediaCapturesGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::media::CapturesGetResponse response;
+    const auto status = detail::packages::dokime::host::media::Captures::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call media.captures.get: " + status.error_message());
     }
@@ -1379,16 +1391,16 @@ struct MediaCapturesResource {
   }
   ::harmos::ClientStream<::dokime::client::MediaCapturesWatchResponse> watch(const std::string &name,
                                                                              client::MediaCapturesWatchOptions options = {}) {
-    detail::MediaCapturesWatchRequest request;
+    detail::packages::dokime::host::media::CapturesWatchRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::MediaCapturesWatchResponse>>(
-        detail::MediaCapturesWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::media::CapturesWatchResponse>>(
+        detail::packages::dokime::host::media::Captures::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::MediaCapturesWatchResponse> {
-              detail::MediaCapturesWatchResponse response;
+              detail::packages::dokime::host::media::CapturesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1400,12 +1412,12 @@ struct MediaCapturesResource {
             }};
   }
   ::dokime::client::MediaCapturesStopResponse stop(const std::string &name, client::MediaCapturesStopOptions options = {}) {
-    detail::MediaCapturesStopRequest request;
+    detail::packages::dokime::host::media::CapturesStopRequest request;
     request.set_name(name);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::MediaCapturesStopResponse response;
-    const auto status = detail::MediaCapturesStopService::NewStub(channel)->Stop(context.get(), request, &response);
+    detail::packages::dokime::host::media::CapturesStopResponse response;
+    const auto status = detail::packages::dokime::host::media::Captures::NewStub(channel)->Stop(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call media.captures.stop: " + status.error_message());
     }
@@ -1417,7 +1429,7 @@ struct PlotsSettingsResource {
   explicit PlotsSettingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::PlotsSettingsGetResponse get(const ::dokime::client::DocumentScope &scope, const std::string &document_id,
                                                  const std::string &plot_id, client::PlotsSettingsGetOptions options = {}) {
-    detail::PlotsSettingsGetRequest request;
+    detail::packages::dokime::host::plots::SettingsGetRequest request;
     *request.mutable_scope() = scope;
     request.set_document_id(document_id);
     request.set_plot_id(plot_id);
@@ -1425,8 +1437,8 @@ struct PlotsSettingsResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PlotsSettingsGetResponse response;
-    const auto status = detail::PlotsSettingsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::plots::SettingsGetResponse response;
+    const auto status = detail::packages::dokime::host::plots::Settings::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plots.settings.get: " + status.error_message());
     }
@@ -1435,7 +1447,7 @@ struct PlotsSettingsResource {
   ::dokime::client::PlotsSettingsSetResponse set(const ::dokime::client::DocumentScope &scope, const std::string &document_id,
                                                  const std::string &plot_id, const ::dokime::client::PlotsPlotSettingsValue &value,
                                                  const std::string &expected_revision, client::PlotsSettingsSetOptions options = {}) {
-    detail::PlotsSettingsSetRequest request;
+    detail::packages::dokime::host::plots::SettingsSetRequest request;
     *request.mutable_scope() = scope;
     request.set_document_id(document_id);
     request.set_plot_id(plot_id);
@@ -1443,8 +1455,8 @@ struct PlotsSettingsResource {
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PlotsSettingsSetResponse response;
-    const auto status = detail::PlotsSettingsSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::dokime::host::plots::SettingsSetResponse response;
+    const auto status = detail::packages::dokime::host::plots::Settings::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plots.settings.set: " + status.error_message());
     }
@@ -1456,7 +1468,7 @@ struct PlotsSnapshotsResource {
   explicit PlotsSnapshotsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::PlotsSnapshotsListResponse list(const std::vector<::dokime::client::PlotsPlotRequest> &requests,
                                                     client::PlotsSnapshotsListOptions options = {}) {
-    detail::PlotsSnapshotsListRequest request;
+    detail::packages::dokime::host::plots::SnapshotsListRequest request;
     request.mutable_requests()->Assign(requests.begin(), requests.end());
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -1465,8 +1477,8 @@ struct PlotsSnapshotsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PlotsSnapshotsListResponse response;
-    const auto status = detail::PlotsSnapshotsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::plots::SnapshotsListResponse response;
+    const auto status = detail::packages::dokime::host::plots::Snapshots::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plots.snapshots.list: " + status.error_message());
     }
@@ -1474,7 +1486,7 @@ struct PlotsSnapshotsResource {
   }
   ::harmos::ClientStream<::dokime::client::PlotsSnapshotsWatchResponse>
   watch(const std::vector<::dokime::client::PlotsPlotRequest> &requests, client::PlotsSnapshotsWatchOptions options = {}) {
-    detail::PlotsSnapshotsWatchRequest request;
+    detail::packages::dokime::host::plots::SnapshotsWatchRequest request;
     request.mutable_requests()->Assign(requests.begin(), requests.end());
     if (options.at) {
       *request.mutable_at() = *options.at;
@@ -1483,10 +1495,10 @@ struct PlotsSnapshotsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::PlotsSnapshotsWatchResponse>>(
-        detail::PlotsSnapshotsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::plots::SnapshotsWatchResponse>>(
+        detail::packages::dokime::host::plots::Snapshots::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::PlotsSnapshotsWatchResponse> {
-              detail::PlotsSnapshotsWatchResponse response;
+              detail::packages::dokime::host::plots::SnapshotsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1502,7 +1514,7 @@ struct PluginsSecretsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit PluginsSecretsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::PluginsSecretsListResponse list(client::PluginsSecretsListOptions options = {}) {
-    detail::PluginsSecretsListRequest request;
+    detail::packages::dokime::host::plugins::SecretsListRequest request;
     if (options.name) {
       request.set_name(*options.name);
     }
@@ -1510,8 +1522,8 @@ struct PluginsSecretsResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsSecretsListResponse response;
-    const auto status = detail::PluginsSecretsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::plugins::SecretsListResponse response;
+    const auto status = detail::packages::dokime::host::plugins::Secrets::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.secrets.list: " + status.error_message());
     }
@@ -1522,14 +1534,14 @@ struct PluginsSettingsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit PluginsSettingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::harmos::SettingsListResponse list(const std::string &name, client::PluginsSettingsListOptions options = {}) {
-    detail::PluginsSettingsListRequest request;
+    detail::packages::harmos::host::plugins::SettingsListRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsSettingsListResponse response;
-    const auto status = detail::PluginsSettingsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::harmos::host::plugins::SettingsListResponse response;
+    const auto status = detail::packages::harmos::host::plugins::Settings::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.settings.list: " + status.error_message());
     }
@@ -1537,14 +1549,14 @@ struct PluginsSettingsResource {
   }
   ::harmos::client::SettingsSetResponse set(const std::string &name, const ::harmos::SettingValues &value,
                                             const std::string &expected_revision, client::PluginsSettingsSetOptions options = {}) {
-    detail::PluginsSettingsSetRequest request;
+    detail::packages::harmos::host::plugins::SettingsSetRequest request;
     request.set_name(name);
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsSettingsSetResponse response;
-    const auto status = detail::PluginsSettingsSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::harmos::host::plugins::SettingsSetResponse response;
+    const auto status = detail::packages::harmos::host::plugins::Settings::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.settings.set: " + status.error_message());
     }
@@ -1557,15 +1569,15 @@ struct PromptsAnswersResource {
   ::dokime::client::PromptsAnswersCreateResponse create(const std::string &parent, const std::string &action,
                                                         const ::dokime::MapValue &values, const bool &accepted,
                                                         client::PromptsAnswersCreateOptions options = {}) {
-    detail::PromptsAnswersCreateRequest request;
+    detail::packages::dokime::host::prompts::AnswersCreateRequest request;
     request.set_parent(parent);
     request.set_action(action);
     *request.mutable_values() = values;
     request.set_accepted(accepted);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PromptsAnswersCreateResponse response;
-    const auto status = detail::PromptsAnswersCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::prompts::AnswersCreateResponse response;
+    const auto status = detail::packages::dokime::host::prompts::Answers::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call prompts.answers.create: " + status.error_message());
     }
@@ -1577,13 +1589,13 @@ struct StatusDiagnosticsResource {
   explicit StatusDiagnosticsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::harmos::client::DiagnosticsGetResponse get(const std::string &name, const std::uint64_t &offset, const std::uint64_t &max_bytes,
                                                client::StatusDiagnosticsGetOptions options = {}) {
-    detail::StatusDiagnosticsGetRequest request;
+    detail::packages::harmos::host::status::DiagnosticsGetRequest request;
     request.set_name(name);
     request.set_offset(offset);
     request.set_max_bytes(max_bytes);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::StatusDiagnosticsGetResponse response;
-    const auto status = detail::StatusDiagnosticsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::harmos::host::status::DiagnosticsGetResponse response;
+    const auto status = detail::packages::harmos::host::status::Diagnostics::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call status.diagnostics.get: " + status.error_message());
     }
@@ -1594,7 +1606,7 @@ struct StatusLogsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit StatusLogsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::harmos::client::LogsListResponse list(client::StatusLogsListOptions options = {}) {
-    detail::StatusLogsListRequest request;
+    detail::packages::harmos::host::status::LogsListRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
@@ -1602,8 +1614,8 @@ struct StatusLogsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::StatusLogsListResponse response;
-    const auto status = detail::StatusLogsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::harmos::host::status::LogsListResponse response;
+    const auto status = detail::packages::harmos::host::status::Logs::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call status.logs.list: " + status.error_message());
     }
@@ -1611,17 +1623,17 @@ struct StatusLogsResource {
   }
   ::harmos::ClientStream<::harmos::client::LogsWatchResponse> watch(const std::uint64_t &max_bytes, const std::uint32_t &max_events,
                                                                     client::StatusLogsWatchOptions options = {}) {
-    detail::StatusLogsWatchRequest request;
+    detail::packages::harmos::host::status::LogsWatchRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     request.set_max_bytes(max_bytes);
     request.set_max_events(max_events);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::StatusLogsWatchResponse>>(
-        detail::StatusLogsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::status::LogsWatchResponse>>(
+        detail::packages::harmos::host::status::Logs::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::harmos::client::LogsWatchResponse> {
-              detail::StatusLogsWatchResponse response;
+              detail::packages::harmos::host::status::LogsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1637,7 +1649,7 @@ struct StatusTraceEventsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit StatusTraceEventsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::harmos::client::TraceEventsListResponse list(client::StatusTraceEventsListOptions options = {}) {
-    detail::StatusTraceEventsListRequest request;
+    detail::packages::harmos::host::status::TraceEventsListRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
@@ -1645,8 +1657,8 @@ struct StatusTraceEventsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::StatusTraceEventsListResponse response;
-    const auto status = detail::StatusTraceEventsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::harmos::host::status::TraceEventsListResponse response;
+    const auto status = detail::packages::harmos::host::status::TraceEvents::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call status.trace_events.list: " + status.error_message());
     }
@@ -1654,17 +1666,17 @@ struct StatusTraceEventsResource {
   }
   ::harmos::ClientStream<::harmos::client::TraceEventsWatchResponse> watch(const std::uint64_t &max_bytes, const std::uint32_t &max_events,
                                                                            client::StatusTraceEventsWatchOptions options = {}) {
-    detail::StatusTraceEventsWatchRequest request;
+    detail::packages::harmos::host::status::TraceEventsWatchRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     request.set_max_bytes(max_bytes);
     request.set_max_events(max_events);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::StatusTraceEventsWatchResponse>>(
-        detail::StatusTraceEventsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::status::TraceEventsWatchResponse>>(
+        detail::packages::harmos::host::status::TraceEvents::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::harmos::client::TraceEventsWatchResponse> {
-              detail::StatusTraceEventsWatchResponse response;
+              detail::packages::harmos::host::status::TraceEventsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1680,13 +1692,13 @@ struct StorageSourcesResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit StorageSourcesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::StorageSourcesGetResponse get(client::StorageSourcesGetOptions options = {}) {
-    detail::StorageSourcesGetRequest request;
+    detail::packages::dokime::host::storage::SourcesGetRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::StorageSourcesGetResponse response;
-    const auto status = detail::StorageSourcesGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::storage::SourcesGetResponse response;
+    const auto status = detail::packages::dokime::host::storage::Sources::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call storage.sources.get: " + status.error_message());
     }
@@ -1694,13 +1706,13 @@ struct StorageSourcesResource {
   }
   ::dokime::client::StorageSourcesSetResponse set(const ::dokime::client::StorageStorageSources &value,
                                                   const std::string &expected_revision, client::StorageSourcesSetOptions options = {}) {
-    detail::StorageSourcesSetRequest request;
+    detail::packages::dokime::host::storage::SourcesSetRequest request;
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::StorageSourcesSetResponse response;
-    const auto status = detail::StorageSourcesSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::dokime::host::storage::SourcesSetResponse response;
+    const auto status = detail::packages::dokime::host::storage::Sources::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call storage.sources.set: " + status.error_message());
     }
@@ -1721,7 +1733,7 @@ struct AggregatesResource {
                                               const std::vector<std::string> &group_by,
                                               const std::vector<::dokime::client::QueryAggregate> &aggregates, const std::uint32_t &limit,
                                               client::AggregatesGetOptions options = {}) {
-    detail::AggregatesGetRequest request;
+    detail::packages::dokime::host::AggregatesGetRequest request;
     request.set_source(source);
     request.mutable_filters()->Assign(filters.begin(), filters.end());
     request.mutable_group_by()->Assign(group_by.begin(), group_by.end());
@@ -1731,8 +1743,8 @@ struct AggregatesResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::AggregatesGetResponse response;
-    const auto status = detail::AggregatesGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::AggregatesGetResponse response;
+    const auto status = detail::packages::dokime::host::Aggregates::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call aggregates.get: " + status.error_message());
     }
@@ -1744,13 +1756,13 @@ struct BackendResource {
   BackendOverviewResource overview;
   explicit BackendResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), overview(channel) {}
   ::dokime::client::BackendAppearanceResponse appearance(client::BackendAppearanceOptions options = {}) {
-    detail::BackendAppearanceRequest request;
+    detail::packages::dokime::host::BackendAppearanceRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::BackendAppearanceResponse response;
-    const auto status = detail::BackendAppearanceService::NewStub(channel)->Appearance(context.get(), request, &response);
+    detail::packages::dokime::host::BackendAppearanceResponse response;
+    const auto status = detail::packages::dokime::host::Backend::NewStub(channel)->Appearance(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call backend.appearance: " + status.error_message());
     }
@@ -1762,58 +1774,58 @@ struct CasesResource {
   explicit CasesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::CasesCreateResponse create(const ::dokime::client::SelectionPlan &plan, const bool &validate_only,
                                                client::CasesCreateOptions options = {}) {
-    detail::CasesCreateRequest request;
+    detail::packages::dokime::host::CasesCreateRequest request;
     *request.mutable_plan() = plan;
     request.set_validate_only(validate_only);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CasesCreateResponse response;
-    const auto status = detail::CasesCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::CasesCreateResponse response;
+    const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cases.create: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::CasesGetResponse get(const std::string &name, const std::string &parent, client::CasesGetOptions options = {}) {
-    detail::CasesGetRequest request;
+    detail::packages::dokime::host::CasesGetRequest request;
     request.set_name(name);
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CasesGetResponse response;
-    const auto status = detail::CasesGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::CasesGetResponse response;
+    const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cases.get: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::CasesListResponse list(const std::string &parent, client::CasesListOptions options = {}) {
-    detail::CasesListRequest request;
+    detail::packages::dokime::host::CasesListRequest request;
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CasesListResponse response;
-    const auto status = detail::CasesListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::CasesListResponse response;
+    const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cases.list: " + status.error_message());
     }
     return response;
   }
   ::harmos::ClientStream<::dokime::client::CasesWatchResponse> watch(const std::string &parent, client::CasesWatchOptions options = {}) {
-    detail::CasesWatchRequest request;
+    detail::packages::dokime::host::CasesWatchRequest request;
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::CasesWatchResponse>>(
-        detail::CasesWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::CasesWatchResponse>>(
+        detail::packages::dokime::host::Cases::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::CasesWatchResponse> {
-              detail::CasesWatchResponse response;
+              detail::packages::dokime::host::CasesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1825,13 +1837,13 @@ struct CasesResource {
             }};
   }
   ::harmos::Receipt delete_(const std::string &name, const std::string &parent, client::CasesDeleteOptions options = {}) {
-    detail::CasesDeleteRequest request;
+    detail::packages::dokime::host::CasesDeleteRequest request;
     request.set_name(name);
     request.set_parent(parent);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CasesDeleteResponse response;
-    const auto status = detail::CasesDeleteService::NewStub(channel)->Delete(context.get(), request, &response);
+    detail::packages::dokime::host::CasesDeleteResponse response;
+    const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cases.delete: " + status.error_message());
     }
@@ -1842,15 +1854,15 @@ struct CasesResource {
   }
   ::dokime::client::CasesParametersResponse parameters(const std::string &name, const std::string &parent,
                                                        client::CasesParametersOptions options = {}) {
-    detail::CasesParametersRequest request;
+    detail::packages::dokime::host::CasesParametersRequest request;
     request.set_name(name);
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CasesParametersResponse response;
-    const auto status = detail::CasesParametersService::NewStub(channel)->Parameters(context.get(), request, &response);
+    detail::packages::dokime::host::CasesParametersResponse response;
+    const auto status = detail::packages::dokime::host::Cases::NewStub(channel)->Parameters(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cases.parameters: " + status.error_message());
     }
@@ -1866,14 +1878,14 @@ struct CyclesResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit CyclesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::CyclesGetResponse get(const std::string &name, client::CyclesGetOptions options = {}) {
-    detail::CyclesGetRequest request;
+    detail::packages::dokime::host::CyclesGetRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CyclesGetResponse response;
-    const auto status = detail::CyclesGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::CyclesGetResponse response;
+    const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cycles.get: " + status.error_message());
     }
@@ -1881,14 +1893,14 @@ struct CyclesResource {
   }
   ::dokime::client::CyclesSetResponse set(const std::string &name, const ::dokime::client::CycleWritable &value,
                                           const std::string &expected_revision, client::CyclesSetOptions options = {}) {
-    detail::CyclesSetRequest request;
+    detail::packages::dokime::host::CyclesSetRequest request;
     request.set_name(name);
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CyclesSetResponse response;
-    const auto status = detail::CyclesSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::dokime::host::CyclesSetResponse response;
+    const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cycles.set: " + status.error_message());
     }
@@ -1896,7 +1908,7 @@ struct CyclesResource {
   }
   ::dokime::client::CyclesListResponse list(const ::dokime::client::CycleSelection &selection, const ::dokime::client::CycleFilter &filter,
                                             const ::dokime::client::CycleOrder &order, client::CyclesListOptions options = {}) {
-    detail::CyclesListRequest request;
+    detail::packages::dokime::host::CyclesListRequest request;
     *request.mutable_selection() = selection;
     *request.mutable_filter() = filter;
     *request.mutable_order() = order;
@@ -1907,8 +1919,8 @@ struct CyclesResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CyclesListResponse response;
-    const auto status = detail::CyclesListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::CyclesListResponse response;
+    const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cycles.list: " + status.error_message());
     }
@@ -1918,7 +1930,7 @@ struct CyclesResource {
                                                                       const ::dokime::client::CycleFilter &filter,
                                                                       const ::dokime::client::CycleOrder &order,
                                                                       client::CyclesWatchOptions options = {}) {
-    detail::CyclesWatchRequest request;
+    detail::packages::dokime::host::CyclesWatchRequest request;
     *request.mutable_selection() = selection;
     *request.mutable_filter() = filter;
     *request.mutable_order() = order;
@@ -1929,10 +1941,10 @@ struct CyclesResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::CyclesWatchResponse>>(
-        detail::CyclesWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::CyclesWatchResponse>>(
+        detail::packages::dokime::host::Cycles::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::CyclesWatchResponse> {
-              detail::CyclesWatchResponse response;
+              detail::packages::dokime::host::CyclesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -1946,27 +1958,27 @@ struct CyclesResource {
   ::dokime::client::CyclesCreateResponse create(const std::vector<::dokime::Origin> &origins, const ::dokime::Metadata &metadata,
                                                 const bool &continue_automatically, const std::string &source_cycle,
                                                 client::CyclesCreateOptions options = {}) {
-    detail::CyclesCreateRequest request;
+    detail::packages::dokime::host::CyclesCreateRequest request;
     request.mutable_origins()->Assign(origins.begin(), origins.end());
     *request.mutable_metadata() = metadata;
     request.set_continue_automatically(continue_automatically);
     request.set_source_cycle(source_cycle);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CyclesCreateResponse response;
-    const auto status = detail::CyclesCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::CyclesCreateResponse response;
+    const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cycles.create: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::CyclesSealResponse seal(const std::string &name, client::CyclesSealOptions options = {}) {
-    detail::CyclesSealRequest request;
+    detail::packages::dokime::host::CyclesSealRequest request;
     request.set_name(name);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::CyclesSealResponse response;
-    const auto status = detail::CyclesSealService::NewStub(channel)->Seal(context.get(), request, &response);
+    detail::packages::dokime::host::CyclesSealResponse response;
+    const auto status = detail::packages::dokime::host::Cycles::NewStub(channel)->Seal(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call cycles.seal: " + status.error_message());
     }
@@ -1980,7 +1992,7 @@ struct DocumentsResource {
                                              const bool &structure_only, const std::vector<std::string> &card_ids,
                                              const std::string &page_token, const std::uint64_t &max_bytes, const std::uint32_t &max_frames,
                                              client::DocumentsGetOptions options = {}) {
-    detail::DocumentsGetRequest request;
+    detail::packages::dokime::host::DocumentsGetRequest request;
     *request.mutable_scope() = scope;
     request.set_document_id(document_id);
     request.set_structure_only(structure_only);
@@ -1992,8 +2004,8 @@ struct DocumentsResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::DocumentsGetResponse response;
-    const auto status = detail::DocumentsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::DocumentsGetResponse response;
+    const auto status = detail::packages::dokime::host::Documents::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call documents.get: " + status.error_message());
     }
@@ -2003,7 +2015,7 @@ struct DocumentsResource {
   watch(const ::dokime::client::DocumentScope &scope, const std::string &document_id, const bool &structure_only,
         const std::vector<std::string> &card_ids, const std::string &page_token, const std::uint64_t &max_bytes,
         const std::uint32_t &max_frames, client::DocumentsWatchOptions options = {}) {
-    detail::DocumentsWatchRequest request;
+    detail::packages::dokime::host::DocumentsWatchRequest request;
     *request.mutable_scope() = scope;
     request.set_document_id(document_id);
     request.set_structure_only(structure_only);
@@ -2015,10 +2027,10 @@ struct DocumentsResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::DocumentsWatchResponse>>(
-        detail::DocumentsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::DocumentsWatchResponse>>(
+        detail::packages::dokime::host::Documents::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::DocumentsWatchResponse> {
-              detail::DocumentsWatchResponse response;
+              detail::packages::dokime::host::DocumentsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -2039,12 +2051,14 @@ struct EvidenceResource {
   EvidenceTraceabilityResource traceability;
   explicit EvidenceResource(std::shared_ptr<grpc::Channel> channel)
       : channel(channel), health_events(channel), notes(channel), records(channel), samples(channel), traceability(channel) {}
-  ::dokime::EvidenceStatisticsResponse statistics(const ::dokime::EvidenceScope &scope, const std::string &stream,
-                                                  const std::vector<std::uint32_t> &versions, const ::dokime::Window &between,
-                                                  const std::vector<::dokime::Output> &outputs, const std::string &field,
-                                                  const std::string &step, client::EvidenceStatisticsOptions options = {}) {
-    detail::EvidenceStatisticsRequest request;
-    *request.mutable_scope() = scope;
+  ::dokime::EvidenceStatisticsResponse statistics(const std::string &stream, const std::vector<std::uint32_t> &versions,
+                                                  const ::dokime::Window &between, const std::vector<::dokime::Output> &outputs,
+                                                  const std::string &field, const std::string &step,
+                                                  client::EvidenceStatisticsOptions options = {}) {
+    detail::packages::dokime::host::EvidenceStatisticsRequest request;
+    if (options.scope) {
+      *request.mutable_scope() = *options.scope;
+    }
     request.set_stream(stream);
     request.mutable_versions()->Assign(versions.begin(), versions.end());
     *request.mutable_between() = between;
@@ -2055,8 +2069,8 @@ struct EvidenceResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceStatisticsResponse response;
-    const auto status = detail::EvidenceStatisticsService::NewStub(channel)->Statistics(context.get(), request, &response);
+    detail::packages::dokime::host::EvidenceStatisticsResponse response;
+    const auto status = detail::packages::dokime::host::Evidence::NewStub(channel)->Statistics(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.statistics: " + status.error_message());
     }
@@ -2064,14 +2078,14 @@ struct EvidenceResource {
   }
   ::dokime::client::EvidenceArchiveResponse archive(const ::dokime::client::EvidenceSubject &subject,
                                                     client::EvidenceArchiveOptions options = {}) {
-    detail::EvidenceArchiveRequest request;
+    detail::packages::dokime::host::EvidenceArchiveRequest request;
     *request.mutable_subject() = subject;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::EvidenceArchiveResponse response;
-    const auto status = detail::EvidenceArchiveService::NewStub(channel)->Archive(context.get(), request, &response);
+    detail::packages::dokime::host::EvidenceArchiveResponse response;
+    const auto status = detail::packages::dokime::host::Evidence::NewStub(channel)->Archive(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call evidence.archive: " + status.error_message());
     }
@@ -2086,14 +2100,14 @@ struct ExecutionsResource {
   explicit ExecutionsResource(std::shared_ptr<grpc::Channel> channel)
       : channel(channel), commands(channel), progress(channel), schemas(channel) {}
   ::dokime::client::ExecutionsGetResponse get(const std::string &name, client::ExecutionsGetOptions options = {}) {
-    detail::ExecutionsGetRequest request;
+    detail::packages::dokime::host::ExecutionsGetRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsGetResponse response;
-    const auto status = detail::ExecutionsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsGetResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.get: " + status.error_message());
     }
@@ -2101,14 +2115,14 @@ struct ExecutionsResource {
   }
   ::dokime::client::ExecutionsSetResponse set(const std::string &name, const ::dokime::client::ExecutionWritable &value,
                                               const std::string &expected_revision, client::ExecutionsSetOptions options = {}) {
-    detail::ExecutionsSetRequest request;
+    detail::packages::dokime::host::ExecutionsSetRequest request;
     request.set_name(name);
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsSetResponse response;
-    const auto status = detail::ExecutionsSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsSetResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.set: " + status.error_message());
     }
@@ -2117,7 +2131,7 @@ struct ExecutionsResource {
   ::dokime::client::ExecutionsListResponse list(const std::string &parent, const ::dokime::client::ExecutionSelection &selection,
                                                 const ::dokime::client::ExecutionFilter &filter,
                                                 const ::dokime::client::ExecutionOrder &order, client::ExecutionsListOptions options = {}) {
-    detail::ExecutionsListRequest request;
+    detail::packages::dokime::host::ExecutionsListRequest request;
     request.set_parent(parent);
     *request.mutable_selection() = selection;
     *request.mutable_filter() = filter;
@@ -2129,8 +2143,8 @@ struct ExecutionsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsListResponse response;
-    const auto status = detail::ExecutionsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsListResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.list: " + status.error_message());
     }
@@ -2139,7 +2153,7 @@ struct ExecutionsResource {
   ::harmos::ClientStream<::dokime::client::ExecutionsWatchResponse>
   watch(const std::string &parent, const ::dokime::client::ExecutionSelection &selection, const ::dokime::client::ExecutionFilter &filter,
         const ::dokime::client::ExecutionOrder &order, client::ExecutionsWatchOptions options = {}) {
-    detail::ExecutionsWatchRequest request;
+    detail::packages::dokime::host::ExecutionsWatchRequest request;
     request.set_parent(parent);
     *request.mutable_selection() = selection;
     *request.mutable_filter() = filter;
@@ -2151,10 +2165,10 @@ struct ExecutionsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::ExecutionsWatchResponse>>(
-        detail::ExecutionsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::ExecutionsWatchResponse>>(
+        detail::packages::dokime::host::Executions::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::ExecutionsWatchResponse> {
-              detail::ExecutionsWatchResponse response;
+              detail::packages::dokime::host::ExecutionsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -2168,13 +2182,13 @@ struct ExecutionsResource {
   ::dokime::client::ExecutionsCreateResponse create(const std::string &parent,
                                                     const std::vector<::dokime::client::ExecutionBinding> &executions,
                                                     client::ExecutionsCreateOptions options = {}) {
-    detail::ExecutionsCreateRequest request;
+    detail::packages::dokime::host::ExecutionsCreateRequest request;
     request.set_parent(parent);
     request.mutable_executions()->Assign(executions.begin(), executions.end());
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsCreateResponse response;
-    const auto status = detail::ExecutionsCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsCreateResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.create: " + status.error_message());
     }
@@ -2182,49 +2196,49 @@ struct ExecutionsResource {
   }
   ::dokime::client::ExecutionsStartResponse start(const std::string &name, const ::dokime::client::ExecutionMode &mode,
                                                   client::ExecutionsStartOptions options = {}) {
-    detail::ExecutionsStartRequest request;
+    detail::packages::dokime::host::ExecutionsStartRequest request;
     request.set_name(name);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     request.set_mode(mode);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsStartResponse response;
-    const auto status = detail::ExecutionsStartService::NewStub(channel)->Start(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsStartResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Start(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.start: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::ExecutionsStopResponse stop(const std::string &name, client::ExecutionsStopOptions options = {}) {
-    detail::ExecutionsStopRequest request;
+    detail::packages::dokime::host::ExecutionsStopRequest request;
     request.set_name(name);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsStopResponse response;
-    const auto status = detail::ExecutionsStopService::NewStub(channel)->Stop(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsStopResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Stop(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.stop: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::ExecutionsCancelResponse cancel(const std::string &name, client::ExecutionsCancelOptions options = {}) {
-    detail::ExecutionsCancelRequest request;
+    detail::packages::dokime::host::ExecutionsCancelRequest request;
     request.set_name(name);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsCancelResponse response;
-    const auto status = detail::ExecutionsCancelService::NewStub(channel)->Cancel(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsCancelResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Cancel(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.cancel: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::ExecutionsDeleteResponse delete_(const std::string &name, client::ExecutionsDeleteOptions options = {}) {
-    detail::ExecutionsDeleteRequest request;
+    detail::packages::dokime::host::ExecutionsDeleteRequest request;
     request.set_name(name);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsDeleteResponse response;
-    const auto status = detail::ExecutionsDeleteService::NewStub(channel)->Delete(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsDeleteResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.delete: " + status.error_message());
     }
@@ -2232,29 +2246,29 @@ struct ExecutionsResource {
   }
   ::dokime::client::ExecutionsParametersResponse parameters(const std::string &name, const ::dokime::client::ExecutionParameterSet &set,
                                                             client::ExecutionsParametersOptions options = {}) {
-    detail::ExecutionsParametersRequest request;
+    detail::packages::dokime::host::ExecutionsParametersRequest request;
     request.set_name(name);
     request.set_set(set);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsParametersResponse response;
-    const auto status = detail::ExecutionsParametersService::NewStub(channel)->Parameters(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsParametersResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Parameters(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.parameters: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::ExecutionsStepsResponse steps(const std::string &name, client::ExecutionsStepsOptions options = {}) {
-    detail::ExecutionsStepsRequest request;
+    detail::packages::dokime::host::ExecutionsStepsRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ExecutionsStepsResponse response;
-    const auto status = detail::ExecutionsStepsService::NewStub(channel)->Steps(context.get(), request, &response);
+    detail::packages::dokime::host::ExecutionsStepsResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Steps(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.steps: " + status.error_message());
     }
@@ -2266,14 +2280,14 @@ struct FilesResource {
   FilesUploadsResource uploads;
   explicit FilesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), uploads(channel) {}
   ::dokime::FilesGetResponse get(const ::harmos::FileReference &file, client::FilesGetOptions options = {}) {
-    detail::FilesGetRequest request;
+    detail::packages::dokime::host::FilesGetRequest request;
     *request.mutable_file() = file;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::FilesGetResponse response;
-    const auto status = detail::FilesGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::FilesGetResponse response;
+    const auto status = detail::packages::dokime::host::Files::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call files.get: " + status.error_message());
     }
@@ -2281,7 +2295,7 @@ struct FilesResource {
   }
   ::dokime::FilesReadResponse read(const ::harmos::FileReference &file, const std::uint64_t &offset, const std::uint64_t &max_bytes,
                                    client::FilesReadOptions options = {}) {
-    detail::FilesReadRequest request;
+    detail::packages::dokime::host::FilesReadRequest request;
     *request.mutable_file() = file;
     request.set_offset(offset);
     request.set_max_bytes(max_bytes);
@@ -2289,15 +2303,15 @@ struct FilesResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::FilesReadResponse response;
-    const auto status = detail::FilesReadService::NewStub(channel)->Read(context.get(), request, &response);
+    detail::packages::dokime::host::FilesReadResponse response;
+    const auto status = detail::packages::dokime::host::Files::NewStub(channel)->Read(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call files.read: " + status.error_message());
     }
     return response;
   }
   ::harmos::ClientStream<::dokime::FilesWatchResponse> watch(const std::uint64_t &offset, client::FilesWatchOptions options = {}) {
-    detail::FilesWatchRequest request;
+    detail::packages::dokime::host::FilesWatchRequest request;
     if (options.file) {
       *request.mutable_file() = *options.file;
     }
@@ -2309,10 +2323,10 @@ struct FilesResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::FilesWatchResponse>>(
-        detail::FilesWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::FilesWatchResponse>>(
+        detail::packages::dokime::host::Files::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::FilesWatchResponse> {
-              detail::FilesWatchResponse response;
+              detail::packages::dokime::host::FilesWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -2324,12 +2338,12 @@ struct FilesResource {
             }};
   }
   ::harmos::Receipt delete_(const ::harmos::FileReference &file, client::FilesDeleteOptions options = {}) {
-    detail::FilesDeleteRequest request;
+    detail::packages::dokime::host::FilesDeleteRequest request;
     *request.mutable_file() = file;
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::FilesDeleteResponse response;
-    const auto status = detail::FilesDeleteService::NewStub(channel)->Delete(context.get(), request, &response);
+    detail::packages::dokime::host::FilesDeleteResponse response;
+    const auto status = detail::packages::dokime::host::Files::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call files.delete: " + status.error_message());
     }
@@ -2344,24 +2358,24 @@ struct InvocationsResource {
   explicit InvocationsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   std::string create(const std::string &operation, const std::string &fingerprint, const std::string &payload,
                      client::InvocationsCreateOptions options = {}) {
-    detail::InvocationsCreateRequest request;
+    detail::packages::harmos::host::InvocationsCreateRequest request;
     request.set_operation(operation);
     request.set_fingerprint(fingerprint);
     request.set_payload(payload);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::InvocationsCreateResponse response;
-    const auto status = detail::InvocationsCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::harmos::host::InvocationsCreateResponse response;
+    const auto status = detail::packages::harmos::host::Invocations::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call invocations.create: " + status.error_message());
     }
     return response.payload();
   }
   ::harmos::InstanceState get(const std::uint64_t &instance, client::InvocationsGetOptions options = {}) {
-    detail::InvocationsGetRequest request;
+    detail::packages::harmos::host::InvocationsGetRequest request;
     request.set_instance(instance);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::InvocationsGetResponse response;
-    const auto status = detail::InvocationsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::harmos::host::InvocationsGetResponse response;
+    const auto status = detail::packages::harmos::host::Invocations::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call invocations.get: " + status.error_message());
     }
@@ -2371,12 +2385,12 @@ struct InvocationsResource {
     return std::move(*response.mutable_invocation());
   }
   ::harmos::InstanceState cancel(const std::uint64_t &instance, const std::string &reason, client::InvocationsCancelOptions options = {}) {
-    detail::InvocationsCancelRequest request;
+    detail::packages::harmos::host::InvocationsCancelRequest request;
     request.set_instance(instance);
     request.set_reason(reason);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::InvocationsCancelResponse response;
-    const auto status = detail::InvocationsCancelService::NewStub(channel)->Cancel(context.get(), request, &response);
+    detail::packages::harmos::host::InvocationsCancelResponse response;
+    const auto status = detail::packages::harmos::host::Invocations::NewStub(channel)->Cancel(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call invocations.cancel: " + status.error_message());
     }
@@ -2386,13 +2400,13 @@ struct InvocationsResource {
     return std::move(*response.mutable_invocation());
   }
   ::harmos::ClientStream<::harmos::InstanceState> watch(const std::uint64_t &instance, client::InvocationsWatchOptions options = {}) {
-    detail::InvocationsWatchRequest request;
+    detail::packages::harmos::host::InvocationsWatchRequest request;
     request.set_instance(instance);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::InvocationsWatchResponse>>(
-        detail::InvocationsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::InvocationsWatchResponse>>(
+        detail::packages::harmos::host::Invocations::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::harmos::InstanceState> {
-              detail::InvocationsWatchResponse response;
+              detail::packages::harmos::host::InvocationsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -2415,21 +2429,21 @@ struct OperationsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit OperationsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   std::vector<::harmos::DiscoveredOperation> list(client::OperationsListOptions options = {}) {
-    detail::OperationsListRequest request;
+    detail::packages::harmos::host::OperationsListRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::OperationsListResponse response;
-    const auto status = detail::OperationsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::harmos::host::OperationsListResponse response;
+    const auto status = detail::packages::harmos::host::Operations::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call operations.list: " + status.error_message());
     }
     return std::vector<::harmos::DiscoveredOperation>(response.operations().begin(), response.operations().end());
   }
   ::harmos::DiscoveredOperation get(const std::string &id, client::OperationsGetOptions options = {}) {
-    detail::OperationsGetRequest request;
+    detail::packages::harmos::host::OperationsGetRequest request;
     request.set_id(id);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::OperationsGetResponse response;
-    const auto status = detail::OperationsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::harmos::host::OperationsGetResponse response;
+    const auto status = detail::packages::harmos::host::Operations::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call operations.get: " + status.error_message());
     }
@@ -2450,34 +2464,34 @@ struct PluginsResource {
   PluginsSettingsResource settings;
   explicit PluginsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), secrets(channel), settings(channel) {}
   ::harmos::client::PluginsGetResponse get(const std::string &name, client::PluginsGetOptions options = {}) {
-    detail::PluginsGetRequest request;
+    detail::packages::harmos::host::PluginsGetRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsGetResponse response;
-    const auto status = detail::PluginsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::harmos::host::PluginsGetResponse response;
+    const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.get: " + status.error_message());
     }
     return response;
   }
   ::harmos::client::PluginsListResponse list(client::PluginsListOptions options = {}) {
-    detail::PluginsListRequest request;
+    detail::packages::harmos::host::PluginsListRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsListResponse response;
-    const auto status = detail::PluginsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::harmos::host::PluginsListResponse response;
+    const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.list: " + status.error_message());
     }
     return response;
   }
   ::harmos::ClientStream<::harmos::client::PluginsWatchResponse> watch(client::PluginsWatchOptions options = {}) {
-    detail::PluginsWatchRequest request;
+    detail::packages::harmos::host::PluginsWatchRequest request;
     if (options.name) {
       request.set_name(*options.name);
     }
@@ -2485,10 +2499,10 @@ struct PluginsResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::PluginsWatchResponse>>(
-        detail::PluginsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::PluginsWatchResponse>>(
+        detail::packages::harmos::host::Plugins::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::harmos::client::PluginsWatchResponse> {
-              detail::PluginsWatchResponse response;
+              detail::packages::harmos::host::PluginsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -2501,14 +2515,14 @@ struct PluginsResource {
   }
   ::harmos::client::PluginsCreateResponse create(const std::string &name, const ::harmos::client::PluginPlacement &placement,
                                                  const ::harmos::client::PluginValue &value, client::PluginsCreateOptions options = {}) {
-    detail::PluginsCreateRequest request;
+    detail::packages::harmos::host::PluginsCreateRequest request;
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     request.set_name(name);
     *request.mutable_placement() = placement;
     *request.mutable_value() = value;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsCreateResponse response;
-    const auto status = detail::PluginsCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::harmos::host::PluginsCreateResponse response;
+    const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.create: " + status.error_message());
     }
@@ -2516,25 +2530,25 @@ struct PluginsResource {
   }
   ::harmos::client::PluginsSetResponse set(const std::string &name, const ::harmos::client::PluginValue &value,
                                            const std::string &expected_revision, client::PluginsSetOptions options = {}) {
-    detail::PluginsSetRequest request;
+    detail::packages::harmos::host::PluginsSetRequest request;
     request.set_name(name);
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsSetResponse response;
-    const auto status = detail::PluginsSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::harmos::host::PluginsSetResponse response;
+    const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.set: " + status.error_message());
     }
     return response;
   }
   ::harmos::Receipt delete_(const std::string &name, const std::string &expected_revision, client::PluginsDeleteOptions options = {}) {
-    detail::PluginsDeleteRequest request;
+    detail::packages::harmos::host::PluginsDeleteRequest request;
     request.set_name(name);
     request.set_expected_revision(expected_revision);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsDeleteResponse response;
-    const auto status = detail::PluginsDeleteService::NewStub(channel)->Delete(context.get(), request, &response);
+    detail::packages::harmos::host::PluginsDeleteResponse response;
+    const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.delete: " + status.error_message());
     }
@@ -2545,12 +2559,12 @@ struct PluginsResource {
   }
   ::harmos::client::PluginEntry restart(const std::string &name, const std::string &expected_revision,
                                         client::PluginsRestartOptions options = {}) {
-    detail::PluginsRestartRequest request;
+    detail::packages::harmos::host::PluginsRestartRequest request;
     request.set_name(name);
     request.set_expected_revision(expected_revision);
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsRestartResponse response;
-    const auto status = detail::PluginsRestartService::NewStub(channel)->Restart(context.get(), request, &response);
+    detail::packages::harmos::host::PluginsRestartResponse response;
+    const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Restart(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.restart: " + status.error_message());
     }
@@ -2561,14 +2575,14 @@ struct PluginsResource {
   }
   ::harmos::client::PluginsReplaceResponse replace(const std::string &name, const ::harmos::client::PluginPlacement &placement,
                                                    const std::string &expected_revision, client::PluginsReplaceOptions options = {}) {
-    detail::PluginsReplaceRequest request;
+    detail::packages::harmos::host::PluginsReplaceRequest request;
     request.set_name(name);
     *request.mutable_placement() = placement;
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PluginsReplaceResponse response;
-    const auto status = detail::PluginsReplaceService::NewStub(channel)->Replace(context.get(), request, &response);
+    detail::packages::harmos::host::PluginsReplaceResponse response;
+    const auto status = detail::packages::harmos::host::Plugins::NewStub(channel)->Replace(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call plugins.replace: " + status.error_message());
     }
@@ -2581,7 +2595,7 @@ struct PromptDefinitionsResource {
   ::dokime::client::PromptDefinitionsGetResponse get(const std::string &name, const std::string &parent,
                                                      const std::uint32_t &schema_version,
                                                      client::PromptDefinitionsGetOptions options = {}) {
-    detail::PromptDefinitionsGetRequest request;
+    detail::packages::dokime::host::PromptDefinitionsGetRequest request;
     request.set_name(name);
     request.set_parent(parent);
     request.set_schema_version(schema_version);
@@ -2589,22 +2603,22 @@ struct PromptDefinitionsResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PromptDefinitionsGetResponse response;
-    const auto status = detail::PromptDefinitionsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::PromptDefinitionsGetResponse response;
+    const auto status = detail::packages::dokime::host::PromptDefinitions::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call prompt_definitions.get: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::PromptDefinitionsListResponse list(const std::string &parent, client::PromptDefinitionsListOptions options = {}) {
-    detail::PromptDefinitionsListRequest request;
+    detail::packages::dokime::host::PromptDefinitionsListRequest request;
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PromptDefinitionsListResponse response;
-    const auto status = detail::PromptDefinitionsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::PromptDefinitionsListResponse response;
+    const auto status = detail::packages::dokime::host::PromptDefinitions::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call prompt_definitions.list: " + status.error_message());
     }
@@ -2616,21 +2630,21 @@ struct PromptsResource {
   PromptsAnswersResource answers;
   explicit PromptsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel), answers(channel) {}
   ::dokime::client::PromptsGetResponse get(const std::string &name, client::PromptsGetOptions options = {}) {
-    detail::PromptsGetRequest request;
+    detail::packages::dokime::host::PromptsGetRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PromptsGetResponse response;
-    const auto status = detail::PromptsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::PromptsGetResponse response;
+    const auto status = detail::packages::dokime::host::Prompts::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call prompts.get: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::PromptsListResponse list(const std::string &parent, const bool &pending_only, client::PromptsListOptions options = {}) {
-    detail::PromptsListRequest request;
+    detail::packages::dokime::host::PromptsListRequest request;
     request.set_parent(parent);
     if (options.cycle_id) {
       request.set_cycle_id(*options.cycle_id);
@@ -2646,8 +2660,8 @@ struct PromptsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::PromptsListResponse response;
-    const auto status = detail::PromptsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::PromptsListResponse response;
+    const auto status = detail::packages::dokime::host::Prompts::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call prompts.list: " + status.error_message());
     }
@@ -2655,7 +2669,7 @@ struct PromptsResource {
   }
   ::harmos::ClientStream<::dokime::client::PromptsWatchResponse> watch(const std::string &parent, const bool &pending_only,
                                                                        client::PromptsWatchOptions options = {}) {
-    detail::PromptsWatchRequest request;
+    detail::packages::dokime::host::PromptsWatchRequest request;
     request.set_parent(parent);
     if (options.cycle_id) {
       request.set_cycle_id(*options.cycle_id);
@@ -2671,10 +2685,10 @@ struct PromptsResource {
       *request.mutable_page() = *options.page;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::PromptsWatchResponse>>(
-        detail::PromptsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::PromptsWatchResponse>>(
+        detail::packages::dokime::host::Prompts::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::PromptsWatchResponse> {
-              detail::PromptsWatchResponse response;
+              detail::packages::dokime::host::PromptsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -2691,7 +2705,7 @@ struct RecordSchemasResource {
   explicit RecordSchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::RecordSchemasGetResponse get(const std::string &name, const std::string &parent, const std::uint32_t &schema_version,
                                                  client::RecordSchemasGetOptions options = {}) {
-    detail::RecordSchemasGetRequest request;
+    detail::packages::dokime::host::RecordSchemasGetRequest request;
     request.set_name(name);
     request.set_parent(parent);
     request.set_schema_version(schema_version);
@@ -2699,22 +2713,22 @@ struct RecordSchemasResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::RecordSchemasGetResponse response;
-    const auto status = detail::RecordSchemasGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::RecordSchemasGetResponse response;
+    const auto status = detail::packages::dokime::host::RecordSchemas::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call record_schemas.get: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::RecordSchemasListResponse list(const std::string &parent, client::RecordSchemasListOptions options = {}) {
-    detail::RecordSchemasListRequest request;
+    detail::packages::dokime::host::RecordSchemasListRequest request;
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::RecordSchemasListResponse response;
-    const auto status = detail::RecordSchemasListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::RecordSchemasListResponse response;
+    const auto status = detail::packages::dokime::host::RecordSchemas::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call record_schemas.list: " + status.error_message());
     }
@@ -2726,15 +2740,15 @@ struct ReportsResource {
   explicit ReportsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::ReportsGetResponse get(const ::dokime::client::ReportSubject &subject, const std::string &name,
                                            client::ReportsGetOptions options = {}) {
-    detail::ReportsGetRequest request;
+    detail::packages::dokime::host::ReportsGetRequest request;
     *request.mutable_subject() = subject;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ReportsGetResponse response;
-    const auto status = detail::ReportsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::ReportsGetResponse response;
+    const auto status = detail::packages::dokime::host::Reports::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call reports.get: " + status.error_message());
     }
@@ -2742,7 +2756,7 @@ struct ReportsResource {
   }
   ::dokime::client::ReportsCreateResponse create(const ::dokime::client::ReportSubject &subject, const std::string &document_id,
                                                  client::ReportsCreateOptions options = {}) {
-    detail::ReportsCreateRequest request;
+    detail::packages::dokime::host::ReportsCreateRequest request;
     *request.mutable_subject() = subject;
     request.set_document_id(document_id);
     if (options.at) {
@@ -2750,8 +2764,8 @@ struct ReportsResource {
     }
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ReportsCreateResponse response;
-    const auto status = detail::ReportsCreateService::NewStub(channel)->Create(context.get(), request, &response);
+    detail::packages::dokime::host::ReportsCreateResponse response;
+    const auto status = detail::packages::dokime::host::Reports::NewStub(channel)->Create(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call reports.create: " + status.error_message());
     }
@@ -2759,14 +2773,14 @@ struct ReportsResource {
   }
   ::dokime::client::ReportsPublishResponse publish(const std::string &name, const ::dokime::client::ReportSubject &subject,
                                                    const std::string &expected_revision, client::ReportsPublishOptions options = {}) {
-    detail::ReportsPublishRequest request;
+    detail::packages::dokime::host::ReportsPublishRequest request;
     request.set_name(name);
     *request.mutable_subject() = subject;
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::ReportsPublishResponse response;
-    const auto status = detail::ReportsPublishService::NewStub(channel)->Publish(context.get(), request, &response);
+    detail::packages::dokime::host::ReportsPublishResponse response;
+    const auto status = detail::packages::dokime::host::Reports::NewStub(channel)->Publish(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call reports.publish: " + status.error_message());
     }
@@ -2777,13 +2791,13 @@ struct SchemasResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit SchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   std::vector<::harmos::client::SchemaDescription> list(client::SchemasListOptions options = {}) {
-    detail::SchemasListRequest request;
+    detail::packages::harmos::host::SchemasListRequest request;
     if (options.schema) {
       request.set_schema(*options.schema);
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SchemasListResponse response;
-    const auto status = detail::SchemasListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::harmos::host::SchemasListResponse response;
+    const auto status = detail::packages::harmos::host::Schemas::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call schemas.list: " + status.error_message());
     }
@@ -2794,14 +2808,14 @@ struct SecretsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit SecretsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::SecretsGetResponse get(const std::string &name, client::SecretsGetOptions options = {}) {
-    detail::SecretsGetRequest request;
+    detail::packages::dokime::host::SecretsGetRequest request;
     request.set_name(name);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SecretsGetResponse response;
-    const auto status = detail::SecretsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::SecretsGetResponse response;
+    const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call secrets.get: " + status.error_message());
     }
@@ -2809,42 +2823,42 @@ struct SecretsResource {
   }
   ::dokime::client::SecretsSetResponse set(const std::string &name, const ::dokime::SecretWritable &value,
                                            const std::string &expected_revision, client::SecretsSetOptions options = {}) {
-    detail::SecretsSetRequest request;
+    detail::packages::dokime::host::SecretsSetRequest request;
     request.set_name(name);
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SecretsSetResponse response;
-    const auto status = detail::SecretsSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::dokime::host::SecretsSetResponse response;
+    const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call secrets.set: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::SecretsListResponse list(client::SecretsListOptions options = {}) {
-    detail::SecretsListRequest request;
+    detail::packages::dokime::host::SecretsListRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SecretsListResponse response;
-    const auto status = detail::SecretsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::SecretsListResponse response;
+    const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call secrets.list: " + status.error_message());
     }
     return response;
   }
   ::harmos::ClientStream<::dokime::client::SecretsWatchResponse> watch(client::SecretsWatchOptions options = {}) {
-    detail::SecretsWatchRequest request;
+    detail::packages::dokime::host::SecretsWatchRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::SecretsWatchResponse>>(
-        detail::SecretsWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::dokime::host::SecretsWatchResponse>>(
+        detail::packages::dokime::host::Secrets::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::dokime::client::SecretsWatchResponse> {
-              detail::SecretsWatchResponse response;
+              detail::packages::dokime::host::SecretsWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -2857,13 +2871,13 @@ struct SecretsResource {
   }
   ::dokime::client::SecretsDeleteResponse delete_(const std::vector<std::string> &names, const std::string &expected_revision,
                                                   client::SecretsDeleteOptions options = {}) {
-    detail::SecretsDeleteRequest request;
+    detail::packages::dokime::host::SecretsDeleteRequest request;
     request.mutable_names()->Assign(names.begin(), names.end());
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SecretsDeleteResponse response;
-    const auto status = detail::SecretsDeleteService::NewStub(channel)->Delete(context.get(), request, &response);
+    detail::packages::dokime::host::SecretsDeleteResponse response;
+    const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Delete(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call secrets.delete: " + status.error_message());
     }
@@ -2871,15 +2885,15 @@ struct SecretsResource {
   }
   ::dokime::client::SecretsExportResponse export_(const std::vector<std::string> &names, const std::uint64_t &generation,
                                                   client::SecretsExportOptions options = {}) {
-    detail::SecretsExportRequest request;
+    detail::packages::dokime::host::SecretsExportRequest request;
     request.mutable_names()->Assign(names.begin(), names.end());
     request.set_generation(generation);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SecretsExportResponse response;
-    const auto status = detail::SecretsExportService::NewStub(channel)->Export(context.get(), request, &response);
+    detail::packages::dokime::host::SecretsExportResponse response;
+    const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Export(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call secrets.export: " + status.error_message());
     }
@@ -2888,15 +2902,15 @@ struct SecretsResource {
   ::dokime::client::SecretsImportResponse import_(const std::string &data, const std::vector<::dokime::client::SecretImportChoice> &choices,
                                                   const std::uint64_t &generation, const bool &validate_only,
                                                   client::SecretsImportOptions options = {}) {
-    detail::SecretsImportRequest request;
+    detail::packages::dokime::host::SecretsImportRequest request;
     request.set_data(data);
     request.mutable_choices()->Assign(choices.begin(), choices.end());
     request.set_generation(generation);
     request.set_validate_only(validate_only);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SecretsImportResponse response;
-    const auto status = detail::SecretsImportService::NewStub(channel)->Import(context.get(), request, &response);
+    detail::packages::dokime::host::SecretsImportResponse response;
+    const auto status = detail::packages::dokime::host::Secrets::NewStub(channel)->Import(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call secrets.import: " + status.error_message());
     }
@@ -2907,13 +2921,13 @@ struct SettingsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit SettingsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::SettingsGetResponse get(client::SettingsGetOptions options = {}) {
-    detail::SettingsGetRequest request;
+    detail::packages::dokime::host::SettingsGetRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SettingsGetResponse response;
-    const auto status = detail::SettingsGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::SettingsGetResponse response;
+    const auto status = detail::packages::dokime::host::Settings::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call settings.get: " + status.error_message());
     }
@@ -2921,26 +2935,26 @@ struct SettingsResource {
   }
   ::dokime::client::SettingsSetResponse set(const ::dokime::client::ApplicationSettings &value, const std::string &expected_revision,
                                             client::SettingsSetOptions options = {}) {
-    detail::SettingsSetRequest request;
+    detail::packages::dokime::host::SettingsSetRequest request;
     *request.mutable_value() = value;
     request.set_expected_revision(expected_revision);
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SettingsSetResponse response;
-    const auto status = detail::SettingsSetService::NewStub(channel)->Set(context.get(), request, &response);
+    detail::packages::dokime::host::SettingsSetResponse response;
+    const auto status = detail::packages::dokime::host::Settings::NewStub(channel)->Set(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call settings.set: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::SettingsSchemaResponse schema(client::SettingsSchemaOptions options = {}) {
-    detail::SettingsSchemaRequest request;
+    detail::packages::dokime::host::SettingsSchemaRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SettingsSchemaResponse response;
-    const auto status = detail::SettingsSchemaService::NewStub(channel)->Schema(context.get(), request, &response);
+    detail::packages::dokime::host::SettingsSchemaResponse response;
+    const auto status = detail::packages::dokime::host::Settings::NewStub(channel)->Schema(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call settings.schema: " + status.error_message());
     }
@@ -2955,25 +2969,25 @@ struct StatusResource {
   explicit StatusResource(std::shared_ptr<grpc::Channel> channel)
       : channel(channel), diagnostics(channel), logs(channel), trace_events(channel) {}
   ::harmos::client::StatusGetResponse get(client::StatusGetOptions options = {}) {
-    detail::StatusGetRequest request;
+    detail::packages::harmos::host::StatusGetRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::StatusGetResponse response;
-    const auto status = detail::StatusGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::harmos::host::StatusGetResponse response;
+    const auto status = detail::packages::harmos::host::Status::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call status.get: " + status.error_message());
     }
     return response;
   }
   ::harmos::ClientStream<::harmos::client::StatusWatchResponse> watch(client::StatusWatchOptions options = {}) {
-    detail::StatusWatchRequest request;
+    detail::packages::harmos::host::StatusWatchRequest request;
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    auto reader = std::shared_ptr<grpc::ClientReader<detail::StatusWatchResponse>>(
-        detail::StatusWatchService::NewStub(channel)->Watch(context.get(), request));
+    auto reader = std::shared_ptr<grpc::ClientReader<detail::packages::harmos::host::StatusWatchResponse>>(
+        detail::packages::harmos::host::Status::NewStub(channel)->Watch(context.get(), request));
     return {context, [reader]() -> std::optional<::harmos::client::StatusWatchResponse> {
-              detail::StatusWatchResponse response;
+              detail::packages::harmos::host::StatusWatchResponse response;
               if (!reader->Read(&response)) {
                 const auto status = reader->Finish();
                 if (!status.ok()) {
@@ -2994,7 +3008,7 @@ struct StreamSchemasResource {
   explicit StreamSchemasResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::StreamSchemasGetResponse get(const std::string &name, const std::string &parent, const std::uint32_t &schema_version,
                                                  client::StreamSchemasGetOptions options = {}) {
-    detail::StreamSchemasGetRequest request;
+    detail::packages::dokime::host::StreamSchemasGetRequest request;
     request.set_name(name);
     request.set_parent(parent);
     request.set_schema_version(schema_version);
@@ -3002,22 +3016,22 @@ struct StreamSchemasResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::StreamSchemasGetResponse response;
-    const auto status = detail::StreamSchemasGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::StreamSchemasGetResponse response;
+    const auto status = detail::packages::dokime::host::StreamSchemas::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call stream_schemas.get: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::StreamSchemasListResponse list(const std::string &parent, client::StreamSchemasListOptions options = {}) {
-    detail::StreamSchemasListRequest request;
+    detail::packages::dokime::host::StreamSchemasListRequest request;
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::StreamSchemasListResponse response;
-    const auto status = detail::StreamSchemasListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::StreamSchemasListResponse response;
+    const auto status = detail::packages::dokime::host::StreamSchemas::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call stream_schemas.list: " + status.error_message());
     }
@@ -3028,13 +3042,13 @@ struct StreamsResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit StreamsResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   std::vector<::harmos::client::StreamIdentity> list(client::StreamsListOptions options = {}) {
-    detail::StreamsListRequest request;
+    detail::packages::harmos::host::StreamsListRequest request;
     if (options.schema) {
       request.set_schema(*options.schema);
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::StreamsListResponse response;
-    const auto status = detail::StreamsListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::harmos::host::StreamsListResponse response;
+    const auto status = detail::packages::harmos::host::Streams::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call streams.list: " + status.error_message());
     }
@@ -3046,7 +3060,7 @@ struct SuitesResource {
   explicit SuitesResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::dokime::client::SuitesGetResponse get(const std::string &name, const std::string &parent, const std::uint32_t &schema_version,
                                           client::SuitesGetOptions options = {}) {
-    detail::SuitesGetRequest request;
+    detail::packages::dokime::host::SuitesGetRequest request;
     request.set_name(name);
     request.set_parent(parent);
     request.set_schema_version(schema_version);
@@ -3054,22 +3068,22 @@ struct SuitesResource {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SuitesGetResponse response;
-    const auto status = detail::SuitesGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::dokime::host::SuitesGetResponse response;
+    const auto status = detail::packages::dokime::host::Suites::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call suites.get: " + status.error_message());
     }
     return response;
   }
   ::dokime::client::SuitesListResponse list(const std::string &parent, client::SuitesListOptions options = {}) {
-    detail::SuitesListRequest request;
+    detail::packages::dokime::host::SuitesListRequest request;
     request.set_parent(parent);
     if (options.at) {
       *request.mutable_at() = *options.at;
     }
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::SuitesListResponse response;
-    const auto status = detail::SuitesListService::NewStub(channel)->List(context.get(), request, &response);
+    detail::packages::dokime::host::SuitesListResponse response;
+    const auto status = detail::packages::dokime::host::Suites::NewStub(channel)->List(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call suites.list: " + status.error_message());
     }
@@ -3080,10 +3094,10 @@ struct TimeResource {
   std::shared_ptr<grpc::Channel> channel;
   explicit TimeResource(std::shared_ptr<grpc::Channel> channel) : channel(channel) {}
   ::google::protobuf::Timestamp get(client::TimeGetOptions options = {}) {
-    detail::TimeGetRequest request;
+    detail::packages::harmos::host::TimeGetRequest request;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::TimeGetResponse response;
-    const auto status = detail::TimeGetService::NewStub(channel)->Get(context.get(), request, &response);
+    detail::packages::harmos::host::TimeGetResponse response;
+    const auto status = detail::packages::harmos::host::Time::NewStub(channel)->Get(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call time.get: " + status.error_message());
     }
@@ -3093,11 +3107,11 @@ struct TimeResource {
     return std::move(*response.mutable_now());
   }
   ::harmos::TimeSleepResponse sleep(const ::google::protobuf::Duration &duration, client::TimeSleepOptions options = {}) {
-    detail::TimeSleepRequest request;
+    detail::packages::harmos::host::TimeSleepRequest request;
     *request.mutable_duration() = duration;
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
-    detail::TimeSleepResponse response;
-    const auto status = detail::TimeSleepService::NewStub(channel)->Sleep(context.get(), request, &response);
+    detail::packages::harmos::host::TimeSleepResponse response;
+    const auto status = detail::packages::harmos::host::Time::NewStub(channel)->Sleep(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call time.sleep: " + status.error_message());
     }

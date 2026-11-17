@@ -998,8 +998,8 @@ impl HostInvocationsResource {
     pub async fn watch_with(
         &self, instance: u64, max_item_bytes: NonZeroUsize, options: HostInvocationsWatchOptions,
     ) -> Result<HostInvocationsWatch> {
-        let HostInvocationsWatchOptions {} = options;
         let request = InvocationsWatchRequest { instance };
+        let HostInvocationsWatchOptions {} = options;
         Ok(HostInvocationsWatch {
             incoming: self.context.watch(request, max_item_bytes).await?,
         })

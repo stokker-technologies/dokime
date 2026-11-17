@@ -27,12 +27,12 @@ from google.protobuf.descriptor_pb2 import (
     FileDescriptorProto,
     FileDescriptorSet,
 )
+from harmos_tools.source.protocol import caller_options
 
 # isort: split
 
 # Local Imports
 from .. import policy
-from ..build import protocol_callers
 
 # Type Checking Imports
 
@@ -82,7 +82,7 @@ def generate(directory: Path) -> Path:
         descriptors = FileDescriptorSet.FromString(image.read_bytes())
     finally:
         scratch_directory.cleanup()
-    callers = protocol_callers.caller_options(descriptors)
+    callers = caller_options(descriptors)
     composition = tomllib.loads((directory / "protocol/composition.toml").read_text(encoding="utf-8"))
     callers.update(composition.get("callers", {}))
     packages: dict[str, list[FileDescriptorProto]] = {}
