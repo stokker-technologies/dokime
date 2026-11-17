@@ -17,13 +17,22 @@
 
 // Standard Library Imports
 use std::{
+    collections::BTreeMap,
+    fs,
     io::{Cursor, Read, Write},
     num::NonZeroUsize,
+    result,
 };
 
 // Third Party Imports
 use arrow_array::{Array, StructArray, UInt64Array};
+use harmos_domain::message::postcard::Value;
 use prost::Message;
+use prost_types::{
+    DescriptorProto, FieldDescriptorProto, MessageOptions,
+    field_descriptor_proto::{Label, Type},
+};
+use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 use zip::ZipArchive;
@@ -31,6 +40,7 @@ use zip::ZipArchive;
 // Local Imports
 use super::fixture::{self, Row};
 
+use dokime_protocol::model;
 use dokime_protocol::model::DataExpression;
 use dokime_protocol::model::FftDetrend;
 use dokime_protocol::model::FftWindow;
@@ -41,8 +51,8 @@ use dokime_protocol::model::GridHighlight;
 use dokime_protocol::model::PlotFftOptions;
 use dokime_protocol::model::Reduction;
 use dokime_storage::{
-    ArchivedContent, ArchivedNativeFile, BatchSelection, ExecutionState, KindWindow, NumericWindow, Result, SampleWindow, Store,
-    StoredArtifact, StoredExecutionFile, storage_defaults,
+    ArchivedContent, ArchivedNativeFile, BatchSelection, Error, Evidence, ExecutionCut, ExecutionState, KindWindow, NumericWindow, Result,
+    Sample, SampleWindow, Store, StoredArtifact, StoredExecutionFile, storage_defaults,
 };
 
 use dokime_protocol::host::ExecutionOutcome;
@@ -59,7 +69,6 @@ use dokime_protocol::model::RecordContract;
 use dokime_protocol::model::RecordContracts;
 use dokime_protocol::model::Termination;
 use dokime_protocol::model::TransformExpression;
-use dokime_protocol::model::Value;
 use dokime_protocol::model::data_expression;
 use dokime_protocol::model::transform_expression;
 use dokime_protocol::model::value;
@@ -84,7 +93,7 @@ struct ContainerRow {
     label: String,
 
     #[prost(btree_map = "string,uint64", tag = "3")]
-    counts: std::collections::BTreeMap<String, u64>,
+    counts: BTreeMap<String, u64>,
 
     #[prost(uint64, repeated, tag = "4")]
     series: Vec<u64>,
@@ -251,7 +260,7 @@ fn accepted_tail_saved_cut_and_failed_catalog_commit() -> Result<()> {
         Ok(true)
     })?;
     assert_eq!(live, 1024);
-    let db = rusqlite::Connection::open(root.path().join("execution.sqlite3"))?;
+    let db = Connection::open(root.path().join("execution.sqlite3"))?;
     db.execute_batch(
         "CREATE TRIGGER refuse_batch BEFORE INSERT ON telemetry_batches BEGIN SELECT RAISE(ABORT,'injected catalog failure'); END;",
     )?;
@@ -398,11 +407,11 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     assert_eq!(store.cut("execution")?.state, ExecutionState::Sealed);
     let mut archive = Vec::new();
     store.write_execution_archive("execution", &mut archive, Default::default())?;
-    let mut zip = zip::ZipArchive::new(Cursor::new(archive))?;
+    let mut zip = ZipArchive::new(Cursor::new(archive))?;
     let mut copied = Vec::new();
     zip.by_name("telemetry/readings.arrow")?.read_to_end(&mut copied)?;
-    let file = std::fs::read_dir(root.path().join("telemetry"))?.next().unwrap()?.path();
-    let source = std::fs::read(file)?;
+    let file = fs::read_dir(root.path().join("telemetry"))?.next().unwrap()?.path();
+    let source = fs::read(file)?;
     assert_eq!(copied, source);
     let manifest: serde_json::Value = serde_json::from_reader(zip.by_name("manifest.json")?)?;
     assert_eq!(manifest["telemetry"][0]["size"], source.len());
@@ -421,34 +430,78 @@ fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()
     Ok(())
 }
 #[test]
-fn large_integer_document_reductions_use_library_statistics() -> Result<()> {
+fn integer_document_medians_preserve_exact_values() -> Result<()> {
+    let base = 1_152_921_504_606_847_975u64;
+    for signed in [false, true] {
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        let mut execution = fixture::execution();
+        if signed {
+            let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
+            catalog.types.as_mut().unwrap().file[0].message_type[0].field[0].r#type = Some(Type::Int64 as i32);
+            execution.catalog = catalog.encode_to_vec();
+        }
+        store.create(&execution)?;
+        store.open_stream("execution", "readings")?;
+        let mut samples = fixture::samples(3);
+        for (sample, magnitude) in samples.iter_mut().zip([base + 1, base, base + 2]) {
+            let value = if signed { (-(magnitude as i64)) as u64 } else { magnitude };
+            sample.row = Row { value, label: "large".into() }.encode_to_vec();
+        }
+        store.sample_batch("execution", &samples)?;
+        store.flush_samples()?;
+        let input = FieldReference::new("readings").field("value");
+        let expression = DataExpression {
+            kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
+                input: Some(Box::new(input)),
+                kind: Aggregate::Median as i32,
+                ..Default::default()
+            }))),
+            ..Default::default()
+        };
+        let cut = store.cut("execution")?;
+        let expected = if signed { value::Kind::Integer(-((base + 1) as i64)) } else { value::Kind::UnsignedInteger(base + 1) };
+        assert_eq!(store.document_value(&cut, &expression)?.kind, Some(expected));
+
+        // An Even Selection Keeps Its Fractional Midpoint Exact.
+        let held = ExecutionCut { frontier: 2, ..cut };
+        let expected = value::Kind::Exact(ExactNumber {
+            negative: signed,
+            numerator: (u128::from(base) * 2 + 1).to_string(),
+            denominator: "2".into(),
+        });
+        assert_eq!(store.document_value(&held, &expression)?.kind, Some(expected));
+
+        // Literal Expressions Use the Same Native Median.
+        let expected = if signed { value::Kind::Integer(-(base as i64)) } else { value::Kind::UnsignedInteger(base) };
+        let input = DataExpression {
+            kind: Some(data_expression::Kind::Literal(model::Value { kind: Some(expected.clone()) })),
+            ..Default::default()
+        };
+        let expression = DataExpression {
+            kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
+                input: Some(Box::new(input)),
+                kind: Aggregate::Median as i32,
+                ..Default::default()
+            }))),
+            ..Default::default()
+        };
+        assert_eq!(store.document_value(&held, &expression)?.kind, Some(expected));
+    }
+    Ok(())
+}
+#[test]
+fn large_integer_numeric_statistics_use_library_statistics() -> Result<()> {
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     store.create(&fixture::execution())?;
     store.open_stream("execution", "readings")?;
     let mut samples = fixture::samples(3);
-    let values = [u64::MAX, u64::MAX - 2, u64::MAX - 1];
-    for (sample, value) in samples.iter_mut().zip(values) {
+    for (sample, value) in samples.iter_mut().zip([u64::MAX, u64::MAX - 2, u64::MAX - 1]) {
         sample.row = Row { value, label: "large".into() }.encode_to_vec();
     }
     store.sample_batch("execution", &samples)?;
     store.flush_samples()?;
-    let input = DataExpression {
-        kind: Some(data_expression::Kind::Stream(FieldReference {
-            identifier: "readings".into(),
-            field: "value".into(),
-        })),
-        ..Default::default()
-    };
-    let expression = DataExpression {
-        kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
-            input: Some(Box::new(input)),
-            kind: Aggregate::Median as i32,
-            ..Default::default()
-        }))),
-        ..Default::default()
-    };
-    assert_eq!(store.document_value(&store.cut("execution")?, &expression)?.kind, Some(value::Kind::Number((u64::MAX - 1) as f64)));
     let statistics = store.numeric_statistics(&numeric(3))?;
     assert_eq!(statistics.count, 3);
     assert_eq!(statistics.stddev, 0.0);
@@ -478,29 +531,27 @@ fn integer_statistics_keep_exact_values_and_float_ranks_across_reopen() -> Resul
     let store = Store::open(root.path())?;
     for kind in [value::Kind::Integer(-(base as i64)), value::Kind::UnsignedInteger(base)] {
         let input = DataExpression {
-            kind: Some(data_expression::Kind::Literal(Value { kind: Some(kind.clone()) })),
+            kind: Some(data_expression::Kind::Literal(model::Value { kind: Some(kind.clone()) })),
             ..Default::default()
         };
-        for aggregate in [Aggregate::Median, Aggregate::Percentile] {
-            let expression = DataExpression {
-                kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
-                    input: Some(Box::new(input.clone())),
-                    kind: aggregate as i32,
-                    percentile: 95.0,
-                }))),
-                ..Default::default()
-            };
-            let answer = store.document_value(&store.cut("execution")?, &expression)?;
-            let Some(value::Kind::Number(actual)) = answer.kind else {
-                panic!("Library Ranks Return Floating-Point Values");
-            };
-            let expected = match kind {
-                value::Kind::Integer(value) => value as f64,
-                value::Kind::UnsignedInteger(value) => value as f64,
-                _ => unreachable!(),
-            };
-            assert!((actual - expected).abs() <= expected.abs() * f64::EPSILON);
-        }
+        let expression = DataExpression {
+            kind: Some(data_expression::Kind::Aggregate(Box::new(AggregateExpression {
+                input: Some(Box::new(input)),
+                kind: Aggregate::Percentile as i32,
+                percentile: 95.0,
+            }))),
+            ..Default::default()
+        };
+        let answer = store.document_value(&store.cut("execution")?, &expression)?;
+        let Some(value::Kind::Number(actual)) = answer.kind else {
+            panic!("Library Ranks Return Floating-Point Values");
+        };
+        let expected = match kind {
+            value::Kind::Integer(value) => value as f64,
+            value::Kind::UnsignedInteger(value) => value as f64,
+            _ => unreachable!(),
+        };
+        assert!((actual - expected).abs() <= expected.abs() * f64::EPSILON);
     }
     for (start_ns, end_ns, count, minimum, mean, maximum) in
         [(0, 100, 101, base, base + 5_000, base + 10_000), (20, 60, 41, base + 2_000, base + 4_000, base + 6_000)]
@@ -562,7 +613,6 @@ fn integer_statistics_keep_exact_values_and_float_ranks_across_reopen() -> Resul
         }))
     );
     for (kind, percentile, expected) in [
-        (Aggregate::Median, 0.0, base + 5_000),
         (Aggregate::Percentile, 5.0, base + 500),
         (Aggregate::Percentile, 95.0, base + 9_500),
         (Aggregate::Min, 0.0, base),
@@ -580,7 +630,7 @@ fn integer_statistics_keep_exact_values_and_float_ranks_across_reopen() -> Resul
             ..Default::default()
         };
         let answer = store.document_value(&store.cut("execution")?, &expression)?;
-        if matches!(kind, Aggregate::Median | Aggregate::Percentile) {
+        if kind == Aggregate::Percentile {
             let Some(value::Kind::Number(actual)) = answer.kind else {
                 panic!("Library Ranks Return Floating-Point Values");
             };
@@ -628,13 +678,13 @@ fn rejected_rebuilt_root_preserves_its_database() -> Result<()> {
     let reference = tempfile::tempdir()?;
     drop(Store::open(reference.path())?);
     let identity: i64 =
-        rusqlite::Connection::open(reference.path().join("execution.sqlite3"))?.query_row("PRAGMA application_id", [], |row| row.get(0))?;
-    let old = rusqlite::Connection::open(&path)?;
+        Connection::open(reference.path().join("execution.sqlite3"))?.query_row("PRAGMA application_id", [], |row| row.get(0))?;
+    let old = Connection::open(&path)?;
     old.execute_batch(&format!("PRAGMA application_id={identity}; PRAGMA user_version=1; CREATE TABLE samples(payload BLOB); INSERT INTO samples VALUES(X'010203');"))?;
     drop(old);
-    let before = std::fs::read(&path)?;
-    assert!(matches!(Store::open(root.path()), Err(dokime_storage::Error::Incompatible(_))));
-    assert_eq!(std::fs::read(&path)?, before);
+    let before = fs::read(&path)?;
+    assert!(matches!(Store::open(root.path()), Err(Error::Incompatible(_))));
+    assert_eq!(fs::read(&path)?, before);
     Ok(())
 }
 
@@ -644,7 +694,7 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
     let store = Store::open(root.path())?;
     let mut execution = fixture::execution();
     let mut catalog = Declarations::decode(execution.catalog.as_slice())?;
-    catalog.types.as_mut().unwrap().file[0].message_type.push(prost_types::DescriptorProto {
+    catalog.types.as_mut().unwrap().file[0].message_type.push(DescriptorProto {
         name: Some("Marker".into()),
         ..Default::default()
     });
@@ -674,7 +724,7 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
         };
         store.append(
             "execution",
-            dokime_storage::Evidence {
+            Evidence {
                 kind: format!("record:{record}"),
                 source_ns: time,
                 payload: payload.encode_to_vec(),
@@ -723,10 +773,6 @@ fn record_intervals_anchor_before_aligning_to_later_samples() -> Result<()> {
 
 #[test]
 fn typed_map_and_list_columns_survive_finalization_and_restart() -> Result<()> {
-    use prost_types::{
-        DescriptorProto, FieldDescriptorProto, MessageOptions,
-        field_descriptor_proto::{Label, Type},
-    };
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let mut definition = fixture::execution();
@@ -773,7 +819,7 @@ fn typed_map_and_list_columns_survive_finalization_and_restart() -> Result<()> {
         ContainerRow {
             value: 1,
             label: "first".into(),
-            counts: std::collections::BTreeMap::from([("large".into(), u64::MAX)]),
+            counts: BTreeMap::from([("large".into(), u64::MAX)]),
             series: vec![0, u64::MAX],
         },
         ContainerRow {
@@ -792,14 +838,13 @@ fn typed_map_and_list_columns_survive_finalization_and_restart() -> Result<()> {
     drop(store);
     let store = Store::open(root.path())?;
     let rows = store.sample_page("execution", "readings", 0, 2, NonZeroUsize::new(2).unwrap())?;
-    let actual = rows.iter().map(|sample| ContainerRow::decode(sample.row.as_slice())).collect::<std::result::Result<Vec<_>, _>>()?;
+    let actual = rows.iter().map(|sample| ContainerRow::decode(sample.row.as_slice())).collect::<result::Result<Vec<_>, _>>()?;
     assert_eq!(actual, values);
     Ok(())
 }
 
 /// The Host's Stored `harmos.batch` Encoding of `fixture.Row` Columns, Field by Field.
 fn interval(start_ns: i64, period_ns: u64, values: &[u64], labels: &[&str]) -> Vec<u8> {
-    use harmos_domain::message::postcard::Value;
     let mut payload = Vec::new();
     start_ns.write(&mut payload);
     period_ns.write(&mut payload);
@@ -832,7 +877,7 @@ fn interval_batches_store_one_row_per_sample_on_their_grid() -> Result<()> {
         latest: false,
         limit: NonZeroUsize::new(64).unwrap(),
     };
-    let observed = |samples: Vec<dokime_storage::Sample>| {
+    let observed = |samples: Vec<Sample>| {
         samples
             .into_iter()
             .map(|sample| {
