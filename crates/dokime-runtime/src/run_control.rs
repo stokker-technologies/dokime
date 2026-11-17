@@ -290,13 +290,16 @@ impl ExecutionManager {
             }
         };
         dokime_operations::host::executions::commands::save(&context, &receipt).await?;
+        if receipt.phase == ExecutionCommandPhase::Refused as i32 {
+            self.signal_change();
+            return Ok(receipt);
+        }
+
         let queued = {
             let active = lock(&self.inner.active)?;
             if let Some(active) = active.get(&receipt.execution_id) {
                 let mut state = lock(&active.control.state)?;
-                if receipt.phase == ExecutionCommandPhase::Refused as i32 {
-                    true
-                } else if !state.stopping && !active.cancellation.is_cancelled() {
+                if !state.stopping && !active.cancellation.is_cancelled() {
                     state.command = Some(receipt.clone());
                     active.control.changed.notify_waiters();
                     true
