@@ -26,7 +26,7 @@ import { useSettingsFrameQuery } from "../settings-queries";
 export function BootstrapPaths() {
   const session = useNativeSessionOptional();
   const query = useSettingsFrameQuery(undefined, session !== null);
-  const paths = query.data?.bootstrap_paths;
+  const paths = query.data?.bootstrapPaths;
   return (
     <SettingsCard title="Bootstrap Paths" description="Paths are selected at startup.">
       {!session && <p className="text-sm text-muted-foreground">Connect to view backend paths.</p>}
@@ -37,14 +37,17 @@ export function BootstrapPaths() {
       )}
       {Boolean(query.error) && <ErrorCard failure={failureOf(query.error, "Data Unavailable")} />}
       {paths &&
-        Object.entries(paths).map(([key, path]) => (
-          <SettingsRow
-            key={key}
-            label={
-              { application: "Application Directory", storage: "Data Directory", plugins: "Plugins Directory", logs: "Logs Directory" }[key]
-            }
-          >
-            <SettingsPathField value={path} openable={session?.snapshot.ownership === "owned_local"} />
+        Object.entries({
+          application: "Application Directory",
+          storage: "Data Directory",
+          plugins: "Plugins Directory",
+          logs: "Logs Directory",
+        }).map(([key, label]) => (
+          <SettingsRow key={key} label={label}>
+            <SettingsPathField
+              value={paths[key as "application" | "storage" | "plugins" | "logs"]}
+              openable={session?.snapshot.ownership === "owned_local"}
+            />
           </SettingsRow>
         ))}
     </SettingsCard>

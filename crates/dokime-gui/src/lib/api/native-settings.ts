@@ -13,45 +13,26 @@
 
 /* === Local Imports === */
 
-import { HostCardTone, SettingsCardState as HostSettingsCardState } from "@host/model";
 import type { SettingValue } from "@host/model";
 import { NativeIntegerValue } from "./native-values";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type {
-  HostCardBlock,
-  RuntimePluginSettings as PluginSettingsView,
-  RuntimeSettingsCard,
-  RuntimeSettingsFrame,
-  RuntimeSettingsSection,
-  SettingsEntry,
-} from "@/lib/types/view-contracts";
-
-import { safeNumber } from "./native-values";
+import type { RuntimePluginSettings, SettingsEntry } from "@/lib/types/view-contracts";
 
 /* === Types === */
 
-type SettingsFrame = Wire<NonNullable<Awaited<ReturnType<typeof rpc.settingsSchema>>["schema"]>>;
 import { required } from "@/lib/rpc/canonical";
-type SettingsSection = SettingsFrame["sections"][number];
-type SettingsCard = SettingsFrame["cards"][number];
-type SettingsCardState = SettingsCard["state"];
 
 type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.pluginsSettingsList>>>;
 type SettingContribution = PluginRuntimeSettings["declarations"][number];
-type SettingValues = PluginSettingsView["values"];
+type SettingValues = RuntimePluginSettings["values"];
 
 /* === Settings frame === */
 
-export async function fetchNativeSettingsFrame(session: SessionIdentity): Promise<RuntimeSettingsFrame> {
-  const frame = required((await rpc.settingsSchema(session, {})).schema, "Get Settings Schema");
-  const paths = frame.bootstrapPaths;
-  return {
-    bootstrap_paths: paths ? { application: paths.application, storage: paths.storage, plugins: paths.plugins, logs: paths.logs } : null,
-    sections: frame.sections.map(mapSettingsSection),
-    cards: frame.cards.map(mapSettingsCard),
-  };
+export async function fetchNativeSettingsFrame(session: SessionIdentity) {
+  const response = await rpc.settingsSchema(session, {});
+  return required(response.schema, "Get Settings Schema");
 }
 
 /* === Plugin Settings === */
@@ -61,7 +42,7 @@ export type NativePluginRuntimeSettings = PluginRuntimeSettings;
 export function mapNativePluginRuntimeSettings(
   settings: NativePluginRuntimeSettings,
   requirements: Wire<Awaited<ReturnType<typeof rpc.pluginsSecretsList>>>,
-): PluginSettingsView {
+): RuntimePluginSettings {
   const secrets = requirements.secrets.map((requirement) => {
     const declaration = required(requirement.declaration, "List Plugin Secret Declaration");
     return {
@@ -177,84 +158,6 @@ function writeSetting(defaultValue: Wire<SettingValue>, value: unknown): Wire<Se
 
 /* === Mapping === */
 
-function mapSettingsSection(section: SettingsSection): RuntimeSettingsSection {
-  const owner =
-    section.owner?.kind.case === "app"
-      ? { kind: "app" as const }
-      : section.owner?.kind.case === "installedPluginId"
-        ? { kind: "installed_plugin" as const, plugin_id: section.owner.kind.value }
-        : null;
-  if (!owner) throw new Error(`Native settings section ${section.sectionId} has no owner.`);
-  return {
-    section_id: section.sectionId,
-    label: section.label,
-    description: section.description ?? null,
-    owner,
-    order: section.order,
-  };
-}
-
-function mapSettingsCard(card: SettingsCard): RuntimeSettingsCard {
-  return {
-    plugin_id: card.pluginId,
-    card_id: card.cardId,
-    section_id: card.sectionId,
-    label: card.label,
-    description: card.description ?? null,
-    body: { blocks: card.body?.blocks.map(mapHostCardBlock) ?? [] },
-    refresh: card.refresh ? mapRefreshPolicy(card.refresh) : undefined,
-    state: mapSettingsCardState(card.state),
-    order: card.order,
-  };
-}
-
-function mapHostCardBlock(block: NonNullable<SettingsCard["body"]>["blocks"][number]): HostCardBlock {
-  const variant = block.kind?.kind;
-  switch (variant?.case) {
-    case "text": {
-      const entry = variant.value;
-      return { type: "text", text: entry };
-    }
-    case "status": {
-      const entry = variant.value;
-      if (!entry) throw new Error("Native settings omitted its status payload.");
-      return {
-        type: "status",
-        label: entry.label,
-        tone: mapHostCardTone(entry.tone),
-        detail: entry.detail ?? null,
-      };
-    }
-    case "keyValueList": {
-      const entry = variant.value;
-      if (!entry) throw new Error("Native settings omitted its keyValueList payload.");
-      return {
-        type: "key_value_list",
-        items: entry.items.map((item) => ({
-          label: item.label,
-          value: item.value,
-          detail: item.detail ?? null,
-        })),
-      };
-    }
-    case "metrics": {
-      const entry = variant.value;
-      if (!entry) throw new Error("Native settings omitted its metrics payload.");
-      return {
-        type: "metrics",
-        items: entry.items.map((item) => ({
-          label: item.label,
-          value: item.value,
-          unit: item.unit ?? null,
-          trend: item.trend ?? null,
-        })),
-      };
-    }
-    default:
-      throw new Error("Native settings returned a card block without a kind.");
-  }
-}
-
 function mapSettingContribution(contribution: SettingContribution): SettingsEntry {
   const common = { id: contribution.name, title: contribution.title, description: contribution.description || null };
   const value = required(contribution.default, "Read Plugin Setting Default");
@@ -271,61 +174,5 @@ function mapSettingContribution(contribution: SettingContribution): SettingsEntr
       return { ...common, kind: "text_area", default: String(settingValue(value)), required: true };
     default:
       throw new Error("Read Plugin Setting: Missing Typed Default");
-  }
-}
-
-function mapRefreshPolicy(policy: NonNullable<SettingsCard["refresh"]>): RuntimeSettingsCard["refresh"] {
-  const variant = policy.policy?.kind;
-  switch (variant?.case) {
-    case "manual":
-      return { kind: "manual" };
-    case "cached": {
-      const cached = variant.value;
-      if (!cached) throw new Error("Native settings omitted its cached refresh policy.");
-      return {
-        kind: "cached",
-        max_age_ms: safeNumber(cached.maxAgeMs, "Settings cache age"),
-      };
-    }
-    case "onDemand":
-      return { kind: "on_demand" };
-    default:
-      throw new Error("Native settings returned a refresh policy without a kind.");
-  }
-}
-
-function mapHostCardTone(tone: HostCardTone): "neutral" | "info" | "success" | "warning" | "danger" {
-  switch (tone) {
-    case HostCardTone.NEUTRAL:
-      return "neutral";
-    case HostCardTone.INFO:
-      return "info";
-    case HostCardTone.SUCCESS:
-      return "success";
-    case HostCardTone.WARNING:
-      return "warning";
-    case HostCardTone.DANGER:
-      return "danger";
-    default:
-      return "neutral";
-  }
-}
-
-function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["state"] {
-  switch (state) {
-    case HostSettingsCardState.READY:
-      return "ready";
-    case HostSettingsCardState.DISABLED:
-      return "disabled";
-    case HostSettingsCardState.DISCONNECTED:
-      return "disconnected";
-    case HostSettingsCardState.STALE:
-      return "stale";
-    case HostSettingsCardState.ERROR:
-      return "error";
-    case HostSettingsCardState.PERMISSION_DENIED:
-      return "permission_denied";
-    default:
-      throw new Error("Native settings returned an unknown card state.");
   }
 }

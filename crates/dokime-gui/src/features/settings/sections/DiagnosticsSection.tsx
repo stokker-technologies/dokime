@@ -38,7 +38,7 @@ import { useSettingsFrameQuery } from "../settings-queries";
 export function DiagnosticsSection() {
   const session = useNativeSessionOptional();
   const settings = useSettingsFrameQuery(undefined, session !== null);
-  const directory = settings.data?.bootstrap_paths?.storage;
+  const directory = settings.data?.bootstrapPaths?.storage;
   const resettable = storageResetAvailable({
     development: import.meta.env.DEV,
     desktop: isTauriDesktop(),

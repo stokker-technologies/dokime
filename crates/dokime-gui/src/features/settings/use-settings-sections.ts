@@ -21,7 +21,8 @@
 /* === Local Imports === */
 
 import { failureOf } from "@/lib/notification-details";
-import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
+import type { SettingsFrame } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import { useSettingsFrameQuery } from "@/features/settings/settings-queries";
 import { SETTINGS_SECTIONS, type SettingsSection } from "@/features/settings/settings-sections";
 
@@ -31,7 +32,7 @@ export type SettingsSectionsState = {
   /** The message to show when the frame could not be read; null otherwise. */
   error: string | null;
   failure?: unknown;
-  frame: RuntimeSettingsFrame | null;
+  frame: Wire<SettingsFrame> | null;
   /** True only while the first read is in flight. */
   loading: boolean;
   retry: () => void;

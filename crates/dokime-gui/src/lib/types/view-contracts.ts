@@ -146,31 +146,6 @@ export type ExecutionStatus =
   | "cancelled"
   | "interrupted";
 
-export type HostCardBlock =
-  | { type: "text"; text: string }
-  | { type: "status"; label: string; tone: HostCardTone; detail?: string | null }
-  | { type: "key_value_list"; items?: HostCardKeyValue[] }
-  | { type: "metrics"; items?: HostCardMetric[] };
-
-export type HostCardBody = {
-  blocks?: HostCardBlock[];
-};
-
-export type HostCardKeyValue = {
-  label: string;
-  value: string;
-  detail?: string | null;
-};
-
-export type HostCardMetric = {
-  label: string;
-  value: string;
-  unit?: string | null;
-  trend?: string | null;
-};
-
-export type HostCardTone = "neutral" | "info" | "success" | "warning" | "danger";
-
 export type Identifier = string;
 
 export type MultipleChoice = {
@@ -341,36 +316,6 @@ export type RuntimePluginSettings = {
   secrets: SecretAvailability[];
 };
 
-export type RuntimeSettingsCard = {
-  plugin_id: Identifier;
-  card_id: Identifier;
-  section_id: Identifier;
-  label: string;
-  description?: string | null;
-  body: HostCardBody;
-  refresh?: SettingsCardRefreshPolicy;
-  state: RuntimeSettingsCardState;
-  order: number;
-};
-
-export type RuntimeSettingsCardState = "ready" | "disabled" | "disconnected" | "stale" | "error" | "permission_denied";
-
-export type RuntimeSettingsFrame = {
-  bootstrap_paths: { application: string; storage: string; plugins: string; logs: string } | null;
-  sections: RuntimeSettingsSection[];
-  cards: RuntimeSettingsCard[];
-};
-
-export type RuntimeSettingsSection = {
-  section_id: Identifier;
-  label: string;
-  description?: string | null;
-  owner: RuntimeSettingsSectionOwner;
-  order: number;
-};
-
-export type RuntimeSettingsSectionOwner = { kind: "app" } | { kind: "installed_plugin"; plugin_id: Identifier };
-
 export type RuntimeThemeFamily = {
   plugin_id: Identifier;
   theme_id: Identifier;
@@ -395,8 +340,6 @@ export type SessionId = string;
 export type Settings = {
   contributions?: SettingsEntry[];
 };
-
-export type SettingsCardRefreshPolicy = { kind: "manual" } | { kind: "cached"; max_age_ms: number } | { kind: "on_demand" };
 
 export type SettingsEntry =
   | ({

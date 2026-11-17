@@ -20,7 +20,8 @@
 /* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import type { RuntimeSettingsFrame } from "@/lib/types/view-contracts";
+import type { SettingsFrame } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 
 import type { ManagedPlugin } from "@/lib/api/native-plugins";
 
@@ -39,15 +40,17 @@ export type ProgramRow = {
 export function bundleSettingsPage(
   entry: ManagedPlugin,
   programs: RuntimeInstalledPluginRecord[],
-  frame: RuntimeSettingsFrame | null,
+  frame: Wire<SettingsFrame> | null,
 ): string | null {
   const owners = new Set(
     programs
       .filter((program) => program.owner?.kind === "bundle" && program.owner.installation === entry.name)
       .map((program) => program.plugin_id),
   );
-  const section = frame?.sections.find((candidate) => candidate.owner.kind === "installed_plugin" && owners.has(candidate.owner.plugin_id));
-  return section?.section_id ?? entry.name;
+  const section = frame?.sections.find(
+    (candidate) => candidate.owner?.kind.case === "installedPluginId" && owners.has(candidate.owner.kind.value),
+  );
+  return section?.sectionId ?? entry.name;
 }
 
 /** Groups the programs into rows, one per host, bundle package or lone
@@ -56,7 +59,7 @@ export function bundleSettingsPage(
 export function programRows(
   programs: RuntimeInstalledPluginRecord[],
   entries: ManagedPlugin[],
-  frame: RuntimeSettingsFrame | null,
+  frame: Wire<SettingsFrame> | null,
 ): ProgramRow[] {
   const rows: ProgramRow[] = [];
   for (const program of programs) {
@@ -64,8 +67,9 @@ export function programRows(
     if (owner?.kind === "bundle" && owner.installation && entries.some((entry) => entry.name === owner.installation)) continue;
     const key = owner?.kind === "host" ? "host" : owner?.kind === "bundle" ? `bundle:${owner.package}` : programKey(program);
     const settingsSection =
-      frame?.sections.find((candidate) => candidate.owner.kind === "installed_plugin" && candidate.owner.plugin_id === program.plugin_id)
-        ?.section_id ?? null;
+      frame?.sections.find(
+        (candidate) => candidate.owner?.kind.case === "installedPluginId" && candidate.owner.kind.value === program.plugin_id,
+      )?.sectionId ?? null;
     const existing = rows.find((row) => row.key === key);
     if (!existing) rows.push({ key, program, settingsSection });
     else existing.settingsSection ??= settingsSection;
