@@ -95,11 +95,7 @@ impl Store {
     pub fn write_cycle_archive(
         &self, cycle: &str, page: NonZeroUsize, output: &mut impl Write, contents: &mut HashMap<String, ArchivedContent>,
     ) -> Result<()> {
-        let options = SimpleFileOptions::default()
-            .compression_method(CompressionMethod::Stored)
-            .last_modified_time(DateTime::default())
-            .system(System::Unix)
-            .unix_permissions(0o644);
+        let options = archive_options();
         let mut archive = ZipWriter::new_stream(output);
         let mut after = String::new();
         let mut manifest = Vec::new();
@@ -145,11 +141,7 @@ impl Store {
         let mut metadata = tempfile::tempfile()?;
         self.write_execution_metadata(execution, &mut metadata, &content)?;
         metadata.rewind()?;
-        let options = SimpleFileOptions::default()
-            .compression_method(CompressionMethod::Stored)
-            .last_modified_time(DateTime::default())
-            .system(System::Unix)
-            .unix_permissions(0o644);
+        let options = archive_options();
         let mut archive = ZipWriter::new_stream(output);
         archive.start_file("evidence.pb", options)?;
         io::copy(&mut metadata, &mut archive)?;
@@ -260,6 +252,14 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn archive_options() -> SimpleFileOptions {
+    SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Stored)
+        .last_modified_time(DateTime::default())
+        .system(System::Unix)
+        .unix_permissions(0o644)
+}
 
 fn write_field(output: &mut impl Write, tag: u32, bytes: &[u8]) -> Result<()> {
     let mut prefix = Vec::new();
