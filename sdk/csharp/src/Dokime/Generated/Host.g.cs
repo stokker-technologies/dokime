@@ -179,14 +179,11 @@ public sealed class HostContentArtifactsResource(Context context)
       File = file,
       Filename = filename,
       ContentType = content_type,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
     if (scope is not null)
     {
       request.Scope = scope;
-    }
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
     }
     if (metadata is not null)
     {
@@ -205,6 +202,7 @@ public sealed class HostDocumentsResource(Context context)
       Execution = execution,
       Document = document,
       Section = section,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
     if (subsection is not null)
     {
@@ -213,10 +211,6 @@ public sealed class HostDocumentsResource(Context context)
     if (card is not null)
     {
       request.Card = card;
-    }
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
     }
     var response = await context.CallAsync(HostContracts.DocumentsAppendParts, request, policy, cancellationToken);
     return response.Receipt ?? throw new InvalidOperationException("Read DocumentsAppendParts: Missing Payload");
@@ -232,11 +226,8 @@ public sealed class HostEffectsResource(Context context)
       InverseOperation = inverse_operation,
       Inverse = inverse,
       Description = description,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.EffectsCreate, request, policy, cancellationToken);
     return response;
   }
@@ -260,11 +251,8 @@ public sealed class HostEffectsResource(Context context)
       Name = name,
       Value = value,
       ExpectedRevision = expected_revision,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.EffectsSet, request, policy, cancellationToken);
     return response;
   }
@@ -307,11 +295,8 @@ public sealed class HostEvidenceLogsResource(Context context)
       Severity = severity,
       Message = message,
       At = at,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.EvidenceLogsAppend, request, policy, cancellationToken);
     return response.Receipt ?? throw new InvalidOperationException("Read EvidenceLogsAppend: Missing Payload");
   }
@@ -351,11 +336,8 @@ public sealed class HostEvidenceRecordsResource(Context context)
       Kind = kind,
       Payload = payload,
       SourceAt = source_at,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.EvidenceRecordsAppend, request, policy, cancellationToken);
     return response;
   }
@@ -392,15 +374,12 @@ public sealed class HostEvidenceTraceabilityResource(Context context)
     {
       Value = value,
       ExpectedRevision = expected_revision,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
       Entry = entry,
     };
     if (name is not null)
     {
       request.Name = name;
-    }
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
     }
     var response = await context.CallAsync(HostContracts.EvidenceTraceabilitySet, request, policy, cancellationToken);
     return response;
@@ -434,14 +413,11 @@ public sealed class HostExecutionsProgressResource(Context context)
     {
       Value = value,
       ExpectedRevision = expected_revision,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
     if (name is not null)
     {
       request.Name = name;
-    }
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
     }
     var response = await context.CallAsync(HostContracts.ExecutionsProgressSet, request, policy, cancellationToken);
     return response;
@@ -507,11 +483,8 @@ public sealed class HostFilesResource(Context context)
     var request = new global::Dokime.Clients.FilesDeleteRequest
     {
       File = file,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.FilesDelete, request, policy, cancellationToken);
     return response.Receipt ?? throw new InvalidOperationException("Read FilesDelete: Missing Payload");
   }
@@ -556,11 +529,8 @@ public sealed class HostFilesUploadsResource(Context context)
     var request = new global::Dokime.Clients.FilesResources.UploadsCreateRequest
     {
       Metadata = metadata,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.FilesUploadsCreate, request, policy, cancellationToken);
     return response;
   }
@@ -582,11 +552,8 @@ public sealed class HostFilesUploadsResource(Context context)
     var request = new global::Dokime.Clients.FilesResources.UploadsResumeRequest
     {
       Upload = upload,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.FilesUploadsResume, request, policy, cancellationToken);
     return response;
   }
@@ -597,11 +564,8 @@ public sealed class HostFilesUploadsResource(Context context)
       Upload = upload,
       Offset = offset,
       Data = data,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.FilesUploadsAppend, request, policy, cancellationToken);
     return response;
   }
@@ -612,11 +576,8 @@ public sealed class HostFilesUploadsResource(Context context)
       Upload = upload,
       Length = length,
       Sha256 = sha256,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.FilesUploadsPublish, request, policy, cancellationToken);
     return response;
   }
@@ -625,11 +586,8 @@ public sealed class HostFilesUploadsResource(Context context)
     var request = new global::Dokime.Clients.FilesResources.UploadsDeleteRequest
     {
       Upload = upload,
+      RequestId = request_id ?? Guid.NewGuid().ToString("N"),
     };
-    if (request_id is not null)
-    {
-      request.RequestId = request_id;
-    }
     var response = await context.CallAsync(HostContracts.FilesUploadsDelete, request, policy, cancellationToken);
     return response;
   }

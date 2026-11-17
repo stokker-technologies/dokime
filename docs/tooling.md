@@ -49,13 +49,15 @@ own modules under `release/registry/`. Package definitions, assembly, executable
 verification and installer checks have separate modules under `package/`. Test lane execution, coverage,
 benchmarks and child-process execution have separate owners under `test/`.
 The tools package depends on `harmos-tools` from immutable revision
-`609341697fcab051638389eb0f6a920fd64b7249`. `tools/python/pyproject.toml` declares its
-`tools/python` subdirectory source; the root `uv.lock` records that resolution.
-No sibling library checkout is needed. When changing the carrier pin, update this
-source revision and refresh the root lock together. Carrier and SDK dependencies
-remain at `c2cfb153ab136159f07741d1061fcb3a1191e86c` because the generator repair
-commit has not been published. The coordinator must publish the tooling revision
-before a fresh checkout can resolve it; no local path override is committed.
+`b72dd3d52d29599502f7edf92644f451ffdc1fc2`. `tools/python/pyproject.toml` declares its
+`tools/python` subdirectory source. The root `uv.lock` still records the previous
+tooling revision until the coordinator publishes this commit and runs
+`mise run prepare:locks`. No sibling library checkout is needed after that refresh.
+When changing the carrier pin, update this source revision and refresh the root
+lock together. Carrier and SDK dependencies remain at
+`c2cfb153ab136159f07741d1061fcb3a1191e86c`, independently of generator repairs.
+Local editable installs can exercise unpublished tooling; no local path override
+is committed.
 
 `build/protocol.py` passes the product namespace, formatter inputs, restored
 Grpc.Tools path and request selector policy to
