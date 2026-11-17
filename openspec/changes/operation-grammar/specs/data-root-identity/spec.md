@@ -1,6 +1,6 @@
 # Data Root Identity Delta
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Storage Format Refusal
 
@@ -9,8 +9,6 @@ database layouts with backup and explicit fresh-root/reset guidance, preserving
 existing data. Plugin evidence schema changes and obsolete source-digest markers
 SHALL NOT invalidate a readable root. No automatic deletion, reset or migration
 SHALL occur; development schema/evidence baselines SHALL remain v1.
-This reconciles the older format-marker requirement with the main
-`data-shape-identity` requirements and the landed runtime.
 
 #### Scenario: Matching Root
 

@@ -1,19 +1,14 @@
 # Query Snapshots Delta
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: One Evidence and Metadata Cut
 
-The first evidence query without `at` SHALL resolve once to the latest durable
-evidence and corresponding membership, revisions and schemas at one logical cut,
-without waiting for unsaved accepted data. Later evidence SHALL be excluded.
-A supplied `at` SHALL select a compatible previously returned retained cut or
-the seal; arbitrary earlier positions SHALL be refused. Replies SHALL state
-`resolved_at`. The product SHALL own the storage schemas, indexes, projections
-and meaning of latest that define this cut; generic library services SHALL NOT
-redefine those object semantics. Separate client/context declarations SHALL
-preserve those cut semantics while enforcing their own caller authority; context
-reads SHALL inherit invocation scope and SHALL NOT be exposed to clients.
+Reads SHALL resolve latest durable evidence, membership, revisions and schemas at
+one logical cut without flushing accepted data. Replies SHALL return resolved_at;
+supplied at SHALL select a retained issued cut or seal, refusing arbitrary earlier
+positions. Product semantics and inherited invocation scope SHALL be preserved
+under explicit caller admission.
 
 #### Scenario: Capture Without Finalization
 
@@ -62,13 +57,11 @@ at latest; a composite cut SHALL NOT be reduced to an unqualified scalar sequenc
 
 ### Requirement: Deterministic Seek Pagination
 
-Only rows that can grow unbounded SHALL be paged; bounded declaration/configuration
-sets SHALL return whole (amended by the owner on 2026-11-13).
-Paged row responses SHALL contain typed rows/schema, `resolved_at`, effective limits,
-`next_page_token` and complete. Requests SHALL use `page_size`, `max_bytes` and
-`page_token`. Complete SHALL mean exhaustion without continuation. Tokens SHALL
-bind cut, canonical selection/projection/reduction, schema revision and last scanned
-key. Repeated identical requests SHALL return the same logical page at that cut.
+Growing row sets SHALL use bounded deterministic seek pages at one retained cut;
+bounded declaration/configuration sets SHALL return whole values. Continuations
+SHALL bind the cut, canonical query, schema revision and last scanned key. Repeating
+the same request SHALL return the same logical page; complete means exhaustion
+without continuation.
 
 #### Scenario: Stable Page Order and Size
 
@@ -86,3 +79,9 @@ key. Repeated identical requests SHALL return the same logical page at that cut.
 
 - **WHEN** a caller changes a predicate or projection while reusing a continuation
 - **THEN** the server rejects the continuation instead of restarting or changing the selection
+
+#### Scenario: Bounded Page Contract
+
+- **WHEN** a caller requests a growing row set
+- **THEN** requests carry page_size, max_bytes and page_token, and replies carry typed rows/schema, resolved_at, effective limits, next_page_token and complete
+- **AND** the continuation binds selection/projection/reduction, schema revision and last scanned key without a client-held transaction or lock

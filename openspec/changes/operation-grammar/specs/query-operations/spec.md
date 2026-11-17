@@ -1,12 +1,12 @@
 # Query Operations Delta
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Canonical Read Operations
 
 Dokime SHALL expose one canonical resource read path per data kind, replacing
 overlapping operational, query and checkpoint families. Each SHALL have one
-declaration per required face, generated request/response wrappers and
+executor-owned declaration with explicit callers, generated request/response wrappers and
 runtime-owned execution.
 Reads SHALL be read-only and idempotent at an explicit compatible returned cut;
 latest reads SHALL select already durable data without a flush barrier.
@@ -15,20 +15,20 @@ latest reads SHALL select already durable data without a flush barrier.
 
 - **WHEN** a query resolves a durable cut during a running execution
 - **THEN** it does not flush admitted unsaved evidence or change execution lifecycle
-- **AND** each product service method delegates through one operation file to a manager or storage, while generic library services are composed directly without redeclaration
+- **AND** each product service method delegates through one operation file to a manager or storage, while generic Harmos host operations remain in-process behind product wrappers
 - **AND** durable lag is reported by the reusable Nightly benchmark without a failing threshold or accepted-data snapshot, amended by the owner on 2026-11-13
 
 #### Scenario: Contract Discovery
 
 - **WHEN** an authorized caller discovers the operation catalog
-- **THEN** each operation has a face/package-derived namespaced ID, its own request schema, response wrapper and declared policy
-- **AND** native, gRPC, generated clients and generic CLI calls use the declaration for their permitted face and the locked nested-resource naming grammar
+- **THEN** each operation has a executor/package-derived namespaced ID, its own request schema, response wrapper and declared policy
+- **AND** native, gRPC, generated clients and generic CLI calls use the declaration for their admitted callers and the locked nested-resource naming grammar
 
 #### Scenario: Plugin and Client Read Produced Records
 
 - **WHEN** a plugin reads produced records through its context and a client reads them through the client API
-- **THEN** `dokime.context.v1.evidence.Records/List` and `dokime.v1.evidence.Records/List` have separate request/response declarations and authorization
-- **AND** both preserve the same retained-cut and bounded read guarantees without exposing the context face to the client
+- **THEN** one `dokime.host.v1.evidence.Records/List` declaration serves its explicit caller set with scoped authorization
+- **AND** both preserve the same retained-cut and bounded read guarantees without granting clients plugin-only authority
 
 ### Requirement: Cheap CLI Parity
 
