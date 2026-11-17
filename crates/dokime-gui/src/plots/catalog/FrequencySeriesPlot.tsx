@@ -52,8 +52,8 @@ export function FrequencySeriesPlot({
       xScale={plot.xScale}
       yScale={plot.yScale}
       xLabel={formatUnitLabel("Frequency", "Hz")}
-      xFormat={{ kind: "normal" }}
-      yFormat={{ kind: "normal" }}
+      xFormat={{ kind: { kind: { case: "normal", value: {} } } }}
+      yFormat={{ kind: { kind: { case: "normal", value: {} } } }}
     />
   );
 }

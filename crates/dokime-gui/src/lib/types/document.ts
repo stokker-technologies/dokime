@@ -7,9 +7,11 @@
  * ***
  */
 
+import type { ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { NotificationFailure } from "../notification-details";
 import type { DocumentStatistic, JsonObject, Metadata, MetricPresentation, MetricState } from "../types";
-import type { ValueFormat } from "./format";
+
 import type {
   DocumentAxisScale,
   DocumentDownsampleTechnique,
@@ -120,8 +122,8 @@ export type DocumentViewPlot = {
   filters?: DocumentFilter[];
   reference_lines?: import("@/lib/document-contracts").ReferenceLine[];
   reference_bands?: import("@/lib/document-contracts").ReferenceBand[];
-  x_format?: ValueFormat | null;
-  y_format?: ValueFormat | null;
+  x_format?: Wire<ValueFormat> | null;
+  y_format?: Wire<ValueFormat> | null;
   /** Absent for a payload written before the axis was declared on the wire. */
   x_axis?: DocumentPlotAxisKind | null;
   /** Displayed points; absent or `null` is the host default, `0` keeps every sample. */

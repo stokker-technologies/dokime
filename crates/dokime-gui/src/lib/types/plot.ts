@@ -7,19 +7,11 @@
  * ***
  */
 
+import * as viewContracts from "./view-contracts";
 import type { PlotDomain, ContourGrid, GridFrames, GridAxisEntry, PlotPayloadDiagnostics } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { SeriesSummary, StatsSummary } from "../statistics";
 import type { JsonObject } from "../types";
-import type {
-  PlotCartesianFrame as NativePlotCartesianFrame,
-  PlotCartesianSeriesFrame as NativePlotCartesianSeriesFrame,
-  PlotMarker as NativePlotMarker,
-  PlotPayload_Serialize as NativePlotPayload,
-  PlotPayloadEnvelope_Serialize as NativePlotPayloadEnvelope,
-  PlotPoint_Serialize as NativePlotPoint,
-  PlotSeries_Serialize as NativePlotSeries,
-} from "./view-contracts";
 
 import type { PlotPayloadStreamKind } from "./view-contracts";
 
@@ -39,7 +31,7 @@ import type { PlotPayloadStreamKind } from "./view-contracts";
 export type DocumentPlotAxisKind = { kind: "wall_time" } | { kind: "elapsed"; unit: string };
 
 // Renderer points may contain derived statistics and non-wire axis values.
-export type PlotPoint = Omit<NativePlotPoint, "x"> & {
+export type PlotPoint = Omit<viewContracts.PlotPoint_Serialize, "x"> & {
   x: unknown;
   instant?: string | null;
   exact_y?: import("@/lib/statistics").StatisticValue;
@@ -52,15 +44,16 @@ export type PlotPoint = Omit<NativePlotPoint, "x"> & {
   sample_count?: number | null;
 };
 
-export type PlotSeries = Omit<NativePlotSeries, "points" | "unit"> & Partial<Pick<NativePlotSeries, "unit">> & { points: PlotPoint[] };
+export type PlotSeries = Omit<viewContracts.PlotSeries_Serialize, "points" | "unit"> &
+  Partial<Pick<viewContracts.PlotSeries_Serialize, "unit">> & { points: PlotPoint[] };
 
-export type PlotCartesianFrame = Omit<NativePlotCartesianFrame, "series" | "x_domain" | "y_domain"> & {
-  series: Array<Omit<NativePlotCartesianSeriesFrame, "x"> & { x: number[] }>;
+export type PlotCartesianFrame = Omit<viewContracts.PlotCartesianFrame, "series" | "x_domain" | "y_domain"> & {
+  series: Array<Omit<viewContracts.PlotCartesianSeriesFrame, "x"> & { x: number[] }>;
   x_domain?: Wire<PlotDomain> | null;
   y_domain?: Wire<PlotDomain> | null;
 };
 
-export type PlotMarker = Omit<NativePlotMarker, "x"> & { x: unknown };
+export type PlotMarker = Omit<viewContracts.PlotMarker, "x"> & { x: unknown };
 
 export type DocumentPlotType =
   | "time_series"
@@ -179,8 +172,8 @@ export type GridDefinition = {
 };
 
 // Renderer payloads also represent locally materialized, partial plot data.
-export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_points" | "generated_at"> &
-  Partial<Pick<NativePlotPayload, "series_by" | "window_s" | "x_format" | "run_started_at" | "cycle_started_at">> & {
+export type PlotPayload = Pick<viewContracts.PlotPayload_Serialize, "stream" | "x_key" | "max_points" | "generated_at"> &
+  Partial<Pick<viewContracts.PlotPayload_Serialize, "series_by" | "window_s" | "x_format" | "run_started_at" | "cycle_started_at">> & {
     context?: JsonObject | null;
     series: PlotSeries[];
     analysis?: PlotAnalysis | null;
@@ -193,7 +186,7 @@ export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_poin
     replaced_buckets?: number[];
   };
 
-export type PlotPayloadEnvelope = Omit<NativePlotPayloadEnvelope, "payload" | "diagnostics"> & {
+export type PlotPayloadEnvelope = Omit<viewContracts.PlotPayloadEnvelope_Serialize, "payload" | "diagnostics"> & {
   payload: PlotPayload;
   diagnostics?: Wire<PlotPayloadDiagnostics>;
 };

@@ -37,10 +37,8 @@ export async function fetchNativeSettingsFrame(session: SessionIdentity) {
 
 /* === Plugin Settings === */
 
-export type NativePluginRuntimeSettings = PluginRuntimeSettings;
-
 export function mapNativePluginRuntimeSettings(
-  settings: NativePluginRuntimeSettings,
+  settings: PluginRuntimeSettings,
   requirements: Wire<Awaited<ReturnType<typeof rpc.pluginsSecretsList>>>,
 ): RuntimePluginSettings {
   const secrets = requirements.secrets.map((requirement) => {

@@ -7,10 +7,11 @@
  * ***
  */
 
+import type { ValueFormat } from "@host/model";
 import type { EvidenceScope } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { JsonObject } from "../types";
-import type { ValueFormat } from "./format";
+
 import type { TelemetryContractSpec } from "./telemetry";
 
 /* === Record / notification / prompt / contract types === */
@@ -81,7 +82,7 @@ export type ContractFieldSpec = {
   description?: string | null;
   choices: string[];
   default?: unknown;
-  format?: ValueFormat | null;
+  format?: Wire<ValueFormat> | null;
 };
 
 export type RecordTypeSpec = {

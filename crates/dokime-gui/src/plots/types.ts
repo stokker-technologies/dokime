@@ -9,6 +9,8 @@
 
 /* === Local Imports === */
 
+import type { ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { NotificationFailure } from "@/lib/notification-details";
 import type { SeriesSummary } from "@/lib/statistics";
 import type {
@@ -23,7 +25,6 @@ import type {
   PlotCartesianFrame,
   PlotMarker,
   PlotSeries,
-  ValueFormat,
 } from "@/lib/types";
 import type { HistogramAxes } from "@/plots/histogram-axes";
 import type { PromptMarker } from "@/plots/prompt-markers";
@@ -69,10 +70,10 @@ export type PlotCardSpec = {
   contextSummary?: string;
   context?: Record<string, unknown>;
   windowS?: number | null;
-  xFormat?: ValueFormat | null;
+  xFormat?: Wire<ValueFormat> | null;
   /** Set when the x column declares a duration: the axis prints elapsed time. */
   xElapsedUnit?: string | null;
-  yFormat?: ValueFormat | null;
+  yFormat?: Wire<ValueFormat> | null;
   runStartedAt?: number | null;
   cycleStartedAt?: number | null;
   /** The backend's statistics of each trace over the shown window. */

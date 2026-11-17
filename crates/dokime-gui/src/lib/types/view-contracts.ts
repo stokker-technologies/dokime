@@ -6,8 +6,9 @@
  * server API types.
  */
 
+import type { ValueFormat } from "@host/model";
 import type { PlotDomain, PlotPayloadDiagnostics } from "@host/model";
-import type { ValueFormat } from "./format";
+
 import type { Origin, ExecutionOutcome } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
 
@@ -230,7 +231,7 @@ export type PlotPayload_Serialize = {
   window_s: number | null;
   generated_at: string;
   /** The resolved winner of the x-axis format precedence chain; `null` when none applies. */
-  x_format?: ValueFormat | null;
+  x_format?: Wire<ValueFormat> | null;
   run_started_at?: string | null;
   cycle_started_at?: string | null;
 };
@@ -249,7 +250,7 @@ export type PlotSeries_Serialize = {
   raw_points: number;
   downsampled: boolean;
   /** The resolved winner of the y-axis format precedence chain; `null` when none applies. */
-  format?: ValueFormat | null;
+  format?: Wire<ValueFormat> | null;
 };
 
 export type SecretAvailability = { identifier: string; available: boolean };

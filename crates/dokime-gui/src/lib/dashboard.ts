@@ -153,7 +153,7 @@ function dashboardNumber(value: number): string {
   if (value !== 0 && Math.abs(value) < 0.005) {
     return String(Number(value.toPrecision(3)));
   }
-  return formatNumber(value, { kind: "fixed", decimals: Math.abs(value) >= 100 ? 0 : 2 });
+  return formatNumber(value, { kind: { kind: { case: "fixed", value: { decimals: Math.abs(value) >= 100 ? 0 : 2 } } } });
 }
 
 function compactLifecycleMessage(message: string, record: HubRecord, fallbackSubject: string): string {

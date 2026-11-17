@@ -11,7 +11,6 @@
 
 /* === External Imports === */
 
-import type { PlotPayloadDiagnostics } from "@host/model";
 import * as hostModel from "@host/model";
 import type { EvidenceScope } from "@host/model";
 import { create } from "@bufbuild/protobuf";
@@ -54,7 +53,7 @@ import type {
   PlotSeries,
 } from "@/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
-import { jsonToNativeValue, mapNativeValueFormat, nativeValueToJson } from "@/lib/host/values";
+import { jsonToNativeValue, nativeValueToJson } from "@/lib/host/values";
 import type { StatisticValue } from "@/lib/statistics";
 import { NativeApiLimitError, NATIVE_MAX_PAGES, safeNumber } from "./native-values";
 
@@ -640,7 +639,7 @@ function mapNativePlotPayload(payload: NativePlotPayload, plotType?: DocumentPlo
     max_points: safeNumber(payload.maxPoints, "Plots payload max_points"),
     window_s: payload.windowS ?? null,
     generated_at: payload.generatedAt,
-    x_format: mapNativeValueFormat(payload.xFormat),
+    x_format: payload.xFormat ?? null,
     run_started_at: payload.runStartedAt ?? null,
     cycle_started_at: payload.cycleStartedAt ?? null,
     bucket_width_s: payload.bucketWidthS ?? null,
@@ -745,7 +744,7 @@ function mapNativePlotSeries(series: NativePlotSeries): PlotSeries {
     points: [],
     raw_points: safeNumber(series.rawPoints, "Plots series raw_points"),
     downsampled: series.downsampled,
-    format: mapNativeValueFormat(series.format),
+    format: series.format ?? null,
   };
 }
 

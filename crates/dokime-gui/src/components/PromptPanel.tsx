@@ -166,7 +166,7 @@ function operatorLabel(operator: string) {
 /* A verification threshold reads as up to three decimals; a number the payload
  * cannot express reads as a dash rather than as empty space. */
 function promptNumber(value: number): string {
-  return Number.isFinite(value) ? formatNumber(value, { kind: "normal", max_fraction_digits: 3 }) : "-";
+  return Number.isFinite(value) ? formatNumber(value, { kind: { kind: { case: "normal", value: { maxFractionDigits: 3 } } } }) : "-";
 }
 
 function PromptDialog({

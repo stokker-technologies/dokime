@@ -17,7 +17,9 @@
 
 /* === Local Imports === */
 
-import type { DocumentViewPlot, TelemetryColumnSpec, ValueFormat } from "@/lib/types";
+import type { ValueFormat } from "@host/model";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { DocumentViewPlot, TelemetryColumnSpec } from "@/lib/types";
 import { formatUnitLabel } from "@/lib/format";
 
 /* === Constants === */
@@ -30,7 +32,7 @@ export const HISTOGRAM_COUNT_LABEL = "Count";
 export type HistogramValueAxis = {
   label: string;
   unit: string;
-  format: ValueFormat | null;
+  format: Wire<ValueFormat> | null;
 };
 
 export type HistogramAxes = {

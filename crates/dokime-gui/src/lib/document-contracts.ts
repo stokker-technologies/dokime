@@ -1,3 +1,4 @@
+import type { ValueFormat } from "@host/model";
 import type { EvidenceScope } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
 /* ***
@@ -120,8 +121,6 @@ export type DocumentWarning = {
   message: string;
 };
 
-export type ElapsedUnit = "seconds" | "milliseconds" | "minutes";
-
 export type FftDetrend = "none" | "mean";
 
 export type FftOptions = {
@@ -200,8 +199,8 @@ export type PlotDefinition = {
   marker_record_types?: string[];
   reference_lines?: ReferenceLine[];
   reference_bands?: ReferenceBand[];
-  x_format?: ValueFormat | null;
-  y_format?: ValueFormat | null;
+  x_format?: Wire<ValueFormat> | null;
+  y_format?: Wire<ValueFormat> | null;
   x_axis?: PlotAxisKind | null;
   display_points?: number | null;
   downsample?: DownsampleTechnique | null;
@@ -249,8 +248,8 @@ export type PlotInput = {
   reference_bands: ReferenceBand[];
   available_streams: Identifier[];
   marker_count: number;
-  x_format?: ValueFormat | null;
-  y_format?: ValueFormat | null;
+  x_format?: Wire<ValueFormat> | null;
+  y_format?: Wire<ValueFormat> | null;
   x_axis?: PlotAxisKind | null;
   display_points?: number | null;
   downsample?: DownsampleTechnique | null;
@@ -432,13 +431,3 @@ export type Value =
   | { type: "text" | "datetime"; value: string }
   | { type: "array"; value: Value[] }
   | { type: "object"; value: Record<string, Value> };
-
-export type ValueFormat =
-  | { kind: "normal"; max_fraction_digits?: number | null }
-  | { kind: "fixed"; decimals: number }
-  | { kind: "scientific"; significant_digits: number }
-  | { kind: "engineering"; significant_digits: number }
-  | { kind: "si_prefix"; significant_digits: number }
-  | { kind: "absolute_time"; pattern: string }
-  | { kind: "elapsed_since_run"; unit: ElapsedUnit }
-  | { kind: "elapsed_since_cycle"; unit: ElapsedUnit };

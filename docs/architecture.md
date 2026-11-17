@@ -634,6 +634,13 @@ Plot/document readers consume projected batches. The pinned library supplies
 scalar evaluation, bounded accumulators, sorting and downsampling where its current
 query vocabulary fits. Each document render owns one isolated reader for all its
 cards and buffers its HTML output.
+The frontend consumes generated settings cards/sections, execution controls,
+evidence scopes, plot diagnostics/grids and value formats directly. Rendering and
+local interaction may add presentation state by composing generated fields.
+The remaining document/plot serialization families also serve the retained React
+report renderer, whose embedded JSON differs from the current host's direct HTML
+reports. Choosing the report renderer owner is required before retiring either path;
+the existing frontend families do not establish a second authoritative protocol.
 Desktop documents return definitions, presentation and a fixed evidence selection;
 `Documents.Get` does not render and discard invisible plot payloads. Its optional
 `max_frames` bounds complete frames per page alongside `max_bytes`, preserving the

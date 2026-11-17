@@ -23,13 +23,7 @@ import { programRows, programSource } from "@/features/settings/plugins/PluginPr
 import { announceStopping, desktopStopping, settleUnlessStopping } from "@/lib/desktop/stopping";
 import type { SettingsFrame } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
-import {
-  type BackendOperation,
-  operationPercent,
-  operationPhaseLabel,
-  operationsCountLabel,
-  summarizeOperations,
-} from "@/shell/status-bar-operations";
+import { type BackendOperation, operationPhaseLabel, operationsCountLabel, summarizeOperations } from "@/shell/status-bar-operations";
 
 /* === Re-Exports === */
 

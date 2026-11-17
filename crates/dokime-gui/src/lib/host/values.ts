@@ -11,7 +11,6 @@
 
 /* === External Imports === */
 
-import * as hostModel from "@host/model";
 import type { EvidenceScope, RecordScope } from "@host/model";
 import { ValueType, type Value } from "@host/model";
 import type { Metadata } from "@host/model";
@@ -21,7 +20,7 @@ import type { Metadata } from "@host/model";
 import { assertIntegerRange, NativeExactValue, NativeIntegerValue, NativeNumberValue, timestampIso } from "@/lib/api/native-values";
 import { isDatetimeValue } from "@/lib/record-display";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { JsonObject, ValueFormat, ElapsedUnit } from "@/lib/types";
+import type { JsonObject } from "@/lib/types";
 
 /* === Constants === */
 
@@ -167,32 +166,4 @@ export function nativeRecordScope(scope?: Wire<EvidenceScope> | null): Wire<Reco
   if (scope?.cycleId) return { kind: { case: "cycle", value: { cycleId: scope.cycleId, executionId: scope.executionId ?? undefined } } };
   if (scope?.executionId) return { kind: { case: "execution", value: scope.executionId } };
   return undefined;
-}
-
-export function mapNativeValueFormat(format?: Wire<hostModel.ValueFormat>): ValueFormat | null {
-  const kind = format?.kind?.kind;
-  switch (kind?.case) {
-    case "normal":
-      return { kind: "normal", max_fraction_digits: kind.value.maxFractionDigits ?? null };
-    case "fixed":
-      return { kind: "fixed", decimals: kind.value.decimals };
-    case "scientific":
-      return { kind: "scientific", significant_digits: kind.value.significantDigits };
-    case "engineering":
-      return { kind: "engineering", significant_digits: kind.value.significantDigits };
-    case "siPrefix":
-      return { kind: "si_prefix", significant_digits: kind.value.significantDigits };
-    case "absoluteTime":
-      return { kind: "absolute_time", pattern: kind.value.pattern };
-    case "elapsedSinceRun":
-      return { kind: "elapsed_since_run", unit: elapsedUnit(kind.value.unit) };
-    case "elapsedSinceCycle":
-      return { kind: "elapsed_since_cycle", unit: elapsedUnit(kind.value.unit) };
-    default:
-      return null;
-  }
-}
-
-function elapsedUnit(unit: hostModel.ElapsedUnit): ElapsedUnit {
-  return unit === hostModel.ElapsedUnit.MILLISECONDS ? "milliseconds" : unit === hostModel.ElapsedUnit.MINUTES ? "minutes" : "seconds";
 }

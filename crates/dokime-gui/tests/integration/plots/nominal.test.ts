@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { create } from "@bufbuild/protobuf";
 import { PlotCartesianMode, PlotStreamKind, SnapshotsWatchResponseSchema } from "@host/model";
 import { PlotKind, Reduction, XyInterval } from "@host/model";
-import { LineStyle } from "@host/model";
+import { ElapsedUnit, LineStyle, ValueFormatSchema } from "@host/model";
 
 // Third Party Imports
 import { act, type ComponentProps, createElement } from "react";
@@ -39,7 +39,7 @@ import {
 import { jsonToNativeValue } from "@/lib/host/values";
 import * as appearance from "@/lib/appearance";
 import { ApplicationThemeProvider } from "@/lib/application-theme";
-import { formatUnitLabel } from "@/lib/format";
+import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
 import {
   formatSummaryValue,
   nearestDrawnPoint,
@@ -904,9 +904,23 @@ test("Drag Viewport", () => {
   });
 });
 
+test("Generated Formats Render Numeric Precision and Selected Time Origins", () => {
+  const fixed = create(ValueFormatSchema, { kind: { kind: { case: "fixed", value: { decimals: 2 } } } });
+  const scientific = create(ValueFormatSchema, { kind: { kind: { case: "scientific", value: { significantDigits: 3 } } } });
+  const run = create(ValueFormatSchema, { kind: { kind: { case: "elapsedSinceRun", value: { unit: ElapsedUnit.MILLISECONDS } } } });
+  const cycle = create(ValueFormatSchema, { kind: { kind: { case: "elapsedSinceCycle", value: { unit: ElapsedUnit.MINUTES } } } });
+  const absolute = create(ValueFormatSchema, { kind: { kind: { case: "absoluteTime", value: { pattern: "%L" } } } });
+
+  assert.equal(formatNumber(1.234, fixed), "1.23");
+  assert.equal(formatNumber(1234, scientific), "1.23e+3");
+  assert.equal(formatTime(132.345, run, { runStart: 130, cycleStart: 12.345 }), "2345ms");
+  assert.equal(formatTime(132.345, cycle, { runStart: 130, cycleStart: 12.345 }), "2.0m");
+  assert.equal(formatTime(132.345, absolute, {}), "345");
+});
+
 test("Histogram Axes", () => {
   // A Histogram Draws Its Declared Value on X and the Host's Count on Y
-  const format = { kind: "fixed", decimals: 1 };
+  const format = { kind: { kind: { case: "fixed", value: { decimals: 1 } } } };
   const axes = histogramAxes(
     histogram({
       title: "Voltage Distribution",
@@ -949,13 +963,13 @@ test("Histogram Axes", () => {
     {
       label: null,
       unit: "A",
-      format: { kind: "engineering", significant_digits: 3 },
+      format: { kind: { kind: { case: "engineering", value: { significantDigits: 3 } } } },
     } as unknown as HistogramColumn,
   );
   assert.deepEqual(timestamp.x, {
     label: "Current Distribution",
     unit: "A",
-    format: { kind: "engineering", significant_digits: 3 },
+    format: { kind: { kind: { case: "engineering", value: { significantDigits: 3 } } } },
   });
 });
 
