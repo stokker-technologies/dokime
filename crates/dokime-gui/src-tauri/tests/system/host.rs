@@ -93,8 +93,9 @@ use prost::Message;
 use sha2::{Digest, Sha256};
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
+use tonic::Code;
 
-use dokime_gui::connection::host::{Connection, ConnectionSettings};
+use dokime_gui::connection::host::{self, Connection, ConnectionSettings};
 use dokime_gui::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
 use dokime_gui::{test_support, testing};
 use dokime_protocol::host::plots::PlotDomain;
@@ -517,6 +518,22 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                 .await?;
             let prompt = prompts.prompts.first().and_then(|view| view.prompt.as_ref()).ok_or("Answer Prompt: Missing Question")?;
 
+            // Refuse the Same Report Request While Its Execution Is Waiting for an Answer.
+            let report_request = ReportsCreateRequest {
+                subject: Some(ReportSubject {
+                    kind: Some(report_subject::Kind::Execution(execution.clone())),
+                }),
+                request_id: "desktop-prepare-report".into(),
+                ..Default::default()
+            };
+            let refused =
+                session.unary::<_, ReportsCreateResponse>("/dokime.host.v1.Reports/Create", report_request.clone()).await.unwrap_err();
+            let host::Error::Rpc(refused) = refused else {
+                return Err("Create Report: Expected a Precondition Refusal".into());
+            };
+            assert_eq!(refused.code(), Code::FailedPrecondition);
+            assert!(refused.message().contains("execution") && refused.message().contains("ended"));
+
             // Observe a Plot Before Answering, Then Join the Terminal Progress.
             let plot_request = PlotRequest {
                 plot_id: Some("module-voltage".into()),
@@ -703,6 +720,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             };
             let mut header = false;
             let mut completed = false;
+            let mut document_cut = None;
             loop {
                 let reply: DocumentsGetResponse = session.unary("/dokime.host.v1.Documents/Get", request.clone()).await?;
                 for frame in reply.frames {
@@ -713,6 +731,7 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
                             assert_eq!(value.frontiers.unwrap().process_epoch, process_epoch);
                             header = true;
                         }
+                        Some(document_frame_frame::Kind::EvidenceCut(value)) => document_cut = value.cut,
                         Some(document_frame_frame::Kind::Completion(_)) => completed = true,
                         _ => {}
                     }
@@ -730,16 +749,16 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             let subject = ReportSubject {
                 kind: Some(report_subject::Kind::Execution(execution.clone())),
             };
-            let prepared: ReportsCreateResponse = session
-                .unary(
-                    "/dokime.host.v1.Reports/Create",
-                    ReportsCreateRequest {
-                        subject: Some(subject.clone()),
-                        request_id: "desktop-prepare-report".into(),
-                        ..Default::default()
-                    },
-                )
-                .await?;
+            let prepared: ReportsCreateResponse = session.unary("/dokime.host.v1.Reports/Create", report_request).await?;
+            let document_cut = document_cut.ok_or("Read Document: Missing Final Evidence Cut")?;
+            let resolved_at = prepared.resolved_at.as_ref().ok_or("Create Report: Missing Final Evidence Cut")?;
+            assert_eq!(resolved_at.positions.len(), 1);
+            assert!(resolved_at.revisions.is_empty());
+            let position = &resolved_at.positions[0];
+            let history = position.history.as_ref().ok_or("Create Report: Missing Execution History")?;
+            assert_eq!(history.store, document_cut.store);
+            assert_eq!(history.epoch, execution);
+            assert_eq!(position.sequence, document_cut.position);
             let file = prepared.file.ok_or("Prepare Report: Missing File Reference")?;
             let _: ReportsPublishResponse = session
                 .unary(

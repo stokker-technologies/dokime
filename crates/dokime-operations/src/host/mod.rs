@@ -168,7 +168,7 @@ pub trait Host: Send + Sync {
     fn register_sensitive(&self, value: &str) -> Result<()>;
     fn controls(&self, execution: &str) -> Result<ExecutionControls>;
     fn current_document(&self, scope: &DocumentScope, identifier: &str) -> Result<(Document, ExecutionCut)>;
-    async fn render_report(&self, subject: &ReportSubject, document_id: &str, at: Option<&ReadCut>) -> Result<(File, ReportMetadata)>;
+    async fn render_report(&self, subject: &ReportSubject, document_id: &str) -> Result<(File, ReportMetadata, ReadCut)>;
     fn retain_report(&self, reference: FileReference) -> Result<()>;
     fn temporary_report(&self, identifier: &str) -> Result<Option<FileReference>>;
     fn publish_report(&self, prepared: Report) -> Result<Report>;

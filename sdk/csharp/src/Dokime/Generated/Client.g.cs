@@ -2965,7 +2965,7 @@ public sealed class ReportsResource
     }
     return response;
   }
-  public async Task<global::Dokime.Clients.ReportsCreateResponse> Create(global::Dokime.Clients.ReportSubject subject, string documentId, global::Harmos.ReadCut? at = null, string? requestId = null, CallOptions context = default)
+  public async Task<global::Dokime.Clients.ReportsCreateResponse> Create(global::Dokime.Clients.ReportSubject subject, string documentId, string? requestId = null, CallOptions context = default)
   {
     var request = new global::Dokime.Clients.ReportsCreateRequest
     {
@@ -2973,10 +2973,6 @@ public sealed class ReportsResource
       DocumentId = documentId,
       RequestId = requestId ?? Guid.NewGuid().ToString("N"),
     };
-    if (at is not null)
-    {
-      request.At = at;
-    }
     var method = new Method<global::Dokime.Clients.ReportsCreateRequest, global::Dokime.Clients.ReportsCreateResponse>(MethodType.Unary, "dokime.host.v1.Reports", "Create",
         Marshallers.Create<global::Dokime.Clients.ReportsCreateRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ReportsCreateRequest.Parser.ParseFrom(bytes)),
         Marshallers.Create<global::Dokime.Clients.ReportsCreateResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ReportsCreateResponse.Parser.ParseFrom(bytes)));

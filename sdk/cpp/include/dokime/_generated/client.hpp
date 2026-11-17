@@ -385,7 +385,6 @@ struct ReportsGetOptions {
   std::shared_ptr<grpc::ClientContext> context;
 };
 struct ReportsCreateOptions {
-  std::optional<::harmos::ReadCut> at;
   std::optional<std::string> request_id;
   std::shared_ptr<grpc::ClientContext> context;
 };
@@ -2760,9 +2759,6 @@ struct ReportsResource {
     detail::packages::dokime::host::ReportsCreateRequest request;
     *request.mutable_subject() = subject;
     request.set_document_id(document_id);
-    if (options.at) {
-      *request.mutable_at() = *options.at;
-    }
     request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
     auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
     detail::packages::dokime::host::ReportsCreateResponse response;

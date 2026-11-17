@@ -30,7 +30,7 @@ from harmos._wire.model.v1 import position_pb2 as harmos_dot_model_dot_v1_dot_po
 from harmos._wire.model.v1 import receipt_pb2 as harmos_dot_model_dot_v1_dot_receipt__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x64okime/host/v1/reports.proto\x12\x0e\x64okime.host.v1\x1a\x1e\x64okime/model/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dharmos/model/v1/callers.proto\x1a\x1aharmos/model/v1/file.proto\x1a\x1eharmos/model/v1/position.proto\x1a\x1dharmos/model/v1/receipt.proto\"\x83\x01\n\x11ReportsGetRequest\x12.\n\x07subject\x18\x01 \x01(\x0b\x32\x1d.dokime.host.v1.ReportSubject\x12\x0c\n\x04name\x18\x02 \x01(\t\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"\xa1\x01\n\x12ReportsGetResponse\x12.\n\x06report\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.ReportMetadata\x12,\n\x04\x66ile\x18\x02 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"\xa1\x01\n\x14ReportsCreateRequest\x12.\n\x07subject\x18\x01 \x01(\x0b\x32\x1d.dokime.host.v1.ReportSubject\x12\x13\n\x0b\x64ocument_id\x18\x02 \x01(\t\x12)\n\x02\x61t\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x12\x12\n\nrequest_id\x18\x04 \x01(\tB\x05\n\x03_at\"\xcf\x01\n\x15ReportsCreateResponse\x12.\n\x06report\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.ReportMetadata\x12,\n\x04\x66ile\x18\x02 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12-\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\x12)\n\x07receipt\x18\x04 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"\x84\x01\n\x15ReportsPublishRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12.\n\x07subject\x18\x02 \x01(\x0b\x32\x1d.dokime.host.v1.ReportSubject\x12\x19\n\x11\x65xpected_revision\x18\x03 \x01(\x0c\x12\x12\n\nrequest_id\x18\x04 \x01(\t\"\x81\x01\n\x16ReportsPublishResponse\x12.\n\x06report\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.ReportMetadata\x12\x0c\n\x04seal\x18\x02 \x01(\x0c\x12)\n\x07receipt\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"\x90\x02\n\x0eReportMetadata\x12\x15\n\rtest_cycle_id\x18\x01 \x01(\t\x12\x1e\n\x11test_execution_id\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\x12\n\nidentifier\x18\x03 \x01(\t\x12+\n\x08metadata\x18\x04 \x01(\x0b\x32\x19.dokime.model.v1.Metadata\x12\x30\n\x0cgenerated_at\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12,\n\x06origin\x18\x06 \x01(\x0e\x32\x1c.dokime.host.v1.ReportOrigin\x12\x10\n\x08warnings\x18\x07 \x03(\tB\x14\n\x12_test_execution_id\"=\n\rReportSubject\x12\x13\n\texecution\x18\x01 \x01(\tH\x00\x12\x0f\n\x05\x63ycle\x18\x02 \x01(\tH\x00\x42\x06\n\x04kind*b\n\x0cReportOrigin\x12\x1d\n\x19REPORT_ORIGIN_UNSPECIFIED\x10\x00\x12\x18\n\x14REPORT_ORIGIN_SEALED\x10\x01\x12\x19\n\x15REPORT_ORIGIN_CURRENT\x10\x02\x32\x9a\x02\n\x07Reports\x12R\n\x03Get\x12!.dokime.host.v1.ReportsGetRequest\x1a\".dokime.host.v1.ReportsGetResponse\"\x04\xc8\xf3\x18\x01\x12[\n\x06\x43reate\x12$.dokime.host.v1.ReportsCreateRequest\x1a%.dokime.host.v1.ReportsCreateResponse\"\x04\xc8\xf3\x18\x01\x12^\n\x07Publish\x12%.dokime.host.v1.ReportsPublishRequest\x1a&.dokime.host.v1.ReportsPublishResponse\"\x04\xc8\xf3\x18\x01\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x64okime/host/v1/reports.proto\x12\x0e\x64okime.host.v1\x1a\x1e\x64okime/model/v1/metadata.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dharmos/model/v1/callers.proto\x1a\x1aharmos/model/v1/file.proto\x1a\x1eharmos/model/v1/position.proto\x1a\x1dharmos/model/v1/receipt.proto\"\x83\x01\n\x11ReportsGetRequest\x12.\n\x07subject\x18\x01 \x01(\x0b\x32\x1d.dokime.host.v1.ReportSubject\x12\x0c\n\x04name\x18\x02 \x01(\t\x12)\n\x02\x61t\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCutH\x00\x88\x01\x01\x42\x05\n\x03_at\"\xa1\x01\n\x12ReportsGetResponse\x12.\n\x06report\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.ReportMetadata\x12,\n\x04\x66ile\x18\x02 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12-\n\x0bresolved_at\x18Z \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\"y\n\x14ReportsCreateRequest\x12.\n\x07subject\x18\x01 \x01(\x0b\x32\x1d.dokime.host.v1.ReportSubject\x12\x13\n\x0b\x64ocument_id\x18\x02 \x01(\t\x12\x12\n\nrequest_id\x18\x04 \x01(\tJ\x04\x08\x03\x10\x04R\x02\x61t\"\xcf\x01\n\x15ReportsCreateResponse\x12.\n\x06report\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.ReportMetadata\x12,\n\x04\x66ile\x18\x02 \x01(\x0b\x32\x1e.harmos.model.v1.FileReference\x12-\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.ReadCut\x12)\n\x07receipt\x18\x04 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"\x84\x01\n\x15ReportsPublishRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12.\n\x07subject\x18\x02 \x01(\x0b\x32\x1d.dokime.host.v1.ReportSubject\x12\x19\n\x11\x65xpected_revision\x18\x03 \x01(\x0c\x12\x12\n\nrequest_id\x18\x04 \x01(\t\"\x81\x01\n\x16ReportsPublishResponse\x12.\n\x06report\x18\x01 \x01(\x0b\x32\x1e.dokime.host.v1.ReportMetadata\x12\x0c\n\x04seal\x18\x02 \x01(\x0c\x12)\n\x07receipt\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.Receipt\"\x90\x02\n\x0eReportMetadata\x12\x15\n\rtest_cycle_id\x18\x01 \x01(\t\x12\x1e\n\x11test_execution_id\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\x12\n\nidentifier\x18\x03 \x01(\t\x12+\n\x08metadata\x18\x04 \x01(\x0b\x32\x19.dokime.model.v1.Metadata\x12\x30\n\x0cgenerated_at\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12,\n\x06origin\x18\x06 \x01(\x0e\x32\x1c.dokime.host.v1.ReportOrigin\x12\x10\n\x08warnings\x18\x07 \x03(\tB\x14\n\x12_test_execution_id\"=\n\rReportSubject\x12\x13\n\texecution\x18\x01 \x01(\tH\x00\x12\x0f\n\x05\x63ycle\x18\x02 \x01(\tH\x00\x42\x06\n\x04kind*b\n\x0cReportOrigin\x12\x1d\n\x19REPORT_ORIGIN_UNSPECIFIED\x10\x00\x12\x18\n\x14REPORT_ORIGIN_SEALED\x10\x01\x12\x19\n\x15REPORT_ORIGIN_CURRENT\x10\x02\x32\x9a\x02\n\x07Reports\x12R\n\x03Get\x12!.dokime.host.v1.ReportsGetRequest\x1a\".dokime.host.v1.ReportsGetResponse\"\x04\xc8\xf3\x18\x01\x12[\n\x06\x43reate\x12$.dokime.host.v1.ReportsCreateRequest\x1a%.dokime.host.v1.ReportsCreateResponse\"\x04\xc8\xf3\x18\x01\x12^\n\x07Publish\x12%.dokime.host.v1.ReportsPublishRequest\x1a&.dokime.host.v1.ReportsPublishResponse\"\x04\xc8\xf3\x18\x01\x42\x11\xaa\x02\x0e\x44okime.Clientsb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -44,24 +44,24 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_REPORTS'].methods_by_name['Create']._serialized_options = b'\310\363\030\001'
   _globals['_REPORTS'].methods_by_name['Publish']._loaded_options = None
   _globals['_REPORTS'].methods_by_name['Publish']._serialized_options = b'\310\363\030\001'
-  _globals['_REPORTORIGIN']._serialized_start=1512
-  _globals['_REPORTORIGIN']._serialized_end=1610
+  _globals['_REPORTORIGIN']._serialized_start=1471
+  _globals['_REPORTORIGIN']._serialized_end=1569
   _globals['_REPORTSGETREQUEST']._serialized_start=236
   _globals['_REPORTSGETREQUEST']._serialized_end=367
   _globals['_REPORTSGETRESPONSE']._serialized_start=370
   _globals['_REPORTSGETRESPONSE']._serialized_end=531
-  _globals['_REPORTSCREATEREQUEST']._serialized_start=534
-  _globals['_REPORTSCREATEREQUEST']._serialized_end=695
-  _globals['_REPORTSCREATERESPONSE']._serialized_start=698
-  _globals['_REPORTSCREATERESPONSE']._serialized_end=905
-  _globals['_REPORTSPUBLISHREQUEST']._serialized_start=908
-  _globals['_REPORTSPUBLISHREQUEST']._serialized_end=1040
-  _globals['_REPORTSPUBLISHRESPONSE']._serialized_start=1043
-  _globals['_REPORTSPUBLISHRESPONSE']._serialized_end=1172
-  _globals['_REPORTMETADATA']._serialized_start=1175
-  _globals['_REPORTMETADATA']._serialized_end=1447
-  _globals['_REPORTSUBJECT']._serialized_start=1449
-  _globals['_REPORTSUBJECT']._serialized_end=1510
-  _globals['_REPORTS']._serialized_start=1613
-  _globals['_REPORTS']._serialized_end=1895
+  _globals['_REPORTSCREATEREQUEST']._serialized_start=533
+  _globals['_REPORTSCREATEREQUEST']._serialized_end=654
+  _globals['_REPORTSCREATERESPONSE']._serialized_start=657
+  _globals['_REPORTSCREATERESPONSE']._serialized_end=864
+  _globals['_REPORTSPUBLISHREQUEST']._serialized_start=867
+  _globals['_REPORTSPUBLISHREQUEST']._serialized_end=999
+  _globals['_REPORTSPUBLISHRESPONSE']._serialized_start=1002
+  _globals['_REPORTSPUBLISHRESPONSE']._serialized_end=1131
+  _globals['_REPORTMETADATA']._serialized_start=1134
+  _globals['_REPORTMETADATA']._serialized_end=1406
+  _globals['_REPORTSUBJECT']._serialized_start=1408
+  _globals['_REPORTSUBJECT']._serialized_end=1469
+  _globals['_REPORTS']._serialized_start=1572
+  _globals['_REPORTS']._serialized_end=1854
 # @@protoc_insertion_point(module_scope)

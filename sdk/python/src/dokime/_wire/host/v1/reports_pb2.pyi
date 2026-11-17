@@ -45,16 +45,14 @@ class ReportsGetResponse(_message.Message):
     def __init__(self, report: _Optional[_Union[ReportMetadata, _Mapping]] = ..., file: _Optional[_Union[_file_pb2.FileReference, _Mapping]] = ..., resolved_at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ...) -> None: ...
 
 class ReportsCreateRequest(_message.Message):
-    __slots__ = ("subject", "document_id", "at", "request_id")
+    __slots__ = ("subject", "document_id", "request_id")
     SUBJECT_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_ID_FIELD_NUMBER: _ClassVar[int]
-    AT_FIELD_NUMBER: _ClassVar[int]
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     subject: ReportSubject
     document_id: str
-    at: _position_pb2.ReadCut
     request_id: str
-    def __init__(self, subject: _Optional[_Union[ReportSubject, _Mapping]] = ..., document_id: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.ReadCut, _Mapping]] = ..., request_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, subject: _Optional[_Union[ReportSubject, _Mapping]] = ..., document_id: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
 
 class ReportsCreateResponse(_message.Message):
     __slots__ = ("report", "file", "resolved_at", "receipt")

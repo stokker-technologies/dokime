@@ -10335,14 +10335,12 @@ pub struct ReportsGetResponse {
     pub resolved_at: ::core::option::Option<::harmos_protocol::model::ReadCut>,
 }
 #[allow(clippy::all)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ReportsCreateRequest {
     #[prost(message, optional, tag = "1")]
     pub subject: ::core::option::Option<ReportSubject>,
     #[prost(string, tag = "2")]
     pub document_id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "3")]
-    pub at: ::core::option::Option<::harmos_protocol::model::ReadCut>,
     #[prost(string, tag = "4")]
     pub request_id: ::prost::alloc::string::String,
 }

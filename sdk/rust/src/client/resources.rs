@@ -1817,14 +1817,12 @@ impl Clone for ReportsGetOptions {
 }
 #[derive(Default)]
 pub struct ReportsCreateOptions {
-    pub at: Option<ReadCut>,
     pub request_id: Option<String>,
     pub context: CallOptions,
 }
 impl Clone for ReportsCreateOptions {
     fn clone(&self) -> Self {
         Self {
-            at: self.at.clone(),
             request_id: self.request_id.clone(),
             context: CallOptions {
                 metadata: self.context.metadata.clone(),
@@ -5653,7 +5651,6 @@ impl Reports {
         let value = ReportsCreateRequest {
             subject: Some(subject),
             document_id: document_id.into(),
-            at: options.at,
             request_id: match options.request_id {
                 Some(value) => value,
                 None => request_id()?,

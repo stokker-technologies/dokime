@@ -57,11 +57,12 @@ message ReportsGetResponse {
   .harmos.model.v1.ReadCut resolved_at = 90;
 }
 
-// ReportsCreateRequest for Reports.Create.
+// ReportsCreateRequest for Reports.Create. The execution, or every execution in the cycle, must have ended.
 message ReportsCreateRequest {
   .dokime.host.v1.ReportSubject subject = 1;
   string document_id = 2;
-  optional .harmos.model.v1.ReadCut at = 3;
+  reserved 3;
+  reserved "at";
   string request_id = 4;
 }
 
