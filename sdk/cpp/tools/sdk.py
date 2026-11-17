@@ -20,10 +20,16 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
+from time import perf_counter
+
+# isort: split
 
 # Third Party Imports
 
+# isort: split
+
 # Local Imports
+from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
 
@@ -40,11 +46,54 @@ ROOT = Path(__file__).resolve().parents[3]
 # === Public Functions === #
 
 
+def run(command: list[str], *, action: str, cwd: Path, env: dict[str, str], log: Path) -> None:
+    print(f"{action}: {subprocess.list2cmdline(command)}", flush=True)
+    if log.exists():
+        attempt = len(list(log.parent.glob(f"{log.stem}-*.log"))) + 1
+        shutil.copyfile(log, log.with_name(f"{log.stem}-{attempt}.log"))
+    started = perf_counter()
+    output = log.open("w", encoding="utf-8")
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            env=env,
+            stdin=sys.stdin,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=spawn_flags(),
+        )
+        try:
+            if process.stdout is None:
+                raise RuntimeError(f"{action}: Connect Child Output and Rerun the Task")
+            for line in process.stdout:
+                output.write(line)
+                output.flush()
+                print(line, end="", flush=True)
+        finally:
+            if process.stdout is not None:
+                process.stdout.close()
+            returncode = process.wait()
+    finally:
+        output.close()
+    print(f"{action}: Exit {returncode} After {perf_counter() - started:.2f}s; Log: {log}", flush=True)
+    if returncode:
+        print(
+            f"{action} Failed: Inspect {log}, Fix the Reported Error and Rerun {subprocess.list2cmdline(command)}",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise subprocess.CalledProcessError(returncode, command)
+
+
 def environment() -> dict[str, str]:
     environment = dict(os.environ)
-    cache = subprocess.check_output(
-        ["mise", "cache", "path"], text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    ).strip()
+    # Locate the Pinned Dependency Checkout.
+    print("Prepare C++ Dependencies: Locate the Mise Cache", flush=True)
+    cache = subprocess.check_output(["mise", "cache", "path"], text=True, stderr=sys.stderr, creationflags=spawn_flags()).strip()
     manifest = json.loads((ROOT / "sdk/cpp/vcpkg.json").read_text())
     revision = manifest["builtin-baseline"]
     checkout = Path(cache) / "vcpkg" / revision[:12]
@@ -53,6 +102,7 @@ def environment() -> dict[str, str]:
     # Bootstrap the Immutable Tool Checkout Outside the Repository.
     if not checkout.is_dir():
         checkout.parent.mkdir(parents=True, exist_ok=True)
+        print("Prepare C++ Dependencies: Clone vcpkg", flush=True)
         subprocess.run(
             [
                 "git",
@@ -67,26 +117,26 @@ def environment() -> dict[str, str]:
             check=True,
             stdout=sys.stdout,
             stderr=sys.stderr,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            creationflags=spawn_flags(),
         )
     actual = subprocess.check_output(
-        ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True, stderr=sys.stderr, creationflags=spawn_flags()
     ).strip()
     if actual != revision:
-        raise RuntimeError(f"vcpkg Checkout: Expected {revision}, Got {actual}")
+        raise RuntimeError(f"Prepare C++ Dependencies: Restore vcpkg Checkout {checkout} to {revision}; Found {actual}")
     executable = checkout / ("vcpkg.exe" if os.name == "nt" else "vcpkg")
     if not executable.is_file():
+        print("Prepare C++ Dependencies: Bootstrap vcpkg", flush=True)
         bootstrap = (
             ["cmd", "/c", str(checkout / "bootstrap-vcpkg.bat"), "-disableMetrics"]
             if os.name == "nt"
             else ["sh", str(checkout / "bootstrap-vcpkg.sh"), "-disableMetrics"]
         )
-        subprocess.run(
-            bootstrap, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-        )
+        subprocess.run(bootstrap, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=spawn_flags())
 
     # Ninja Uses the Native MSVC Environment on Windows.
     if os.name == "nt" and not environment.get("VCINSTALLDIR"):
+        print("Prepare C++ Compiler: Load the MSVC Developer Environment", flush=True)
         tool_path = environment["PATH"]
         vswhere = Path(environment["PROGRAMFILES(X86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
         installation = subprocess.check_output(
@@ -101,14 +151,16 @@ def environment() -> dict[str, str]:
                 "installationPath",
             ],
             text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            stderr=sys.stderr,
+            creationflags=spawn_flags(),
         ).strip()
         developer = Path(installation) / "Common7/Tools/VsDevCmd.bat"
         output = subprocess.check_output(
             f'cmd /d /s /c ""{developer}" -no_logo -arch=x64 -host_arch=x64 >nul && set"',
             text=True,
             env=dict(environment, PATH=str(vswhere.parent) + os.pathsep + environment["PATH"]),
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            stderr=sys.stderr,
+            creationflags=spawn_flags(),
         )
         environment.update(
             (key.upper(), value)
@@ -139,7 +191,9 @@ def main() -> None:
     if options.action == "prepare":
         return
     if options.action == "format":
-        formatter = shutil.which("clang-format", path=child["PATH"])
+        formatter = subprocess.check_output(
+            ["mise", "which", "clang-format"], cwd=sdk, text=True, stderr=sys.stderr, creationflags=spawn_flags()
+        ).strip()
         sources = (
             [options.source]
             if options.source
@@ -151,31 +205,29 @@ def main() -> None:
             raise RuntimeError("Format C++ SDK: Select a Handwritten SDK Source")
         # Match the Shared Resource Renderer's Formatting Policy.
         command = [
-            formatter or "clang-format",
+            formatter,
             "-style={BasedOnStyle: LLVM, ColumnLimit: 140, AllowShortFunctionsOnASingleLine: Empty, AllowShortLambdasOnASingleLine: None}",
         ]
         command += ["--dry-run", "--Werror"] if options.check else ["-i"]
         command += [str(path) for path in sources]
     elif options.action in ("check", "build"):
-        result = subprocess.run(
-            ["cmake", "--preset", options.preset],
+        run(
+            ["cmake", "--preset", options.preset, f"-DPython3_EXECUTABLE={sys.executable}"],
+            action="Configure C++ SDK",
             cwd=sdk,
             env=child,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=False,
+            log=directory / "configure.log",
         )
-        (directory / "configure.log").write_text(result.stdout, encoding="utf-8")
-        print(result.stdout)
-        result.check_returncode()
         if options.action != "build":
             return
         command = ["cmake", "--build", "--preset", options.preset, "--parallel", "4"]
         if options.target:
             command += ["--target", options.target]
     elif options.action == "test":
-        pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
+        print("Test C++ SDK: Check That the Build Is Current", flush=True)
+        pending = subprocess.check_output(
+            ["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True, stderr=sys.stderr, creationflags=spawn_flags()
+        )
         if pending.strip() != "ninja: no work to do.":
             raise RuntimeError(f"Test C++ SDK: Build This Preset Before Running Its Stories\n{pending.strip()}")
         command = ["ctest", "--preset", options.preset, "--output-junit", str(directory / "junit.xml")]
@@ -186,13 +238,21 @@ def main() -> None:
         if options.repeat:
             command += ["--repeat", f"until-fail:{options.repeat}"]
     elif options.action == "consumer":
-        pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
+        pending = subprocess.check_output(
+            ["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True, stderr=sys.stderr, creationflags=spawn_flags()
+        )
         if pending.strip() != "ninja: no work to do.":
             raise RuntimeError(f"Build Installed Consumer: Build This Preset Before Installing Its Package\n{pending.strip()}")
         prefix = directory / "installed"
-        subprocess.run(["cmake", "--install", str(directory), "--prefix", str(prefix)], env=child, check=True)
+        run(
+            ["cmake", "--install", str(directory), "--prefix", str(prefix)],
+            action="Install C++ SDK",
+            cwd=sdk,
+            env=child,
+            log=directory / "install.log",
+        )
         consumer = ROOT / "target/cp/consumer"
-        subprocess.run(
+        run(
             [
                 "cmake",
                 "--fresh",
@@ -212,32 +272,31 @@ def main() -> None:
             ],
             cwd=options.source or sdk / "examples/test",
             env=child,
-            check=True,
+            action="Configure Installed C++ Consumer",
+            log=directory / "consumer-configure.log",
         )
         command = ["cmake", "--build", str(consumer), "--parallel", "4"]
     else:
-        pending = subprocess.check_output(["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True)
+        pending = subprocess.check_output(
+            ["cmake", "--build", str(directory), "--", "-n"], cwd=sdk, env=child, text=True, stderr=sys.stderr, creationflags=spawn_flags()
+        )
         if pending.strip() != "ninja: no work to do.":
             raise RuntimeError(f"Package C++ SDK: Build This Preset Before Installing Its Package\n{pending.strip()}")
         prefix = directory / "installed"
-        subprocess.run(["cmake", "--install", str(directory), "--prefix", str(prefix)], env=child, check=True)
+        run(
+            ["cmake", "--install", str(directory), "--prefix", str(prefix)],
+            action="Install C++ SDK",
+            cwd=sdk,
+            env=child,
+            log=directory / "install.log",
+        )
         archive = tarfile.TarFile.gzopen(directory / "dokime-cpp.tar.gz", "w")
         try:
             archive.add(prefix, arcname="dokime-cpp")
         finally:
             archive.close()
         return
-    log = directory / f"{options.action}.log"
-    if log.exists():
-        attempt = len(list(directory.glob(f"{options.action}-*.log"))) + 1
-        shutil.copyfile(log, directory / f"{options.action}-{attempt}.log")
-    output = log.open("w", encoding="utf-8")
-    try:
-        result = subprocess.run(command, cwd=sdk, env=child, stdout=output, stderr=subprocess.STDOUT, check=False)
-    finally:
-        output.close()
-    print(log.read_text(encoding="utf-8", errors="replace"))
-    result.check_returncode()
+    run(command, action=f"{options.action.title()} C++ SDK", cwd=sdk, env=child, log=directory / f"{options.action}.log")
 
 
 # === Private Functions === #
@@ -245,4 +304,10 @@ def main() -> None:
 # === Entry Point === #
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (subprocess.CalledProcessError, OSError, RuntimeError) as error:
+        if isinstance(error, subprocess.CalledProcessError) and error.stdout:
+            print(error.stdout, end="", file=sys.stderr, flush=True)
+        print(f"C++ SDK Failed: {error}; Correct the Reported Step and Rerun This Task", file=sys.stderr, flush=True)
+        raise SystemExit(error.returncode if isinstance(error, subprocess.CalledProcessError) else 1) from error
