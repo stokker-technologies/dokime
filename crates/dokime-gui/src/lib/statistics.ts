@@ -90,10 +90,16 @@ export const SERIES_STATISTICS = [
 
 /** Scale Exact Statistics Without Converting Their Integer Magnitudes. */
 export function scaleStatisticValue(value: StatisticValue, scale: number): StatisticValue {
-  if (scale === 1) return value;
-  if (typeof value === "number") return value * scale;
+  if (scale === 1) {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value * scale;
+  }
   const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(String(scale));
-  if (!match) throw new Error("Scale Statistic: Supply a Finite Decimal Scale");
+  if (!match) {
+    throw new Error("Scale Statistic: Supply a Finite Decimal Scale");
+  }
   const digits = BigInt(`${match[2]}${match[3] ?? ""}`);
   const power = Number(match[4] ?? 0) - (match[3]?.length ?? 0);
   const factor = power >= 0 ? digits * 10n ** BigInt(power) : digits;
@@ -182,7 +188,9 @@ export function summaryInFlight(event: SummaryRequestEvent): boolean {
 /** The hidden trace set after a click on one trace's row. */
 export function toggleTrace(hidden: ReadonlySet<string>, key: string): Set<string> {
   const next = new Set(hidden);
-  if (!next.delete(key)) next.add(key);
+  if (!next.delete(key)) {
+    next.add(key);
+  }
   return next;
 }
 
@@ -195,7 +203,9 @@ export function nearestDrawnPoint(
   y: readonly (number | null | undefined)[],
   at: number,
 ): { x: number; y: number } | null {
-  if (!Number.isFinite(at)) return null;
+  if (!Number.isFinite(at)) {
+    return null;
+  }
   let best: { x: number; y: number } | null = null;
   let distance = Number.POSITIVE_INFINITY;
   for (let index = 0; index < x.length; index += 1) {
@@ -211,16 +221,13 @@ export function nearestDrawnPoint(
 
 /** One statistic as the legend table prints it; the unit is in the header. */
 export function formatSummaryValue(value: StatisticValue | null | undefined): string {
-  if (value instanceof NativeIntegerValue || value instanceof NativeExactValue) return value.decimal;
+  if (value instanceof NativeIntegerValue || value instanceof NativeExactValue) {
+    return value.decimal;
+  }
   if (value === undefined || value === null || !Number.isFinite(value)) {
     return "-";
   }
   return value.toFixed(Math.abs(value) >= 100 ? 0 : 2);
-}
-
-export function formatStatValue(value: StatisticValue | undefined, unit?: string): string {
-  const text = formatSummaryValue(value);
-  return unit && text !== "-" ? `${text} ${unit}` : text;
 }
 
 /**

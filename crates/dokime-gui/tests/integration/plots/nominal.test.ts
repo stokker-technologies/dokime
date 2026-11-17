@@ -41,7 +41,6 @@ import * as appearance from "@/lib/appearance";
 import { ApplicationThemeProvider } from "@/lib/application-theme";
 import { formatUnitLabel } from "@/lib/format";
 import {
-  formatStatValue,
   formatSummaryValue,
   nearestDrawnPoint,
   type SeriesSummary,
@@ -211,13 +210,18 @@ function plotStream() {
     }),
     async *[Symbol.asyncIterator]() {
       while (!ended) {
-        if (!messages.length)
+        if (!messages.length) {
           await new Promise<void>((resolve) => {
             wake = resolve;
           });
-        if (ended) return;
+        }
+        if (ended) {
+          return;
+        }
         const message = messages.shift();
-        if (message) yield message;
+        if (message) {
+          yield message;
+        }
       }
     },
   };
@@ -362,7 +366,9 @@ test("Window Selection", () => {
   const selections: { index: number; value: number | null }[] = [];
   function View({ live, selected }: { live: boolean; selected?: number }) {
     const window = usePlotWindow();
-    if (selected !== undefined && window.index !== selected) window.choose(selected);
+    if (selected !== undefined && window.index !== selected) {
+      window.choose(selected);
+    }
     selections.push({ index: window.index, value: window.option.value });
     return createElement(PlotWindowControl, { elapsedUnit: null, live, window });
   }
@@ -484,7 +490,9 @@ test("Timed Refresh", async () => {
   assert.equal(refreshFixture.read.mock.calls.length, 0);
   assert.equal(view.streams[0].cancel.mock.calls.length, 1);
   await act(async () => {
-    for (const frame of initial) view.streams[1].push({ ...frame, kind: "snapshot" });
+    for (const frame of initial) {
+      view.streams[1].push({ ...frame, kind: "snapshot" });
+    }
   });
   await view.advance();
   assert.equal(view.button().disabled, false);
@@ -619,7 +627,9 @@ test("Refresh Cancellation", async () => {
   await view.choose(2);
   assert.equal(signal.aborted, true);
   await act(async () => {
-    for (const complete of pending) complete();
+    for (const complete of pending) {
+      complete();
+    }
   });
   assert.equal(view.window().refresh.updatedAt, null);
   assert.equal(view.button().disabled, true);
@@ -682,7 +692,9 @@ test("Window Resampling", () => {
   // A Window Within the Budget Draws Every Sample, a Short Run Is Never Reduced
   const second = windowIndices(x, [sine], { min: 10, max: 11 }, columns);
   assert.ok(second);
-  for (let index = 10 * rate; index <= 11 * rate; index += 1) assert.ok(second.includes(index));
+  for (let index = 10 * rate; index <= 11 * rate; index += 1) {
+    assert.ok(second.includes(index));
+  }
   assert.equal(windowIndices(x.slice(0, 3_000), [sine.slice(0, 3_000)], null, columns), null);
 
   // M4 Keeps First, Lowest, Highest and Last per Bucket and Skips Gaps
@@ -1009,7 +1021,9 @@ test("All Marker Kinds Draw and Remain Hoverable", () => {
       beginPath() {},
       moveTo() {},
       lineTo(x: number, y: number) {
-        if (y === 100) stems.push(x);
+        if (y === 100) {
+          stems.push(x);
+        }
       },
       closePath() {},
       stroke() {},
@@ -1247,7 +1261,9 @@ test("Sparse Aligned Point Paths", () => {
     const marks = seriesPointMarks(style, true, "currentColor", "transparent");
     const filter = marks.filter;
     assert.equal(typeof filter, "function");
-    if (typeof filter !== "function") continue;
+    if (typeof filter !== "function") {
+      continue;
+    }
     const plot = {
       data: [
         [0, 1, 2, 3, 4, 5, 6],
@@ -1313,7 +1329,7 @@ test("Sparse Faceted Point Paths", () => {
 test("Window Reduction Retains Gaps", () => {
   const x = Array.from({ length: 100 }, (_, index) => index);
   const y = x.map((index) => (index === 49 ? 1_000 : [0, 99].includes(index) ? index : null));
-  for (const range of [null, { min: 40, max: 60 }])
+  for (const range of [null, { min: 40, max: 60 }]) {
     for (const fitPixels of [false, true]) {
       const indices = windowIndices(x, [y], range, 1, fitPixels);
       assert.ok(indices?.includes(49));
@@ -1323,6 +1339,7 @@ test("Window Reduction Retains Gaps", () => {
       assert.equal(reduced[middle - 1], null);
       assert.equal(reduced[middle + 1], null);
     }
+  }
 });
 
 test("Cursor Point Marks", () => {
@@ -1464,8 +1481,6 @@ test("Series Legend", () => {
   assert.deepEqual(Object.values(unsummarized.cells), ["-", "-", "-", "-", "-", "-", "-"]);
   assert.equal(formatSummaryValue(null), "-");
   assert.equal(formatSummaryValue(Number.NaN), "-");
-  assert.equal(formatStatValue(undefined, "V"), "-");
-  assert.equal(formatStatValue(2.5, "V"), "2.50 V");
 
   // Clicking a Row Toggles Its Trace and a Hidden Row Keeps Its Numbers
   let hidden = new Set<string>();
@@ -2041,7 +2056,9 @@ test("Display Scale Converts Returned Points Statistics and References Without M
     ],
   } as DocumentViewPlot;
   const payload = hostFrame([1, 2, 3], [[-0.002, null, 0.004]], { keys: ["delta_m"] });
-  if (payload.cartesian) payload.cartesian.y_domain = { min: -0.002, max: 0.004 };
+  if (payload.cartesian) {
+    payload.cartesian.y_domain = { min: -0.002, max: 0.004 };
+  }
   payload.summaries = [
     {
       series_id: "delta_m",
@@ -2164,7 +2181,9 @@ test("Binned Contours and Declared Grids Keep Zero Values Separate From Gaps", (
   assert.equal(host.querySelector('clipPath rect[data-valid-bin="1"]'), null);
   const mask = host.querySelector('clipPath rect[data-valid-bin="3"]') as SVGRectElement;
   const cell = host.querySelector('rect[data-bin="3"]') as SVGRectElement;
-  for (const attribute of ["x", "y", "width", "height"]) assert.equal(mask.getAttribute(attribute), cell.getAttribute(attribute));
+  for (const attribute of ["x", "y", "width", "height"]) {
+    assert.equal(mask.getAttribute(attribute), cell.getAttribute(attribute));
+  }
   const points = [...host.querySelectorAll("[data-contour-mask] path")].flatMap((path) =>
     [...(path.getAttribute("d") ?? "").matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map((match) => [Number(match[1]), Number(match[2])]),
   );
@@ -2533,7 +2552,9 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
   refreshFixture.watch.mockImplementation(async (identity, requests) => {
     const stream = plotStream();
     streams.push({ generation: identity.generation, ids: requests.map((request: { plotId: string }) => request.plotId), stream });
-    if (identity.generation === "1") await loading;
+    if (identity.generation === "1") {
+      await loading;
+    }
     return stream;
   });
   let current = true;
@@ -2600,7 +2621,9 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
     assert.equal(states.get("0")?.["live-96"].revision, 129);
   } finally {
     await act(async () => {
-      for (const root of roots) root.unmount();
+      for (const root of roots) {
+        root.unmount();
+      }
     });
     useSummaryWindowStore.setState({ visible: {}, windows: {}, widths: {}, heights: {} });
     raf.mockRestore();

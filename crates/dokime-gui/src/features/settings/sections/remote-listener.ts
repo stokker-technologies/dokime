@@ -57,16 +57,12 @@ export async function commitListener({ status, change, send, fail }: Commit): Pr
   }
 }
 
-export function certificateIssue(status: ListenerStatus): string | null {
-  return appliedSettings(status).tlsEnabled && status.certificatePem === ""
-    ? "TLS is on but this host has no certificate, so the listener cannot start. Generate one for this host's names."
-    : null;
-}
-
 /* === Private Functions === */
 
 function appliedSettings(status: ListenerStatus): ListenerSettings {
-  if (!status.settings) throw new Error("Backend omitted listener settings.");
+  if (!status.settings) {
+    throw new Error("The host omitted listener settings. Reconnect to the host and reload Settings.");
+  }
   return status.settings;
 }
 

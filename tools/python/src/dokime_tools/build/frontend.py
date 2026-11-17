@@ -46,45 +46,13 @@ WEB_ROOT = configuration.ROOT / "crates/dokime-gui"
 # === Public Functions === #
 
 
-def build_live(args: list[str]) -> None:
-    organization.generate()
-    vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
-    command = ["node", str(vite), "build"]
-    if args:
-        subprocess.run(
-            command + args,
-            cwd=WEB_ROOT,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-        return
-    directory_directory = tempfile.TemporaryDirectory(prefix="dokime-gui-live-")
-    directory = directory_directory.name
-    try:
-        subprocess.run(
-            command + ["--outDir", directory],
-            cwd=WEB_ROOT,
-            check=True,
-            creationflags=spawn_flags(),
-            stdin=sys.stdin,
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
-        sync_output(Path(directory), WEB_ROOT / "dist")
-    finally:
-        directory_directory.cleanup()
-
-
-def build(profile: str) -> Path:
+def build(profile: str, args: list[str] | None = None) -> Path:
     """Build the Live Frontend Once and Mirror It Where the Desktop Shell Serves It From."""
     organization.generate()
     output = paths.output(configuration.ROOT, "build", profile) / "web"
     clear_output(output)
     subprocess.run(
-        ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", "--outDir", str(output)],
+        ["node", str(WEB_ROOT / "node_modules/vite/bin/vite.js"), "build", *(args or []), "--outDir", str(output)],
         cwd=WEB_ROOT,
         check=True,
         creationflags=spawn_flags(),
@@ -119,11 +87,12 @@ def build_report(args: list[str]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["live", "report"])
+    parser.add_argument("--profile", choices=["dev", "release"], default="dev")
     args, extra = parser.parse_known_args()
     if args.command == "report":
         build_report(extra)
     else:
-        build_live(extra)
+        build(args.profile, extra)
 
 
 # === Private Functions === #

@@ -70,9 +70,6 @@ const TERMINAL_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Se
   "disconnected",
 ]);
 
-/** The cycle states a whole run ends in, and so the ones Run Again follows. */
-const TERMINAL_CYCLE_STATUSES: ReadonlySet<CycleLifecycle> = new Set(["completed", "failed", "stopped", "interrupted"]);
-
 /* === Types === */
 
 export type CycleLifecycle = TestCycle["status"];
@@ -176,9 +173,15 @@ export function isCycleSelection(selection: CycleSelection): boolean {
  * does a selection that was following when the runtime moved on.
  */
 export function followSelection({ selection, active, previousActive, selectedStatus, previousSelected }: FollowState): string | null {
-  if (!active || selection.executionId === active) return null;
-  if (isCycleSelection(selection) || selection.caseId) return null;
-  if (!selection.executionId) return active;
+  if (!active || selection.executionId === active) {
+    return null;
+  }
+  if (isCycleSelection(selection) || selection.caseId) {
+    return null;
+  }
+  if (!selection.executionId) {
+    return active;
+  }
   const selectedEnded =
     previousSelected !== null &&
     previousSelected.executionId === selection.executionId &&
@@ -186,13 +189,17 @@ export function followSelection({ selection, active, previousActive, selectedSta
     selectedStatus !== undefined &&
     !isTerminalExecutionStatus(previousSelected.status) &&
     isTerminalExecutionStatus(selectedStatus);
-  if (selection.executionId === previousActive || selectedEnded) return active;
+  if (selection.executionId === previousActive || selectedEnded) {
+    return active;
+  }
   return null;
 }
 
 /** Whether the selection is following `active`: landing, or on it already. */
 export function isFollowing(selection: CycleSelection, active: string | null): boolean {
-  if (!active || isCycleSelection(selection) || selection.caseId) return false;
+  if (!active || isCycleSelection(selection) || selection.caseId) {
+    return false;
+  }
   return !selection.executionId || selection.executionId === active;
 }
 
@@ -202,10 +209,6 @@ export function isActiveExecutionStatus(status: TestExecution["status"]): boolea
 
 export function isTerminalExecutionStatus(status: TestExecution["status"]): boolean {
   return TERMINAL_EXECUTION_STATUSES.has(status);
-}
-
-export function isCycleTerminal(status: CycleLifecycle): boolean {
-  return TERMINAL_CYCLE_STATUSES.has(status);
 }
 
 /**
@@ -224,7 +227,9 @@ export function rowOffersRunAgain(row: CycleExecutionRow): boolean {
  * from the executions.
  */
 export function buildCycleCases(plan: TestCyclePlan | null): CycleCase[] {
-  if (!plan) return [];
+  if (!plan) {
+    return [];
+  }
   const projection = new Map(plan.queue.map((item) => [item.case_id, item]));
   return plan.cases.map((testCase) => {
     const item = projection.get(testCase.case_id);
@@ -261,9 +266,13 @@ export function buildCycleExecutionRows(cases: readonly CycleCase[], executions:
   const previous = new Map<string, CycleExecutionRow>();
   for (const { execution } of ordered) {
     const owner = byId.get(execution.case_id);
-    if (!owner) continue;
+    if (!owner) {
+      continue;
+    }
     const earlier = previous.get(owner.caseId);
-    if (earlier) earlier.newest = false;
+    if (earlier) {
+      earlier.newest = false;
+    }
     const row: CycleExecutionRow = {
       case: owner,
       execution,
@@ -276,7 +285,9 @@ export function buildCycleExecutionRows(cases: readonly CycleCase[], executions:
     previous.set(owner.caseId, row);
   }
   for (const owner of cases) {
-    if (previous.has(owner.caseId)) continue;
+    if (previous.has(owner.caseId)) {
+      continue;
+    }
     rows.push({
       case: owner,
       execution: null,
@@ -343,7 +354,9 @@ export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): 
  * has ended.
  */
 export function archiveRefusal(allowed: boolean, subject: "cycle" | "execution"): string | undefined {
-  if (allowed) return undefined;
+  if (allowed) {
+    return undefined;
+  }
   return subject === "cycle"
     ? "Archiving becomes available once the cycle is sealed or its seal has failed."
     : "Archiving becomes available once the run has ended.";
@@ -389,11 +402,21 @@ export type CycleState = {
  * or finished run leaves its Active cycle Idle.
  */
 export function cycleState(phase: TestCycle["phase"], lifecycle: CycleLifecycle, waiting: boolean): CycleState {
-  if (phase === "sealing") return { label: "Sealing", variant: "warning" };
-  if (phase === "seal_failed") return { label: "Seal Failed", variant: "destructive" };
-  if (phase === "sealed") return { label: "Sealed", variant: "secondary" };
-  if (waiting) return { label: "Active · Waiting", variant: "warning" };
-  if (isCycleInFlight(lifecycle)) return { label: "Active · Running", variant: "default" };
+  if (phase === "sealing") {
+    return { label: "Sealing", variant: "warning" };
+  }
+  if (phase === "seal_failed") {
+    return { label: "Seal Failed", variant: "destructive" };
+  }
+  if (phase === "sealed") {
+    return { label: "Sealed", variant: "secondary" };
+  }
+  if (waiting) {
+    return { label: "Active · Waiting", variant: "warning" };
+  }
+  if (isCycleInFlight(lifecycle)) {
+    return { label: "Active · Running", variant: "default" };
+  }
   return { label: "Active · Idle", variant: "outline" };
 }
 
@@ -522,9 +545,4 @@ export function caseStatusVariant(status: CaseState): "default" | "secondary" | 
     default:
       return "outline";
   }
-}
-
-/** A running step's label when no step record names it yet: its id, humanized. */
-export function progressStepLabel(stepId: string): string {
-  return stepId.trim().replaceAll(/[._-]+/g, " ");
 }

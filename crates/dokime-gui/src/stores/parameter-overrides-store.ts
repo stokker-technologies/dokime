@@ -71,14 +71,10 @@ export const useParameterOverridesStatus = create<{ ready: boolean; error: Notif
 
 /** Refuse Unsupported Stored Values Without Replacing The Operator's Inputs. */
 export function readPersistedParameterOverrides(value: unknown): ParameterOverrides {
-  if (value === undefined) return {};
+  if (value === undefined) {
+    return {};
+  }
   return persistedParameterOverridesSchema.parse(value).overrides;
-}
-
-/** The override for one parameter, or `null` when the default still applies. */
-export function parameterOverride(overrides: ParameterOverrides, templateId: string, parameterId: string): string | null {
-  const raw = overrides[templateId]?.[parameterId];
-  return raw?.raw ?? null;
 }
 
 export const useParameterOverridesStore = create<ParameterOverridesStore>()(
@@ -172,7 +168,9 @@ function writeDesktop(values: ParameterOverrides): Promise<void> {
       }
     })().finally(() => {
       writing = null;
-      if (pending) return writeDesktop(pending);
+      if (pending) {
+        return writeDesktop(pending);
+      }
     });
   }
   return writing;
@@ -186,10 +184,14 @@ function parameterStorage(): StateStorage {
     return {
       getItem: (name) => window.localStorage.getItem(name),
       setItem: (name, value) => {
-        if (useParameterOverridesStatus.getState().ready) window.localStorage.setItem(name, value);
+        if (useParameterOverridesStatus.getState().ready) {
+          window.localStorage.setItem(name, value);
+        }
       },
       removeItem: (name) => {
-        if (useParameterOverridesStatus.getState().ready) window.localStorage.removeItem(name);
+        if (useParameterOverridesStatus.getState().ready) {
+          window.localStorage.removeItem(name);
+        }
       },
     };
   }
@@ -206,11 +208,15 @@ function parameterStorage(): StateStorage {
       return JSON.stringify({ state: { overrides: values }, version: 1 });
     },
     setItem: (_name, payload) => {
-      if (!useParameterOverridesStatus.getState().ready) return;
+      if (!useParameterOverridesStatus.getState().ready) {
+        return;
+      }
       return writeDesktop(readPersistedParameterOverrides(JSON.parse(payload).state));
     },
     removeItem: () => {
-      if (!useParameterOverridesStatus.getState().ready) return;
+      if (!useParameterOverridesStatus.getState().ready) {
+        return;
+      }
       return writeDesktop({});
     },
   };

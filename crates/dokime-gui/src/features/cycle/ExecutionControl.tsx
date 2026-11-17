@@ -27,21 +27,20 @@
 
 // Third Party Imports
 
-import { failureOf } from "@/lib/notification-details";
 import { Ban, Pause, Play, RotateCcw, Square } from "lucide-react";
 import type { ReactNode } from "react";
-import { toast } from "@/lib/notifications";
 
 // Local Imports
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
-import { stepRecordLabel } from "@/components/document/StepRecordsCard";
 import { Button } from "@/components/ui/button";
+import { failureOf } from "@/lib/notification-details";
+import { toast } from "@/lib/notifications";
 import type { PromptRequest, TestExecution } from "@/lib/types";
 import { ControlCard } from "./ControlCard";
 import { type ExecutionAction, type ExecutionControlState, executionControlState } from "./control-model";
 import { useCycleCommands, useRerunCase } from "./cycle-queries";
-import { type CycleExecutionRow, caseActionTooltip, progressStepLabel } from "./cycle-workspace-model";
+import { type CycleExecutionRow, caseActionTooltip } from "./cycle-workspace-model";
 
 /* === Re-Exports === */
 
@@ -143,7 +142,9 @@ export function useExecutionActions({
   const commands = useCycleCommands(cycleId);
   const rerunCase = useRerunCase(cycleId);
   const live = useExecutionProgress(execution?.test_execution_id ?? null);
-  if (!execution) return null;
+  if (!execution) {
+    return null;
+  }
   const progress = live && live.testExecutionId === execution.test_execution_id ? live : null;
   const state = executionControlState({
     pluginAvailable,
@@ -178,7 +179,9 @@ export function useExecutionActions({
           pending: rerunCase.pending,
           run: async () => {
             const created = await rerunCase.rerun(execution.case_id);
-            if (created) onSelectExecution(created);
+            if (created) {
+              onSelectExecution(created);
+            }
           },
         };
     }
@@ -199,12 +202,5 @@ export function useExecutionActions({
 }
 
 /* === Public Functions === */
-
-/** The running step's label, as its plugin names it; the humanized id only before a record names it. */
-export function stepLabel(execution: Pick<TestExecution, "steps">, stepId: string): string {
-  const record = execution.steps.find((item) => item.record_type === "step" && item.step_id === stepId);
-  const label = record ? stepRecordLabel(record, false) : stepId;
-  return label === stepId ? progressStepLabel(stepId) : label;
-}
 
 /* === Private Functions === */

@@ -1,4 +1,3 @@
-import { failureOf } from "@/lib/notification-details";
 /* ***
  *
  * Dokime
@@ -19,15 +18,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, test, vi } from "vitest";
 
 // Local Imports
-import { SettingsRow } from "@/features/settings/SettingsRow";
+import { failureOf } from "@/lib/notification-details";
 import { RemoteSection } from "@/features/settings/sections/RemoteSection";
-import {
-  certificateIssue,
-  commitListener,
-  type ListenerSettings,
-  type ListenerStatus,
-  listenerRunning,
-} from "@/features/settings/sections/remote-listener";
+import { commitListener, type ListenerSettings, type ListenerStatus, listenerRunning } from "@/features/settings/sections/remote-listener";
 import { commands } from "@/lib/desktop/commands";
 
 /* === Re-Exports === */
@@ -134,7 +127,9 @@ test("Export Endpoint Preview", () => {
     const position = list.indexOf(endpoint.address);
     assert.ok(position > previous);
     previous = position;
-    if (endpoint.adapterName) assert.ok(list.includes(endpoint.adapterName));
+    if (endpoint.adapterName) {
+      assert.ok(list.includes(endpoint.adapterName));
+    }
   }
   assert.equal(fixture.invoke.mock.calls.length, 0);
 });
@@ -180,17 +175,6 @@ test("a refused enable keeps the stopped state and surfaces the host error", asy
 
 test("saved intent without a bound address is not running", () => {
   assert.equal(listenerRunning({ ...STOPPED, settings: { ...SETTINGS, enabled: true }, error: "address in use" }), false);
-});
-
-test("TLS Certificate Guard", () => {
-  const missing: ListenerStatus = { ...STOPPED, certificatePem: "" };
-  const issue = certificateIssue(missing);
-  assert.ok(issue);
-  assert.equal(certificateIssue(STOPPED), null);
-  assert.equal(certificateIssue({ ...missing, settings: { ...SETTINGS, tlsEnabled: false } }), null);
-  const html = renderToStaticMarkup(createElement(SettingsRow, { label: "Public Certificate", error: issue }, "Generate Certificate"));
-  assert.equal(notice.mock.calls.length, 1);
-  assert.doesNotMatch(html, /role="alert"/);
 });
 
 test("Export Has No WebView Credential or Endpoint Arguments", async () => {

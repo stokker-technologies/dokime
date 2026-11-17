@@ -18,7 +18,6 @@ import { test, vi } from "vitest";
 // Local Imports
 import {
   PARAMETER_OVERRIDES_STORAGE_KEY,
-  parameterOverride,
   readPersistedParameterOverrides,
   useParameterOverridesStatus,
   useParameterOverridesStore,
@@ -50,7 +49,6 @@ vi.mock("@/lib/desktop/commands", () => ({
 test("Typed Remembered Parameters", () => {
   const values = { template: { voltage: { raw: "115", valueType: "int", unit: "V" } } };
   assert.deepEqual(readPersistedParameterOverrides({ overrides: values }), values);
-  assert.equal(parameterOverride(values, "template", "voltage"), "115");
   assert.deepEqual(readPersistedParameterOverrides(undefined), {});
   const unsupported = { overrides: { template: { voltage: "115" } } };
   assert.throws(() => readPersistedParameterOverrides(unsupported));

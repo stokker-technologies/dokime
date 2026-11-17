@@ -13,18 +13,10 @@
 
 /* === Local Imports === */
 
-import type { Wire } from "@/lib/rpc/canonical";
+import { required, type Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
-import { ExecutionMode, ExecutionParameterSet, ReportState } from "@host/model";
-import { ExecutionState } from "@host/model";
+import { ExecutionMode, ExecutionParameterSet, ExecutionState, ReportState } from "@host/model";
 import { metadataJson, nativeValueToJson } from "@/lib/host/values";
-
-type CycleSummary = Wire<NonNullable<Awaited<ReturnType<typeof rpc.cyclesGet>>["cycle"]>>;
-import { required } from "@/lib/rpc/canonical";
-type ExecutionDetail = Wire<NonNullable<Awaited<ReturnType<typeof rpc.executionsGet>>["execution"]>>;
-type ExecutionStep = Wire<Awaited<ReturnType<typeof rpc.executionsSteps>>["steps"][number]>;
-type StepCriterion = ExecutionStep["criteria"][number];
-type Value = NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionsParameters>>["parameters"][number]>["value"]>;
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { RerunNotices } from "@/stores/rerun-notice-store";
@@ -42,12 +34,31 @@ import {
 } from "./native-planning";
 import { mapBounded, nowIso, safeNumber, timestampIso } from "./native-values";
 
+/* === Types === */
+
+type CycleSummary = Wire<NonNullable<Awaited<ReturnType<typeof rpc.cyclesGet>>["cycle"]>>;
+type ExecutionDetail = Wire<NonNullable<Awaited<ReturnType<typeof rpc.executionsGet>>["execution"]>>;
+type ExecutionStep = Wire<Awaited<ReturnType<typeof rpc.executionsSteps>>["steps"][number]>;
+type StepCriterion = ExecutionStep["criteria"][number];
+type Value = NonNullable<Wire<Awaited<ReturnType<typeof rpc.executionsParameters>>["parameters"][number]>["value"]>;
+
+type NativeExecution = {
+  detail: ExecutionDetail;
+  inputs: { name: string; value?: Value }[];
+  outputs: { name: string; value?: Value }[];
+  steps: { step: ExecutionStep; criteria: StepCriterion[] }[];
+};
+
+/* === Public Functions === */
+
 export async function fetchNativeTestCycleDetail(
   session: SessionIdentity,
   cycleId: string,
 ): Promise<{ executions: TestExecution[]; plan: TestCyclePlan | null }> {
   const plan = await fetchNativeTestCyclePlan(session, cycleId);
-  if (!plan) return { executions: [], plan: null };
+  if (!plan) {
+    return { executions: [], plan: null };
+  }
   const [cycle, summaries] = await Promise.all([
     rpc.cyclesGet(session, { name: plan.test_cycle.test_cycle_id }).then((reply) => required(reply.cycle, "Get Cycle")),
     listNativeExecutions(session, plan.test_cycle.test_cycle_id),
@@ -72,33 +83,6 @@ export async function fetchNativeTestExecutionDetail(session: SessionIdentity, e
     template_id: item.templateId,
   }));
   return mapNativeExecution(native, mappedCases, cycle);
-}
-
-export async function fetchNativeTestCycleSteps(
-  session: SessionIdentity,
-  options: {
-    cycleId: string;
-    executionId?: string | null;
-    queueItemId?: string | null;
-    caseId?: string | null;
-  },
-): Promise<StepExecutionRecord[]> {
-  if (options.executionId) {
-    const execution = await loadNativeExecution(session, options.executionId);
-    return execution.steps.flatMap(({ step, criteria }) => [
-      mapStepRecord(step, criteria, execution.detail, timestampIso(execution.detail.startedAt) ?? nowIso()),
-      ...criteria.map((criterion) =>
-        mapCriterionRecord(criterion, execution.detail, step, timestampIso(execution.detail.startedAt) ?? nowIso()),
-      ),
-    ]);
-  }
-  const executions = await loadNativeExecutionsForPlan(session, options.cycleId);
-  return executions
-    .filter(
-      (execution) =>
-        (!options.queueItemId || execution.case_id === options.queueItemId) && (!options.caseId || execution.case_id === options.caseId),
-    )
-    .flatMap((execution) => execution.steps);
 }
 
 /** Admit One Existing Attempt By Its Durable Execution Identity */
@@ -181,7 +165,9 @@ export async function deleteNativeTestCycleCases(
 ): Promise<StartTestCycleResponse> {
   await mapBounded(caseIds, (caseId) => rpc.casesDelete(session, { parent: cycleId, name: caseId, requestId: crypto.randomUUID() }));
   const plan = await fetchNativeTestCyclePlan(session, cycleId);
-  if (!plan) throw new Error("The cycle disappeared after deleting cases.");
+  if (!plan) {
+    throw new Error("The cycle disappeared after deleting cases. Reload Cycles and select an available cycle.");
+  }
   return { plan };
 }
 
@@ -192,7 +178,9 @@ export async function updateNativeTestCyclePolicy(
 ): Promise<StartTestCycleResponse> {
   await replaceCycles(session, cycleId, { continueAutomatically: continueAutomatically });
   const plan = await fetchNativeTestCyclePlan(session, cycleId);
-  if (!plan) throw new Error("The cycle disappeared after updating its policy.");
+  if (!plan) {
+    throw new Error("The cycle disappeared after updating its policy. Reload Cycles and select an available cycle.");
+  }
   return { plan };
 }
 
@@ -206,18 +194,11 @@ export async function appendNativeCaseAttempt(session: SessionIdentity, cycleId:
 async function loadNativeExecution(session: SessionIdentity, executionId: string): Promise<NativeExecution> {
   const reply = await rpc.executionsGet(session, { name: executionId });
   const detail = required(reply.execution, "Get Execution");
-  const inputs = await listExecutionParameters(session, executionId, ExecutionParameterSet.INPUTS);
-  const outputs = await listExecutionParameters(session, executionId, ExecutionParameterSet.OUTPUTS);
-  const steps = await listExecutionSteps(session, executionId);
+  const inputs = (await rpc.executionsParameters(session, { name: executionId, set: ExecutionParameterSet.INPUTS })).parameters;
+  const outputs = (await rpc.executionsParameters(session, { name: executionId, set: ExecutionParameterSet.OUTPUTS })).parameters;
+  const steps = (await rpc.executionsSteps(session, { name: executionId })).steps;
   return { detail, inputs, outputs, steps: steps.map((step) => ({ step, criteria: step.criteria })) };
 }
-
-type NativeExecution = {
-  detail: ExecutionDetail;
-  inputs: { name: string; value?: Value }[];
-  outputs: { name: string; value?: Value }[];
-  steps: { step: ExecutionStep; criteria: StepCriterion[] }[];
-};
 
 function mapNativeExecution(
   native: NativeExecution,
@@ -226,7 +207,9 @@ function mapNativeExecution(
 ): TestExecution {
   const detail = native.detail;
   const item = detail.summary;
-  if (!item) throw new Error(`Execution ${detail.cycleId} has no summary.`);
+  if (!item) {
+    throw new Error("The host omitted the execution summary. Reconnect to the host and reload the execution.");
+  }
   const testCase = cases.find((candidate) => candidate.case_id === item.caseId);
   const templateId = detail.admittedTemplate?.identifier ?? testCase?.template_id ?? "";
   const fallback = timestampIso(summary.updatedAt) ?? nowIso();
@@ -350,27 +333,6 @@ function mapCriterionRecord(criterion: StepCriterion, detail: ExecutionDetail, s
     duration_s: 0,
     metadata: metadataJson(criterion.metadata),
   };
-}
-
-async function listExecutionParameters(session: SessionIdentity, executionId: string, set: ExecutionParameterSet) {
-  return (await rpc.executionsParameters(session, { name: executionId, set })).parameters;
-}
-
-async function listExecutionSteps(session: SessionIdentity, executionId: string) {
-  return (await rpc.executionsSteps(session, { name: executionId })).steps;
-}
-
-async function loadNativeExecutionsForPlan(session: SessionIdentity, cycleId: string): Promise<TestExecution[]> {
-  const summaries = await listNativeExecutions(session, cycleId);
-  const cases = await listNativeCases(session, cycleId);
-  const mappedCases = cases.map((item) => ({
-    suite_id: item.suiteId,
-    case_id: item.caseId,
-    template_id: item.templateId,
-  }));
-  const cycle = await rpc.cyclesGet(session, { name: cycleId }).then((reply) => required(reply.cycle, "Get Cycle"));
-  const executions = await mapBounded(summaries, (item) => loadNativeExecution(session, item.executionId));
-  return executions.map((execution) => mapNativeExecution(execution, mappedCases, cycle));
 }
 
 async function replaceExecutions(

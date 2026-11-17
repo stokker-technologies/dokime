@@ -2,6 +2,10 @@
 - [x] 1.2 Remove legacy configuration-file persistence, remembered data-root settings, domain mirrors and retired server/client owners; preserve incompatible roots rather than resetting them.
 - [x] 4.1 Restore editable desktop preferences, remembered Local/remote selection, explicit backend failures and current runtime connection ownership.
 - [x] 9.0.5 Provide host-free Rust SDK dependencies and remove the retired facade/client/server crates; `sdk/rust/Cargo.toml` depends on protocol and SDK support only within the product graph.
+- [x] 12.1 Remove the unused aggregate codec, test-only cycle-step/statistic/step-label helpers and isolated tests; prune uncalled cycle, prompt, parameter and certificate helpers, move report fixtures into tests, and leave discovered overlaps for owner decisions.
+- [x] 12.2 Route package-script and profile live frontend builds through one implementation, preserving profile web output and the separate report build; remove obsolete ordered-merge deletion guidance.
+- [x] 12.3 Run frontend and Python format checks, affected host-independent GUI unit tests and deterministic live/report build orchestration proof.
+- [ ] 12.4 Complete scoped frontend typecheck, build and affected cycle/plot unit/integration proof against prepared generated modules without Rust builds.
 - [ ] 8.5 Review retained settings, bootstrap-path, exact-wire-bound and decoder-retention acceptance against the final combined consumers; close source only after operation-boundary, plugin-boundary and plugin-lifecycle handoff.
 - [ ] 8.6 After source closure and authorization, verify the remote candidate and actual native Windows/Linux hosted proof; this worktree grants no push authority.
 - [ ] 8.7 Retire this change only after its retained acceptance, measurement and final proof obligations close.

@@ -27,20 +27,20 @@ import type { ArtifactRecord, HubRecord, StepExecutionRecord, TestCyclePlan, Tes
 
 /* === Constants === */
 
-export const FIXTURE_CYCLE_ID = "cycle-1";
+const FIXTURE_CYCLE_ID = "cycle-1";
 
-export const FIXTURE_CASE_ID = "case-1";
+const FIXTURE_CASE_ID = "case-1";
 
-export const FIXTURE_CASE_LABEL = "Protection at 230 V";
+const FIXTURE_CASE_LABEL = "Protection at 230 V";
 
-export const FIXTURE_CYCLE_TITLE = "Mains Protection Sweep";
+const FIXTURE_CYCLE_TITLE = "Mains Protection Sweep";
 
-export const FIXTURE_EXECUTION_ID = "execution-1";
+const FIXTURE_EXECUTION_ID = "execution-1";
 
-export const FIXTURE_RECORD_MESSAGE = "Case provider work settled";
+const FIXTURE_RECORD_MESSAGE = "Case provider work settled";
 
 /** A previewable text artifact, bytes and all, exactly as a report carries it. */
-export const FIXTURE_ARTIFACT_NAME = "startup-summary.json";
+const FIXTURE_ARTIFACT_NAME = "startup-summary.json";
 
 /* === Public Functions === */
 
