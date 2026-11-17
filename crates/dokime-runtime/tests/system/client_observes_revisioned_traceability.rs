@@ -35,7 +35,7 @@ use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
 use dokime_protocol::host::evidence::TraceabilityGetRequest;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::ReadCut;
 use std::collections::HashMap;
@@ -81,7 +81,7 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
                 .create(
                     "content",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -131,7 +131,12 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
                 .watch_with(name.clone(), ExecutionsProgressWatchOptions { at: None, ..Default::default() })
                 .await?;
             loop {
-                if progress.next().await?.ok_or("Watch Traceability: Missing Prompt")?.phase == "prompt" {
+                let Some(frame) = progress.next().await? else {
+                    let execution = client.executions.get(name.clone()).await?.execution;
+                    let outcome = execution.and_then(|execution| execution.outcome);
+                    return Err(format!("Watch Traceability: Execution Ended Before Its Prompt: {outcome:?}").into());
+                };
+                if frame.phase == "prompt" {
                     break;
                 }
             }
