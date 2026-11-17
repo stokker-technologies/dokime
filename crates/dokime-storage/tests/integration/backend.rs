@@ -29,7 +29,9 @@ use harmos_domain::journal::Position;
 use harmos_domain::schema::{Described, graph::Schema};
 use harmos_domain::{Identified, Message};
 use harmos_query::columnar::{ArrowScan, Cancellation, ColumnKind, ColumnSource};
+use harmos_query::index::{IndexDefinition, IndexRead};
 use harmos_storage::conformance::{self, CompoundFixture, ScopeFixture};
+use harmos_storage::query::projection::{ProjectionDefinition, ProjectionRead, ProjectionTransform, advance_projection};
 use harmos_storage::query::{ObjectSelection, ObjectVersions, StreamSelection};
 use harmos_storage::state::{RecoveryEntry, RecoverySnapshot, SnapshotPayload};
 use harmos_storage::{
@@ -1160,8 +1162,6 @@ async fn conditional_objects_replay_the_original_applied_and_conflict_outcomes()
 
 #[tokio::test]
 async fn native_indexes_and_shared_projections_retain_published_results_after_restart() -> StoryResult {
-    use harmos_query::index::{IndexDefinition, IndexRead};
-    use harmos_storage::query::projection::{ProjectionDefinition, ProjectionRead, ProjectionTransform, advance_projection};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;

@@ -715,6 +715,8 @@ mixed-owner batches preserves source order and permits whole-file reclamation. E
 is synced before its catalog transaction commits; startup collects uncataloged
 owned files after a failed transaction. Native row reads reconstruct Postcard
 values from those Arrow columns, preserving optional messages and repeated values.
+Native stream indexes join the contiguous sample identity ranges and retain their
+scope and deletion selection after restart.
 Administration, retained-content and archive readers consume the operation-owned
 column kinds and row/IPC result DTOs, decoding their Arrow batches in the product.
 They retain the current operation-calling API; typed facade adoption is separate.
@@ -913,6 +915,13 @@ before this family establishes the complete storage-through-operations boundary.
 `Host::snapshot`, `Host::snapshot_cut` and `Host::export_execution` are asynchronous
 because they read content through operations. Physical archive assembly remains in
 `crates/dokime-storage/src/content.rs` until its evidence and telemetry inputs move.
+Archive assembly orders native files and embedded content metadata deterministically
+and fixes ZIP member timestamps, platform and permissions. The operation excludes retained
+`view/` files and `temporary-evidence/` exports from its native source inventory so
+querying or exporting unchanged sealed evidence cannot add derived outputs to the
+next archive.
+Committed artifact protobuf bytes are copied unchanged into the archive, preserving
+their original map encoding instead of re-encoding decoded metadata on each export.
 Prepared reports persist their document, execution seal and native file reference
 through Harmos objects. Their HTML stays in the native file and publication reads
 it through `GetFileBytes`; the final product report transaction still awaits the

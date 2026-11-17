@@ -18,6 +18,7 @@
 // Standard Library Imports
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::{self, Read, Seek, Write};
 use std::num::NonZeroUsize;
 
 // Third Party Imports
@@ -25,6 +26,7 @@ use harmos_protocol::model::FileReference;
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tempfile::TempPath;
+use zip::{CompressionMethod, DateTime, System, ZipWriter, write::SimpleFileOptions};
 
 // Local Imports
 use crate::persisted::Scope;
@@ -32,7 +34,6 @@ use crate::{Error, Result, Store};
 use dokime_protocol::host::content::ArtifactsCreateRequest;
 use dokime_protocol::host::content::ExecutionFileMetadata;
 use dokime_protocol::model::ArtifactMetadata;
-use std::io::Write;
 
 /* === Constants === */
 
@@ -47,7 +48,10 @@ pub const CONTENT_CHUNK_BYTES: usize = 64 * 1024;
 #[derive(Default)]
 pub struct ArchivedContent {
     pub files: Vec<ArchivedNativeFile>,
-    pub artifacts: Vec<StoredArtifact>,
+
+    /// Original StoredArtifact protobuf bytes retained by the content owner.
+    pub artifacts: Vec<Vec<u8>>,
+
     pub execution_files: Vec<StoredExecutionFile>,
 }
 
@@ -60,6 +64,7 @@ pub struct ArchivedNativeFile {
 pub struct StoredArtifact {
     #[prost(message, optional, tag = "1")]
     pub request: Option<ArtifactsCreateRequest>,
+
     #[prost(message, optional, tag = "2")]
     pub artifact: Option<ArtifactMetadata>,
 }
@@ -90,9 +95,11 @@ impl Store {
     pub fn write_cycle_archive(
         &self, cycle: &str, page: NonZeroUsize, output: &mut impl Write, contents: &mut HashMap<String, ArchivedContent>,
     ) -> Result<()> {
-        use std::io::{Read, Seek};
-        use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
-        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        let options = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Stored)
+            .last_modified_time(DateTime::default())
+            .system(System::Unix)
+            .unix_permissions(0o644);
         let mut archive = ZipWriter::new_stream(output);
         let mut after = String::new();
         let mut manifest = Vec::new();
@@ -124,23 +131,28 @@ impl Store {
             }
         }
         if manifest.is_empty() {
-            return Err(Error::Data("select an existing cycle for export"));
+            return Err(Error::Data("Export Cycle: Select an Existing Cycle"));
         }
         archive.start_file("manifest.json", options)?;
         serde_json::to_writer(&mut archive, &serde_json::json!({"version":1,"cycle":cycle,"executions":manifest}))?;
         archive.finish()?;
         Ok(())
     }
-    pub fn write_execution_archive(&self, execution: &str, output: &mut impl Write, content: ArchivedContent) -> Result<()> {
-        use std::io::{Read, Seek};
-        use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
+    pub fn write_execution_archive(&self, execution: &str, output: &mut impl Write, mut content: ArchivedContent) -> Result<()> {
+        content.files.sort_by_cached_key(|file| file.reference.encode_to_vec());
+        content.artifacts.sort();
+        content.execution_files.sort_by_cached_key(Message::encode_to_vec);
         let mut metadata = tempfile::tempfile()?;
         self.write_execution_metadata(execution, &mut metadata, &content)?;
         metadata.rewind()?;
-        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        let options = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Stored)
+            .last_modified_time(DateTime::default())
+            .system(System::Unix)
+            .unix_permissions(0o644);
         let mut archive = ZipWriter::new_stream(output);
         archive.start_file("evidence.pb", options)?;
-        std::io::copy(&mut metadata, &mut archive)?;
+        io::copy(&mut metadata, &mut archive)?;
         let connection = self.lock()?;
         let mut query =
             connection.prepare("SELECT id,stream,length,sha256 FROM telemetry_files WHERE execution=?1 AND finalized=1 ORDER BY stream")?;
@@ -154,7 +166,7 @@ impl Store {
             let path = crate::telemetry::catalog::path(self.database.parent().unwrap(), &id)?;
             let mut file = File::open(path)?;
             if file.metadata()?.len() != size {
-                return Err(Error::Data("restore the telemetry file matching its catalog size"));
+                return Err(Error::Data("Export Execution: Restore the Telemetry File Matching Its Catalog Size"));
             }
             archive.start_file(&member, options)?;
             let mut hash = Sha256::new();
@@ -169,7 +181,7 @@ impl Store {
             }
             let digest = hash.finalize();
             if digest.as_slice() != expected {
-                return Err(Error::Data("restore the telemetry file matching its catalog digest"));
+                return Err(Error::Data("Export Execution: Restore the Telemetry File Matching Its Catalog Digest"));
             }
             let digest = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
             manifest.push(serde_json::json!({"path":member,"size":size,"sha256":digest}));
@@ -232,7 +244,7 @@ impl Store {
         }
         write_field(output, 4, &seal)?;
         for artifact in &content.artifacts {
-            write_field(output, 9, &artifact.encode_to_vec())?;
+            write_field(output, 9, artifact)?;
         }
         for file in &content.execution_files {
             write_field(output, 10, &file.encode_to_vec())?;

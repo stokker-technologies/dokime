@@ -235,12 +235,16 @@ pub async fn artifact(context: &Context, identifier: &str) -> Result<StoredArtif
 }
 
 pub async fn artifact_records(context: &Context) -> Result<Vec<StoredArtifact>> {
+    artifact_payloads(context).await?.into_iter().map(|payload| decode_artifact(&payload)).collect()
+}
+
+pub(crate) async fn artifact_payloads(context: &Context) -> Result<Vec<Vec<u8>>> {
     let (entries, _) = administration::scan(context, "content/artifact/", None).await?;
     entries
         .into_iter()
         .map(|entry| {
             let saved = ArtifactCommit::decode(entry.payload.as_slice())?;
-            decode_artifact(&saved.stored)
+            Ok(saved.stored)
         })
         .collect()
 }
@@ -396,7 +400,7 @@ pub async fn attach_execution_file(
 
 /* === Private Functions === */
 
-fn decode_artifact(payload: &[u8]) -> Result<StoredArtifact> {
+pub(crate) fn decode_artifact(payload: &[u8]) -> Result<StoredArtifact> {
     let stored = StoredArtifact::decode(payload)?;
     if stored.artifact.is_none() || stored.request.as_ref().and_then(|request| request.file.as_ref()).is_none() {
         return Err(Error::Precondition("Read Artifact: Restore Its Committed Metadata and Native File Reference".into()));
