@@ -313,6 +313,24 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                     .await?,
                 attached
             );
+            let mut changed = request.clone();
+            changed.filename = "changed.bin".into();
+            assert!(
+                artifacts
+                    .create_with(
+                        changed.file.unwrap(),
+                        changed.scope.unwrap(),
+                        changed.filename,
+                        changed.content_type,
+                        ContentArtifactsCreateOptions {
+                            request_id: Some(changed.request_id),
+                            metadata: changed.metadata,
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .is_err()
+            );
             let mut foreign = request.clone();
             foreign.scope.as_mut().unwrap().execution_id = Some("content-b".into());
             assert!(
