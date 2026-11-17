@@ -3,10 +3,10 @@
 ## Ownership and Dependency Order
 
 `grpc-plugins/design.md` owns execution, origin, outcome, schema freezing and
-render versus publish. Its host manager is not built yet and must start on those
-contracts. This change supplies import-specific behavior after its SDK wave and
-`storage-interface`. Protocol owns wire definitions; operations own validation,
-policy and handlers; runtime owns lifecycle and transactions; storage owns
+render versus publish. The host execution manager, frozen origins and render/publish split are present.
+This change supplies import-specific admission after the canonical storage cutover
+in `operation-boundary` and the final SDK ownership cutover in `plugin-boundary`. Protocol owns wire definitions; operations own validation,
+policy and handlers; runtime owns lifecycle policy; Harmos storage operations over the registered product backend own
 persisted shapes, staged publication and conditional updates. Rendering retains
 temporary output ownership; SDKs depend on protocol, never host storage.
 
@@ -76,5 +76,5 @@ maintained disposition; no external scratch file is required to implement it.
 | 26 | Equal names imply equivalence | Open: units, calibration, quality and statistics above; frozen catalogs isolate schema ownership. | I 1.7, 3.3 |
 | 27 | One call is not atomic transfer | SDK call stages bounded resumable chunks, host verifies checksums and limits, then atomically publishes validated manifest; no live ingestion. | I 2.1, 2.5 |
 | 28 | Shared trust allows collisions | Every connected client may operate; handle visibility adds no per-user ACL. Store scope, expected revisions and explicit conflicts prevent accidental replacement. | I 2.3, 4.3 |
-| 29 | Columnar parity missing | Reuse plot-frame dokime.v1 message with typed arrays, explicit validity/row count/timestamps and exact int64/uint64/bytes; optional Arrow/dataframes. | I 3.2, 4.3 |
+| 29 | Columnar parity missing | Reuse the current model/host columnar contract, establishing import parity with typed arrays, explicit validity/row count/timestamps and exact int64/uint64/bytes; optional Arrow/dataframes. | I 3.2, 4.3 |
 | 30 | Later workflows violate seals | Whole imports only; corrections are new executions linked to predecessors; incremental imports excluded. | I 2.2, 4.3 |

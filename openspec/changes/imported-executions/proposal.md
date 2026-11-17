@@ -31,7 +31,7 @@ execution.report.save("run42.html")
 
 Rust, Python, C# and C++ expose this flat shape in their SDK idiom, with awaits
 where appropriate and explicit resource release. No block construct is required.
-Document builders produce the existing `dokime.v1.Document`; no second document
+Document builders produce the existing `dokime.model.v1.Document`; no second document
 format or expression parser is introduced.
 
 ### Time and Columnar Evidence
@@ -45,8 +45,8 @@ the unit; the wire carries integer nanoseconds. History places an import at its
 import time and separately exposes its measurement period, the UTC range of its
 data. Upload time never rewrites source time.
 
-Imported stream tables use the same `dokime.v1` columnar-frame message as the
-plot pipeline: typed arrays, explicit null validity, row count and timestamps,
+Imported stream tables share the current model/host columnar contract with the
+plot pipeline, with import-specific row/null/time parity still to implement: typed arrays, explicit null validity, row count and timestamps,
 preserving signed/unsigned 64-bit values and bytes. Arrow/dataframe support is an
 optional SDK layer. Import-local schemas come from the script and are frozen
 without plugin registration or overwriting any existing definitions.
@@ -111,17 +111,15 @@ imports and mutation of sealed evidence are out of scope.
 
 ## Dependencies
 
-- `grpc-plugins` owns the execution model in its host wave, before manager
-  construction, and supplies the four SDK client halves. Import implementation
+- `grpc-plugins` owns the execution model in its host wave, already present in the current host, and supplies the four SDK client halves. Import implementation
   follows that SDK wave; the model is not deferred until imports are implemented.
-- `storage-interface` owns the persistence boundary used for staged publication,
+- `operation-boundary` owns the canonical storage operations used for staged publication,
   conditional update and durable receipts. Import implementation must establish
   the manifest commit boundary through that interface, not assume independent
   backend writes compose into a transaction. Missing staged-publication support
   is a dependency obligation before import implementation, not a local workaround.
-- The plot pipeline owns the shared `dokime.v1` columnar-frame message; reuse it
-  rather than fork a transport table. Columnar persistence follows the storage
-  interface, without starting other changes here.
+- Reuse the current model/host plot columnar contracts with explicit typed/null/time parity
+  rather than assume a plot result is already a complete import table. Columnar persistence follows Harmos storage operations, without starting other changes here.
 
 ## Impact and Scope
 

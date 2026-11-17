@@ -1,7 +1,7 @@
 # Domain-Neutral Interface
 
-Status: agreed with the owner on 2026-11-10; implementation waits for the
-owner's go. Builds on `grpc-plugins`, `plot-pipeline` and `plot-kinds`.
+Status: agreed scope; grouped Wi-Fi input, fixed traceability interpretation and
+domain-specific plot labels remain in the current GUI. Implementation is unscheduled.
 
 ## Why
 
@@ -15,10 +15,10 @@ only a URL.
 
 ## What Changes
 
-- **Plot domain neutrality is owned by `plot-kinds`.** That change owns
+- **The plot-kind migration is present.** grpc-plugins retains parity proof for
   GRID_CHART, occupancy document migration and special-case removal, shared
   playback, supported-kind cleanup and live/report acceptance. This change
-  consumes that contract without specifying a second grid or kind catalog.
+  does not introduce a second grid or kind catalog.
 - **The Wi-Fi channel selector becomes a generic grouped choice.** A
   parameter declares its options in groups; the options come from the
   plugin's option provider.
@@ -33,5 +33,5 @@ only a URL.
 
 - Generic parameter controls, traceability contributions, field metadata and
   plot-group labels in the interface/runtime; plugin declarations, tests and
-  authoring guidance. Plot kinds, grid frames and report playback belong to
-  `plot-kinds`.
+  authoring guidance. The plot-kind/grid migration is retained; grpc-plugins owns
+  current-host/report parity proof.
