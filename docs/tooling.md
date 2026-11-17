@@ -351,7 +351,8 @@ mise run test -- --package dokime-storage --target integration
 
 These stories cover compressed IPC rollback/recovery, root-scoped native reads,
 original append receipts, resumable uploads, recovery snapshots and entries,
-integer-exact statistics, retained file readers and unchanged archive stream bytes.
+typed integer values/sums, library floating-point ranks, retained file readers
+and unchanged archive stream bytes.
 The runtime benchmark additionally depends on the runtime and Rust SDK consumers;
 a backend package check alone does not establish that benchmark's build or run.
 On Linux its consumer owns the same isolated Secret Service as native host
@@ -375,7 +376,7 @@ do not evict the operating system's file cache or claim cold physical I/O. Fixtu
 population is outside query/finalize/export timers. Document cases retain the
 three-day deterministic three-phase waveform, 30 streams/plots and original row
 densities. They capture expansion, count/min/max/mean/RMS tiles and plot payloads
-at 1,500 points; the median case adds one exact-median tile and has one plot.
+at 1,500 points; the median case adds one median tile and has one plot.
 Neither includes HTML rendering or report-file writes. The former extra standard
 deviation tile is removed. Full-decode diagnostics consume all fields of every row;
 the LTTB window case uses the product query that must decode all selected rows.
@@ -399,7 +400,7 @@ cases ran on the earlier per-sample tick carrier, so those rows are not comparab
 | Minimal Archive in Memory, 16,384 | Current archive into a `Vec`; no report or output sync | Warm | 5.496 | 5.929 |
 | Store Ingest Admission, 1,000,000 | Generate/encode phase, ordinal and value; admit in 4,096-row storage batches; background flushes included, last tail not necessarily durable | Fresh empty store | 590.849 | 7,832.789 |
 | Store Ingest and Flush, 1,000,000 | Same generation/admission plus explicit durable flush; shutdown excluded | Fresh empty store | 579.026 | 8,323.425 |
-| Median and Plot, 1,000,000 | Five summary tiles, exact median and one plot payload | Warm / cold | 124.753 / 125.748 | 149.882 / 129.962 |
+| Median and Plot, 1,000,000 | Five summary tiles, median and one plot payload | Warm / cold | 124.753 / 125.748 | 149.882 / 129.962 |
 | Three-Day Document, 307,200 | Five tiles and 30 plot payloads/presentation | Warm / cold | 24.562 / 26.285 | 24.588 / 27.853 |
 | Three-Day Document, 1,536,000 | Same document at original density | Warm / cold | 24.677 / 26.983 | 35.895 / 31.670 |
 | Three-Day Document, 3,072,000 | Same document at original density | Warm / cold | 26.978 / 28.756 | 27.459 / 29.248 |
@@ -407,6 +408,9 @@ cases ran on the earlier per-sample tick carrier, so those rows are not comparab
 | Runtime Observer Publication and Evidence Barrier, 1,024 | Release prepared step, SDK observation/transport/admission, produced-count record and captured prompt; end/shutdown excluded | Warm host, fresh execution | 2,225.324 | 5,289.888 (tick carrier) |
 | Execution End and Host Shutdown, 65,536 | Release final prompt, cleanup, stream finalization, seal, final snapshot join and host shutdown | Warm | 79.798 | 99.126 (tick carrier) |
 | Execution Archive on Disk, 16,384 | Served `Evidence.Archive`/`Files.Read`, write received ZIP, `sync_all`, rewind and drain in 2 MiB chunks | Warm | 20.072 | 170.798 (tick carrier) |
+
+These recorded measurements predate the operation-boundary statistics-kernel
+cutover and do not establish performance for the current candidate.
 
 The runtime and desktop fixtures use the real SDK observers and the windowed
 Samples protocol: the host grants each interval stream a window of samples and

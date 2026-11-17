@@ -669,14 +669,12 @@ projected table readers at one cut. Its AtOrBefore plan supplies the shared
 time alignment for stream-to-stream and record-to-stream expressions, record-based
 ranges and grouping, values at records, and paired record intervals. Intervals pair
 the previous record at the current record's time before alignment to later samples.
-Exact integer rank selection spills projected order keys to an ephemeral query
-file once and replays those keys in bounded radix passes, avoiding repeated batch
-decompression and whole-population sorting in memory. Integer ordering and
-interpolation retain their integer or rational type through evidence statistics,
-plot summaries and document values. Record/expression percentiles use the same
-spill-backed rank selector as stream percentiles, rather than the library's
-floating percentile accumulator. Category reducers likewise accumulate typed
-values; plot columns retain exact totals separately from drawing coordinates.
+Numeric summaries and order statistics use Harmos query execution. Stream,
+record and expression percentiles use the library's bounded accumulator; their
+results are floating point. The product radix selector, persisted moments and
+chunk checkpoints are removed. Integer extrema, first/last, sums and means retain
+their typed values. Category reducers likewise accumulate typed values; plot
+columns retain exact totals separately from drawing coordinates.
 `dokime.model.v1.Value.exact` uses the product model's
 `dokime.model.v1.ExactNumber` for fractions and totals outside the 64-bit range;
 ordinary integral results retain signed or unsigned integer values. The final
@@ -685,10 +683,10 @@ fields (negative = 1, numerator = 2, denominator = 3) at its model boundary.
 The desktop formats these values without converting them to JavaScript numbers. Document
 structure carries pending bindings; result bindings, summary groups, tiles and
 card completion follow the evidence cut. Literal table rows also settle at card
-completion, with their declared counts still enforced. Integer
-variance uses bounded exact sums of squares, so small spreads above f64 integer
-precision survive. Standard deviation, RMS and chart coordinates remain floating
-point; these drawing coordinates never replace the exact statistic or its label.
+completion, with their declared counts still enforced. Standard deviation, RMS,
+median and percentiles follow the library's floating-point arithmetic; exact
+integer variance and rank interpolation are not promised. Drawing coordinates
+remain separate from typed values and their labels.
 
 `Backend::open(&store, catalog)` returns the library's `StorageBackends` pair, sharing the
 root's durable history. `backend.rs` and `backend/**` implement the native primary
@@ -1119,6 +1117,18 @@ The pin and generated contracts do not establish consumer compilation.
 The storage candidate uses the native definitions from `harmos-operations` after
 the runtime removed its `builtins` reexport. Descriptor-declared audiences replace
 composition caller overrides. The typed facade remains the later 6.2 adoption.
+Native sample appends commit Arrow columns, contiguous identity ranges, replay
+receipts and their complete watch frontier together. The native backend advertises
+columnar append support and refuses the previous layout while preserving its root.
+The runtime sample consumer and the product execution ledger still require their
+coupled source cutover. Product numeric queries delegate moments, RMS, deviation,
+percentiles, histograms and box summaries to Harmos query execution; persisted
+moments/checkpoints and the product scalar traversal/radix selector are removed.
+Stored preview coarsening and scanned time bins remain product kernels pending
+native query/preview adoption.
+Percentiles use library floating-point results. Box summaries use the library
+source-order outlier truncation, then sort the selected outliers for display.
+
 
 | Consumer | Required Change at This Pin |
 | --- | --- |

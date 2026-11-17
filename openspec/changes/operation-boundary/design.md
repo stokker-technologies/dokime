@@ -452,6 +452,35 @@ pin already supplies operation-owned column kinds and row/IPC result DTOs;
 existing administration, retained-content and archive operation callers adopt
 those DTOs without introducing the facade.
 
+## Stored Envelope Coarsening at the Pinned Revision
+
+Task 5.2 requires zoom coarsening through the library bucket-summary transform,
+using the stored envelope and its source cut. At the pinned revision,
+`Harmos:crates/harmos-query/src/statistics/buckets.rs::Buckets::new` requires the
+continuation's `max_buckets` and `width_ns` to equal the new plan exactly. A stored
+four-bucket envelope therefore cannot continue under a two-bucket zoom bound, even
+with unchanged fields/history/cut and no new samples. The operation forwards this
+same query transform; a different caller surface does not supply coarsening.
+
+`crates/dokime-storage/tests/integration/backend.rs::library_bucket_continuation_coarsens_a_stored_envelope`
+is the deterministic failing consumer proof. The required upstream capability is
+coarsening an intact continuation at its existing source cut to a smaller bucket
+bound, preserving count, first/last/extrema, moments and resumable continuation.
+Do not edit opaque continuation bytes, keep a second merge kernel or reconstruct
+raw samples as a substitute for the agreed stored-envelope coarsening operation.
+The independent numeric-kernel deletions do not close 5.2. The coupled source switch
+in slices 2–5, the dependent Store deletion and complete-cutover documentation
+remain open until this capability and their own implementation are complete.
+
+The remaining task closures have these shared dependencies; none is checked off
+by the independent backend/query repairs:
+
+| Tasks | Required Completion |
+| --- | --- |
+| 1.6, 1.7 | Migrate the remaining persisted shapes, frozen bindings and execution-owned retained cuts with their canonical lifecycle/evidence consumers. Shape-only scaffolds do not close these tasks. |
+| 2.2–2.4, 3.3–3.5, 4.4–4.5, 5.1–5.3 | Switch the canonical lifecycle, intake, queries, watches, seal and preview owners together. The missing stored-envelope coarsening capability prevents the required complete slice 5 behavior at this pin. |
+| 6.1, 6.2a, 6.4 | Finish bootstrap/removal and complete-cutover guides after all canonical consumers replace the Store. Retaining the Store or claiming those consumers migrated would not close these tasks. |
+
 ## Snapshot Operation Admission at the Pinned Revision
 
 The pinned revision repairs native snapshot admission: `CreateSnapshot` and

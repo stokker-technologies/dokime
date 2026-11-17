@@ -687,7 +687,7 @@ Repeated sections use bounded distinct-value pages and propagate selection
 filters to summaries and plots. Continuations bind the backend epoch, document,
 selection and evidence frontier. Cycle capture serves the default records,
 artifacts and media document. Summaries support record/stream scalars, nested
-aggregates, exact percentiles and scalar transforms. HTML contour cells and bands
+aggregates, library floating-point percentiles and scalar transforms. HTML contour cells and bands
 preserve nonuniform edges and validity masks. Evidence-card filter evaluation,
 cross-execution aggregate expressions, artifact expressions and complete
 trajectory/grid playback remain in the owning task inventory.
@@ -778,7 +778,9 @@ inside the harmonized host response, with its read cut owned by the response.
 PlotBoxSummary min/q1/median/q3/max, PlotHistogramStatistics mean/median/min/max
 and PlotSeriesSummary min/max/mean/median are Value messages with presence.
 PlotColumn adds exact `totals = 6` separately from floating drawing coordinates.
-Standard deviation, RMS, whiskers, outliers and drawing axes remain floating point.
+Standard deviation, RMS, median, percentiles, whiskers, outliers and drawing axes
+use floating-point results. Integer extrema, first/last, sums and means retain
+typed values.
 
 The final library has no storage wire model. The product model therefore owns
 ExactNumber in `model/v1/scalar.proto`, preserving the former library payload's

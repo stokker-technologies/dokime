@@ -234,6 +234,48 @@ fn limits() -> ReadLimits {
 
 /* === Tests === */
 
+#[test]
+fn library_bucket_continuation_coarsens_a_stored_envelope() -> StoryResult {
+    use arrow_array::{Array, ArrayRef, BinaryArray, Float64Array, Int64Array, RecordBatch, UInt64Array};
+    use harmos_domain::model::storage::query::transform::statistics::BucketSummary;
+    use harmos_query::transform::{FieldPath, Transform, TransformExecution};
+    use std::num::NonZeroU64;
+    let samples = RecordBatch::try_from_iter([
+        ("time", Arc::new(Int64Array::from(vec![0, 1, 2, 3])) as ArrayRef),
+        ("position", Arc::new(UInt64Array::from(vec![1, 2, 3, 4])) as ArrayRef),
+        ("value", Arc::new(Float64Array::from(vec![10.0, 20.0, 30.0, 40.0])) as ArrayRef),
+    ])?;
+    let opening = BucketSummary {
+        time: FieldPath::from("time"),
+        position: FieldPath::from("position"),
+        value: FieldPath::from("value"),
+        width_ns: NonZeroU64::MIN,
+        max_buckets: NonZeroUsize::new(4).unwrap(),
+        source_cut: StorageCursor {
+            history: StoreHistory {
+                store: Identifier::new("preview-story")?,
+                epoch: Identifier::new("execution")?,
+            },
+            sequence: 4,
+        },
+        prior: None,
+    };
+    let saved = Transform::BucketSummary(opening.clone()).apply(&samples, &mut || Ok(()))?;
+    let continuation = saved.column_by_name("continuation").unwrap().as_any().downcast_ref::<BinaryArray>().unwrap();
+    assert!(!continuation.is_null(0));
+    let coarsened = Transform::BucketSummary(BucketSummary {
+        max_buckets: NonZeroUsize::new(2).unwrap(),
+        prior: Some(continuation.value(0).to_vec()),
+        ..opening
+    })
+    .apply(&samples.slice(0, 0), &mut || Ok(()))?;
+    let counts = coarsened.column_by_name("count").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
+    let means = coarsened.column_by_name("mean").unwrap().as_any().downcast_ref::<Float64Array>().unwrap();
+    assert_eq!(counts.values().as_ref(), &[2, 2]);
+    assert_eq!(means.values().as_ref(), &[15.0, 35.0]);
+    Ok(())
+}
+
 #[tokio::test]
 async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> StoryResult {
     use harmos_storage::{
