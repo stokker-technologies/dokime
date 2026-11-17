@@ -8,6 +8,17 @@
 
 [[advisory]]
 ecosystem = "cargo"
+id = "RUSTSEC-2026-0543"
+package = "chrono"
+version = "0.4.45"
+fixed = "replace unmaintained dependency"
+category = "unmaintained"
+reason = "Reviewed 2026-11-17: RUSTSEC-2026-0543 marks all chrono versions unmaintained and lists no patched release. cargo update -p chrono retains 0.4.45 as the latest compatible release. dokime-storage and harmos-query/harmos-storage consume arrow-array 60.1.0, which requires chrono 0.4.40 or newer. Accept this exact version while the Arrow owners replace chrono with a maintained alternative; upgrade the dependency chain when that replacement is available. Advisory: https://rustsec.org/advisories/RUSTSEC-2026-0543.html."
+owner = "orchestrator"
+expires = 2026-12-17
+
+[[advisory]]
+ecosystem = "cargo"
 id = "RUSTSEC-2024-0370"
 package = "proc-macro-error"
 version = "1.0.4"

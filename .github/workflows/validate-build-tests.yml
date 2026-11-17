@@ -100,7 +100,7 @@ jobs:
       matrix:
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           inputs: ''
           outputs: '[{"archive":"target/ci/build-tests-{profile}-unix.tar.zst","paths":["target/build/{profile}/{target}/tests","target/build/{profile}/{target}/fixtures"]}]'
@@ -173,7 +173,7 @@ jobs:
       matrix:
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           inputs: ''
           outputs: '[{"archive":"target/ci/build-bench-unix.tar.zst","paths":["target/build/bench/{target}"]}]'
