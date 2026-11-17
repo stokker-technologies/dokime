@@ -114,8 +114,8 @@ tokio = { version = "1.50.0", features = ["sync", "rt", "net", "time"] }
 dokime-protocol = { path = "../../../../crates/dokime-protocol" }
 
 # Git
-harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "7fe385eacbe9a4c9a47943f6a528f97a014256ee" }
-harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "7fe385eacbe9a4c9a47943f6a528f97a014256ee", default-features = false, features = [
+harmos-protocol = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "6978e65f1d505c2fe805a34a2781e48ea6f30350" }
+harmos-runtime = { version = "0.1.14", git = "https://github.com/stokker-technologies/harmos", rev = "6978e65f1d505c2fe805a34a2781e48ea6f30350", default-features = false, features = [
   "grpc",
 ] }
 
