@@ -77,7 +77,7 @@ jobs:
       matrix:
         include:
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           work: Python / Generated
           command: ci:bindings --

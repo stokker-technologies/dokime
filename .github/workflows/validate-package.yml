@@ -95,7 +95,7 @@ jobs:
       matrix:
         include:
         - platform: any
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           work: Python
           command: package -- --language python
@@ -104,7 +104,7 @@ jobs:
           language: python
           inputs: '0'
         - platform: unix
-          runner: ubuntu-latest
+          runner: ubuntu-22.04
           minutes: 120
           work: Rust
           command: package -- --language rust
