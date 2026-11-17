@@ -372,7 +372,7 @@ dokime --endpoint http://127.0.0.1:7000 plan materialize --suite SUITE --templat
 dokime --endpoint http://127.0.0.1:7000 cycle create --cases cases.pb --json
 dokime --endpoint http://127.0.0.1:7000 execution prompt next EXECUTION --json
 dokime --endpoint http://127.0.0.1:7000 execution prompt answer EXECUTION --action yes --accepted
-dokime --endpoint http://127.0.0.1:7000 execution watch EXECUTION
+dokime --endpoint http://127.0.0.1:7000 execution wait EXECUTION
 dokime --endpoint http://127.0.0.1:7000 execution report EXECUTION --out report.html
 dokime proto export --out proto
 ```
