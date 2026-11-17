@@ -83,7 +83,7 @@ def check_public_surfaces(root: Path) -> None:
             line = grpc_path.sub("", line)
             if wire.search(line) or re.search(r"\bv\d+\b", line):
                 findings.append(f"{relative.as_posix()}:{number}: Public Surface Names a Wire Package")
-    exports: dict[str, Path] = {}
+    exports: dict[str, bool] = {}
     for name in ("__init__.py", "client.py", "plugin/__init__.py"):
         path = root / "sdk/python/src/dokime" / name
         if not path.is_file():
@@ -98,9 +98,10 @@ def check_public_surfaces(root: Path) -> None:
             for item in node.value.elts:
                 if not isinstance(item, ast.Constant) or not isinstance(item.value, str):
                     raise TypeError(f"Check Public Exports: Declare String Names in {path}")
-                if item.value in exports:
+                namespace = _is_namespace_export(path, item.value)
+                if item.value in exports and not (namespace and exports[item.value]):
                     findings.append(f"{path.relative_to(root)}: Duplicate Public Export {item.value}")
-                exports[item.value] = path
+                exports[item.value] = namespace and exports.get(item.value, True)
     for path in sorted((root / "sdk/csharp/src/Dokime").rglob("*.cs")):
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if re.search(r"^namespace .*\.V\d+\b", line):
@@ -117,6 +118,23 @@ def check_public_surfaces(root: Path) -> None:
 
 
 # === Private Functions === #
+
+
+def _is_namespace_export(path: Path, name: str, visited: frozenset[Path] = frozenset()) -> bool:
+    if path in visited:
+        return False
+    if (path.parent / name).is_dir() or (path.parent / f"{name}.py").is_file():
+        return True
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if not isinstance(node, ast.ImportFrom) or not node.level or not any(item.name == name for item in node.names):
+            continue
+        source = path.parents[node.level - 1].joinpath(*(node.module or "").split("."))
+        if (source / name).is_dir() or (source / f"{name}.py").is_file():
+            return True
+        source = source / "__init__.py" if source.is_dir() else source.with_suffix(".py")
+        if source.is_file() and _is_namespace_export(source, name, visited | {path}):
+            return True
+    return False
 
 
 # === Entry Point === #
