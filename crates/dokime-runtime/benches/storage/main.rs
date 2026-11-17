@@ -522,7 +522,9 @@ fn main() {
                 black_box(reader.time_series_window(window).unwrap());
                 let preview = stage.elapsed();
                 let stage = Instant::now();
-                black_box(reader.numeric_statistics(&window).unwrap());
+                let stages = StageTimes::default();
+                let subscriber = tracing_subscriber::registry().with(stages.clone());
+                tracing::subscriber::with_default(subscriber, || black_box(reader.numeric_statistics(&window).unwrap()));
                 let statistics = stage.elapsed();
                 let stage = Instant::now();
                 black_box(reader.numeric_rms(&window).unwrap());
@@ -533,6 +535,9 @@ fn main() {
                         [("store.open", opened), ("bounds", bounds), ("preview", preview), ("statistics", statistics), ("rms", rms)]
                     {
                         println!("Stage | {name} | {:.6} s", duration.as_secs_f64());
+                    }
+                    for (name, (duration, calls)) in stages.0.lock().unwrap().iter() {
+                        println!("Stage | {name} | {:.6} s | {calls} calls", duration.as_secs_f64());
                     }
                     let stage = Instant::now();
                     black_box(reader.numeric_bins(window).unwrap());

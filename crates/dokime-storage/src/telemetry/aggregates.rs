@@ -27,6 +27,7 @@ use harmos_query::scalar::Agg;
 use harmos_query::transform::{FieldPath, FieldPathExecution};
 use harmos_query::{Accumulator, Aggregate};
 use rusqlite::Connection;
+use tracing::info_span;
 
 // Local Imports
 use super::config::PreviewSettings;
@@ -221,7 +222,8 @@ impl Store {
     }
 
     pub(crate) fn ranks(&self, window: NumericWindow<'_>, percentiles: &[u8]) -> Result<BTreeMap<u8, ScalarValue>> {
-        rank_values(
+        let statistics = percentiles.iter().copied().map(Aggregate::Percentile).collect::<Vec<_>>();
+        let values = rank_values(
             |push| {
                 self.evaluated_batches(window, &[window.field.into()], |batch| {
                     let field = FieldPath::from(format!("values.{}", window.field).as_str());
@@ -231,9 +233,15 @@ impl Store {
                     Ok(true)
                 })
             },
-            percentiles,
+            &statistics,
             self.storage_settings()?.query_bytes.get(),
-        )
+        )?;
+        Ok(percentiles
+            .iter()
+            .copied()
+            .zip(values)
+            .filter(|(_, value)| !matches!(value, ScalarValue::Missing | ScalarValue::Null))
+            .collect())
     }
 }
 
@@ -242,38 +250,20 @@ impl Store {
 /* === Private Functions === */
 
 pub(crate) fn rank_values(
-    read: impl FnOnce(&mut dyn FnMut(ScalarValue) -> Result<()>) -> Result<()>, percentiles: &[u8], scratch_bytes: usize,
-) -> Result<BTreeMap<u8, ScalarValue>> {
-    let mut accumulators = percentiles
-        .iter()
-        .copied()
-        .map(|rank| {
-            (
-                rank,
-                Accumulator::with_settings(
-                    Agg::Of(Aggregate::Percentile(rank)),
-                    QueryAccumulatorSettings {
-                        memory_bytes: scratch_bytes / percentiles.len().max(1),
-                    },
-                ),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
+    read: impl FnOnce(&mut dyn FnMut(ScalarValue) -> Result<()>) -> Result<()>, statistics: &[Aggregate], memory_bytes: usize,
+) -> Result<Vec<ScalarValue>> {
+    let mut accumulator = Accumulator::with_settings(Agg::Of(Aggregate::Median), QueryAccumulatorSettings { memory_bytes });
     let mut position = 0;
+    let input = info_span!("plot.order_statistics.input").entered();
     read(&mut |value| {
         position += 1;
-        for accumulator in accumulators.values_mut() {
-            accumulator.push(position, &value)?;
-        }
+        accumulator.push(position, &value)?;
         Ok(())
     })?;
-    let mut values = BTreeMap::new();
-    for (rank, accumulator) in accumulators {
-        let value = accumulator.finish(&mut || Ok(()))?;
-        if !matches!(value, ScalarValue::Missing | ScalarValue::Null) {
-            values.insert(rank, value);
-        }
-    }
+    drop(input);
+    let completion = info_span!("plot.order_statistics.finish").entered();
+    let values = accumulator.finish_ranks(statistics, &mut || Ok(()))?;
+    drop(completion);
     Ok(values)
 }
 
