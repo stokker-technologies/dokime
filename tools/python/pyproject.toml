@@ -38,4 +38,4 @@ system-certs = true
 
 [tool.uv.sources]
 # Generator Repairs Are Pinned Independently of the Carrier Dependencies.
-harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "609341697fcab051638389eb0f6a920fd64b7249", subdirectory = "tools/python" }
+harmos-tools = { git = "https://github.com/stokker-technologies/harmos", rev = "b72dd3d52d29599502f7edf92644f451ffdc1fc2", subdirectory = "tools/python" }

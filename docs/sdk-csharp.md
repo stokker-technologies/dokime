@@ -7,6 +7,10 @@ resource namespace under `Dokime.Clients`. Wire requests and service stubs are
 internal. Calls take content arguments, own their transport context, and return
 the payload directly when the reply has exactly one field.
 
+Host mutation calls generate a request ID when `request_id` is omitted. Pass an
+explicit ID when retrying the same mutation across calls; one call retains its
+generated ID through policy retries.
+
 ## Build and Package
 
 ```sh
@@ -63,13 +67,11 @@ also requires the operations/runtime crates and shared host fixtures.
 ```csharp
 using Dokime;
 using Dokime.Plugins;
-using Step = Dokime.Plugins.Step;
-using Suite = Dokime.Plugins.Suite;
 
 var template = new Template("example.measurement", "Measurement")
-    .Step(new Step("measure", "Measure", async context =>
+    .Step(new Dokime.Plugins.Step("measure", "Measure", async context =>
         await context.LogAsync(Severity.Info, "Measurement Completed")));
-var suite = new Suite("example", "Example", template);
+var suite = new Dokime.Plugins.Suite("example", "Example", template);
 var plugin = new Plugin("example", "1.0.0", suite)
     .Requires(HostOperation.EvidenceLogsAppend)
     .Requires(HostOperation.TimeGet);
@@ -139,7 +141,6 @@ scope through the pinned library.
 ```csharp
 using Dokime;
 using Grpc.Core;
-using Metadata = Grpc.Core.Metadata;
 
 using var client = Client.Connect("http://127.0.0.1:7000");
 var headers = new Metadata { { "authorization", "Bearer token" } };
