@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, mem, sync::Arc};
+use std::{collections::BTreeMap, iter, mem, sync::Arc};
 
 // Third Party Imports
 use arrow_array::{Float64Array, Int64Array, ListArray, RecordBatch, UInt64Array};
@@ -29,7 +29,7 @@ use harmos_query::transform::{
     downsample::{self, Algorithm},
     histogram,
 };
-use harmos_query::{Accumulator, Aggregate, Quantiles, TableWriter};
+use harmos_query::{Accumulator, Aggregate, TableWriter};
 use prost_types::Timestamp;
 
 // Local Imports
@@ -283,10 +283,10 @@ impl Store {
     fn numeric_order_statistics(
         &self, window: NumericWindow<'_>, percentiles: &[u8], mut read: impl FnMut(&RecordBatch) -> Result<()>,
     ) -> Result<(ScalarValue, BTreeMap<u8, ScalarValue>)> {
-        let budget = self.storage_settings()?.query_bytes.get();
-        let memory_bytes = budget / (percentiles.len() + 1);
-        let mut median = Accumulator::with_settings(Agg::Of(Aggregate::Median), QueryAccumulatorSettings { memory_bytes });
-        let mut quantiles = Quantiles::new(budget - memory_bytes);
+        let memory_bytes = self.storage_settings()?.query_bytes.get() / (percentiles.len() + 1);
+        let kinds = iter::once(Aggregate::Median).chain(percentiles.iter().copied().map(Aggregate::Percentile));
+        let mut accumulators =
+            kinds.map(|kind| Accumulator::with_settings(Agg::Of(kind), QueryAccumulatorSettings { memory_bytes })).collect::<Vec<_>>();
         let field = FieldPath::from(format!("values.{}", window.field).as_str());
         let mut position = 0;
         self.evaluated_batches(window, &[window.field.into()], |batch| {
@@ -294,21 +294,19 @@ impl Store {
             for row in 0..batch.num_rows() {
                 position += 1;
                 let value = field.value(&batch, row)?;
-                median.push(position, &value)?;
-                if !percentiles.is_empty()
-                    && let Some(value) = scalar::number(&value)
-                {
-                    quantiles.push(value)?;
+                for accumulator in &mut accumulators {
+                    accumulator.push(position, &value)?;
                 }
             }
             Ok(true)
         })?;
-        let median = median.finish(&mut || Ok(()))?;
-        let ranks = quantiles
-            .values(percentiles, budget, &mut || Ok(()))?
+        let mut values = accumulators
             .into_iter()
-            .map(|(rank, value)| (rank, ScalarValue::Float(value)))
-            .collect();
+            .map(|accumulator| accumulator.finish(&mut || Ok(())))
+            .collect::<harmos_query::Result<Vec<_>>>()?
+            .into_iter();
+        let median = values.next().unwrap();
+        let ranks = percentiles.iter().copied().zip(values).collect();
         Ok((median, ranks))
     }
 
