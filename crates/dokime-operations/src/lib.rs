@@ -25,11 +25,14 @@ pub use resources::{Clock, Prompts, Resources};
 /* === Imports === */
 
 // Standard Library Imports
+use std::{result, sync::OnceLock};
 
 // Third Party Imports
-use harmos_protocol::model as h;
+use harmos_protocol::{model, plugin::ChildRequest};
+use harmos_runtime::Failure;
 use prost::Message;
 use prost_reflect::ReflectMessage;
+use prost_types::FileDescriptorSet;
 
 // Local Imports
 use dokime_protocol::host::BackendEnvironmentRequest;
@@ -48,9 +51,6 @@ use dokime_protocol::host::files::{
 };
 use dokime_protocol::host::{EffectsCreateRequest, EffectsGetRequest, EffectsSetRequest};
 use dokime_protocol::host::{FilesCaptureRequest, FilesDeleteRequest, FilesGetRequest, FilesReadRequest};
-use harmos_runtime::Failure;
-use prost_types::FileDescriptorSet;
-use std::sync::OnceLock;
 
 /* === Constants === */
 
@@ -58,7 +58,7 @@ use std::sync::OnceLock;
 
 /* === Type Aliases === */
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Error>;
 
 /* === Structs === */
 
@@ -71,7 +71,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /* === Public Functions === */
 
 /// Check the trusted caller audience independently of visibility and grants.
-pub fn authorize(action: &str, caller: h::Callers) -> std::result::Result<(), Failure> {
+pub fn authorize(action: &str, caller: model::Callers) -> result::Result<(), Failure> {
     let wrong_caller = || Failure::wrong_caller(action);
     let (service, method) = action.split_once('/').ok_or_else(wrong_caller)?;
     let service = dokime_protocol::descriptor_pool().get_service_by_name(service).ok_or_else(wrong_caller)?;
@@ -79,9 +79,9 @@ pub fn authorize(action: &str, caller: h::Callers) -> std::result::Result<(), Fa
     let declared = harmos_protocol::schema::method_callers(&method).map_err(|_| wrong_caller())?;
     let allowed = matches!(
         (declared, caller),
-        (h::Callers::All, h::Callers::Clients | h::Callers::Plugins)
-            | (h::Callers::Clients, h::Callers::Clients)
-            | (h::Callers::Plugins, h::Callers::Plugins)
+        (model::Callers::All, model::Callers::Clients | model::Callers::Plugins)
+            | (model::Callers::Clients, model::Callers::Clients)
+            | (model::Callers::Plugins, model::Callers::Plugins)
     );
     if !allowed {
         return Err(wrong_caller());
@@ -89,14 +89,9 @@ pub fn authorize(action: &str, caller: h::Callers) -> std::result::Result<(), Fa
     Ok(())
 }
 
-pub fn caller_status(failure: Failure) -> tonic::Status {
-    let wire = h::Failure::from(&failure);
-    tonic::Status::with_details(tonic::Code::PermissionDenied, failure.to_string(), wire.encode_to_vec().into())
-}
-
 /// Complete Composed Host Declaration Inventory, Including Plugin-Only Methods.
-pub fn declarations() -> Result<&'static [h::OperationContract]> {
-    static DECLARATIONS: OnceLock<std::result::Result<Vec<h::OperationContract>, String>> = OnceLock::new();
+pub fn declarations() -> Result<&'static [model::OperationContract]> {
+    static DECLARATIONS: OnceLock<result::Result<Vec<model::OperationContract>, String>> = OnceLock::new();
     let declarations = DECLARATIONS.get_or_init(|| {
         let types = FileDescriptorSet::decode(dokime_protocol::FILE_DESCRIPTOR_SET).map_err(|source| source.to_string())?;
         let mut declarations = Vec::new();
@@ -111,12 +106,12 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
                 let response = method.output().full_name().to_owned();
                 let fingerprint =
                     harmos_protocol::schema::fingerprint(&id, &types, &request, &response).map_err(|source| source.to_string())?;
-                declarations.push(h::OperationContract {
+                declarations.push(model::OperationContract {
                     id,
                     request,
                     response,
                     fingerprint,
-                    visibility: h::Visibility::Public as i32,
+                    visibility: model::Visibility::Public as i32,
                     ..Default::default()
                 });
             }
@@ -127,8 +122,8 @@ pub fn declarations() -> Result<&'static [h::OperationContract]> {
     declarations.as_deref().map_err(|message| Error::Invalid(message.clone()))
 }
 
-pub async fn dispatch(resources: &Resources, request: &harmos_protocol::plugin::ChildRequest) -> Result<Vec<u8>> {
-    resources.context.authorize(&request.operation, h::Callers::Plugins).map_err(|source| Error::Permission(source.to_string()))?;
+pub async fn dispatch(resources: &Resources, request: &ChildRequest) -> Result<Vec<u8>> {
+    resources.context.authorize(&request.operation, model::Callers::Plugins)?;
     let declaration = declarations()?
         .iter()
         .find(|operation| operation.id == request.operation)
@@ -231,16 +226,16 @@ pub async fn dispatch(resources: &Resources, request: &harmos_protocol::plugin::
 
 pub(crate) fn declaration<Q: ReflectMessage + Default, R: ReflectMessage + Default>(
     id: &str, types: FileDescriptorSet,
-) -> Result<h::OperationContract> {
+) -> Result<model::OperationContract> {
     let request = Q::default().descriptor().full_name().to_owned();
     let response = R::default().descriptor().full_name().to_owned();
     let fingerprint =
         harmos_protocol::schema::fingerprint(id, &types, &request, &response).map_err(|error| Error::Invalid(error.to_string()))?;
-    Ok(h::OperationContract {
+    Ok(model::OperationContract {
         id: id.into(),
         request,
         response,
-        visibility: h::Visibility::Public as i32,
+        visibility: model::Visibility::Public as i32,
         policy: None,
         fingerprint,
         description: String::new(),

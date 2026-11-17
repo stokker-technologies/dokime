@@ -249,6 +249,12 @@ pub(crate) fn page_size(requested: u32, configured: usize) -> Result<usize> {
     Ok(if requested == 0 { DEFAULT_PAGE_ITEMS.min(maximum) } else { requested as usize })
 }
 pub fn status(error: Error) -> Status {
+    if let Error::Caller(failure) = &error {
+        let wire = model::Failure::from(failure);
+        let mut status = Status::with_details(Code::PermissionDenied, failure.to_string(), wire.encode_to_vec().into());
+        status.set_source(Arc::new(error));
+        return status;
+    }
     let code = match &error {
         Error::Unimplemented(_) => Code::Unimplemented,
         Error::Permission(_) | Error::Storage(dokime_storage::Error::Permission(_)) => Code::PermissionDenied,
