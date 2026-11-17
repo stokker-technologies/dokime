@@ -23,11 +23,19 @@ restore old APIs to make their fixtures compile.
 
 ## Concrete Remaining Work
 
-`src-tauri/tests/integration/rpc/mod.rs` still creates a large archive fixture;
-`runtime/tests/system/client_queries_plot_windows.rs` retains a large row workload.
+`src-tauri/tests/integration/rpc/mod.rs` still creates a large archive fixture.
 Keep the smallest cases that cross their correctness boundary and move scale to
 benchmarks. The new storage and desktop benchmark producers are the measurement
 owners; missing retired workload coverage stays in grpc-plugins.
+
+Direct Store-seeded client evidence, notes, telemetry, plot and fixed-document
+stories are superseded by the storage-operation boundary. This includes the old
+two-million-row plot-window fixture; it is not a remaining workload migration.
+Sealed-history, file-transfer and archive journeys create their evidence through
+real plugins and host operations. Native backend fault and storage contract tests
+retain their lower-level fixtures. Generated SDK calls use the final payload names
+and place optional record, statistics, progress and traceability selectors in
+their owning call options.
 
 GUI integration `shell/status.test.ts`, `cycle/document-query.test.ts`,
 `plots/nominal.test.ts` and `execution/responsiveness-fixture.tsx` still use real

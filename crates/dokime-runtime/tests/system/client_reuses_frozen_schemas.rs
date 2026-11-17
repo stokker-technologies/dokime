@@ -15,35 +15,34 @@
 
 /* === Imports === */
 
-use dokime::client::EvidenceRecordsListOptions;
-
 // Standard Library Imports
+use std::error::Error;
+use std::sync::Arc;
 
 // Third Party Imports
-
-// Local Imports
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime::Client;
-use dokime::EvidenceRecordScope;
-use dokime::MapValue;
-use dokime::client::ExecutionsSchemasGetOptions;
-use dokime::client::FrozenSchemaCache;
-use dokime::client::PluginPlacement;
-use dokime::client::PluginRemote;
-use dokime::client::PluginValue;
-use dokime::record_scope::Kind as RecordScopeKind;
-use dokime_protocol::host::executions::SchemasGetRequest;
-use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
+use harmos_protocol::host::plugin_placement;
 use harmos_protocol::model::PageRequest;
 use prost::Message;
 use prost_reflect::DescriptorPool;
 use prost_reflect::DynamicMessage;
 use prost_reflect::Value;
-use std::error::Error;
-use std::sync::Arc;
 use tonic::Code;
 use tonic::transport::Endpoint;
+
+// Local Imports
+use dokime::Client;
+use dokime::MapValue;
+use dokime::RecordScope;
+use dokime::client::EvidenceRecordsListOptions;
+use dokime::client::ExecutionsSchemasGetOptions;
+use dokime::client::FrozenSchemaCache;
+use dokime::client::PluginPlacement;
+use dokime::client::PluginRemote;
+use dokime::client::PluginValue;
+use dokime::record_scope;
+use dokime_protocol::host::executions::SchemasGetRequest;
+use dokime_runtime::PluginProcess;
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
 
 /* === Constants === */
 
@@ -83,7 +82,7 @@ fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
                 .create(
                     "thermal",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -118,37 +117,29 @@ fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
             let records = client
                 .evidence
                 .records
-                .list_with(
-                    EvidenceRecordScope {
-                        kind: Some(RecordScopeKind::Execution(executions[0].clone())),
-                    },
-                    String::new(),
-                    EvidenceRecordsListOptions {
+                .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
+                        kind: Some(record_scope::Kind::Execution(executions[0].clone())),
+                    }),
                         versions: Some(Vec::new()),
                         between: Some(Default::default()),
                         step: Some(String::new()),
                         selection: Some(Default::default()),
                         ..Default::default()
-                    },
-                )
+                    })
                 .await?
                 .records;
             let second_records = client
                 .evidence
                 .records
-                .list_with(
-                    EvidenceRecordScope {
-                        kind: Some(RecordScopeKind::Execution(executions[1].clone())),
-                    },
-                    String::new(),
-                    EvidenceRecordsListOptions {
+                .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
+                        kind: Some(record_scope::Kind::Execution(executions[1].clone())),
+                    }),
                         versions: Some(Vec::new()),
                         between: Some(Default::default()),
                         step: Some(String::new()),
                         selection: Some(Default::default()),
                         ..Default::default()
-                    },
-                )
+                    })
                 .await?
                 .records;
 

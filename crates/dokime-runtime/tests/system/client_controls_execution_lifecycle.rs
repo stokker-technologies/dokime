@@ -23,7 +23,6 @@ use harmos_protocol::host::plugin_placement;
 use tonic::transport::Endpoint;
 
 // Local Imports
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use dokime::Client;
 use dokime::MapValue;
 use dokime::Metadata;
@@ -35,6 +34,8 @@ use dokime::client::CyclesGetOptions;
 use dokime::client::CyclesSealOptions;
 use dokime::client::CyclesSetOptions;
 use dokime::client::ExecutionBinding;
+use dokime::client::ExecutionCommandAction;
+use dokime::client::ExecutionCommandPhase;
 use dokime::client::ExecutionMode;
 use dokime::client::ExecutionParameterSet;
 use dokime::client::ExecutionState;
@@ -42,8 +43,6 @@ use dokime::client::ExecutionsCancelOptions;
 use dokime::client::ExecutionsCommandsCreateOptions;
 use dokime::client::ExecutionsCommandsGetOptions;
 use dokime::client::ExecutionsCreateOptions;
-use dokime::client::ExecutionsExecutionCommandAction;
-use dokime::client::ExecutionsExecutionCommandPhase;
 use dokime::client::ExecutionsGetOptions;
 use dokime::client::ExecutionsProgressWatchOptions;
 use dokime::client::ExecutionsSetOptions;
@@ -56,6 +55,7 @@ use dokime::client::SelectionPlan;
 use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::executions::CommandsCreateRequest;
 use dokime_runtime::PluginProcess;
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
 
 /* === Constants === */
 
@@ -303,7 +303,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             request_id: identifier.clone(),
             parent: identifier.clone(),
             command_id: "ramp-command".into(),
-            action: ExecutionsExecutionCommandAction::Next as i32,
+            action: ExecutionCommandAction::Next as i32,
             step_id: None,
         };
         let admitted = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
@@ -313,7 +313,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .create_with(
                 (command.clone()).parent,
                 (command.clone()).command_id,
-                ExecutionsExecutionCommandAction::try_from((command.clone()).action)?,
+                ExecutionCommandAction::try_from((command.clone()).action)?,
                 ExecutionsCommandsCreateOptions {
                     request_id: Some((command.clone()).request_id),
                     step_id: (command.clone()).step_id,
@@ -331,7 +331,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                     .await?
                     .command
                     .unwrap();
-            if receipt.phase == ExecutionsExecutionCommandPhase::Completed as i32 {
+            if receipt.phase == ExecutionCommandPhase::Completed as i32 {
                 break;
             }
             runtime.next().await?.unwrap();
@@ -343,7 +343,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .create_with(
                 (command.clone()).parent,
                 (command.clone()).command_id,
-                ExecutionsExecutionCommandAction::try_from((command.clone()).action)?,
+                ExecutionCommandAction::try_from((command.clone()).action)?,
                 ExecutionsCommandsCreateOptions {
                     request_id: Some((command.clone()).request_id),
                     step_id: (command.clone()).step_id,
@@ -353,7 +353,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .await?;
         assert_eq!(repeated.receipt, admitted.receipt);
         let repeated = repeated.command.unwrap();
-        assert_eq!(repeated.phase, ExecutionsExecutionCommandPhase::Completed as i32);
+        assert_eq!(repeated.phase, ExecutionCommandPhase::Completed as i32);
         assert_eq!(
             Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                 .executions
@@ -362,7 +362,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 .create_with(
                     identifier.clone(),
                     "repeat-ramp",
-                    ExecutionsExecutionCommandAction::try_from(ExecutionsExecutionCommandAction::RunStep as i32)?,
+                    ExecutionCommandAction::try_from(ExecutionCommandAction::RunStep as i32)?,
                     ExecutionsCommandsCreateOptions {
                         request_id: Some(identifier.clone()),
                         step_id: Some("ramp".into()),
@@ -373,7 +373,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                 .command
                 .unwrap()
                 .phase,
-            ExecutionsExecutionCommandPhase::Refused as i32
+            ExecutionCommandPhase::Refused as i32
         );
 
         // Run the Prompt Step and Finish After Answering
@@ -384,7 +384,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .create_with(
                 identifier.clone(),
                 "hold-command",
-                ExecutionsExecutionCommandAction::try_from(ExecutionsExecutionCommandAction::Next as i32)?,
+                ExecutionCommandAction::try_from(ExecutionCommandAction::Next as i32)?,
                 ExecutionsCommandsCreateOptions {
                     request_id: Some(identifier.clone()),
                     step_id: None,
@@ -410,7 +410,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
                     .await?
                     .command
                     .unwrap();
-            if receipt.phase == ExecutionsExecutionCommandPhase::Completed as i32 {
+            if receipt.phase == ExecutionCommandPhase::Completed as i32 {
                 break;
             }
             runtime.next().await?.unwrap();
@@ -429,7 +429,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .create_with(
                 identifier.clone(),
                 "no-next-step",
-                ExecutionsExecutionCommandAction::try_from(ExecutionsExecutionCommandAction::Next as i32)?,
+                ExecutionCommandAction::try_from(ExecutionCommandAction::Next as i32)?,
                 ExecutionsCommandsCreateOptions {
                     request_id: Some(identifier.clone()),
                     step_id: None,
@@ -439,7 +439,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .await?
             .command
             .unwrap();
-        assert_eq!(exhausted.phase, ExecutionsExecutionCommandPhase::Refused as i32);
+        assert_eq!(exhausted.phase, ExecutionCommandPhase::Refused as i32);
         assert!(
             Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?
                 .executions
@@ -459,7 +459,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
             .create_with(
                 identifier.clone(),
                 "finish-command",
-                ExecutionsExecutionCommandAction::try_from(ExecutionsExecutionCommandAction::Finish as i32)?,
+                ExecutionCommandAction::try_from(ExecutionCommandAction::Finish as i32)?,
                 ExecutionsCommandsCreateOptions {
                     request_id: Some(identifier.clone()),
                     step_id: None,
@@ -614,7 +614,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
         let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
         let client = Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?;
         let command = client.executions.commands.get("finish-command", identifier).await?.command.unwrap();
-        assert_eq!(command.phase, ExecutionsExecutionCommandPhase::Completed as i32);
+        assert_eq!(command.phase, ExecutionCommandPhase::Completed as i32);
         process.close().await?;
         plugin.close().await?;
         Ok::<_, Box<dyn Error>>(())
@@ -683,7 +683,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
                 .create_with(
                     identifier.clone(),
                     "interrupted-command",
-                    ExecutionsExecutionCommandAction::RunStep,
+                    ExecutionCommandAction::RunStep,
                     ExecutionsCommandsCreateOptions {
                         step_id: Some("hold".into()),
                         ..Default::default()
@@ -700,7 +700,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
             assert!(prompted);
             let held = client.executions.commands.get("interrupted-command", identifier.clone()).await?;
             let running = held.command.clone().unwrap();
-            assert_eq!(running.phase, ExecutionsExecutionCommandPhase::Running as i32);
+            assert_eq!(running.phase, ExecutionCommandPhase::Running as i32);
             drop(progress);
 
             // Retain the Native Admission Cut While Its History Is Available
@@ -724,7 +724,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, super::support::client_settings())?;
             let recovered = client.executions.commands.get("interrupted-command", identifier.clone()).await?.command.unwrap();
-            assert_eq!(recovered.phase, ExecutionsExecutionCommandPhase::Interrupted as i32);
+            assert_eq!(recovered.phase, ExecutionCommandPhase::Interrupted as i32);
             assert_eq!(recovered.execution_id, running.execution_id);
             assert_eq!(recovered.command_id, running.command_id);
             assert_eq!(recovered.action, running.action);
@@ -737,7 +737,7 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
                 .create_with(
                     identifier,
                     "interrupted-command",
-                    ExecutionsExecutionCommandAction::RunStep,
+                    ExecutionCommandAction::RunStep,
                     ExecutionsCommandsCreateOptions {
                         request_id: Some(running.request_id),
                         step_id: Some("hold".into()),

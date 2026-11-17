@@ -16,12 +16,16 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::error::Error;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use harmos_protocol::model::PageRequest;
+use harmos_protocol::model::ReadCut;
+use tonic::transport::Endpoint;
 
 // Local Imports
-use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use super::support;
 use dokime::Client;
 use dokime::EvidenceScope;
 use dokime::MapValue;
@@ -35,12 +39,8 @@ use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
 use dokime_protocol::host::evidence::TraceabilityGetRequest;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement;
-use harmos_protocol::model::PageRequest;
-use harmos_protocol::model::ReadCut;
-use std::collections::HashMap;
-use std::error::Error;
-use tonic::transport::Endpoint;
+use super::client_runs_thermal_suite_over_grpc::HostProcess;
+use super::support;
 
 /* === Constants === */
 
@@ -157,15 +157,12 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
             let first = client
                 .evidence
                 .traceability
-                .get_with(
-                    ((request.clone()).scope).unwrap_or_default(),
-                    EvidenceTraceabilityGetOptions {
+                .get_with(EvidenceTraceabilityGetOptions { scope: Some(((request.clone()).scope).unwrap_or_default()),
                         page: (request.clone()).page,
                         at: (request.clone()).at,
                         entry: (request.clone()).entry,
                         ..Default::default()
-                    },
-                )
+                    })
                 .await?;
             assert_eq!(first.snapshots.len(), 1);
             assert!(!first.next_page_token.is_empty());
@@ -183,15 +180,12 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
             let second = client
                 .evidence
                 .traceability
-                .get_with(
-                    ((continuation.clone()).scope).unwrap_or_default(),
-                    EvidenceTraceabilityGetOptions {
+                .get_with(EvidenceTraceabilityGetOptions { scope: Some(((continuation.clone()).scope).unwrap_or_default()),
                         page: (continuation.clone()).page,
                         at: (continuation.clone()).at,
                         entry: (continuation.clone()).entry,
                         ..Default::default()
-                    },
-                )
+                    })
                 .await?;
             assert_eq!(second.snapshots[0].entries[0].metadata.as_ref().unwrap().identifier, "batch");
             assert!(second.next_page_token.is_empty());
@@ -201,15 +195,12 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
                 client
                     .evidence
                     .traceability
-                    .get_with(
-                        ((wrong.clone()).scope).unwrap_or_default(),
-                        EvidenceTraceabilityGetOptions {
+                    .get_with(EvidenceTraceabilityGetOptions { scope: Some(((wrong.clone()).scope).unwrap_or_default()),
                             page: (wrong.clone()).page,
                             at: (wrong.clone()).at,
                             entry: (wrong.clone()).entry,
                             ..Default::default()
-                        }
-                    )
+                        })
                     .await
                     .is_err()
             );
@@ -220,15 +211,12 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
                 client
                     .evidence
                     .traceability
-                    .get_with(
-                        ((tiny.clone()).scope).unwrap_or_default(),
-                        EvidenceTraceabilityGetOptions {
+                    .get_with(EvidenceTraceabilityGetOptions { scope: Some(((tiny.clone()).scope).unwrap_or_default()),
                             page: (tiny.clone()).page,
                             at: (tiny.clone()).at,
                             entry: (tiny.clone()).entry,
                             ..Default::default()
-                        }
-                    )
+                        })
                     .await
                     .is_err()
             );
@@ -270,15 +258,12 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
                 client
                     .evidence
                     .traceability
-                    .get_with(
-                        ((pinned.clone()).scope).unwrap_or_default(),
-                        EvidenceTraceabilityGetOptions {
+                    .get_with(EvidenceTraceabilityGetOptions { scope: Some(((pinned.clone()).scope).unwrap_or_default()),
                             page: (pinned.clone()).page,
                             at: (pinned.clone()).at,
                             entry: (pinned.clone()).entry,
                             ..Default::default()
-                        }
-                    )
+                        })
                     .await?,
                 first
             );
@@ -288,15 +273,12 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
                 client
                     .evidence
                     .traceability
-                    .get_with(
-                        ((foreign.clone()).scope).unwrap_or_default(),
-                        EvidenceTraceabilityGetOptions {
+                    .get_with(EvidenceTraceabilityGetOptions { scope: Some(((foreign.clone()).scope).unwrap_or_default()),
                             page: (foreign.clone()).page,
                             at: (foreign.clone()).at,
                             entry: (foreign.clone()).entry,
                             ..Default::default()
-                        }
-                    )
+                        })
                     .await
                     .is_err()
             );
@@ -309,15 +291,12 @@ fn client_observes_revisioned_traceability() -> Result<(), Box<dyn Error>> {
             let restored = client
                 .evidence
                 .traceability
-                .get_with(
-                    ((pinned.clone()).scope).unwrap_or_default(),
-                    EvidenceTraceabilityGetOptions {
+                .get_with(EvidenceTraceabilityGetOptions { scope: Some(((pinned.clone()).scope).unwrap_or_default()),
                         page: (pinned.clone()).page,
                         at: (pinned.clone()).at,
                         entry: (pinned.clone()).entry,
                         ..Default::default()
-                    },
-                )
+                    })
                 .await?;
             assert_eq!(restored.snapshots[0].entries, first.snapshots[0].entries);
             assert_eq!(restored.resolved_at, first.resolved_at);

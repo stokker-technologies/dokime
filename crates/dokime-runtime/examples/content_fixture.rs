@@ -16,8 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::net::TcpStream;
 
 // Third Party Imports
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use dokime::plugin::{
@@ -28,9 +31,6 @@ use dokime::plugin::{
 use dokime::prelude::*;
 use dokime::value::Kind;
 use dokime::{ExecutionProgressValue, FileMetadata, Metadata, TraceabilityEntry, Value};
-use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::net::TcpStream;
 
 /* === Constants === */
 
@@ -260,7 +260,7 @@ async fn capture(ctx: &Context) -> Result<()> {
     // Open an Upload and Replay Its Receipt
     let uploads = ctx.host().files.uploads;
     let metadata = FileMetadata {
-        scope: Some(ctx.execution_id().into()),
+        scope: Some(format!("execution/{}", ctx.execution_id())),
         media_type: "text/plain".into(),
         ..Default::default()
     };
@@ -338,7 +338,7 @@ async fn capture(ctx: &Context) -> Result<()> {
 
     // Abandon a Separate Upload Without Publishing It
     let metadata = FileMetadata {
-        scope: Some(ctx.execution_id().into()),
+        scope: Some(format!("execution/{}", ctx.execution_id())),
         ..Default::default()
     };
     let options = HostFilesUploadsCreateOptions {

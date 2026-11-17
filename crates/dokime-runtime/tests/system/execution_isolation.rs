@@ -16,22 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 // Third Party Imports
-
-// Local Imports
-use dokime::Client;
-use dokime::EvidenceRecordScope;
-use dokime::FileReference;
-use dokime::Termination;
-use dokime::client::ResultStatus;
-use dokime::record_scope::Kind;
-use dokime_protocol::FILE_DESCRIPTOR_SET;
-use dokime_protocol::host::evidence::RecordsAppendRequest;
-use dokime_protocol::host::execution_outcome::Attribution as ExecutionOutcomeAttribution;
-use dokime_runtime::Host;
-use dokime_storage::Sample;
-use dokime_storage::Store;
 use harmos_protocol::plugin::InstanceGetRequest;
 use harmos_protocol::plugin::InstanceGetResponse;
 use harmos_protocol::plugin::InstanceInvokeRequest;
@@ -44,9 +33,6 @@ use harmos_protocol::plugin::instance_server::Instance;
 use prost::Message;
 use prost_types::Duration;
 use prost_types::Timestamp;
-use std::error::Error;
-use std::sync::Arc;
-use std::sync::Mutex;
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Code;
@@ -56,6 +42,20 @@ use tonic::Status;
 use tonic::Streaming;
 use tonic::transport::Endpoint;
 use tonic::transport::Server;
+
+// Local Imports
+use dokime::Client;
+use dokime::FileReference;
+use dokime::RecordScope;
+use dokime::Termination;
+use dokime::client::ResultStatus;
+use dokime::record_scope::Kind;
+use dokime_protocol::FILE_DESCRIPTOR_SET;
+use dokime_protocol::host::evidence::RecordsAppendRequest;
+use dokime_protocol::host::execution_outcome;
+use dokime_runtime::Host;
+use dokime_storage::Sample;
+use dokime_storage::Store;
 
 /* === Constants === */
 
@@ -86,7 +86,7 @@ impl Instance for ScopeProbe {
     }
     type InvokeStream = ReceiverStream<Result<InstanceInvokeResponse, Status>>;
     async fn invoke(&self, request: Request<Streaming<InstanceInvokeRequest>>) -> Result<Response<Self::InvokeStream>, Status> {
-        use dokime::value::Kind as ValueKind;
+        use dokime::value;
         use dokime::{ArtifactScope, EvidenceScope, Metadata, Step, TestCase};
         use dokime_protocol::host::content::ArtifactsCreateRequest;
         use dokime_protocol::host::evidence::{RecordsListRequest, TraceabilityGetRequest};
@@ -97,16 +97,16 @@ impl Instance for ScopeProbe {
         };
         use harmos_protocol::host::{OperationsGetRequest, OperationsListRequest};
         use harmos_protocol::model::{Classification, Failure, Position};
-        use harmos_protocol::plugin::child_response::Result as ChildResult;
-        use harmos_protocol::plugin::instance_invoke_request::Frame as Input;
-        use harmos_protocol::plugin::instance_invoke_response::Frame as Output;
-        use harmos_protocol::plugin::response::Result as InvocationResult;
-        use harmos_protocol::plugin::{ChildRequest, InstanceInvokeResponse, Response as WireResponse};
+        use harmos_protocol::plugin::child_response;
+        use harmos_protocol::plugin::instance_invoke_request;
+        use harmos_protocol::plugin::instance_invoke_response;
+        use harmos_protocol::plugin::response;
+        use harmos_protocol::plugin::{ChildRequest, InstanceInvokeResponse};
         use tokio::sync::mpsc;
         use tokio_stream::wrappers::ReceiverStream;
 
         let mut input = request.into_inner();
-        let Some(Input::Request(request)) = input.message().await?.and_then(|frame| frame.frame) else {
+        let Some(instance_invoke_request::Frame::Request(request)) = input.message().await?.and_then(|frame| frame.frame) else {
             return Err(Status::invalid_argument("Open Scope Probe: Supply an Invocation"));
         };
         let (send, receive) = mpsc::channel(1);
@@ -174,7 +174,7 @@ impl Instance for ScopeProbe {
                         ..Default::default()
                     };
                     let records = RecordsListRequest {
-                        scope: selected.clone().map(|execution| EvidenceRecordScope { kind: Some(Kind::Execution(execution)) }),
+                        scope: selected.clone().map(|execution| RecordScope { kind: Some(Kind::Execution(execution)) }),
                         ..Default::default()
                     };
                     let traceability = TraceabilityGetRequest { scope, ..Default::default() };
@@ -216,7 +216,7 @@ impl Instance for ScopeProbe {
                     )?;
                     let call = index as u64 + 1;
                     let frame = InstanceInvokeResponse {
-                        frame: Some(Output::Child(ChildRequest {
+                        frame: Some(instance_invoke_response::Frame::Child(ChildRequest {
                             call,
                             operation: operation.into(),
                             payload,
@@ -225,21 +225,21 @@ impl Instance for ScopeProbe {
                         })),
                     };
                     send.send(Ok(frame)).await.map_err(|_| "Send Scope Probe: Carrier Closed")?;
-                    let Some(Input::Child(reply)) = input.message().await?.and_then(|frame| frame.frame) else {
+                    let Some(instance_invoke_request::Frame::Child(reply)) = input.message().await?.and_then(|frame| frame.frame) else {
                         return Err("Read Scope Probe: Missing Child Reply".into());
                     };
                     assert_eq!(reply.call, call);
-                    let rejected = matches!(reply.result, Some(ChildResult::Failure(_)));
+                    let rejected = matches!(reply.result, Some(child_response::Result::Failure(_)));
                     probe.observations.lock().unwrap().push((operation.into(), refused, rejected));
                     if operation == "dokime.host.v1.Evidence/Statistics" && !refused {
-                        let Some(ChildResult::Payload(payload)) = reply.result.as_ref() else {
+                        let Some(child_response::Result::Payload(payload)) = reply.result.as_ref() else {
                             return Err(format!("{operation}: Refused the Calling Execution: {:?}", reply.result).into());
                         };
                         let statistics = EvidenceStatisticsResponse::decode(payload.as_slice())?.statistics.unwrap();
                         for value in [statistics.min, statistics.max, statistics.mean, statistics.median, statistics.sum] {
                             match value.unwrap().kind.unwrap() {
-                                ValueKind::UnsignedInteger(value) => assert_eq!(value, u64::MAX),
-                                ValueKind::Exact(value) => {
+                                value::Kind::UnsignedInteger(value) => assert_eq!(value, u64::MAX),
+                                value::Kind::Exact(value) => {
                                     assert!(!value.negative);
                                     assert_eq!(value.numerator, u64::MAX.to_string());
                                     assert_eq!(value.denominator, "1");
@@ -249,7 +249,7 @@ impl Instance for ScopeProbe {
                         }
                     }
                     if wrong_caller {
-                        let Some(ChildResult::Failure(failure)) = reply.result else {
+                        let Some(child_response::Result::Failure(failure)) = reply.result else {
                             return Err(format!("{operation}: Accepted a Plugin Caller").into());
                         };
                         assert_eq!(failure.classification, Classification::Refused as i32, "{operation}: {failure:?}");
@@ -261,15 +261,15 @@ impl Instance for ScopeProbe {
             }
             .await;
             let result = match result {
-                Ok(payload) => InvocationResult::Payload(payload),
-                Err(error) => InvocationResult::Failure(Failure {
+                Ok(payload) => response::Result::Payload(payload),
+                Err(error) => response::Result::Failure(Failure {
                     classification: Classification::Permanent as i32,
                     message: error.to_string(),
                     ..Default::default()
                 }),
             };
             let frame = InstanceInvokeResponse {
-                frame: Some(Output::Response(WireResponse { result: Some(result) })),
+                frame: Some(instance_invoke_response::Frame::Response(harmos_protocol::plugin::Response { result: Some(result) })),
             };
             let _ = send.send(Ok(frame)).await;
         });
@@ -356,13 +356,13 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
     super::support::run(Box::pin(async {
         use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
         use dokime::client::{ExecutionOutcome, PluginPlacement, PluginRemote, PluginValue};
-        use dokime::origin::Kind as OriginKind;
+        use dokime::origin;
         use dokime::{Import, Metadata, Origin, Suite, Suites, Termination, TestCaseTemplate};
         use dokime_protocol::plugin::{
             StepsExecuteRequest, StepsExecuteResponse, TestCasesMaterializeRequest, TestCasesMaterializeResponse,
         };
         use dokime_storage::{Execution, Store};
-        use harmos_protocol::host::plugin_placement::Kind as PlacementKind;
+        use harmos_protocol::host::plugin_placement;
         use harmos_protocol::model::{
             Declarations, OperationContract, OperationPolicy, Requirement, Section, StreamDeclaration, Visibility,
         };
@@ -380,7 +380,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 identifier: "foreign-execution".into(),
                 cycle: "foreign-cycle".into(),
                 origin: Some(Origin {
-                    kind: Some(OriginKind::Import(Import::default())),
+                    kind: Some(origin::Kind::Import(Import::default())),
                 }),
                 ..Default::default()
             })?;
@@ -515,7 +515,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
                 .create(
                     "scope_fixture",
                     PluginPlacement {
-                        kind: Some(PlacementKind::Remote(PluginRemote { url })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -548,7 +548,7 @@ fn harmonized_plugin_calls_retain_trusted_execution_scope() -> Result<(), Box<dy
             let completed = client.executions.get(executions[0].clone()).await?.execution.unwrap();
             assert!(
                 matches!(completed.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
-                Some(ExecutionOutcomeAttribution::NotEvaluated(outcome)) if outcome.termination == Termination::Completed as i32),
+                Some(execution_outcome::Attribution::NotEvaluated(outcome)) if outcome.termination == Termination::Completed as i32),
                 "{:?}",
                 completed.outcome
             );
@@ -605,7 +605,7 @@ fn execution_isolation() -> Result<(), Box<dyn Error>> {
                         .collect::<Vec<_>>()
                 );
                 assert!(matches!(snapshot.execution.outcome.as_ref().and_then(|outcome| outcome.attribution.as_ref()),
-                        Some(ExecutionOutcomeAttribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32));
+                        Some(execution_outcome::Attribution::Evaluated(outcome)) if outcome.status == ResultStatus::Passed as i32));
                 assert_eq!(
                     snapshot.logs()?.iter().map(|log| log.message.parse::<f64>()).collect::<Result<Vec<_>, _>>()?,
                     vec![value, value]

@@ -16,19 +16,17 @@ import sys
 from pathlib import Path
 
 from dokime import (
-    EvidenceCapturedRecordSelection,
-    EvidenceRecordScope,
+    CapturedRecordSelection,
+    RecordScope,
     EvidenceScope,
     MapValue,
     Metadata,
     Value,
-    Window,
 )
 from dokime.client import (
     PLUGIN_STATE_READY,
     RESULT_STATUS_PASSED,
-    Client,
-    EvidenceBucketRequest,
+    BucketRequest,
     ExecutionDetail,
     ExecutionFilter,
     ExecutionOrder,
@@ -43,6 +41,8 @@ from dokime.client import (
     SelectionValues,
 )
 from dokime.schemas import FrozenSchemaCache
+from dokime.connection import connect
+from dokime import model
 
 # === Public Exports === #
 
@@ -57,7 +57,7 @@ from dokime.schemas import FrozenSchemaCache
 
 async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None:
     # Connect Through the Composed Client Surface
-    client = Client.connect(url)
+    client = await connect(url)
     try:
         if phase == "read":
             # Resolve the Original Frozen Evidence After Process Restart
@@ -66,12 +66,12 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
             detail = (await client.executions.get(identifier)).execution
             assert detail == saved
             records = await client.evidence.records.list(
-                EvidenceRecordScope(execution=identifier),
                 "",
                 [],
-                Window(),
+                model.Window(),
                 "",
-                EvidenceCapturedRecordSelection(),
+                CapturedRecordSelection(),
+                scope=RecordScope(execution=identifier),
             )
             samples = await client.evidence.samples.list(
                 EvidenceScope(execution_id=identifier),
@@ -80,8 +80,8 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
                 [],
                 [],
                 [],
-                Window(),
-                EvidenceBucketRequest(),
+                model.Window(),
+                BucketRequest(),
                 False,
             )
             assert (
@@ -161,12 +161,12 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
             detail.summary
         ]
         records = await client.evidence.records.list(
-            EvidenceRecordScope(execution=identifier),
             "",
             [],
-            Window(),
+            model.Window(),
             "",
-            EvidenceCapturedRecordSelection(),
+            CapturedRecordSelection(),
+            scope=RecordScope(execution=identifier),
         )
         assert len(records.records) == 1 and records.records[0].payload
         schemas = FrozenSchemaCache()
@@ -182,8 +182,8 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
             [],
             [],
             [],
-            Window(),
-            EvidenceBucketRequest(),
+            model.Window(),
+            BucketRequest(),
             False,
         )
         assert all(sample.WhichOneof("kind") == "raw" for sample in samples.samples)

@@ -21,6 +21,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use harmos_runtime::clock::Controller;
+use harmos_runtime::clock;
 use tonic::transport::Endpoint;
 
 // Local Imports
@@ -30,12 +33,13 @@ use dokime::Metadata;
 use dokime::Termination;
 use dokime::client::CasesCreateOptions;
 use dokime::client::CyclesCreateOptions;
+use dokime::client::EvidenceStatisticsOptions;
 use dokime::client::ExecutionBinding;
+use dokime::client::ExecutionCommandAction;
 use dokime::client::ExecutionMode;
 use dokime::client::ExecutionState;
 use dokime::client::ExecutionsCommandsCreateOptions;
 use dokime::client::ExecutionsCreateOptions;
-use dokime::client::ExecutionsExecutionCommandAction;
 use dokime::client::ExecutionsStartOptions;
 use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
@@ -45,11 +49,8 @@ use dokime::client::SelectionPlan;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_runtime::ControlledClock;
 use dokime_runtime::PluginProcess;
-use dokime_runtime::Result as RuntimeResult;
 use dokime_runtime::SchedulerClock;
 use dokime_runtime::services;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
-use harmos_runtime::clock::{Clock as RuntimeClock, Controller};
 
 /* === Constants === */
 
@@ -75,7 +76,7 @@ struct FailingClock {
 
 #[async_trait::async_trait]
 impl SchedulerClock for FailingClock {
-    fn execution_clock(&self) -> (RuntimeClock, Option<Controller>) {
+    fn execution_clock(&self) -> (clock::Clock, Option<Controller>) {
         self.clock.execution_clock()
     }
     fn now_ns(&self) -> i64 {
@@ -84,7 +85,7 @@ impl SchedulerClock for FailingClock {
         }
         self.clock.now_ns()
     }
-    async fn wait_until(&self, at_ns: i64) -> RuntimeResult<()> {
+    async fn wait_until(&self, at_ns: i64) -> dokime_runtime::Result<()> {
         self.clock.wait_until(at_ns).await
     }
     async fn reached(&self, at_ns: i64) {
@@ -143,7 +144,7 @@ async fn sealed(client: &Client, execution: &str) -> Result<(Termination, u64), 
         execution_id: Some(execution.into()),
         ..Default::default()
     };
-    let count = client.evidence.statistics(scope, "execution.boundary", "value").await?.statistics.unwrap().count;
+    let count = client.evidence.statistics_with("execution.boundary", "value", EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() }).await?.statistics.unwrap().count;
     Ok((termination, count))
 }
 
@@ -170,7 +171,7 @@ fn failed_worker_settles_its_samples() -> Result<(), Box<dyn Error>> {
                 .create(
                     "boundary",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -230,7 +231,7 @@ fn failed_worker_settles_its_samples() -> Result<(), Box<dyn Error>> {
                 .create_with(
                     failed,
                     "capture",
-                    ExecutionsExecutionCommandAction::Next,
+                    ExecutionCommandAction::Next,
                     ExecutionsCommandsCreateOptions {
                         request_id: Some(failed.into()),
                         ..Default::default()

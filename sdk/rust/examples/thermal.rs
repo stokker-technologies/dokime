@@ -16,15 +16,15 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
 use dokime::RetryPolicy;
+use dokime::model::Section;
 use dokime::prelude::*;
-use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind, PromptArchetype, Section, Severity, card, value};
-use prost_types::Duration as ProtoDuration;
-use std::time::Duration;
+use dokime::{Card, Document, EvidenceCard, FieldReference, Metadata, Plot, PlotKind, PromptArchetype, Severity, card, value};
 
 /* === Constants === */
 
@@ -110,7 +110,7 @@ fn main() -> Result<()> {
                 .policy(OperationPolicy {
                     retries: Some(RetryPolicy {
                         total_attempts: 3,
-                        initial: Some(ProtoDuration { seconds: 0, nanos: 100_000_000 }),
+                        initial: Some(prost_types::Duration { seconds: 0, nanos: 100_000_000 }),
                         maximum: None,
                         deterministic_jitter: false,
                     }),

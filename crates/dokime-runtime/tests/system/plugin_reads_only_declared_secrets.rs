@@ -15,18 +15,23 @@
 
 /* === Imports === */
 
-use dokime::client::EvidenceRecordsListOptions;
-
 // Standard Library Imports
+use std::collections::HashMap;
+use std::error;
 
 // Third Party Imports
+use harmos_protocol::host::plugin_placement;
+use prost::Message;
+use tokio::time;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime::Client;
-use dokime::EvidenceRecordScope;
 use dokime::Metadata;
+use dokime::RecordScope;
 use dokime::SecretWritable;
 use dokime::Value;
+use dokime::client::EvidenceRecordsListOptions;
 use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
 use dokime::client::PluginState;
@@ -34,15 +39,9 @@ use dokime::client::PluginValue;
 use dokime::client::PluginsSecretsListOptions;
 use dokime::client::SecretsDeleteOptions;
 use dokime::client::SecretsSetOptions;
-use dokime::record_scope::Kind as RecordScopeKind;
-use dokime_protocol::model::value::Kind as ValueKind;
+use dokime::record_scope;
+use dokime_protocol::model::value;
 use dokime_runtime::PluginProcess;
-use harmos_protocol::host::plugin_placement::Kind as PluginPlacementKind;
-use prost::Message;
-use std::collections::HashMap;
-use std::error::Error as StdError;
-use tokio::time;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -71,12 +70,12 @@ struct ReadResult {
 
 /* === Private Functions === */
 
-async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadResult, Box<dyn StdError>> {
+async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadResult, Box<dyn error::Error>> {
     // Materialize the Requested Identifier and Execute the Plugin's Read
     let parameters = HashMap::from([(
         "identifier".into(),
         vec![Value {
-            kind: Some(ValueKind::Text(identifier.into())),
+            kind: Some(value::Kind::Text(identifier.into())),
         }],
     )]);
     let cases = super::support::materialize(client, plugin, format!("{plugin}.read"), parameters).await?;
@@ -92,19 +91,15 @@ async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadRes
     let records = client
         .evidence
         .records
-        .list_with(
-            EvidenceRecordScope {
-                kind: Some(RecordScopeKind::Execution(cycle[0].clone())),
-            },
-            String::new(),
-            EvidenceRecordsListOptions {
+        .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(RecordScope {
+                kind: Some(record_scope::Kind::Execution(cycle[0].clone())),
+            }),
                 versions: Some(Vec::new()),
                 between: Some(Default::default()),
                 step: Some(String::new()),
                 selection: Some(Default::default()),
                 ..Default::default()
-            },
-        )
+            })
         .await?;
     assert_eq!(records.records.len(), 1);
     Ok(ReadResult::decode(records.records[0].payload.as_slice())?)
@@ -113,7 +108,7 @@ async fn read(client: &Client, plugin: &str, identifier: &str) -> Result<ReadRes
 /* === Tests === */
 
 #[test]
-fn plugin_secret_requirements_follow_secret_storage() -> Result<(), Box<dyn StdError>> {
+fn plugin_secret_requirements_follow_secret_storage() -> Result<(), Box<dyn error::Error>> {
     super::support::run(Box::pin(async {
         use super::{client_runs_thermal_suite_over_grpc::HostProcess, support};
         time::timeout(support::SYSTEM_HANG_GUARD, async {
@@ -126,7 +121,7 @@ fn plugin_secret_requirements_follow_secret_storage() -> Result<(), Box<dyn StdE
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, support::client_settings())?;
             let placement = PluginPlacement {
-                kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+                kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
             };
             let created = client.plugins.create("secret_reader", placement.clone(), PluginValue { enabled: true }).await?;
             support::plugin_state(&client.plugins, created.entry.unwrap(), harmos_protocol::host::PluginState::Ready).await?;
@@ -196,14 +191,14 @@ fn plugin_secret_requirements_follow_secret_storage() -> Result<(), Box<dyn StdE
             assert!(client.plugins.secrets.list_with(options()).await.is_err());
             process.close().await?;
             plugin.close().await?;
-            Ok::<(), Box<dyn StdError>>(())
+            Ok::<(), Box<dyn error::Error>>(())
         })
         .await?
     }))
 }
 
 #[test]
-fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
+fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn error::Error>> {
     super::support::run(Box::pin(async {
         time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Connect Two Plugins with Different Secret Declarations
@@ -230,7 +225,7 @@ fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
                 .create(
                     "secret_reader",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: reader.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: reader.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -245,7 +240,7 @@ fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
                 .create(
                     "secret_owner",
                     PluginPlacement {
-                        kind: Some(PluginPlacementKind::Remote(PluginRemote { url: owner.endpoint().into() })),
+                        kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: owner.endpoint().into() })),
                     },
                     PluginValue { enabled: true },
                 )
@@ -352,7 +347,7 @@ fn plugin_reads_only_declared_secrets() -> Result<(), Box<dyn StdError>> {
             process.close().await?;
             reader.close().await?;
             owner.close().await?;
-            Ok::<(), Box<dyn StdError>>(())
+            Ok::<(), Box<dyn error::Error>>(())
         })
         .await?
     }))

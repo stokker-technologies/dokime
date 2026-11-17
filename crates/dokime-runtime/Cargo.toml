@@ -142,7 +142,7 @@ windows-sys = { workspace = true, features = ["Win32_System_Diagnostics_ToolHelp
 
 [[test]]
 name = "system"
-path = "tests/system/main.rs"
+path = "tests/main.rs"
 
 # === Bench Targets === #
 

@@ -1,9 +1,10 @@
 - [x] 1.1 Recheck the old server/runtime audit against the replacement tree; deleted server and loop tests are superseded, while current runtime, CLI, SDK and desktop stories remain in scope.
 - [ ] 1.2 Measure the surviving slow stories and lock their current fixture/consumer inventory before consolidation; do not recreate removed server/lease tests.
 - [ ] 2.1 Consolidate repeated current runtime/CLI/desktop backend, catalog and evidence-read setup into cohesive shared mechanics; one story owns its actor, edge cases and assertions.
+  - [x] 2.1.1 Port current runtime stories and shared fixtures to the final generated SDK signatures; retire superseded direct Store-seeded client stories and the unused file-registration helper.
 - [ ] 2.2 Move the surviving desktop connection fixture mechanics from `tests/integration/connection/fixture/` to shared support where multiple stories need them; the retired server wire stack is not restored.
 - [ ] 3.1 Split surviving multi-scenario drivers and consolidate redundant fixture startups into complete stories; retain independent behavioral coverage and current native driver routing.
-- [ ] 4.1 Move oversized correctness workloads such as the desktop RPC archive fixture and current large plot-window case to benchmarks, retaining small deterministic boundary-crossing cases as correctness tests.
+- [ ] 4.1 Move oversized correctness workloads such as the desktop RPC archive fixture to benchmarks, retaining small deterministic boundary-crossing cases as correctness tests; the direct Store-seeded plot-window story is superseded.
 - [ ] 4.2 Replace behavior-dependent real timers/sleeps in current GUI status/document/plot/responsiveness stories with controlled events/clock; browser/process hang guards remain safeguards, never performance assertions.
 - [ ] 4.3 Replace remaining wall-clock fixture values such as responsiveness-fixture.tsx started_at with fixed timestamps; namespace uniqueness is not a sampled-behavior assertion.
 - [x] 5.1 Delete the retired simulation/definition/plugin-settings/parameter tests and their old domain/server/loop owners; do not reintroduce them for the old audit.

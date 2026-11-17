@@ -25,8 +25,15 @@ pub use settings::{OPERATION_TIMEOUT, SYSTEM_HANG_GUARD, settings};
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::HashMap;
+use std::env::consts::EXE_SUFFIX;
+use std::error::Error;
+use std::path::PathBuf;
 
 // Third Party Imports
+use harmos_protocol::model::StorageTransferSettings;
+use tokio::process::Child;
+use tokio::process::Command;
 
 // Local Imports
 use dokime::Client;
@@ -37,17 +44,7 @@ use dokime::client::PlannedCase;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsCreateResponse;
 use dokime_runtime::Host;
-
 use dokime_runtime::services;
-use dokime_storage::StoredExecutionFile;
-use harmos_protocol::model::StorageTransferSettings;
-use std::collections::HashMap;
-use std::env::consts::EXE_SUFFIX;
-use std::error::Error;
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-use tokio::process::Child;
-use tokio::process::Command;
 
 /* === Constants === */
 
@@ -111,27 +108,6 @@ impl PythonPlugin {
 }
 
 /* === Public Functions === */
-
-pub async fn register_execution_files(
-    root: &Path, environment: &[(&str, OsString)], files: Vec<StoredExecutionFile>,
-) -> Result<(), Box<dyn Error>> {
-    use prost::Message;
-    use std::io::Write;
-    let mut staged = Vec::new();
-    let mut command = Command::from(dokime_runtime::process::command(host_fixture()?));
-    command.envs(environment.iter().cloned()).args(["--credential-namespace", namespace().as_str(), "--storage"]).arg(root);
-    for file in files {
-        let mut metadata = tempfile::NamedTempFile::new()?;
-        metadata.write_all(&file.encode_to_vec())?;
-        command.arg("--attach-execution-file").arg(metadata.path());
-        staged.push(metadata);
-    }
-    let status = command.status().await?;
-    if !status.success() {
-        return Err(format!("Register Execution Files: Host Fixture Exited with {status}").into());
-    }
-    Ok(())
-}
 
 pub async fn plugin_state(
     plugins: &dokime::client::Plugins, mut entry: harmos_protocol::host::PluginEntry, expected: harmos_protocol::host::PluginState,

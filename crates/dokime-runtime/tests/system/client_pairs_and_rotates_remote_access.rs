@@ -16,8 +16,16 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::error::Error;
+use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_protocol::host::PluginsListRequest;
+use harmos_protocol::model::StorageTransferSettings;
+use tonic::Code;
+use tonic::transport::Certificate;
+use tonic::transport::ClientTlsConfig;
+use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime::Client;
@@ -53,14 +61,6 @@ use dokime_protocol::host::content::ArtifactsListRequest;
 use dokime_protocol::host::evidence::NotesListRequest;
 use dokime_protocol::host::evidence::RecordsListRequest;
 use dokime_protocol::host::evidence::SamplesListRequest;
-use harmos_protocol::host::PluginsListRequest;
-use harmos_protocol::model::StorageTransferSettings;
-use std::error::Error;
-use std::num::NonZeroUsize;
-use tonic::Code;
-use tonic::transport::Certificate;
-use tonic::transport::ClientTlsConfig;
-use tonic::transport::Endpoint;
 
 /* === Constants === */
 
@@ -290,24 +290,20 @@ fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> {
                     .evidence
                     .records
                     .clone()
-                    .list_with(
-                        Default::default(),
-                        String::new(),
-                        EvidenceRecordsListOptions {
+                    .list_with(String::new(), EvidenceRecordsListOptions { scope: Some(Default::default()),
                             versions: Some(Default::default()),
                             between: Some(Default::default()),
                             step: Some(String::new()),
                             selection: Some(Default::default()),
                             ..Default::default()
-                        }
-                    )
+                        })
                     .await
                     .unwrap_err()
                     .code(),
                 Code::Unauthenticated
             );
             let request = RecordsListRequest {
-                selection: Some(dokime::EvidenceCapturedRecordSelection {
+                selection: Some(dokime::CapturedRecordSelection {
                     scope: Some(dokime::EvidenceScope {
                         cycle_id: Some(cycle.clone()),
                         ..Default::default()
@@ -322,10 +318,7 @@ fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> {
                 .evidence
                 .records
                 .clone()
-                .list_with(
-                    ((request.clone()).scope).unwrap_or_default(),
-                    (request.clone()).record_type,
-                    EvidenceRecordsListOptions {
+                .list_with((request.clone()).record_type, EvidenceRecordsListOptions { scope: Some(((request.clone()).scope).unwrap_or_default()),
                         versions: Some((request.clone()).versions),
                         between: Some(((request.clone()).between).unwrap_or_default()),
                         step: Some((request.clone()).step),
@@ -333,8 +326,7 @@ fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> {
                         at: (request.clone()).at,
                         page: (request.clone()).page,
                         context: context_request,
-                    },
-                )
+                    })
                 .await?;
             drop(evidence);
 

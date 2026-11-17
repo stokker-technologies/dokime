@@ -22,11 +22,11 @@ use std::time::Duration;
 
 // Local Imports
 use dokime::RetryPolicy;
-use dokime::encoding::Message as EncodingMessage;
+use dokime::encoding;
+use dokime::model::Section;
 use dokime::plugin::HostEvidenceStatisticsOptions;
 use dokime::{Classification, Plot, PlotKind, prelude::*};
-use dokime::{Document, FieldReference, Section, Severity, value::Kind};
-use prost_types::Duration as ProtoDuration;
+use dokime::{Document, FieldReference, Severity, value::Kind};
 
 /* === Constants === */
 
@@ -99,7 +99,7 @@ fn main() -> Result<()> {
                 .policy(OperationPolicy {
                     retries: Some(RetryPolicy {
                         total_attempts: 2,
-                        initial: Some(ProtoDuration { seconds: 0, nanos: 100_000_000 }),
+                        initial: Some(prost_types::Duration { seconds: 0, nanos: 100_000_000 }),
                         maximum: None,
                         deterministic_jitter: false,
                     }),
@@ -214,7 +214,7 @@ async fn own_measurements(ctx: &Context) -> Result<bool> {
     let records = ctx.records("execution.attempt", "measure", 1).await?;
     let attempt = records
         .last
-        .map(|record| <Attempt as EncodingMessage>::decode(record.payload.as_slice()))
+        .map(|record| <Attempt as encoding::Message>::decode(record.payload.as_slice()))
         .transpose()
         .map_err(|error| Error::Invalid(error.to_string()))?;
     Ok(stats == repeated

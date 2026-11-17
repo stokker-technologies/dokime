@@ -200,6 +200,12 @@ gRPC paths, architecture and execution-host definition maps, and Markdown link t
 
 ## Fixtures and Stories
 
+Runtime client stories create execution evidence through real plugins and host
+operations. They use the generated SDK's optional selectors in call options;
+native Store fixtures belong to backend fault and storage contract tests.
+The runtime system target starts at `crates/dokime-runtime/tests/main.rs`, which
+loads the story and shared support modules without source-path overrides.
+
 The Rust host-fixture producer stages the reference host and its Python
 conformance package from the same locked library checkout. Python system and
 coverage lanes consume that stamped package, without a machine-specific source
