@@ -1,4 +1,3 @@
-import { failureOf } from "@/lib/notification-details";
 /* ***
  *
  * Dokime
@@ -19,8 +18,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { test } from "vitest";
 import { progressCount } from "@/features/cycle/ControlCard";
 import { executionControlState, inputNeededLabel, rerunNoticeLines } from "@/features/cycle/control-model";
-import { stepLabel } from "@/features/cycle/ExecutionControl";
 // Local Imports
+import { failureOf } from "@/lib/notification-details";
 import {
   archiveRefusal,
   buildCycleExecutionRows,
@@ -31,7 +30,6 @@ import {
   cycleState,
   followSelection,
   isCycleArchivable,
-  isCycleTerminal,
   isFollowing,
   isUnstartedExecution,
   nodeMenuGroups,
@@ -64,7 +62,7 @@ import { appendRecordTail, RECORD_TAIL } from "@/lib/api/native-evidence";
 import { defaultCycleLabel } from "@/lib/time-format";
 import type { HubRecord } from "@/lib/types";
 import { ROW_WINDOW_THRESHOLD, rowWindow } from "@/lib/use-row-window";
-import { reportFixturePayload } from "@/report/report-fixture";
+import { reportFixturePayload } from "./report-fixture";
 import { cycleSnapshotSource } from "@/report/report-snapshot";
 import { focusPresentation } from "@/shell/focus-mode";
 
@@ -393,12 +391,7 @@ test("Execution Controls", () => {
   assert.equal(inputNeededLabel([1, 3]), "Input needed on #1, #3");
   assert.equal(inputNeededLabel([]), null);
 
-  // The Running Step Takes Its Plugin's Label, Else Its Humanized Id; The Bar Shows Phase and Count
-  const steps = (records: Record<string, unknown>[]) => ({ steps: records }) as unknown as Parameters<typeof stepLabel>[0];
-  const record = { metadata: { label: "Sample Loop" }, method_name: "sample_loop", record_type: "step", step_id: "sample_loop" };
-  assert.equal(stepLabel(steps([record]), "sample_loop"), "Sample Loop");
-  assert.equal(stepLabel(steps([{ ...record, metadata: {} }]), "sample_loop"), "sample loop");
-  assert.equal(stepLabel(steps([]), "sample_loop"), "sample loop");
+  // The Bar Shows Phase and Count
   assert.equal(progressCount({ completed: 38, phase: "Samples", total: 100 }), "Samples 38/100");
   assert.equal(progressCount({ completed: 38, phase: "", total: 100 }), "38/100");
 });
@@ -492,10 +485,6 @@ test("Execution Rows", () => {
       ["case:third", false],
     ],
   );
-  const lifecycles = ["completed", "failed", "stopped", "interrupted", "running", "stopping", "planned"] as Parameters<
-    typeof isCycleTerminal
-  >[0][];
-  assert.deepEqual(lifecycles.map(isCycleTerminal), [true, true, true, true, false, false, false]);
 });
 
 test("Reloaded Execution Selection", () => {

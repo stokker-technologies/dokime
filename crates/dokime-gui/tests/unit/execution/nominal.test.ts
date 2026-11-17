@@ -47,7 +47,6 @@ import {
   highestPromptLevel,
   orderPendingPrompts,
   pendingPromptCountLabel,
-  promptLevelTone,
   queuePrompts,
   type RankedPrompt,
   type ScopedPrompt,
@@ -212,7 +211,9 @@ test("Duration Formatting", () => {
     [3_900, "1 h 5 min"],
     [-0.5, "-500 ms"],
   ];
-  for (const [seconds, label] of cases) assert.equal(formatDuration(seconds), label, `${seconds} s`);
+  for (const [seconds, label] of cases) {
+    assert.equal(formatDuration(seconds), label, `${seconds} s`);
+  }
   assert.equal(formatDuration(null), null);
   assert.equal(formatDuration(Number.NaN), null);
   assert.deepEqual(durationParts(80), { figure: "1 min 20", unit: "s" });
@@ -485,10 +486,6 @@ test("Prompt Answering", () => {
   );
   assert.equal(pendingPromptCountLabel(1), "1 prompt waiting");
   assert.equal(pendingPromptCountLabel(3), "3 prompts waiting");
-
-  // The Tone Follows the Record Severity Scale with Info Kept Visible
-  const levels = ["error", "warning", "info", "debug"] as PromptLevel[];
-  assert.deepEqual(levels.map(promptLevelTone), ["danger", "warning", "info", "muted"]);
 
   // A Prompt Is Answerable Only While Its Owner Runs
   type Owned = ScopedPrompt & { correlation_id: string };

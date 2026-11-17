@@ -39,7 +39,6 @@ import { cycleControlState, executionControlState } from "@/features/cycle/contr
 import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import {
   appendNativeCaseAttempt,
-  fetchNativeTestCycleSteps,
   sealNativeTestCycle,
   startNativeTestExecution,
   stopNativeTestExecution,
@@ -57,9 +56,6 @@ const fixture = vi.hoisted(() => ({
   start: vi.fn(),
   stop: vi.fn(),
   seal: vi.fn(),
-  detail: vi.fn(),
-  parameters: vi.fn(),
-  steps: vi.fn(),
 }));
 
 const session = { generation: "lifecycle", isCurrent: () => true };
@@ -94,35 +90,11 @@ beforeEach(() => {
       "/dokime.host.v1.Executions/Start": fixture.start,
       "/dokime.host.v1.Executions/Stop": fixture.stop,
       "/dokime.host.v1.Cycles/Seal": fixture.seal,
-      "/dokime.host.v1.Executions/Get": fixture.detail,
-      "/dokime.host.v1.Executions/Parameters": fixture.parameters,
-      "/dokime.host.v1.Executions/Steps": fixture.steps,
     };
     const operation = operations[path];
     const reply = operation ? await operation(identity, request) : await fixture.extra(path, decoded);
     return fromBinary(output, toBinary(output, create(output, reply)));
   });
-});
-
-test("Execution Detail Uses Embedded Criteria", async () => {
-  fixture.detail.mockResolvedValue({ execution: { cycleId: "cycle", summary: { executionId: "execution", caseId: "case" } } });
-  fixture.parameters.mockResolvedValue({ parameters: [] });
-  const steps = Array.from({ length: 20 }, (_, ordinal) => ({
-    stepId: `step-${ordinal}`,
-    ordinal: BigInt(ordinal),
-    measurementCount: 0n,
-    criterionCount: 1n,
-    criteria: [{ criterionId: `criterion-${ordinal}`, ordinal: 0n }],
-  }));
-  fixture.steps.mockResolvedValue({ steps });
-
-  const records = await fetchNativeTestCycleSteps(session, { cycleId: "cycle", executionId: "execution" });
-  assert.equal(records.length, 40);
-  assert.equal(records.filter((record) => record.record_type === "criterion").length, 20);
-  assert.equal(records[39].step_id, "criterion-19");
-  assert.equal(fixture.detail.mock.calls.length, 1);
-  assert.equal(fixture.parameters.mock.calls.length, 2);
-  assert.equal(fixture.steps.mock.calls.length, 1);
 });
 
 test("Append Without Start", async () => {
@@ -275,7 +247,9 @@ test("Stream Refreshes Documents And Preserves Sealed Detail", async () => {
     await invalidateRuntimeProjectionQueries(client);
     assert.deepEqual(calls, { document: 2, sealed: 1, active: 2 });
   } finally {
-    for (const unsubscribe of release) unsubscribe();
+    for (const unsubscribe of release) {
+      unsubscribe();
+    }
     client.clear();
   }
 });
@@ -283,17 +257,19 @@ test("Stream Refreshes Documents And Preserves Sealed Detail", async () => {
 test("Planning Preserves Selection Order and Exact Recursive Parameters", async () => {
   const requests: Record<string, unknown>[] = [];
   fixture.extra.mockImplementation(async (path, request) => {
-    if (path === "/dokime.host.v1.Suites/List")
+    if (path === "/dokime.host.v1.Suites/List") {
       return {
         values: [
           { metadata: { identifier: "fixture", label: "Fixture" }, templates: [{ metadata: { identifier: "fixture.run", label: "Run" } }] },
         ],
       };
-    if (path === "/dokime.host.v1.Suites/Get")
+    }
+    if (path === "/dokime.host.v1.Suites/Get") {
       return {
         metadata: { identifier: "fixture", label: "Fixture" },
         templates: [{ metadata: { identifier: "fixture.run", label: "Run" } }],
       };
+    }
     assert.equal(path, "/dokime.host.v1.Cases/Create");
     requests.push(request);
     return {
@@ -444,12 +420,16 @@ test("Watch Resynchronization and Cancellation Stay with Their Generation", asyn
   assert.equal(release.mock.calls.length, 1);
   const progress = await openNativeExecutionProgressStream(observation, "execution");
   const frames = [];
-  for await (const frame of progress) frames.push(frame);
+  for await (const frame of progress) {
+    frames.push(frame);
+  }
   assert.equal(frames[0].progress, null);
   assert.equal(frames[0].finished, true);
   assert.equal(release.mock.calls.length, 2);
   await progress.cancel();
-  for (const dispose of owned) dispose();
+  for (const dispose of owned) {
+    dispose();
+  }
   assert.equal(canceled.mock.calls.length, 1);
 });
 
@@ -516,9 +496,12 @@ test("Artifact Ranges Require a Stable Cut and Verified Digest", async () => {
   const at = { positions: [{ history: { store: "files", epoch: "one" }, sequence: 1n }] };
   let corrupt = false;
   fixture.extra.mockImplementation(async (path, request) => {
-    if (path === "/dokime.host.v1.content.Artifacts/Get") return { file: { length: 4n, sha256: digest }, resolvedAt: at };
-    if (path === "/dokime.host.v1.Files/Get")
+    if (path === "/dokime.host.v1.content.Artifacts/Get") {
+      return { file: { length: 4n, sha256: digest }, resolvedAt: at };
+    }
+    if (path === "/dokime.host.v1.Files/Get") {
       return { file: { length: 4n, sha256: digest }, chunkBytes: 2n, messageBytes: 1024n, resolvedAt: at };
+    }
     assert.equal(path, "/dokime.host.v1.Files/Read");
     assert.ok(request.offset === 0n || request.offset === 2n);
     assert.equal(request.maxBytes, 2n);
@@ -536,7 +519,7 @@ test("Default Execution Documents Preserve Ordered Frames Across Unary Pages", a
   fixture.extra.mockImplementation(async (path, request) => {
     assert.equal(path, "/dokime.host.v1.Documents/Get");
     assert.equal(request.documentId, "");
-    if (!request.pageToken)
+    if (!request.pageToken) {
       return {
         frames: [
           {
@@ -557,6 +540,7 @@ test("Default Execution Documents Preserve Ordered Frames Across Unary Pages", a
         resolvedAt: at,
         nextPageToken: "next",
       };
+    }
     assert.equal(request.pageToken, "next");
     assert.equal(request.at.positions[0].sequence, 0n);
     return {
@@ -589,7 +573,9 @@ test("History Projects Declared Outcomes Without Inventing Criterion Counts", as
   const { fetchNativeExecutionPage } = await import("@/lib/api/native-checkpoints");
   const at = { positions: [{ history: { store: "host", epoch: "inventory" }, sequence: 1n }] };
   fixture.extra.mockImplementation(async (path) => {
-    if (path === "/dokime.host.v1.Cycles/List") return { cycles: [], resolvedAt: at };
+    if (path === "/dokime.host.v1.Cycles/List") {
+      return { cycles: [], resolvedAt: at };
+    }
     assert.equal(path, "/dokime.host.v1.Executions/List");
     return {
       executions: [
@@ -633,7 +619,7 @@ test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
     revision: new Uint8Array([4]),
   };
   fixture.extra.mockImplementation(async (path, request) => {
-    if (path.endsWith("Settings/Schema"))
+    if (path.endsWith("Settings/Schema")) {
       return {
         schema: {
           sections: [{ sectionId: "entry", owner: { kind: { case: "installedPluginId", value: "entry" } } }],
@@ -642,11 +628,16 @@ test("Settings Read Canonical Cards and Save Typed Plugin Values", async () => {
           ],
         },
       };
-    if (path.endsWith("plugins.Secrets/List")) return { secrets: [] };
+    }
+    if (path.endsWith("plugins.Secrets/List")) {
+      return { secrets: [] };
+    }
     if (path.endsWith("plugins.Settings/Set")) {
       assert.deepEqual(request.value.values.power.value, { case: "flag", value: false });
       assert.deepEqual(request.expectedRevision, new Uint8Array([4]));
-    } else assert.ok(path.endsWith("plugins.Settings/List"));
+    } else {
+      assert.ok(path.endsWith("plugins.Settings/List"));
+    }
     return settings;
   });
   const frame = await fetchNativeSettingsFrame(session);
@@ -669,7 +660,9 @@ test("Diagnostics Read Stable Ranges and Verify the Whole Archive", async () => 
     assert.equal(path, "/harmos.host.v1.status.Diagnostics/Get");
     assert.equal(request.name, request.offset === 0n ? "" : name);
     const data = bytes.slice(Number(request.offset), Number(request.offset + request.maxBytes));
-    if (corrupt) data[0] ^= 1;
+    if (corrupt) {
+      data[0] ^= 1;
+    }
     return { name, totalLength: BigInt(bytes.length), sha256: digest, data };
   });
   const bundle = await collectDiagnosticsBundle(session);
@@ -727,7 +720,9 @@ test("Remote Listener Saves with Its Own Revision and Rotates Certificates", asy
       assert.equal(request.value.enabled, true);
       return { value: request.value, revision: new Uint8Array([18]), boundEndpoint: "127.0.0.1:4321" };
     }
-    if (path.endsWith("Certificates/Create")) return { certificatePem: "rotated" };
+    if (path.endsWith("Certificates/Create")) {
+      return { certificatePem: "rotated" };
+    }
     assert.ok(path.endsWith("Listener/Get"));
     return { value, revision };
   });

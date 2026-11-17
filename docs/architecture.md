@@ -950,7 +950,7 @@ The definition replaces these ownership paths:
 | dokime.v1 shared grab-bag values | dokime.model.v1 for exchanged values; otherwise the owning host/plugin resource |
 | Plugin management and persisted plugin settings | Dokime contracts, policy and SDK projections over Harmos activation/storage operations |
 | Product clock operation declarations | Harmos clock mechanics through carrier facilities; Dokime wrappers only for client needs |
-| Product generic ordered merge | harmos-query/src/merge.rs; consumer deletion is still open |
+| Product generic ordered merge | harmos-query/src/merge.rs; product merge removed |
 
 At the recorded pin, assembly and SDK generation still read
 `protocol/composition.toml`. `operation-boundary` deletes it: Dokime methods own
@@ -995,7 +995,6 @@ this is no permission for a duplicate durable row representation or new wire cod
 | host/cases/storage.rs, execution.rs, cycles.rs, progress.rs, traceability.rs, notes.rs, report.rs | Product objects and records reached through library native operations; no new storage interface or manager. |
 | content.rs and file/upload helpers | Native staging/publication, fences, checkpoints and resumable sessions under one content owner. Wire uses library FileReference/Upload, not native backend structs. |
 | expressions.rs, plot*.rs, document*.rs, numeric*.rs | Product expression binding and presentation; consume projected library query results and the library time merge. Preserve the parallel correctness repair. |
-| ordered_merge.rs | Delete after expressions.rs moves to TimeMergeReader; no product generic merge remains in the completed consumer migration. |
 
 ### StorageBackend Method Inventory
 

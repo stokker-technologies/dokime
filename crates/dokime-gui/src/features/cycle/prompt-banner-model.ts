@@ -26,17 +26,15 @@
 
 /* === Local Imports === */
 
-import type { HubRecord, Severity as PromptLevel } from "@/lib/types";
+import type { HubRecord, Severity } from "@/lib/types";
 
 /* === Types === */
-
-export type PromptLevelTone = "danger" | "warning" | "info" | "muted";
 
 /** The fields a prompt needs to be ranked; `PromptRequest` satisfies it. */
 export type RankedPrompt = {
   correlation_id: string;
   created_at: string;
-  level: PromptLevel;
+  level: Severity;
 };
 
 /** The owner fields that decide whether a prompt can still be answered. */
@@ -62,7 +60,7 @@ export type AnsweredPrompt = {
 
 /* === Constants === */
 
-const LEVEL_RANK: Record<PromptLevel, number> = {
+const LEVEL_RANK: Record<Severity, number> = {
   error: 3,
   warning: 2,
   info: 1,
@@ -85,7 +83,7 @@ export function orderPendingPrompts<T extends RankedPrompt>(prompts: readonly T[
 }
 
 /** The level that colours a count of these prompts, or `null` for none. */
-export function highestPromptLevel(prompts: readonly RankedPrompt[]): PromptLevel | null {
+export function highestPromptLevel(prompts: readonly RankedPrompt[]): Severity | null {
   return orderPendingPrompts(prompts)[0]?.level ?? null;
 }
 
@@ -120,7 +118,9 @@ export function queuePrompts<T extends RankedPrompt>(prompts: readonly T[]): T[]
 export function answeredPrompts(records: readonly Pick<HubRecord, "record_type" | "details" | "timestamp">[]): AnsweredPrompt[] {
   const requests = new Map<string, Pick<HubRecord, "details">>();
   for (const record of records) {
-    if (record.record_type.startsWith("prompt.request.")) requests.set(String(record.details.prompt_id ?? ""), record);
+    if (record.record_type.startsWith("prompt.request.")) {
+      requests.set(String(record.details.prompt_id ?? ""), record);
+    }
   }
   return records
     .filter((record) => record.record_type.startsWith("prompt.response."))
@@ -137,13 +137,6 @@ export function answeredPrompts(records: readonly Pick<HubRecord, "record_type" 
     .sort((left, right) => Date.parse(left.at) - Date.parse(right.at));
 }
 
-export function promptLevelTone(level: PromptLevel): PromptLevelTone {
-  if (level === "error") return "danger";
-  if (level === "warning") return "warning";
-  if (level === "debug") return "muted";
-  return "info";
-}
-
 export function pendingPromptCountLabel(count: number): string {
   return `${count} ${count === 1 ? "prompt" : "prompts"} waiting`;
 }
@@ -157,8 +150,12 @@ function createdAtMs(prompt: RankedPrompt): number {
 }
 
 function responseText(record: Pick<HubRecord, "record_type" | "details">, fields: unknown): string {
-  if (record.record_type === "prompt.response.expired") return "Expired";
-  if (record.record_type === "prompt.response.cancelled") return "Cancelled";
+  if (record.record_type === "prompt.response.expired") {
+    return "Expired";
+  }
+  if (record.record_type === "prompt.response.cancelled") {
+    return "Cancelled";
+  }
   const labels = new Map(
     (Array.isArray(fields) ? fields : []).flatMap((field) =>
       isObject(field) && typeof field.name === "string"
@@ -168,14 +165,20 @@ function responseText(record: Pick<HubRecord, "record_type" | "details">, fields
   );
   const values = record.details.values;
   const entries = isObject(values) ? Object.entries(values) : [];
-  if (entries.length) return entries.map(([name, value]) => `${labels.get(name) ?? name}: ${answerValue(value)}`).join(" · ");
+  if (entries.length) {
+    return entries.map(([name, value]) => `${labels.get(name) ?? name}: ${answerValue(value)}`).join(" · ");
+  }
   const action = String(record.details.action ?? "");
   return action ? action.charAt(0).toUpperCase() + action.slice(1).replaceAll(/[_-]+/g, " ") : "Answered";
 }
 
 function answerValue(value: unknown): string {
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (value === null || value === undefined) return "-";
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (value === null || value === undefined) {
+    return "-";
+  }
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
