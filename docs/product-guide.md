@@ -133,6 +133,11 @@ under `executions/<execution>.zip` and its own size/digest manifest. Deleting se
 evidence commits file retirement in SQLite before removing its stream files;
 startup completes interrupted retirement.
 
+Repeated exports with unchanged source and content inventories produce identical ZIP bytes. Members
+and embedded content metadata have stable ordering, and ZIP timestamps, platform and permissions
+are fixed. Retained query views and previous export files are derived outputs and
+are excluded from the source-file inventory.
+
 Roots from the rebuilt sample-table layout are incompatible. Select a fresh
 storage root; the old folder is preserved. There is no reset or migration.
 

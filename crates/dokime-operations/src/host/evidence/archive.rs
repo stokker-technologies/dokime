@@ -176,14 +176,14 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
 /* === Private Functions === */
 
 async fn content(context: &Context, execution: &str) -> Result<ArchivedContent> {
-    let artifacts = crate::host::content::artifact_records(context)
-        .await?
-        .into_iter()
-        .filter(|entry| {
-            entry.artifact.as_ref().and_then(|artifact| artifact.scope.as_ref()).and_then(|scope| scope.execution_id.as_deref())
-                == Some(execution)
-        })
-        .collect();
+    let mut artifacts = Vec::new();
+    for payload in crate::host::content::artifact_payloads(context).await? {
+        let entry = crate::host::content::decode_artifact(&payload)?;
+        let owner = entry.artifact.as_ref().and_then(|artifact| artifact.scope.as_ref()).and_then(|scope| scope.execution_id.as_deref());
+        if owner == Some(execution) {
+            artifacts.push(payload);
+        }
+    }
     let execution_files = crate::host::content::execution_files(context, execution).await?;
     let files = native_files(context, execution).await?;
     Ok(ArchivedContent { files, artifacts, execution_files })
@@ -233,6 +233,11 @@ async fn native_files(context: &Context, execution: &str) -> Result<Vec<Archived
                         .ok_or_else(|| Error::Precondition(format!("Read Native File Inventory: Restore Its {name} Column")))
                 };
                 for index in 0..batch.num_rows() {
+                    // Derived Views and Exports Are Not Source Evidence.
+                    let item = text("item")?.value(index);
+                    if item.starts_with("view/") || item.starts_with("temporary-evidence/") {
+                        continue;
+                    }
                     let expected_length = number("expected_length")?;
                     let expected_sha256 = binary("expected_sha256")?;
                     let reference = FileReference {
@@ -244,7 +249,7 @@ async fn native_files(context: &Context, execution: &str) -> Result<Vec<Archived
                             sequence: number("position")?.value(index),
                         }),
                         metadata: Some(FileMetadata {
-                            id: text("item")?.value(index).into(),
+                            id: item.into(),
                             scope: Some(scope.to_string()),
                             media_type: text("media_type")?.value(index).into(),
                             expected_length: (!expected_length.is_null(index)).then(|| expected_length.value(index)),

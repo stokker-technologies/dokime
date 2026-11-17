@@ -14,13 +14,14 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{mem, num::NonZeroUsize};
 
 // Third Party Imports
 use arrow_array::RecordBatch;
 use rusqlite::{Connection, OptionalExtension, params};
 
 // Local Imports
-use super::*;
+use super::{State, columns, conflict, db, decode, encode, exhausted, incompatible, integer, invalid, text, unsigned};
 use harmos_query::columnar::ArrowScan;
 use harmos_query::columnar::Cancellation;
 use harmos_query::columnar::ColumnKind;
@@ -34,6 +35,7 @@ use harmos_storage::DefinitionKind;
 use harmos_storage::DefinitionOutcome;
 use harmos_storage::Identifier;
 use harmos_storage::MutationHeader;
+use harmos_storage::{BackendSnapshot, Error, ReadLimits, Result};
 
 /* === Constants === */
 
@@ -86,7 +88,7 @@ pub(super) fn register(
             .optional()
             .map_err(db)?;
         if prior.as_ref().map(|(_, revision)| *revision) != expected {
-            return Err(conflict("set index definition: get again and retry"));
+            return Err(conflict("Set Index Definition: Get Its Current Revision and Retry"));
         }
         let mut revision = 1;
         if let Some((data, current)) = prior {
@@ -94,9 +96,10 @@ pub(super) fn register(
                 return Ok(current);
             }
             if !rebuild {
-                return Err(conflict("changed index requires explicit rebuild"));
+                return Err(conflict("Set Index Definition: Request an Explicit Rebuild for a Changed Definition"));
             }
-            revision = current.checked_add(1).ok_or_else(|| invalid("index revision overflow"))?;
+            revision =
+                current.checked_add(1).ok_or_else(|| invalid("Set Index Definition: Create a New Index Name After Revision Exhaustion"))?;
         }
         edit.execute("INSERT INTO storage_indexes VALUES(?1,?2,?3,?4) ON CONFLICT(name) DO UPDATE SET revision=excluded.revision,source=excluded.source,definition=excluded.definition",params![definition.name.as_str(),integer(revision)?,text(&definition.source)?,encode(definition)?]).map_err(db)?;
         edit.execute("DELETE FROM storage_index_entries WHERE name=?1", [definition.name.as_str()]).map_err(db)?;
@@ -120,7 +123,7 @@ pub(super) fn register(
             let mut entries = Vec::<IndexEntry>::new();
             loop {
                 cancel.check()?;
-                let retained = entries.capacity().saturating_mul(std::mem::size_of::<IndexEntry>()).saturating_add(key_bytes);
+                let retained = entries.capacity().saturating_mul(mem::size_of::<IndexEntry>()).saturating_add(key_bytes);
                 if rows >= work.rows.get() || bytes.saturating_add(retained) >= work.bytes.get() {
                     return Err(exhausted());
                 }
@@ -133,13 +136,12 @@ pub(super) fn register(
                 rows += page.scanned;
                 bytes = bytes.saturating_add(page.bytes_read);
                 let capacity = entries.len().saturating_add(page.batch.num_rows());
-                if bytes.saturating_add(key_bytes).saturating_add(capacity.saturating_mul(std::mem::size_of::<IndexEntry>()))
-                    > work.bytes.get()
+                if bytes.saturating_add(key_bytes).saturating_add(capacity.saturating_mul(mem::size_of::<IndexEntry>())) > work.bytes.get()
                 {
                     return Err(exhausted());
                 }
                 if capacity > entries.capacity() {
-                    let available = work.bytes.get().saturating_sub(bytes).saturating_sub(key_bytes) / std::mem::size_of::<IndexEntry>();
+                    let available = work.bytes.get().saturating_sub(bytes).saturating_sub(key_bytes) / mem::size_of::<IndexEntry>();
                     let target = capacity.max(entries.capacity().saturating_mul(2)).min(available);
                     entries.try_reserve_exact(target - entries.len()).map_err(|_| exhausted())?;
                 }
@@ -149,7 +151,7 @@ pub(super) fn register(
                     }
                     let entry = harmos_query::index::entry(&page.batch, definition, row)?;
                     key_bytes = key_bytes.saturating_add(entry.key.capacity());
-                    if bytes.saturating_add(key_bytes).saturating_add(entries.capacity().saturating_mul(std::mem::size_of::<IndexEntry>()))
+                    if bytes.saturating_add(key_bytes).saturating_add(entries.capacity().saturating_mul(mem::size_of::<IndexEntry>()))
                         > work.bytes.get()
                     {
                         return Err(exhausted());
@@ -232,14 +234,24 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &IndexRead, 
     }
     let lower_comparison = if exclusive { ">" } else { ">=" };
     let upper_bound = if upper.is_some() { "AND (i.key,i.position)<(?6,?7)" } else { "AND ?6 IS NULL AND ?7 IS NULL" };
-    let join = "JOIN storage_rows s ON s.position=i.position";
+    let (join, visible) = if definition.source.kind == ColumnKind::Stream {
+        (
+            "JOIN storage_sample_ranges s ON i.position BETWEEN s.first AND s.last AND s.schema_key=?9",
+            "AND NOT EXISTS(SELECT 1 FROM storage_scope_deletions d WHERE d.scope=s.scope AND d.position>s.last AND d.position<=?3)",
+        )
+    } else {
+        (
+            "JOIN storage_rows s ON s.position=i.position AND s.schema_key=?9",
+            "AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=i.position AND d.deleted_at<=?3) AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d JOIN storage_rows r ON r.schema_id=d.schema_id AND r.item=d.item WHERE r.kind=1 AND r.position=i.position AND d.position>r.position AND d.position<=?3)",
+        )
+    };
     let latest = if definition.source.kind == ColumnKind::Objects {
         "AND s.position=(SELECT max(o.position) FROM storage_rows o WHERE o.kind=1 AND o.schema_key=s.schema_key AND o.item=s.item AND o.position<=?3)"
     } else {
         ""
     };
     let sql = format!(
-        "SELECT i.key,i.position FROM storage_index_entries i {join} WHERE i.name=?1 AND i.revision=?2 AND i.position<=?3 AND (?8 IS NULL OR s.scope=?8) AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=i.position AND d.deleted_at<=?3) AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d JOIN storage_rows r ON r.schema_id=d.schema_id AND r.item=d.item WHERE r.kind=1 AND r.position=i.position AND d.position>r.position AND d.position<=?3) AND (i.key,i.position){lower_comparison}(?4,?5) {upper_bound} {latest} ORDER BY i.key {direction},i.position {direction} LIMIT {}",
+        "SELECT i.key,i.position FROM storage_index_entries i {join} WHERE i.name=?1 AND i.revision=?2 AND i.position<=?3 AND (?8 IS NULL OR s.scope=?8) {visible} AND (i.key,i.position){lower_comparison}(?4,?5) {upper_bound} {latest} ORDER BY i.key {direction},i.position {direction} LIMIT {}",
         read.limits.rows.get().saturating_add(1)
     );
     let mut query = tx.prepare(&sql).map_err(db)?;
@@ -253,6 +265,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &IndexRead, 
             upper.map(|bound| bound.0),
             upper.map(|bound| integer(bound.1)).transpose()?,
             super::snapshots::read(&state.connection, snapshot)?.scope,
+            text(&definition.source.schema)?,
         ])
         .map_err(db)?;
     let mut candidates = Vec::new();
@@ -260,7 +273,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &IndexRead, 
     while let Some(row) = rows.next().map_err(db)? {
         cancel.check()?;
         let key = row.get_ref(0).map_err(db)?.as_blob().map_err(|_| incompatible())?;
-        bytes = bytes.saturating_add(key.len() + std::mem::size_of::<IndexEntry>());
+        bytes = bytes.saturating_add(key.len() + mem::size_of::<IndexEntry>());
         if candidates.len() == read.work.rows.get() || bytes > read.work.bytes.get() {
             return Err(exhausted());
         }

@@ -25,10 +25,10 @@ from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, Plu
 from harmos.plugin import Operation, operation
 
 # Local Imports
-from dokime import FailureError, Metadata, Parameter
+from dokime import ArtifactScope, FailureError, Metadata, Parameter
 from dokime.authoring import Case, criterion, materialize, step, suite
 from dokime.client import EXECUTION_MODE_AUTOMATIC, ExecutionBinding, RegisteredSelection, SelectionPlan
-from dokime.plugin import Context, Plugin
+from dokime.plugin import Context, HostOperation, Plugin
 from dokime.values import Scalar, encode
 
 # Type Checking Imports
@@ -89,6 +89,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                         )
                     )
                 measured = await ctx.operation(reading)(Int32Value(value=channel))
+                await ctx.artifact(f"channel-{channel}.pb", measured.SerializeToString())
                 self.channels.append(measured.value)
 
             @criterion("All Channels")
@@ -101,7 +102,14 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         # Admit The Plugin Through A Real Product Host And Its Client Root.
         mechanical = Path(__file__).resolve().parents[2] / "examples/test/tests/host.py"
         host = await runpy.run_path(str(mechanical))["Host"].start(self)
-        plugin = Plugin("channels", "1.0.0", suites=[Channels], requires=[], operations=Operations())
+        required = [
+            HostOperation.CONTENT_ARTIFACTS_CREATE,
+            HostOperation.FILES_UPLOADS_CREATE,
+            HostOperation.FILES_UPLOADS_APPEND,
+            HostOperation.FILES_UPLOADS_PUBLISH,
+            HostOperation.FILES_UPLOADS_DELETE,
+        ]
+        plugin = Plugin("channels", "1.0.0", suites=[Channels], requires=required, operations=Operations())
         self.assertNotIn(reading.id, {operation.id for operation in plugin.declarations().operations})
         endpoint = await plugin.start("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
@@ -161,6 +169,18 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
                 execution.outcome.evaluated.DESCRIPTOR.fields_by_name["status"].enum_type.values_by_name["RESULT_STATUS_PASSED"].number,
                 execution,
             )
+
+            # Read Each Execution's Artifacts Through Its Exact Native File Owner.
+            artifacts = await host.client.content.artifacts.list(ArtifactScope(execution_id=identifier))
+            contents = {}
+            for artifact in artifacts.artifacts:
+                self.assertEqual(artifact.scope.execution_id, identifier)
+                selected = await host.client.content.artifacts.get(artifact.artifact_id)
+                self.assertEqual(selected.file.metadata.scope, f"execution/{identifier}")
+                page = await host.client.files.read(selected.file, 0, 1024)
+                contents[artifact.filename] = page.data
+            expected = {f"channel-{channel}.pb": Int32Value(value=channel * channel).SerializeToString() for channel in (2, 4)}
+            self.assertEqual(contents, expected)
         self.assertEqual(len(set(identifiers)), 2)
         self.assertEqual([item[0] for item in instances], [[4, 16], [4, 16]])
         self.assertEqual([item[1] for item in instances], [[(2, 1), (2, 2), (4, 1)]] * 2)

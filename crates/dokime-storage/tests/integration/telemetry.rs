@@ -17,7 +17,7 @@
 
 // Standard Library Imports
 use std::{
-    io::{Cursor, Read},
+    io::{Cursor, Read, Write},
     num::NonZeroUsize,
 };
 
@@ -25,6 +25,8 @@ use std::{
 use arrow_array::{Array, StructArray, UInt64Array};
 use prost::Message;
 use sha2::{Digest, Sha256};
+use tempfile::NamedTempFile;
+use zip::ZipArchive;
 
 // Local Imports
 use super::fixture::{self, Row};
@@ -38,7 +40,10 @@ use dokime_protocol::model::GridDefinition;
 use dokime_protocol::model::GridHighlight;
 use dokime_protocol::model::PlotFftOptions;
 use dokime_protocol::model::Reduction;
-use dokime_storage::{BatchSelection, ExecutionState, KindWindow, NumericWindow, Result, SampleWindow, Store, storage_defaults};
+use dokime_storage::{
+    ArchivedContent, ArchivedNativeFile, BatchSelection, ExecutionState, KindWindow, NumericWindow, Result, SampleWindow, Store,
+    StoredArtifact, StoredExecutionFile, storage_defaults,
+};
 
 use dokime_protocol::host::ExecutionOutcome;
 use dokime_protocol::host::UnevaluatedOutcome;
@@ -47,6 +52,7 @@ use dokime_protocol::host::execution_outcome;
 use dokime_protocol::host::plots::PlotRequest;
 use dokime_protocol::model::Aggregate;
 use dokime_protocol::model::AggregateExpression;
+use dokime_protocol::model::ArtifactMetadata;
 use dokime_protocol::model::ExactNumber;
 use dokime_protocol::model::Metadata;
 use dokime_protocol::model::RecordContract;
@@ -59,6 +65,7 @@ use dokime_protocol::model::transform_expression;
 use dokime_protocol::model::value;
 use harmos_protocol::model::Declarations;
 use harmos_protocol::model::StreamDeclaration;
+use harmos_protocol::model::{FileMetadata, FileReference};
 
 /* === Constants === */
 
@@ -294,6 +301,79 @@ fn accepted_tail_saved_cut_and_failed_catalog_commit() -> Result<()> {
     assert_eq!(reopened.cut("execution")?.frontier, saved);
     Ok(())
 }
+#[test]
+fn execution_archive_orders_native_content_deterministically() -> Result<()> {
+    // Seal Source Evidence.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    store.create(&fixture::execution())?;
+    store.close(
+        "execution",
+        Termination::Completed,
+        ExecutionOutcome {
+            attribution: Some(execution_outcome::Attribution::NotEvaluated(UnevaluatedOutcome::default())),
+        },
+    )?;
+    store.seal("execution")?;
+
+    // Export Opposite Source Inventory Orders.
+    let mut archives = Vec::new();
+    for names in [["first", "second"], ["second", "first"]] {
+        let mut content = ArchivedContent::default();
+        for name in names {
+            let data = name.as_bytes();
+            let digest = Sha256::digest(data).to_vec();
+            let reference = FileReference {
+                metadata: Some(FileMetadata {
+                    id: name.into(),
+                    scope: Some("execution/execution".into()),
+                    media_type: "application/octet-stream".into(),
+                    expected_length: Some(data.len() as u64),
+                    expected_sha256: Some(digest.clone()),
+                }),
+                length: data.len() as u64,
+                sha256: digest,
+                ..Default::default()
+            };
+            let mut file = NamedTempFile::new()?;
+            file.write_all(data)?;
+            content.files.push(ArchivedNativeFile {
+                reference: reference.clone(),
+                path: file.into_temp_path(),
+            });
+            let artifact = StoredArtifact {
+                artifact: Some(ArtifactMetadata {
+                    artifact_id: name.into(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            content.artifacts.push(artifact.encode_to_vec());
+            content.execution_files.push(StoredExecutionFile {
+                file: Some(reference),
+                ..Default::default()
+            });
+        }
+        let mut archive = Vec::new();
+        store.write_execution_archive("execution", &mut archive, content)?;
+        archives.push(archive);
+    }
+    assert_eq!(archives[0], archives[1]);
+
+    // Every Member Carries the Same Stable Metadata.
+    let mut archive = ZipArchive::new(Cursor::new(&archives[0]))?;
+    let first = archive.by_index(0)?;
+    let modified = first.last_modified();
+    let permissions = first.unix_mode();
+    drop(first);
+    for index in 1..archive.len() {
+        let member = archive.by_index(index)?;
+        assert_eq!(member.last_modified(), modified);
+        assert_eq!(member.unix_mode(), permissions);
+    }
+    Ok(())
+}
+
 #[test]
 fn compressed_long_execution_restarts_and_archive_preserves_bytes() -> Result<()> {
     let root = tempfile::tempdir()?;

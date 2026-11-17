@@ -35,3 +35,6 @@ and explicit template are the command-line starter's authoritative sources.
 The CLI owns embedding them. Host-dependent stories require prepared host
 fixtures, the controlled clock and explicit credential cleanup. Build those
 fixtures through the [execution host tasks](execution-host.md) before running them.
+
+`Context.artifact()` uploads under the admitted `execution/<id>` native file scope
+and attaches the published file to that execution's artifact metadata.

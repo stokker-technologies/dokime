@@ -29,7 +29,9 @@ use harmos_domain::journal::Position;
 use harmos_domain::schema::{Described, graph::Schema};
 use harmos_domain::{Identified, Message};
 use harmos_query::columnar::{ArrowScan, Cancellation, ColumnKind, ColumnSource};
+use harmos_query::index::{IndexDefinition, IndexRead};
 use harmos_storage::conformance::{self, CompoundFixture, ScopeFixture};
+use harmos_storage::query::projection::{ProjectionDefinition, ProjectionRead, ProjectionTransform, advance_projection};
 use harmos_storage::query::{ObjectSelection, ObjectVersions, StreamSelection};
 use harmos_storage::state::{RecoveryEntry, RecoverySnapshot, SnapshotPayload};
 use harmos_storage::{
@@ -1160,8 +1162,6 @@ async fn conditional_objects_replay_the_original_applied_and_conflict_outcomes()
 
 #[tokio::test]
 async fn native_indexes_and_shared_projections_retain_published_results_after_restart() -> StoryResult {
-    use harmos_query::index::{IndexDefinition, IndexRead};
-    use harmos_storage::query::projection::{ProjectionDefinition, ProjectionRead, ProjectionTransform, advance_projection};
     let root = tempfile::tempdir()?;
     let store = Store::open(root.path())?;
     let (backends, _lease) = Backend::open(&store, ObjectCatalog::new())?;
@@ -1184,7 +1184,7 @@ async fn native_indexes_and_shared_projections_retain_published_results_after_re
     };
     let cancel = Cancellation::default();
     backend.set_index_definition(&index, None, false, limits(), &cancel, None).await?;
-    let read = IndexRead {
+    let index_read = IndexRead {
         name: index.name.clone(),
         revision: Some(1),
         lower: None,
@@ -1195,7 +1195,7 @@ async fn native_indexes_and_shared_projections_retain_published_results_after_re
         limits: limits(),
         work: limits(),
     };
-    let page = backend.list_index_entries(&snapshot, &read, &cancel).await?;
+    let page = backend.list_index_entries(&snapshot, &index_read, &cancel).await?;
     assert_eq!(page.entries.iter().map(|entry| entry.position).collect::<Vec<_>>(), vec![2, 3, 4, 5]);
     let projection = ProjectionDefinition {
         name: Identifier::new("selected")?,
@@ -1221,6 +1221,10 @@ async fn native_indexes_and_shared_projections_retain_published_results_after_re
     let (reopened, _reopened_lease) = Backend::open(&store, ObjectCatalog::new())?;
     reopened.primary.create_session().await?;
     assert_eq!(reopened.primary.get_index_definition(&index.name).await?.0, index);
+    let snapshot = reopened.primary.create_snapshot(&at).await?;
+    let page = reopened.primary.list_index_entries(&snapshot, &index_read, &cancel).await?;
+    assert_eq!(page.entries.iter().map(|entry| entry.position).collect::<Vec<_>>(), vec![2, 3, 4, 5]);
+    reopened.primary.delete_snapshot(&snapshot).await?;
     assert_eq!(reopened.primary.get_projection_definition(&projection.name, Some(1)).await?.0, projection);
     assert_eq!(reopened.primary.list_projection_rows(&read).await?.batch.num_rows(), 4);
     reopened.primary.delete_session().await?;

@@ -10,16 +10,19 @@
 
 # === Imports === #
 
+# Standard Library Imports
 from collections.abc import Sequence
 from typing import Any, ClassVar, TypeVar, cast
 from uuid import uuid4
 
+# Third Party Imports
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import FileMetadata, OperationPolicy, PageRequest, Receipt, SettingValue, plugin
 from harmos.plugin import Operation
 
+# Local Imports
 from ._generated.host import HostRoot
 from ._generated.plugin_types import (
     BackendEnvironmentResponse,
@@ -44,6 +47,7 @@ from ._wire.model.v1.evidence_pb2 import ArtifactScope, Severity, Window
 from ._wire.model.v1.files_pb2 import FileSource
 from ._wire.model.v1.metadata_pb2 import Metadata
 from .authoring import Record
+from .transfers import upload_bytes
 from .values import Scalar, encode
 
 # === Public Exports === #
@@ -163,13 +167,11 @@ class Context:
     async def artifact(
         self, name: str, data: bytes, *, mime: str = "application/octet-stream", request_id: str | None = None
     ) -> ArtifactsCreateResponse:
-        from .transfers import upload_bytes
-
         identity = request_id if request_id is not None else str(uuid4())
         file = await upload_bytes(
             self.host.files.uploads,
             data,
-            metadata=FileMetadata(scope=self.execution, media_type=mime, expected_length=len(data)),
+            metadata=FileMetadata(scope=f"execution/{self.execution}", media_type=mime, expected_length=len(data)),
             request_id=identity,
         )
         return await self.host.content.artifacts.create(
