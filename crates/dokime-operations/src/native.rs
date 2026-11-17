@@ -20,7 +20,6 @@ use std::sync::{Arc, OnceLock, Weak};
 use std::time::Duration;
 
 // Third Party Imports
-use harmos_protocol::model::Callers;
 use harmos_runtime::operations::{ExecutionContext, HostContext, Lane, OperationFactory, ProtobufOperation, Registration, ServingError};
 use harmos_runtime::plugin::grpc::CallingPlugin;
 
@@ -159,7 +158,6 @@ pub fn context(execution: &ExecutionContext, action: &str) -> Result<Context> {
         .clone();
     let host = host.borrow();
     let plugin = execution.resource::<CallingPlugin>().is_ok();
-    crate::authorize(action, if plugin { Callers::Plugins } else { Callers::Clients })?;
     if plugin {
         let resources =
             host.context().get::<Resources>().ok_or_else(|| Error::Permission(format!("{action}: Enter an Active Execution")))?;

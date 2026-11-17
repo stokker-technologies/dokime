@@ -264,8 +264,9 @@ They are not wrappers around a Harmos registry or installation service.
 Decided by the owner on 2026-11-16: wrappers declare their audience with the `callers` option
 on their own methods, and plugins reach time and their own settings through the Harmos plugin
 protocol facilities and need no Dokime wrapper. A method no Dokime client calls is not wrapped. Each wrapper is a
-declaration plus a handler that authorizes, maps product values and calls the typed Harmos
-facade; authorization uses the existing product authorizer. Wrappers reuse the Harmos request and response messages as
+declaration plus a handler that maps product values and calls the typed Harmos
+facade; caller audience is enforced once, by the library's operation admission from each method's declared callers,
+and the product adds only execution-scope policy for plugins. Wrappers reuse the Harmos request and response messages as
 their payloads (Dokime services, Harmos messages), so no twin message is declared; the
 generated clients contain those messages but no Harmos service. Under the later
 `plugin-boundary` amendment, reuse is internal where needed: plugin authors see
