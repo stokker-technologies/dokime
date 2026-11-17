@@ -76,9 +76,7 @@ pub(super) fn register(
         return Ok(outcome);
     }
     let at = state.cursor()?;
-    let token = [b"index-build:".as_slice(), definition.name.as_str().as_bytes()].concat();
-    state.snapshots.insert(token.clone(), at.clone());
-    let snapshot = BackendSnapshot { at, token: token.clone() };
+    let snapshot = super::snapshots::create(state, &at)?;
     let result = (|| -> Result<u64> {
         let edit = tx.savepoint().map_err(db)?;
         let prior = edit
@@ -185,7 +183,7 @@ pub(super) fn register(
         state.work.set(counters);
         Ok(revision)
     })();
-    state.snapshots.remove(&token);
+    state.connection.execute("DELETE FROM storage_snapshot_leases WHERE token=?1", [&snapshot.token]).map_err(db)?;
     let outcome = DefinitionOutcome::capture(result)?;
     super::definition_mutations::write(&tx, mutation, DefinitionKind::Index, &definition.name, &outcome)?;
     tx.commit().map_err(db)?;
@@ -234,14 +232,14 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &IndexRead, 
     }
     let lower_comparison = if exclusive { ">" } else { ">=" };
     let upper_bound = if upper.is_some() { "AND (i.key,i.position)<(?6,?7)" } else { "AND ?6 IS NULL AND ?7 IS NULL" };
-    let join = if definition.source.kind == ColumnKind::Objects { "JOIN storage_rows s ON s.position=i.position" } else { "" };
+    let join = "JOIN storage_rows s ON s.position=i.position";
     let latest = if definition.source.kind == ColumnKind::Objects {
         "AND s.position=(SELECT max(o.position) FROM storage_rows o WHERE o.kind=1 AND o.schema_key=s.schema_key AND o.item=s.item AND o.position<=?3)"
     } else {
         ""
     };
     let sql = format!(
-        "SELECT i.key,i.position FROM storage_index_entries i {join} WHERE i.name=?1 AND i.revision=?2 AND i.position<=?3 AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=i.position AND d.deleted_at<=?3) AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d JOIN storage_rows r ON r.schema_id=d.schema_id AND r.item=d.item WHERE r.kind=1 AND r.position=i.position AND d.position>r.position AND d.position<=?3) AND (i.key,i.position){lower_comparison}(?4,?5) {upper_bound} {latest} ORDER BY i.key {direction},i.position {direction} LIMIT {}",
+        "SELECT i.key,i.position FROM storage_index_entries i {join} WHERE i.name=?1 AND i.revision=?2 AND i.position<=?3 AND (?8 IS NULL OR s.scope=?8) AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=i.position AND d.deleted_at<=?3) AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d JOIN storage_rows r ON r.schema_id=d.schema_id AND r.item=d.item WHERE r.kind=1 AND r.position=i.position AND d.position>r.position AND d.position<=?3) AND (i.key,i.position){lower_comparison}(?4,?5) {upper_bound} {latest} ORDER BY i.key {direction},i.position {direction} LIMIT {}",
         read.limits.rows.get().saturating_add(1)
     );
     let mut query = tx.prepare(&sql).map_err(db)?;
@@ -254,6 +252,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &IndexRead, 
             integer(lower.1)?,
             upper.map(|bound| bound.0),
             upper.map(|bound| integer(bound.1)).transpose()?,
+            super::snapshots::read(&state.connection, snapshot)?.scope,
         ])
         .map_err(db)?;
     let mut candidates = Vec::new();

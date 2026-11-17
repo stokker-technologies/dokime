@@ -14,17 +14,26 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeSet, io::Cursor};
+use std::{
+    collections::BTreeSet,
+    fs,
+    io::{self, Cursor},
+    path::{Path, PathBuf},
+    result,
+};
 
 // Third Party Imports
 use arrow_array::{Array, Float64Array, Int64Array, RecordBatch, StringArray, TimestampNanosecondArray, UInt64Array};
-use arrow_ipc::{reader::StreamReader, writer::StreamWriter};
+use arrow_ipc::{
+    reader::{FileReader, StreamReader},
+    writer::StreamWriter,
+};
 use rusqlite::{Connection, OptionalExtension, params};
 
 // Local Imports
 use super::*;
-use harmos_query::columnar::ColumnKind;
 use harmos_query::columnar::ColumnSource;
+use harmos_query::columnar::{self, ColumnKind};
 
 use harmos_query::columnar::ScanEvidence;
 
@@ -45,7 +54,7 @@ use harmos_query::columnar::ScanEvidence;
 /* === Public Functions === */
 
 pub(super) fn store(connection: &Connection, source: &ColumnSource, batch: &RecordBatch, settings: BackendSettings) -> Result<()> {
-    let flat = harmos_query::columnar::flatten(batch)?;
+    let flat = columnar::flatten(batch)?;
     if batch.num_rows() == 0 {
         return Ok(());
     }
@@ -81,7 +90,7 @@ pub(super) fn store(connection: &Connection, source: &ColumnSource, batch: &Reco
         let mut part = batch.slice(range.start, range.len());
         if part.get_array_memory_size() > settings.chunk_bytes.get() {
             let indices = (0..part.num_rows()).map(|row| row as u64).collect::<Vec<_>>();
-            part = harmos_query::columnar::take(&part, &indices)?;
+            part = columnar::take(&part, &indices)?;
         }
         if part.num_rows() > settings.chunk_rows.get() || part.get_array_memory_size() > settings.chunk_bytes.get() {
             if range.len() == 1 {
@@ -98,10 +107,10 @@ pub(super) fn store(connection: &Connection, source: &ColumnSource, batch: &Reco
 }
 
 fn store_chunk(connection: &Connection, source: &ColumnSource, batch: &RecordBatch) -> Result<()> {
-    let flat = harmos_query::columnar::flatten(batch)?;
+    let flat = columnar::flatten(batch)?;
     let positions = positions(&flat)?;
     let directory = directory(connection)?;
-    std::fs::create_dir_all(&directory).map_err(io)?;
+    fs::create_dir_all(&directory).map_err(io)?;
     let filename = format!("{}.arrow", uuid::Uuid::now_v7());
     let path = directory.join(&filename);
     let mut writer = crate::ipc::Writer::create(&path, batch.schema()).map_err(product)?;
@@ -151,9 +160,9 @@ fn store_chunk(connection: &Connection, source: &ColumnSource, batch: &RecordBat
     Ok(())
 }
 
-pub(super) fn directory(connection: &Connection) -> Result<std::path::PathBuf> {
+pub(super) fn directory(connection: &Connection) -> Result<PathBuf> {
     let path = connection.path().ok_or_else(|| invalid("Open Arrow: Use a Durable Catalog Path"))?;
-    let path = std::path::Path::new(path);
+    let path = Path::new(path);
     Ok(path.with_extension("arrow"))
 }
 
@@ -162,17 +171,17 @@ pub(super) fn read_chunk(connection: &Connection, chunk: i64, metadata: &[&str],
         .query_row("SELECT file,block FROM arrow_chunks WHERE id=?1", [chunk], |row| Ok((row.get(0)?, row.get(1)?)))
         .map_err(db)?;
     let block = decode::<crate::ipc::BatchIndex>(&block)?;
-    if std::path::Path::new(&filename).components().count() != 1 {
+    if Path::new(&filename).components().count() != 1 {
         return Err(incompatible());
     }
     let path = directory(connection)?.join(filename);
-    let reader = arrow_ipc::reader::FileReader::try_new(std::fs::File::open(&path).map_err(io)?, None)
+    let reader = FileReader::try_new(fs::File::open(&path).map_err(io)?, None)
         .map_err(|source| Error::backend("Read Arrow Schema", BackendFailure::Corrupt, source))?;
     let projection = crate::ipc::Projection::new(reader.schema(), metadata, values).map_err(product)?;
     crate::ipc::read_query_batch(&path, &block, &projection, maximum).map_err(product)
 }
 
-fn io(source: std::io::Error) -> Error {
+fn io(source: io::Error) -> Error {
     Error::backend("Access Arrow Stream", BackendFailure::Permanent, source)
 }
 fn product(source: crate::Error) -> Error {
@@ -200,8 +209,12 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
             StorageSchema::new(position, read.source.schema.clone(), Arc::new(graph))
         }
     };
-    let empty = harmos_query::columnar::empty(&schema, read.source.kind)?;
-    let required = read.required_columns();
+    let empty = columnar::empty(&schema, read.source.kind)?;
+    let scope = super::snapshots::read(&state.connection, snapshot)?.scope;
+    let mut required = read.required_columns();
+    if scope.is_some() && !required.iter().any(|name| name == "_storage.scope") {
+        required.push("_storage.scope".into());
+    }
     for name in &required {
         if empty.column_by_name(name).is_none() {
             return Err(invalid("requested column is unavailable"));
@@ -218,7 +231,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
         .optional()
         .map_err(db)?;
     let Some((chunk, _first, last, count)) = chunk else {
-        return Ok(harmos_query::columnar::finish_page(
+        return Ok(columnar::finish_page(
             snapshot,
             read,
             &empty,
@@ -261,7 +274,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
         pruned |= maximum.is_some_and(|maximum| maximum < time.lower_ns) || minimum.is_some_and(|minimum| minimum >= time.upper_ns);
     }
     if pruned {
-        let mut page = harmos_query::columnar::finish_page(
+        let mut page = columnar::finish_page(
             snapshot,
             read,
             &empty,
@@ -297,7 +310,7 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
         .filter_map(|name| name.strip_prefix("payload.").map(|path| path.split('.').next().unwrap().to_owned()))
         .collect::<Vec<_>>();
     let projected = read_chunk(&state.connection, chunk, &metadata, &payload, read.work.bytes.get())?;
-    let mut batch = harmos_query::columnar::flatten(&projected)?;
+    let mut batch = columnar::flatten(&projected)?;
     let mut counters = state.work.get();
     counters.source_rows += count as u64;
     counters.source_bytes += bytes_read as u64;
@@ -308,11 +321,11 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
     }
     if read.source.kind == ColumnKind::Objects && !history {
         let key = text(&read.source.schema)?;
-        let mut query = state.connection.prepare("SELECT position FROM storage_rows WHERE kind=1 AND schema_key=?1 AND position>=?3 AND position<=?4 AND position<=?2 AND position=(SELECT max(o.position) FROM storage_rows o WHERE o.kind=1 AND o.schema_key=?1 AND o.item=storage_rows.item AND o.position<=?2)").map_err(db)?;
+        let mut query = state.connection.prepare("SELECT position FROM storage_rows WHERE kind=1 AND schema_key=?1 AND position>=?3 AND position<=?4 AND position<=?2 AND position=(SELECT max(o.position) FROM storage_rows o WHERE o.kind=1 AND o.schema_key=?1 AND o.item=storage_rows.item AND o.position<=?2) AND (?5 IS NULL OR scope=?5)").map_err(db)?;
         let retained = query
-            .query_map(params![key, integer(snapshot.at.sequence)?, integer(_first)?, integer(last)?], |row| unsigned(row, 0))
+            .query_map(params![key, integer(snapshot.at.sequence)?, integer(_first)?, integer(last)?, scope], |row| unsigned(row, 0))
             .map_err(db)?
-            .collect::<std::result::Result<BTreeSet<_>, _>>()
+            .collect::<result::Result<BTreeSet<_>, _>>()
             .map_err(db)?;
         let indices = positions(&batch)?
             .values()
@@ -320,18 +333,21 @@ pub(super) fn scan(state: &State, snapshot: &BackendSnapshot, read: &ArrowScan, 
             .enumerate()
             .filter_map(|(index, position)| retained.contains(position).then_some(index as u64))
             .collect::<Vec<_>>();
-        batch = harmos_query::columnar::take(&batch, &indices)?;
+        batch = columnar::take(&batch, &indices)?;
     }
+    let scopes = batch.column_by_name("_storage.scope").and_then(|column| column.as_any().downcast_ref::<StringArray>());
     let mut indices = Vec::new();
     let visible = compound::visible_positions(&state.connection, &read.source, _first, last, snapshot.at.sequence)?;
     for (index, position) in positions(&batch)?.values().iter().enumerate() {
-        if visible.contains(position) {
+        if visible.contains(position)
+            && scope.as_ref().is_none_or(|scope| scopes.is_some_and(|scopes| !scopes.is_null(index) && scopes.value(index) == scope))
+        {
             indices.push(index as u64);
         }
     }
-    batch = harmos_query::columnar::take(&batch, &indices)?;
+    batch = columnar::take(&batch, &indices)?;
     let final_position = positions(&batch)?.values().iter().copied().filter(|position| *position <= snapshot.at.sequence).max();
-    let mut page = harmos_query::columnar::finish_page(
+    let mut page = columnar::finish_page(
         snapshot,
         read,
         &batch,
@@ -376,8 +392,8 @@ pub(super) fn collect_orphans(connection: &Connection) -> Result<()> {
     }
     let mut query = connection.prepare("SELECT file FROM arrow_chunks").map_err(db)?;
     let referenced =
-        query.query_map([], |row| row.get::<_, String>(0)).map_err(db)?.collect::<std::result::Result<BTreeSet<_>, _>>().map_err(db)?;
-    for entry in std::fs::read_dir(&directory).map_err(io)? {
+        query.query_map([], |row| row.get::<_, String>(0)).map_err(db)?.collect::<result::Result<BTreeSet<_>, _>>().map_err(db)?;
+    for entry in fs::read_dir(&directory).map_err(io)? {
         let entry = entry.map_err(io)?;
         let name = entry.file_name().to_string_lossy().into_owned();
         let owned = name.strip_suffix(".arrow").is_some_and(|id| uuid::Uuid::parse_str(id).is_ok());
@@ -387,7 +403,7 @@ pub(super) fn collect_orphans(connection: &Connection) -> Result<()> {
         if !entry.file_type().map_err(io)?.is_file() {
             return Err(invalid("Collect Arrow Garbage: Expected an Owned Regular File"));
         }
-        std::fs::remove_file(entry.path()).map_err(io)?;
+        fs::remove_file(entry.path()).map_err(io)?;
     }
     Ok(())
 }

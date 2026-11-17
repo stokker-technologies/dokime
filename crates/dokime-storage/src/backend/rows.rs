@@ -21,7 +21,7 @@ use std::{
 };
 
 // Third Party Imports
-use rusqlite::{Connection, OptionalExtension, params, types::Value};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params, types::Value};
 
 // Local Imports
 use super::*;
@@ -160,7 +160,7 @@ pub(super) fn set_schema(state: &mut State, exchange: &SchemaExchange) -> Result
     state.check()?;
     state.history.check(&exchange.value.position.history)?;
     exchange.value.encoded_bytes()?;
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     let prior: Option<Vec<u8>> = tx
         .query_row("SELECT data FROM storage_mutations WHERE id=?1", [text(&exchange.mutation().mutation)?], |row| row.get(0))
         .optional()
@@ -214,7 +214,7 @@ pub(super) fn set_schema(state: &mut State, exchange: &SchemaExchange) -> Result
 pub(super) fn append_schemas(state: &mut State, values: &[StorageSchema]) -> Result<StorageCursor> {
     state.check()?;
     let through = values.last().ok_or_else(|| invalid("empty schema batch"))?.position.sequence;
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for value in values {
         put_schema(&tx, &state.history, value)?;
     }
@@ -227,7 +227,7 @@ pub(super) fn append_records(state: &mut State, values: &[StoredRecord]) -> Resu
     state.check()?;
     let through = values.last().ok_or_else(|| invalid("empty record batch"))?.position.sequence;
     let writing = std::time::Instant::now();
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for chunk in values.chunks(state.settings.chunk_rows.get()) {
         let mut groups: BTreeMap<String, Vec<StoredRecord>> = BTreeMap::new();
         for value in chunk {
@@ -283,7 +283,7 @@ pub(super) fn append_samples(state: &mut State, values: &[StoredRow]) -> Result<
     state.check()?;
     let through = values.last().ok_or_else(|| invalid("empty stream batch"))?.record.position.sequence;
     let writing = std::time::Instant::now();
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for chunk in values.chunks(state.settings.chunk_rows.get()) {
         let mut groups: BTreeMap<String, Vec<StoredRow>> = BTreeMap::new();
         for value in chunk {
@@ -339,7 +339,7 @@ pub(super) fn append_samples(state: &mut State, values: &[StoredRow]) -> Result<
 pub(super) fn append_object_revisions(state: &mut State, values: &[ObjectEntry]) -> Result<StorageCursor> {
     state.check()?;
     let through = values.last().ok_or_else(|| invalid("empty object batch"))?.position.sequence;
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for chunk in values.chunks(state.settings.chunk_rows.get()) {
         let mut groups: BTreeMap<String, Vec<ObjectEntry>> = BTreeMap::new();
         for value in chunk {
@@ -385,7 +385,7 @@ pub(super) fn append_object_revisions(state: &mut State, values: &[ObjectEntry])
 pub(super) fn append_file_references(state: &mut State, values: &[FileReference]) -> Result<StorageCursor> {
     state.check()?;
     let through = values.last().ok_or_else(|| invalid("empty file batch"))?.position.sequence;
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for value in values {
         let finished: Option<Vec<u8>> = tx
             .query_row("SELECT finished FROM storage_files WHERE id=?1", [value.metadata.id.as_str()], |row| row.get(0))
@@ -434,7 +434,7 @@ pub(super) fn list_object_revisions(
 ) -> Result<Vec<ObjectEntry>> {
     state.snapshot(snapshot)?;
     if selection.versions == ObjectVersions::Revisions {
-        let missing:Option<i64>=state.connection.query_row("SELECT max(position) FROM storage_object_gaps WHERE position>?1 AND position<=?2 AND (?3 IS NULL OR schema_key=?3) AND (?4 IS NULL OR item=?4)",params![integer(page.after)?,integer(snapshot.at.sequence)?,selection.schema.as_ref().map(text).transpose()?,selection.key.as_ref().map(|key|key.as_str())],|row|row.get(0)).map_err(db)?;
+        let missing: Option<i64> = state.connection.query_row("SELECT max(position) FROM storage_object_gaps WHERE position>?1 AND position<=?2 AND (?3 IS NULL OR schema_key=?3) AND (?4 IS NULL OR item=?4) AND (?5 IS NULL OR scope=?5)", params![integer(page.after)?, integer(snapshot.at.sequence)?, selection.schema.as_ref().map(text).transpose()?, selection.key.as_ref().map(|key| key.as_str()),super::snapshots::read(&state.connection, snapshot)?.scope], |row| row.get(0)).map_err(db)?;
         if let Some(position) = missing {
             return Err(Error::Gap {
                 requested: page.after.saturating_add(1),
@@ -497,7 +497,8 @@ pub(super) fn list_identities(
         "SELECT schema_key,scope,item,stream,position FROM storage_rows WHERE position IN
          (SELECT MIN(position) FROM storage_rows WHERE kind=?1 AND position<=?2
           AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=storage_rows.position AND d.deleted_at<=?2)
-          GROUP BY {group}) AND position>?3 AND (?4 IS NULL OR schema_id=?4) ORDER BY position LIMIT ?5"
+          AND (?6 IS NULL OR (scope=?6 AND (kind<>1 OR scope=(SELECT o.scope FROM storage_rows o WHERE o.kind=1 AND o.schema_id=storage_rows.schema_id AND o.item=storage_rows.item AND o.position<=?2 ORDER BY o.position DESC LIMIT 1))))
+          GROUP BY {group}) AND position>?3 AND (?4 IS NULL OR schema_id=?4) AND (?6 IS NULL OR scope=?6) ORDER BY position LIMIT ?5"
     );
     let mut query = state.connection.prepare(&sql).map_err(db)?;
     let mut rows = query
@@ -506,7 +507,8 @@ pub(super) fn list_identities(
             integer(snapshot.at.sequence)?,
             integer(page.after)?,
             selection.schema.as_ref().map(Identifier::as_str),
-            integer(page.rows.get() as u64)?
+            integer(page.rows.get() as u64)?,
+            super::snapshots::read(&state.connection, snapshot)?.scope,
         ])
         .map_err(db)?;
     let mut output = Vec::new();
@@ -571,6 +573,7 @@ pub(super) fn list_samples(
     let mut statement =
         state.connection.prepare("SELECT id FROM arrow_chunks WHERE source=?1 AND last>?2 AND first<=?3 ORDER BY first").map_err(db)?;
     let mut chunks = statement.query(params![text(&source)?, integer(page.after)?, integer(snapshot.at.sequence)?]).map_err(db)?;
+    let image = super::snapshots::read(&state.connection, snapshot)?;
     let mut output = Vec::new();
     let mut bytes = 0;
     while let Some(chunk) = chunks.next().map_err(db)? {
@@ -624,7 +627,8 @@ pub(super) fn list_samples(
                     UNIX_EPOCH + Duration::from_nanos(time as u64)
                 })
             };
-            if selection.scope.as_ref().is_some_and(|value| scope.as_ref() != Some(value))
+            if image.scope.as_ref().is_some_and(|owner| scope.as_ref().is_none_or(|scope| scope.as_str() != owner))
+                || selection.scope.as_ref().is_some_and(|value| scope.as_ref() != Some(value))
                 || selection.item.as_ref().is_some_and(|value| value != &item)
                 || selection.stream.as_ref().is_some_and(|value| value != &stream)
                 || selection.source_start.is_some_and(|start| source_time.is_none_or(|time| time < start))
@@ -685,7 +689,7 @@ pub(super) fn list_files(
         vec![
             optional(selection.scope.as_ref().map(ToString::to_string)),
             optional(selection.item.as_ref().map(ToString::to_string)),
-            Value::Integer(integer(*state.snapshot_generations.get(&snapshot.token).ok_or_else(incompatible)?)?),
+            Value::Integer(integer(super::snapshots::read(&state.connection, snapshot)?.generation)?),
         ],
     )
 }
@@ -699,15 +703,15 @@ pub(super) fn get_object(state: &State, snapshot: &BackendSnapshot, point: &Obje
             Some(integer(token.revision().get())?)
         }
     };
-    let bytes = state.connection.query_row("SELECT data FROM storage_rows WHERE kind=1 AND schema_id=?1 AND item=?2 AND position<=?3 AND (?4 IS NULL OR position=?4) AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=storage_rows.position AND d.deleted_at<=?3) AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d WHERE d.schema_id=storage_rows.schema_id AND d.item=storage_rows.item AND d.position>storage_rows.position AND d.position<=?3) ORDER BY position DESC LIMIT 1", params![point.schema.as_str(), point.item.as_str(), integer(snapshot.at.sequence)?, position], |row| row.get::<_, Vec<u8>>(0)).optional().map_err(db)?;
+    let bytes = state.connection.query_row("SELECT data FROM storage_rows WHERE kind=1 AND schema_id=?1 AND item=?2 AND position<=?3 AND (?4 IS NULL OR position=?4) AND (?5 IS NULL OR (scope=?5 AND scope=(SELECT o.scope FROM storage_rows o WHERE o.kind=1 AND o.schema_id=storage_rows.schema_id AND o.item=storage_rows.item AND o.position<=?3 ORDER BY o.position DESC LIMIT 1))) AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=storage_rows.position AND d.deleted_at<=?3) AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d WHERE d.schema_id=storage_rows.schema_id AND d.item=storage_rows.item AND d.position>storage_rows.position AND d.position<=?3) ORDER BY position DESC LIMIT 1", params![point.schema.as_str(), point.item.as_str(), integer(snapshot.at.sequence)?, position, super::snapshots::read(&state.connection, snapshot)?.scope], |row| row.get::<_, Vec<u8>>(0)).optional().map_err(db)?;
     if bytes.is_none()
         && let Some(position) = position
     {
         let lost: bool = state
             .connection
             .query_row(
-                "SELECT EXISTS(SELECT 1 FROM storage_object_gaps WHERE position=?1 AND schema_id=?2 AND item=?3)",
-                params![position, point.schema.as_str(), point.item.as_str()],
+                "SELECT EXISTS(SELECT 1 FROM storage_object_gaps WHERE position=?1 AND schema_id=?2 AND item=?3 AND (?4 IS NULL OR scope=?4))",
+                params![position, point.schema.as_str(), point.item.as_str(), super::snapshots::read(&state.connection, snapshot)?.scope],
                 |row| row.get(0),
             )
             .map_err(db)?;
@@ -727,14 +731,13 @@ pub(super) fn prune(state: &mut State, through: &StorageCursor, maximum: NonZero
     if through.sequence > state.cursor()?.sequence {
         return Err(invalid("pruning is ahead of durable data"));
     }
-    let protected = state.snapshots.values().map(|cursor| cursor.sequence).max().unwrap_or(0);
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     let mut remove = Vec::new();
     let mut done = true;
     {
         let mut statement =
-            tx.prepare("SELECT data FROM storage_rows WHERE kind=1 AND position>?1 AND position<=?2 ORDER BY position").map_err(db)?;
-        let mut rows = statement.query(params![integer(protected)?, integer(through.sequence)?]).map_err(db)?;
+            tx.prepare("SELECT data FROM storage_rows r WHERE kind=1 AND position<=?1 AND NOT EXISTS(SELECT 1 FROM storage_retained_cuts c WHERE c.position>=r.position AND (c.scope IS NULL OR c.scope=r.scope)) ORDER BY position").map_err(db)?;
+        let mut rows = statement.query([integer(through.sequence)?]).map_err(db)?;
         while let Some(row) = rows.next().map_err(db)? {
             let object: ObjectEntry = decode(&row.get::<_, Vec<u8>>(0).map_err(db)?)?;
             let policy = retention.retention(&object.value.schema)?;
@@ -773,12 +776,16 @@ pub(super) fn prune(state: &mut State, through: &StorageCursor, maximum: NonZero
                 text(&object.value.schema)?,
                 object.value.schema.id.to_string(),
                 object.value.item.as_str().to_owned(),
+                object.value.scope.as_ref().map(Identifier::as_str).map(str::to_owned),
             ));
         }
     }
-    for (position, schema, schema_id, item) in &remove {
-        tx.execute("INSERT OR IGNORE INTO storage_object_gaps VALUES(?1,?2,?3,?4)", params![integer(*position)?, schema, schema_id, item])
-            .map_err(db)?;
+    for (position, schema, schema_id, item, scope) in &remove {
+        tx.execute(
+            "INSERT OR IGNORE INTO storage_object_gaps VALUES(?1,?2,?3,?4,?5)",
+            params![integer(*position)?, schema, schema_id, item, scope],
+        )
+        .map_err(db)?;
         tx.execute("DELETE FROM storage_rows WHERE position=?1", [integer(*position)?]).map_err(db)?;
     }
     tx.execute("DELETE FROM arrow_columns WHERE chunk IN(SELECT id FROM arrow_chunks c WHERE json_extract(source,'$.kind')='Objects' AND NOT EXISTS(SELECT 1 FROM storage_rows r WHERE r.kind=1 AND r.position>=c.first AND r.position<=c.last))",[]).map_err(db)?;
@@ -795,15 +802,18 @@ pub(super) fn prune(state: &mut State, through: &StorageCursor, maximum: NonZero
 fn query<T: serde::de::DeserializeOwned>(
     connection: &Connection, snapshot: &BackendSnapshot, page: ScanPage, kind: i64, condition: &str, extra: Vec<Value>,
 ) -> Result<Vec<T>> {
+    let scope_parameter = extra.len() + 4;
     let sql = format!(
         "SELECT data FROM storage_rows WHERE kind=?1 AND position>?2 AND position<=?3
          AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=storage_rows.position AND d.deleted_at<=?3)
          AND NOT EXISTS(SELECT 1 FROM storage_object_deletions d WHERE storage_rows.kind=1 AND d.schema_id=storage_rows.schema_id AND d.item=storage_rows.item AND d.position>storage_rows.position AND d.position<=?3)
+         AND (kind=0 OR ?{scope_parameter} IS NULL OR (scope=?{scope_parameter} AND (kind<>1 OR scope=(SELECT o.scope FROM storage_rows o WHERE o.kind=1 AND o.schema_id=storage_rows.schema_id AND o.item=storage_rows.item AND o.position<=?3 ORDER BY o.position DESC LIMIT 1))))
          {condition} ORDER BY position LIMIT {}",
         page.rows.get().saturating_add(1)
     );
     let mut arguments = vec![Value::Integer(kind), Value::Integer(integer(page.after)?), Value::Integer(integer(snapshot.at.sequence)?)];
     arguments.extend(extra);
+    arguments.push(optional(super::snapshots::read(connection, snapshot)?.scope));
     let mut statement = connection.prepare(&sql).map_err(db)?;
     let mut rows = statement.query(rusqlite::params_from_iter(arguments)).map_err(db)?;
     let mut output = Vec::new();

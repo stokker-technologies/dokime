@@ -705,7 +705,19 @@ receipt in one SQLite transaction. A late conditional conflict rolls back every
 effect and commits its original refusal receipt. Snapshot admission rejects cuts
 inside a compound range. Object and scoped deletion hide values at new cuts while
 retained snapshots keep their original image; releasing those snapshots permits
-file-byte and fully deleted Arrow-chunk reclamation. The compound backend format
+file-byte and fully deleted Arrow-chunk reclamation. Native retained cuts persist
+their position, deletion generation, optional selection scope and independent
+owner in `storage_retained_snapshots`; live reader leases are session-local.
+Reopening a retained cut after restart creates a separate reader lease. Scope
+deletion releases that scope's ownership in its compound transaction, preserving
+independent readers and unowned retained handles. Reclamation considers each
+retained scope, so one execution's retained cut does not pin another execution's
+deleted rows or file bytes. Scoped images cannot read unrelated objects, records,
+samples or files. This backend capability does not move product seal ownership
+off the execution ledger; that consumer cutover remains open. Native watch
+frontiers round down inside compound ranges and report gaps for committed
+deletions or lost object revisions. Product watch-source adoption remains open.
+The retained backend format
 keeps baseline v1 and refuses superseded native roots with fresh-root guidance.
 Native storage and the existing descriptor-driven evidence store remain distinct
 until operations/runtime callers complete their native-port adoption. Product
