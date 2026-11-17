@@ -104,7 +104,7 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
                 .uploads
                 .create(FileMetadata {
                     id: "capture".into(),
-                    scope: Some("native-archive".into()),
+                    scope: Some("execution/native-archive".into()),
                     media_type: "application/octet-stream".into(),
                     expected_length: Some(bytes.len() as u64),
                     expected_sha256: Some(Sha256::digest(&bytes).to_vec()),
@@ -384,7 +384,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel, super::support::client_settings())?;
             let metadata = FileMetadata {
-                scope: Some("content-a".into()),
+                scope: Some("execution/content-a".into()),
                 media_type: "application/octet-stream".into(),
                 expected_length: Some(bytes.len() as u64),
                 ..Default::default()
@@ -393,6 +393,10 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 request_id: Some("resumable-file".into()),
                 ..Default::default()
             };
+            let mut invalid = metadata.clone();
+            invalid.scope = Some("content-a".into());
+            assert!(client.files.uploads.create(invalid).await.is_err());
+            let expected_scope = metadata.scope.clone();
             let created = client
                 .files
                 .uploads
@@ -488,6 +492,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             assert_eq!(uploads.publish_with(upload, bytes.len() as u64, digest, options).await?, published);
             let selected = file_client.get(published.upload.unwrap()).await?;
             let reference = selected.file.clone().unwrap();
+            assert_eq!(reference.metadata.as_ref().unwrap().scope, expected_scope);
             let mut read = Vec::new();
             while read.len() < bytes.len() {
                 let options = FilesReadOptions {
@@ -525,7 +530,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
             }
             assert!(completed);
             assert_eq!(followed, bytes);
-            // The SDK Convenience Publishes an Unscoped Host File with the Same Resource.
+            // The SDK Convenience Publishes a Root File with the Same Resource.
             let upload_path = root.path().join("client-upload.bin");
             std::fs::write(&upload_path, &bytes)?;
             let sdk =

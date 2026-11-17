@@ -35,22 +35,9 @@ use std::{
 };
 
 // Third Party Imports
-use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
-use tokio::sync;
-
-// Local Imports
 use harmos_query::columnar::ArrowPage;
 use harmos_query::columnar::ArrowScan;
 use harmos_query::columnar::Cancellation;
-use harmos_storage::query::columnar::StorageCapabilities;
-use harmos_storage::query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection};
-use harmos_storage::{
-    BackendFailure, BackendSnapshot, CompoundExchange, Error, FileCheckpoint, FileChunk, FileMetadata, FilePhase, FileProgress,
-    FileReference, Identifier, IdentityKind, IdentitySelection, MemorySize, MutationReceipt, ObjectCatalog, ObjectEntry, ObjectKey,
-    ObjectPoint, ReadLimits, Result, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture,
-    StorageSchema, StoreHistory, StoredIdentity, StoredRecord, StoredRow,
-};
-
 use harmos_query::index::IndexDefinition;
 use harmos_query::index::IndexPage;
 use harmos_query::index::IndexRead;
@@ -63,15 +50,27 @@ use harmos_storage::SchemaWrite;
 use harmos_storage::SchemaWriteReceipt;
 use harmos_storage::StorageBackends;
 use harmos_storage::StorageWork;
+use harmos_storage::query::columnar::StorageCapabilities;
 use harmos_storage::query::projection::ProjectionDefinition;
 use harmos_storage::query::projection::ProjectionPage;
 use harmos_storage::query::projection::ProjectionPublication;
 use harmos_storage::query::projection::ProjectionRead;
 use harmos_storage::query::projection::ProjectionStatus;
+use harmos_storage::query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection};
+use harmos_storage::{
+    BackendFailure, BackendSnapshot, CompoundExchange, Error, FileCheckpoint, FileChunk, FileMetadata, FilePhase, FileProgress,
+    FileReference, Identifier, IdentityKind, IdentitySelection, MemorySize, MutationReceipt, ObjectCatalog, ObjectEntry, ObjectKey,
+    ObjectPoint, ReadLimits, Result, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture,
+    StorageSchema, StoreHistory, StoredIdentity, StoredRecord, StoredRow,
+};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
+use tokio::sync;
+
+// Local Imports
 
 /* === Constants === */
 
-const FORMAT: &str = "dokime.scoped-objects.v1";
+const FORMAT: &str = "dokime.scoped-files.v1";
 
 /* === Macros === */
 
@@ -779,7 +778,11 @@ fn db(source: rusqlite::Error) -> Error {
         _ => BackendFailure::Permanent,
     };
     Error::backend(
-        if kind == BackendFailure::Corrupt { "SQLite storage; back up the original data and reset explicitly" } else { "SQLite storage" },
+        if kind == BackendFailure::Corrupt {
+            "SQLite storage; back up the original data and select a fresh storage root"
+        } else {
+            "SQLite storage"
+        },
         kind,
         source,
     )

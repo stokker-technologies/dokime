@@ -15,24 +15,22 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::host::PluginState;
+use harmos_protocol::model::OperationContract;
 use prost::Message;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::AppearanceSnapshot;
 use dokime_protocol::host::BackendAppearanceRequest;
 use dokime_protocol::host::BackendAppearanceResponse;
-use dokime_protocol::host::ThemeModePolicy;
-use harmos_protocol::host::PluginState;
-
 use dokime_protocol::host::FilesGetRequest;
-
-use harmos_protocol::model::OperationContract;
+use dokime_protocol::host::ThemeModePolicy;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -57,7 +55,8 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: BackendAppearanceRequest) -> Result<BackendAppearanceResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let (appearance, cut) = crate::host::views::read(context, ID, request.at.as_ref(), async {
+        let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;
+        let (appearance, cut) = crate::host::views::read(context, owner, ID, request.at.as_ref(), async {
             context.host.refresh_plugin_states().await?;
 
             let mut appearance = None;

@@ -19,6 +19,9 @@
 use std::io::Write;
 
 // Third Party Imports
+use harmos_protocol::model::FileMetadata;
+use harmos_protocol::model::OperationContract;
+use harmos_runtime::Identifier;
 
 // Local Imports
 use crate::host::ClientSettings;
@@ -30,8 +33,7 @@ use dokime_protocol::host::ReportsGetRequest;
 use dokime_protocol::host::ReportsGetResponse;
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
 use dokime_protocol::host::report_subject::Kind;
-use harmos_protocol::model::FileMetadata;
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -56,13 +58,23 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<ReportsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
+        let temporary = context.host.temporary_report(&request.name)?;
+        let scope = match temporary.as_ref().and_then(|file| file.metadata.as_ref()).and_then(|metadata| metadata.scope.as_ref()) {
+            Some(scope) => Identifier::new(scope.clone())
+                .map_err(|source| Error::Invalid(format!("Get Report: Restore Its Storage Scope: {source}")))?,
+            None => match request.subject.as_ref().and_then(|subject| subject.kind.as_ref()) {
+                Some(Kind::Execution(execution)) => Scope::Execution(execution).identifier()?,
+                Some(Kind::Cycle(cycle)) => Scope::Cycle(cycle).identifier()?,
+                None => return Err(Error::Invalid("Get Report: Select Its Published Subject or Prepared Report".into())),
+            },
+        };
         let resource = format!(
             "report/{}/{}",
             request.name,
             crate::host::views::hex(&crate::host::paging::bytes(&ReportsGetRequest { at: None, ..request.clone() }))
         );
-        let (mut reply, cut) = crate::host::views::read(context, &resource, request.at.as_ref(), async {
-            if let Some(reference) = context.host.temporary_report(&request.name)? {
+        let (mut reply, cut) = crate::host::views::read(context, scope, &resource, request.at.as_ref(), async {
+            if let Some(reference) = temporary {
                 return Ok(ReportsGetResponse {
                     file: Some(reference),
                     report: None,
@@ -91,7 +103,7 @@ pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<Rep
                 UploadsCreateRequest {
                     metadata: Some(FileMetadata {
                         id: report.identifier.clone(),
-                        scope: Some(execution.clone()),
+                        scope: Some(Scope::Execution(execution).identifier()?.to_string()),
                         media_type: "text/html".into(),
                         expected_length: Some(length),
                         expected_sha256: Some(digest.clone()),

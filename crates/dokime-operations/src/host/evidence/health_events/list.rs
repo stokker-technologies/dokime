@@ -19,17 +19,16 @@
 
 // Third Party Imports
 use harmos_protocol::host::PluginState;
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
-
 use dokime_protocol::host::evidence::HealthEventsListRequest;
 use dokime_protocol::host::evidence::HealthEventsListResponse;
 use dokime_protocol::host::evidence::HealthItem;
 use dokime_protocol::model::Severity;
-
-use crate::host::ClientSettings;
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -59,7 +58,8 @@ pub async fn handle(context: &Context, request: HealthEventsListRequest) -> Resu
             "health/{}",
             crate::host::views::hex(&request.selection.as_ref().map(prost::Message::encode_to_vec).unwrap_or_default())
         );
-        let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
+        let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;
+        let (saved, cut) = crate::host::views::read(context, owner, &key, request.at.as_ref(), async {
             context.host.refresh_plugin_states().await?;
             if let Some(owner) = request.selection.as_ref().and_then(|selection| selection.owner.as_ref())
                 && owner.owner.as_ref().and_then(|owner| owner.kind.as_ref()).is_none()

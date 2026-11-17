@@ -1811,6 +1811,11 @@ service duplicates those declarations.
 Uploads.Create assigns an omitted file ID from its mutation identity. Plugin
 mutation identities include the trusted execution scope, so equal request IDs in
 different executions remain independent; retrying one request retains its file ID.
+File metadata uses exact storage scopes: `execution/<execution_id>`,
+`cycle/<cycle_id>`, `case/<case_id>` or `root/<backend_id>`. A plugin upload inherits its admitted
+execution scope and refuses a different authored scope. A client upload without
+a scope belongs to the current root; a supplied root must identify that root.
+Published references retain the exact scope, including for report and archive bytes.
 Artifact creation accepts open execution evidence, including imported evidence,
 and refuses closed executions before writing metadata.
 Artifact metadata and the original native file reference commit in one scoped

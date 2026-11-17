@@ -18,6 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 use prost::Message;
 
 // Local Imports
@@ -26,7 +27,7 @@ use crate::{Error, Result, host::Context};
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::PromptsListRequest;
 use dokime_protocol::host::PromptsListResponse;
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -56,7 +57,16 @@ pub async fn handle(context: &Context, request: PromptsListRequest) -> Result<Pr
             return Err(Error::Invalid("List Prompts: Pending Prompts Return Whole Without Page Controls".into()));
         }
         let key = format!("prompts/{}/{:?}/{:?}/{}", request.parent, request.cycle_id, request.execution_id, request.pending_only);
-        let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
+        let owner = if let Some(execution) = &request.execution_id {
+            Scope::Execution(execution).identifier()?
+        } else if !request.parent.is_empty() {
+            Scope::Execution(&request.parent).identifier()?
+        } else if let Some(cycle) = &request.cycle_id {
+            Scope::Cycle(cycle).identifier()?
+        } else {
+            Scope::Root(&context.host.identity().backend_id).identifier()?
+        };
+        let (saved, cut) = crate::host::views::read(context, owner, &key, request.at.as_ref(), async {
             let mut prompts = Vec::new();
             for id in context.host.store().identifiers()? {
                 if request.execution_id.as_ref().is_some_and(|selected| selected != &id)

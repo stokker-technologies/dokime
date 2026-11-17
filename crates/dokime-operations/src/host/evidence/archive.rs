@@ -20,9 +20,10 @@ use std::{collections::HashMap, io::Write, num::NonZeroUsize};
 
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray, UInt64Array};
+use harmos_protocol::model::FileMetadata;
+use harmos_protocol::model::FileReference;
 use harmos_protocol::model::{History, OperationContract, PageRequest, Position};
 use harmos_query::arrow::ArrowBatch;
-use harmos_runtime::Identifier;
 use harmos_runtime::builtins::storage::{
     CreateSnapshot, CreateSnapshotRequest, DeleteSnapshot, DeleteSnapshotRequest, GetFileBytes, GetFileBytesRequest, ListRows,
     ListRowsRequest, RowOutput, Source,
@@ -34,13 +35,11 @@ use tempfile::NamedTempFile;
 // Local Imports
 use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
+use dokime_protocol::host::evidence_subject;
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
 use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceArchiveResponse};
+use dokime_storage::persisted::Scope;
 use dokime_storage::{ArchivedContent, ArchivedNativeFile};
-
-use dokime_protocol::host::evidence_subject;
-use harmos_protocol::model::FileMetadata;
-use harmos_protocol::model::FileReference;
 
 /* === Constants === */
 
@@ -65,8 +64,14 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Result<EvidenceArchiveResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
+        let scope = match request.subject.as_ref().and_then(|subject| subject.kind.as_ref()) {
+            Some(evidence_subject::Kind::Execution(execution)) => Scope::Execution(execution),
+            Some(evidence_subject::Kind::Cycle(cycle)) => Scope::Cycle(cycle),
+            None => return Err(Error::Invalid("Download Evidence: Select an Execution or Cycle".into())),
+        }
+        .identifier()?;
         let key = format!("archive/{}", crate::host::views::hex(&request.subject.as_ref().map(Message::encode_to_vec).unwrap_or_default()));
-        let (mut reply, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
+        let (mut reply, cut) = crate::host::views::read(context, scope.clone(), &key, request.at.as_ref(), async {
             let subject = request.subject.ok_or_else(|| Error::Invalid("Download Evidence: Select an Execution or Cycle".into()))?;
             let (store, _read_cancellation) = context.host.store().read_session()?;
             let mut file = tempfile::tempfile().map_err(|error| Error::Invalid(format!("Create Temporary Evidence Export: {error}")))?;
@@ -101,7 +106,7 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
                 UploadsCreateRequest {
                     metadata: Some(FileMetadata {
                         id: format!("temporary-evidence/{}", uuid::Uuid::now_v7()),
-                        scope: None,
+                        scope: Some(scope.to_string()),
                         media_type: "application/zip".into(),
                         expected_length: Some(length),
                         expected_sha256: Some(digest.clone()),
@@ -187,8 +192,7 @@ async fn content(context: &Context, execution: &str) -> Result<ArchivedContent> 
 async fn native_files(context: &Context, execution: &str) -> Result<Vec<ArchivedNativeFile>> {
     let saved = context.storage::<CreateSnapshot>(CreateSnapshotRequest { at: None }).await?;
     let result = async {
-        let scope = Identifier::new(execution)
-            .map_err(|source| Error::Invalid(format!("Export Native Files: Select a Valid Execution: {source}")))?;
+        let scope = Scope::Execution(execution).identifier()?;
         let mut files = Vec::new();
         let mut token = String::new();
         loop {
@@ -241,7 +245,7 @@ async fn native_files(context: &Context, execution: &str) -> Result<Vec<Archived
                         }),
                         metadata: Some(FileMetadata {
                             id: text("item")?.value(index).into(),
-                            scope: Some(execution.into()),
+                            scope: Some(scope.to_string()),
                             media_type: text("media_type")?.value(index).into(),
                             expected_length: (!expected_length.is_null(index)).then(|| expected_length.value(index)),
                             expected_sha256: (!expected_sha256.is_null(index)).then(|| expected_sha256.value(index).to_vec()),

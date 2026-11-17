@@ -15,20 +15,18 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-use prost::Message;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
+use prost::Message;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
-
 use dokime_protocol::host::content::ArtifactsListRequest;
 use dokime_protocol::host::content::ArtifactsListResponse;
-
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -55,7 +53,14 @@ pub async fn handle(context: &Context, request: ArtifactsListRequest) -> Result<
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
         let key = format!("artifacts/{}", crate::host::views::hex(&request.scope.as_ref().map(Message::encode_to_vec).unwrap_or_default()));
-        let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
+        let owner = if let Some(execution) = request.scope.as_ref().and_then(|scope| scope.execution_id.as_deref()) {
+            Scope::Execution(execution).identifier()?
+        } else if let Some(cycle) = request.scope.as_ref().and_then(|scope| scope.cycle_id.as_deref()) {
+            Scope::Cycle(cycle).identifier()?
+        } else {
+            Scope::Root(&context.host.identity().backend_id).identifier()?
+        };
+        let (saved, cut) = crate::host::views::read(context, owner, &key, request.at.as_ref(), async {
             let artifacts = crate::host::content::artifact_records(context)
                 .await?
                 .into_iter()

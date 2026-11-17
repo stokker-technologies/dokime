@@ -131,6 +131,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .metadata
                 .as_ref()
                 .and_then(|metadata| metadata.scope.as_deref())
+                .and_then(|scope| scope.strip_prefix("execution/"))
                 .ok_or("Register Execution File: Select Its Execution Scope")?
                 .to_owned();
             let metadata = stored.metadata.ok_or("Register Execution File: Supply Its Logical Path Metadata")?;

@@ -16,8 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::BTreeSet;
 
 // Third Party Imports
+use harmos_protocol::model::History;
+use harmos_protocol::model::OperationContract;
+use harmos_protocol::model::Position;
+use harmos_protocol::model::ReadCut;
 use prost::Message;
 
 // Local Imports
@@ -56,26 +61,20 @@ use dokime_protocol::host::DocumentTableRow;
 use dokime_protocol::host::DocumentTelemetryCut;
 use dokime_protocol::host::DocumentsGetRequest;
 use dokime_protocol::host::DocumentsGetResponse;
-use dokime_protocol::host::document_binding_result::Kind as DocumentBindingResultKind;
-use dokime_protocol::host::document_card_body::Kind as DocumentCardBodyKind;
-use dokime_protocol::host::document_frame_frame::Kind as DocumentFrameFrameKind;
-use dokime_protocol::host::document_layout_node_node::Kind as DocumentLayoutNodeNodeKind;
+use dokime_protocol::host::document_binding_result;
+use dokime_protocol::host::document_card_body;
+use dokime_protocol::host::document_frame_frame;
+use dokime_protocol::host::document_layout_node_node;
 use dokime_protocol::host::plots::PlotSettingsValue;
 use dokime_protocol::model::Card;
 use dokime_protocol::model::Downsample;
-use dokime_protocol::model::PlotFilter;
-use dokime_protocol::model::Section;
-use dokime_storage::ExecutionState;
-use std::collections::BTreeSet;
-
 use dokime_protocol::model::EvidenceCard;
 use dokime_protocol::model::EvidenceScope;
-use dokime_protocol::model::card::Body as CardBody;
-
-use harmos_protocol::model::History;
-use harmos_protocol::model::OperationContract;
-use harmos_protocol::model::Position;
-use harmos_protocol::model::ReadCut;
+use dokime_protocol::model::PlotFilter;
+use dokime_protocol::model::Section;
+use dokime_protocol::model::card;
+use dokime_storage::ExecutionState;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -114,7 +113,12 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
             selection.max_bytes = 0;
             selection.max_frames = 0;
             let key = format!("document/{}", crate::host::views::hex(&crate::host::paging::bytes(&selection)));
-            let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
+            let owner = if scope.execution_id.is_empty() {
+                Scope::Cycle(&scope.cycle_id).identifier()?
+            } else {
+                Scope::Execution(&scope.execution_id).identifier()?
+            };
+            let (saved, cut) = crate::host::views::read(context, owner, &key, request.at.as_ref(), async {
                 let (mut document, fixed) = context.host.current_document(scope, &request.document_id)?;
                 let (reader, _cancellation) = context.host.store().read_session()?;
                 crate::host::documents::append_parts::replay(&reader, &fixed, &mut document, context.settings.page_items)?;
@@ -144,7 +148,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                     },
                     position: fixed.frontier,
                 };
-                let mut frames = vec![frame(DocumentFrameFrameKind::Header(DocumentHeader {
+                let mut frames = vec![frame(document_frame_frame::Kind::Header(DocumentHeader {
                     document_id: document
                         .metadata
                         .as_ref()
@@ -172,16 +176,16 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                     let node_id = section.metadata.as_ref().map_or(format!("section-{ordinal}"), |metadata| metadata.identifier.clone());
                     let mut metadata = section.metadata.clone().unwrap_or_default();
                     metadata.identifier = node_id.clone();
-                    frames.push(frame(DocumentFrameFrameKind::SectionIdentity(DocumentSectionIdentity {
+                    frames.push(frame(document_frame_frame::Kind::SectionIdentity(DocumentSectionIdentity {
                         node_id: node_id.clone(),
                         metadata: Some(metadata.clone()),
                         unavailable: None,
                     })));
-                    layout.push(frame(DocumentFrameFrameKind::LayoutNode(DocumentLayoutNode {
+                    layout.push(frame(document_frame_frame::Kind::LayoutNode(DocumentLayoutNode {
                         ordinal,
                         parent_ordinal: parent,
                         node: Some(DocumentLayoutNodeNode {
-                            kind: Some(DocumentLayoutNodeNodeKind::Section(DocumentSection {
+                            kind: Some(document_layout_node_node::Kind::Section(DocumentSection {
                                 node_id,
                                 metadata: Some(metadata),
                                 repeat: None,
@@ -202,33 +206,33 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                         let mut metadata = card.metadata.clone().unwrap_or_default();
                         metadata.identifier = id.clone();
                         let body = match card.body.as_ref() {
-                            Some(CardBody::Markdown(value)) => DocumentCardBodyKind::Markdown(value.clone()),
-                            Some(CardBody::Table(table)) => {
-                                DocumentCardBodyKind::Table(DocumentTable { row_count: table.rows.len() as u64 })
+                            Some(card::Body::Markdown(value)) => document_card_body::Kind::Markdown(value.clone()),
+                            Some(card::Body::Table(table)) => {
+                                document_card_body::Kind::Table(DocumentTable { row_count: table.rows.len() as u64 })
                             }
-                            Some(CardBody::Summary(_)) => DocumentCardBodyKind::Summary(DocumentSummary { group_count: 1 }),
-                            Some(CardBody::Plot(plot)) => DocumentCardBodyKind::Owner(DocumentOwnerReference {
+                            Some(card::Body::Summary(_)) => document_card_body::Kind::Summary(DocumentSummary { group_count: 1 }),
+                            Some(card::Body::Plot(plot)) => document_card_body::Kind::Owner(DocumentOwnerReference {
                                 kind: DocumentCardKind::Plot as i32,
                                 plot_id: plot.metadata.as_ref().map(|metadata| metadata.identifier.clone()),
                                 ..Default::default()
                             }),
-                            Some(CardBody::Evidence(kind)) => DocumentCardBodyKind::Owner(DocumentOwnerReference {
+                            Some(card::Body::Evidence(kind)) => document_card_body::Kind::Owner(DocumentOwnerReference {
                                 kind: evidence_kind(*kind)? as i32,
                                 ..Default::default()
                             }),
                             None => return Err(Error::Invalid("Get Document: Supply Each Card's Body".into())),
                         };
-                        frames.push(frame(DocumentFrameFrameKind::Card(DocumentCard {
+                        frames.push(frame(document_frame_frame::Kind::Card(DocumentCard {
                             metadata: Some(metadata.clone()),
                             body: Some(DocumentCardBody { kind: Some(body) }),
                             filters: filters(card),
                         })));
                         let placement = card.layout.unwrap_or_default();
-                        layout.push(frame(DocumentFrameFrameKind::LayoutNode(DocumentLayoutNode {
+                        layout.push(frame(document_frame_frame::Kind::LayoutNode(DocumentLayoutNode {
                             ordinal,
                             parent_ordinal: Some(section_ordinal),
                             node: Some(DocumentLayoutNodeNode {
-                                kind: Some(DocumentLayoutNodeNodeKind::Placement(DocumentPlacement {
+                                kind: Some(document_layout_node_node::Kind::Placement(DocumentPlacement {
                                     card_id: id.clone(),
                                     // An Undeclared Layout Leaves Both Spans Absent So Clients Use Full Width.
                                     column_span: (placement.columns > 0).then(|| DocumentSpan {
@@ -251,15 +255,15 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                 }
                 // Define All Summary Sources Before Binding or Layout.
                 for (id, metadata, card) in &cards {
-                    if let Some(CardBody::Summary(summary)) = &card.body {
-                        frames.push(frame(DocumentFrameFrameKind::GroupDefinition(DocumentSummaryGroupDefinition {
+                    if let Some(card::Body::Summary(summary)) = &card.body {
+                        frames.push(frame(document_frame_frame::Kind::GroupDefinition(DocumentSummaryGroupDefinition {
                             card_id: id.clone(),
                             ordinal: 0,
                             metadata: Some(metadata.clone()),
                             tile_count: summary.tiles.len() as u64,
                         })));
                         for (ordinal, tile) in summary.tiles.iter().enumerate() {
-                            frames.push(frame(DocumentFrameFrameKind::TileDefinition(DocumentSummaryTileDefinition {
+                            frames.push(frame(document_frame_frame::Kind::TileDefinition(DocumentSummaryTileDefinition {
                                 card_id: id.clone(),
                                 group_ordinal: 0,
                                 ordinal: ordinal as u64,
@@ -273,15 +277,15 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                     }
                 }
                 for (id, metadata, _) in &cards {
-                    let result = DocumentBindingResultKind::Pending(true);
-                    frames.push(frame(DocumentFrameFrameKind::Binding(DocumentBinding {
+                    let result = document_binding_result::Kind::Pending(true);
+                    frames.push(frame(document_frame_frame::Kind::Binding(DocumentBinding {
                         source_id: id.clone(),
                         metadata: Some(metadata.clone()),
                         result: Some(DocumentBindingResult { kind: Some(result) }),
                     })));
                 }
                 let repeat_count =
-                    expanded.frames.iter().filter(|kind| matches!(kind, DocumentFrameFrameKind::RepeatSelection(_))).count() as u64;
+                    expanded.frames.iter().filter(|kind| matches!(kind, document_frame_frame::Kind::RepeatSelection(_))).count() as u64;
                 frames.extend(expanded.frames.into_iter().map(frame));
                 frames.extend(layout);
                 let mut completion = DocumentCompletion {
@@ -294,8 +298,8 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                     ..Default::default()
                 };
                 completion.frame_count = frames.len() as u64 + 1;
-                frames.push(frame(DocumentFrameFrameKind::StructureComplete(completion)));
-                frames.push(frame(DocumentFrameFrameKind::EvidenceCut(DocumentEvidenceCut {
+                frames.push(frame(document_frame_frame::Kind::StructureComplete(completion)));
+                frames.push(frame(document_frame_frame::Kind::EvidenceCut(DocumentEvidenceCut {
                     cut: Some(telemetry),
                     telemetry: true,
                     cacheable: if scope.execution_id.is_empty() {
@@ -309,26 +313,26 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                         if !request.card_ids.is_empty() && !request.card_ids.contains(&id) {
                             continue;
                         }
-                        let mut binding = DocumentBindingResultKind::Literal(true);
+                        let mut binding = document_binding_result::Kind::Literal(true);
                         match &card.body {
-                            Some(CardBody::Table(table)) => {
+                            Some(card::Body::Table(table)) => {
                                 for (ordinal, row) in table.rows.iter().enumerate() {
-                                    frames.push(frame(DocumentFrameFrameKind::TableRow(DocumentTableRow {
+                                    frames.push(frame(document_frame_frame::Kind::TableRow(DocumentTableRow {
                                         card_id: id.clone(),
                                         ordinal: ordinal as u64,
                                         values: Some(row.clone()),
                                     })));
                                 }
                             }
-                            Some(CardBody::Summary(summary)) => {
-                                frames.push(frame(DocumentFrameFrameKind::Binding(DocumentBinding {
+                            Some(card::Body::Summary(summary)) => {
+                                frames.push(frame(document_frame_frame::Kind::Binding(DocumentBinding {
                                     source_id: id.clone(),
                                     metadata: Some(metadata.clone()),
                                     result: Some(DocumentBindingResult {
-                                        kind: Some(DocumentBindingResultKind::Summary(DocumentSummary { group_count: 1 })),
+                                        kind: Some(document_binding_result::Kind::Summary(DocumentSummary { group_count: 1 })),
                                     }),
                                 })));
-                                frames.push(frame(DocumentFrameFrameKind::SummaryGroup(DocumentSummaryGroup {
+                                frames.push(frame(document_frame_frame::Kind::SummaryGroup(DocumentSummaryGroup {
                                     card_id: id.clone(),
                                     ordinal: 0,
                                     metadata: Some(metadata.clone()),
@@ -344,7 +348,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                                         Ok(value) => (Some(value), None),
                                         Err(error) => (None, Some(error.to_string())),
                                     };
-                                    frames.push(frame(DocumentFrameFrameKind::SummaryTile(DocumentSummaryTile {
+                                    frames.push(frame(document_frame_frame::Kind::SummaryTile(DocumentSummaryTile {
                                         card_id: id.clone(),
                                         group_ordinal: 0,
                                         ordinal: ordinal as u64,
@@ -356,7 +360,7 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                                     })));
                                 }
                             }
-                            Some(CardBody::Plot(plot)) => {
+                            Some(card::Body::Plot(plot)) => {
                                 let plot_id = plot.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
                                 let key = format!("plot-settings:{}/{}/{}", fixed.execution.identifier, request.document_id, plot_id);
                                 let initial = PlotSettingsValue {
@@ -396,16 +400,16 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                                     })
                                 })();
                                 binding = match prepared {
-                                    Ok(plot) => DocumentBindingResultKind::Plot(plot),
-                                    Err(error) => DocumentBindingResultKind::Failure(DocumentCardFailure {
+                                    Ok(plot) => document_binding_result::Kind::Plot(plot),
+                                    Err(error) => document_binding_result::Kind::Failure(DocumentCardFailure {
                                         code: "plot_binding_failed".into(),
                                         message: format!("Get Document Plot: {error}"),
                                         budget: None,
                                     }),
                                 };
                             }
-                            Some(CardBody::Evidence(_)) if !card.filters.is_empty() => {
-                                binding = DocumentBindingResultKind::Failure(DocumentCardFailure {
+                            Some(card::Body::Evidence(_)) if !card.filters.is_empty() => {
+                                binding = document_binding_result::Kind::Failure(DocumentCardFailure {
                                     code: "evidence_filters_unserved".into(),
                                     message: "Get Document Evidence Card: Clear Unsupported Filters".into(),
                                     budget: None,
@@ -413,18 +417,18 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
                             }
                             _ => (),
                         }
-                        if !matches!(card.body, Some(CardBody::Summary(_))) {
-                            frames.push(frame(DocumentFrameFrameKind::Binding(DocumentBinding {
+                        if !matches!(card.body, Some(card::Body::Summary(_))) {
+                            frames.push(frame(document_frame_frame::Kind::Binding(DocumentBinding {
                                 source_id: id.clone(),
                                 metadata: Some(metadata),
                                 result: Some(DocumentBindingResult { kind: Some(binding) }),
                             })));
                         }
-                        frames.push(frame(DocumentFrameFrameKind::CardComplete(id)));
+                        frames.push(frame(document_frame_frame::Kind::CardComplete(id)));
                     }
                 }
                 completion.frame_count = frames.len() as u64 + 1;
-                frames.push(frame(DocumentFrameFrameKind::Completion(completion)));
+                frames.push(frame(document_frame_frame::Kind::Completion(completion)));
                 Ok(DocumentsGetResponse { frames, ..Default::default() })
             })
             .await?;
@@ -493,7 +497,7 @@ fn merge_sections(target: &mut Vec<Section>, sections: Vec<Section>) -> Result<(
     }
     Ok(())
 }
-fn frame(kind: DocumentFrameFrameKind) -> DocumentFrame {
+fn frame(kind: document_frame_frame::Kind) -> DocumentFrame {
     DocumentFrame {
         frame: Some(DocumentFrameFrame { kind: Some(kind) }),
     }
