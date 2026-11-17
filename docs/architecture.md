@@ -212,8 +212,12 @@ ownership changes below are locked direction, not implemented source.
    independent clock; lifecycle dispatch uses the library operation manager. Scoped
    sample ingestion acknowledges only after the product Arrow write and binding
    closure precedes sealing. Product file presentation stores logical paths and
-   original native file references in scoped Harmos objects. Retired SQL file
-   byte objects and writers are removed; incompatible development roots are preserved
+   original native file references in scoped Harmos objects. File deletion
+   checks the native file's stored identifier and scope before scanning
+   execution attachments; root uploads do not require an execution-content schema.
+   Caller admission refusals retain their classification, code and details through
+   native operation dispatch and gRPC status details.
+   Retired SQL file byte objects and writers are removed; incompatible development roots are preserved
    and refused at baseline v1. Final combined validation remains a separate obligation.
    Every native credential lives under the host's credential namespace
    (`HostSettings::credentials`, default `dokime`), whose owners are `root`, `access`

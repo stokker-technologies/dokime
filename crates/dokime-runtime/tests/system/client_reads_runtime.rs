@@ -23,7 +23,6 @@
 use dokime::Client;
 use dokime::client::StatusWatchOptions;
 use dokime_runtime::ControlledClock;
-use dokime_runtime::Result as RuntimeResult;
 use dokime_runtime::SchedulerClock;
 use harmos_protocol::host::ComponentState;
 use std::error::Error;
@@ -55,7 +54,7 @@ impl SchedulerClock for ObservedClock {
     fn now_ns(&self) -> i64 {
         self.clock.now_ns()
     }
-    async fn wait_until(&self, at_ns: i64) -> RuntimeResult<()> {
+    async fn wait_until(&self, at_ns: i64) -> dokime_runtime::Result<()> {
         self.clock.wait_until(at_ns).await
     }
     async fn reached(&self, at_ns: i64) {
@@ -203,7 +202,11 @@ fn registered_backend_retains_uploaded_content_after_restart() -> Result<(), Box
             let reopened = client.files.read(file.clone(), 0, bytes.len() as u64).await?;
             assert_eq!(reopened.data, first.data);
             assert_eq!(reopened.sha256, first.sha256);
-            client.files.delete(file).await?;
+            // Deletion Resolves Ownership From Storage, Even If the Client Changes the Scope.
+            let mut deletion = file.clone();
+            deletion.metadata.as_mut().unwrap().scope = Some("execution/untrusted-selector".into());
+            client.files.delete(deletion).await?;
+            assert!(client.files.read(file, 0, bytes.len() as u64).await.is_err());
             process.close().await?;
             Ok::<(), Box<dyn Error>>(())
         })

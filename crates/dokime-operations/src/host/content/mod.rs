@@ -39,7 +39,7 @@ use harmos_query::transform::{
 use harmos_runtime::Identifier;
 use harmos_runtime::storage::{
     ObjectDefinition,
-    query::{ObjectSelection, ObjectVersions},
+    query::{FileSelection, ObjectSelection, ObjectVersions},
 };
 use prost::Message;
 use sha2::{Digest, Sha256};
@@ -103,6 +103,45 @@ pub async fn validate_root(context: &Context) -> Result<()> {
 }
 
 pub(crate) async fn retained(context: &Context, file: &FileReference) -> Result<bool> {
+    let metadata = file.metadata.as_ref().ok_or_else(|| Error::Invalid("Delete File: Supply Its Stored Identifier".into()))?;
+    let item = Identifier::new(metadata.id.clone()).map_err(|source| Error::Invalid(format!("Delete File: {source}")))?;
+    let mut token = String::new();
+    let mut at = None;
+    let mut execution_owned = false;
+    loop {
+        let response = context
+            .storage::<ListRows>(ListRowsRequest {
+                source: Some(Source::Files(FileSelection { scope: None, item: Some(item.clone()) })),
+                merge: None,
+                transforms: Vec::new(),
+                at,
+                page: Some(PageRequest {
+                    page_size: context.settings.page_items as u32,
+                    page_token: token,
+                    ..Default::default()
+                }),
+            })
+            .await?;
+        at = response.resolved_at;
+        for row in response.rows {
+            let RowOutput::Batch(bytes) = row else { continue };
+            let page = ArrowBatch::from_ipc(bytes).map_err(|source| Error::Invalid(format!("Delete File: {source}")))?;
+            let scopes = page
+                .as_record_batch()
+                .column_by_name("scope")
+                .and_then(|column| column.as_any().downcast_ref::<StringArray>())
+                .ok_or_else(|| Error::Precondition("Delete File: Restore Its Stored Scope".into()))?;
+            execution_owned |= scopes.iter().flatten().any(|scope| scope.starts_with("execution/"));
+        }
+        token = response.next_page_token;
+        if token.is_empty() {
+            break;
+        }
+    }
+    // Only Execution-Owned Native Files Can Be Attached to Evidence.
+    if !execution_owned {
+        return Ok(false);
+    }
     let schema =
         ObjectDefinition::of::<Administration>().schema().map_err(|source| Error::Invalid(format!("Check Retained Files: {source}")))?;
     let mut token = String::new();

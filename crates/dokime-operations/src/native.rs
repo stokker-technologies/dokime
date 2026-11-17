@@ -159,8 +159,7 @@ pub fn context(execution: &ExecutionContext, action: &str) -> Result<Context> {
         .clone();
     let host = host.borrow();
     let plugin = execution.resource::<CallingPlugin>().is_ok();
-    crate::authorize(action, if plugin { Callers::Plugins } else { Callers::Clients })
-        .map_err(|source| Error::Permission(format!("{action}: {source}")))?;
+    crate::authorize(action, if plugin { Callers::Plugins } else { Callers::Clients })?;
     if plugin {
         let resources =
             host.context().get::<Resources>().ok_or_else(|| Error::Permission(format!("{action}: Enter an Active Execution")))?;
@@ -172,6 +171,14 @@ pub fn context(execution: &ExecutionContext, action: &str) -> Result<Context> {
 
 pub fn failure(source: Error) -> ServingError {
     tracing::warn!(error = %source, "Host Operation Failed");
+    let carried = match &source {
+        Error::Caller(failure) => Some(failure),
+        Error::Native { source, .. } => source.failure(),
+        _ => None,
+    };
+    if let Some(failure) = carried {
+        return ServingError::Handler(failure.clone());
+    }
     ServingError::Native(Arc::new(crate::host::status(source)))
 }
 
@@ -314,3 +321,24 @@ pub fn registration(settings: &ClientSettings) -> Result<harmos_runtime::operati
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::failure;
+    use crate::Error;
+    use harmos_protocol::model;
+    use harmos_runtime::Failure;
+    use harmos_runtime::operations::ServingError;
+    use std::collections::HashMap;
+
+    #[test]
+    fn caller_refusal_preserves_its_structured_details() {
+        let mut original = model::Failure::from(&Failure::wrong_caller("dokime.host.v1.evidence.Logs/Append"));
+        original.details = HashMap::from([("caller".into(), "client".into()), ("required".into(), "plugin".into())]);
+        let source = Error::Caller(Failure::from(original.clone()));
+        let ServingError::Handler(carried) = failure(source) else {
+            panic!("Return Caller Refusal: Preserve Its Structured Failure");
+        };
+        assert_eq!(model::Failure::from(&carried), original);
+    }
+}
