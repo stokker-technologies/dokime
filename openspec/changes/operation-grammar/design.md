@@ -172,7 +172,7 @@ Vocabulary sections. Product-specific meanings belong in the next section.
   survives observer loss. Downloads, documents and diagnostics use bounded unary
   replies, with content bytes read through ranged Storage.GetFileBytes.
 
-### Executors, Callers and Visibility
+### Audience Faces and Visibility
 
 Executor-owned model/host/plugin roots and explicit CLIENTS/PLUGINS/ALL callers
 replace the former face layout and duplicate per-caller declarations. Visibility
