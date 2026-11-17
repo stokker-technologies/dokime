@@ -163,12 +163,12 @@ run = "{{vars.tools}} dokime_tools.dev.desktop"
 [tasks."format:python"]
 hide = true
 description = "Format Python"
-usage = 'flag "--check"'
+usage = 'flag "--check"; flag "--project <project>" { choices "sdk/python" "tools/python" }'
 run = [
-  "{{vars.python}} ruff check --select I,F401,PYI{% if not usage.check %} --fix{% endif %} sdk/python",
-  "{{vars.python}} ruff format sdk/python{% if usage.check %} --check{% endif %}",
-  "{{vars.python}} ruff check --select I,F401,PYI{% if not usage.check %} --fix{% endif %} tools/python",
-  "{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}",
+  "{% if not usage.project or usage.project == 'sdk/python' %}{{vars.python}} ruff check --select I,F401,PYI{% if not usage.check %} --fix{% endif %} sdk/python{% endif %}",
+  "{% if not usage.project or usage.project == 'sdk/python' %}{{vars.python}} ruff format sdk/python{% if usage.check %} --check{% endif %}{% endif %}",
+  "{% if not usage.project or usage.project == 'tools/python' %}{{vars.python}} ruff check --select I,F401,PYI{% if not usage.check %} --fix{% endif %} tools/python{% endif %}",
+  "{% if not usage.project or usage.project == 'tools/python' %}{{vars.python}} ruff format tools/python{% if usage.check %} --check{% endif %}{% endif %}",
 ]
 
 [tasks."format:rust"]
@@ -226,6 +226,15 @@ run = "{{vars.tools}} dokime_tools.ci.tasks screenshots"
 hide = true
 description = "Check Python"
 run = [{ task = "format:python --check" }, { task = "lint:python" }, { task = "test:python:integration --project tools/python" }]
+
+[tasks."check:python:tools"]
+hide = true
+description = "Check Python Tooling"
+run = [
+  { task = "format:python --check --project tools/python" },
+  "{{vars.python}} ruff check tools/python",
+  "{{vars.python}} ty check --project tools/python",
+]
 
 [tasks."check:python:bindings"]
 hide = true

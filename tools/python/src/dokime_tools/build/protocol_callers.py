@@ -17,15 +17,11 @@ import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, cast
 
 # Third Party Imports
-from google.protobuf import message_factory
-from google.protobuf.descriptor import EnumDescriptor, FieldDescriptor
-from google.protobuf.descriptor_pb2 import FileDescriptorSet, MethodDescriptorProto
-from google.protobuf.descriptor_pool import DescriptorPool
+from google.protobuf.descriptor_pb2 import FileDescriptorSet
+from harmos_tools.source.protocol import caller_options
 
 # Local Imports
 from ..process import spawn_flags
@@ -42,37 +38,6 @@ from ..process import spawn_flags
 # === Classes === #
 
 # === Public Functions === #
-
-
-def caller_options(descriptors: FileDescriptorSet) -> dict[str, str]:
-    """Read Custom Options Without Depending on Generated SDK Imports."""
-    pool = _descriptor_pool(descriptors)
-    return _caller_options(descriptors, pool)
-
-
-def narrow_callers(descriptors: FileDescriptorSet, overrides: dict[str, str]) -> None:
-    """Apply Product Assembly Restrictions to the Generator's Descriptor Copy."""
-    pool = _descriptor_pool(descriptors)
-    declared = _caller_options(descriptors, pool)
-    audiences = {"CLIENTS": {"CLIENTS"}, "PLUGINS": {"PLUGINS"}, "ALL": {"CLIENTS", "PLUGINS"}}
-    for identity, selected in overrides.items():
-        original = declared.get(identity)
-        if original is None or selected not in audiences:
-            raise ValueError(f"Narrow {identity}: Select a Declared Caller Subset")
-        if not audiences[selected] <= audiences[original]:
-            raise ValueError(f"Narrow {identity}: Select a Declared Caller Subset")
-
-    # The Descriptor Owns the Extension Number and Enum Vocabulary.
-    extension, callers = _caller_extension(pool)
-    options_descriptor = pool.FindMessageTypeByName("google.protobuf.MethodOptions")
-    options_type = message_factory.GetMessageClass(options_descriptor)
-    for identity, method in _host_methods(descriptors):
-        selected = overrides.get(identity)
-        if selected is None:
-            continue
-        options = cast(Any, options_type.FromString(method.options.SerializeToString()))
-        options.Extensions[extension] = callers.values_by_name[selected].number
-        method.options.ParseFromString(options.SerializeToString())
 
 
 def main() -> None:
@@ -129,10 +94,10 @@ def check_public_surfaces(root: Path) -> None:
             ):
                 continue
             if not isinstance(node.value, (ast.List, ast.Tuple)):
-                raise TypeError(f"Check Public Exports: {path} Must Declare Its Names Explicitly")
+                raise TypeError(f"Check Public Exports: Declare Explicit Names in {path}")
             for item in node.value.elts:
                 if not isinstance(item, ast.Constant) or not isinstance(item.value, str):
-                    raise TypeError(f"Check Public Exports: {path} Must Declare String Names")
+                    raise TypeError(f"Check Public Exports: Declare String Names in {path}")
                 if item.value in exports:
                     findings.append(f"{path.relative_to(root)}: Duplicate Public Export {item.value}")
                 exports[item.value] = path
@@ -145,69 +110,13 @@ def check_public_surfaces(root: Path) -> None:
             if re.search(r"\bpub\s+mod\s+(?:wire|v\d+)\b", line):
                 findings.append(f"{path.relative_to(root).as_posix()}:{number}: Public Wire Module")
     if findings:
-        raise ValueError("Check Public Surfaces:\n" + "\n".join(findings))
+        raise ValueError(
+            "Check Public Surfaces: Update Public SDK Exports to Hide Wire Names and Remove Duplicate Exports\n" + "\n".join(findings)
+        )
     print("Public Surfaces: Headers, Stubs and Exports Passed")
 
 
 # === Private Functions === #
-
-
-def _descriptor_pool(descriptors: FileDescriptorSet) -> DescriptorPool:
-    pool = DescriptorPool()
-    pending = {}
-    for file in descriptors.file:
-        pending[file.name] = file
-    while pending:
-        ready = []
-        for file in pending.values():
-            if all(name not in pending for name in file.dependency):
-                ready.append(file)
-        if not ready:
-            raise ValueError("Protocol Callers: Resolve Descriptor Dependencies Before Generation")
-        for file in ready:
-            pool.AddSerializedFile(file.SerializeToString())
-            del pending[file.name]
-    return pool
-
-
-def _host_methods(descriptors: FileDescriptorSet) -> Iterator[tuple[str, MethodDescriptorProto]]:
-    for file in descriptors.file:
-        if "host" not in Path(file.name).parts[:-1]:
-            continue
-        for service in file.service:
-            for method in service.method:
-                identity = f"{file.package}.{service.name}/{method.name}"
-                yield identity, method
-
-
-def _caller_extension(pool: DescriptorPool) -> tuple[FieldDescriptor, EnumDescriptor]:
-    try:
-        extension = pool.FindExtensionByName("harmos.model.v1.callers")
-    except KeyError as error:
-        raise ValueError("Protocol Callers: Declare the Library Callers Option") from error
-    if extension.enum_type is None:
-        raise ValueError("Protocol Callers: Declare an Enum Option")
-    return extension, extension.enum_type
-
-
-def _caller_options(descriptors: FileDescriptorSet, pool: DescriptorPool) -> dict[str, str]:
-    result: dict[str, str] = {}
-    methods = list(_host_methods(descriptors))
-    if not methods:
-        return result
-    extension, callers = _caller_extension(pool)
-    options_descriptor = pool.FindMessageTypeByName("google.protobuf.MethodOptions")
-    options_type = message_factory.GetMessageClass(options_descriptor)
-    for identity, method in methods:
-        # Protobuf Custom Extensions Are a Dynamic Boundary.
-        options = cast(Any, options_type.FromString(method.options.SerializeToString()))
-        allowed = callers.values_by_number.get(options.Extensions[extension])
-        declared = options.HasExtension(extension)
-        supported = allowed is not None and allowed.name in {"CLIENTS", "PLUGINS", "ALL"}
-        if not declared or not supported:
-            raise ValueError(f"Protocol Callers: {identity} Requires CLIENTS, PLUGINS or ALL")
-        result[identity] = allowed.name
-    return result
 
 
 # === Entry Point === #

@@ -63,4 +63,4 @@ run = 'python tools/sdk.py consumer {% for arg in usage.args %}"{{arg}}" {% endf
 
 [tasks.generate]
 description = "Check Frozen C++ Generation"
-run = 'uv run --no-sync --project ../../tools/python python tools/generate.py'
+run = ['mise -C ../csharp run prepare:protocol', 'uv run --no-sync --project ../../tools/python python tools/generate.py']

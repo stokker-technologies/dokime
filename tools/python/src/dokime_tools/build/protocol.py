@@ -19,11 +19,13 @@ from pathlib import Path
 # isort: split
 
 # Third Party Imports
+from harmos_tools.build.resources.configuration import Configuration
+from harmos_tools.build.resources.sdk import generate
 
 # isort: split
 
 # Local Imports
-from dokime_tools.build import cargo, resource_roots
+from dokime_tools.build import cargo
 from dokime_tools.process import spawn_flags
 
 # Type Checking Imports
@@ -39,6 +41,26 @@ from dokime_tools.process import spawn_flags
 # === Public Functions === #
 
 
+def configuration(root: Path) -> Configuration:
+    """Declare Product Names, Compiler Inputs and Public Call Selectors."""
+    return Configuration(
+        namespace="dokime",
+        csharp_tools=root / "target/cs/packages/grpc.tools/2.76.0/tools",
+        rustfmt=root / "rustfmt.toml",
+        python_style=root / "sdk/python/ruff.toml",
+        client_required_fields={"harmos.host.v1.plugins.SettingsListRequest": {"name"}},
+        rust_selectors={
+            "dokime.host.v1.DocumentsGetRequest": {"scope", "document_id"},
+            "dokime.host.v1.DocumentsWatchRequest": {"scope", "document_id"},
+            "dokime.host.v1.EvidenceStatisticsRequest": {"scope", "stream", "field"},
+            "dokime.host.v1.evidence.RecordsListRequest": {"scope", "record_type"},
+            "dokime.host.v1.evidence.RecordsWatchRequest": {"scope", "record_type"},
+            "dokime.host.v1.evidence.SamplesListRequest": {"scope", "streams"},
+            "dokime.host.v1.evidence.SamplesWatchRequest": {"scope", "streams"},
+        },
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
@@ -51,10 +73,18 @@ def main() -> None:
         status = cargo.focused(Path.cwd(), "run", ["--locked", "--package", "dokime-protocol-generator"])
         if status:
             raise SystemExit(status)
-    # C# Wire Generation Runs the Grpc.Tools Compiler That Preparing the Staged Harmos Project Restores.
-    command = ["mise", "-C", "sdk/csharp", "run", "prepare:harmos"]
+    # Restore the Protocol Compiler Without Building the Library SDK.
+    command = ["mise", "-C", "sdk/csharp", "run", "prepare:protocol"]
     subprocess.run(command, check=True, creationflags=spawn_flags())
-    resource_roots.generate(options.check)
+    root = Path.cwd()
+    selected = configuration(root)
+    generate(
+        check=options.check,
+        root=root,
+        descriptors=root / "crates/dokime-protocol/src/descriptors.bin",
+        composition=root / "protocol/composition.toml",
+        configuration=selected,
+    )
     if not options.check:
         # Generate Python Wire Modules.
         command = ["mise", "-C", "sdk/python", "run", "generate"]
