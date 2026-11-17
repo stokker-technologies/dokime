@@ -57,3 +57,21 @@ tests disappeared with their old owners. Their deletion obligation is complete;
 any current duplicated behavior is assessed against the current stories. Source
 inspection does not establish passing native proof. Final affected Windows/Linux
 execution and coverage review remain separate unchecked obligations.
+
+## C# Host Request Identity
+
+The thermal parity story reaches `Logs/Append` through the generated C# plugin
+host client without an explicit request ID. Storage requires that mutation's
+identity. C#, Rust, Python and C++ generate a default identity from the same
+descriptor method plan before policy dispatch and preserve explicit IDs.
+
+The repair belongs in Harmos's
+`tools/python/src/harmos_tools/build/resources/csharp.py`, with one small
+descriptor regression in
+`tools/python/tests/integration/test_shared_generator_preserves_contracts.py`.
+The product adopts only the tooling revision, regenerates tracked SDK output,
+and documents the default. Carrier and SDK library pins remain unchanged.
+The coordinator must publish tooling commit
+`b72dd3d52d29599502f7edf92644f451ffdc1fc2` before `mise run prepare:locks` can
+resolve it. Local editable tooling supports focused development proof; it is
+not a published dependency graph.

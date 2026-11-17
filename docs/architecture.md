@@ -302,6 +302,8 @@ ownership changes below are locked direction, not implemented source.
     the same semantic request identifier and normalized payload return the original
     receipt, and changed payload conflicts. Correlation invocation/child IDs alone
     never deduplicate; accepted and durable positions remain separate facts.
+    Generated host clients create an omitted mutation request ID once before
+    policy dispatch, including C#; explicit IDs are preserved for caller resends.
     **Why:** A failed transport does not prove that an external effect was not applied.
     **Where:** [receipt and retry requirements](../openspec/changes/operation-grammar/specs/operation-contracts/spec.md#requirement-shared-failures-and-retry-policy),
     [existing planning receipts](../crates/dokime-operations/src/host/cases/storage.rs).
