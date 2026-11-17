@@ -23,7 +23,7 @@ import { test, vi } from "vitest";
 
 // Local Imports
 import { NativeIntegerValue } from "@/lib/api/native-values";
-import { materializeReport, readReportCapture } from "@/report/native-report";
+import { materializeReport, readReportCapture, reportOutcome } from "@/report/native-report";
 import {
   AppearanceLogoSchema,
   CaseStatus,
@@ -59,7 +59,15 @@ async function nativeReport() {
   const counts = { cardCount: 1n, layoutNodeCount: 1n, bindingCount: 1n };
   return create(ReportCaptureSchema, {
     report: { testCycleId: scope.cycleId, testExecutionId: scope.executionId, generatedAt: { seconds: 1n } },
-    cycle: { cycle: { cycleId: scope.cycleId, phase: CyclePhase.SEALED, status: CycleStatus.COMPLETED, updatedAt: { seconds: 1n } } },
+    cycle: {
+      cycle: {
+        cycleId: scope.cycleId,
+        phase: CyclePhase.ACTIVE,
+        status: CycleStatus.COMPLETED,
+        updatedAt: { seconds: 1n },
+        result: { status: ResultStatus.PASSED },
+      },
+    },
     appearance: { appearance: { appName: "Fixture" } },
     overview: { overview: { sessionId: "session" } },
     cases: [{ detail: { value: { summary: { caseId: "case", templateId: "template", status: CaseStatus.PASSED } } }, parameters: {} }],
@@ -159,6 +167,7 @@ test("Embedded Protobuf Uses the Live Document and Value Decoders", async () => 
     assert.equal(source.executions[0].steps[0].test_execution_id, "execution");
     assert.equal(source.executions[0].steps[0].status, "passed");
     assert.deepEqual(source.executions[0].parameters?.exact, value);
+    assert.equal(reportOutcome(source).variant, "success");
   } finally {
     vi.unstubAllGlobals();
   }

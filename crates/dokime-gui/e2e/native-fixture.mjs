@@ -1775,8 +1775,11 @@ async function openNativeReport(path) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ path }),
   });
-  assert.ok(reopened.ok, `The owned report browser reopens saved HTML: ${await reopened.text()}`);
+  const response = await reopened.text();
+  assert.ok(reopened.ok, `The owned report browser reopens saved HTML: ${response}`);
+  const reader = JSON.parse(response);
   await reportBrowser.closeTabs();
+  return reader;
 }
 
 async function discardHostCredentials(root) {

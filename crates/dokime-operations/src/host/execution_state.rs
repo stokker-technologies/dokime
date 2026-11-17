@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos_protocol::model::{ReadCut, ResourceRevision};
+use harmos_protocol::model::{Declarations, ReadCut, ResourceRevision};
 use prost::Message;
 use prost_types::Timestamp;
 
@@ -44,7 +44,9 @@ use dokime_protocol::host::ResultStatus;
 use dokime_protocol::host::ResultSummary;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::model::ExecutionProgressValue;
+use dokime_protocol::model::Metadata;
 use dokime_protocol::model::Origin;
+use dokime_protocol::model::Suites;
 use dokime_protocol::model::Termination;
 use dokime_protocol::model::TestCase;
 use dokime_protocol::model::Value;
@@ -131,7 +133,13 @@ pub(crate) fn snapshots(context: &Context, cycle: &str) -> Result<Vec<ExecutionS
 pub(crate) fn summary(context: &Context, snapshot: &ExecutionSnapshot) -> Result<ExecutionSummary> {
     let (case_id, _, archived) = context.host.store().execution_presentation(&snapshot.execution.identifier)?;
     let mut summary = projection::summary(snapshot, context.host.controls(&snapshot.execution.identifier)?);
-    summary.case_id = case_id;
+    summary.case_id = if case_id.is_empty()
+        && matches!(snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(Kind::PluginRun(_)))
+    {
+        snapshot.execution.identifier.clone()
+    } else {
+        case_id
+    };
     summary.archived = archived;
     Ok(summary)
 }
@@ -148,6 +156,16 @@ pub(crate) async fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
             })
         })
         .ok_or_else(|| Error::NotFound("Inspect Cycle: Select an Existing Cycle".into()))?;
+    if cycle.metadata.as_ref().is_none_or(|metadata| metadata.label.is_empty()) {
+        for row in &rows {
+            if let Some((Some(metadata), _)) = template_metadata(row)?
+                && !metadata.label.is_empty()
+            {
+                cycle.metadata = Some(metadata);
+                break;
+            }
+        }
+    }
     let mut running = 0;
     let mut queued = 0;
     let mut paused = cycle.status == CycleStatus::Paused as i32;
@@ -251,6 +269,12 @@ pub(crate) async fn cases(context: &Context, cycle_id: &str) -> Result<Vec<CaseS
             },
             ..Default::default()
         });
+        if entry.metadata.as_ref().is_none_or(|metadata| metadata.label.is_empty())
+            && let Some((suite, metadata)) = template_metadata(&snapshot)?
+        {
+            entry.metadata = Some(metadata);
+            entry.suite_id = suite.map(|metadata| metadata.identifier).unwrap_or_default();
+        }
         entry.attempt_count += 1;
         entry.latest_execution_id = Some(snapshot.execution.identifier.clone());
         entry.latest_execution_status = Some(summary.state);
@@ -370,6 +394,26 @@ pub(crate) fn detail(context: &Context, name: &str) -> Result<ExecutionDetail> {
 }
 
 /* === Private Functions === */
+
+fn template_metadata(snapshot: &ExecutionSnapshot) -> Result<Option<(Option<Metadata>, Metadata)>> {
+    let Some(Kind::PluginRun(run)) = snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) else {
+        return Ok(None);
+    };
+    let catalog = Declarations::decode(snapshot.execution.catalog.as_slice())?;
+    for section in catalog.sections {
+        if section.r#type != "dokime.model.v1.Suites" {
+            continue;
+        }
+        for suite in Suites::decode(section.payload.as_slice())?.suites {
+            let metadata =
+                suite.templates.into_iter().filter_map(|template| template.metadata).find(|metadata| metadata.identifier == run.template);
+            if let Some(metadata) = metadata {
+                return Ok(Some((suite.metadata, metadata)));
+            }
+        }
+    }
+    Ok(None)
+}
 
 fn existing_cut(context: &Context, id: &str) -> Result<ExecutionCut> {
     let store = context.host.store();

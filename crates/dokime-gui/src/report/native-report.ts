@@ -1,4 +1,3 @@
-import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 /* ***
  *
  * dokime-rust-workspace
@@ -30,6 +29,7 @@ import { mapSuite } from "@/lib/host/suites";
 import { appearanceFrameFromNative, logoVariant } from "@/lib/native-appearance";
 import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import type { ArtifactRecord, DocumentViewPayload, PlotPayload } from "@/lib/types";
+import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { ReportCaptureSchema, type DocumentsGetResponse, type FileReference, type ReportCapture } from "@host/model";
@@ -56,6 +56,13 @@ export async function materializeReport(capture: ReportCapture) {
   const source = await reportSource(capture, urls);
   const appearance = reportAppearance(capture, urls);
   return { source, appearance };
+}
+
+export function reportOutcome(source: CycleSnapshotSource): { label: string; variant: "success" | "destructive" | "secondary" } {
+  const outcome = source.runtimeShell?.result_summary?.outcome;
+  if (outcome === "completed") return { label: "Passed", variant: "success" };
+  if (outcome === "failed") return { label: "Failed", variant: "destructive" };
+  return { label: "Not Evaluated", variant: "secondary" };
 }
 
 async function reportSource(capture: ReportCapture, urls: Map<string, string>): Promise<CycleSnapshotSource> {

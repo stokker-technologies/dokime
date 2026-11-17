@@ -49,7 +49,7 @@ const { values: options } = parseArgs({ options: { scene: { type: "string" } } }
 const scenes = ["cycle", "plots", "report", "history", "library", "cycles", "touch"];
 assert.ok(!options.scene || scenes.includes(options.scene), "Unknown screenshot scene");
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const folder = join(workspace, "docs/screenshots");
+const folder = resolve(process.env.DOKIME_SCREENSHOT_OUTPUT ?? join(workspace, "docs/screenshots"));
 const work = await mkdtemp(join(tmpdir(), "dokime-screenshots-"));
 await mkdir(join(workspace, "target/screenshots"), { recursive: true });
 const evidence = await mkdtemp(join(workspace, "target/screenshots/run-"));
@@ -64,7 +64,7 @@ const environment = {
   GIT_CONFIG_GLOBAL: join(work, "empty-gitconfig"),
   GIT_CONFIG_COUNT: "0",
   DOKIME_TEST_HUB_OPERATOR: "Bench Operator",
-  RUST_LOG: "info,dokime_runtime=debug",
+  RUST_LOG: "info,dokime_runtime=debug,dokime_operations::host::files::transfer=debug",
 };
 let session;
 let backend;
@@ -481,6 +481,7 @@ try {
       await until("report save picker", () => delivered || chooseNativeFile(picker, reportPath, "Save"), undefined, 25);
       const saved = await delivery;
       const html = await readFile(saved.path, "utf8");
+      await writeFile(join(evidence, "report.html"), html);
       assert.ok(html.includes('id="hub-report-data"'), "The real saved report contains its captured document");
       await capture(
         "report",
@@ -586,6 +587,16 @@ try {
   }
 } catch (error) {
   failure = error;
+  if (session) {
+    try {
+      const logs = await call(session, "harmos.host.v1.status.Logs", "List", {
+        page: { pageSize: 4096, maxBytes: "3145728" },
+      });
+      await writeFile(join(evidence, "backend-logs.json"), JSON.stringify(logs, null, 2));
+    } catch (captureError) {
+      cleanupErrors.push(captureError);
+    }
+  }
   const view = session ? await session.text().catch(() => "Webview unavailable") : "Webview not started";
   await writeFile(join(evidence, "failure.txt"), `${error.stack ?? String(error)}\n\n${view}`).catch((captureError) =>
     cleanupErrors.push(captureError),

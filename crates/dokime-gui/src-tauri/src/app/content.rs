@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 // Local Imports
 use dokime_sdk::client::{
     ContentArtifactsGetOptions, ContentExecutionFilesGetOptions, EvidenceArchiveOptions, FilesGetOptions, FilesReadOptions,
-    ReportsCreateOptions, ReportsGetOptions,
+    ReportsCreateOptions, ReportsGetOptions, ReportsPublishOptions,
 };
 
 use super::desktop::ArtifactSource;
@@ -29,8 +29,7 @@ use crate::connection::SessionLease;
 use dokime_sdk::client::EvidenceSubject;
 use dokime_sdk::client::ReportOrigin;
 use dokime_sdk::client::ReportSubject;
-use dokime_sdk::client::evidence_subject::Kind as EvidenceSubjectKind;
-use dokime_sdk::client::report_subject::Kind as ReportSubjectKind;
+use dokime_sdk::client::{evidence_subject, report_subject};
 use sha2::{Digest, Sha256};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -147,7 +146,7 @@ pub(crate) async fn fetch_verified(
         }
         ArtifactSource::ExecutionEvidence { execution_id } => {
             let subject = EvidenceSubject {
-                kind: Some(EvidenceSubjectKind::Execution(execution_id.clone())),
+                kind: Some(evidence_subject::Kind::Execution(execution_id.clone())),
             };
             let options = EvidenceArchiveOptions {
                 context: session.call_options()?,
@@ -158,7 +157,7 @@ pub(crate) async fn fetch_verified(
         }
         ArtifactSource::CycleEvidence { cycle_id } => {
             let subject = EvidenceSubject {
-                kind: Some(EvidenceSubjectKind::Cycle(cycle_id.clone())),
+                kind: Some(evidence_subject::Kind::Cycle(cycle_id.clone())),
             };
             let options = EvidenceArchiveOptions {
                 context: session.call_options()?,
@@ -169,7 +168,7 @@ pub(crate) async fn fetch_verified(
         }
         ArtifactSource::CycleReport { cycle_id } => {
             let subject = ReportSubject {
-                kind: Some(ReportSubjectKind::Cycle(cycle_id.clone())),
+                kind: Some(report_subject::Kind::Cycle(cycle_id.clone())),
             };
             let options = ReportsCreateOptions {
                 context: session.call_options()?,
@@ -180,13 +179,26 @@ pub(crate) async fn fetch_verified(
         }
         ArtifactSource::ExecutionReport { execution_id } => {
             let subject = ReportSubject {
-                kind: Some(ReportSubjectKind::Execution(execution_id.clone())),
+                kind: Some(report_subject::Kind::Execution(execution_id.clone())),
             };
+            let options = ReportsCreateOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let prepared = session.execute(client.reports.create_with(subject.clone(), "", options)).await?;
+            let file = prepared.file.ok_or_else(|| invalid("Prepare Report: Host Omitted Its File Reference"))?;
+            let name = file.metadata.as_ref().ok_or_else(|| invalid("Prepare Report: Host Omitted Its Identity"))?.id.clone();
+            let options = ReportsPublishOptions {
+                context: session.call_options()?,
+                ..Default::default()
+            };
+            let published = session.execute(client.reports.publish_with(name, subject.clone(), file.sha256, options)).await?;
+            let name = published.report.ok_or_else(|| invalid("Publish Report: Host Omitted Its Published Identity"))?.identifier;
             let options = ReportsGetOptions {
                 context: session.call_options()?,
                 ..Default::default()
             };
-            let reply = session.execute(client.reports.get_with(subject, "", options)).await?;
+            let reply = session.execute(client.reports.get_with(subject, name, options)).await?;
             (reply.file, reply.report.and_then(|report| ReportOrigin::try_from(report.origin).ok()))
         }
     };

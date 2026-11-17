@@ -31,6 +31,7 @@ use dokime_sdk::client::PluginsCreateOptions;
 use dokime_sdk::client::plugin_placement;
 use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
+use base64::{Engine, engine::general_purpose::STANDARD};
 use dokime_protocol::host::CasesCreateRequest;
 use dokime_protocol::host::CyclesCreateRequest;
 use dokime_protocol::host::DocumentsGetRequest;
@@ -39,6 +40,7 @@ use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::FilesGetRequest;
 use dokime_protocol::host::FilesReadRequest;
 use dokime_protocol::host::PromptsListRequest;
+use dokime_protocol::host::ReportCapture;
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::ReportsGetRequest;
 use dokime_protocol::host::ReportsPublishRequest;
@@ -826,7 +828,36 @@ fn bench_execution_prompts_evidence_and_report() -> Result<(), Box<dyn Error>> {
             )
             .await?;
             assert!(exported.is_some());
-            assert_eq!(fs::read(destination)?, bytes);
+            let html = fs::read(destination)?;
+            let html = str::from_utf8(&html)?;
+            let marker =
+                html.find("id=\"hub-report-data\"").or_else(|| html.find("id=hub-report-data")).ok_or("Open Report: Missing Capture")?;
+            let data = html[marker..]
+                .split_once('>')
+                .ok_or("Open Report: Missing Data")?
+                .1
+                .split_once("</script>")
+                .ok_or("Open Report: Incomplete Data")?
+                .0;
+            let data = STANDARD.decode(data.trim())?;
+            let capture = ReportCapture::decode(data.as_slice())?;
+            let detail = capture.executions[0].detail.as_ref().unwrap().execution.as_ref().unwrap();
+            let summary = detail.summary.as_ref().unwrap();
+            assert!(
+                capture
+                    .cases
+                    .iter()
+                    .any(|case| case.detail.as_ref().unwrap().value.as_ref().unwrap().summary.as_ref().unwrap().case_id == summary.case_id)
+            );
+            assert!(
+                capture.executions[0]
+                    .plots
+                    .as_ref()
+                    .unwrap()
+                    .envelopes
+                    .iter()
+                    .any(|plot| plot.diagnostics.as_ref().is_some_and(|diagnostics| diagnostics.point_count > 0))
+            );
             active.disconnect().map_err(|error| format!("{error:?}"))?;
             Ok::<(), Box<dyn Error>>(())
         }
