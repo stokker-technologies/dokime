@@ -127,10 +127,10 @@ check:
 ## Remaining Integration
 
 The entry-point interface in the table is the target. Current `mise.toml` still
-contains language/layer leaves and native Python wheel, binding and fixture
-paths. Delete superseded aliases after their consumers migrate; retain necessary leaves
-as hidden tasks, including recurring `ci:*` workflow operations; pure Python jobs
-replace native-SDK jobs with `grpc-plugins`. Focused Cargo selection accepts
+contains necessary hidden language/layer and recurring `ci:*` operations.
+The native Python/PyO3 package and fixture jobs are removed; current wheel/stub
+checks verify the pure package. Keep necessary hidden leaves without restoring
+superseded aliases. Focused Cargo selection accepts
 `--features`. CI setup provisions Python before native bootstrap and guards
 Windows APIs by platform. The installable `uv` pin is 0.13.7; no temporary
 environment override is part of the contract. Linux product-build and all-platform

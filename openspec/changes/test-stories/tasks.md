@@ -1,34 +1,10 @@
-# Test Stories Tasks
-
-## 1. Contract
-
-- [ ] 1.1 Recheck the locations in `design.md` against the current tree, measure the slowest tests again and lock the inventory per crate.
-
-## 2. Shared Modules
-
-- [ ] 2.1 Add the backend lifecycle, providers and catalogs, and events and storage readback modules for the server and runtime tests and move existing tests onto them.
-- [ ] 2.2 Merge the server and desktop wire support and move the desktop connection fixtures into shared support.
-
-## 3. Stories
-
-- [ ] 3.1 Split the driver files listed in `design.md` into one story per file.
-- [ ] 3.2 Shorten the slowest runtime stories by sharing one startup per story.
-
-## 4. Workloads and Time
-
-- [ ] 4.1 Move the large transfer, archive, admission, sampling and durability workloads to benchmarks and keep the smallest boundary-crossing case as the test.
-- [ ] 4.2 Replace every real-time dependency listed in `design.md` with the virtual or paused clock or an awaited event, keeping hang guards as guards.
-- [ ] 4.3 Replace wall-clock fixture timestamps with fixed values.
-
-## 5. Removal
-
-- [ ] 5.1 Remove the tests listed in `design.md`, moving any useful check into a story.
-
-## 6. Final Validation
-
-- [ ] 6.1 Run the affected unit and integration lanes on Linux and Windows and record test counts, lines and lane times before and after.
-
-## Workflow Follow-Up
-
-- Integrate with the other open changes on `feat/grpc-plugins` in the order in its design.
-- Run only focused tasks until combined source closure; final native proof remains separate.
+- [x] 1.1 Recheck the old server/runtime audit against the replacement tree; deleted server and loop tests are superseded, while current runtime, CLI, SDK and desktop stories remain in scope.
+- [ ] 1.2 Measure the surviving slow stories and lock their current fixture/consumer inventory before consolidation; do not recreate removed server/lease tests.
+- [ ] 2.1 Consolidate repeated current runtime/CLI/desktop backend, catalog and evidence-read setup into cohesive shared mechanics; one story owns its actor, edge cases and assertions.
+- [ ] 2.2 Move the surviving desktop connection fixture mechanics from `tests/integration/connection/fixture/` to shared support where multiple stories need them; the retired server wire stack is not restored.
+- [ ] 3.1 Split surviving multi-scenario drivers and consolidate redundant fixture startups into complete stories; retain independent behavioral coverage and current native driver routing.
+- [ ] 4.1 Move oversized correctness workloads such as the desktop RPC archive fixture and current large plot-window case to benchmarks, retaining small deterministic boundary-crossing cases as correctness tests.
+- [ ] 4.2 Replace behavior-dependent real timers/sleeps in current GUI status/document/plot/responsiveness stories with controlled events/clock; browser/process hang guards remain safeguards, never performance assertions.
+- [ ] 4.3 Replace remaining wall-clock fixture values such as responsiveness-fixture.tsx started_at with fixed timestamps; namespace uniqueness is not a sampled-behavior assertion.
+- [x] 5.1 Delete the retired simulation/definition/plugin-settings/parameter tests and their old domain/server/loop owners; do not reintroduce them for the old audit.
+- [ ] 6.1 After source closure run final affected native Windows/Linux stories and review coverage plus benchmark/runner cost; report real counts/results and missing proof without a timing assertion or an invented historical baseline.
