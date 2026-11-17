@@ -200,6 +200,9 @@ ownership changes below are locked direction, not implemented source.
    retired cuts refuse with resynchronization guidance. Startup interrupts unfinished receipts
    after binding the storage operation context. Roots with superseded command
    journals are refused and preserved at baseline v1.
+   `client_controls_execution_lifecycle` and
+   `unfinished_command_receipts_interrupt_after_restart` prove held reads, original
+   receipt replay, durable command state and interruption across restart.
    Retained resource-view indexes use `GetObject` and create-only `SetObject` in
    `crates/dokime-operations/src/host/views.rs`; their immutable protobuf payloads use
    chunked native files, so a complete collection can exceed one response page without
