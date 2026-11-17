@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Development Build Scope
-Dokime SHALL own its workflows. Dev pushes SHALL run quick checks and builds without packages, publication or suites. PRs SHALL run every applicable job without impact planning. Nightly SHALL retain full native workloads. Dev merges SHALL remain ungated.
+Dokime SHALL own its workflows. Dev pushes SHALL run quick checks and builds without packages, publication or suites. PRs SHALL select applicable jobs through the project-owned impact planner, including producer closure and safe full fallback for unknown changes. Nightly SHALL retain full native workloads. Dev merges SHALL remain ungated.
 
 #### Scenario: Dev Push and Review
 - WHEN a dev push is planned

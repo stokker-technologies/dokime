@@ -14,8 +14,7 @@ Product uses default dev/release; Tests and preceding Clippy use built-in test, 
 
 The project owns its task dispatcher, CI helpers and workflow matrices. Local
 proof uses focused `mise run` selections; hosted CI and Nightly provide final
-Linux and Windows validation. Impact planning and the old simulator graph are
-removed. Every PR runs all applicable jobs; dev pushes run quick checks/builds
+Linux and Windows validation. The old simulator graph is removed. The project-owned impact planner selects applicable PR jobs with safe fallback; dev pushes run quick checks/builds
 without packaging, publication or suites. Keep SDK system stories Nightly-only.
 
 ## Source Ownership
@@ -24,7 +23,7 @@ The server library exposes one Session for boot, plugin admission/reload, listen
 
 `test:rust:starter` maps to `dokime_tools.test.rust.starter`, declares `pipelines = ["nightly"]` and explicit Product input. It generates and compiles the real standalone consumer. Ordinary scaffold assertions remain; no unrelated suite consolidation is included. The nightly starter module owns its generated Git/Cargo boundary, standard Cargo vendoring, explicit candidate SDK/tool override and real standalone commands. It neutralizes machine/ancestor mise configuration and inherited task-skip directives, uses normal uv locking/cache integrity, and runs offline commands after dependency bootstrap. It may reuse compatible Cargo target units; this is not cold-cache proof. No custom Python wheel hash gate is restored.
 
-README, contributor guidance, starter templates, generated resources and executable examples remain part of the affected-source inventory. No changed-path impact planner selects CI jobs.
+README, contributor guidance, starter templates, generated resources and executable examples remain part of the affected-source inventory. The project-owned impact planner supplies the workflow matrices.
 
 Linux desktop bootstrap owns its report browser dependency. It verifies an explicit browser override or installed Google Chrome, otherwise installs Chrome For Testing 156.0.8078.47 from Google's versioned public archive into target/tooling/desktop. Only desktop consumers install its runtime libraries; other jobs remain unaffected. This pinned Stable version comes from Google's [published release metadata](https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json). Browser selection is passed to both real report-rendering paths; no report assertions are removed.
 

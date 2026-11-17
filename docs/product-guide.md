@@ -201,9 +201,9 @@ Other operation grammar and library composition slices remain locked work.
 
 - [Rust Thermal Suite](../sdk/rust/examples/thermal.rs) and [Rust SDK Guide](rust-sdk.md).
 - [OBC Reference Plugin](../plugins/sidecars/obc/): steady-state, transient and independent benchmark templates; [authoring guidance](../.claude/skills/dokime-authoring/SKILL.md).
-- [Python Starter](../sdk/python/examples/starter/) and [Python SDK](../sdk/python/README.md).
-- [C# Starter](../sdk/csharp/starter/) and [C# SDK Guide](sdk-csharp.md).
-- [C++ Starter](../sdk/cpp/starter/) and [C++ SDK Guide](sdk-cpp.md).
+- [Python Test Example](../sdk/python/examples/test/) and [Python SDK](../sdk/python/README.md).
+- [C# Test Example](../sdk/csharp/examples/Test/) and [C# SDK Guide](sdk-csharp.md).
+- [C++ Test Example](../sdk/cpp/examples/test/) and [C++ SDK Guide](sdk-cpp.md).
 - [Remote Access](remote/overview.md), [Tooling](tooling.md) and [Plugin Security](plugin-security.md).
 
 All SDKs provide plugin authoring and backend clients. SDK product dependencies
