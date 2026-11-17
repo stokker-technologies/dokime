@@ -99,6 +99,33 @@ Touched invariants in `docs/architecture.md` and their purposes:
 
 ## Goals / Non-Goals
 
+### Locked Storage Source Inventory
+
+The storage delivery owns the following complete source sets. Directory entries
+include their descendants and consumers; the operation-boundary task numbers are
+the implementation owners. The current worker owns storage, runtime, operations,
+CLI doctor and native session storage, together with their proof and maintained
+guides. SDK, protocol, composition and facade work is inventoried here for its later
+delivery; it is not permission to begin another open change.
+
+| Owner | Source Set and Required Replacement |
+| --- | --- |
+| 1.6–1.7 | `crates/dokime-storage/src/execution.rs`, `backend.rs`, `backend/**`; `crates/dokime-operations/src/host/storage/**`; `crates/dokime-runtime/src/services/composition.rs`: persisted objects, frozen schemas, exact scopes, durable evidence-cut ownership and native backend registration. |
+| 2.2–2.4 | Storage `store.rs`, `cycles.rs`, `history.rs`, `resource_values.rs`, `evidence_positions.rs`, `outcome.rs`; runtime `execution.rs`, `execution_manager.rs`, `run_control.rs`, `capabilities.rs`, `host.rs`; operations `host/{cases,cycles,executions}/**`, `host/execution_state.rs`, `host/projection.rs`: lifecycle, bindings, attributed outcomes, seal and deletion policy. Command persistence in `host/executions/commands/**` also adopts exact E. |
+| 3.3–3.5 | Runtime `streams.rs` and composition's sample consumer; operations `resources.rs`, `host/evidence/**`; storage `notes.rs`, `telemetry.rs`, `telemetry/{codec,writer,reader,catalog}.rs`, `ipc.rs`, `ipc/**`: admitted columnar intake, records, notes, traceability, health, native row watches and frozen decoding. Physical Arrow/catalog code survives only under the backend. |
+| 4.4–4.5 | Runtime `documents.rs`, `prompts.rs`, `reports.rs`; operations `host/{documents,prompts,prompt_definitions,reports,content,files}/**`, `host/views.rs`, `host/catalog_inventory.rs`, `host/record_schemas/**`, `host/evidence/archive.rs`; storage `content.rs`, `content_name.rs`, `document_values.rs`, `report.rs`: source reads at C, explicit publication and byte-preserving archives. |
+| 5.1–5.2 | Storage `query.rs`, `client_reads.rs`, `expressions.rs`, `scalar.rs`, `plot_{selection,kinds,windows}.rs`, `stream_windows.rs`, `telemetry/{aggregates,previews}.rs`; operations `host/{plots,aggregates}/**`, `host/evidence/statistics.rs`, document plot/expansion readers: native row plans and library statistics/bucket kernels; retain product presentation algorithms. |
+| 5.3 | Every operations `host/**/watch.rs`, including `backend/overview`, `secrets`, `documents`, `plots/snapshots`, `content/execution_files`, lifecycle and evidence watches; `host/backend/overview/get.rs`, `host/secrets/**`, `host/plugins/secrets/**`, `host/mod.rs`: native durable sources/frontiers, separate live observation, row counts and secret metadata. |
+| 6.1 and Storage Deletions | Storage `administration.rs`, `store.rs` and every superseded module above; runtime `services/{mod,state,root_claim,access_credentials,composition}.rs`; CLI `commands/doctor.rs`; desktop `native_session/storage.rs` and its `connection/{host,registry}.rs` / `app/closing.rs` consumers: storage-only admission/maintenance, no second catalog, journal, cut issuer or notification source. |
+| Later Facade/Wrapper Delivery | Workspace Harmos dependencies; runtime services/state, execution/dispatch and operations/native; `protocol/composition.toml`; SDK C++/C# `tools/generate.py`; tools `build/resource_roots.py` and `build/resources/**`; product host declarations, embedded descriptors and generated consumers under all four SDKs and desktop generated host modules. Client-used library resources are Access Listener/Pairings/Certificates, Status and its Logs/TraceEvents/Diagnostics, Operations, Invocations, Schemas and Streams (D6). Plugin management belongs to `plugin-boundary`. |
+| Proof | `crates/dokime-storage/tests/integration/**` including the native conformance kit; operations unit tests; runtime `tests/{integration,system,support}/**`, especially lifecycle/outcome/isolation/interruption, evidence/notes/traceability/progress, prompts/documents/reports, content, plot/query, retained/restart, health/secrets and root-admission stories; CLI doctor and native storage tests; runtime `benches/storage/**` and existing plot/document benchmarks. Replace superseded fixtures/assertions with their operation-owned equivalents. SDK/protocol/generated tests follow the later wrapper delivery. |
+| Maintained Guides | `docs/architecture.md`, `docs/execution-host.md`, `docs/product-guide.md`, `docs/query-api.md`, `docs/gui.md`, `docs/tooling.md`, SDK guides and package READMEs, root `README.md`; change only affected contracts, layouts, commands and examples. |
+
+No new owner is introduced by this inventory. In particular, native backend
+registration is the only surviving direct backend consumer. Store's SQL tables,
+product receipts/cuts, telemetry catalog and duplicated kernels are deletions,
+not compatibility paths. The facade remains deferred at the pinned revision.
+
 ### Content and Files Source Inventory
 
 The content family spans `host/content`, `host/evidence/archive.rs`, `host/reports`,
