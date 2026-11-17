@@ -458,6 +458,27 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
         },
     )
     .await?;
+    let sample_scope = Identifier::new("columnar-execution")?;
+    let frozen = storage.lookup_schema(&first.schema).await?;
+    let sample_columns = harmos_storage::writes::DecodedBatch {
+        destination: Identifier::new("readings")?,
+        schema: first.schema.clone(),
+        data: harmos_query::arrow::ArrowBatch::try_new(harmos_query::source::stream(
+            &frozen,
+            &rows(&frozen, 1, 5, sample_scope.as_str())?,
+        )?)?,
+    };
+    let (sample_mutation, sample_frontier) = conformance::columnar_appends(&storage, &sample_scope, &sample_columns).await?;
+    let oversized = harmos_storage::writes::DecodedBatch {
+        data: harmos_query::arrow::ArrowBatch::try_new(harmos_query::source::stream(
+            &frozen,
+            &rows(&frozen, 1, 32_768, sample_scope.as_str())?,
+        )?)?,
+        ..sample_columns.clone()
+    };
+    conformance::columnar_admission_bounds(&storage, &sample_scope, &oversized).await?;
+    let retained_samples = storage.snapshot(&sample_frontier).await?.retain(Some(&sample_scope)).await?;
+
     let settings = storage.settings().clone();
     storage.close().await?;
     let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
@@ -479,6 +500,55 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
             Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
         })
         .await?;
+    conformance::columnar_reopened(&storage, &sample_scope, &sample_columns, &sample_mutation, &sample_frontier).await?;
+    let reader = storage.open_retained_snapshot(&retained_samples).await?;
+    let independent_samples = reader.retain(None).await?;
+    drop(reader);
+    let delete_samples = MutationId {
+        window: storage.mutation_window()?.id,
+        key: Identifier::new("delete-columnar-scope")?,
+    };
+    storage.mutate_once(&delete_samples, vec![MutationItem::DeleteScope(sample_scope.clone())]).await?;
+    assert!(storage.open_retained_snapshot(&retained_samples).await.is_err());
+    let current = storage.snapshot(&storage.get_saved_position()).await?;
+    let mut sample_scan = ArrowScan {
+        source: ColumnSource {
+            kind: ColumnKind::Stream,
+            schema: sample_columns.schema.clone(),
+        },
+        columns: vec!["_storage.scope".into(), "payload.value".into()],
+        predicate: None,
+        time: None,
+        start: 0,
+        after: None,
+        limits: limits(),
+        work: limits(),
+    };
+    loop {
+        let page = current.list_column_rows(&sample_scan, &Cancellation::default()).await?;
+        let scopes = page.batch.column_by_name("_storage.scope").unwrap().as_any().downcast_ref::<arrow_array::StringArray>().unwrap();
+        assert!(!scopes.iter().flatten().any(|scope| scope == sample_scope.as_str()));
+        if page.complete {
+            break;
+        }
+        sample_scan.after = page.next;
+    }
+    drop(current);
+    let independent = storage.open_retained_snapshot(&independent_samples).await?;
+    sample_scan.after = None;
+    let mut retained_rows = 0;
+    loop {
+        let page = independent.list_column_rows(&sample_scan, &Cancellation::default()).await?;
+        retained_rows += page.batch.num_rows();
+        if page.complete {
+            break;
+        }
+        sample_scan.after = page.next;
+    }
+    assert_eq!(retained_rows, 5);
+    drop(independent);
+    storage.release_retained_snapshot(&independent_samples).await?;
+
     assert_eq!(storage.mutate_once(&identity, items).await?, created);
     assert_eq!(storage.mutate_once(&refused_identity, refused_items).await?, refused);
     conformance::check_retained_scope(&storage, &retained).await?;
@@ -538,6 +608,9 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     assert!(storage.open_retained_snapshot(&retained.snapshot).await.is_err());
     let settings = storage.settings().clone();
     storage.close().await?;
+    let sample_ranges: i64 =
+        connection.query_row("SELECT count(*) FROM storage_sample_ranges WHERE scope=?1", [sample_scope.as_str()], |row| row.get(0))?;
+    assert_eq!(sample_ranges, 0);
     let (backends, _lease) = Backend::open(&store, catalog.clone())?;
     let storage = StorageManager::with_catalog(catalog.clone(), backends, settings)?;
     storage

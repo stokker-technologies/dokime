@@ -57,6 +57,7 @@ use harmos_storage::query::projection::ProjectionPublication;
 use harmos_storage::query::projection::ProjectionRead;
 use harmos_storage::query::projection::ProjectionStatus;
 use harmos_storage::query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection};
+use harmos_storage::writes::SampleAppend;
 use harmos_storage::{
     BackendFailure, BackendSnapshot, CompoundExchange, Error, FileCheckpoint, FileChunk, FileMetadata, FilePhase, FileProgress,
     FileReference, Identifier, IdentityKind, IdentitySelection, MemorySize, MutationReceipt, ObjectCatalog, ObjectEntry, ObjectKey,
@@ -70,7 +71,7 @@ use tokio::sync;
 
 /* === Constants === */
 
-const FORMAT: &str = "dokime.scoped-files.v1";
+const FORMAT: &str = "dokime.columnar.v1";
 
 /* === Macros === */
 
@@ -210,6 +211,9 @@ impl Backend {
             CREATE TABLE IF NOT EXISTS recovery_snapshots(sequence INTEGER PRIMARY KEY, header BLOB NOT NULL, payload BLOB NOT NULL, published INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS storage_meta(name TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS storage_rows(position INTEGER PRIMARY KEY, kind INTEGER NOT NULL, schema_key TEXT, schema_id TEXT, item TEXT, scope TEXT, stream TEXT, time_ns INTEGER, data BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS storage_sample_appends(first INTEGER PRIMARY KEY,last INTEGER NOT NULL,digest BLOB NOT NULL);
+            CREATE TABLE IF NOT EXISTS storage_sample_ranges(first INTEGER PRIMARY KEY,last INTEGER NOT NULL,schema_key TEXT NOT NULL,schema_id TEXT NOT NULL,item TEXT NOT NULL,scope TEXT,stream TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS storage_sample_source ON storage_sample_ranges(schema_key,first,last);
             CREATE INDEX IF NOT EXISTS storage_source ON storage_rows(kind,schema_key,position);
             CREATE INDEX IF NOT EXISTS storage_object ON storage_rows(kind,schema_id,item,position);
             CREATE TABLE IF NOT EXISTS arrow_chunks(id INTEGER PRIMARY KEY, source TEXT NOT NULL, first INTEGER NOT NULL, last INTEGER NOT NULL, rows INTEGER NOT NULL, file TEXT NOT NULL, block BLOB NOT NULL);
@@ -341,7 +345,7 @@ impl StorageBackend for Backend {
             file_deletion: true,
             mutation_receipts: true,
             native_arrow: true,
-            columnar_append: false,
+            columnar_append: true,
             native_index: true,
             durable_projections: true,
             conditional_objects: true,
@@ -436,6 +440,10 @@ impl StorageBackend for Backend {
     }
     fn append_samples(&self, values: StorageBatch<StoredRow>) -> StorageFuture<'_, StorageCursor> {
         Box::pin(self.call(move |state| rows::append_samples(state, values.as_slice())))
+    }
+    fn append_sample_columns<'a>(&'a self, append: &'a SampleAppend) -> StorageFuture<'a, MutationReceipt> {
+        let append = append.clone();
+        Box::pin(self.call(move |state| rows::append_sample_columns(state, &append)))
     }
     fn append_file_references(&self, values: StorageBatch<FileReference>) -> StorageFuture<'_, StorageCursor> {
         Box::pin(self.call(move |state| rows::append_file_references(state, values.as_slice())))

@@ -17,10 +17,15 @@
 use std::{
     collections::BTreeMap,
     num::NonZeroUsize,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    sync::Arc,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 // Third Party Imports
+use arrow_array::{
+    Array, ArrayRef, RecordBatch, StringArray, StructArray, TimestampNanosecondArray, UInt32Array, UInt64Array, new_null_array,
+};
+use arrow_ipc::writer::StreamWriter;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params, types::Value};
 
 // Local Imports
@@ -29,7 +34,7 @@ use harmos_query::columnar::ColumnKind;
 use harmos_query::columnar::ColumnSource;
 use harmos_query::source;
 use harmos_storage::query::ObjectVersions;
-use sha2::Digest;
+use sha2::{Digest, Sha256};
 
 use harmos_storage::DefinitionOutcome;
 use harmos_storage::DefinitionRefusal;
@@ -37,7 +42,7 @@ use harmos_storage::ObjectRetention;
 use harmos_storage::ObjectVersion;
 use harmos_storage::SchemaExchange;
 use harmos_storage::SchemaWriteReceipt;
-use harmos_storage::writes::convert;
+use harmos_storage::writes::{SampleAppend, convert};
 
 /* === Constants === */
 
@@ -226,7 +231,7 @@ pub(super) fn append_schemas(state: &mut State, values: &[StorageSchema]) -> Res
 pub(super) fn append_records(state: &mut State, values: &[StoredRecord]) -> Result<StorageCursor> {
     state.check()?;
     let through = values.last().ok_or_else(|| invalid("empty record batch"))?.position.sequence;
-    let writing = std::time::Instant::now();
+    let writing = Instant::now();
     let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for chunk in values.chunks(state.settings.chunk_rows.get()) {
         let mut groups: BTreeMap<String, Vec<StoredRecord>> = BTreeMap::new();
@@ -266,7 +271,7 @@ pub(super) fn append_records(state: &mut State, values: &[StoredRecord]) -> Resu
     }
     save(&tx, through)?;
     let writing_ns = u64::try_from(writing.elapsed().as_nanos()).unwrap_or(u64::MAX);
-    let commit_started = std::time::Instant::now();
+    let commit_started = Instant::now();
     tx.commit().map_err(db)?;
     let mut work = state.work.get();
     work.synchronous_commits += 1;
@@ -281,59 +286,187 @@ pub(super) fn append_records(state: &mut State, values: &[StoredRecord]) -> Resu
 
 pub(super) fn append_samples(state: &mut State, values: &[StoredRow]) -> Result<StorageCursor> {
     state.check()?;
-    let through = values.last().ok_or_else(|| invalid("empty stream batch"))?.record.position.sequence;
-    let writing = std::time::Instant::now();
+    let through = values.last().ok_or_else(|| invalid("Append Samples: Supply a Nonempty Batch"))?.record.position.sequence;
     let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     for chunk in values.chunks(state.settings.chunk_rows.get()) {
-        let mut groups: BTreeMap<String, Vec<StoredRow>> = BTreeMap::new();
+        let mut groups = BTreeMap::<String, Vec<StoredRow>>::new();
         for value in chunk {
-            let row = &value.record;
-            let inserted = insert(
-                &tx,
-                &state.history,
-                WriteRow {
-                    position: &row.position,
-                    kind: 3,
-                    schema: Some(&row.schema),
-                    item: Some(row.item.as_str()),
-                    scope: row.scope.as_ref().map(|value| value.as_str()),
-                    stream: Some(value.stream.as_str()),
-                    time: row.source_time,
-                    data: sha2::Sha256::digest(encode(value)?).to_vec(),
-                },
-            )?;
-            if inserted {
-                groups.entry(text(&row.schema)?).or_default().push(value.clone());
-            }
+            state.history.check(&value.record.position.history)?;
+            groups.entry(text(&value.record.schema)?).or_default().push(value.clone());
         }
         for values in groups.values() {
             let first = &values[0].record;
+            let last = values.last().unwrap().record.position.sequence;
             let schema = schema(&tx, &first.schema, first.position.sequence)?;
             let batch = source::stream(&schema, values)?;
-            columns::store(
-                &tx,
-                &ColumnSource {
-                    kind: ColumnKind::Stream,
-                    schema: first.schema.clone(),
-                },
-                &batch,
-                state.settings,
-            )?;
+            let mut bytes = Vec::new();
+            let mut writer = StreamWriter::try_new(&mut bytes, &batch.schema())
+                .map_err(|source| Error::backend("Encode Sample Replay", BackendFailure::Corrupt, source))?;
+            writer
+                .write(&batch)
+                .and_then(|()| writer.finish())
+                .map_err(|source| Error::backend("Encode Sample Replay", BackendFailure::Corrupt, source))?;
+            drop(writer);
+            let digest = Sha256::digest(&bytes).to_vec();
+            let prior: Option<(u64, Vec<u8>)> = tx
+                .query_row("SELECT last,digest FROM storage_sample_appends WHERE first=?1", [integer(first.position.sequence)?], |row| {
+                    Ok((unsigned(row, 0)?, row.get(1)?))
+                })
+                .optional()
+                .map_err(db)?;
+            if let Some(prior) = prior {
+                if prior != (last, digest) {
+                    return Err(conflict("Append Samples: Replay the Original Batch"));
+                }
+                continue;
+            }
+            if first.position.sequence <= meta(&tx, "saved")? {
+                return Err(conflict("Append Samples: Advance the Committed Source Order"));
+            }
+            tx.execute(
+                "INSERT INTO storage_sample_appends VALUES(?1,?2,?3)",
+                params![integer(first.position.sequence)?, integer(last)?, digest],
+            )
+            .map_err(db)?;
+            let source = ColumnSource {
+                kind: ColumnKind::Stream,
+                schema: first.schema.clone(),
+            };
+            sample_ranges(&tx, &source, &batch)?;
+            columns::store(&tx, &source, &batch, state.settings)?;
         }
     }
     save(&tx, through)?;
-    let writing_ns = u64::try_from(writing.elapsed().as_nanos()).unwrap_or(u64::MAX);
-    let commit_started = std::time::Instant::now();
     tx.commit().map_err(db)?;
     let mut work = state.work.get();
     work.synchronous_commits += 1;
-    let commit_ns = u64::try_from(commit_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
-    work.synchronous_commit_ns += commit_ns;
-    work.maximum_synchronous_commit_ns = work.maximum_synchronous_commit_ns.max(commit_ns);
-    work.writing_ns += writing_ns;
-    work.maximum_writing_ns = work.maximum_writing_ns.max(writing_ns);
     state.work.set(work);
     state.cursor()
+}
+
+/// Commit Immutable Columns and Their Replay Receipt in One Durable Transaction.
+pub(super) fn append_sample_columns(state: &mut State, append: &SampleAppend) -> Result<MutationReceipt> {
+    state.check()?;
+    state.history.check(&append.first.history)?;
+    state.history.check(&append.through.history)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
+    let prior: Option<Vec<u8>> = tx
+        .query_row("SELECT data FROM storage_mutations WHERE id=?1", [text(&append.mutation().mutation)?], |row| row.get(0))
+        .optional()
+        .map_err(db)?;
+    if let Some(prior) = prior {
+        let receipt = decode(&prior)?;
+        append.replay(&receipt)?;
+        return Ok(receipt);
+    }
+    let input = append.batch.data.as_record_batch();
+    let count = input.num_rows();
+    if count == 0
+        || append.first.sequence == 0
+        || append.first.sequence <= meta(&tx, "saved")?
+        || append.first.sequence.checked_add(count as u64 - 1) != Some(append.through.sequence)
+    {
+        return Err(conflict("Append Sample Columns: Preserve Its Complete Ordered Admission"));
+    }
+    let original =
+        input.column_by_name("_storage").and_then(|value| value.as_any().downcast_ref::<StructArray>()).ok_or_else(incompatible)?;
+    let empty = source::stream(&append.schema, &[])?;
+    let template = empty.column(0).as_any().downcast_ref::<StructArray>().ok_or_else(incompatible)?;
+    let mut arrays = Vec::<ArrayRef>::with_capacity(template.num_columns());
+    for field in template.fields() {
+        let array: ArrayRef = match field.name().as_str() {
+            "store" => Arc::new(StringArray::from_iter_values(std::iter::repeat_n(state.history.store.as_str(), count))),
+            "epoch" => Arc::new(StringArray::from_iter_values(std::iter::repeat_n(state.history.epoch.as_str(), count))),
+            "position" => Arc::new(UInt64Array::from_iter_values(append.first.sequence..=append.through.sequence)),
+            "scope" if append.scope.is_some() => {
+                Arc::new(StringArray::from_iter(std::iter::repeat_n(append.scope.as_ref().map(Identifier::as_str), count)))
+            }
+            "source_time" if original.column_by_name("source_time").is_some() => Arc::new(
+                original
+                    .column_by_name("source_time")
+                    .unwrap()
+                    .as_any()
+                    .downcast_ref::<TimestampNanosecondArray>()
+                    .ok_or_else(incompatible)?
+                    .clone()
+                    .with_timezone("UTC"),
+            ),
+            "stream" => Arc::new(StringArray::from_iter_values(std::iter::repeat_n(append.batch.destination.as_str(), count))),
+            // These Columns Describe One Registered Schema and Never Depend on a Sample Value.
+            "schema_id" | "schema_version" | "payload_encoding" => match field.name().as_str() {
+                "schema_id" => Arc::new(StringArray::from_iter_values(std::iter::repeat_n(append.schema.key.id.as_str(), count))),
+                "schema_version" => Arc::new(UInt32Array::from_iter_values(std::iter::repeat_n(append.schema.key.version.get(), count))),
+                _ => Arc::new(StringArray::from_iter_values(std::iter::repeat_n("postcard_v1", count))),
+            },
+            name => original.column_by_name(name).cloned().unwrap_or_else(|| new_null_array(field.data_type(), count)),
+        };
+        arrays.push(array);
+    }
+    let metadata = StructArray::try_new(template.fields().clone(), arrays, None)
+        .map_err(|source| Error::backend("Append Sample Metadata", BackendFailure::Corrupt, source))?;
+    let payload = input.column_by_name("payload").ok_or_else(incompatible)?.clone();
+    let batch = RecordBatch::try_new(empty.schema(), vec![Arc::new(metadata.clone()), payload])
+        .map_err(|source| Error::backend("Append Sample Columns", BackendFailure::Corrupt, source))?;
+    let source = ColumnSource {
+        kind: ColumnKind::Stream,
+        schema: append.schema.key.clone(),
+    };
+    sample_ranges(&tx, &source, &batch)?;
+    columns::store(&tx, &source, &batch, state.settings)?;
+    tx.execute(
+        "INSERT INTO storage_compound_ranges VALUES(?1,?2)",
+        params![integer(append.first.sequence)?, integer(append.through.sequence)?],
+    )
+    .map_err(db)?;
+    let receipt = append.receipt();
+    tx.execute("INSERT INTO storage_mutations VALUES(?1,?2)", params![text(&receipt.mutation)?, encode(&receipt)?]).map_err(db)?;
+    save(&tx, append.through.sequence)?;
+    tx.commit().map_err(db)?;
+    let mut work = state.work.get();
+    work.synchronous_commits += 1;
+    state.work.set(work);
+    Ok(receipt)
+}
+
+/// Index Contiguous Identities; Sample Payloads and Metadata Stay in Arrow.
+fn sample_ranges(connection: &Connection, source: &ColumnSource, batch: &RecordBatch) -> Result<()> {
+    let metadata =
+        batch.column_by_name("_storage").and_then(|value| value.as_any().downcast_ref::<StructArray>()).ok_or_else(incompatible)?;
+    let items = metadata.column_by_name("item").and_then(|value| value.as_any().downcast_ref::<StringArray>()).ok_or_else(incompatible)?;
+    let scopes =
+        metadata.column_by_name("scope").and_then(|value| value.as_any().downcast_ref::<StringArray>()).ok_or_else(incompatible)?;
+    let streams =
+        metadata.column_by_name("stream").and_then(|value| value.as_any().downcast_ref::<StringArray>()).ok_or_else(incompatible)?;
+    let positions =
+        metadata.column_by_name("position").and_then(|value| value.as_any().downcast_ref::<UInt64Array>()).ok_or_else(incompatible)?;
+    let scope = |index| (!scopes.is_null(index)).then(|| scopes.value(index));
+    let mut first = 0;
+    for end in 1..=batch.num_rows() {
+        if end < batch.num_rows()
+            && items.value(end) == items.value(first)
+            && scope(end) == scope(first)
+            && streams.value(end) == streams.value(first)
+            && positions.value(end - 1).checked_add(1) == Some(positions.value(end))
+        {
+            continue;
+        }
+        connection
+            .execute(
+                "INSERT INTO storage_sample_ranges VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                params![
+                    integer(positions.value(first))?,
+                    integer(positions.value(end - 1))?,
+                    text(&source.schema)?,
+                    source.schema.id.as_str(),
+                    items.value(first),
+                    scope(first),
+                    streams.value(first),
+                ],
+            )
+            .map_err(db)?;
+        first = end;
+    }
+    Ok(())
 }
 
 pub(super) fn append_object_revisions(state: &mut State, values: &[ObjectEntry]) -> Result<StorageCursor> {
@@ -494,10 +627,14 @@ pub(super) fn list_identities(
         IdentityKind::Objects => "schema_key,item",
     };
     let sql = format!(
-        "SELECT schema_key,scope,item,stream,position FROM storage_rows WHERE position IN
-         (SELECT MIN(position) FROM storage_rows WHERE kind=?1 AND position<=?2
-          AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=storage_rows.position AND d.deleted_at<=?2)
-          AND (?6 IS NULL OR (scope=?6 AND (kind<>1 OR scope=(SELECT o.scope FROM storage_rows o WHERE o.kind=1 AND o.schema_id=storage_rows.schema_id AND o.item=storage_rows.item AND o.position<=?2 ORDER BY o.position DESC LIMIT 1))))
+        "WITH identity_rows AS (
+            SELECT position,kind,schema_key,schema_id,item,scope,stream FROM storage_rows
+            UNION ALL SELECT first,3,schema_key,schema_id,item,scope,stream FROM storage_sample_ranges r
+            WHERE NOT EXISTS(SELECT 1 FROM storage_scope_deletions d WHERE d.scope=r.scope AND d.position>r.last AND d.position<=?2)
+         ) SELECT schema_key,scope,item,stream,position FROM identity_rows WHERE position IN
+         (SELECT MIN(position) FROM identity_rows WHERE kind=?1 AND position<=?2
+          AND NOT EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position=identity_rows.position AND d.deleted_at<=?2)
+          AND (?6 IS NULL OR (scope=?6 AND (kind<>1 OR scope=(SELECT o.scope FROM identity_rows o WHERE o.kind=1 AND o.schema_id=identity_rows.schema_id AND o.item=identity_rows.item AND o.position<=?2 ORDER BY o.position DESC LIMIT 1))))
           GROUP BY {group}) AND position>?3 AND (?4 IS NULL OR schema_id=?4) AND (?6 IS NULL OR scope=?6) ORDER BY position LIMIT ?5"
     );
     let mut query = state.connection.prepare(&sql).map_err(db)?;
@@ -551,7 +688,6 @@ pub(super) fn list_identities(
 pub(super) fn list_samples(
     state: &State, snapshot: &BackendSnapshot, selection: &StreamSelection, page: ScanPage,
 ) -> Result<Vec<StoredRow>> {
-    use arrow_array::{Array, StringArray, StructArray, TimestampNanosecondArray, UInt64Array};
     state.snapshot(snapshot)?;
     let schema = schema(&state.connection, &selection.schema, snapshot.at.sequence)?;
     let empty = source::stream(&schema, &[])?;

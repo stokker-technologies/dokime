@@ -27,6 +27,7 @@ use sha2::{Digest, Sha256};
 use tempfile::TempPath;
 
 // Local Imports
+use crate::persisted::Scope;
 use crate::{Error, Result, Store};
 use dokime_protocol::host::content::ArtifactsCreateRequest;
 use dokime_protocol::host::content::ExecutionFileMetadata;
@@ -174,10 +175,11 @@ impl Store {
             manifest.push(serde_json::json!({"path":member,"size":size,"sha256":digest}));
         }
         let mut native = Vec::new();
+        let owner = Scope::Execution(execution).identifier()?;
         for file in content.files {
             let reference = file.reference;
             let metadata = reference.metadata.as_ref().ok_or(Error::Data("Export Native File: Restore Its Metadata"))?;
-            if metadata.scope.as_deref() != Some(execution) {
+            if metadata.scope.as_deref() != Some(owner.as_str()) {
                 return Err(Error::Data("Export Native File: Select the Execution's Own File Reference"));
             }
             let identity = Sha256::digest(reference.encode_to_vec());
