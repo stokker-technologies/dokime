@@ -1,7 +1,7 @@
 # gRPC Plugins
 
-Status: protocol definitions and host-source export are implemented. Runtime,
-SDK and catalog adoption remain open; follow the waves in `design.md`. Replaces `remote-plugins`. The Harmos change `grpc-plugins` is
+Status: the execution host, protocol values, SDKs, CLI and desktop cutover are present.
+Remaining behavior and final proof are in tasks.md; current ownership is in design.md. Replaces `remote-plugins`. The Harmos change `grpc-plugins` is
 the protocol side.
 
 ## Why
@@ -33,8 +33,7 @@ and lets Dokime delete the plumbing in between.
   through `ctx`: prompts, secrets, settings, records, statistics, files.
 - Samples arrive on streams the host opens. Records are acknowledged host
   operations.
-- One Dokime protocol package, `dokime.v1`, holds every operation Dokime
-  serves and the messages for the operations plugins serve.
+- Executor-owned model/host/plugin packages replace the single-package and later client/context-face plans; callers are declared independently of visibility.
 - Python APIs offer flat value composition and explicit close, without requiring
   a context manager.
 - Each `sdk/<language>` has two halves: provide plugins, and drive Dokime.
@@ -45,13 +44,19 @@ and lets Dokime delete the plumbing in between.
   declarations, gRPC mappings and handlers; runtime owns host composition.
 - Harmos accepts generated protobuf types in client-facing operation declarations.
   Server behavior moves into operations and the server crate is deleted.
-- After the last gRPC wave, `storage-interface` extends Harmos storage first and
-  extracts application persistence into `dokime-storage`, with benchmark proof.
+- Application persistence is extracted into dokime-storage; operation-boundary owns the remaining operations-only storage cutover, facade/wrappers and composition-file deletion. storage-interface retains comparative backend proof.
 - Python becomes a pure Python package, `Remote` only.
 - Removed: `<template>.run` and `.signal`, the signal and evidence-page
   protocol, the execution hand-off layer, embedded plugins, the PyO3 SDK and
   Python backend, and recovery of a plugin restart during an execution.
   `design.md` lists the paths.
+
+## Current Ownership
+
+plugin-boundary owns product plugin contracts, SDKs, registry/settings, bundles and
+generation/inspection adoption; plugin-lifecycle owns verbs/hooks. Plugin analyses
+are removed. Generated code remains tracked. These decisions supersede older
+library-SDK, face-duplication and generated-output-removal wording.
 
 ## Locked Decisions
 
@@ -74,7 +79,7 @@ and lets Dokime delete the plumbing in between.
   provides the definitions. There is no dynamic call layer.
 - A plugin reads its settings through a host operation when it needs them;
   nothing is injected at start.
-- Dokime's catalog sections are typed `dokime.v1` messages.
+- Dokime's catalog sections are typed `dokime.model.v1` messages.
 - Harmos stays generic. Every Dokime concept is an operation convention or a
   catalog section.
 

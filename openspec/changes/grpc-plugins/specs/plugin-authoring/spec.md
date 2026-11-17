@@ -1,10 +1,10 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Label-First Traceability
 
 Traceability sections and rows SHALL derive their identifiers from labels using document
 normalization unless the author explicitly sets an identifier. Constructors SHALL accept
-labels first without ID-first aliases. The typed `dokime.v1` representation SHALL retain
+labels first without ID-first aliases. The typed `dokime.model.v1` representation SHALL retain
 those identities; the development wire change SHALL NOT require legacy serialization or migrations.
 
 #### Scenario: Derived Identity

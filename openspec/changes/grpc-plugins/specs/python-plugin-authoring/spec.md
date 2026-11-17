@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Decorator API
 
@@ -15,6 +15,17 @@ criteria, records, streams, documents and operations with the same concepts as t
 - **WHEN** a declaration has duplicate identifiers or unresolved fields
 - **THEN** plugin startup fails naming the declaration before execution
 
+### Requirement: Plugin Identity Conflict
+
+A Python remote plugin SHALL obey the same connected identity and operation uniqueness rules as managed plugins.
+
+#### Scenario: Same ID as Installed
+
+- **WHEN** a remote entry connects with an identity already connected
+- **THEN** that connection is refused with a named conflict while unrelated entries remain available
+
+## MODIFIED Requirements
+
 ### Requirement: Authoritative Deadlines
 
 Python operations SHALL obey declared operation policies enforced on the host clock.
@@ -29,24 +40,3 @@ Unset policies SHALL mean no deadline, zero cancellation grace and no retries.
 
 - **WHEN** a callback ignores cancellation after its declared policy expires
 - **THEN** the invocation fails without preventing the host from finishing cleanup and closing its execution
-
-### Requirement: Plugin Identity Conflict
-
-A Python remote plugin SHALL obey the same connected identity and operation uniqueness rules as managed plugins.
-
-#### Scenario: Same ID as Installed
-
-- **WHEN** a remote entry connects with an identity already connected
-- **THEN** that connection is refused with a named conflict while unrelated entries remain available
-
-## REMOVED Requirements
-
-### Requirement: Rust Calls Python
-
-**Reason**: The embedded Python provider and callback bridge are removed.
-**Migration**: Serve ordinary unary plugin operations over Harmos gRPC.
-
-### Requirement: Batch Stream Publication
-
-**Reason**: Live plugin streams send one sample per message with gRPC backpressure.
-**Migration**: Publish live samples through declared streams; later bulk imports use their own columnar admission.

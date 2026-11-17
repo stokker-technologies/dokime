@@ -8,7 +8,7 @@ with plugin and client halves and no embedded backend or native extension.
 #### Scenario: Behaviour Lives in the Host
 
 - **WHEN** a Python client starts a cycle or reads evidence
-- **THEN** the running Dokime host applies the operation through `dokime.v1`
+- **THEN** the running Dokime host applies the operation through `dokime.host.v1`
 
 ### Requirement: Typed Pure Python Exports
 
@@ -20,11 +20,9 @@ Every public export SHALL provide Python type information and the package SHALL 
 - **WHEN** an operation changes without regenerating Python client messages and stubs
 - **THEN** the generated drift check fails
 
-## MODIFIED Requirements
-
 ### Requirement: Client Parity
 
-The package SHALL provide the `python-client` capabilities through generated `dokime.v1`
+The package SHALL provide the `python-client` capabilities through generated `dokime.host.v1`
 clients and thin conveniences, with flat APIs and explicit resource close.
 
 #### Scenario: Existing Lifecycle
@@ -45,20 +43,3 @@ The Python system story SHALL run in Nightly on required platforms, outside pull
 
 - **WHEN** a script serves a remote plugin, adds its URL, connects through pairing and runs a prompt/stream execution
 - **THEN** a later host reads the sealed report without the plugin
-
-## REMOVED Requirements
-
-### Requirement: Thin Interface Layer
-
-**Reason**: The PyO3 interface is superseded by Pure Remote Interface.
-**Migration**: Use generated gRPC clients and the language's Harmos SDK.
-
-### Requirement: Complete Type Stubs
-
-**Reason**: Native extension stubtest is superseded by Typed Pure Python Exports.
-**Migration**: Generate message/client typing and check ordinary Python exports.
-
-### Requirement: One Wheel per Machine
-
-**Reason**: The package no longer contains a native extension.
-**Migration**: Build one platform-independent pure Python wheel without Rust.
