@@ -7,6 +7,17 @@
 # ***
 
 [[advisory]]
+ecosystem = "pnpm"
+id = "GHSA-fc5q-39xc-vjpf"
+package = "picomatch"
+version = "4.0.7"
+fixed = "await patched upstream release"
+category = "vulnerability"
+reason = "Reviewed 2026-11-18: pnpm audit reports all picomatch versions through 4.0.7 affected, with no patched release; the npm registry still lists 4.0.7 as latest. @dokime/gui -> @tailwindcss/vite 4.3.3 or @vitejs/plugin-react 6.1.2 -> vite 8.3.4 -> picomatch 4.0.7, also through tinyglobby 0.2.17 and its fdir 6.5.0 peer. Accept this exact version until upstream publishes a fix; update the lockfile to a patched compatible release when available. Advisory: https://github.com/advisories/GHSA-fc5q-39xc-vjpf."
+owner = "orchestrator"
+expires = 2026-12-18
+
+[[advisory]]
 ecosystem = "cargo"
 id = "RUSTSEC-2026-0543"
 package = "chrono"
