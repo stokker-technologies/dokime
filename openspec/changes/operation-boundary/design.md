@@ -58,6 +58,7 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   in `host/executions/commands`. The execution manager owns admission through durable
   publication and scheduling even if the client stops observing. Startup recovery
   runs after binding the storage context and interrupts unfinished receipts. Command
+  cuts follow native retention and refuse gaps with resynchronization guidance. Command
   objects carry the execution scope; roots holding superseded SQL command receipts
   are refused and preserved at baseline v1. Execution state and evidence remain on
   the coupled lifecycle cutover path.

@@ -146,6 +146,7 @@ impl ExecutionManager {
         {
             let _admission = self.inner.admission.lock().await;
             self.admit("Submit Execution Command")?;
+            self.reap_finished().await?;
             let manager = self.clone();
             self.spawn(async move {
                 let response = manager.admit_execution_command(request).await;

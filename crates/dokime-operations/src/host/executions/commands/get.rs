@@ -49,7 +49,14 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: CommandsGetRequest) -> Result<CommandsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let (command, resolved_at) = super::read(context, &request.parent, &request.name, request.at).await?;
+        let selected = request.at.is_some();
+        let (command, resolved_at) = super::read(context, &request.parent, &request.name, request.at).await.map_err(|source| {
+            if selected {
+                Error::Precondition(format!("Get Execution Command: Resynchronize Its Position Before Reading Again: {source}"))
+            } else {
+                source
+            }
+        })?;
         let command = command.ok_or_else(|| Error::NotFound("Get Execution Command: Use Its Accepted Execution and Command IDs".into()))?;
         Ok(CommandsGetResponse {
             command: Some(command),

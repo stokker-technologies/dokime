@@ -679,7 +679,15 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
             let admitted = client
                 .executions
                 .commands
-                .create(identifier.clone(), "interrupted-command", ExecutionsExecutionCommandAction::Next)
+                .create_with(
+                    identifier.clone(),
+                    "interrupted-command",
+                    ExecutionsExecutionCommandAction::RunStep,
+                    ExecutionsCommandsCreateOptions {
+                        step_id: Some("hold".into()),
+                        ..Default::default()
+                    },
+                )
                 .await?;
             let mut prompted = false;
             while let Some(frame) = progress.next().await? {
@@ -693,6 +701,21 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
             assert_eq!(running.phase, ExecutionsExecutionCommandPhase::Running as i32);
             drop(progress);
 
+            // Retain the Native Admission Cut While Its History Is Available
+            let retained = client
+                .executions
+                .commands
+                .get_with(
+                    "interrupted-command",
+                    identifier.clone(),
+                    ExecutionsCommandsGetOptions {
+                        at: admitted.receipt.and_then(|receipt| receipt.durable_at),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(retained.command, admitted.command);
+
             // Interrupt the Process and Recover the Command Receipt
             process.kill().await?;
             let process = HostProcess::start_with_environment(root.path(), &credentials.environment).await?;
@@ -705,20 +728,6 @@ fn unfinished_command_receipts_interrupt_after_restart() -> Result<(), Box<dyn E
             assert_eq!(recovered.action, running.action);
             assert_eq!(recovered.accepted_at, running.accepted_at);
 
-            // Preserve the Native Admission Cut Across Recovery
-            let retained = client
-                .executions
-                .commands
-                .get_with(
-                    "interrupted-command",
-                    identifier,
-                    ExecutionsCommandsGetOptions {
-                        at: admitted.receipt.and_then(|receipt| receipt.durable_at),
-                        ..Default::default()
-                    },
-                )
-                .await?;
-            assert_eq!(retained.command, admitted.command);
             process.close().await?;
             plugin.close().await?;
             Ok::<_, Box<dyn Error>>(())

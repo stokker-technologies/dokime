@@ -194,7 +194,8 @@ ownership changes below are locked direction, not implemented source.
    scope (`crates/dokime-operations/src/host/executions/commands/`). The execution
    manager owns command admission through durable publication and queueing even
    after client observation ends. Command reads and acknowledgements carry native
-   storage positions; startup interrupts unfinished command receipts
+   storage positions and retain their selection while native history is available;
+   retired cuts refuse with resynchronization guidance. Startup interrupts unfinished receipts
    after binding the storage operation context. Roots with superseded SQL command
    receipts are refused and preserved at baseline v1.
    Retained resource-view indexes use `GetObject` and create-only `SetObject` in
