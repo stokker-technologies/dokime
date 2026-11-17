@@ -67,18 +67,20 @@ pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<Out
         let revision = crate::host::paging::bytes(&selection.selection.clone().unwrap_or_default());
         let at = first.resolved_at.clone().ok_or_else(|| Error::Precondition("Watch Notes: Return the Opening Storage Cut".into()))?;
         let at = list::source_cut(at, &revision)?;
-        let schema =
-            ObjectDefinition::of::<Administration>().schema().map_err(|source| Error::Invalid(format!("Watch Notes: {source}")))?;
+        let schema = ObjectDefinition::of::<Administration>()
+            .schema()
+            .map_err(|source| Error::Invalid(format!("Watch Notes: Restore Its Registered Object Schema: {source}")))?;
         let limits = StreamSettings {
             items: NonZeroUsize::new(context.settings.stream_buffer).unwrap(),
             bytes: NonZeroUsize::new(context.settings.message_bytes).unwrap(),
         };
-        let (send, receive) = native_stream(limits).map_err(|source| Error::Unavailable(format!("Watch Notes: {source}")))?;
+        let (send, receive) = native_stream(limits)
+            .map_err(|source| Error::Unavailable(format!("Watch Notes: Configure Positive Stream and Message Bounds: {source}")))?;
         let operations = match &context.caller {
             Some(caller) => context
                 .operations
                 .with_scope(caller.execution.clone())
-                .map_err(|source| Error::Permission(format!("Watch Notes: {source}")))?,
+                .map_err(|source| Error::Permission(format!("Watch Notes: Select the Calling Execution: {source}")))?,
             None => (*context.operations).clone(),
         };
         let invocation = operations
@@ -93,7 +95,7 @@ pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<Out
                 },
                 send,
             )
-            .map_err(|source| Error::Unavailable(format!("Watch Notes: {source}")))?;
+            .map_err(|source| Error::Unavailable(format!("Watch Notes: Reopen From a Fresh Notes List Cut: {source}")))?;
         let context = context.clone();
         let mut runtime = context.host.changes();
         let (sender, output) = mpsc::channel(context.settings.stream_buffer);
@@ -123,7 +125,11 @@ pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<Out
                                 Some(Event::Object(entry)) => {
                                     let value = administration::catalog()
                                         .decode::<Administration>(&entry.value, NonZeroUsize::new(context.settings.message_bytes).unwrap())
-                                        .map_err(|source| Error::Invalid(format!("Watch Notes: {source}")))?;
+                                        .map_err(|source| {
+                                            Error::Invalid(format!(
+                                                "Watch Notes: Inspect the Stored Object and Its Message Bound: {source}"
+                                            ))
+                                        })?;
                                     if !value.key.starts_with("note:") {
                                         continue;
                                     }
@@ -175,7 +181,7 @@ pub async fn handle(context: &Context, request: NotesWatchRequest) -> Result<Out
             } else if let Err(source) = settled
                 && !matches!(source, harmos_runtime::Error::OperationRefused(harmos_runtime::Refusal::Cancelled { .. }))
             {
-                let _ = sender.send(Err(Status::internal(format!("{ID}: {source}")))).await;
+                let _ = sender.send(Err(Status::internal(format!("{ID}: Reopen From Its Last Issued Cut: {source}")))).await;
             }
         });
         Ok(ReceiverStream::new(output))

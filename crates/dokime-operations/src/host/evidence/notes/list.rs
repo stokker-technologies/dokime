@@ -97,7 +97,7 @@ pub(crate) fn source_cut(mut cut: ReadCut, revision: &[u8]) -> Result<ReadCut> {
         .revisions
         .iter()
         .position(|value| value.name == SELECTION)
-        .ok_or_else(|| Error::Invalid("List Notes: Supply Its Returned Selection and Cut".into()))?;
+        .ok_or_else(|| Error::Invalid("List Notes: List a Fresh Image and Use Its Returned Cut".into()))?;
     if cut.revisions.remove(selected).revision != revision || cut.revisions.iter().any(|value| value.name == SELECTION) {
         return Err(Error::Invalid("List Notes: Keep the Same Selection and Cut".into()));
     }
