@@ -23,7 +23,7 @@ interpreted as the new implementation. Missing guards are unchecked in
 [Operation Grammar Tasks](../openspec/changes/operation-grammar/tasks.md).
 
 Upstream source citations below use **Harmos** paths at the exact revision pinned by
-[Cargo.toml](../Cargo.toml), `6978e65f1d505c2fe805a34a2781e48ea6f30350`, rather than
+[Cargo.toml](../Cargo.toml), `fa52a0e6619803c824af5112eb28b9a85430b359`, rather than
 assuming another checkout's HEAD matches this product. `Harmos:` paths resolve
 inside that pinned dependency revision; other paths resolve in this repository.
 The repaired generated client/plugin surfaces compile independently of the product
@@ -700,12 +700,27 @@ mixed-owner batches preserves source order and permits whole-file reclamation. E
 is synced before its catalog transaction commits; startup collects uncataloged
 owned files after a failed transaction. Native row reads reconstruct Postcard
 values from those Arrow columns, preserving optional messages and repeated values.
+Administration, retained-content and archive readers consume the operation-owned
+column kinds and row/IPC result DTOs, decoding their Arrow batches in the product.
+They retain the current operation-calling API; typed facade adoption is separate.
 Compound mutation commits ordered object changes, records and their replayable
 receipt in one SQLite transaction. A late conditional conflict rolls back every
 effect and commits its original refusal receipt. Snapshot admission rejects cuts
 inside a compound range. Object and scoped deletion hide values at new cuts while
 retained snapshots keep their original image; releasing those snapshots permits
-file-byte and fully deleted Arrow-chunk reclamation. The compound backend format
+file-byte and fully deleted Arrow-chunk reclamation. Native retained cuts persist
+their position, deletion generation, optional selection scope and independent
+owner in `storage_retained_snapshots`; live reader leases are session-local.
+Reopening a retained cut after restart creates a separate reader lease. Scope
+deletion releases that scope's ownership in its compound transaction, preserving
+independent readers and unowned retained handles. Reclamation considers each
+retained scope, so one execution's retained cut does not pin another execution's
+deleted rows or file bytes. Scoped images cannot read unrelated objects, records,
+samples or files. This backend capability does not move product seal ownership
+off the execution ledger; that consumer cutover remains open. Native watch
+frontiers round down inside compound ranges and report gaps for committed
+deletions or lost object revisions. Product watch-source adoption remains open.
+The retained backend format
 keeps baseline v1 and refuses superseded native roots with fresh-root guidance.
 Native storage and the existing descriptor-driven evidence store remain distinct
 until operations/runtime callers complete their native-port adoption. Product
@@ -962,7 +977,7 @@ this is no permission for a duplicate durable row representation or new wire cod
 ### StorageBackend Method Inventory
 
 The signatures and values are owned by the pinned
-[StorageBackend](https://github.com/stokker-technologies/harmos/blob/6978e65f1d505c2fe805a34a2781e48ea6f30350/crates/harmos-storage/src/backend.rs).
+[StorageBackend](https://github.com/stokker-technologies/harmos/blob/fa52a0e6619803c824af5112eb28b9a85430b359/crates/harmos-storage/src/backend.rs).
 Every method below must be implemented for the product's native capabilities,
 except the three explicit fallback optimizations. A default unsupported result is
 not implementation of an exposed capability. `get_work` supplies native work
@@ -1073,7 +1088,7 @@ explicit fresh path.
 
 ### Final Library Pin
 
-The definition pass pins Harmos at `6978e65f1d505c2fe805a34a2781e48ea6f30350`.
+The definition pass pins Harmos at `fa52a0e6619803c824af5112eb28b9a85430b359`.
 The table below records consumer repairs at this pin. Plugin Boundary replaces
 direct plugin-service composition and author-facing Harmos values; product SDKs
 use carrier helpers internally and expose Dokime values only.

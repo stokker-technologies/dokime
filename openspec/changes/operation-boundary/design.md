@@ -412,9 +412,15 @@ extension; sequential scope calls cannot claim atomicity. No new cascade is intr
 | Harmos Groups 6–7 | Consolidated statistics/box summaries and bucket-summary continuation (slice 5). |
 | Harmos Group 9 | Typed facade, authoring exports and operation-owned batch DTOs (slice 6, including final archive DTO adoption). |
 
-G1–G3 are upstream source findings, not completed implementation or runtime proof.
-Additive Harmos groups 4–5 remove the old storage-only/maintenance and
-scale/offset/contains blockers; product backend hooks and adoption still remain.
+Harmos `fa52a0e6619803c824af5112eb28b9a85430b359` supplies G1–G3,
+consolidated statistics/bucket summaries, storage-only maintenance and
+scale/offset/contains transforms. The descriptions above record the original
+upstream findings; product backend and consumer adoption and proof remain open.
+The storage cutover keeps the current operation-calling API. Group 9's typed
+facade and its dependent wrapper changes remain a later delivery. The current
+pin already supplies operation-owned column kinds and row/IPC result DTOs;
+existing administration, retained-content and archive operation callers adopt
+those DTOs without introducing the facade.
 
 ## Risks / Trade-Offs
 

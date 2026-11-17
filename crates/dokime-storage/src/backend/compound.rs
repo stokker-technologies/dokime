@@ -16,14 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, result, slice};
 
 // Third Party Imports
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 // Local Imports
 use super::{State, columns, conflict, db, decode, encode, files, integer, invalid, meta, rows, set_meta, text, unsigned};
-use harmos_query::columnar::{ColumnKind, ColumnSource};
+use harmos_query::{
+    columnar::{ColumnKind, ColumnSource},
+    source,
+};
 use harmos_storage::{
     CompoundOutcome, CompoundReceipt, CompoundWrite, Identifier, MutationHeader, MutationReceipt, MutationValue, ObjectEntry, ObjectKey,
     ObjectVersionToken, Result, StorageCursor,
@@ -50,7 +53,7 @@ pub(super) fn commit(
 ) -> Result<MutationReceipt> {
     state.check()?;
     state.history.check(&position.history)?;
-    let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+    let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
     let prior: Option<Vec<u8>> = tx
         .query_row("SELECT data FROM storage_mutations WHERE id=?1", [text(&header.mutation)?], |row| row.get(0))
         .optional()
@@ -95,7 +98,7 @@ pub(super) fn commit(
                         data: encode(value)?,
                     },
                 )?;
-                let batch = harmos_query::source::objects(schema, std::slice::from_ref(value))?;
+                let batch = source::objects(schema, slice::from_ref(value))?;
                 let source = ColumnSource {
                     kind: ColumnKind::Objects,
                     schema: schema.key.clone(),
@@ -130,7 +133,7 @@ pub(super) fn commit(
                     },
                 )?;
                 let schema = rows::schema(&tx, &record.schema, record.position.sequence)?;
-                let batch = harmos_query::source::records(&schema, std::iter::once(record))?;
+                let batch = source::records(&schema, std::iter::once(record))?;
                 let source = ColumnSource {
                     kind: ColumnKind::Records,
                     schema: record.schema.clone(),
@@ -190,7 +193,7 @@ pub(super) fn visible_positions(connection: &Connection, source: &ColumnSource, 
     query
         .query_map(params![integer(first)?, integer(last)?, integer(at)?, kind, text(&source.schema)?], |row| unsigned(row, 0))
         .map_err(db)?
-        .collect::<std::result::Result<_, _>>()
+        .collect::<result::Result<_, _>>()
         .map_err(db)
 }
 
@@ -199,18 +202,19 @@ pub(super) fn reclaim(state: &mut State) -> Result<()> {
     if floor == 0 {
         return files::reclaim(state);
     }
-    let oldest = state.snapshots.values().map(|at| at.sequence).min().unwrap_or(u64::MAX).min(i64::MAX as u64);
+    let oldest = state
+        .connection
+        .query_row("SELECT coalesce(min(position),9223372036854775807) FROM storage_retained_cuts WHERE scope IS NULL", [], |row| {
+            unsigned(row, 0)
+        })
+        .map_err(db)?;
     let tx = state.connection.transaction().map_err(db)?;
-    tx.execute(
-        "DELETE FROM storage_index_entries WHERE position IN(SELECT position FROM storage_row_deletions WHERE deleted_at<=?1)",
-        [integer(oldest)?],
-    )
-    .map_err(db)?;
-    tx.execute(
-        "DELETE FROM storage_rows WHERE position IN(SELECT position FROM storage_row_deletions WHERE deleted_at<=?1)",
-        [integer(oldest)?],
-    )
-    .map_err(db)?;
+    tx.execute_batch("CREATE TEMP TABLE reclaim_rows(position INTEGER PRIMARY KEY);
+        INSERT INTO reclaim_rows SELECT r.position FROM storage_rows r JOIN storage_row_deletions d USING(position)
+        WHERE NOT EXISTS(SELECT 1 FROM storage_retained_cuts c WHERE c.position>=r.position AND c.position<d.deleted_at AND (c.scope IS NULL OR c.scope=r.scope));
+        DELETE FROM storage_index_entries WHERE position IN(SELECT position FROM reclaim_rows);
+        DELETE FROM storage_rows WHERE position IN(SELECT position FROM reclaim_rows);
+        DROP TABLE reclaim_rows;").map_err(db)?;
     let chunks = {
         let mut query = tx.prepare("SELECT id,source,first,last FROM arrow_chunks c WHERE EXISTS(SELECT 1 FROM storage_row_deletions d WHERE d.position>=c.first AND d.position<=c.last AND d.deleted_at<=?1)").map_err(db)?;
         query
@@ -218,7 +222,7 @@ pub(super) fn reclaim(state: &mut State) -> Result<()> {
                 Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, unsigned(row, 2)?, unsigned(row, 3)?))
             })
             .map_err(db)?
-            .collect::<std::result::Result<Vec<_>, _>>()
+            .collect::<result::Result<Vec<_>, _>>()
             .map_err(db)?
     };
     for (id, source, first, last) in chunks {
@@ -289,6 +293,10 @@ fn delete_scope(connection: &Connection, position: &StorageCursor, scope: &Ident
             "INSERT OR IGNORE INTO deleted_files SELECT id,?2 FROM storage_files WHERE scope=?1",
             params![scope.as_str(), integer(generation)?],
         )
+        .map_err(db)?;
+    connection.execute("DELETE FROM storage_retained_snapshots WHERE owner=?1", [scope.as_str()]).map_err(db)?;
+    connection
+        .execute("INSERT INTO storage_scope_deletions VALUES(?1,?2)", params![scope.as_str(), integer(position.sequence)?])
         .map_err(db)?;
     set_meta(connection, "deletion_generation", generation)?;
     set_meta(connection, "floor", position.sequence)?;

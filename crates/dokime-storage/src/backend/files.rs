@@ -185,7 +185,11 @@ pub(super) fn read(state: &State, snapshot: &BackendSnapshot, file: &FileReferen
     if file.position.sequence > snapshot.at.sequence {
         return Err(invalid("file is beyond the snapshot"));
     }
-    let generation = state.snapshot_generations.get(&snapshot.token).copied().ok_or_else(incompatible)?;
+    let image = super::snapshots::read(&state.connection, snapshot)?;
+    if image.scope.as_ref().is_some_and(|scope| file.metadata.scope.as_ref().is_none_or(|owner| owner.as_str() != scope)) {
+        return Err(invalid("Read File: Select Content in the Retained Scope"));
+    }
+    let generation = image.generation;
     let deleted: bool = state
         .connection
         .query_row(
@@ -416,11 +420,12 @@ pub(super) fn delete(state: &mut State, file: &StagedFile) -> Result<()> {
 }
 
 pub(super) fn reclaim(state: &mut State) -> Result<()> {
-    let oldest = state.snapshot_generations.values().copied().min().unwrap_or(u64::MAX);
     let tx = state.connection.transaction().map_err(db)?;
     tx.execute(
-        "DELETE FROM storage_file_chunks WHERE id IN(SELECT id FROM deleted_files WHERE generation<=?1)",
-        [integer(oldest.min(i64::MAX as u64))?],
+        "DELETE FROM storage_file_chunks WHERE id IN(SELECT d.id FROM deleted_files d JOIN storage_files f USING(id)
+         WHERE NOT EXISTS(SELECT 1 FROM storage_retained_cuts c WHERE c.generation<d.generation
+         AND c.position>=json_extract(f.finished,'$.position.sequence') AND (c.scope IS NULL OR c.scope=f.scope)))",
+        [],
     )
     .map_err(db)?;
     tx.commit().map_err(db)

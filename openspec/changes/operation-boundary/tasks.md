@@ -18,22 +18,24 @@ unpublished, then replace them with published pins and refresh locks through
 
 ## 1. Persisted Shapes, Catalog, Scopes and Retention
 
-Blocked by **G1: restart-safe, scope-qualified retained cuts** in Harmos storage
-domain/backend/native snapshot contracts. Current volatile snapshot registries and
-the global deletion floor cannot retain seals across restart without pinning
-unrelated deleted executions.
+Harmos supplies **G1: restart-safe, scope-qualified retained cuts** at the revision
+in 1.2a. Native backend adoption and product evidence-cut ownership remain required;
+the existing product seal path does not establish restart-safe scoped retention.
 
 - [x] 1.1 Amend facade/SDK scope and product management ownership for `plugin-boundary`; strict validation of the coordinated changes recorded the documentation agreement, not implementation.
 - [x] 1.2 Adopt the additive Harmos revision across Cargo, Python, C++ and C#, refresh locks and regenerate tracked output; compound mutation, exact-scope deletion, storage-only assembly/maintenance and scale/offset/contains transforms are available.
+- [x] 1.2a Pin Harmos `fa52a0e6619803c824af5112eb28b9a85430b359` across Cargo and all SDK source pins, refresh dependency locks and regenerate tracked bindings. G1–G3 and consolidated statistics/bucket summaries are upstream capabilities; product backend and consumer adoption remain open. The typed facade is deferred; this storage delivery keeps the current operation-calling API.
+- [x] 1.2b Adapt existing administration, retained-content and archive readers to the pinned operation-owned column kinds, IPC batches and row outputs; retain operation calls and defer the typed facade.
 - [x] 1.3 Implement native compound commit and object/scoped deletion in `crates/dokime-storage/src/backend`, including atomic replay receipts, refusal of partial compound cuts and retained-reader file reclamation.
 - [x] 1.4 Record the agreed entity/scope mapping, C/S seal contract, watches, intake acknowledgement, deletion policy and six-slice dependencies in design.md and the storage model in `docs/architecture.md`; implementation remains open.
 - [ ] 1.5 Lock the complete source inventory against design.md Context and the owners below: all Store/SQL/Arrow and telemetry consumers outside backend registration, duplicated kernels, manager/engine/internal-crate uses, composition readers, client-used Harmos host operations, tests, generated consumers and maintained guides. Assign discoveries before editing.
 - [ ] 1.6 Define and register every D8 persisted shape and frozen schema graph in `crates/dokime-storage/src/{execution,backend*}` and the product catalog: exact R/C/Y/E scopes, product/plugin IDs, event envelopes, protobuf decoding bindings, Arrow-only sample payloads and enumerable preview keys. Migrate existing independent administration objects to those scopes with their consumers; no prefix hierarchy or persisted Run.
 - [ ] 1.7 Adopt G1 and implement durable ownership of evidence cut C for the execution lifetime, release on committed deletion and independent reader leases through deletion/restart. Prove scope-qualified retention and reclamation with focused backend integration tests, including unrelated execution deletion and incompatible-root preservation.
+- [x] 1.7a Implement and prove the G1 native backend hooks: durable scoped retention, restart reopening, independent readers, transactional scope-owner release and scope-qualified row/file reclamation. Product execution ownership in 1.7 and seal publication in 2.3 remain open.
 
 ## 2. Lifecycle, Seal and Deletion
 
-Blocked by **G1** for durable seals and slice 1 shapes. Existing compound mutation
+Depends on **G1** adoption for durable seals and slice 1 shapes. Existing compound mutation
 and exact-scope deletion suffice for the other native verbs. This slice switches
 with slices 3–5; sealed query/report readers must use the same evidence cut C.
 
@@ -46,8 +48,8 @@ with slices 3–5; sealed query/report readers must use the same evidence cut C.
 
 ## 3. Intake, Evidence and Native Row Watches
 
-Blocked by **G2: columnar append/backend path** and **G3: compound-aware watches**.
-Harmos Arrow expansion and product per-row inserts/hashes must be replaced; watch
+Harmos supplies **G2: columnar append/backend path** and **G3: compound-aware watches**
+at the revision in 1.2a. Product per-row inserts/hashes must be replaced; watch
 followers must include compound/conditional/deletion effects and return complete
 frontiers. Slice 2 admission, bindings and cut issuance switch with this slice.
 
@@ -56,10 +58,11 @@ frontiers. Slice 2 admission, bindings and cut issuance switch with this slice.
 - [ ] 3.3 Route runtime `streams.rs`, the composition consumer, operations `resources.rs` and `host/evidence/**`, storage `notes.rs` and telemetry codec/write/read adapters through the D8 objects/records/samples. Derive E from the admitted binding, validate generation/admission/schema/stream/step/attempt, reject conflicting authored scope and preserve frozen decoding. Use atomic note/traceability state plus event mutations and capture health under its actual owner. Prove focused execution isolation, bounded telemetry, notes and traceability stories.
 - [ ] 3.4 Adopt G2 and keep intake columnar from window decoding through backend append, with no per-sample protobuf/JSON/dynamic-message work, locking or SQL. Bound and retain outstanding batches/bytes; acknowledge only when `completed=true` and `durable_at` covers the batch, replaying unchanged mutation identity/payload to observe completion. Prove durable replay/restart, bounded admission and explicit failure/lag interruption with deterministic tests; make no unmeasured throughput claim.
 - [ ] 3.5 Adopt G3 for evidence/progress/traceability/note/prompt/sample watches: open an image at K, register from K before draining pages, resume only by `resolved_at`, advance filtered durable progress and expose compound effects only at complete frontiers. Gap/expired cut emits `resync_required` then terminates; preserve shutdown settlement. Prove focused progress, traceability and evidence replay/deletion/gap cases; no mirror notifications.
+- [x] 3.5a Implement and prove the native backend's `watch_frontier` hook for complete compound boundaries, refusal progress and deletion/history gaps; keep product watch-source adoption in 3.5 open.
 
 ## 4. Documents, Prompts, Reports, Content and Archives
 
-Blocked by **G1** for retained source reads and slice 2 lifecycle/cuts. Native
+Depends on **G1** adoption for retained source reads and slice 2 lifecycle/cuts. Native
 sample Arrow files must be exposed through operations for byte-preserving archives.
 Final archive operation-owned DTO adoption belongs to slice 6 and Harmos group 9.
 This slice switches with slices 2, 3 and 5.
@@ -72,8 +75,8 @@ This slice switches with slices 2, 3 and 5.
 
 ## 5. Queries, Previews and Remaining Watches
 
-Blocked by **Harmos groups 6–7: consolidated statistics/box summaries and
-bucket-summary continuation**, and **G3** for remaining watches. Query consumers
+Harmos supplies **groups 6–7: consolidated statistics/box summaries and
+bucket-summary continuation**, and **G3** at the revision in 1.2a. Query consumers
 switch with slices 2–4; no old-ledger reader remains behind new append operations.
 
 - [ ] 5.1 Move storage query/expression/plot/stream-window modules and operations `host/{plots,aggregates}` onto native row plans (filter/project, scale/offset/contains, aggregate, histogram, box summary, downsample and time merge). Implement `host/aggregates/get.rs`; keep sigma/contour/grid/FFT and document/plot presentation as product algorithms over operation results. Prove focused advanced-plot, plot-kind/window, bounded-telemetry and fixed-document stories.

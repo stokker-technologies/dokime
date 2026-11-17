@@ -22,9 +22,9 @@ use std::{fmt::Display, num::NonZeroUsize};
 use arrow_array::{Array, BinaryArray, StringArray};
 use harmos_protocol::model::PageRequest;
 use harmos_protocol::model::{ReadCut, Receipt};
-use harmos_query::columnar::ColumnKind;
+use harmos_query::arrow::ArrowBatch;
 use harmos_runtime::Identified;
-use harmos_runtime::builtins::storage::{ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
+use harmos_runtime::builtins::storage::{ColumnKind, ColumnSelection, ColumnSource, ListColumnRows, ListColumnRowsRequest};
 use harmos_runtime::builtins::storage::{
     GetObject, GetObjectRequest, SchemaInput, SetObject, SetObjectRequest, set_object_response::Outcome,
 };
@@ -168,13 +168,13 @@ pub async fn scan(context: &Context, prefix: &str, at: Option<ReadCut>) -> Resul
             .await?;
         at = response.resolved_at;
         if let Some(page) = response.page {
-            let keys = page
-                .batch
+            let batch = ArrowBatch::from_ipc(page.batch.data).map_err(|source| invalid("List Administration", source))?;
+            let batch = batch.as_record_batch();
+            let keys = batch
                 .column_by_name("payload.key")
                 .and_then(|column| column.as_any().downcast_ref::<StringArray>())
                 .ok_or_else(|| Error::Precondition("List Administration: Restore Its Key Column".into()))?;
-            let values = page
-                .batch
+            let values = batch
                 .column_by_name("payload.payload")
                 .and_then(|column| column.as_any().downcast_ref::<BinaryArray>())
                 .ok_or_else(|| Error::Precondition("List Administration: Restore Its Value Column".into()))?;

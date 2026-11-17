@@ -32,22 +32,23 @@ use harmos_domain::config::SchemaSettings;
 use harmos_domain::journal::Position;
 use harmos_domain::schema::{Described, graph::Schema};
 use harmos_query::columnar::{ArrowScan, Cancellation, ColumnKind, ColumnSource};
-use harmos_storage::query::StreamSelection;
+use harmos_storage::query::{ObjectSelection, ObjectVersions, StreamSelection};
 use harmos_storage::state::{RecoveryEntry, RecoverySnapshot, SnapshotPayload};
 use harmos_storage::{
-    FileChunk, FileMetadata, Identifier, PayloadEncoding, ReadLimits, RecoveryPosition, ScanPage, SchemaKey, StorageBatch, StorageCursor,
-    StorageSchema, StoreHistory, StoredRecord, StoredRow,
+    FileChunk, FileMetadata, Identifier, ObjectPoint, ObjectVersion, PayloadEncoding, ReadLimits, RecoveryPosition, ScanPage, SchemaKey,
+    StorageBatch, StorageCursor, StorageSchema, StoreHistory, StoredRecord, StoredRow,
 };
 use std::io::Read;
 use std::num::{NonZeroU32, NonZeroUsize};
 use std::sync::Arc;
+use std::{error, result, time::Duration};
 
 /* === Constants === */
 
 /* === Macros === */
 
 /* === Type Aliases === */
-type StoryResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+type StoryResult<T = ()> = Result<T, Box<dyn error::Error>>;
 
 /* === Structs === */
 #[derive(harmos_domain::Message, Clone, Debug, PartialEq)]
@@ -250,7 +251,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
                 batch_bytes: limits().bytes,
             },
             filesystem: StorageFilesystemSettings {
-                poll_interval: std::time::Duration::from_millis(100),
+                poll_interval: Duration::from_millis(100),
                 max_entries: capacity,
                 event_capacity: capacity,
             },
@@ -292,22 +293,26 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
         key: Identifier::new("conformance.compound.create")?,
     };
     let items = vec![MutationItem::Create(first.clone()), MutationItem::Append(record.clone())];
-    let created = storage.mutate_once(&identity, items.clone()).await?;
-    let partial = StorageCursor {
-        sequence: created.position.sequence - 1,
-        ..created.position.clone()
-    };
-    let Err(harmos_storage::Error::Persistence { source }) = storage.snapshot(&partial).await else {
-        panic!("Partial Compound Cut Must Be Refused");
-    };
-    assert!(matches!(source.as_ref(), harmos_storage::Error::InvalidInput { .. }));
     let proof = CompoundFixture {
-        first,
+        first: first.clone(),
         replacement: value("compound-first", 20)?,
         second: value("compound-second", 30)?,
         record: record.clone(),
     };
     conformance::compound_mutations(&storage, proof).await?;
+    let created = storage.mutate_once(&identity, items.clone()).await?;
+    let partial = StorageCursor {
+        sequence: created.position.sequence - 1,
+        ..created.position.clone()
+    };
+    let opening = StorageCursor { sequence: 0, ..created.position.clone() };
+    let frontier = storage.watch_frontier(&opening, &partial).await?;
+    assert!(frontier.sequence < partial.sequence);
+    let Err(harmos_storage::Error::Persistence { source }) = storage.snapshot(&partial).await else {
+        panic!("Partial Compound Cut Must Be Refused");
+    };
+    assert!(matches!(source.as_ref(), harmos_storage::Error::InvalidInput { .. }));
+
     let refused_identity = MutationId {
         window: identity.window.clone(),
         key: Identifier::new("conformance.compound.conflict")?,
@@ -357,7 +362,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
             "SELECT file FROM arrow_chunks c WHERE EXISTS(SELECT 1 FROM storage_rows r
              WHERE r.kind=3 AND r.scope=?1 AND r.position BETWEEN c.first AND c.last)",
         )?;
-        query.query_map([scope.as_str()], |row| row.get::<_, String>(0))?.collect::<std::result::Result<Vec<_>, _>>()?
+        query.query_map([scope.as_str()], |row| row.get::<_, String>(0))?.collect::<result::Result<Vec<_>, _>>()?
     };
     let proof = ScopeFixture {
         scope: scope.clone(),
@@ -404,6 +409,41 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     }
     assert_eq!(values, [0, 2, 4]);
     drop(snapshot);
+
+    // Retain One Execution Scope Independently of Unrelated History.
+    let retained_scope = Identifier::new("retained-execution")?;
+    let mut object = value("retained-object", 87)?;
+    object.scope = Some(retained_scope.clone());
+    let record = RecordInput {
+        schema: object.schema.clone(),
+        scope: Some(retained_scope.clone()),
+        item: Identifier::new("retained-record")?,
+        source: None,
+        source_time: None,
+        payload: object.payload.clone(),
+    };
+    let retained = conformance::retain_scope(
+        &storage,
+        ScopeFixture {
+            scope: retained_scope.clone(),
+            object,
+            record: record.clone(),
+            sample: StreamInput {
+                record,
+                stream: Identifier::new("retained-stream")?,
+                sequence: 1,
+            },
+            file: FileMetadata {
+                id: Identifier::new("retained-file")?,
+                scope: Some(retained_scope),
+                media_type: "application/octet-stream".into(),
+                expected_length: None,
+                expected_sha256: None,
+            },
+            bytes: b"retained-evidence".to_vec(),
+        },
+    )
+    .await?;
     let settings = storage.settings().clone();
     storage.close().await?;
     let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
@@ -415,7 +455,7 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
 
     // Replay the Original Receipt After Both Backend Sessions Reopen.
     let (backends, _lease) = Backend::open(&store, catalog.clone())?;
-    let storage = StorageManager::with_catalog(catalog, backends, settings)?;
+    let storage = StorageManager::with_catalog(catalog.clone(), backends, settings)?;
     storage
         .start_with(Arc::new(()), |mut worker| {
             let task = tokio::spawn(async move {
@@ -427,7 +467,82 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
         .await?;
     assert_eq!(storage.mutate_once(&identity, items).await?, created);
     assert_eq!(storage.mutate_once(&refused_identity, refused_items).await?, refused);
+    conformance::check_retained_scope(&storage, &retained).await?;
+
+    // A Retained Execution Must Not Pin Another Execution's Deleted Bytes.
+    let unrelated = Identifier::new("unrelated-execution")?;
+    let sample = StreamInput {
+        record: RecordInput {
+            schema: first.schema.clone(),
+            scope: Some(unrelated.clone()),
+            item: Identifier::new("unrelated-record")?,
+            source: None,
+            source_time: None,
+            payload: first.payload.clone(),
+        },
+        stream: Identifier::new("unrelated-stream")?,
+        sequence: 1,
+    };
+    storage.append_samples(vec![sample]).await?;
+    let mut writer = storage
+        .produce_file(FileMetadata {
+            id: Identifier::new("unrelated-file")?,
+            scope: Some(unrelated.clone()),
+            media_type: "application/octet-stream".into(),
+            expected_length: None,
+            expected_sha256: None,
+        })
+        .await?;
+    writer.write_all(b"unrelated-evidence".to_vec()).await?;
+    writer.finish().await?;
+    storage.flush().await?;
+    let deletion = MutationId {
+        window: storage.mutation_window()?.id,
+        key: Identifier::new("delete-unrelated")?,
+    };
+    storage.mutate_once(&deletion, vec![MutationItem::DeleteScope(unrelated.clone())]).await?;
+    let rows: i64 = connection.query_row("SELECT count(*) FROM storage_rows WHERE scope=?1", [unrelated.as_str()], |row| row.get(0))?;
+    assert_eq!(rows, 0);
+    let chunks: i64 = connection.query_row("SELECT count(*) FROM storage_file_chunks WHERE id='unrelated-file'", [], |row| row.get(0))?;
+    assert_eq!(chunks, 0);
+    conformance::check_retained_scope(&storage, &retained).await?;
+    // Independent Reader Ownership Survives Scope Deletion and Another Restart.
+    let image = storage.open_retained_snapshot(&retained.snapshot).await?;
+    let point = ObjectPoint {
+        schema: first.schema.id.clone(),
+        item: first.item.clone(),
+        version: ObjectVersion::Latest,
+    };
+    assert!(image.get_object(&point).await?.is_none());
+    let independent = image.retain(None).await?;
+    drop(image);
+    let deletion = MutationId {
+        window: storage.mutation_window()?.id,
+        key: Identifier::new("delete-retained-owner")?,
+    };
+    storage.mutate_once(&deletion, vec![MutationItem::DeleteScope(retained.fixture.scope.clone())]).await?;
+    assert!(storage.open_retained_snapshot(&retained.snapshot).await.is_err());
+    let settings = storage.settings().clone();
     storage.close().await?;
+    let (backends, _lease) = Backend::open(&store, catalog.clone())?;
+    let storage = StorageManager::with_catalog(catalog, backends, settings)?;
+    storage
+        .start_with(Arc::new(()), |mut worker| {
+            let task = tokio::spawn(async move {
+                worker.run().await?;
+                worker.cleanup().await
+            });
+            Ok(Box::new(StorageWorker(tokio::sync::Mutex::new(Some(task)))))
+        })
+        .await?;
+    let mut retained = retained;
+    retained.snapshot = independent;
+    conformance::check_retained_scope(&storage, &retained).await?;
+    storage.release_retained_snapshot(&retained.snapshot).await?;
+    assert!(storage.open_retained_snapshot(&retained.snapshot).await.is_err());
+    storage.close().await?;
+    let chunks: i64 = connection.query_row("SELECT count(*) FROM storage_file_chunks WHERE id='retained-file'", [], |row| row.get(0))?;
+    assert_eq!(chunks, 0);
     Ok(())
 }
 
@@ -480,7 +595,7 @@ async fn object_identities_stay_unique_when_their_scope_changes() -> StoryResult
     let snapshot = backend.create_snapshot(&at).await?;
     let selection = IdentitySelection {
         kind: IdentityKind::Objects,
-        schema: Some(schema.key.id),
+        schema: Some(schema.key.id.clone()),
     };
     let page = ScanPage {
         after: 0,
@@ -489,6 +604,31 @@ async fn object_identities_stay_unique_when_their_scope_changes() -> StoryResult
     };
     let identities = backend.list_identities(&snapshot, &selection, page).await?;
     assert!(matches!(identities.as_slice(), [StoredIdentity::Object { key: saved, .. }] if saved == &key));
+    // A Scoped Image Uses the Current Object Owner at Its Cut.
+    for (scope, count) in [("first", 0), ("second", 1)] {
+        let scope = Identifier::new(scope)?;
+        let retained = backend.retain_snapshot(&snapshot, Some(&scope)).await?;
+        let image = backend.open_retained_snapshot(&retained).await?;
+        let selected = ObjectSelection {
+            schema: Some(schema.key.clone()),
+            key: None,
+            versions: ObjectVersions::Revisions,
+        };
+        let objects = backend.list_object_revisions(&image, &selected, page).await?;
+        assert_eq!(objects.len(), count);
+        let identities = backend.list_identities(&image, &selection, page).await?;
+        assert_eq!(identities.len(), count);
+        let point = ObjectPoint {
+            schema: schema.key.id.clone(),
+            item: key.clone(),
+            version: ObjectVersion::Latest,
+        };
+        assert_eq!(usize::from(backend.get_object(&image, &point).await?.is_some()), count);
+        let foreign = Identifier::new("other")?;
+        assert!(backend.retain_snapshot(&image, Some(&foreign)).await.is_err());
+        backend.release_retained_snapshot(&retained).await?;
+        backend.delete_snapshot(&image).await?;
+    }
     backend.delete_snapshot(&snapshot).await?;
     backend.delete_session().await?;
     Ok(())

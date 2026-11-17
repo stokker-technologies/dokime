@@ -16,23 +16,27 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{collections::HashMap, io::Write, num::NonZeroUsize};
 
 // Third Party Imports
 use arrow_array::{Array, BinaryArray, StringArray, UInt64Array};
-use harmos_protocol::model::{OperationContract, PageRequest};
+use harmos_protocol::model::{History, OperationContract, PageRequest, Position};
+use harmos_query::arrow::ArrowBatch;
+use harmos_runtime::Identifier;
 use harmos_runtime::builtins::storage::{
     CreateSnapshot, CreateSnapshotRequest, DeleteSnapshot, DeleteSnapshotRequest, GetFileBytes, GetFileBytesRequest, ListRows,
-    ListRowsRequest, Source,
+    ListRowsRequest, RowOutput, Source,
 };
-use harmos_runtime::storage::query::FileSelection;
-use std::collections::HashMap;
-use std::io::Write;
+use harmos_runtime::storage::{self, query::FileSelection};
+use prost::Message;
+use tempfile::NamedTempFile;
 
 // Local Imports
 use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::host::EvidenceArchiveRequest;
-use dokime_protocol::host::EvidenceArchiveResponse;
+use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
+use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceArchiveResponse};
+use dokime_storage::{ArchivedContent, ArchivedNativeFile};
 
 use dokime_protocol::host::evidence_subject;
 use harmos_protocol::model::FileMetadata;
@@ -61,10 +65,7 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Result<EvidenceArchiveResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let key = format!(
-            "archive/{}",
-            crate::host::views::hex(&request.subject.as_ref().map(prost::Message::encode_to_vec).unwrap_or_default())
-        );
+        let key = format!("archive/{}", crate::host::views::hex(&request.subject.as_ref().map(Message::encode_to_vec).unwrap_or_default()));
         let (mut reply, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
             let subject = request.subject.ok_or_else(|| Error::Invalid("Download Evidence: Select an Execution or Cycle".into()))?;
             let (store, _read_cancellation) = context.host.store().read_session()?;
@@ -75,7 +76,7 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
                     store.write_execution_archive(execution, &mut file, files)?;
                 }
                 Some(evidence_subject::Kind::Cycle(cycle)) => {
-                    let page = std::num::NonZeroUsize::new(context.settings.page_items).unwrap();
+                    let page = NonZeroUsize::new(context.settings.page_items).unwrap();
                     let mut files = HashMap::new();
                     let mut after = String::new();
                     loop {
@@ -97,7 +98,7 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
                 (0..sha256.len()).step_by(2).map(|index| u8::from_str_radix(&sha256[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
             let created = crate::host::files::uploads::create::handle(
                 context,
-                dokime_protocol::host::files::UploadsCreateRequest {
+                UploadsCreateRequest {
                     metadata: Some(FileMetadata {
                         id: format!("temporary-evidence/{}", uuid::Uuid::now_v7()),
                         scope: None,
@@ -118,7 +119,7 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
                     crate::host::content::transfer::read_temporary(&file, offset, &mut data)?;
                     crate::host::files::uploads::append::handle(
                         context,
-                        dokime_protocol::host::files::UploadsAppendRequest {
+                        UploadsAppendRequest {
                             upload: Some(upload.clone()),
                             offset,
                             data,
@@ -130,7 +131,7 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
                 }
                 let published = crate::host::files::uploads::publish::handle(
                     context,
-                    dokime_protocol::host::files::UploadsPublishRequest {
+                    UploadsPublishRequest {
                         upload: Some(upload.clone()),
                         length,
                         sha256: digest,
@@ -146,7 +147,7 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
                 Err(source) => {
                     let removed = crate::host::files::uploads::delete::handle(
                         context,
-                        dokime_protocol::host::files::UploadsDeleteRequest {
+                        UploadsDeleteRequest {
                             upload: Some(upload),
                             request_id: uuid::Uuid::now_v7().to_string(),
                         },
@@ -169,7 +170,7 @@ pub async fn handle(context: &Context, request: EvidenceArchiveRequest) -> Resul
 
 /* === Private Functions === */
 
-async fn content(context: &Context, execution: &str) -> Result<dokime_storage::ArchivedContent> {
+async fn content(context: &Context, execution: &str) -> Result<ArchivedContent> {
     let artifacts = crate::host::content::artifact_records(context)
         .await?
         .into_iter()
@@ -180,13 +181,13 @@ async fn content(context: &Context, execution: &str) -> Result<dokime_storage::A
         .collect();
     let execution_files = crate::host::content::execution_files(context, execution).await?;
     let files = native_files(context, execution).await?;
-    Ok(dokime_storage::ArchivedContent { files, artifacts, execution_files })
+    Ok(ArchivedContent { files, artifacts, execution_files })
 }
 
-async fn native_files(context: &Context, execution: &str) -> Result<Vec<dokime_storage::ArchivedNativeFile>> {
+async fn native_files(context: &Context, execution: &str) -> Result<Vec<ArchivedNativeFile>> {
     let saved = context.storage::<CreateSnapshot>(CreateSnapshotRequest { at: None }).await?;
     let result = async {
-        let scope = harmos_runtime::Identifier::new(execution)
+        let scope = Identifier::new(execution)
             .map_err(|source| Error::Invalid(format!("Export Native Files: Select a Valid Execution: {source}")))?;
         let mut files = Vec::new();
         let mut token = String::new();
@@ -205,9 +206,9 @@ async fn native_files(context: &Context, execution: &str) -> Result<Vec<dokime_s
                 })
                 .await?;
             for row in page.rows {
-                let harmos_query::QueryOutput::Batch(bytes) = row else { continue };
-                let decoded = harmos_query::arrow::ArrowBatch::from_ipc(bytes)
-                    .map_err(|source| Error::Invalid(format!("Read Native File Inventory: {source}")))?;
+                let RowOutput::Batch(bytes) = row else { continue };
+                let decoded =
+                    ArrowBatch::from_ipc(bytes).map_err(|source| Error::Invalid(format!("Read Native File Inventory: {source}")))?;
                 let batch = decoded.as_record_batch();
                 let text = |name: &str| -> Result<&StringArray> {
                     batch
@@ -231,8 +232,8 @@ async fn native_files(context: &Context, execution: &str) -> Result<Vec<dokime_s
                     let expected_length = number("expected_length")?;
                     let expected_sha256 = binary("expected_sha256")?;
                     let reference = FileReference {
-                        position: Some(harmos_protocol::model::Position {
-                            history: Some(harmos_protocol::model::History {
+                        position: Some(Position {
+                            history: Some(History {
                                 store: text("store")?.value(index).into(),
                                 epoch: text("epoch")?.value(index).into(),
                             }),
@@ -248,10 +249,10 @@ async fn native_files(context: &Context, execution: &str) -> Result<Vec<dokime_s
                         length: number("length")?.value(index),
                         sha256: binary("sha256")?.value(index).to_vec(),
                     };
-                    let selected = harmos_runtime::storage::FileReference::try_from(reference.clone())
+                    let selected = storage::FileReference::try_from(reference.clone())
                         .map_err(|source| Error::Invalid(format!("Export Native File: Restore Its Reference: {source}")))?;
                     let mut output =
-                        tempfile::NamedTempFile::new().map_err(|source| Error::Invalid(format!("Stage Native File Archive: {source}")))?;
+                        NamedTempFile::new().map_err(|source| Error::Invalid(format!("Stage Native File Archive: {source}")))?;
                     let mut offset = 0;
                     while offset < reference.length {
                         let chunk = context
@@ -268,7 +269,7 @@ async fn native_files(context: &Context, execution: &str) -> Result<Vec<dokime_s
                         output.write_all(&chunk.data).map_err(|source| Error::Invalid(format!("Stage Native File Archive: {source}")))?;
                         offset += chunk.data.len() as u64;
                     }
-                    files.push(dokime_storage::ArchivedNativeFile { reference, path: output.into_temp_path() });
+                    files.push(ArchivedNativeFile { reference, path: output.into_temp_path() });
                 }
             }
             token = page.next_page_token;

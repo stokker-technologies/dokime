@@ -18,6 +18,7 @@ mod objects;
 mod projection;
 mod recovery;
 mod rows;
+mod snapshots;
 
 /* === Re-Exports === */
 
@@ -26,15 +27,15 @@ mod rows;
 // Standard Library Imports
 use std::{
     cell::Cell,
-    collections::BTreeMap,
     fs::{File, OpenOptions},
+    io,
     num::NonZeroUsize,
     path::Path,
     sync::{Arc, Mutex},
 };
 
 // Third Party Imports
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use tokio::sync;
 
 // Local Imports
@@ -44,10 +45,10 @@ use harmos_query::columnar::Cancellation;
 use harmos_storage::query::columnar::StorageCapabilities;
 use harmos_storage::query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection};
 use harmos_storage::{
-    BackendFailure, BackendSnapshot, Error, FileCheckpoint, FileChunk, FileMetadata, FilePhase, FileProgress, FileReference, Identifier,
-    IdentityKind, IdentitySelection, MemorySize, MutationReceipt, ObjectCatalog, ObjectEntry, ObjectKey, ObjectPoint, ReadLimits, Result,
-    ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture, StorageSchema, StoreHistory,
-    StoredIdentity, StoredRecord, StoredRow,
+    BackendFailure, BackendSnapshot, CompoundExchange, Error, FileCheckpoint, FileChunk, FileMetadata, FilePhase, FileProgress,
+    FileReference, Identifier, IdentityKind, IdentitySelection, MemorySize, MutationReceipt, ObjectCatalog, ObjectEntry, ObjectKey,
+    ObjectPoint, ReadLimits, Result, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture,
+    StorageSchema, StoreHistory, StoredIdentity, StoredRecord, StoredRow,
 };
 
 use harmos_query::index::IndexDefinition;
@@ -94,7 +95,7 @@ impl BackendLease {
     pub fn close(&self) -> Result<()> {
         self.0
             .lock()
-            .map_err(|source| Error::backend("Close Storage Lease", BackendFailure::Permanent, std::io::Error::other(source.to_string())))?
+            .map_err(|source| Error::backend("Close Storage Lease", BackendFailure::Permanent, io::Error::other(source.to_string())))?
             .take();
         Ok(())
     }
@@ -114,8 +115,6 @@ struct State {
     history: StoreHistory,
     settings: BackendSettings,
     catalog: ObjectCatalog,
-    snapshots: BTreeMap<Vec<u8>, StorageCursor>,
-    snapshot_generations: BTreeMap<Vec<u8>, u64>,
     closed: bool,
     recovery_closed: bool,
     work: Cell<StorageWork>,
@@ -191,7 +190,7 @@ impl Backend {
         if version == 1 {
             let format: Option<String> =
                 connection.query_row("SELECT value FROM storage_meta WHERE name='format'", [], |row| row.get(0)).optional().map_err(db)?;
-            if format.as_deref() != Some("dokime.operations-files.v1") {
+            if format.as_deref() != Some("dokime.operations-retained.v1") {
                 return Err(incompatible());
             }
 
@@ -206,7 +205,7 @@ impl Backend {
             }
         }
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;").map_err(db)?;
-        let tx = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
         tx.execute_batch("CREATE TABLE IF NOT EXISTS recovery_entries(sequence INTEGER PRIMARY KEY, data BLOB NOT NULL);
             CREATE TABLE IF NOT EXISTS recovery_snapshots(sequence INTEGER PRIMARY KEY, header BLOB NOT NULL, payload BLOB NOT NULL, published INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS storage_meta(name TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -225,6 +224,10 @@ impl Backend {
             CREATE TABLE IF NOT EXISTS storage_object_deletions(position INTEGER PRIMARY KEY,schema_id TEXT NOT NULL,item TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS storage_object_deletion_key ON storage_object_deletions(schema_id,item,position);
             CREATE TABLE IF NOT EXISTS storage_row_deletions(position INTEGER PRIMARY KEY,deleted_at INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS storage_retained_snapshots(token BLOB PRIMARY KEY,position INTEGER NOT NULL,generation INTEGER NOT NULL,scope TEXT,owner TEXT);
+            CREATE TABLE IF NOT EXISTS storage_scope_deletions(scope TEXT NOT NULL,position INTEGER PRIMARY KEY);
+            CREATE TEMP TABLE storage_snapshot_leases(token BLOB PRIMARY KEY,position INTEGER NOT NULL,generation INTEGER NOT NULL,scope TEXT);
+            CREATE TEMP VIEW storage_retained_cuts AS SELECT position,generation,scope FROM storage_retained_snapshots UNION ALL SELECT position,generation,scope FROM storage_snapshot_leases;
             CREATE TABLE IF NOT EXISTS storage_compound_ranges(first INTEGER PRIMARY KEY,last INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS storage_indexes(name TEXT PRIMARY KEY,revision INTEGER NOT NULL,source TEXT NOT NULL,definition BLOB NOT NULL);
             CREATE TABLE IF NOT EXISTS storage_index_entries(name TEXT NOT NULL,revision INTEGER NOT NULL,key BLOB NOT NULL,position INTEGER NOT NULL,PRIMARY KEY(name,revision,key,position)) WITHOUT ROWID;
@@ -238,7 +241,7 @@ impl Backend {
             CREATE TABLE IF NOT EXISTS projection_bucket_outputs(name TEXT NOT NULL,revision INTEGER NOT NULL,key BLOB NOT NULL,frontier INTEGER NOT NULL,data BLOB,PRIMARY KEY(name,revision,key,frontier)) WITHOUT ROWID;
             CREATE TABLE IF NOT EXISTS projection_bucket_cuts(name TEXT NOT NULL,revision INTEGER NOT NULL,frontier INTEGER NOT NULL,PRIMARY KEY(name,revision,frontier)) WITHOUT ROWID;
             CREATE TABLE IF NOT EXISTS object_receipts(position INTEGER PRIMARY KEY,fingerprint BLOB NOT NULL,outcome BLOB NOT NULL);
-            CREATE TABLE IF NOT EXISTS storage_object_gaps(position INTEGER PRIMARY KEY,schema_key TEXT NOT NULL,schema_id TEXT NOT NULL,item TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS storage_object_gaps(position INTEGER PRIMARY KEY,schema_key TEXT NOT NULL,schema_id TEXT NOT NULL,item TEXT NOT NULL,scope TEXT);
             CREATE INDEX IF NOT EXISTS storage_object_gap_selection ON storage_object_gaps(schema_key,item,position);
             CREATE TABLE IF NOT EXISTS object_releases(schema_key TEXT NOT NULL, item TEXT NOT NULL, through INTEGER NOT NULL, PRIMARY KEY(schema_key,item));").map_err(db)?;
         let encoded = text(&history)?;
@@ -247,7 +250,7 @@ impl Backend {
         if stored.as_ref().is_some_and(|stored| stored != &encoded) {
             return Err(incompatible());
         }
-        tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('format','dokime.operations-files.v1')", []).map_err(db)?;
+        tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('format','dokime.operations-retained.v1')", []).map_err(db)?;
         tx.execute("INSERT OR IGNORE INTO storage_meta VALUES('history',?1)", [&encoded]).map_err(db)?;
         tx.execute_batch("INSERT OR IGNORE INTO storage_meta VALUES('deletion_generation','0'); INSERT OR IGNORE INTO storage_meta VALUES('recovery_written','0'); INSERT OR IGNORE INTO storage_meta VALUES('recovery_saved','0'); INSERT OR IGNORE INTO storage_meta VALUES('saved','0'); INSERT OR IGNORE INTO storage_meta VALUES('floor','0'); INSERT OR IGNORE INTO storage_meta VALUES('object_receipt_floor','0'); PRAGMA user_version=1;").map_err(db)?;
         tx.commit().map_err(db)?;
@@ -260,8 +263,6 @@ impl Backend {
                 history,
                 settings,
                 catalog: ObjectCatalog::new(),
-                snapshots: BTreeMap::new(),
-                snapshot_generations: BTreeMap::new(),
                 closed: false,
                 recovery_closed: false,
                 work: Cell::default(),
@@ -290,7 +291,7 @@ impl State {
         if self
             .lease
             .lock()
-            .map_err(|source| Error::backend("Read Storage Lease", BackendFailure::Permanent, std::io::Error::other(source.to_string())))?
+            .map_err(|source| Error::backend("Read Storage Lease", BackendFailure::Permanent, io::Error::other(source.to_string())))?
             .is_none()
         {
             return Err(Error::Closing { domain: "SQLite storage" });
@@ -308,15 +309,13 @@ impl State {
     fn snapshot(&self, snapshot: &BackendSnapshot) -> Result<()> {
         self.check()?;
         self.history.check(&snapshot.at.history)?;
-        if self.snapshots.get(&snapshot.token) != Some(&snapshot.at) {
-            return Err(Error::NotReady { domain: "expired storage snapshot" });
-        }
+        snapshots::read(&self.connection, snapshot)?;
         Ok(())
     }
 }
 
 impl StorageBackend for Backend {
-    fn mutate<'a>(&'a self, exchange: &'a harmos_storage::CompoundExchange) -> StorageFuture<'a, MutationReceipt> {
+    fn mutate<'a>(&'a self, exchange: &'a CompoundExchange) -> StorageFuture<'a, MutationReceipt> {
         Box::pin(async move {
             exchange.validate()?;
             let position = exchange.position.clone();
@@ -342,6 +341,7 @@ impl StorageBackend for Backend {
             file_deletion: true,
             mutation_receipts: true,
             native_arrow: true,
+            columnar_append: false,
             native_index: true,
             durable_projections: true,
             conditional_objects: true,
@@ -365,16 +365,13 @@ impl StorageBackend for Backend {
     }
     fn delete_session(&self) -> StorageFuture<'_, ()> {
         Box::pin(self.call(|state| {
-            state.snapshots.clear();
-            state.snapshot_generations.clear();
+            state.connection.execute("DELETE FROM storage_snapshot_leases", []).map_err(db)?;
             compound::reclaim(state)?;
             state.closed = true;
             state
                 .lease
                 .lock()
-                .map_err(|source| {
-                    Error::backend("Close Storage Lease", BackendFailure::Permanent, std::io::Error::other(source.to_string()))
-                })?
+                .map_err(|source| Error::backend("Close Storage Lease", BackendFailure::Permanent, io::Error::other(source.to_string())))?
                 .take();
             Ok(())
         }))
@@ -446,54 +443,32 @@ impl StorageBackend for Backend {
 
     fn create_snapshot<'a>(&'a self, at: &'a StorageCursor) -> StorageFuture<'a, BackendSnapshot> {
         let at = at.clone();
-        Box::pin(self.call(move |state| {
-            state.check()?;
-            state.history.check(&at.history)?;
-            let floor = meta(&state.connection, "floor")?;
-            let retained = state
-                .snapshots
-                .iter()
-                .find(|(_, saved)| **saved == at)
-                .and_then(|(token, _)| state.snapshot_generations.get(token))
-                .copied();
-            if at.sequence < floor && retained.is_none() {
-                return Err(Error::Gap { requested: at.sequence, available: floor });
-            }
-            if at.sequence > state.cursor()?.sequence {
-                return Err(Error::NotReady { domain: "requested storage cut" });
-            }
-            let partial: bool = state
-                .connection
-                .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM storage_compound_ranges WHERE first<=?1 AND last>?1)",
-                    [integer(at.sequence)?],
-                    |row| row.get(0),
-                )
-                .map_err(db)?;
-            if partial {
-                return Err(invalid("Create Snapshot: Select a Complete Compound Receipt Frontier"));
-            }
-            let token = uuid::Uuid::now_v7().as_bytes().to_vec();
-            let generation =
-                if at.sequence < floor { retained.ok_or_else(incompatible)? } else { meta(&state.connection, "deletion_generation")? };
-            state.snapshot_generations.insert(token.clone(), generation);
-            state.snapshots.insert(token.clone(), at.clone());
-            Ok(BackendSnapshot { at, token })
-        }))
+        Box::pin(self.call(move |state| snapshots::create(state, &at)))
     }
 
     fn delete_snapshot<'a>(&'a self, snapshot: &'a BackendSnapshot) -> StorageFuture<'a, ()> {
         let snapshot = snapshot.clone();
-        Box::pin(self.call(move |state| {
-            state.history.check(&snapshot.at.history)?;
-            if state.snapshots.get(&snapshot.token).is_some_and(|at| at != &snapshot.at) {
-                return Err(invalid("Delete Snapshot: Keep Its Original Position"));
-            }
-            state.snapshots.remove(&snapshot.token);
-            state.snapshot_generations.remove(&snapshot.token);
-            compound::reclaim(state)?;
-            Ok(())
-        }))
+        Box::pin(self.call(move |state| snapshots::close(state, &snapshot)))
+    }
+
+    fn retain_snapshot<'a>(&'a self, snapshot: &'a BackendSnapshot, scope: Option<&'a Identifier>) -> StorageFuture<'a, BackendSnapshot> {
+        let (snapshot, scope) = (snapshot.clone(), scope.cloned());
+        Box::pin(self.call(move |state| snapshots::retain(state, &snapshot, scope.as_ref())))
+    }
+
+    fn open_retained_snapshot<'a>(&'a self, retained: &'a BackendSnapshot) -> StorageFuture<'a, BackendSnapshot> {
+        let retained = retained.clone();
+        Box::pin(self.call(move |state| snapshots::open(state, &retained)))
+    }
+
+    fn release_retained_snapshot<'a>(&'a self, retained: &'a BackendSnapshot) -> StorageFuture<'a, ()> {
+        let retained = retained.clone();
+        Box::pin(self.call(move |state| snapshots::release(state, &retained)))
+    }
+
+    fn watch_frontier<'a>(&'a self, after: &'a StorageCursor, through: &'a StorageCursor) -> StorageFuture<'a, StorageCursor> {
+        let (after, through) = (after.clone(), through.clone());
+        Box::pin(self.call(move |state| snapshots::frontier(state, &after, &through)))
     }
 
     fn list_schemas<'a>(
@@ -694,7 +669,7 @@ impl StorageBackend for Backend {
     fn append_mutation_receipts(&self, receipts: StorageBatch<MutationReceipt>) -> StorageFuture<'_, ()> {
         Box::pin(self.call(move |state| {
             state.check()?;
-            let tx = state.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(db)?;
+            let tx = state.connection.transaction_with_behavior(TransactionBehavior::Immediate).map_err(db)?;
             for receipt in receipts.as_slice() {
                 let id = text(&receipt.mutation)?;
                 let bytes = encode(receipt)?;
@@ -764,14 +739,14 @@ fn invalid(reason: &'static str) -> Error {
     Error::InvalidInput { field: "SQLite storage", reason }
 }
 fn conflict(reason: &'static str) -> Error {
-    Error::backend("SQLite storage", BackendFailure::Conflict, std::io::Error::new(std::io::ErrorKind::InvalidData, reason))
+    Error::backend("SQLite storage", BackendFailure::Conflict, io::Error::new(io::ErrorKind::InvalidData, reason))
 }
 fn incompatible() -> Error {
     Error::backend(
         "open SQLite storage",
         BackendFailure::Corrupt,
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
+        io::Error::new(
+            io::ErrorKind::InvalidData,
             "incompatible storage format or history; back up the original data and select a fresh storage root; the old folder is preserved",
         ),
     )
