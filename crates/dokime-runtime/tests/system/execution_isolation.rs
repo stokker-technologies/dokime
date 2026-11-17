@@ -30,6 +30,7 @@ use harmos_protocol::plugin::InstanceSamplesResponse;
 use harmos_protocol::plugin::InstanceStopRequest;
 use harmos_protocol::plugin::InstanceStopResponse;
 use harmos_protocol::plugin::instance_server::Instance;
+use harmos_runtime::operations::OperationFactory;
 use prost::Message;
 use prost_types::Duration;
 use prost_types::Timestamp;
@@ -50,6 +51,7 @@ use dokime::RecordScope;
 use dokime::Termination;
 use dokime::client::ResultStatus;
 use dokime::record_scope::Kind;
+use dokime_operations::host;
 use dokime_protocol::FILE_DESCRIPTOR_SET;
 use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::host::execution_outcome;
@@ -333,10 +335,13 @@ fn clients_cannot_call_plugin_operations_over_typed_or_encoded_grpc() -> Result<
             let channel = Endpoint::from_shared(process.url.clone())?.connect().await?;
             let client = Client::from_channel(channel.clone(), support::client_settings())?;
             let operation = "dokime.host.v1.evidence.Logs/Append";
-            let contract = client.operations.get(operation).await?.contract.ok_or("Discover Plugin Operation: Missing Contract")?;
+            // Use the Local Contract Excluded from Client Discovery
+            let factory = OperationFactory::protobuf::<host::evidence::logs::append::Operation>()?;
+            let contract = factory.contract()?;
             let request = LogsAppendRequest::default();
             let typed = LogsClient::new(channel).append(request.clone()).await.unwrap_err();
-            let encoded = client.invocations.create(operation, contract.fingerprint.clone(), request.encode_to_vec()).await.unwrap_err();
+            let encoded =
+                client.invocations.create(operation, contract.fingerprint().0.to_vec(), request.encode_to_vec()).await.unwrap_err();
             for status in [typed, encoded] {
                 assert_eq!(status.code(), Code::PermissionDenied, "{status}");
                 let failure = Failure::decode(status.details())?;

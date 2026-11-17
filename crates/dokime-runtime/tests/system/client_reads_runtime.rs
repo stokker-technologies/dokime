@@ -21,12 +21,14 @@ use std::sync::Arc;
 
 // Third Party Imports
 use harmos_protocol::host::ComponentState;
+use harmos_runtime::operations::OperationFactory;
 use tokio::sync::mpsc::UnboundedSender;
 use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime::Client;
 use dokime::client::StatusWatchOptions;
+use dokime_operations::host;
 use dokime_runtime::ControlledClock;
 use dokime_runtime::SchedulerClock;
 
@@ -104,17 +106,19 @@ fn encoded_invocations_share_product_handlers_and_enforce_callers() -> Result<()
         let direct = client.cycles.get(cycle.cycle_id.clone()).await?;
         assert_eq!(direct.cycle.as_ref().map(|cycle| &cycle.cycle_id), Some(&cycle.cycle_id));
 
-        for id in [
-            "dokime.host.v1.evidence.Records/Append",
-            "dokime.host.v1.Files/Capture",
-            "dokime.host.v1.files.Captures/Start",
-            "dokime.host.v1.files.Captures/Stop",
-            "dokime.host.v1.Effects/Create",
-            "dokime.host.v1.Effects/Get",
-            "dokime.host.v1.Effects/Set",
+        // Use Local Contracts for Operations Excluded from Client Discovery
+        for factory in [
+            OperationFactory::protobuf::<host::evidence::records::append::Operation>()?,
+            OperationFactory::protobuf::<host::files::capture::Operation>()?,
+            OperationFactory::protobuf::<host::files::captures::start::Operation>()?,
+            OperationFactory::protobuf::<host::files::captures::stop::Operation>()?,
+            OperationFactory::protobuf::<host::effects::create::Operation>()?,
+            OperationFactory::protobuf::<host::effects::get::Operation>()?,
+            OperationFactory::protobuf::<host::effects::set::Operation>()?,
         ] {
-            let contract = client.operations.get(id).await?.contract.ok_or("Find Plugin-Only Contract")?;
-            let refused = client.invocations.create(id, contract.fingerprint.clone(), Vec::new()).await.unwrap_err();
+            let contract = factory.contract()?;
+            let id = contract.operation().id.as_str();
+            let refused = client.invocations.create(id, contract.fingerprint().0.to_vec(), Vec::new()).await.unwrap_err();
             assert_eq!(refused.code(), Code::PermissionDenied);
         }
         for id in [
