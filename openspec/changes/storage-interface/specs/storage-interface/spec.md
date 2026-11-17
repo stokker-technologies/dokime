@@ -1,14 +1,5 @@
 ## ADDED Requirements
 
-### Requirement: Post-gRPC Sequencing
-
-This change SHALL start after `grpc-plugins` wave 5. Harmos SHALL design and implement the five generic storage capabilities before Dokime extracts storage, and Dokime SHALL pin their published revision before final validation.
-
-#### Scenario: Extraction Starts
-
-- **WHEN** Dokime begins extracting application persistence
-- **THEN** the last gRPC wave is closed and the Harmos capabilities are available
-
 ### Requirement: Single Persistence Owner
 
 `dokime-storage` SHALL merge both runtime storage folders and own application persistence through the Harmos storage interface. It SHALL own persisted shapes and depend on protocol, never runtime, operations, rendering or a domain crate.
@@ -16,7 +7,7 @@ This change SHALL start after `grpc-plugins` wave 5. Harmos SHALL design and imp
 #### Scenario: Host Persists Data
 
 - **WHEN** an operation needs application persistence
-- **THEN** it uses storage resources without concrete backend access or a reverse runtime dependency
+- **THEN** it calls in-process Harmos storage operations over the registered product backend, without direct Store/backend access or a reverse runtime dependency
 
 ### Requirement: Named Exceptions
 
