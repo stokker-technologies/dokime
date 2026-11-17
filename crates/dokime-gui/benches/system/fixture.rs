@@ -33,7 +33,7 @@ use dokime_sdk::client::PluginPlacement;
 use dokime_sdk::client::PluginRemote;
 use dokime_sdk::client::PluginValue;
 use dokime_sdk::client::PluginsCreateOptions;
-use dokime_sdk::client::plugin_placement::Kind as PluginPlacementKind;
+use dokime_sdk::client::plugin_placement;
 use dokime_sdk::client::{PluginState, PluginsGetOptions, PluginsWatchOptions};
 
 use dokime_gui::connection::host::{Connection, ConnectionSettings, Session};
@@ -43,22 +43,23 @@ use dokime_protocol::host::ExecutionsGetRequest;
 use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::plots::SnapshotsWatchRequest;
 use dokime_runtime::{ControlledClock, HostSettings, PlacementSettings, PluginProcess, services, storage_defaults};
-use dokime_sdk as model;
+
 use dokime_sdk::StorageTransferSettings;
 use dokime_sdk::client::CasesCreateResponse;
 use dokime_sdk::client::CyclesCreateResponse;
 use dokime_sdk::client::ExecutionsGetResponse;
 use dokime_sdk::client::ExecutionsListResponse;
-use dokime_sdk::client::PlotsSnapshotsWatchResponse;
 use dokime_sdk::client::RegisteredSelection;
 use dokime_sdk::client::SelectionPlan;
-use dokime_sdk::client::{ClientSettings, PlotsPlotRequest};
+use dokime_sdk::client::SnapshotsWatchResponse;
+use dokime_sdk::client::{ClientSettings, PlotRequest};
+use dokime_sdk::model::Section;
 use dokime_sdk::plugin::HostOperation;
 use dokime_sdk::{Result, prelude::*};
 
 use dokime_sdk::{
     AxisScale, Card, ContourRender, Document, EvidenceScope, FieldReference, GridAxisEntry, GridChart, Metadata, Plot, PlotKind, PlotStyle,
-    Reduction, Section,
+    Reduction, SettingDeclaration, SettingValue, card, setting_value,
 };
 
 use std::sync::atomic::AtomicBool;
@@ -178,7 +179,7 @@ impl Fixture {
             ..Default::default()
         };
         let placement = PluginPlacement {
-            kind: Some(PluginPlacementKind::Remote(PluginRemote { url: plugin.endpoint().into() })),
+            kind: Some(plugin_placement::Kind::Remote(PluginRemote { url: plugin.endpoint().into() })),
         };
         let admitted = session
             .execute(session.client().plugins.create_with("bench.pipeline", placement, PluginValue { enabled: true }, options))
@@ -276,7 +277,7 @@ impl Fixture {
         drop(control);
         // Sample Visibility, Rather Than an Elapsed Delay, Establishes Readiness
         let request = SnapshotsWatchRequest {
-            requests: vec![PlotsPlotRequest {
+            requests: vec![PlotRequest {
                 stream: "bench.pipeline".into(),
                 y_keys: vec!["y1".into()],
                 scope: Some(EvidenceScope {
@@ -291,7 +292,7 @@ impl Fixture {
         let bytes = prost::Message::encode_to_vec(&request);
         let mut watch = self.session.watch_raw("/dokime.host.v1.plots.Snapshots/Watch", &bytes).await.unwrap();
         while let Some(frame) = watch.next().await {
-            let frame = <PlotsSnapshotsWatchResponse as prost::Message>::decode(frame.unwrap().as_slice()).unwrap();
+            let frame = <SnapshotsWatchResponse as prost::Message>::decode(frame.unwrap().as_slice()).unwrap();
             if frame
                 .updates
                 .iter()
@@ -334,10 +335,10 @@ pub fn serve() -> Result<()> {
         .initialize(async |context: &Context| {
             context.set(History::default());
             let address = std::env::var("DOKIME_DESKTOP_BENCH_CONTROL")
-                .map_err(|error| model::Error::Invalid(format!("Connect Benchmark Producer Control: {error}")))?;
+                .map_err(|error| Error::Invalid(format!("Connect Benchmark Producer Control: {error}")))?;
             let stream = TcpStream::connect(address)
                 .await
-                .map_err(|error| model::Error::Invalid(format!("Connect Benchmark Producer Control: {error}")))?;
+                .map_err(|error| Error::Invalid(format!("Connect Benchmark Producer Control: {error}")))?;
             context.set(PublicationControl(Mutex::new(BufReader::new(stream))));
             Ok(())
         })
@@ -347,12 +348,12 @@ pub fn serve() -> Result<()> {
         .document(document(30))
         .document(document(100));
     Plugin::new("desktop.benchmark", "1.0.0")
-        .setting(model::SettingDeclaration {
+        .setting(SettingDeclaration {
             name: "sample_interval".into(),
             title: "Sample Interval".into(),
             description: "Canonical sample cadence for the three-day history".into(),
-            default: Some(model::SettingValue {
-                value: Some(model::setting_value::Value::Duration(prost_types::Duration {
+            default: Some(SettingValue {
+                value: Some(setting_value::Value::Duration(prost_types::Duration {
                     seconds: sample_ns() / 1_000_000_000,
                     nanos: (sample_ns() % 1_000_000_000) as i32,
                 })),
@@ -447,7 +448,7 @@ fn document(count: usize) -> Document {
                     label: format!("Plot {}", index + 1),
                     ..Default::default()
                 }),
-                body: Some(model::card::Body::Plot(plot)),
+                body: Some(card::Body::Plot(plot)),
                 ..Default::default()
             }
         })
@@ -492,12 +493,10 @@ async fn publish(context: &Context) -> Result<()> {
             .get_mut()
             .write_all(format!("ready {sequence}\n").as_bytes())
             .await
-            .map_err(|error| model::Error::Invalid(format!("Announce Benchmark Publication: {error}")))?;
+            .map_err(|error| Error::Invalid(format!("Announce Benchmark Publication: {error}")))?;
         let mut action = String::new();
-        if control.read_line(&mut action).await.map_err(|error| model::Error::Invalid(format!("Await Benchmark Publication: {error}")))?
-            == 0
-        {
-            return Err(model::Error::Invalid("Await Benchmark Publication: Control Connection Closed".into()));
+        if control.read_line(&mut action).await.map_err(|error| Error::Invalid(format!("Await Benchmark Publication: {error}")))? == 0 {
+            return Err(Error::Invalid("Await Benchmark Publication: Control Connection Closed".into()));
         }
         late = action.trim() == "late";
         first = if late { rows() - 480 + (sequence - rows()) % 400 } else { sequence };

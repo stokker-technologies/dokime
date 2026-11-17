@@ -7,11 +7,12 @@
  * ***
  */
 
-import * as viewContracts from "./view-contracts";
+import type * as viewContracts from "./view-contracts";
 import type { PlotDomain, ContourGrid, GridFrames, GridAxisEntry, PlotPayloadDiagnostics } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { SeriesSummary, StatsSummary } from "../statistics";
+import type { SeriesSummary, StatisticValue, StatsSummary } from "../statistics";
 import type { JsonObject } from "../types";
+import type { DocumentDataExpression } from "./document";
 
 import type { PlotPayloadStreamKind } from "./view-contracts";
 
@@ -34,7 +35,7 @@ export type DocumentPlotAxisKind = { kind: "wall_time" } | { kind: "elapsed"; un
 export type PlotPoint = Omit<viewContracts.PlotPoint_Serialize, "x"> & {
   x: unknown;
   instant?: string | null;
-  exact_y?: import("@/lib/statistics").StatisticValue;
+  exact_y?: StatisticValue;
   low?: number | null;
   high?: number | null;
   mean?: number | null;
@@ -132,11 +133,11 @@ export type PlotAnalysis =
         key: string;
         label: string;
         count: number;
-        min: import("@/lib/statistics").StatisticValue;
-        q1: import("@/lib/statistics").StatisticValue;
-        median: import("@/lib/statistics").StatisticValue;
-        q3: import("@/lib/statistics").StatisticValue;
-        max: import("@/lib/statistics").StatisticValue;
+        min: StatisticValue;
+        q1: StatisticValue;
+        median: StatisticValue;
+        q3: StatisticValue;
+        max: StatisticValue;
         lower_whisker: number;
         upper_whisker: number;
         outliers: number[];
@@ -157,14 +158,14 @@ export type PlotAnalysis =
   | { kind: "grid_chart"; data: Wire<GridFrames> };
 
 export type GridHighlight = {
-  row: import("./document").DocumentDataExpression;
-  column: import("./document").DocumentDataExpression;
+  row: DocumentDataExpression;
+  column: DocumentDataExpression;
   label: string;
 };
 export type GridDefinition = {
-  row?: import("./document").DocumentDataExpression | null;
-  column?: import("./document").DocumentDataExpression | null;
-  frame?: import("./document").DocumentDataExpression | null;
+  row?: DocumentDataExpression | null;
+  column?: DocumentDataExpression | null;
+  frame?: DocumentDataExpression | null;
   rows: Wire<GridAxisEntry>[];
   columns: Wire<GridAxisEntry>[];
   highlights: GridHighlight[];

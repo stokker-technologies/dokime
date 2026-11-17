@@ -29,6 +29,10 @@ Regenerate the C++ formatter lock with
 `mise -C sdk/cpp lock pipx:clang-format@21.1.8` and commit `sdk/cpp/mise.lock`.
 All `.mise/` folders contain ignored local state and must remain untracked.
 
+The C++ SDK formatter and check use the shared generator's LLVM style with a
+140-column limit, empty-only short functions and expanded lambdas. This keeps
+generated headers and authored SDK sources under the same formatting policy.
+
 The root uv workspace installs `tools/python` into the root `.venv/`. The
 `dokime_tools` package ships `py.typed`; Ruff and ty cover all its authored
 modules, including documentation generation, desktop development, release and
@@ -50,9 +54,8 @@ verification and installer checks have separate modules under `package/`. Test l
 benchmarks and child-process execution have separate owners under `test/`.
 The tools package depends on `harmos-tools` from immutable revision
 `b72dd3d52d29599502f7edf92644f451ffdc1fc2`. `tools/python/pyproject.toml` declares its
-`tools/python` subdirectory source. The root `uv.lock` still records the previous
-tooling revision until the coordinator publishes this commit and runs
-`mise run prepare:locks`. No sibling library checkout is needed after that refresh.
+`tools/python` subdirectory source, and the root `uv.lock` records the same
+tooling revision. No sibling library checkout is needed for preparation.
 When changing the carrier pin, update this source revision and refresh the root
 lock together. Carrier and SDK dependencies remain at
 `c2cfb153ab136159f07741d1061fcb3a1191e86c`, independently of generator repairs.
@@ -98,6 +101,8 @@ preserve protobuf property names such as `StepId`, `MaximumSeconds`, `CycleId`
 and `ExecutionId`. CLI, OBC and native SDK test callers use the qualified names
 and current optional-argument shapes. Regenerate through
 `mise run generate -- --protocol`; generated output is never patched by hand.
+The Python starter supplies record scope as the `scope` keyword; the authored
+materialization story raises `FailureError` for its transient failure.
 
 Disposable directory owners expose their path and explicit `close()` operation.
 Scratch roots, private credential stores, headless displays and build phases

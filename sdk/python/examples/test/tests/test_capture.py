@@ -89,7 +89,7 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
 
         # Inspect Acknowledged Evidence After The Host Has Run Cleanup.
         records = await host.client.evidence.records.list(
-            RecordScope(execution=execution_id), "example.confirmation", [], model.Window(), "", CapturedRecordSelection()
+            "example.confirmation", [], model.Window(), "", CapturedRecordSelection(), scope=RecordScope(execution=execution_id)
         )
         self.assertEqual(len(records.records), 1)
         self.assertTrue(all(BoolValue.FromString(record.payload).value for record in records.records))

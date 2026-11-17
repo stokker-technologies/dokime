@@ -227,7 +227,9 @@ TEST_CASE("Client Reads the Backend") {
   ExecutionDetail detail;
   detail.mutable_summary()->set_execution_id("first");
   detail.mutable_schemas()->set_digest(harmos::plugin::detail::sha256(schema_service.types.SerializeAsString()));
-  const auto configure = [](ClientContext &context) { context.AddMetadata("authorization", "Bearer test"); };
+  const auto configure = [](ClientContext &context) {
+    context.AddMetadata("authorization", "Bearer test");
+  };
   const auto types = schemas.get(client, detail, configure);
   check(types->file_size() == 2 && types->file(0).name() == "google/protobuf/wrappers.proto" &&
             types->file(1).name() == "google/protobuf/empty.proto",

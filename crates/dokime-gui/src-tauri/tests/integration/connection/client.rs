@@ -22,8 +22,8 @@ use tokio_stream::StreamExt;
 use dokime_sdk::client::StatusGetOptions;
 
 use crate::support::server::Fixture;
-use dokime_sdk::client::BackendOverviewWatchResponse;
-use harmos_protocol::host as library;
+use dokime_sdk::client::OverviewWatchResponse;
+use harmos_protocol::host;
 
 /* === Constants === */
 
@@ -54,7 +54,7 @@ fn sdk_and_binary_calls_share_host_identity() {
         let typed =
             client.execute(client.client().status.get_with(StatusGetOptions { context: client.call_options().unwrap() })).await.unwrap();
         let bytes = client.call_raw("/harmos.host.v1.Status/Get", &[]).await.unwrap();
-        let binary = library::StatusGetResponse::decode(bytes.as_slice()).unwrap();
+        let binary = host::StatusGetResponse::decode(bytes.as_slice()).unwrap();
         assert_eq!(typed.status.unwrap().identity, binary.status.unwrap().identity);
         fixture.close().await;
     })
@@ -68,7 +68,7 @@ fn disconnect_joins_the_idle_watch() {
         let client = fixture.client().await;
         let mut watch = client.watch_raw("/dokime.host.v1.backend.Overview/Watch", &[]).await.unwrap();
         let opening = watch.next().await.unwrap().unwrap();
-        assert!(BackendOverviewWatchResponse::decode(opening.as_slice()).unwrap().opening);
+        assert!(OverviewWatchResponse::decode(opening.as_slice()).unwrap().opening);
         fixture.close().await;
         assert!(client.cancellation().is_cancelled());
         while let Some(frame) = watch.next().await {
@@ -84,7 +84,7 @@ fn sdk_status_remains_available_after_native_detach() {
         let fixture = Fixture::new().await;
         fixture.session.disconnect().unwrap();
         let client = fixture.client().await;
-        let response: library::StatusGetResponse = client.unary("/harmos.host.v1.Status/Get", library::StatusGetRequest {}).await.unwrap();
+        let response: host::StatusGetResponse = client.unary("/harmos.host.v1.Status/Get", host::StatusGetRequest {}).await.unwrap();
         assert!(response.status.unwrap().available);
         fixture.close().await;
     })

@@ -44,9 +44,15 @@ int main(int argc, char **argv) {
     // Compose the Suite from Ordinary Values.
     Template value;
     *value.definition.mutable_metadata() = metadata("sample.check", "Check");
-    value.initialize = [](Context &ctx) { ctx.set(make_shared<double>(0)); };
-    value.steps.push_back({metadata("measure", "Measure"), [](Context &ctx) { *ctx.get<double>() = 42; }});
-    value.criteria.push_back({metadata("valid", "Valid"), [](Context &ctx) { return *ctx.get<double>() == 42; }});
+    value.initialize = [](Context &ctx) {
+      ctx.set(make_shared<double>(0));
+    };
+    value.steps.push_back({metadata("measure", "Measure"), [](Context &ctx) {
+                             *ctx.get<double>() = 42;
+                           }});
+    value.criteria.push_back({metadata("valid", "Valid"), [](Context &ctx) {
+                                return *ctx.get<double>() == 42;
+                              }});
     Plugin plugin("sample", "0.1.0");
     plugin.suite({metadata("sample", "Sample"), {move(value)}});
 

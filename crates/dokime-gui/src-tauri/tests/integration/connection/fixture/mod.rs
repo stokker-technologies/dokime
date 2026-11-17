@@ -46,8 +46,8 @@ use dokime_sdk::Grpc;
 
 use dokime_gui::connection::{ConnectRequest, ConnectionTarget};
 use dokime_protocol::host::backend::OverviewGetRequest;
-use dokime_sdk::client::BackendOverviewGetResponse;
-use dokime_sdk::client::BackendRuntimeShellSnapshot;
+use dokime_sdk::client::OverviewGetResponse;
+use dokime_sdk::client::RuntimeShellSnapshot;
 use harmos_protocol::host;
 
 /* === Constants === */
@@ -135,8 +135,8 @@ impl<const KIND: u8> codegen::Service<HttpRequest> for Rpc<KIND> {
                     server::Grpc::new(ProstCodec::<_, host::StatusGetRequest>::default()).unary(Reply(reply), request).await
                 }
                 "/dokime.host.v1.backend.Overview/Get" => {
-                    let reply = BackendOverviewGetResponse {
-                        overview: Some(BackendRuntimeShellSnapshot {
+                    let reply = OverviewGetResponse {
+                        overview: Some(RuntimeShellSnapshot {
                             session_id: "product-history".into(),
                             ..Default::default()
                         }),

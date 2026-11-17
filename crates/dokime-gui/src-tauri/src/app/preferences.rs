@@ -16,8 +16,7 @@
 /* === Imports === */
 
 use dokime_protocol::host::SettingsSetRequest;
-use dokime_sdk::client::RemoteListenerSettings;
-use dokime_sdk::client::{SettingsGetOptions, SettingsGetResponse, SettingsSetOptions};
+use dokime_sdk::client::{AccessListenerGetOptions, RemoteListenerSettings, SettingsGetOptions, SettingsSetOptions, host};
 
 use crate::connection::{ConnectionSession, host::Session};
 use crate::native_session::DesktopSessionControl;
@@ -119,7 +118,7 @@ pub async fn desktop_settings_update(
     let saved = client.execute(client.client().settings.set_with(value, update.expected_revision, options)).await.map_err(command_error)?;
     let saved = with_listener(
         &client,
-        SettingsGetResponse {
+        host::SettingsGetResponse {
             value: saved.value,
             revision: saved.revision,
             resolved_at: None,
@@ -152,8 +151,9 @@ async fn client(
 }
 
 // Access Owns Listener State; Application Preferences Only Project Its Current Value.
-async fn with_listener(client: &Session, mut snapshot: SettingsGetResponse) -> Result<SettingsGetResponse, SettingsCommandError> {
-    use dokime_sdk::client::AccessListenerGetOptions;
+async fn with_listener(
+    client: &Session, mut snapshot: host::SettingsGetResponse,
+) -> Result<host::SettingsGetResponse, SettingsCommandError> {
     let options = AccessListenerGetOptions {
         context: client.call_options().map_err(command_error)?,
     };

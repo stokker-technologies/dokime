@@ -13,7 +13,7 @@ before removing, merging or replacing it.
 
 Follow the linked locked OpenSpec mappings for direction; verify current behavior
 in the cited source and tests. The execution host is the current implementation; removed source does not
-establish proof in this tree. The native desktop is outside workspace membership
-until its separate host switch merges.
+establish proof in this tree. The native desktop is a workspace member and compiles
+through the Product and Tests artifact selections.
 Keep implementation and authoring instructions in their owning SDK guides and
 project skills rather than restating invariants here.
