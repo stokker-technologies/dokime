@@ -465,13 +465,6 @@ the backend snapshot hook runs.
 Harmos `crates/harmos-operations/src/storage/native/handlers.rs` declares
 `CreateSnapshot::REPLAY = ReplaySafety::Unknown` while using `native/mod.rs::POLICY`,
 whose retries are `OnTransient`. `RetainSnapshot` has the same declaration pair.
-This also blocks the execution-owned evidence cut required by tasks 1.7 and 2.3,
-not only archive export: `Context::storage` delegates to
-`OperationManager::call_native`, and
-`Harmos:crates/harmos-runtime/src/operations/manager/submission.rs::admit_entry`
-refuses both declarations before either snapshot handler or the registered backend
-runs. The passing backend retention conformance story therefore does not establish
-an admissible product seal path. The coupled slices cannot close at this pin.
 The supported current API is the operation call; a product retry-policy override,
 direct manager call or bypass of retained snapshot protection would contradict
 the callee-owned policy and storage contract.
