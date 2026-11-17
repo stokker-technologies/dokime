@@ -68,6 +68,9 @@ Current state (landed, verified 2026-11-16 in this tree; cite paths, not lines):
   remain blocked on the **typed facade**. Notes already persist through Harmos
   administration objects independently of that ledger, so their list/watch source
   can move to native cuts and `WatchRows` without splitting evidence history.
+  Those administration objects have no native execution scope: note ownership,
+  open-owner admission and scoped deletion must move together with the lifecycle
+  contract before the remaining direct owner queries can be removed.
 
 Touched invariants in `docs/architecture.md` and their purposes:
 
