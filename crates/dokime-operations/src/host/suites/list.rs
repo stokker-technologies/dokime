@@ -15,19 +15,17 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
-
 use dokime_protocol::host::SuitesListRequest;
 use dokime_protocol::host::SuitesListResponse;
-
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -54,7 +52,8 @@ pub async fn handle(context: &Context, request: SuitesListRequest) -> Result<Sui
     crate::host::complete(ID, context.settings.read_timeout, async {
         let at = request.at.clone();
         let key = format!("catalog/suites/{}", request.parent);
-        let (saved, cut) = crate::host::views::read(context, &key, at.as_ref(), async {
+        let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;
+        let (saved, cut) = crate::host::views::read(context, owner, &key, at.as_ref(), async {
             let inventory = crate::host::catalog_inventory::Inventory::read(context).await?;
             let values = inventory.suites.into_iter().map(|(_, value)| value).collect::<Vec<_>>();
             Ok(SuitesListResponse { values, ..Default::default() })

@@ -15,19 +15,17 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::{Result, host::Context};
-
+use crate::host::ClientSettings;
+use crate::{Error, Result, host::Context};
 use dokime_protocol::host::content::ArtifactsGetRequest;
 use dokime_protocol::host::content::ArtifactsGetResponse;
-
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -52,15 +50,23 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: ArtifactsGetRequest) -> Result<ArtifactsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let (mut reply, cut) = crate::host::views::read(context, &format!("artifact/{}", request.name), request.at.as_ref(), async {
-            let stored = crate::host::content::artifact(context, &request.name).await?;
-            Ok(ArtifactsGetResponse {
-                metadata: stored.artifact,
-                file: stored.request.and_then(|request| request.file),
-                ..Default::default()
+        let stored = crate::host::content::artifact(context, &request.name).await?;
+        let execution = stored
+            .request
+            .as_ref()
+            .and_then(|request| request.scope.as_ref())
+            .and_then(|scope| scope.execution_id.as_deref())
+            .ok_or_else(|| Error::Precondition("Get Artifact: Restore Its Execution Binding".into()))?;
+        let scope = Scope::Execution(execution).identifier()?;
+        let (mut reply, cut) =
+            crate::host::views::read(context, scope, &format!("artifact/{}", request.name), request.at.as_ref(), async {
+                Ok(ArtifactsGetResponse {
+                    metadata: stored.artifact,
+                    file: stored.request.and_then(|request| request.file),
+                    ..Default::default()
+                })
             })
-        })
-        .await?;
+            .await?;
         reply.resolved_at = Some(cut);
         Ok(reply)
     })

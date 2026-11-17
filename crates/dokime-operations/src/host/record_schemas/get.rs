@@ -15,16 +15,21 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
+use std::collections::BTreeMap;
 
 // Third Party Imports
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::OperationContract;
 use prost::Message;
+use prost_reflect::DescriptorPool;
+use prost_reflect::Kind;
+use prost_reflect::MessageDescriptor;
+use prost_types::FileDescriptorSet;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
-
 use dokime_protocol::host::RecordField;
 use dokime_protocol::host::RecordSchema;
 use dokime_protocol::host::RecordSchemasGetRequest;
@@ -33,14 +38,7 @@ use dokime_protocol::model::Metadata;
 use dokime_protocol::model::RecordContracts;
 use dokime_protocol::model::Severity;
 use dokime_protocol::model::ValueType;
-use harmos_protocol::model::Declarations;
-use prost_reflect::DescriptorPool;
-use prost_reflect::Kind;
-use prost_reflect::MessageDescriptor;
-use prost_types::FileDescriptorSet;
-use std::collections::BTreeMap;
-
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -66,7 +64,12 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: RecordSchemasGetRequest) -> Result<RecordSchemasGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let key = format!("record-schema/{}/{}/{}", request.parent, request.name, request.schema_version);
-        let (value, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
+        let owner = if request.parent.is_empty() {
+            Scope::Root(&context.host.identity().backend_id).identifier()?
+        } else {
+            Scope::Execution(&request.parent).identifier()?
+        };
+        let (value, cut) = crate::host::views::read(context, owner, &key, request.at.as_ref(), async {
             if request.parent.is_empty() {
                 let inventory = crate::host::catalog_inventory::Inventory::read(context).await?;
                 if let Some(value) = inventory.records.into_iter().find(|record| record.record_type == request.name) {

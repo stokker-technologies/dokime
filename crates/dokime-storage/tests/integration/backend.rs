@@ -620,6 +620,40 @@ async fn native_backend_passes_compound_and_scoped_deletion_conformance() -> Sto
     assert!(storage.get_object::<Case>(&case.key, ObjectVersion::Latest).await?.is_none());
     drop(before);
 
+    // Delete Execution View Bytes Without Removing Other Exact Owners.
+    let mut files = Vec::new();
+    for scope in [Scope::Execution("shared"), Scope::Cycle("shared"), Scope::Case("shared"), Scope::Root("shared")] {
+        let scope = scope.identifier()?;
+        let mut writer = storage
+            .produce_file(FileMetadata {
+                id: Identifier::new(format!("retained-view/{scope}"))?,
+                scope: Some(scope),
+                media_type: "application/x-protobuf".into(),
+                expected_length: None,
+                expected_sha256: None,
+            })
+            .await?;
+        writer.write_all(vec![8, 1]).await?;
+        files.push(writer.finish().await?);
+    }
+    storage.flush().await?;
+    let image = storage.snapshot(&storage.get_saved_position()).await?;
+    let deletion = MutationId {
+        window: storage.mutation_window()?.id,
+        key: Identifier::new("delete-execution-views")?,
+    };
+    storage.mutate_once(&deletion, vec![MutationItem::DeleteScope(Scope::Execution("shared").identifier()?)]).await?;
+    let current = storage.snapshot(&storage.get_saved_position()).await?;
+    assert!(current.get_file_bytes(&files[0], 0, NonZeroUsize::new(2).unwrap()).await.is_err());
+    for file in &files {
+        assert_eq!(image.get_file_bytes(file, 0, NonZeroUsize::new(2).unwrap()).await?.data, vec![8, 1]);
+    }
+    for file in &files[1..] {
+        assert_eq!(current.get_file_bytes(file, 0, NonZeroUsize::new(2).unwrap()).await?.data, vec![8, 1]);
+    }
+    drop(current);
+    drop(image);
+
     storage.close().await?;
     let chunks: i64 = connection.query_row("SELECT count(*) FROM storage_file_chunks WHERE id='retained-file'", [], |row| row.get(0))?;
     assert_eq!(chunks, 0);
@@ -635,7 +669,7 @@ async fn superseded_backend_roots_are_refused_without_changing_their_values() ->
     backends.primary.delete_session().await?;
     let connection = rusqlite::Connection::open(root.path().join("storage.sqlite3"))?;
     let prior = vec![1u8, 2, 3, 4];
-    connection.execute("UPDATE storage_meta SET value=?1 WHERE name='format'", ["superseded"])?;
+    connection.execute("UPDATE storage_meta SET value=?1 WHERE name='format'", ["dokime.scoped-objects.v1"])?;
     connection.execute("INSERT INTO storage_meta VALUES('preserved',?1)", [&prior])?;
     assert!(Backend::open(&store, ObjectCatalog::new()).is_err());
     let execution_bytes = fs::read(root.path().join("execution.sqlite3"))?;

@@ -345,7 +345,7 @@ pub async fn native_file(client: &Client, id: &str, execution: &str, bytes: &[u8
         .uploads
         .create(FileMetadata {
             id: id.into(),
-            scope: Some(execution.into()),
+            scope: Some(format!("execution/{execution}")),
             media_type: "application/octet-stream".into(),
             expected_length: Some(bytes.len() as u64),
             expected_sha256: Some(Sha256::digest(bytes).to_vec()),

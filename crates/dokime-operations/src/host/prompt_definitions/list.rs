@@ -18,13 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
 use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::PromptDefinitionsListRequest;
 use dokime_protocol::host::PromptDefinitionsListResponse;
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -49,8 +50,9 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: PromptDefinitionsListRequest) -> Result<PromptDefinitionsListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
+        let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;
         let (mut reply, cut) =
-            crate::host::views::read(context, &format!("catalog/prompts/{}", request.parent), request.at.as_ref(), async {
+            crate::host::views::read(context, owner, &format!("catalog/prompts/{}", request.parent), request.at.as_ref(), async {
                 Ok(PromptDefinitionsListResponse {
                     values: crate::host::prompts::catalog::definitions(context).await?,
                     ..Default::default()

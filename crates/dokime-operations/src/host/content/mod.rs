@@ -214,7 +214,8 @@ pub async fn attach_artifact(context: &Context, request: ArtifactsCreateRequest)
         .ok_or_else(|| Error::Invalid("Create Artifact: Select Its Execution Scope".into()))?;
     let reference = request.file.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select Published Content".into()))?;
     let file = reference.metadata.as_ref().ok_or_else(|| Error::Invalid("Create Artifact: Select a Named File Reference".into()))?;
-    if file.scope.as_deref() != Some(execution) {
+    let scope = Scope::Execution(execution).identifier()?;
+    if file.scope.as_deref() != Some(scope.as_str()) {
         return Err(Error::Invalid("Create Artifact: Keep Its Native File Within the Execution Scope".into()));
     }
     let operation = artifacts::create::ID;
@@ -300,7 +301,8 @@ pub async fn attach_execution_file(
     context: &Context, execution: &str, mut metadata: ExecutionFileMetadata, file: FileReference,
 ) -> Result<Receipt> {
     dokime_storage::validate_execution_path(&metadata.relative_path)?;
-    if file.metadata.as_ref().and_then(|metadata| metadata.scope.as_deref()) != Some(execution) {
+    let scope = Scope::Execution(execution).identifier()?;
+    if file.metadata.as_ref().and_then(|metadata| metadata.scope.as_deref()) != Some(scope.as_str()) {
         return Err(Error::Invalid("Attach Execution File: Select a Native File in This Execution's Scope".into()));
     }
     crate::host::files::get::handle(context, FilesGetRequest { file: Some(file.clone()), at: None }).await?;

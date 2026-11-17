@@ -15,23 +15,21 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
-
 use dokime_protocol::host::SettingsFrame;
 use dokime_protocol::host::SettingsSchemaRequest;
 use dokime_protocol::host::SettingsSchemaResponse;
 use dokime_protocol::host::SettingsSection;
 use dokime_protocol::host::SettingsSectionOwner;
 use dokime_protocol::host::settings_section_owner::Kind;
-
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -56,7 +54,8 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: SettingsSchemaRequest) -> Result<SettingsSchemaResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let (schema, cut) = crate::host::views::read(context, ID, request.at.as_ref(), async {
+        let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;
+        let (schema, cut) = crate::host::views::read(context, owner, ID, request.at.as_ref(), async {
             let mut sections = vec![SettingsSection {
                 section_id: "application".into(),
                 label: "Application".into(),

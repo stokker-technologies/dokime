@@ -15,19 +15,17 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
-
 use dokime_protocol::host::content::ExecutionFilesGetRequest;
 use dokime_protocol::host::content::ExecutionFilesGetResponse;
-
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -52,8 +50,9 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: ExecutionFilesGetRequest) -> Result<ExecutionFilesGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
+        let owner = Scope::Execution(&request.parent).identifier()?;
         let (mut reply, cut) =
-            crate::host::views::read(context, &format!("file/{}/{}", request.parent, request.name), request.at.as_ref(), async {
+            crate::host::views::read(context, owner, &format!("file/{}/{}", request.parent, request.name), request.at.as_ref(), async {
                 let entry = crate::host::content::execution_file(context, &request.parent, &request.name).await?;
                 Ok(ExecutionFilesGetResponse {
                     metadata: entry.metadata,

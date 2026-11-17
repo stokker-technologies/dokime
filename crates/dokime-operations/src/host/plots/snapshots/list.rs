@@ -16,39 +16,43 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::num::NonZeroU128;
+use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_protocol::model::Declarations;
+use harmos_protocol::model::{History, OperationContract};
+use harmos_runtime::storage::query::scalar::{ExactNumber, ScalarValue};
 use prost::Message;
+use prost_reflect::DescriptorPool;
+use prost_reflect::Kind;
+use sha2::{Digest, Sha256};
+use tokio::task;
 
 // Local Imports
 use crate::{
     Error, Result,
     host::{ClientSettings, Context},
 };
-use dokime_protocol::host::plots::PlotEnvelope;
-use dokime_protocol::host::plots::PlotRequest;
-use dokime_protocol::host::plots::SnapshotsListRequest;
-use dokime_protocol::host::plots::SnapshotsListResponse;
-use dokime_storage::{ExecutionCut, NumericWindow, Store};
-use harmos_protocol::model::Declarations;
-use prost_reflect::DescriptorPool;
-use sha2::{Digest, Sha256};
-use std::num::NonZeroUsize;
-use tokio::task;
-
 use dokime_protocol::host::plots::PlotAnalysis;
 use dokime_protocol::host::plots::PlotAnalysisResult;
 use dokime_protocol::host::plots::PlotBoxSummaryAnalysis;
 use dokime_protocol::host::plots::PlotCartesianMode;
+use dokime_protocol::host::plots::PlotColumn;
+use dokime_protocol::host::plots::PlotEnvelope;
 use dokime_protocol::host::plots::PlotFrame;
 use dokime_protocol::host::plots::PlotHistogramAnalysis;
 use dokime_protocol::host::plots::PlotMarker;
 use dokime_protocol::host::plots::PlotPayload;
 use dokime_protocol::host::plots::PlotPayloadDiagnostics;
+use dokime_protocol::host::plots::PlotRequest;
 use dokime_protocol::host::plots::PlotSeries;
 use dokime_protocol::host::plots::PlotSeriesSummary;
 use dokime_protocol::host::plots::PlotWindow;
+use dokime_protocol::host::plots::SnapshotsListRequest;
+use dokime_protocol::host::plots::SnapshotsListResponse;
+use dokime_protocol::host::plots::plot_analysis_result;
 use dokime_protocol::model::Aggregate;
 use dokime_protocol::model::AxisScale;
 use dokime_protocol::model::DataExpression;
@@ -58,16 +62,10 @@ use dokime_protocol::model::PlotKind;
 use dokime_protocol::model::Reduction;
 use dokime_protocol::model::Value;
 use dokime_protocol::model::XyInterval;
-use harmos_protocol::model::{History, OperationContract};
-use prost_reflect::Kind;
-
-use dokime_protocol::host::plots::plot_analysis_result::Kind as PlotAnalysisResultKind;
-use dokime_protocol::model::data_expression::Kind as DataExpressionKind;
-use dokime_protocol::model::value::Kind as ValueKind;
-
-use dokime_protocol::host::plots::PlotColumn;
-use harmos_runtime::storage::query::scalar::{ExactNumber, ScalarValue};
-use std::num::NonZeroU128;
+use dokime_protocol::model::data_expression;
+use dokime_protocol::model::value;
+use dokime_storage::persisted::Scope;
+use dokime_storage::{ExecutionCut, NumericWindow, Store};
 
 /* === Constants === */
 
@@ -111,7 +109,17 @@ pub async fn handle(context: &Context, request: SnapshotsListRequest) -> Result<
                 ..Default::default()
             }))
         );
-        let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
+        let executions = request
+            .requests
+            .iter()
+            .map(|request| crate::host::projection::execution_scope(request.scope.as_ref()))
+            .collect::<Result<BTreeSet<_>>>()?;
+        let scope = if executions.len() == 1 {
+            Scope::Execution(executions.first().unwrap()).identifier()?
+        } else {
+            Scope::Root(&context.host.identity().backend_id).identifier()?
+        };
+        let (saved, cut) = crate::host::views::read(context, scope, &key, request.at.as_ref(), async {
             let reply = SnapshotsListResponse {
                 envelopes: query_batch(context, request.requests).await?,
                 ..Default::default()
@@ -270,9 +278,9 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     let mut aggregate = None;
     for expression in &request.y_expressions {
         match expression.kind.as_ref() {
-            Some(DataExpressionKind::Stream(reference)) if reference.identifier == stream.id => fields.push(reference.field.clone()),
-            Some(DataExpressionKind::Aggregate(expression)) => {
-                let Some(DataExpressionKind::Stream(reference)) = expression.input.as_ref().and_then(|input| input.kind.as_ref()) else {
+            Some(data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => fields.push(reference.field.clone()),
+            Some(data_expression::Kind::Aggregate(expression)) => {
+                let Some(data_expression::Kind::Stream(reference)) = expression.input.as_ref().and_then(|input| input.kind.as_ref()) else {
                     return Err(Error::Invalid("Query Plot: Aggregate a Numeric Stream Column".into()));
                 };
                 if reference.identifier != stream.id {
@@ -331,7 +339,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     let kind = PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
     if aggregate.is_some()
         && (!matches!(kind, PlotKind::Bar | PlotKind::Pie)
-            || request.y_expressions.iter().any(|expression| !matches!(expression.kind, Some(DataExpressionKind::Aggregate(_)))))
+            || request.y_expressions.iter().any(|expression| !matches!(expression.kind, Some(data_expression::Kind::Aggregate(_)))))
     {
         return Err(Error::Invalid(
             "Query Plot Aggregate: Select Only Aggregate Expressions in a Bar or Pie Plot Until Other Aggregate Variants Are Served".into(),
@@ -339,7 +347,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     }
     let field_reference = |expression: Option<&DataExpression>, fallback: Option<&str>| -> Result<Option<String>> {
         match expression.and_then(|expression| expression.kind.as_ref()) {
-            Some(DataExpressionKind::Stream(reference)) if reference.identifier == stream.id => Ok(Some(reference.field.clone())),
+            Some(data_expression::Kind::Stream(reference)) if reference.identifier == stream.id => Ok(Some(reference.field.clone())),
             None => Ok(fallback.map(str::to_owned)),
             _ => Err(Error::Invalid("Query Plot: Select Coordinate Columns from the Requested Stream".into())),
         }
@@ -512,7 +520,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 let (analysis, count) = store.sigma_window(settings, options)?;
                 payload.analysis = Some(PlotAnalysis {
                     result: Some(PlotAnalysisResult {
-                        kind: Some(PlotAnalysisResultKind::SigmaInterval(analysis)),
+                        kind: Some(plot_analysis_result::Kind::SigmaInterval(analysis)),
                     }),
                 });
                 count
@@ -530,7 +538,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 )?;
                 payload.analysis = Some(PlotAnalysis {
                     result: Some(PlotAnalysisResult {
-                        kind: Some(PlotAnalysisResultKind::Contour(grid)),
+                        kind: Some(plot_analysis_result::Kind::Contour(grid)),
                     }),
                 });
                 count
@@ -573,7 +581,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             )?;
             payload.analysis = Some(PlotAnalysis {
                 result: Some(PlotAnalysisResult {
-                    kind: Some(PlotAnalysisResultKind::GridChart(frames)),
+                    kind: Some(plot_analysis_result::Kind::GridChart(frames)),
                 }),
             });
             count
@@ -650,13 +658,13 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if kind == PlotKind::Histogram {
         payload.analysis = Some(PlotAnalysis {
             result: Some(PlotAnalysisResult {
-                kind: Some(PlotAnalysisResultKind::Histogram(PlotHistogramAnalysis { series: histograms })),
+                kind: Some(plot_analysis_result::Kind::Histogram(PlotHistogramAnalysis { series: histograms })),
             }),
         });
     } else if kind == PlotKind::BoxPlot {
         payload.analysis = Some(PlotAnalysis {
             result: Some(PlotAnalysisResult {
-                kind: Some(PlotAnalysisResultKind::BoxPlot(PlotBoxSummaryAnalysis { series: boxes, total: examined })),
+                kind: Some(plot_analysis_result::Kind::BoxPlot(PlotBoxSummaryAnalysis { series: boxes, total: examined })),
             }),
         });
     } else if payload.analysis.is_none() {
@@ -668,7 +676,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 .x
                 .iter()
                 .map(|value| match value.kind {
-                    Some(ValueKind::Number(value)) => Ok(value),
+                    Some(value::Kind::Number(value)) => Ok(value),
                     _ => Err(Error::Invalid("Read Time Series: Restore Its Numeric Source-Time Axis".into())),
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -704,7 +712,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 let bucket = ((evidence.source_ns as i128 - start_ns as i128).max(0) as u128 / resolution.max(1) as u128) as u64;
                 let marker = PlotMarker {
                     x: Some(Value {
-                        kind: Some(ValueKind::Number(evidence.source_ns as f64 / 1e9)),
+                        kind: Some(value::Kind::Number(evidence.source_ns as f64 / 1e9)),
                     }),
                     label: kind.into(),
                     record_type: kind.into(),
@@ -729,11 +737,11 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         payload.analysis.as_ref().and_then(|analysis| analysis.result.as_ref()).and_then(|result| result.kind.as_ref())
     {
         match analysis {
-            PlotAnalysisResultKind::Histogram(histogram) => histogram.series.iter().map(|series| series.bins.len() as u64).sum(),
-            PlotAnalysisResultKind::BoxPlot(boxes) => boxes.series.iter().map(|series| 1 + series.outliers.len() as u64).sum(),
-            PlotAnalysisResultKind::Contour(grid) => grid.values.len() as u64,
-            PlotAnalysisResultKind::GridChart(grid) => grid.frames.iter().map(|frame| frame.values.len() as u64).sum(),
-            PlotAnalysisResultKind::SigmaInterval(sigma) => sigma.series.iter().map(|series| series.bins.len() as u64).sum(),
+            plot_analysis_result::Kind::Histogram(histogram) => histogram.series.iter().map(|series| series.bins.len() as u64).sum(),
+            plot_analysis_result::Kind::BoxPlot(boxes) => boxes.series.iter().map(|series| 1 + series.outliers.len() as u64).sum(),
+            plot_analysis_result::Kind::Contour(grid) => grid.values.len() as u64,
+            plot_analysis_result::Kind::GridChart(grid) => grid.frames.iter().map(|frame| frame.values.len() as u64).sum(),
+            plot_analysis_result::Kind::SigmaInterval(sigma) => sigma.series.iter().map(|series| series.bins.len() as u64).sum(),
             _ => 0,
         }
     } else {
@@ -761,18 +769,18 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if let Some(analysis) = payload.analysis.as_mut().and_then(|analysis| analysis.result.as_mut()).and_then(|result| result.kind.as_mut())
     {
         match analysis {
-            PlotAnalysisResultKind::Histogram(histogram) => {
+            plot_analysis_result::Kind::Histogram(histogram) => {
                 for series in &mut histogram.series {
                     series.key = label(&series.key);
                 }
             }
-            PlotAnalysisResultKind::BoxPlot(boxes) => {
+            plot_analysis_result::Kind::BoxPlot(boxes) => {
                 for series in &mut boxes.series {
                     series.key = label(&series.key);
                     series.label = label(&series.label);
                 }
             }
-            PlotAnalysisResultKind::SigmaInterval(interval) => {
+            plot_analysis_result::Kind::SigmaInterval(interval) => {
                 for series in &mut interval.series {
                     series.key = label(&series.key);
                 }
@@ -827,10 +835,10 @@ fn order_categories(column: &mut PlotColumn) -> Result<()> {
         .iter()
         .map(|value| {
             let total = match value.kind.as_ref() {
-                Some(ValueKind::Integer(value)) => ScalarValue::Signed(*value),
-                Some(ValueKind::UnsignedInteger(value)) => ScalarValue::Unsigned(*value),
-                Some(ValueKind::Number(value)) => ScalarValue::Float(*value),
-                Some(ValueKind::Exact(value)) => {
+                Some(value::Kind::Integer(value)) => ScalarValue::Signed(*value),
+                Some(value::Kind::UnsignedInteger(value)) => ScalarValue::Unsigned(*value),
+                Some(value::Kind::Number(value)) => ScalarValue::Float(*value),
+                Some(value::Kind::Exact(value)) => {
                     let numerator = value
                         .numerator
                         .parse()
@@ -892,7 +900,7 @@ fn ns(seconds: f64) -> Result<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PlotColumn, Value, ValueKind, order_categories};
+    use super::{PlotColumn, Value, order_categories, value};
     use dokime_protocol::host::plots::NullableNumber;
 
     #[test]
@@ -900,19 +908,19 @@ mod tests {
         let mut column = PlotColumn {
             x: vec![
                 Value {
-                    kind: Some(ValueKind::Text("small".into())),
+                    kind: Some(value::Kind::Text("small".into())),
                 },
                 Value {
-                    kind: Some(ValueKind::Text("large".into())),
+                    kind: Some(value::Kind::Text("large".into())),
                 },
             ],
             y: vec![NullableNumber { value: Some(9_007_199_254_740_992.0) }; 2],
             totals: vec![
                 Value {
-                    kind: Some(ValueKind::UnsignedInteger(9_007_199_254_740_992)),
+                    kind: Some(value::Kind::UnsignedInteger(9_007_199_254_740_992)),
                 },
                 Value {
-                    kind: Some(ValueKind::UnsignedInteger(9_007_199_254_740_993)),
+                    kind: Some(value::Kind::UnsignedInteger(9_007_199_254_740_993)),
                 },
             ],
             ..Default::default()
@@ -920,7 +928,7 @@ mod tests {
         let expected = column.x[1].clone();
         order_categories(&mut column).unwrap();
         assert_eq!(column.x[0], expected);
-        assert_eq!(column.totals[0].kind, Some(ValueKind::UnsignedInteger(9_007_199_254_740_993)));
+        assert_eq!(column.totals[0].kind, Some(value::Kind::UnsignedInteger(9_007_199_254_740_993)));
     }
 
     #[test]
@@ -934,7 +942,7 @@ mod tests {
         assert!(order_categories(&mut column).is_err());
         assert_eq!(column, before);
         column.totals = vec![Value {
-            kind: Some(ValueKind::Number(f64::INFINITY)),
+            kind: Some(value::Kind::Number(f64::INFINITY)),
         }];
         assert!(order_categories(&mut column).is_err());
         assert_eq!(column.x, before.x);

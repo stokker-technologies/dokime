@@ -18,6 +18,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
 use crate::host::ClientSettings;
@@ -25,7 +26,7 @@ use crate::{Result, host::Context};
 use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::ExecutionsListResponse;
 use dokime_protocol::model::origin::Kind;
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -64,8 +65,13 @@ pub async fn handle(context: &Context, request: ExecutionsListRequest) -> Result
             selection.order = None;
         }
         let key = format!("executions/{}", crate::host::views::hex(&crate::host::paging::bytes(&selection)));
+        let owner = if request.parent.is_empty() {
+            Scope::Root(&context.host.identity().backend_id).identifier()?
+        } else {
+            Scope::Cycle(&request.parent).identifier()?
+        };
         let (saved, cut) =
-            crate::host::views::read(context, &key, request.at.as_ref(), async {
+            crate::host::views::read(context, owner, &key, request.at.as_ref(), async {
                 let mut executions = Vec::new();
                 for id in context.host.store().identifiers()? {
                     let frozen = context.host.store().metadata(&id)?;

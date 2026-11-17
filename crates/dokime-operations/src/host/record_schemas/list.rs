@@ -15,19 +15,17 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Result, host::Context};
-
 use dokime_protocol::host::RecordSchemasListRequest;
 use dokime_protocol::host::RecordSchemasListResponse;
-
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -54,7 +52,12 @@ pub async fn handle(context: &Context, request: RecordSchemasListRequest) -> Res
     crate::host::complete(ID, context.settings.read_timeout, async {
         let at = request.at.clone();
         let key = format!("catalog/record_schemas/{}", request.parent);
-        let (saved, cut) = crate::host::views::read(context, &key, at.as_ref(), async {
+        let owner = if request.parent.is_empty() {
+            Scope::Root(&context.host.identity().backend_id).identifier()?
+        } else {
+            Scope::Execution(&request.parent).identifier()?
+        };
+        let (saved, cut) = crate::host::views::read(context, owner, &key, at.as_ref(), async {
             let inventory = if request.parent.is_empty() {
                 crate::host::catalog_inventory::Inventory::read(context).await?
             } else {

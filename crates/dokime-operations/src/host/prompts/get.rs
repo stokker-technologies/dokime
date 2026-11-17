@@ -18,13 +18,14 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
 use crate::host::ClientSettings;
-use crate::{Result, host::Context};
+use crate::{Error, Result, host::Context};
 use dokime_protocol::host::PromptsGetRequest;
 use dokime_protocol::host::PromptsGetResponse;
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -49,7 +50,10 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: PromptsGetRequest) -> Result<PromptsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
-        let (prompt, cut) = crate::host::views::read(context, &format!("prompt/{}", request.name), request.at.as_ref(), async {
+        let (execution, _) =
+            request.name.split_once('/').ok_or_else(|| Error::Invalid("Get Prompt: Select Its Returned Identifier".into()))?;
+        let owner = Scope::Execution(execution).identifier()?;
+        let (prompt, cut) = crate::host::views::read(context, owner, &format!("prompt/{}", request.name), request.at.as_ref(), async {
             crate::host::prompts::catalog::view(context, &request.name)
         })
         .await?;

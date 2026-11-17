@@ -19,19 +19,20 @@
 use std::future::Future;
 
 // Third Party Imports
-use harmos_protocol::model::{FileMetadata, FileReference, PageRequest, ReadCut, Receipt, ResourceRevision};
-use harmos_runtime::builtins::storage::{DeleteFile, DeleteFileRequest, GetFileBytes, GetFileBytesRequest};
-use harmos_runtime::storage::{self, StagedFile};
+use harmos_protocol::model::{FileReference, PageRequest, ReadCut, Receipt, ResourceRevision};
+use harmos_runtime::builtins::storage::{
+    CreateFileProduction, CreateFileProductionRequest, DeleteFile, DeleteFileRequest, GetFileBytes, GetFileBytesRequest,
+};
+use harmos_runtime::storage::{self, Identifier, StagedFile};
 use prost::Message;
 use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::host::files::transfer;
-use crate::host::files::uploads::{append, create, delete, publish};
+use crate::host::files::uploads::{append, delete, publish};
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
-use dokime_storage::persisted::Scope;
+use dokime_protocol::host::files::{UploadsAppendRequest, UploadsDeleteRequest, UploadsPublishRequest};
 
 /* === Constants === */
 
@@ -50,10 +51,10 @@ use dokime_storage::persisted::Scope;
 /* === Public Functions === */
 
 pub(crate) async fn read<T: Message + Default>(
-    context: &Context, resource: &str, at: Option<&ReadCut>, current: impl Future<Output = Result<T>>,
+    context: &Context, scope: Identifier, resource: &str, at: Option<&ReadCut>, current: impl Future<Output = Result<T>>,
 ) -> Result<(T, ReadCut)> {
     let store = context.host.store();
-    let name = format!("{}/{resource}", store.identity());
+    let name = format!("{}/{}:{scope}/{resource}", store.identity(), scope.as_str().len());
     if let Some(at) = at {
         if at.revisions.is_empty() && at.positions.len() == 1 {
             let position = store.evidence_position(at.positions.first())?;
@@ -81,9 +82,9 @@ pub(crate) async fn read<T: Message + Default>(
         value.encode_to_vec()
     };
     let revision = Sha256::digest(&payload).to_vec();
-    let file = retain(context, &format!("view:{name}:{}", hex(&revision)), &payload).await?;
+    let file = retain(context, &scope, &format!("view:{name}:{}", hex(&revision)), &payload).await?;
     let key = format!("view-at:{name}:{}:{}", position.history.as_ref().unwrap().epoch, position.sequence);
-    administration::retain(context, &key, Scope::Root(store.identity()).identifier()?, &file).await?;
+    administration::retain(context, &key, scope, &file).await?;
 
     Ok((
         value,
@@ -189,33 +190,34 @@ async fn retained(context: &Context, key: &str) -> Result<Option<Vec<u8>>> {
     Ok(Some(payload))
 }
 
-async fn retain(context: &Context, key: &str, payload: &[u8]) -> Result<FileReference> {
+async fn retain(context: &Context, scope: &Identifier, key: &str, payload: &[u8]) -> Result<FileReference> {
     let (saved, revision) = administration::message::<FileReference>(context, key).await?;
     if !revision.is_empty() {
         return Ok(saved);
     }
 
     // Produce the Complete View in Bounded Native Chunks Before Publishing Its Index.
-    let digest = Sha256::digest(payload).to_vec();
+    let digest: [u8; 32] = Sha256::digest(payload).into();
     let request_id = uuid::Uuid::now_v7().to_string();
-    let created = create::handle(
-        context,
-        UploadsCreateRequest {
-            metadata: Some(FileMetadata {
-                id: format!("view/{request_id}"),
-                scope: context.caller.as_ref().map(|caller| caller.execution.clone()),
+    let maximum = transfer::chunk_bytes(context).await?;
+    let mutation = transfer::mutation(context, "Retain View", &request_id).await?;
+    let created = context
+        .storage::<CreateFileProduction>(CreateFileProductionRequest {
+            metadata: Some(storage::FileMetadata {
+                id: Identifier::new(format!("view/{request_id}")).map_err(|source| Error::Invalid(format!("Retain View: {source}")))?,
+                scope: Some(scope.clone()),
                 media_type: "application/x-protobuf".into(),
                 expected_length: Some(payload.len() as u64),
-                expected_sha256: Some(digest.clone()),
+                expected_sha256: Some(digest),
             }),
-            request_id: request_id.clone(),
-        },
-    )
-    .await?;
-    let upload = created.upload.ok_or_else(|| Error::Precondition("Retain View: Create Its Native Upload".into()))?;
+            mutation: Some(mutation),
+        })
+        .await?;
+    let upload =
+        created.production.map(transfer::upload).ok_or_else(|| Error::Precondition("Retain View: Create Its Native Upload".into()))?;
     let produced = async {
         let mut offset = 0;
-        for data in payload.chunks(created.chunk_bytes as usize) {
+        for data in payload.chunks(maximum) {
             append::handle(
                 context,
                 UploadsAppendRequest {
@@ -233,7 +235,7 @@ async fn retain(context: &Context, key: &str, payload: &[u8]) -> Result<FileRefe
             UploadsPublishRequest {
                 upload: Some(upload.clone()),
                 length: payload.len() as u64,
-                sha256: digest,
+                sha256: digest.to_vec(),
                 request_id: request_id.clone(),
             },
         )
@@ -250,11 +252,7 @@ async fn retain(context: &Context, key: &str, payload: &[u8]) -> Result<FileRefe
             return Err(source);
         }
     };
-    let scope = match &context.caller {
-        Some(caller) => Scope::Execution(&caller.execution).identifier()?,
-        None => Scope::Root(&context.host.identity().backend_id).identifier()?,
-    };
-    let saved = administration::retain(context, key, scope, &file).await?;
+    let saved = administration::retain(context, key, scope.clone(), &file).await?;
     if saved != file {
         let file = storage::FileReference::try_from(file)
             .map_err(|source| Error::Invalid(format!("Retain View: Remove Its Unused Native File: {source}")))?;

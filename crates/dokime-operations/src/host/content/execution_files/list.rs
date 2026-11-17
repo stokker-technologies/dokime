@@ -15,19 +15,17 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
-
 use dokime_protocol::host::content::ExecutionFilesListRequest;
 use dokime_protocol::host::content::ExecutionFilesListResponse;
-
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -53,7 +51,8 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: ExecutionFilesListRequest) -> Result<ExecutionFilesListResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         crate::host::views::continuation(request.page.as_ref(), request.at.as_ref())?;
-        let (saved, cut) = crate::host::views::read(context, &format!("files/{}", request.parent), request.at.as_ref(), async {
+        let owner = Scope::Execution(&request.parent).identifier()?;
+        let (saved, cut) = crate::host::views::read(context, owner, &format!("files/{}", request.parent), request.at.as_ref(), async {
             let mut files = Vec::new();
             for entry in crate::host::content::execution_files(context, &request.parent).await? {
                 files.push(entry.metadata.ok_or_else(|| Error::Precondition("List Execution Files: Restore Its Metadata".into()))?);

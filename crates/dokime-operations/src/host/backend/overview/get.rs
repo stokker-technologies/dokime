@@ -15,23 +15,21 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
+use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 use prost::Message;
 
 // Local Imports
+use crate::host::ClientSettings;
 use crate::{Error, Result, host::Context};
-
 use dokime_protocol::host::backend::EvidenceCounts;
 use dokime_protocol::host::backend::OverviewGetRequest;
 use dokime_protocol::host::backend::OverviewGetResponse;
 use dokime_protocol::host::backend::RuntimeShellSnapshot;
-use std::num::NonZeroUsize;
-
-use harmos_protocol::model::OperationContract;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -56,8 +54,9 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 }
 pub async fn handle(context: &Context, request: OverviewGetRequest) -> Result<OverviewGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
+        let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;
         let (overview, cut) =
-            crate::host::views::read(context, &format!("{ID}/{}", context.host.identity().epoch), request.at.as_ref(), async {
+            crate::host::views::read(context, owner, &format!("{ID}/{}", context.host.identity().epoch), request.at.as_ref(), async {
                 let cycles = crate::host::execution_state::cycles(context).await?;
                 let cycle_summaries = cycles;
                 let cursor = crate::host::execution_state::observed(context);

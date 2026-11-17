@@ -722,6 +722,13 @@ frontiers round down inside compound ranges and report gaps for committed
 deletions or lost object revisions. Product watch-source adoption remains open.
 The retained backend format
 keeps baseline v1 and refuses superseded native roots with fresh-root guidance.
+Product file productions use the same exact R/C/Y/E scopes as their metadata owners.
+Retained resource views declare their source owner explicitly: case details belong
+to C, execution views to E, cycle views to Y and cross-owner collections to R.
+Both immutable view indexes and their native files retain that owner, independent
+of whether a client or plugin read the resource. Earlier native roots whose files
+used bare execution IDs or whose view indexes used caller-derived owners are refused
+before opening the execution catalog. There is no migration or fallback reader.
 Native storage and the existing descriptor-driven evidence store remain distinct
 until operations/runtime callers complete their native-port adoption. Product
 protobuf values and descriptors must be mapped explicitly at those callers.

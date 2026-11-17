@@ -61,12 +61,16 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
         let digest =
             (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
         let name = format!("prepared-report/{}", request.request_id);
+        let scope = match &metadata.test_execution_id {
+            Some(execution) => Scope::Execution(execution),
+            None => Scope::Cycle(&metadata.test_cycle_id),
+        };
         let created = create::handle(
             context,
             UploadsCreateRequest {
                 metadata: Some(FileMetadata {
                     id: name.clone(),
-                    scope: metadata.test_execution_id.clone().or(Some(metadata.test_cycle_id.clone())),
+                    scope: Some(scope.identifier()?.to_string()),
                     media_type: "text/html".into(),
                     expected_length: Some(length),
                     expected_sha256: Some(digest.clone()),

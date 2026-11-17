@@ -15,13 +15,19 @@
 
 /* === Imports === */
 
-use crate::host::Context;
-use crate::{Error, Result};
+// Standard Library Imports
+
+// Third Party Imports
 use harmos_protocol::model::{FileReference, History, Upload, UploadState};
 use harmos_runtime::Identifier;
 use harmos_runtime::builtins::storage::{Info, InfoRequest};
 use harmos_runtime::storage::{FilePhase, FileProducer, FileProgress, FileSession, MutationId, StagedFile, StoreHistory};
 use sha2::{Digest, Sha256};
+
+// Local Imports
+use crate::host::Context;
+use crate::{Error, Result};
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -51,8 +57,8 @@ pub(crate) async fn chunk_bytes(context: &Context) -> Result<usize> {
 pub(crate) fn authorize(context: &Context, file: &FileReference) -> Result<()> {
     if let Some(caller) = &context.caller {
         let metadata = file.metadata.as_ref().ok_or_else(|| Error::Permission("Access File: Supply Its Scoped Reference".into()))?;
-        caller.resolve_execution(metadata.scope.as_deref(), "Access File")?;
-        if metadata.scope.as_deref() != Some(caller.execution.as_str()) {
+        let scope = Scope::Execution(&caller.execution).identifier()?;
+        if metadata.scope.as_deref() != Some(scope.as_str()) {
             return Err(Error::Permission("Access File: Select Content in the Calling Execution".into()));
         }
     }

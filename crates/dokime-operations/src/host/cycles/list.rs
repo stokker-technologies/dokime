@@ -16,8 +16,10 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::cmp::Ordering;
 
 // Third Party Imports
+use harmos_protocol::model::OperationContract;
 
 // Local Imports
 use crate::host::ClientSettings;
@@ -26,8 +28,7 @@ use dokime_protocol::host::CycleOrderKey;
 use dokime_protocol::host::CycleStatus;
 use dokime_protocol::host::CyclesListRequest;
 use dokime_protocol::host::CyclesListResponse;
-use harmos_protocol::model::OperationContract;
-use std::cmp::Ordering;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -57,7 +58,8 @@ pub async fn handle(context: &Context, request: CyclesListRequest) -> Result<Cyc
         selection.at = None;
         selection.page = None;
         let key = format!("cycles/{}", crate::host::views::hex(&crate::host::paging::bytes(&selection)));
-        let (saved, cut) = crate::host::views::read(context, &key, request.at.as_ref(), async {
+        let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;
+        let (saved, cut) = crate::host::views::read(context, owner, &key, request.at.as_ref(), async {
             let mut cycles = crate::host::execution_state::cycles(context).await?;
             let filter = request.filter.clone().unwrap_or_default();
             if filter.statuses.iter().any(|status| CycleStatus::try_from(*status).is_err()) {

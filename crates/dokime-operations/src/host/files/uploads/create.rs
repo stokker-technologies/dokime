@@ -15,13 +15,19 @@
 
 /* === Imports === */
 
+// Standard Library Imports
+
+// Third Party Imports
+use harmos_protocol::model::OperationContract;
+use harmos_runtime::builtins::storage::{CreateFileProduction, CreateFileProductionRequest};
+use harmos_runtime::storage;
+
+// Local Imports
 use crate::host::files::transfer;
 use crate::host::{ClientSettings, Context};
 use crate::{Error, Result};
 use dokime_protocol::host::files::{UploadsCreateRequest, UploadsCreateResponse};
-use harmos_protocol::model::OperationContract;
-use harmos_runtime::builtins::storage::{CreateFileProduction, CreateFileProductionRequest};
-use harmos_runtime::storage::FileMetadata as NativeFileMetadata;
+use dokime_storage::persisted::Scope;
 
 /* === Constants === */
 
@@ -47,15 +53,16 @@ pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
 pub async fn handle(context: &Context, request: UploadsCreateRequest) -> Result<UploadsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let mut metadata = request.metadata.ok_or_else(|| Error::Invalid(format!("{ID}: Supply File Metadata")))?;
-        if let Some(caller) = &context.caller {
-            let execution = caller.resolve_execution(metadata.scope.as_deref(), ID)?;
-            metadata.scope = Some(execution.to_owned());
-        }
+        metadata.scope = Some(scope(
+            &context.host.identity().backend_id,
+            context.caller.as_ref().map(|caller| caller.execution.as_str()),
+            metadata.scope.as_deref(),
+        )?);
         let mutation = transfer::mutation(context, ID, &request.request_id).await?;
         if metadata.id.is_empty() {
             metadata.id = mutation.key.to_string();
         }
-        let metadata = NativeFileMetadata::try_from(metadata).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
+        let metadata = storage::FileMetadata::try_from(metadata).map_err(|cause| Error::Invalid(format!("{ID}: {cause}")))?;
         let response = context
             .storage::<CreateFileProduction>(CreateFileProductionRequest {
                 metadata: Some(metadata),
@@ -75,6 +82,50 @@ pub async fn handle(context: &Context, request: UploadsCreateRequest) -> Result<
 
 /* === Private Functions === */
 
+fn scope(root: &str, execution: Option<&str>, selected: Option<&str>) -> Result<String> {
+    if let Some(execution) = execution {
+        let scope = Scope::Execution(execution).identifier()?.to_string();
+        if selected.is_some_and(|selected| selected != scope) {
+            return Err(Error::Permission(format!("{ID}: Select the Calling Execution's Storage Scope")));
+        }
+        return Ok(scope);
+    }
+    let Some(selected) = selected else {
+        return Ok(Scope::Root(root).identifier()?.to_string());
+    };
+    let scope = match selected.split_once('/') {
+        Some(("execution", key)) => Scope::Execution(key),
+        Some(("cycle", key)) => Scope::Cycle(key),
+        Some(("case", key)) => Scope::Case(key),
+        Some(("root", key)) if key == root => Scope::Root(key),
+        _ => return Err(Error::Invalid(format!("{ID}: Select an Exact Execution, Cycle, Case or Current Root Storage Scope"))),
+    };
+    let scope = scope.identifier().map_err(|source| Error::Invalid(format!("{ID}: {source}")))?;
+    Ok(scope.to_string())
+}
+
 /* === Tests === */
 
 crate::native::unary!(UploadsCreateRequest, UploadsCreateResponse, context, "dokime.host.v1.files", "Uploads", "Create");
+
+#[cfg(test)]
+mod tests {
+    use super::scope;
+    use crate::Error;
+
+    #[test]
+    fn file_owners_use_exact_scopes_and_inherit_the_admitted_execution() {
+        assert_eq!(scope("backend", None, None).unwrap(), "root/backend");
+        assert_eq!(scope("backend", Some("same"), None).unwrap(), "execution/same");
+        assert_eq!(scope("backend", Some("same"), Some("execution/same")).unwrap(), "execution/same");
+        assert!(matches!(scope("backend", Some("same"), Some("cycle/same")), Err(Error::Permission(_))));
+        assert!(matches!(scope("backend", Some("same"), Some("execution/other")), Err(Error::Permission(_))));
+        assert!(matches!(scope("backend", Some("same"), Some("same")), Err(Error::Permission(_))));
+        assert_eq!(scope("backend", None, Some("cycle/same")).unwrap(), "cycle/same");
+        assert_eq!(scope("backend", None, Some("execution/same")).unwrap(), "execution/same");
+        assert_eq!(scope("backend", None, Some("case/same")).unwrap(), "case/same");
+        for selected in ["same", "execution/", "cycle/", "case/", "root/other"] {
+            assert!(matches!(scope("backend", None, Some(selected)), Err(Error::Invalid(_))));
+        }
+    }
+}
