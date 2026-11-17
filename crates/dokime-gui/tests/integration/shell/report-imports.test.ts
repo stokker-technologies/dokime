@@ -35,13 +35,17 @@ const config = JSON.parse(readFileSync(resolve(root, "tsconfig.json"), "utf8").r
 
 /* === Tests === */
 
-test("the embedded report cannot reach generated RPC or message modules", () => {
+test("the embedded report permits generated messages and cannot reach RPC clients or transports", () => {
   const vite = readFileSync(resolve(root, "vite.config.ts"), "utf8");
   const input = vite.match(/input:[^\n]*?fileURLToPath\(new URL\("(.+?)", import.meta.url\)\)/)?.[1];
   assert.ok(input, "resolve the report HTML from the Vite entry configuration");
   const html = readFileSync(resolve(root, input), "utf8");
   const entries = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((match) => resolve(root, match[1].replace(/^\//, "")));
   assert.ok(entries.length, "the report must have a module entry");
+
+  const messages = resolveLocal("@host/model", entries[0]);
+  assert.ok(messages, "resolve the shared generated message barrel");
+  entries.push(messages);
 
   const visited = new Set<string>();
   const pending = entries.map((entry) => [entry]);
@@ -51,12 +55,17 @@ test("the embedded report cannot reach generated RPC or message modules", () => 
     const file = chain[chain.length - 1];
     const path = relative(root, file).replaceAll("\\", "/");
     const trace = chain.map((item) => relative(root, item)).join(" → ");
-    assert.doesNotMatch(path, /^(?:src\/lib\/rpc\/generated\/|src\/lib\/api\/native-documents\.|\.\.\/\.\.\/target\/generated\/)/, trace);
+    assert.doesNotMatch(
+      path,
+      /^(?:src\/lib\/(?:host\/client|rpc\/(?:transport|ipc|artifact-upload))\.|\.\.\/\.\.\/target\/generated\/host\/client\.)/,
+      trace,
+    );
     if (visited.has(file)) continue;
     visited.add(file);
     if (!/\.[cm]?[jt]sx?$/.test(file)) continue;
     const source = readFileSync(file, "utf8");
     for (const specifier of runtimeImports(source)) {
+      assert.doesNotMatch(specifier, /^(?:@connectrpc\/|@grpc\/)/, trace);
       const dependency = resolveLocal(specifier, file);
       if (dependency) pending.push([...chain, dependency]);
     }
@@ -110,11 +119,10 @@ function resolveLocal(specifier: string, importer: string): string | null {
   }
   if (!base && specifier.startsWith(".")) base = resolve(dirname(importer), specifier);
   if (!base) return null;
-  // Preserve The Forbidden Target Even When Generation Has Never Run.
-  if (base.startsWith(resolve(root, "../../target/generated"))) return base;
   // Assets Have No TypeScript Imports And May Be Produced By A Separate Build.
   if (/\.(?:css|json|svg|png|woff2?)$/.test(base)) return null;
-  const candidates = [base, ...[".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.tsx"].map((suffix) => base + suffix)];
+  const typescript = base.replace(/\.[cm]?js$/, ".ts");
+  const candidates = [typescript, base, ...[".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.tsx"].map((suffix) => base + suffix)];
   const found = candidates.find((candidate) => existsSync(candidate) && /\.[^/]+$/.test(candidate));
   assert.ok(found, `unresolved report import ${specifier} from ${relative(root, importer)}`);
   return found;
