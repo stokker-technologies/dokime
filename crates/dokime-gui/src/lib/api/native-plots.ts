@@ -30,7 +30,7 @@ import {
   Reduction,
   XyInterval,
 } from "@host/model";
-import { type SnapshotsWatchResponse } from "@host/model";
+import type { SnapshotsWatchResponse } from "@host/model";
 import { Aggregate, type TransformExpression } from "@host/model";
 import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
@@ -66,7 +66,6 @@ type NativePlotPayload = NonNullable<PlotEnvelope["payload"]>;
 type NativePlotAnalysis = NonNullable<NativePlotPayload["analysis"]>;
 type NativePlotFrame = NonNullable<NativePlotPayload["frame"]>;
 type NativePlotMarker = NativePlotPayload["markers"][number];
-type NativePlotPayloadDiagnostics = NonNullable<PlotEnvelope["diagnostics"]>;
 type NativePlotSeries = NativePlotPayload["series"][number];
 
 type PlotType = NonNullable<PlotRequest["plotType"]>;

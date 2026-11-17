@@ -13,24 +13,24 @@
 # Standard Library Imports
 import runpy
 import unittest
+from operator import mul
 from pathlib import Path
 from typing import Self
 from uuid import uuid4
 
+# Third Party Imports
 from google.protobuf.wrappers_pb2 import Int32Value
-from harmos import CLASSIFICATION_TRANSIENT, VISIBILITY_PRIVATE, FailureValue
+from harmos import CLASSIFICATION_TRANSIENT, VISIBILITY_PRIVATE, FailureValue, plugin
 from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
-from harmos.plugin import Context as InvocationContext
 from harmos.plugin import Operation, operation
 
-# Third Party Imports
-from dokime import Failure, Metadata, Parameter
+# Local Imports
+from dokime import FailureError, Metadata, Parameter
 from dokime.authoring import Case, criterion, materialize, step, suite
 from dokime.client import EXECUTION_MODE_AUTOMATIC, ExecutionBinding, RegisteredSelection, SelectionPlan
 from dokime.plugin import Context, Plugin
 from dokime.values import Scalar, encode
 
-# Local Imports
 # Type Checking Imports
 
 # === Public Exports === #
@@ -50,9 +50,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
 
         class Operations:
             @operation(reading.id, request=Int32Value, response=Int32Value, visibility=VISIBILITY_PRIVATE)
-            async def read(self, ctx: InvocationContext, request: Int32Value) -> Int32Value:
-                from operator import mul
-
+            async def read(self, ctx: plugin.Context, request: Int32Value) -> Int32Value:
                 return Int32Value(value=mul(request.value, request.value))
 
         @suite(
@@ -83,7 +81,7 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             async def measure(self, ctx: Context, *, channel: int) -> None:
                 self.attempts.append((channel, ctx.attempt))
                 if channel == 2 and ctx.attempt == 1:
-                    raise Failure(
+                    raise FailureError(
                         FailureValue(
                             classification=CLASSIFICATION_TRANSIENT,
                             code="retry_measurement",
