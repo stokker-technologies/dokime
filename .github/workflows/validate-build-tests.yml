@@ -217,10 +217,7 @@ jobs:
     - name: Restore Pinned C++ Dependencies
       id: cpp_dependencies
       if: inputs.fixture-language == 'cpp'
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-      with:
-        path: target/cp/v
-        key: sdk-cpp-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('sdk/cpp/vcpkg.json', 'sdk/cpp/CMakePresets.json', 'sdk/cpp/mise.toml', 'sdk/cpp/mise.lock') }}
+      uses: ./sdk/cpp/actions/cache
     - run: mise run build:host-fixtures -- --profile ${{ env.PROFILE }} --language ${{ inputs.fixture-language }} --export
     - name: Preserve C++ Build Diagnostics
       if: always() && inputs.fixture-language == 'cpp'
@@ -238,8 +235,9 @@ jobs:
         retention-days: 7
         compression-level: 0
     - name: Save Pinned C++ Dependencies
-      if: inputs.fixture-language == 'cpp' && steps.cpp_dependencies.outputs.cache-hit != 'true'
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      if: inputs.fixture-language == 'cpp'
+      uses: ./sdk/cpp/actions/cache
       with:
-        path: target/cp/v
+        operation: save
         key: ${{ steps.cpp_dependencies.outputs.cache-primary-key }}
+        cache-hit: ${{ steps.cpp_dependencies.outputs.cache-hit }}

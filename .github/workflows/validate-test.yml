@@ -105,6 +105,10 @@ jobs:
       with:
         name: build-bench-${{ inputs.platform }}
         path: target/ci
+    - name: Restore C++ Dependencies
+      id: cpp_dependencies
+      if: inputs.work == 'C++ / SDK'
+      uses: ./sdk/cpp/actions/cache
     - run: mise run ${{ inputs.command }} --profile ${{ env.PROFILE }}
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
@@ -118,10 +122,21 @@ jobs:
 
           target/benchmarks/
 
-          target/coverage/'
+          target/coverage/
+
+          target/cp/**/*.log
+
+          target/cp/**/junit.xml'
         if-no-files-found: ignore
         retention-days: 7
         include-hidden-files: true
+    - name: Save C++ Dependencies
+      if: inputs.work == 'C++ / SDK'
+      uses: ./sdk/cpp/actions/cache
+      with:
+        operation: save
+        key: ${{ steps.cpp_dependencies.outputs.cache-primary-key }}
+        cache-hit: ${{ steps.cpp_dependencies.outputs.cache-hit }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
         != 'true' && steps.setup.outputs.cargo_downloads-path != ''

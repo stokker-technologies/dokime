@@ -42,7 +42,18 @@ jobs:
       with:
         platform: ${{ runner.os == 'Windows' && 'windows' || 'unix' }}
         bootstrap: ${{ matrix.bootstrap }}
+    - name: Restore C++ Dependencies
+      id: cpp_dependencies
+      if: matrix.language == 'cpp'
+      uses: ./sdk/cpp/actions/cache
     - run: mise run ${{ matrix.command }} --profile ${{ env.PROFILE }}
+    - name: Save C++ Dependencies
+      if: matrix.language == 'cpp'
+      uses: ./sdk/cpp/actions/cache
+      with:
+        operation: save
+        key: ${{ steps.cpp_dependencies.outputs.cache-primary-key }}
+        cache-hit: ${{ steps.cpp_dependencies.outputs.cache-hit }}
     - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       if: success() && github.ref == 'refs/heads/dev' && github.event_name != 'pull_request' && steps.setup.outputs.cargo_downloads-cache-hit
         != 'true' && steps.setup.outputs.cargo_downloads-path != ''
