@@ -15,9 +15,9 @@ import { create } from "@bufbuild/protobuf";
 import type { EvidenceScope } from "@host/model";
 import * as hostModel from "@host/model";
 import {
-  NativePlotPayloadEnvelope,
-  PlotEnvelope,
-  PlotRequest,
+  type NativePlotPayloadEnvelope,
+  type PlotEnvelope,
+  type PlotRequest,
   mapNativePlotEnvelope,
   mapNativePlotPayload,
   plotType,

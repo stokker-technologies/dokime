@@ -16,7 +16,7 @@
 import { cutKey, required } from "@/lib/rpc/canonical";
 import type { ReadCut } from "@host/model";
 import { CycleOrderKey, CyclePhase } from "@host/model";
-import { CaseSummary, CycleSummary, ExecutionSummary, mapNativeCyclePlan } from "./native-planning-projection";
+import { type CaseSummary, type CycleSummary, type ExecutionSummary, mapNativeCyclePlan } from "./native-planning-projection";
 
 import * as rpc from "@/lib/host/client";
 import { jsonToNativeValue, metadataJson, nativeValuesToJson } from "@/lib/host/values";

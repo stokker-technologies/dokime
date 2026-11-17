@@ -24,9 +24,9 @@ import type { ArtifactRecord, ExecutionFileFollowEvent, ExecutionFileIdentity, E
 import * as desktopProtocol from "@generated/desktop-protocol";
 import * as hostModel from "@host/model";
 import {
-  ArtifactMetadata,
-  ExecutionFileMetadata,
-  NativeArtifactUploadOptions,
+  type ArtifactMetadata,
+  type ExecutionFileMetadata,
+  type NativeArtifactUploadOptions,
   mapArtifactMetadata,
   mapExecutionFile,
   mapFileState,

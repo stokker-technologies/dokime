@@ -94,7 +94,7 @@ import { usePlotPalette } from "@/plots/use-plot-palette";
 import { PLOT_DRAG_OPTIONS, attachPan, heldViewport, pannedRange } from "@/plots/viewport";
 import { applyReportAppearance } from "@/report/report-appearance";
 import { useSummaryWindowStore } from "@/stores/summary-window-store";
-import { type NativePlotPayloadEnvelope } from "../../../src/lib/api/native-plot-projection";
+import type { NativePlotPayloadEnvelope } from "../../../src/lib/api/native-plot-projection";
 
 /* === Re-Exports === */
 

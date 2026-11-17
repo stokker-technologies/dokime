@@ -15,7 +15,7 @@
 
 import { cutKey, required } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@host/model";
-import { NativeHealthItem, NativeOperatorNote, mapNativeHealth, mapNativeNote } from "./native-annotation-projection";
+import { type NativeHealthItem, type NativeOperatorNote, mapNativeHealth, mapNativeNote } from "./native-annotation-projection";
 
 import * as rpc from "@/lib/host/client";
 import type { Wire } from "@/lib/rpc/canonical";

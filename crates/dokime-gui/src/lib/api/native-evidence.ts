@@ -14,7 +14,7 @@
 import { executionSchemas } from "@/lib/host/schemas";
 import { cutKey, required } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@host/model";
-import { CapturedRecord, RecordPage } from "./native-record-projection";
+import type { CapturedRecord, RecordPage } from "./native-record-projection";
 
 /* === Local Imports === */
 

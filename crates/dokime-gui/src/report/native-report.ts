@@ -14,7 +14,7 @@ import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
 
 /* === Imports === */
 
-import { type CycleSnapshotSource } from "@/features/cycle/snapshot-source";
+import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import { mapNativeHealth, mapNativeNote } from "@/lib/api/native-annotation-projection";
 import { mapArtifactMetadata, mapExecutionFile } from "@/lib/api/native-content-projection";
 import { assembleDocument, mapNativeDocument } from "@/lib/api/native-documents";

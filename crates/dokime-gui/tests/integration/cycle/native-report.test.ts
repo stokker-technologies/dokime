@@ -172,11 +172,16 @@ test("Incomplete Embedded Documents Are Refused by the Live Assembler", async ()
 
 test("Cycle Reports Retain Their Own Document and Execution Documents", async () => {
   const capture = await nativeReport();
-  capture.report!.testExecutionId = undefined;
+  assert.ok(capture.report);
+  capture.report.testExecutionId = undefined;
   capture.document = fromBinary(ReportCaptureSchema, toBinary(ReportCaptureSchema, capture)).executions[0].document;
-  const first = capture.document!.frames[0].frame!.kind;
+  const first = capture.document?.frames[0].frame?.kind;
+  assert.ok(first);
   assert.equal(first.case, "header");
-  if (first.case === "header") first.value.scope!.executionId = "";
+  if (first.case === "header") {
+    assert.ok(first.value.scope);
+    first.value.scope.executionId = "";
+  }
   const { source } = await materializeReport(capture);
   assert.ok(source.document(null));
   assert.ok(source.document("execution"));
@@ -185,7 +190,9 @@ test("Cycle Reports Retain Their Own Document and Execution Documents", async ()
 
 test("Embedded Descriptor Bytes Must Match the Frozen Digest", async () => {
   const capture = await nativeReport();
-  capture.executions[0].detail!.execution!.schemas!.digest[0] ^= 1;
+  const schemas = capture.executions[0].detail?.execution?.schemas;
+  assert.ok(schemas);
+  schemas.digest[0] ^= 1;
   await assert.rejects(materializeReport(capture));
 });
 
@@ -208,9 +215,11 @@ test("Embedded File Bytes Retain Their Resource Media Type and Digest", async ()
       file,
     },
   });
-  capture.appearance!.appearance!.logos.push(logo);
-  const { appearance } = await materializeReport(capture);
-  assert.equal(appearance.logos[0].url, "data:image/png;base64,AQID");
+  const appearance = capture.appearance?.appearance;
+  assert.ok(appearance);
+  appearance.logos.push(logo);
+  const report = await materializeReport(capture);
+  assert.equal(report.appearance.logos[0].url, "data:image/png;base64,AQID");
   data[0] ^= 1;
   await assert.rejects(materializeReport(capture));
 });

@@ -17,7 +17,7 @@ import type * as hostModel from "@host/model";
 
 import { metadataJson, nativeValueToJson } from "@/lib/host/values";
 
-import { type Wire } from "@/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 
 import type { StepExecutionRecord, TestCase, TestExecution } from "@/lib/types";
 

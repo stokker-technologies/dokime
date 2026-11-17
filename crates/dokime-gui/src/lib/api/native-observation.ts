@@ -16,7 +16,7 @@ import { mapRuntimeShell } from "./native-runtime-projection";
 import * as rpc from "@/lib/host/client";
 import { required, type Wire } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@host/model";
-import { NativeTraceabilitySnapshot, mapNativeTraceability } from "./native-traceability-projection";
+import { type NativeTraceabilitySnapshot, mapNativeTraceability } from "./native-traceability-projection";
 export type RuntimeStateFrame = Wire<
   Awaited<ReturnType<typeof rpc.backendOverviewWatch>> extends NativeStream<infer Frame> ? Frame : never
 >;

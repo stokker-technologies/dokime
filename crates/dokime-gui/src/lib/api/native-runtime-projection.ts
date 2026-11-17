@@ -17,7 +17,7 @@ import type * as hostModel from "@host/model";
 
 import { defaultBrand } from "@/lib/brand";
 
-import { type Wire } from "@/lib/rpc/canonical";
+import type { Wire } from "@/lib/rpc/canonical";
 
 import type { EvidenceScope } from "@host/model";
 

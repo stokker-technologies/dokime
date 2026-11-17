@@ -247,7 +247,6 @@ pub(super) async fn collect(
                     name: id.clone(),
                     at: at.clone(),
                     page: Some(PageRequest { page_token: token, ..Default::default() }),
-                    ..Default::default()
                 },
             )
             .await?;

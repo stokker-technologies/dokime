@@ -3,7 +3,7 @@
 
 /* === External Imports === */
 
-import { create, createFileRegistry, toBinary } from "@bufbuild/protobuf";
+import { create, type createFileRegistry, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import type { ExecutionDetail } from "@host/model";
 import { frozenRegistry } from "./schema-registry";

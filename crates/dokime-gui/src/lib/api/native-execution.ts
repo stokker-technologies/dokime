@@ -16,7 +16,7 @@
 import * as rpc from "@/lib/host/client";
 import { required } from "@/lib/rpc/canonical";
 import { ExecutionMode, ExecutionParameterSet } from "@host/model";
-import { NativeExecution, mapNativeExecution } from "./native-execution-projection";
+import { type NativeExecution, mapNativeExecution } from "./native-execution-projection";
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { StartTestCycleResponse, TestCyclePlan, TestExecution } from "@/lib/types";
