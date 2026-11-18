@@ -169,7 +169,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn new_embeds_a_buildable_manifest_for_each_starter() -> Result<()> {
+    async fn created_starters_resolve_native_metadata_and_asset_inputs() -> Result<()> {
         let root = tempfile::tempdir()?;
         for (language, folder) in [("python", "test"), ("rust", "test"), ("csharp", "Test"), ("cpp", "test")] {
             let destination = root.path().join(language);
@@ -183,10 +183,15 @@ mod tests {
             let folders = if folder == "Test" { ["Plugin", "Test"] } else { ["plugin", "test"] };
             for folder in folders {
                 let project = PluginProject::read(&destination.join(folder))?;
-                assert!(project.manifest.scripts.build.is_some());
-                assert_eq!(project.manifest.scripts.launch.is_some(), language == "python");
-                assert_eq!(project.manifest.scripts.executable.is_some(), language != "python");
-                assert!(project.manifest.plugin.version.is_some() || project.manifest.plugin.dynamic.iter().any(|key| key == "version"));
+                project.validate_inputs()?;
+                let metadata = project.resolve_metadata("")?;
+                assert!(metadata.version.is_some());
+                assert!(metadata.description.is_some());
+                assert!(!metadata.authors.unwrap_or_default().is_empty());
+                assert!(metadata.license.is_some());
+                assert!(metadata.repository.is_some());
+                let icon = metadata.icon.ok_or("Create Starter: Include Its Plugin Icon")?;
+                assert!(project.path(&icon)?.is_file());
             }
         }
         Ok(())
