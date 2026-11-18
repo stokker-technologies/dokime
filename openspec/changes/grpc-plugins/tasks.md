@@ -98,5 +98,5 @@
 
 - [x] Share Entry Readiness Between CLI Add/Install and the Host Without Changing Their Failure Messages or Watch Policies.
 - [x] Replace the Native Bundle Encoder With the Pinned Library Builder After Native Manifest and Install/Start Equivalence Proof; Remove Encoder-Only Dependencies.
-- [ ] Audit Standalone Product and Library Managed Process Supervision and Report the Required Library Surface Without Replacing Either Supervisor.
-- [ ] Prove the Three Crates' Units, All CLI Stories, Plugin Runtime Stories, Rust/Python Starter Bundles, Formatting, Focused Compilation and Rust Lint.
+- [x] Audit Standalone Product and Library Managed Process Supervision and Report the Required Library Surface Without Replacing Either Supervisor.
+- [x] Prove the Three Crates' Units, All CLI Stories, Plugin Runtime Stories, Rust/Python Starter Bundles, Formatting, Focused Compilation and Rust Lint on Native Windows.
