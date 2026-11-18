@@ -149,7 +149,9 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             request = StepsExecuteRequest(execution="execution", step="readings.start", test_case=case, origin=origin)
             await call.write(
                 InstanceInvokeRequest(
-                    request=Request(operation="readings.start", payload=request.SerializeToString(), scope="execution", attempt=1)
+                    request=Request(
+                        operation="readings.start", payload=request.SerializeToString(), invocation="start", scope="execution", attempt=1
+                    )
                 )
             )
             response = await call.read()
@@ -166,7 +168,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             call = samples()
             try:
                 await call.write(InstanceSamplesRequest(open={"stream": f"readings.{name}", "scope": "execution"}))
-                await call.write(InstanceSamplesRequest(window={"count": 2, "period": {"seconds": 1}}))
+                await call.write(InstanceSamplesRequest(window={"start": {}, "count": 2, "period": {"seconds": 1}}))
                 response = await call.read()
                 assert isinstance(response, InstanceSamplesResponse)
                 self.assertEqual(response.batch.count, 2)

@@ -54,7 +54,7 @@
 
 - [x] Python: Implement Product Exports, Typed Declarations, Generated Names, Plain Values and Visibility; Remove Raw Records and Sections.
 - [x] Python: Migrate Every Python Example and README to the Locked Surface and Entrypoint Layout.
-- [ ] Python: Complete Native Integration Proof With Underscore Identifiers Against This Worktree's Host.
+- [x] Python: Complete Native Integration Proof With Underscore Identifiers Against This Worktree's Host.
 - [x] Python: Qualify Materialized Step and Criterion Instances With the Shared Identifier Function and Support Bound Methods.
 - [ ] Rust: Follow the Locked Authoring Surface.
 - [ ] C#: Follow the Locked Authoring Surface.
