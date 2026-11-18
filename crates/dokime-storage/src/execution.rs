@@ -136,6 +136,12 @@ pub struct ExecutionArchive {
     pub files: Vec<StoredExecutionFile>,
 }
 
+#[derive(Default)]
+pub(crate) struct StepBoundary {
+    pub start: Option<u64>,
+    pub end: Option<u64>,
+}
+
 /* === Enums === */
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -171,9 +177,25 @@ impl ExecutionSnapshot {
         if step.is_empty() {
             return true;
         }
-        let start = self.evidence.iter().find(|entry| entry.kind == "step:start" && entry.step == step);
-        let end = self.evidence.iter().rev().find(|entry| entry.kind == "step:end" && entry.step == step);
-        start.is_some_and(|start| start.position < position && end.is_none_or(|end| position < end.position))
+        let mut boundary = StepBoundary::default();
+        for evidence in &self.evidence {
+            boundary.observe(step, evidence);
+        }
+        boundary.start.is_some_and(|start| start < position && boundary.end.is_none_or(|end| position < end))
+    }
+}
+
+impl StepBoundary {
+    pub fn observe(&mut self, step: &str, evidence: &Evidence) {
+        if evidence.step != step {
+            return;
+        }
+        if evidence.kind == "step:start" {
+            self.start.get_or_insert(evidence.position);
+        }
+        if evidence.kind == "step:end" {
+            self.end = Some(evidence.position);
+        }
     }
 }
 

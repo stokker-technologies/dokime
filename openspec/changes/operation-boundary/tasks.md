@@ -97,6 +97,7 @@ switch with slices 2–4; no old-ledger reader remains behind new append operati
 - [x] 5.3a Before completing a plot snapshot watch, compare every delivered plot revision with its final evidence frontier and drain refreshed pages when sealing overtakes the delivered page. Prove the pre-seal-page and partial-final-page decisions deterministically, without sleeps or timing assertions. Native watch-source adoption remains in 5.3.
 
 - [x] 5.2e Bind statistics-cache hits to the complete request with the normalized field, preserve the recorded request on hits, and add deterministic same-frontier time-window, scope, version and audit-selection regressions. The canonical storage cutover remains open in 5.1–5.2.
+- [x] 5.2f Share the first-start/last-end boundary computation between snapshot membership and paged step ranges, retaining strict membership, bounded paging and missing-step handling. Prove repeated attempts, open steps, empty selections and retained frontiers with focused storage integration.
 
 ## 6. Bootstrap, Final Removal and Facade Adoption
 
@@ -122,6 +123,8 @@ with `plugin-boundary` and `plugin-lifecycle`.
 ## Workflow Follow-Up
 
 - Delivery authorization governs push/review/merge; these slices do not grant it.
+- Review duplicated execution-state decoding and seal verification in `crates/dokime-storage/src/query.rs::Store::cut` (bounded operation reads, including statistics) and `crates/dokime-storage/src/store.rs::Store::read` (runtime execution snapshots). Keep both pending the owner's decision; prefer removing the full-snapshot path's independent validation through one shared locked computation.
+- Consider joining statistics audit-position collection and numeric aggregation in `crates/dokime-operations/src/host/evidence/statistics.rs::select` through the owning query facility; the cache repair preserves their separate scans and does not change the pending native-query cutover.
 - Archive the change only after its obligations close, filling new capability Purposes.
 
 - Review the overlapping conditional-object replay paths in `backend/objects.rs::exchange` (position-keyed receipts, called by `StorageBackend::set_object`) and `backend/compound.rs::commit` (mutation-ID receipts, called by `StorageBackend::mutate`). Keep both until the owner decides whether the library ports can consolidate; the preferred eventual removal is the position-keyed exchange path.

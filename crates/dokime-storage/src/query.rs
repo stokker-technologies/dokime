@@ -24,7 +24,9 @@ use prost::Message;
 use rusqlite::params;
 
 // Local Imports
-use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, Store, store};
+use crate::execution::StepBoundary;
+use crate::telemetry::catalog;
+use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, SampleWindow, Store, store};
 
 use dokime_protocol::host::EvidenceStatisticsRequest;
 use dokime_protocol::host::EvidenceStatisticsResponse;
@@ -115,7 +117,7 @@ impl Store {
                 if store::digest(&connection, execution)? != seal {
                     return Err(Error::Invalid("Inspect Execution: Seal Does Not Match Evidence; Restore a Valid Backup".into()));
                 }
-                crate::telemetry::catalog::verify_files(self.database.parent().unwrap(), &connection, execution)?;
+                catalog::verify_files(self.database.parent().unwrap(), &connection, execution)?;
                 verified.insert(execution.into(), seal.clone());
             }
         }
@@ -128,7 +130,7 @@ impl Store {
         })
     }
     pub fn sample_page(&self, execution: &str, stream: &str, after: u64, through: u64, limit: NonZeroUsize) -> Result<Vec<Sample>> {
-        self.sample_window(crate::SampleWindow {
+        self.sample_window(SampleWindow {
             execution,
             streams: &[stream.into()],
             after: &[(stream.into(), after)],
@@ -155,8 +157,7 @@ impl Store {
             return Ok((0, frontier));
         }
         let mut after = 0;
-        let mut start = None;
-        let mut end = None;
+        let mut boundary = StepBoundary::default();
         loop {
             let page = self.evidence_page(execution, after, frontier, limit)?;
             if page.is_empty() {
@@ -164,19 +165,11 @@ impl Store {
             }
             for evidence in page {
                 after = evidence.position;
-                if evidence.step != step {
-                    continue;
-                }
-                if evidence.kind == "step:start" {
-                    start.get_or_insert(evidence.position);
-                }
-                if evidence.kind == "step:end" {
-                    end = Some(evidence.position.saturating_sub(1));
-                }
+                boundary.observe(step, &evidence);
             }
         }
-        let start = start.ok_or_else(|| Error::Invalid(format!("Read Step Statistics: Select a Started Step {step}")))?;
-        Ok((start, end.unwrap_or(frontier)))
+        let start = boundary.start.ok_or_else(|| Error::Invalid(format!("Read Step Statistics: Select a Started Step {step}")))?;
+        Ok((start, boundary.end.map(|end| end.saturating_sub(1)).unwrap_or(frontier)))
     }
 }
 
