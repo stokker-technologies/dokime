@@ -8,6 +8,10 @@
 
 # === Tools === #
 
+[vars]
+
+configuration = "{{ get_env(name='DOKIME_CSHARP_CONFIGURATION', default='Release') }}"
+
 [tools]
 dotnet = "10.0.403"
 
@@ -22,7 +26,7 @@ run = [
 hide = true
 description = "Prepare the Pinned Harmos Project and NuGet Feed"
 usage = 'flag "--refresh-lock"'
-run = ['python tools/prepare_harmos.py "{{tools.dotnet.path}}/dotnet"{% if usage.refresh_lock %} --refresh-lock{% endif %}']
+run = ['python tools/prepare_harmos.py "{{tools.dotnet.path}}/dotnet" --configuration {{vars.configuration}}{% if usage.refresh_lock %} --refresh-lock{% endif %}']
 
 [tasks."restore"]
 hide = true
@@ -39,9 +43,10 @@ depends = ["prepare:protocol"]
 run = ['uv run --no-sync --project ../../tools/python python tools/generate.py']
 
 [tasks."build"]
-description = "Build the C# Solution"
+description = "Build the C# Solution or a Selected Project"
+usage = 'flag "--project <project>" default="Dokime.slnx"'
 depends = ["restore", "generate"]
-run = ['"{{tools.dotnet.path}}/dotnet" build Dokime.slnx --configuration Release --no-restore']
+run = ['"{{tools.dotnet.path}}/dotnet" build "{{usage.project}}" --configuration {{vars.configuration}} --no-restore']
 
 [tasks."format"]
 description = "Format the C# Solution"
@@ -66,14 +71,14 @@ run = [
 description = "Pack the C# SDK"
 run = [
   'python tools/package.py',
-  '"{{tools.dotnet.path}}/dotnet" pack Dokime.slnx --configuration Release --no-build --no-restore --output ../../target/cs/feed',
+  '"{{tools.dotnet.path}}/dotnet" pack Dokime.slnx --configuration {{vars.configuration}} --no-build --no-restore --output ../../target/cs/feed',
 ]
 
 [tasks."test"]
 description = "Test the C# Solution"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" test Dokime.slnx --configuration Release --no-build --no-restore --filter "Layer!=Conformance&Layer!=Starter"',
-  '"{{tools.dotnet.path}}/dotnet" ../../target/cs/bin/Builders/release/Builders.dll',
+  '"{{tools.dotnet.path}}/dotnet" test Dokime.slnx --configuration {{vars.configuration}} --no-build --no-restore --filter "Layer!=Conformance&Layer!=Starter"',
+  '"{{tools.dotnet.path}}/dotnet" ../../target/cs/bin/Builders/{{vars.configuration | lower}}/Builders.dll',
 ]
 
 [tasks."build:starter"]
@@ -82,7 +87,7 @@ description = "Build the NuGet Consumer"
 usage = 'flag "--project <project>" default="examples/Test/Test.csproj"'
 run = [
   '"{{tools.dotnet.path}}/dotnet" restore "{{usage.project}}" --configfile NuGet.Config --packages ../../target/cs/packages --force-evaluate',
-  '"{{tools.dotnet.path}}/dotnet" build "{{usage.project}}" --configuration Release --no-restore',
+  '"{{tools.dotnet.path}}/dotnet" build "{{usage.project}}" --configuration {{vars.configuration}} --no-restore',
 ]
 
 [tasks."build:system"]
@@ -90,7 +95,7 @@ hide = true
 description = "Build the Shared Host Fixture"
 run = [
   '"{{tools.dotnet.path}}/dotnet" restore ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configfile NuGet.Config --force-evaluate',
-  '"{{tools.dotnet.path}}/dotnet" build ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configuration Release --no-restore',
+  '"{{tools.dotnet.path}}/dotnet" build ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configuration {{vars.configuration}} --no-restore',
 ]
 
 [tasks."publish:system"]
@@ -98,7 +103,7 @@ hide = true
 description = "Publish the Shared Host Fixture"
 usage = 'arg "output"'
 run = [
-  '"{{tools.dotnet.path}}/dotnet" publish ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configuration Release --self-contained true --output "{{usage.output}}" --configfile NuGet.Config -p:NuGetLockFilePath="{{usage.output}}/packages.lock.json" -p:RestoreForceEvaluate=true',
+  '"{{tools.dotnet.path}}/dotnet" publish ../tests/fixtures/csharp/SystemPlugin/SystemPlugin.csproj --configuration {{vars.configuration}} --self-contained true --output "{{usage.output}}" --configfile NuGet.Config -p:NuGetLockFilePath="{{usage.output}}/packages.lock.json" -p:RestoreForceEvaluate=true',
 ]
 
 [tasks."build:reference"]
@@ -129,11 +134,11 @@ run = ['python tools/run_stories.py "{{tools.dotnet.path}}/dotnet" "Layer=Confor
 hide = true
 description = "Clean C# Compiler Outputs"
 run = [
-  '"{{tools.dotnet.path}}/dotnet" clean Dokime.slnx --configuration Release',
-  '"{{tools.dotnet.path}}/dotnet" clean examples/Test/Test.csproj --configuration Release',
-  '"{{tools.dotnet.path}}/dotnet" clean examples/Client/Client.csproj --configuration Release',
-  '"{{tools.dotnet.path}}/dotnet" clean examples/Plugin/Plugin.csproj --configuration Release',
-  '"{{tools.dotnet.path}}/dotnet" clean ../../target/cs/h/Harmos.csproj --configuration Release',
+  '"{{tools.dotnet.path}}/dotnet" clean Dokime.slnx --configuration {{vars.configuration}}',
+  '"{{tools.dotnet.path}}/dotnet" clean examples/Test/Test.csproj --configuration {{vars.configuration}}',
+  '"{{tools.dotnet.path}}/dotnet" clean examples/Client/Client.csproj --configuration {{vars.configuration}}',
+  '"{{tools.dotnet.path}}/dotnet" clean examples/Plugin/Plugin.csproj --configuration {{vars.configuration}}',
+  '"{{tools.dotnet.path}}/dotnet" clean ../../target/cs/h/Harmos.csproj --configuration {{vars.configuration}}',
 ]
 
 [tasks."check:generated"]

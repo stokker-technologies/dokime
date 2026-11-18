@@ -5,8 +5,6 @@ using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Harmos;
 using Harmos.Plugins;
-using Value = Dokime.Value;
-using TransportContext = Harmos.Plugins.Context;
 
 namespace Dokime.Plugins;
 
@@ -14,15 +12,22 @@ namespace Dokime.Plugins;
 public sealed class Context
 {
   private readonly object? resource;
+  private readonly Template? template;
+  internal object? Instance
+  {
+    get;
+  }
 
-  internal Context(TransportContext transport, TestCase testCase, object? resource = null)
+  internal Context(Harmos.Plugins.Context transport, TestCase testCase, object? resource = null, Template? template = null, object? instance = null)
   {
     Transport = transport;
     TestCase = testCase.Clone();
     this.resource = resource;
+    this.template = template;
+    Instance = instance;
   }
 
-  public TransportContext Transport
+  public Harmos.Plugins.Context Transport
   {
     get;
   }
@@ -50,16 +55,76 @@ public sealed class Context
       where TRequest : IMessage<TRequest>, new() where TResponse : IMessage<TResponse>, new()
       => Transport.WatchAsync(operation, request, maxItemBytes, cancellationToken);
 
-  public Task<RecordsAppendResponse> RecordAsync<T>(Record<T> record, T value, Timestamp sourceAt,
+  public async Task<RecordsAppendResponse> RecordAsync<T>(Record<T> record, T value, Timestamp? sourceAt = null,
       string? requestId = null, OperationPolicy? policy = null, CancellationToken cancellationToken = default)
-      where T : IMessage<T>, new()
-      => Host.Evidence.Records.Append(Execution, record.Identifier, value.ToByteString(), sourceAt,
-          requestId, policy, cancellationToken);
+  {
+    var identity = Resolve(record);
+    var payload = Payload<T>.Pack(value).ToByteString();
+    var at = sourceAt ?? await Host.Time.Get(policy, cancellationToken);
+    return await Host.Evidence.Records.Append(Execution, identity, payload, at, requestId, policy, cancellationToken);
+  }
+
+  public RecordsQuery<T> Records<T>(Record<T> record, object? step = null) =>
+      new(this, Resolve(record), step is null ? "" : Resolve(step));
+
+  public Task<Dokime.Clients.EvidenceStatisticsResponse> StatisticsAsync(IStream stream, string field = "", object? step = null) =>
+      Host.Evidence.Statistics(Resolve(stream), [], new Dokime.Window(), [], field, step is null ? "" : Resolve(step));
+
+  internal string Resolve(object declaration) => template?.Resolve(declaration, Instance)
+      ?? throw new ArgumentException("Resolve Declaration: Call From a Template Operation");
+
+  public Task<string> PromptAsync(string text, string[]? choices = null) => AskAsync(new PromptDeclaration(text, choices), false);
+
+  public Task<string> PromptAsync(PromptDeclaration declaration) => AskAsync(declaration, true);
+
+  private async Task<string> AskAsync(PromptDeclaration declaration, bool declared)
+  {
+    var identity = declared ? Resolve(declaration) : "question";
+    var definition = declaration.Definition.Clone();
+    definition.Metadata ??= new Metadata();
+    definition.Metadata.Identifier = identity;
+    if (declared && template is not null)
+    {
+      definition.OwnerSuite = template.OwnerSuite;
+      definition.Template = template.Definition.Metadata.Identifier;
+    }
+    var response = await Host.Prompts.Create(identity, declared ? identity : "", new Dictionary<string, Value>(), definition);
+    if (!response.Accepted)
+      throw new ArgumentException("Create Prompt: Choose an Accepted Operator Answer");
+    return definition.Actions.FirstOrDefault(action => action.Identifier == response.Action)?.Label
+        ?? throw new ArgumentException("Read Prompt Answer: Choose One of the Declared Actions");
+  }
+
+  public Task<TResponse> CallAsync<TRequest, TResponse>(Dokime.Authoring.Operation<TRequest, TResponse> operation, TRequest request) =>
+      operation.CallAsync(this, request);
 
   public async Task<Receipt> LogAsync(Severity severity, string message, string? requestId = null,
       OperationPolicy? policy = null, CancellationToken cancellationToken = default)
   {
     var at = At ?? await Host.Time.Get(policy, cancellationToken);
     return await Host.Evidence.Logs.Append(Execution, severity, message, at, requestId, policy, cancellationToken);
+  }
+}
+
+
+public sealed class RecordsQuery<T>
+{
+  private readonly Context context;
+  private readonly string identifier;
+  private readonly string step;
+
+  internal RecordsQuery(Context context, string identifier, string step)
+  {
+    this.context = context;
+    this.identifier = identifier;
+    this.step = step;
+  }
+
+  public async Task<T> LastAsync()
+  {
+    var response = await context.Host.Evidence.Records.List(identifier, [], new Dokime.Window(), step, new CapturedRecordSelection());
+    if (response.Last is null)
+      throw new InvalidOperationException("Read Last Record: Capture a Record Before Reading It");
+    return Payload<T>.Unpack(response.Last.Payload);
   }
 }

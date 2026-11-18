@@ -34,18 +34,21 @@ from pathlib import Path
 # === Entry Point === #
 
 root: Path = Path(__file__).resolve().parents[1]
+configuration: str = os.environ.get("DOKIME_CSHARP_CONFIGURATION", "Release")
 suffix: str = ".exe" if os.name == "nt" else ""
 environment: dict[str, str] = os.environ.copy()
 environment.setdefault("HARMOS_CONFORMANCE_HOST", str(root / f"../../target/reference-host/bin/harmos-conformance{suffix}"))
-environment["DOKIME_CONFORMANCE_PLUGIN"] = str(root / f"../../target/cs/bin/Conformance/release/dokime-conformance-plugin{suffix}")
-environment.setdefault("DOKIME_STARTER", str(root / f"../../target/cs/bin/Test/release/dokime-example-test{suffix}"))
+environment["DOKIME_CONFORMANCE_PLUGIN"] = str(
+    root / f"../../target/cs/bin/Conformance/{configuration.lower()}/dokime-conformance-plugin{suffix}"
+)
+environment.setdefault("DOKIME_STARTER", str(root / f"../../target/cs/bin/Test/{configuration.lower()}/dokime-example-test{suffix}"))
 subprocess.run(
     [
         sys.argv[1],
         "test",
         str(root / "tests/Stories/Stories.csproj"),
         "--configuration",
-        "Release",
+        configuration,
         "--no-build",
         "--no-restore",
         "--filter",
