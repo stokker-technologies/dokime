@@ -489,30 +489,20 @@ The pinned revision repairs native snapshot admission: `CreateSnapshot` and
 calls retain their existing deadlines and require no caller override. Archive and
 execution-owned retention proof must run against this repaired pin.
 
-## Report Capture Receipt-Window Race
+## Report Capture Receipt Windows
 
-The OBC report scene reproduces a native mutation-admission failure at Harmos
-`33fda422d8120b0fbb9e403a5de1ac93cfc8b72a`. Product
-`crates/dokime-operations/src/host/views.rs::retain` uses the supported
-`storage.info` window and a fresh UUID before `storage.create_file_production`.
-During concurrent document/view retention, upstream
-`crates/harmos-storage/src/receipts.rs::Receipts::evict_oldest` changes the current
-window when capacity evicts a completed receipt. Another call's fresh window can
-therefore become unknown before admission, without expiry or request reuse.
+The pinned Harmos revision `ba03ec97c16ac05b249efe83c570b7bc83f4e211`
+resolves evicted mutation receipts through the backend. Product view retention
+continues to use the issued storage mutation window with a fresh request identity;
+no product retries, serialization or increased receipt limits are introduced.
+The merged OBC report now reaches native HTML generation and file delivery.
 
-The captured rejection names request `01a1eba3-631a-733b-83bc-65b83744a29f`,
-mutation `0098a63ba33e2d69f4d46314a11df35a490a28052a674740d4e78ff03d027203`,
-and window `f3d40958fa7f4d54d4c7c29477aed919`. A second fresh Retain View request
-using that same issued window is rejected immediately after it. The native call
-is `storage.create_file_production`, before the report HTML upload begins;
-Dokime backend receipt pruning is not the cause. Bounded mutation diagnostics
-and the screenshot scene's native log capture preserve the request/action mapping.
-
-The smallest required upstream capability is admission of fresh work using an
-issued, unexpired window while receipt eviction still prevents an evicted
-mutation from executing again. Upstream ownership and pin adoption remain open
-in task 4.4g. This worker does not change Harmos, retry rejected work, enlarge
-receipt limits or serialize product operations around the library race.
+Report-scene acceptance remains open: the screenshot driver holds the complete
+picker/Create/Publish/Get/download workflow inside WebDriver's default 30-second
+async-script deadline. The native-desktop story submits the save and observes its
+completion separately under the existing journey policy. Replacing the screenshot
+flow changes its effective workflow bound and awaits the owner because this task
+forbids lengthening checks. Keep the current deadline until that decision.
 
 ## Risks / Trade-Offs
 

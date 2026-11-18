@@ -33,6 +33,10 @@ import {
   CaseStatus,
   CyclePhase,
   CycleStatus,
+  DocumentCardKind,
+  DocumentsGetResponseSchema,
+  PlotCartesianMode,
+  PlotKind,
   ExecutionState,
   FileReferenceSchema,
   LogoVariant,
@@ -203,6 +207,99 @@ test("Execution Reports Keep Records Without a Case Tag", async () => {
   assert.equal(source.records.length, 1);
   const html = renderToStaticMarkup(createElement(ReportCycleWorkspace, { source, selection: { executionId: "execution" } }));
   assert.match(html, /data-record-count="1"/);
+});
+
+test("Captured Plot Bindings Preserve Categories and Trajectory Instants", async () => {
+  for (const plotType of [PlotKind.BAR, PlotKind.PIE, PlotKind.TRAJECTORY]) {
+    const capture = await nativeReport();
+    const execution = capture.executions[0];
+    const header = execution.document?.frames[0];
+    assert.ok(header);
+    const metadata = { identifier: "captured-plot", label: "Captured Plot" };
+    const counts = { cardCount: 1n, layoutNodeCount: 1n, bindingCount: 1n };
+    execution.document = create(DocumentsGetResponseSchema, {
+      frames: [
+        header,
+        {
+          frame: {
+            kind: {
+              case: "card",
+              value: { metadata, body: { kind: { case: "owner", value: { kind: DocumentCardKind.PLOT, plotId: metadata.identifier } } } },
+            },
+          },
+        },
+        {
+          frame: {
+            kind: {
+              case: "binding",
+              value: { sourceId: metadata.identifier, metadata, result: { kind: { case: "pending", value: true } } },
+            },
+          },
+        },
+        {
+          frame: { kind: { case: "layoutNode", value: { node: { kind: { case: "placement", value: { cardId: metadata.identifier } } } } } },
+        },
+        { frame: { kind: { case: "structureComplete", value: { ...counts, frameCount: 5n } } } },
+        { frame: { kind: { case: "evidenceCut", value: { cut: { store: "store", epoch: "execution", position: 7n } } } } },
+        {
+          frame: {
+            kind: {
+              case: "binding",
+              value: {
+                sourceId: metadata.identifier,
+                metadata,
+                result: {
+                  kind: { case: "plot", value: { metadata, request: { plotId: metadata.identifier, plotType, stream: "samples" } } },
+                },
+              },
+            },
+          },
+        },
+        { frame: { kind: { case: "cardComplete", value: metadata.identifier } } },
+        { frame: { kind: { case: "completion", value: { ...counts, frameCount: 9n } } } },
+      ],
+    });
+    const trajectory = plotType === PlotKind.TRAJECTORY;
+    execution.plots = create(ReportCaptureSchema, {
+      executions: [
+        {
+          plots: {
+            envelopes: [
+              {
+                plotId: metadata.identifier,
+                epoch: "epoch",
+                selection: "selection",
+                diagnostics: {},
+                payload: {
+                  stream: "samples",
+                  series: [{ key: "value", rawPoints: 1n }],
+                  frame: {
+                    mode: PlotCartesianMode.FACETED,
+                    pointCount: 1n,
+                    series: [
+                      {
+                        x: [{ kind: trajectory ? { case: "number", value: 2 } : { case: "text", value: "category" } }],
+                        y: [{ value: 3 }],
+                        totals: [{ kind: { case: "unsignedInteger", value: 3n } }],
+                        instants: trajectory ? ["1970-01-01T00:00:01Z"] : [],
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    }).executions[0].plots;
+    const { source } = await materializeReport(capture);
+    const payload = source.plotPayloads("execution").plots[metadata.identifier];
+    assert.equal(payload.cartesian, null);
+    const coordinate = payload.series[0].points[0].x;
+    assert.equal(trajectory ? Number(coordinate) : coordinate, trajectory ? 2 : "category");
+    assert.equal(payload.series[0].points[0].y, 3);
+    assert.equal(payload.series[0].points[0].instant, trajectory ? "1970-01-01T00:00:01Z" : null);
+  }
 });
 
 test("Incomplete Embedded Documents Are Refused by the Live Assembler", async () => {

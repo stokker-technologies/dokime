@@ -113,12 +113,14 @@ async function reportSource(capture: ReportCapture, urls: Map<string, string>): 
   for (const entry of capture.executions) {
     const detail = required(entry.detail?.execution, "Open Report Execution");
     const id = required(detail.summary, "Open Report Execution Summary").executionId;
-    documents.set(id, await reportDocument(required(entry.document, "Open Report Document")));
+    const document = await reportDocument(required(entry.document, "Open Report Document"));
+    documents.set(id, document);
+    const plotTypes = new Map(document.cards.flatMap((card) => card.plots.map((plot) => [plot.plot_id, plot.plot_type] as const)));
     plots.set(
       id,
       Object.fromEntries(
         required(entry.plots, "Open Report Plots").envelopes.map((envelope) => {
-          const mapped = mapNativePlotEnvelope(envelope);
+          const mapped = mapNativePlotEnvelope(envelope, required(plotTypes.get(envelope.plotId), "Open Report Plot Binding"));
           return [mapped.plot_id, mapped.payload];
         }),
       ),
