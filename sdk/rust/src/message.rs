@@ -27,7 +27,7 @@ use prost::{
 use prost_reflect::ReflectMessage;
 
 // Local Imports
-use harmos::Message as HarmosMessage;
+use harmos;
 
 /* === Constants === */
 
@@ -46,6 +46,8 @@ pub struct Wire<T>(pub T);
 /* === Traits === */
 
 /* === Implementations === */
+
+impl<T: ReflectMessage + Default + 'static> crate::Message for Wire<T> {}
 
 impl<T: fmt::Debug> fmt::Debug for Wire<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -70,7 +72,7 @@ impl<T: Message> Message for Wire<T> {
     }
 }
 
-impl<T: ReflectMessage + Default + 'static> HarmosMessage for Wire<T> {
+impl<T: ReflectMessage + Default + 'static> harmos::Message for Wire<T> {
     fn name() -> String {
         T::default().descriptor().full_name().into()
     }

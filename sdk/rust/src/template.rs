@@ -30,11 +30,13 @@ use crate::plugin::{
 };
 use crate::wire::model;
 use crate::{
-    Context, Error, Message, Observer, Result, Stream,
+    Context, Error, Message, Observer, Payload, Record, Result, Stream,
+    authoring::{build_identifier, code_name},
     context::Executions,
     data,
     message::Wire,
     operation::{self, Action},
+    plugin::Prompt,
     stream::{Registration, Sampler},
 };
 use crate::{Document, FileParameter, Metadata, Parameter, TestCase, TestCaseTemplate, Value};
@@ -52,6 +54,7 @@ pub(crate) type Materializer = Arc<dyn Fn(TestCase, &HashMap<String, Value>) -> 
 
 /* === Structs === */
 
+#[derive(Clone)]
 pub struct Step {
     pub(crate) metadata: Metadata,
     pub(crate) handler: Action<()>,
@@ -60,6 +63,7 @@ pub struct Step {
     pub(crate) replay_safe: bool,
 }
 
+#[derive(Clone)]
 pub struct Criterion {
     pub(crate) metadata: Metadata,
     pub(crate) handler: Action<bool>,
@@ -73,10 +77,13 @@ pub struct Template {
     steps: Vec<Step>,
     criteria: Vec<Criterion>,
     streams: Vec<String>,
+    external_streams: HashSet<String>,
     registrations: Vec<Registration>,
     materialize: Option<Materializer>,
     samplers: Vec<Sampler>,
     errors: Vec<String>,
+    pub(crate) records: Vec<crate::RecordContract>,
+    pub(crate) prompts: Vec<crate::Prompt>,
 }
 
 // A Validated Template: Its Frozen Case Skeleton and the Handlers Behind Each Operation.
@@ -98,6 +105,21 @@ pub(crate) struct Parts {
 
 /* === Implementations === */
 
+impl<H> From<H> for Step
+where
+    H: for<'a> AsyncFn(&'a Context) -> Result<()> + Send + Sync + 'static,
+{
+    fn from(handler: H) -> Self {
+        Self::new("", handler)
+    }
+}
+
+impl From<&Step> for Step {
+    fn from(step: &Step) -> Self {
+        step.clone()
+    }
+}
+
 impl Step {
     pub fn new<H>(label: impl Into<String>, handler: H) -> Self
     where
@@ -105,7 +127,11 @@ impl Step {
     {
         let label = label.into();
         Self {
-            metadata: metadata(&label),
+            metadata: Metadata {
+                identifier: code_name::<H>(),
+                label,
+                ..Default::default()
+            },
             handler: operation::action(handler),
             policy: OperationPolicy::default(),
             repeatable: false,
@@ -141,7 +167,11 @@ impl Criterion {
     {
         let label = label.into();
         Self {
-            metadata: metadata(&label),
+            metadata: Metadata {
+                identifier: code_name::<H>(),
+                label,
+                ..Default::default()
+            },
             handler: operation::action(handler),
         }
     }
@@ -156,9 +186,13 @@ impl Criterion {
 }
 
 impl Template {
-    pub(crate) fn identifier(&self) -> &str {
+    pub fn identifier(&self) -> &str {
         &self.definition.metadata.as_ref().expect("Template Metadata").identifier
     }
+    pub(crate) fn label(&self) -> &str {
+        &self.definition.metadata.as_ref().expect("Template Metadata").label
+    }
+
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
         let identifier = identifier.into();
         Self {
@@ -169,8 +203,8 @@ impl Template {
                     description: String::new(),
                     ..Default::default()
                 }),
-                materialize: format!("{identifier}.materialize"),
-                cleanup: Some(format!("{identifier}.cleanup")),
+                materialize: build_identifier(&identifier, "materialize", false),
+                cleanup: Some(build_identifier(&identifier, "cleanup", false)),
                 ..Default::default()
             },
             initialize: None,
@@ -178,12 +212,114 @@ impl Template {
             steps: Vec::new(),
             criteria: Vec::new(),
             streams: Vec::new(),
+            external_streams: HashSet::new(),
             registrations: Vec::new(),
             materialize: None,
             samplers: Vec::new(),
             errors: Vec::new(),
+            records: Vec::new(),
+            prompts: Vec::new(),
         }
     }
+    pub fn of<T>(label: impl Into<String>) -> Self {
+        Self::new(code_name::<T>(), label)
+    }
+
+    pub fn record<T: Payload>(mut self, record: Record<T>) -> Self {
+        self.registrations.push(Box::new(|plugin, _, _| plugin.message::<T::Message>()));
+        self.records.push(record.definition);
+        self
+    }
+
+    pub fn prompt(mut self, prompt: Prompt) -> Self {
+        self.prompts.push(prompt.definition);
+        self
+    }
+
+    pub(crate) fn bind(mut self, suite: &str, single: bool) -> Self {
+        if let Err(error) = validate_names([self.identifier()], "Template") {
+            self.errors.push(error.to_string());
+        }
+        if let Err(error) = validate_names(
+            self.steps
+                .iter()
+                .map(|step| step.metadata.identifier.as_str())
+                .chain(self.criteria.iter().map(|criterion| criterion.metadata.identifier.as_str()))
+                .chain(self.records.iter().filter_map(|record| record.metadata.as_ref().map(|metadata| metadata.identifier.as_str())))
+                .chain(self.prompts.iter().filter_map(|prompt| prompt.metadata.as_ref().map(|metadata| metadata.identifier.as_str())))
+                .chain(self.streams.iter().map(String::as_str)),
+            "Template Member",
+        ) {
+            self.errors.push(error.to_string());
+        }
+        let local = self.identifier().to_owned();
+        let identifier = if single { suite.into() } else { build_identifier(suite, &local, false) };
+        self.definition.metadata.as_mut().expect("Template Metadata").identifier = identifier.clone();
+        self.definition.materialize = build_identifier(&identifier, "materialize", false);
+        self.definition.cleanup = Some(build_identifier(&identifier, "cleanup", false));
+        for step in &mut self.steps {
+            step.metadata.identifier = build_identifier(&identifier, &step.metadata.identifier, false);
+        }
+        for criterion in &mut self.criteria {
+            criterion.metadata.identifier = build_identifier(&identifier, &criterion.metadata.identifier, false);
+        }
+        for record in &mut self.records {
+            let metadata = record.metadata.as_mut().expect("Record Metadata");
+            metadata.identifier = build_identifier(&identifier, &metadata.identifier, false);
+        }
+        for prompt in &mut self.prompts {
+            let metadata = prompt.metadata.as_mut().expect("Prompt Metadata");
+            metadata.identifier = build_identifier(&identifier, &metadata.identifier, false);
+            prompt.template = identifier.clone();
+        }
+        for stream in &mut self.streams {
+            if !self.external_streams.contains(stream) {
+                *stream = build_identifier(&identifier, stream, false);
+            }
+        }
+        for sampler in &mut self.samplers {
+            sampler.stream = build_identifier(&identifier, &sampler.stream, false);
+        }
+        if let Some(materialize) = self.materialize.take() {
+            let identifier = identifier.clone();
+            self.materialize = Some(Arc::new(move |mut case: TestCase, parameters: &HashMap<String, Value>| {
+                for step in &mut case.steps {
+                    if let Some(metadata) = &mut step.metadata {
+                        metadata.identifier =
+                            metadata.identifier.strip_prefix(&format!("{identifier}.")).unwrap_or(&metadata.identifier).into();
+                    }
+                }
+                for criterion in &mut case.criteria {
+                    if let Some(metadata) = &mut criterion.metadata {
+                        metadata.identifier =
+                            metadata.identifier.strip_prefix(&format!("{identifier}.")).unwrap_or(&metadata.identifier).into();
+                    }
+                }
+                case = materialize(case, parameters)?;
+                for step in &mut case.steps {
+                    if let Some(metadata) = &mut step.metadata {
+                        metadata.identifier = build_identifier(&identifier, &metadata.identifier, false);
+                    }
+                }
+                for criterion in &mut case.criteria {
+                    if let Some(metadata) = &mut criterion.metadata {
+                        metadata.identifier = build_identifier(&identifier, &metadata.identifier, false);
+                    }
+                }
+                Ok(case)
+            }));
+        }
+        self.registrations = self
+            .registrations
+            .into_iter()
+            .map(|register| {
+                let identifier = identifier.clone();
+                Box::new(move |plugin, executions, _: &str| register(plugin, executions, &identifier)) as Registration
+            })
+            .collect();
+        self
+    }
+
     pub fn initialize<H>(mut self, handler: H) -> Self
     where
         H: for<'a> AsyncFn(&'a Context) -> Result<()> + Send + Sync + 'static,
@@ -218,7 +354,9 @@ impl Template {
     }
     // Subscribe to an Already Declared Stream Without Registering a Second Producer.
     pub fn uses_stream(mut self, identifier: impl Into<String>) -> Self {
-        self.streams.push(identifier.into());
+        let identifier = identifier.into();
+        self.external_streams.insert(identifier.clone());
+        self.streams.push(identifier);
         self
     }
     pub fn parameters<T: Message>(mut self, defaults: T) -> Self {
@@ -264,6 +402,16 @@ impl Template {
             return Err(Error::Invalid(self.errors.join("; ")));
         }
         let identifier = self.definition.metadata.as_ref().expect("Template Metadata").identifier.clone();
+        validate_names(
+            self.steps
+                .iter()
+                .map(|step| step.metadata.identifier.as_str())
+                .chain(self.criteria.iter().map(|criterion| criterion.metadata.identifier.as_str()))
+                .chain(self.records.iter().filter_map(|record| record.metadata.as_ref().map(|metadata| metadata.identifier.as_str())))
+                .chain(self.prompts.iter().filter_map(|prompt| prompt.metadata.as_ref().map(|metadata| metadata.identifier.as_str())))
+                .chain(self.streams.iter().map(String::as_str)),
+            "Template Member",
+        )?;
         validate_names(self.steps.iter().map(|step| step.metadata.identifier.as_str()), "Step")?;
         validate_names(self.criteria.iter().map(|criterion| criterion.metadata.identifier.as_str()), "Criterion")?;
         validate_names(
@@ -284,8 +432,8 @@ impl Template {
             ..Default::default()
         };
         let mut steps = Vec::new();
-        for (index, step) in self.steps.into_iter().enumerate() {
-            let operation = format!("{identifier}.step.{index}");
+        for step in self.steps {
+            let operation = step.metadata.identifier.clone();
             case.steps.push(model::Step {
                 metadata: Some(step.metadata.clone()),
                 operation: operation.clone(),
@@ -294,8 +442,8 @@ impl Template {
             steps.push((operation, step));
         }
         let mut criteria = Vec::new();
-        for (index, criterion) in self.criteria.into_iter().enumerate() {
-            let operation = format!("{identifier}.criterion.{index}");
+        for criterion in self.criteria {
+            let operation = criterion.metadata.identifier.clone();
             case.criteria.push(model::Criterion {
                 metadata: Some(criterion.metadata.clone()),
                 operation: operation.clone(),
@@ -308,7 +456,7 @@ impl Template {
             self.initialize = Some(operation::action(async |_: &Context| Ok(())));
         }
         if self.initialize.is_some() {
-            self.definition.initialize = Some(format!("{identifier}.initialize"));
+            self.definition.initialize = Some(build_identifier(&identifier, "initialize", false));
         }
         Ok(Parts {
             definition: self.definition,
@@ -423,7 +571,7 @@ impl Template {
             },
         ));
         if let Some(initialize) = initialize {
-            let operation = format!("{identifier}.initialize");
+            let operation = build_identifier(&identifier, "initialize", false);
             let store = executions.clone();
             let template = identifier.clone();
             plugin = plugin.operation(operation::wire(
@@ -453,7 +601,7 @@ impl Template {
             },
         ));
         for register in registrations {
-            plugin = register(plugin, executions.clone());
+            plugin = register(plugin, executions.clone(), "");
         }
         Ok((definition, plugin))
     }
@@ -465,28 +613,15 @@ pub(crate) fn validate_names<'a>(names: impl IntoIterator<Item = &'a str>, kind:
     let mut seen = HashSet::new();
     for name in names {
         if name.is_empty() || !seen.insert(name) {
-            return Err(Error::Invalid(format!("Duplicate or Empty {kind}: {name}")));
+            return Err(Error::Invalid(format!(
+                "Declare {kind}: Supply Unique Nonempty Code Identifiers, Including for Anonymous Handlers: {name}"
+            )));
         }
     }
     Ok(())
 }
 
 /* === Private Functions === */
-
-fn metadata(label: &str) -> Metadata {
-    let identifier = label
-        .split(|character: char| !character.is_ascii_alphanumeric())
-        .filter(|word| !word.is_empty())
-        .map(str::to_lowercase)
-        .collect::<Vec<_>>()
-        .join("_");
-    Metadata {
-        identifier,
-        label: label.into(),
-        description: String::new(),
-        ..Default::default()
-    }
-}
 
 /* === Tests === */
 

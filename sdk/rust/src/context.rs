@@ -32,11 +32,13 @@ use crate::Record;
 use crate::RecordsListResponse;
 use crate::operation::FutureResult;
 use crate::plugin::RecordsAppendResponse;
+use crate::plugin::{HostPromptsCreateOptions, Prompt, Step};
 use crate::wire::host::EvidenceStatisticsRequest;
 use crate::wire::host::evidence::{LogsAppendRequest, RecordsAppendRequest, RecordsListRequest};
 use crate::{Error, Message, OperationRequest, Result, data, host, host::Wire};
 use crate::{ExecutionProgressValue, PageRequest, Severity};
 use crate::{Origin, Termination, TestCase, origin};
+use crate::{Payload, authoring::build_identifier, payload};
 use ::harmos::plugin;
 use uuid::Uuid;
 
@@ -86,6 +88,13 @@ impl<T: prost_reflect::ReflectMessage + Default + 'static> Watching<T> {
     pub(crate) async fn next(&mut self) -> Result<Option<T>> {
         Ok(self.incoming.next().await?.map(|value| value.0))
     }
+}
+
+/// A Typed Record Selection Within the Current Template.
+pub struct RecordsQuery<'a, T: Payload> {
+    context: &'a Context,
+    record: &'a Record<T>,
+    step: String,
 }
 
 /* === Enums === */
@@ -304,12 +313,51 @@ impl Context {
         crate::data::decode_settings(response.value.ok_or_else(|| Error::Invalid("Read Settings: Missing Values".into()))?)
     }
 
-    pub async fn record<T: Message>(&self, record: &Record<T>, value: T) -> Result<RecordsAppendResponse> {
+    pub fn resolve(&self, local: &str) -> Result<String> {
+        let Some(origin::Kind::PluginRun(run)) = self.origin()?.kind.as_ref() else {
+            return Err(Error::Invalid("Resolve Declaration: Call From a Template Operation".into()));
+        };
+        if local.is_empty() {
+            return Err(Error::Invalid("Resolve Declaration: Supply a Nonempty Local Identifier".into()));
+        }
+        Ok(build_identifier(&run.template, local, false))
+    }
+
+    pub async fn prompt(&self, question: impl Into<Prompt>, choices: &[&str]) -> Result<String> {
+        let mut prompt = question.into();
+        if !choices.is_empty() {
+            prompt.definition.actions.clear();
+            for (index, label) in choices.iter().enumerate() {
+                prompt = prompt.action(index.to_string(), *label);
+            }
+        }
+        let mut definition = prompt.definition.clone();
+        let metadata = definition.metadata.as_mut().expect("Prompt Metadata");
+        metadata.identifier = self.resolve(&metadata.identifier)?;
+        let identity = metadata.identifier.clone();
+        let options = HostPromptsCreateOptions {
+            definition: Some(definition.clone()),
+            ..Default::default()
+        };
+        let answer = self.host().prompts.create_with(identity, String::new(), HashMap::new(), options).await?;
+        if !answer.accepted {
+            return Err(Error::Invalid("Create Prompt: Choose an Accepted Operator Answer".into()));
+        }
+        definition
+            .actions
+            .iter()
+            .find(|action| action.identifier == answer.action)
+            .map(|action| action.label.clone())
+            .ok_or_else(|| Error::Invalid("Read Prompt Answer: Choose One of the Declared Actions".into()))
+    }
+
+    pub async fn record<T: Payload>(&self, record: &Record<T>, value: T) -> Result<RecordsAppendResponse> {
+        let kind = self.resolve(record.identifier())?;
         self.call_with(
             RecordsAppendRequest {
                 execution: self.execution_id().into(),
-                kind: record.identifier().into(),
-                payload: value.encode_to_vec(),
+                kind,
+                payload: prost::Message::encode_to_vec(&value.into_message()),
                 source_at: None,
                 request_id: Uuid::now_v7().to_string(),
             },
@@ -317,26 +365,28 @@ impl Context {
         )
         .await
     }
-    pub async fn records(&self, record_type: impl Into<String>, step: impl Into<String>, limit: u32) -> Result<RecordsListResponse> {
-        self.call_with(
-            RecordsListRequest {
-                record_type: record_type.into(),
-                step: step.into(),
-                page: Some(PageRequest { page_size: limit, ..Default::default() }),
-                ..Default::default()
-            },
-            None,
-        )
-        .await
+
+    pub fn records<'a, T: Payload>(&'a self, record: &'a Record<T>) -> RecordsQuery<'a, T> {
+        RecordsQuery {
+            context: self,
+            record,
+            step: String::new(),
+        }
     }
+
     pub async fn statistics(
-        &self, stream: impl Into<String>, field: impl Into<String>, step: impl Into<String>,
+        &self, stream: impl AsRef<str>, field: impl Into<String>, step: impl Into<String>,
     ) -> Result<EvidenceStatisticsResponse> {
+        let step = step.into();
         self.call_with(
             EvidenceStatisticsRequest {
-                stream: stream.into(),
+                stream: if self.test_case()?.streams.iter().any(|candidate| candidate == stream.as_ref()) {
+                    stream.as_ref().into()
+                } else {
+                    self.resolve(stream.as_ref())?
+                },
                 field: field.into(),
-                step: step.into(),
+                step: if step.is_empty() { step } else { self.resolve(&step)? },
                 ..Default::default()
             },
             None,
@@ -369,6 +419,33 @@ impl Context {
             scope: self.execution_id().into(),
             execution: self.execution.clone(),
         }
+    }
+}
+
+impl<T: Payload> RecordsQuery<'_, T> {
+    pub fn step(mut self, step: impl Into<Step>) -> Self {
+        self.step = step.into().metadata.identifier;
+        self
+    }
+
+    pub async fn list(&self, limit: u32) -> Result<RecordsListResponse> {
+        let step = if self.step.is_empty() { String::new() } else { self.context.resolve(&self.step)? };
+        self.context
+            .call_with(
+                RecordsListRequest {
+                    record_type: self.context.resolve(self.record.identifier())?,
+                    step,
+                    page: Some(PageRequest { page_size: limit, ..Default::default() }),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+    }
+
+    pub async fn last(&self) -> Result<T> {
+        let record = self.list(1).await?.last.ok_or_else(|| Error::Invalid("Read Record: Capture a Value Before Reading It".into()))?;
+        payload::decode(&record.payload)
     }
 }
 

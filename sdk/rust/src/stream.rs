@@ -24,13 +24,10 @@ use prost_reflect::{DescriptorPool, DynamicMessage};
 // Local Imports
 use crate::operation::{self, Action, FutureResult};
 use crate::{Context, Message, Result, context::Executions};
-use harmos::Error as HarmosError;
-use harmos::plugin::Context as HarmosContext;
-use harmos::plugin::Observer as HarmosObserver;
-use harmos::plugin::Plugin as HarmosPlugin;
+use harmos;
+use harmos::plugin;
+
 use harmos::plugin::Publisher;
-use harmos::plugin::Stream as HarmosStream;
-pub use harmos::plugin::Window as SampleWindow;
 
 /* === Constants === */
 
@@ -38,21 +35,22 @@ pub use harmos::plugin::Window as SampleWindow;
 
 /* === Type Aliases === */
 
-type Producer<T> = Box<dyn FnOnce(HarmosStream<T>, Executions) -> HarmosStream<T> + Send>;
-pub(crate) type Registration = Box<dyn FnOnce(HarmosPlugin, Executions) -> HarmosPlugin + Send>;
+type Producer<T> = Box<dyn FnOnce(plugin::Stream<T>, Executions) -> plugin::Stream<T> + Send>;
+pub(crate) type Registration = Box<dyn FnOnce(plugin::Plugin, Executions, &str) -> plugin::Plugin + Send>;
 
 /* === Structs === */
 
 // An execution or plugin-wide stream with one protobuf message per sample.
 pub struct Stream<T: Message> {
     pub(crate) identifier: String,
-    pub(crate) inner: HarmosStream<T>,
+    description: String,
+    marker: PhantomData<fn() -> T>,
     producer: Option<Producer<T>>,
 }
 
 pub struct Observer {
-    register: Box<dyn FnOnce(Executions) -> HarmosObserver + Send>,
-    configure: Vec<Box<dyn FnOnce(HarmosObserver) -> HarmosObserver + Send>>,
+    register: Box<dyn FnOnce(Executions, &str) -> plugin::Observer + Send>,
+    configure: Vec<Box<dyn FnOnce(plugin::Observer) -> plugin::Observer + Send>>,
     pub(crate) sampler: Sampler,
 }
 
@@ -69,7 +67,7 @@ pub(crate) struct Sampler {
 
 /// Answers One Granted Window With One Encoded Row per Sample.
 pub(crate) trait Sample: Send + Sync {
-    fn rows<'a>(&'a self, context: &'a Context, window: &'a SampleWindow) -> FutureResult<'a, Vec<Vec<u8>>>;
+    fn rows<'a>(&'a self, context: &'a Context, window: &'a plugin::Window) -> FutureResult<'a, Vec<Vec<u8>>>;
 }
 
 struct Encoded<T>(Action<T>);
@@ -86,10 +84,15 @@ struct Columns<T, C, H> {
 /* === Implementations === */
 
 impl<T: Message> Stream<T> {
+    pub fn of<H: Fn() -> Self>(_: H, label: impl Into<String>) -> Self {
+        Self::new(crate::authoring::code_name::<H>(), label)
+    }
+
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
         let identifier = identifier.into();
         Self {
-            inner: HarmosStream::new(identifier.clone()).description(label),
+            description: label.into(),
+            marker: PhantomData,
             identifier,
             producer: None,
         }
@@ -98,7 +101,7 @@ impl<T: Message> Stream<T> {
         &self.identifier
     }
     pub fn description(mut self, description: impl Into<String>) -> Self {
-        self.inner = self.inner.description(description);
+        self.description = description.into();
         self
     }
     pub fn publish_on<H>(mut self, handler: H) -> Self
@@ -106,21 +109,29 @@ impl<T: Message> Stream<T> {
         H: for<'a> AsyncFn(&'a Context, Publisher<T>) -> Result<()> + Send + Sync + 'static,
     {
         self.producer = Some(Box::new(move |stream, executions| {
-            stream.publish_on(async move |transport: &HarmosContext, publisher| {
+            stream.publish_on(async move |transport: &plugin::Context, publisher| {
                 let context = Context::publication(transport, &executions)?;
-                handler(&context, publisher).await.map_err(HarmosError::from)
+                handler(&context, publisher).await.map_err(harmos::Error::from)
             })
         }));
         self
     }
     pub(crate) fn registration(self) -> Registration {
-        Box::new(move |plugin, executions| {
+        Box::new(move |plugin, executions, prefix| {
+            let identifier = crate::authoring::build_identifier(prefix, &self.identifier, false);
+            let stream = plugin::Stream::new(identifier).description(self.description);
             let stream = match self.producer {
-                Some(producer) => producer(self.inner, executions),
-                None => self.inner,
+                Some(producer) => producer(stream, executions),
+                None => stream,
             };
             plugin.stream(stream)
         })
+    }
+}
+
+impl<T: Message> AsRef<str> for Stream<T> {
+    fn as_ref(&self) -> &str {
+        &self.identifier
     }
 }
 
@@ -135,11 +146,12 @@ impl Observer {
         let action = operation::action(handler);
         let sampler = Sampler::new::<T>(&identifier, Arc::new(Encoded(action.clone())));
         Self {
-            register: Box::new(move |executions| {
-                let stream = HarmosStream::<T>::new(identifier);
-                HarmosObserver::new(&stream, async move |transport: &HarmosContext| {
+            register: Box::new(move |executions, prefix| {
+                let identifier = crate::authoring::build_identifier(prefix, &identifier, false);
+                let stream = plugin::Stream::<T>::new(identifier);
+                plugin::Observer::new(&stream, async move |transport: &plugin::Context| {
                     let context = Context::publication(transport, &executions)?;
-                    action.execute(&context).await.map_err(HarmosError::from)
+                    action.execute(&context).await.map_err(harmos::Error::from)
                 })
             }),
             configure: Vec::new(),
@@ -155,7 +167,7 @@ impl Observer {
     where
         T: Message,
         C: Message,
-        H: for<'a> AsyncFn(&'a Context, &'a SampleWindow) -> Result<C> + Send + Sync + 'static,
+        H: for<'a> AsyncFn(&'a Context, &'a plugin::Window) -> Result<C> + Send + Sync + 'static,
     {
         let identifier = stream.identifier.clone();
         let handler = Arc::new(handler);
@@ -167,11 +179,12 @@ impl Observer {
             }),
         );
         Self {
-            register: Box::new(move |executions| {
-                let stream = HarmosStream::<T>::new(identifier);
-                HarmosObserver::window(&stream, async move |transport: &HarmosContext, window: &SampleWindow| {
+            register: Box::new(move |executions, prefix| {
+                let identifier = crate::authoring::build_identifier(prefix, &identifier, false);
+                let stream = plugin::Stream::<T>::new(identifier);
+                plugin::Observer::window(&stream, async move |transport: &plugin::Context, window: &plugin::Window| {
                     let context = Context::publication(transport, &executions)?;
-                    handler(&context, window).await.map_err(HarmosError::from)
+                    handler(&context, window).await.map_err(harmos::Error::from)
                 })
             }),
             configure: Vec::new(),
@@ -203,14 +216,14 @@ impl Observer {
         self.configure(move |observer| observer.window_setting(identifier))
     }
 
-    fn configure(mut self, configure: impl FnOnce(HarmosObserver) -> HarmosObserver + Send + 'static) -> Self {
+    fn configure(mut self, configure: impl FnOnce(plugin::Observer) -> plugin::Observer + Send + 'static) -> Self {
         self.configure.push(Box::new(configure));
         self
     }
 
     pub(crate) fn registration(self) -> Registration {
-        Box::new(move |plugin, executions| {
-            let mut observer = (self.register)(executions);
+        Box::new(move |plugin, executions, prefix| {
+            let mut observer = (self.register)(executions, prefix);
             for configure in self.configure {
                 observer = configure(observer);
             }
@@ -233,7 +246,7 @@ impl Sampler {
 }
 
 impl<T: Message> Sample for Encoded<T> {
-    fn rows<'a>(&'a self, context: &'a Context, window: &'a SampleWindow) -> FutureResult<'a, Vec<Vec<u8>>> {
+    fn rows<'a>(&'a self, context: &'a Context, window: &'a plugin::Window) -> FutureResult<'a, Vec<Vec<u8>>> {
         Box::pin(async move {
             let mut rows = Vec::with_capacity(usize::try_from(window.count).unwrap_or_default());
             for _ in 0..window.count {
@@ -248,9 +261,9 @@ impl<T, C, H> Sample for Columns<T, C, H>
 where
     T: Message,
     C: Message,
-    H: for<'a> AsyncFn(&'a Context, &'a SampleWindow) -> Result<C> + Send + Sync + 'static,
+    H: for<'a> AsyncFn(&'a Context, &'a plugin::Window) -> Result<C> + Send + Sync + 'static,
 {
-    fn rows<'a>(&'a self, context: &'a Context, window: &'a SampleWindow) -> FutureResult<'a, Vec<Vec<u8>>> {
+    fn rows<'a>(&'a self, context: &'a Context, window: &'a plugin::Window) -> FutureResult<'a, Vec<Vec<u8>>> {
         Box::pin(async move {
             let columns = (self.handler)(context, window).await?.encode_to_vec();
             columns_rows::<T, C>(&columns, window.count)

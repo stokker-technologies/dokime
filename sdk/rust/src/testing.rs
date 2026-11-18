@@ -22,15 +22,15 @@ use std::{
 };
 
 // Third Party Imports
-use prost::Message as _;
-use prost_reflect::{DescriptorPool, DynamicMessage, Value as DynamicValue};
-use prost_types::{Duration as ProtoDuration, Timestamp};
+use prost::Message;
+use prost_reflect::{DescriptorPool, DynamicMessage};
+use prost_types::{self, Timestamp};
 
 // Local Imports
 use crate::context::{Execution, Local, LocalHost};
 use crate::operation::FutureResult;
-use crate::plugin::DeclarationTypes;
-use crate::stream::{SampleWindow, Sampler};
+use crate::plugin::Window;
+use crate::stream::Sampler;
 use crate::template::Parts;
 use crate::wire::host::evidence::{
     CapturedRecord, LogsAppendRequest, LogsAppendResponse, RecordsAppendRequest, RecordsAppendResponse, RecordsListRequest,
@@ -41,8 +41,8 @@ use crate::wire::host::{
     BackendEnvironmentRequest, BackendEnvironmentResponse, EvidenceStatisticsRequest, EvidenceStatisticsResponse, PromptsCreateRequest,
     PromptsCreateResponse, Statistics,
 };
-use crate::{Classification, Context, Error, ExecutionProgressValue, Message, Origin, PluginRun, Result, Severity, Termination};
-use crate::{Prompt as PromptDefinition, Value, origin, plugin::Plugin, value};
+use crate::{Classification, Context, Error, ExecutionProgressValue, Origin, PluginRun, Result, Severity, Termination};
+use crate::{Value, origin, plugin::Plugin, value};
 use harmos_protocol::host::{TimeGetRequest, TimeGetResponse, TimeSleepRequest, TimeSleepResponse};
 
 /* === Constants === */
@@ -108,7 +108,7 @@ pub struct Sample<T> {
 pub(crate) struct Selected {
     pub plugin: String,
     pub template: Parts,
-    pub prompts: Vec<PromptDefinition>,
+    pub prompts: Vec<crate::wire::model::Prompt>,
     pub requirements: Vec<&'static str>,
     pub samplers: Vec<Sampler>,
 }
@@ -139,7 +139,7 @@ struct Memory {
     me: Weak<Memory>,
     execution: Arc<Execution>,
     requirements: Vec<&'static str>,
-    prompts: Vec<PromptDefinition>,
+    prompts: Vec<crate::wire::model::Prompt>,
     answers: HashMap<String, Answer>,
     observers: Vec<(Sampler, i64)>,
     state: Mutex<State>,
@@ -166,7 +166,7 @@ struct State {
 /* === Implementations === */
 
 impl Harness {
-    pub fn new<C: DeclarationTypes>(plugin: Plugin<C>, template: &str) -> Self {
+    pub fn new(plugin: Plugin, template: &str) -> Self {
         Self {
             selected: plugin.into_testing(template),
             parameters: HashMap::new(),
@@ -175,7 +175,7 @@ impl Harness {
         }
     }
     /// Override Declared Defaults With Every Field of a Typed Parameters Value.
-    pub fn parameters<T: Message>(mut self, values: T) -> Self {
+    pub fn parameters<T: crate::Message>(mut self, values: T) -> Self {
         match crate::data::parameters(values) {
             Ok(parameters) => {
                 for parameter in parameters {
@@ -382,16 +382,10 @@ impl Report {
     pub fn criteria(&self) -> &[Evaluated] {
         &self.criteria
     }
-    pub fn records<T: Message>(&self, record_type: &str) -> Result<Vec<T>> {
-        self.records
-            .iter()
-            .filter(|record| record.kind == record_type)
-            .map(|record| {
-                T::decode(record.payload.as_slice()).map_err(|error| Error::Invalid(format!("Decode Record {record_type}: {error}")))
-            })
-            .collect()
+    pub fn records<T: crate::Payload>(&self, record_type: &str) -> Result<Vec<T>> {
+        self.records.iter().filter(|record| record.kind == record_type).map(|record| crate::payload::decode(&record.payload)).collect()
     }
-    pub fn samples<T: Message>(&self, stream: &str) -> Result<Vec<Sample<T>>> {
+    pub fn samples<T: crate::Message>(&self, stream: &str) -> Result<Vec<Sample<T>>> {
         self.samples
             .iter()
             .filter(|sample| sample.stream == stream)
@@ -474,7 +468,7 @@ impl Memory {
                 },
                 self.execution.clone(),
             );
-            let window = SampleWindow {
+            let window = Window {
                 start: timestamp(first),
                 period: prost_types::Duration {
                     seconds: period / 1_000_000_000,
@@ -581,7 +575,21 @@ impl Memory {
             }
             "dokime.host.v1.Prompts/Create" => {
                 let request = PromptsCreateRequest::decode(request.as_slice()).map_err(decode)?;
-                let answer = self.respond(&request.prompt_type)?;
+                let answer = if let Some(definition) = &request.definition {
+                    let identity = definition.metadata.as_ref().map(|metadata| metadata.identifier.as_str()).unwrap_or_default();
+                    self.answers
+                        .get(identity)
+                        .cloned()
+                        .or_else(|| {
+                            definition.actions.first().map(|action| Answer {
+                                action: action.identifier.clone(),
+                                values: HashMap::new(),
+                            })
+                        })
+                        .ok_or_else(|| Error::Invalid("Answer Prompt: Declare a Choice or Supply an Answer".into()))?
+                } else {
+                    self.respond(&request.prompt_type)?
+                };
                 let mut state = self.state.lock().map_err(|_| poisoned())?;
                 let step = state.step.clone();
                 state.prompts.push(Prompted {
@@ -730,19 +738,19 @@ fn scoped(execution: &str) -> Result<()> {
     Ok(())
 }
 
-fn numeric(value: &DynamicValue) -> Option<f64> {
+fn numeric(value: &prost_reflect::Value) -> Option<f64> {
     match value {
-        DynamicValue::F64(value) => Some(*value),
-        DynamicValue::F32(value) => Some(f64::from(*value)),
-        DynamicValue::I32(value) => Some(f64::from(*value)),
-        DynamicValue::I64(value) => Some(*value as f64),
-        DynamicValue::U32(value) => Some(f64::from(*value)),
-        DynamicValue::U64(value) => Some(*value as f64),
+        prost_reflect::Value::F64(value) => Some(*value),
+        prost_reflect::Value::F32(value) => Some(f64::from(*value)),
+        prost_reflect::Value::I32(value) => Some(f64::from(*value)),
+        prost_reflect::Value::I64(value) => Some(*value as f64),
+        prost_reflect::Value::U32(value) => Some(f64::from(*value)),
+        prost_reflect::Value::U64(value) => Some(*value as f64),
         _ => None,
     }
 }
 
-fn duration_ns(duration: ProtoDuration) -> i64 {
+fn duration_ns(duration: prost_types::Duration) -> i64 {
     duration.seconds.saturating_mul(1_000_000_000).saturating_add(i64::from(duration.nanos))
 }
 

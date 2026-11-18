@@ -17,10 +17,12 @@ mod wire {
     pub(crate) use dokime_protocol::{host, model, plugin};
 }
 
+mod authoring;
 pub mod client;
 mod context;
 mod data;
 mod error;
+mod payload;
 #[rustfmt::skip]
 mod host;
 mod message;
@@ -38,11 +40,12 @@ pub mod testing;
 
 pub use ::harmos::OperationRequest;
 pub use client::{Client, ClientSettings};
-use context::Context;
+pub use context::Context;
 pub use data::FromValue;
 pub use dokime_derive::{Message, Parameters, Record, Row, Settings};
 pub use error::{Error, Result};
 pub use exports::*;
+pub use payload::Payload;
 
 use plugin::Plugin;
 use record::Record;
@@ -74,7 +77,7 @@ pub trait Message: ::harmos::Message {}
 
 /* === Implementations === */
 
-impl<T: ::harmos::Message> Message for T {}
+impl Message for () {}
 
 /* === Public Functions === */
 
@@ -87,7 +90,10 @@ pub mod encoding {
 
     /* === Re-Exports === */
 
-    pub use ::harmos::Message as ContractMessage;
+    pub mod contract {
+        pub use harmos::Message;
+    }
+    pub use crate::message::Wire;
     pub use ::harmos::encoding::*;
 
     /* === Imports === */

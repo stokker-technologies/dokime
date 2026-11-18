@@ -21,7 +21,7 @@ use std::marker::PhantomData;
 // Third Party Imports
 
 // Local Imports
-use crate::Message;
+use crate::Payload;
 use crate::{Metadata, RecordContract};
 
 /* === Constants === */
@@ -33,7 +33,7 @@ use crate::{Metadata, RecordContract};
 /* === Structs === */
 
 // A Record Contract Names a Message, Independent of Stream Publication.
-pub struct Record<T: Message> {
+pub struct Record<T: Payload> {
     pub(crate) definition: RecordContract,
     marker: PhantomData<fn() -> T>,
 }
@@ -44,7 +44,11 @@ pub struct Record<T: Message> {
 
 /* === Implementations === */
 
-impl<T: Message> Record<T> {
+impl<T: Payload> Record<T> {
+    pub fn of<H: Fn() -> Self>(_: H, label: impl Into<String>) -> Self {
+        Self::new(crate::authoring::code_name::<H>(), label)
+    }
+
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
         Self {
             definition: RecordContract {
@@ -54,7 +58,7 @@ impl<T: Message> Record<T> {
                     description: String::new(),
                     ..Default::default()
                 }),
-                message: T::name(),
+                message: <T::Message as harmos::Message>::name(),
             },
             marker: PhantomData,
         }
@@ -68,7 +72,7 @@ impl<T: Message> Record<T> {
     }
 }
 
-impl<T: Message> Clone for Record<T> {
+impl<T: Payload> Clone for Record<T> {
     fn clone(&self) -> Self {
         Self {
             definition: self.definition.clone(),
