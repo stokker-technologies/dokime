@@ -50,25 +50,42 @@ fn operator_pairs_with_host() -> Result<(), Box<dyn Error>> {
         tokio::time::timeout(super::HANG_GUARD, async {
             // Export Access, Enabling the Host's Saved Listener Automatically
             let host = super::HostProcess::start().await?;
-            let path = host._root.path().join("operator.dokime-remote");
-            let output = super::run(&[
-                "--endpoint",
-                &host.endpoint,
-                "access",
-                "pairing",
-                "export",
-                "--label",
-                "Operator",
-                "--out",
-                path.to_str().unwrap(),
-                "--json",
-            ])
-            .await?;
+            let path = host._root.path().join("operator.pair");
+            let output = super::command()
+                .current_dir(host._root.path())
+                .args(["--endpoint", &host.endpoint, "access", "pairing", "export", "--label", "Operator", "--json"])
+                .output()
+                .await?;
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+            let output = String::from_utf8(output.stdout)?;
             let exported: Value = serde_json::from_str(&output)?;
             let original = fs::read(&path)?;
             let mut pairing: Value = serde_json::from_slice(&original)?;
             let key = pairing["access_key"].as_str().unwrap().to_owned();
             assert!(!output.contains(&key));
+
+            // Refuse Other Suffixes Before Reading or Publishing Pairing Credentials
+            let invalid = path.with_extension("json");
+            fs::write(&invalid, &original)?;
+            let refused = super::command().args(["--remote", invalid.to_str().unwrap(), "status", "--json"]).output().await?;
+            assert_eq!(refused.status.code(), Some(2));
+            fs::remove_file(&invalid)?;
+            let refused = super::command()
+                .args([
+                    "--endpoint",
+                    &host.endpoint,
+                    "access",
+                    "pairing",
+                    "export",
+                    "--label",
+                    "Invalid",
+                    "--out",
+                    invalid.to_str().unwrap(),
+                ])
+                .output()
+                .await?;
+            assert_eq!(refused.status.code(), Some(2));
+            assert!(!invalid.exists());
 
             // Reconnect With Pinned Trust and Verify Both Library and Product Reads
             let status: Value = serde_json::from_str(&super::run(&["--remote", path.to_str().unwrap(), "status", "--json"]).await?)?;
@@ -86,7 +103,7 @@ fn operator_pairs_with_host() -> Result<(), Box<dyn Error>> {
 
             // Continue Past an Endpoint With Different TLS Trust
             let other = super::HostProcess::start().await?;
-            let other_path = other._root.path().join("other.dokime-remote");
+            let other_path = other._root.path().join("other.pair");
             super::run(&[
                 "--endpoint",
                 &other.endpoint,

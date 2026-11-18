@@ -45,7 +45,7 @@ class DevelopmentDesktopTests(unittest.TestCase):
             "DOKIME_CREDENTIAL_NAMESPACE": "dokime",
             "DOKIME_APPLICATION_ROOT": "real",
             "DOKIME_OUTPUT_ROOT": "real/data",
-            "DOKIME_REMOTE": "real.dokime-remote",
+            "DOKIME_REMOTE": "real.pair",
         }
         environment = desktop.isolated(inherited, Path("disposable"), "dokime-dev-1")
         self.assertEqual(

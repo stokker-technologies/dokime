@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::env::consts::EXE_SUFFIX;
+use std::env::{self, consts::EXE_SUFFIX};
 use std::error::Error;
 use std::fs;
 use std::process::Stdio;
@@ -24,13 +24,14 @@ use std::process::Stdio;
 // Third Party Imports
 use prost::Message;
 use serde_json::{Deserializer, Value};
+use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tonic::transport::Endpoint;
 
 // Local Imports
 use dokime::Client;
 use dokime::Metadata;
-use dokime::client::{CyclesCreateOptions, ExecutionBinding};
+use dokime::client::{CyclesCreateOptions, ExecutionBinding, FilesReadOptions, ReportSubject, report_subject};
 use dokime_protocol::host::{CasesCreateResponse, ExecutionsCreateRequest};
 
 /* === Constants === */
@@ -50,6 +51,8 @@ use dokime_protocol::host::{CasesCreateResponse, ExecutionsCreateRequest};
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+/* === Tests === */
 
 #[test]
 fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
@@ -75,7 +78,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                 } else {
                     // Resolve the SDK Candidate Exported by This Worktree.
                     let input = project.join("test");
-                    let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
+                    let profile = env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
                     let wheel = super::root()
                         .join("target/build")
                         .join(profile)
@@ -92,8 +95,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                 let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
                 let mut host = super::command()
                     .envs(credentials.environment.iter().cloned())
-                    .env("DOKIME_APPLICATION_ROOT", directory.path().join("desktop"))
-                    .args(["dev", "--plugin"])
+                    .args(["dev", "--no-desktop", "--plugin"])
                     .arg(input)
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
@@ -151,17 +153,61 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                         serde_json::from_str(&super::run(&["--endpoint", &endpoint, "execution", "show", execution, "--json"]).await?)?;
                     assert!(!detail["execution"]["seal"].as_str().unwrap_or_default().is_empty());
                     assert_eq!(detail["execution"]["outcome"]["evaluated"]["status"], "RESULT_STATUS_PASSED");
+                    let channel = Endpoint::from_shared(endpoint.clone())?.connect().await?;
+                    let sdk = Client::from_channel(channel, super::client_settings())?;
                     let report = directory.path().join("report.html");
-                    if let Err(error) =
-                        super::run(&["--endpoint", &endpoint, "execution", "report", execution, "--out", report.to_str().unwrap()]).await
+                    if let Err(error) = super::run(&[
+                        "--endpoint",
+                        &endpoint,
+                        "execution",
+                        "report",
+                        execution,
+                        "--out",
+                        report.to_str().unwrap(),
+                        "--request-id",
+                        "first-hour-report",
+                    ])
+                    .await
                     {
                         assert!(!report.exists());
                         failures.push(error.to_string());
+                    } else {
+                        // Read the Retained Report and Compare Its Verified Transfer Bytes
+                        let prepared = sdk
+                            .reports
+                            .get(
+                                ReportSubject {
+                                    kind: Some(report_subject::Kind::Execution(execution.into())),
+                                },
+                                "prepared-report/first-hour-report",
+                            )
+                            .await?;
+                        let file = prepared.file.ok_or("Read Report: Missing File Reference")?;
+                        let selected = sdk.files.get(file.clone()).await?;
+                        let mut bytes = Vec::new();
+                        while bytes.len() < file.length as usize {
+                            let page = sdk
+                                .files
+                                .read_with(
+                                    file.clone(),
+                                    bytes.len() as u64,
+                                    selected.chunk_bytes,
+                                    FilesReadOptions {
+                                        at: selected.resolved_at.clone(),
+                                        ..Default::default()
+                                    },
+                                )
+                                .await?;
+                            assert_eq!(page.resolved_at, selected.resolved_at);
+                            assert!(!page.data.is_empty());
+                            bytes.extend(page.data);
+                        }
+                        assert_eq!(bytes.len() as u64, file.length);
+                        assert_eq!(Sha256::digest(&bytes).as_slice(), file.sha256);
+                        assert!(fs::read(&report)? == bytes, "CLI Report Bytes Differ From the Retained File");
                     }
 
                     // Prepare a Manual Cycle From the Same Frozen Cases
-                    let channel = Endpoint::from_shared(endpoint.clone())?.connect().await?;
-                    let sdk = Client::from_channel(channel, super::client_settings())?;
                     let frozen = CasesCreateResponse::decode(fs::read(&cases)?.as_slice())?;
                     let origins = frozen.cases.iter().map(|case| case.origin.clone().unwrap()).collect();
                     let manual_reply = sdk
@@ -296,5 +342,3 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
         .await?
     }))
 }
-
-/* === Tests === */

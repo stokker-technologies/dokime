@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::fs;
 use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -24,8 +25,15 @@ use std::{
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
+use tempfile::NamedTempFile;
+use tonic::metadata::{Ascii, MetadataValue};
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 
 // Local Imports
+use crate::Result;
+use crate::error::Error;
+use crate::settings::Settings;
+use dokime::Client;
 use dokime::client::{AccessListenerGetOptions, AccessListenerSetOptions, AccessPairingsCreateOptions, AccessPairingsDeleteOptions};
 use dokime::client::{CallOptions, StatusGetOptions};
 
@@ -52,7 +60,7 @@ pub(crate) struct File {
 
 #[derive(clap::Args)]
 pub(crate) struct ExportArgs {
-    #[arg(long)]
+    #[arg(long, default_value = "operator.pair")]
     out: PathBuf,
 
     #[arg(long)]
@@ -80,17 +88,17 @@ pub(crate) enum PairingCommand {
 /* === Implementations === */
 
 impl File {
-    pub fn read(path: &Path) -> crate::Result<Self> {
-        if path.extension().and_then(|value| value.to_str()) != Some("dokime-remote") {
-            return Err(crate::error::Error::Invalid("Select a .dokime-remote Pairing File".into()));
+    pub fn read(path: &Path) -> Result<Self> {
+        if path.extension().and_then(|value| value.to_str()) != Some("pair") {
+            return Err(Error::Invalid("Select a .pair Pairing File".into()));
         }
         let mut bytes = Vec::new();
-        std::fs::File::open(path)?.take(PAIRING_BYTES as u64 + 1).read_to_end(&mut bytes)?;
+        fs::File::open(path)?.take(PAIRING_BYTES as u64 + 1).read_to_end(&mut bytes)?;
         if bytes.len() > PAIRING_BYTES {
-            return Err(crate::error::Error::Capacity("Pairing File Exceeds 1 MiB; Export a New Pairing".into()));
+            return Err(Error::Capacity("Pairing File Exceeds 1 MiB; Export a New Pairing".into()));
         }
-        let file: Self = serde_json::from_slice(&bytes)
-            .map_err(|_| crate::error::Error::Invalid("Invalid Pairing File; Export a New Version 1 Pairing".into()))?;
+        let file: Self =
+            serde_json::from_slice(&bytes).map_err(|_| Error::Invalid("Invalid Pairing File; Export a New Version 1 Pairing".into()))?;
         if file.version != 1
             || file.endpoints.is_empty()
             || file.endpoints.len() > 32
@@ -103,11 +111,11 @@ impl File {
             || file.access_key.is_empty()
             || file.access_key.chars().any(char::is_whitespace)
         {
-            return Err(crate::error::Error::Invalid("Invalid Pairing Identity, Label, Endpoints or Key; Export a New Pairing".into()));
+            return Err(Error::Invalid("Invalid Pairing Identity, Label, Endpoints or Key; Export a New Pairing".into()));
         }
         file.authorization()?;
         for (index, endpoint) in file.endpoints.iter().enumerate() {
-            let value = tonic::transport::Endpoint::from_shared(endpoint.clone())?;
+            let value = Endpoint::from_shared(endpoint.clone())?;
             let uri = value.uri();
             if uri.scheme_str() != Some("https")
                 || uri.host().is_none_or(|host| host.contains('*'))
@@ -116,30 +124,29 @@ impl File {
                 || uri.path_and_query().is_some_and(|path| path.as_str() != "/")
                 || file.endpoints[..index].contains(endpoint)
             {
-                return Err(crate::error::Error::Invalid("Pairing Endpoints Must Be Distinct HTTPS Origins With Explicit Ports".into()));
+                return Err(Error::Invalid("Pairing Endpoints Must Be Distinct HTTPS Origins With Explicit Ports".into()));
             }
         }
         Ok(file)
     }
-    pub fn authorization(&self) -> crate::Result<tonic::metadata::MetadataValue<tonic::metadata::Ascii>> {
-        let mut value: tonic::metadata::MetadataValue<tonic::metadata::Ascii> = format!("Bearer {}", self.access_key)
+    pub fn authorization(&self) -> Result<MetadataValue<Ascii>> {
+        let mut value: MetadataValue<Ascii> = format!("Bearer {}", self.access_key)
             .parse()
-            .map_err(|_| crate::error::Error::Invalid("Invalid Pairing Key; Export a New Pairing".into()))?;
+            .map_err(|_| Error::Invalid("Invalid Pairing Key; Export a New Pairing".into()))?;
         value.set_sensitive(true);
         Ok(value)
     }
-    pub async fn channel(&self, settings: &crate::settings::Settings) -> crate::Result<tonic::transport::Channel> {
+    pub async fn channel(&self, settings: &Settings) -> Result<Channel> {
         let mut failures = Vec::new();
         for endpoint in &self.endpoints {
-            let result: crate::Result<_> = async {
-                let tls = tonic::transport::ClientTlsConfig::new()
-                    .ca_certificate(tonic::transport::Certificate::from_pem(&self.ca_certificate_pem));
-                let channel = tonic::transport::Endpoint::from_shared(endpoint.clone())?
+            let result: Result<_> = async {
+                let tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(&self.ca_certificate_pem));
+                let channel = Endpoint::from_shared(endpoint.clone())?
                     .tls_config(tls)?
                     .connect_timeout(Duration::from_secs(settings.connect_timeout_s))
                     .connect()
                     .await?;
-                let client = dokime::Client::from_channel(channel.clone(), settings.client())?;
+                let client = Client::from_channel(channel.clone(), settings.client())?;
                 let mut context = CallOptions::default();
                 context.metadata.insert("authorization", self.authorization()?);
                 let reply = client.status.get_with(StatusGetOptions { context }).await?;
@@ -161,16 +168,16 @@ impl File {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Settings) -> Result<()> {
     let Command::Pairing(PairingCommand::Export(args)) = command;
-    if args.out.extension().and_then(|value| value.to_str()) != Some("dokime-remote") {
-        return Err(crate::error::Error::Invalid("Export to a .dokime-remote File".into()));
+    if args.out.extension().and_then(|value| value.to_str()) != Some("pair") {
+        return Err(Error::Invalid("Export to a .pair File".into()));
     }
     if args.out.exists() {
-        return Err(crate::error::Error::Invalid("Choose a New Pairing Destination; the File Already Exists".into()));
+        return Err(Error::Invalid("Choose a New Pairing Destination; the File Already Exists".into()));
     }
     let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
-    let mut output = tempfile::NamedTempFile::new_in(parent)?;
+    let mut output = NamedTempFile::new_in(parent)?;
     let client = settings.sdk(endpoint).await?;
 
     // Enable the Saved Listener Before Requesting Remote Access
@@ -199,10 +206,10 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: cr
     };
 
     // Publish Secret Bytes Atomically; Revoke the New Pairing if Publication Fails
-    let result: crate::Result<()> = (|| {
+    let result: Result<()> = (|| {
         let bytes = serde_json::to_vec(&file)?;
         if bytes.len() > PAIRING_BYTES {
-            return Err(crate::error::Error::Capacity("Exported Pairing Exceeds 1 MiB".into()));
+            return Err(Error::Capacity("Exported Pairing Exceeds 1 MiB".into()));
         }
         output.write_all(&bytes)?;
         output.as_file().sync_all()?;

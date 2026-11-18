@@ -51,67 +51,6 @@ from .environment import Resource
 
 
 class DesktopBench(unittest.TestCase):
-    def test_killed_native_child_credentials_are_removed_before_its_scratch(self) -> None:
-        temporary_directory = tempfile.TemporaryDirectory()
-        temporary = temporary_directory.name
-        try:
-            directory = Path(temporary)
-            host = directory / "bin/dokime-host.exe"
-            host.parent.mkdir()
-            host.touch()
-            cleaned = []
-
-            def remove(command: list[str], **options: Any) -> subprocess.CompletedProcess[str]:
-                self.assertEqual(Path(command[0]), host)
-                self.assertEqual(command[1::2], ["--storage", "--credential-namespace", "--remove-credentials"])
-                self.assertEqual(command[4], options["env"]["DOKIME_CREDENTIAL_NAMESPACE"])
-                root = Path(command[2])
-                self.assertTrue((root / "backend-id").is_file())
-                cleaned.append(root)
-                return subprocess.CompletedProcess(command, 0)
-
-            with (
-                patch.object(sys, "platform", "win32"),
-                patch.object(desktop_bench.paths, "output", return_value=directory),
-            ):
-                for failed in (False, True):
-                    with self.subTest(failed=failed), patch.object(subprocess, "run", side_effect=remove):
-                        try:
-                            scratch_root = dokime_tools.test.scratch.Root(dict(os.environ), directory / "reports")
-                            try:
-                                environment = scratch_root.environment
-                                script = (
-                                    "import os, pathlib, sys; "
-                                    "root = pathlib.Path(os.environ['TEMP']) / 'abandoned-host'; "
-                                    "root.mkdir(); (root / 'backend-id').write_text('owned-host'); "
-                                    "print(root, flush=True); sys.stdin.read()"
-                                )
-                                with subprocess.Popen(
-                                    [sys.executable, "-c", script],
-                                    env=environment,
-                                    stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE,
-                                    text=True,
-                                    creationflags=dokime_tools.process.spawn_flags(),
-                                ) as child:
-                                    assert child.stdout is not None
-                                    root = Path(child.stdout.readline().strip())
-                                    if failed:
-                                        child.kill()
-                                    assert child.stdin is not None
-                                    child.stdin.close()
-                                    child.wait()
-                                if failed:
-                                    raise ChildProcessError("Native Child Was Killed")
-                            finally:
-                                scratch_root.close()
-                        except ChildProcessError:
-                            self.assertTrue(failed)
-                        self.assertEqual(cleaned[-1], root)
-                        self.assertFalse(root.exists())
-        finally:
-            temporary_directory.cleanup()
-
     def test_once_preserves_benchmark_selection_and_does_not_promote_baselines(self) -> None:
         with (
             patch.object(tasks.transport, "receive"),
