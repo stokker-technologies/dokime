@@ -513,6 +513,31 @@ than increasing a timeout. This changes the check's effective workflow bound and
 requires approval under the task's no-lengthening rule. Keep the existing bound
 until that decision; a prior successful capture does not replace final proof.
 
+## Administration Prefix Predicate at the Pinned Revision
+
+Task 4.4w's measured files/notes/artifacts cost comes from
+`crates/dokime-operations/src/host/storage/administration.rs::scan`: it selects all
+administration payloads through `ListColumnRows` before testing `starts_with`.
+The supported operation's `ColumnSelection.predicate` is a `ColumnPredicate` with
+`column: String`, `lower: Option<f64>` and `upper: Option<f64>`. At pin
+`e8df78630c1cb401e8fdadf7f50fc578b8f0509e`, neither that DTO nor
+`Harmos:crates/harmos-query/src/columnar.rs::ColumnPredicate` can represent a string
+prefix or lexicographic range. `storage/native/lists.rs` copies those numeric
+bounds directly into `ArrowScan`. Product backend `backend/columns.rs::scan` receives
+only that numeric scan and cannot recover a missing string selection.
+
+The smallest required upstream capability is a typed text prefix or half-open text
+range in column predicates, with validation, continuation identity and row filtering
+at the same issued cut. Once supplied, the product backend must select key columns
+before payload columns (or prune by durable key metadata), so rejected rows never
+decode their payloads. Prove equivalence to filter-after-decode across mixed prefixes,
+revisions and page boundaries, together with work counters proving payload exclusion.
+Do not encode text in numeric bounds, add a parallel product predicate family or
+fall back to filtered full-payload scans. The scan repair and before/after speedup
+claim remain open until the dependency owner supplies this contract and a validated
+revision, or authorizes coupled library implementation. The implementation worker
+is restricted to this product worktree and does not change dependency checkouts.
+
 ## Browsing View Retention Ownership
 
 `crates/dokime-operations/src/host/views.rs::read` retains a native file index per
