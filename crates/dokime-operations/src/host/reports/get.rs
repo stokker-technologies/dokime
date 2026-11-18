@@ -20,11 +20,9 @@ use std::io::Write;
 
 // Third Party Imports
 use harmos_protocol::model::FileMetadata;
-use harmos_protocol::model::OperationContract;
 use harmos_runtime::Identifier;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::host::files::uploads::{append, create, delete, publish};
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::ReportMetadata;
@@ -53,9 +51,6 @@ pub const ID: &str = "dokime.host.v1.Reports/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ReportsGetRequest, ReportsGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<ReportsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let temporary = context.host.temporary_report(&request.name)?;

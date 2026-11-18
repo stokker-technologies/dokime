@@ -18,10 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::RemoteListenerSettings;
 use dokime_protocol::host::SettingsGetRequest;
@@ -45,9 +43,6 @@ pub const ID: &str = "dokime.host.v1.Settings/Get";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SettingsGetRequest, SettingsGetResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: SettingsGetRequest) -> Result<SettingsGetResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async { crate::host::settings::preferences::read(context, request.at).await })
         .await

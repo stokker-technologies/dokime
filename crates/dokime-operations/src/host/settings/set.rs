@@ -15,8 +15,6 @@
 
 /* === Imports === */
 
-use crate::host::ClientSettings;
-
 // Standard Library Imports
 
 // Third Party Imports
@@ -29,8 +27,6 @@ use dokime_storage::persisted::Scope;
 use dokime_protocol::host::ApplicationSettings;
 use dokime_protocol::host::SettingsSetRequest;
 use dokime_protocol::host::SettingsSetResponse;
-
-use harmos_protocol::model::OperationContract;
 
 /* === Constants === */
 
@@ -50,9 +46,6 @@ pub const ID: &str = "dokime.host.v1.Settings/Set";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SettingsSetRequest, SettingsSetResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: SettingsSetRequest) -> Result<SettingsSetResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let value = request.value.as_ref().ok_or_else(|| Error::Invalid("Set Settings: Supply the Whole Writable Value".into()))?;

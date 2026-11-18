@@ -134,9 +134,7 @@ impl Host {
         if documents.len() != 1 {
             return Err(Error::Invalid("Capture Document: Select One Document ID from the Frozen Execution Declarations".into()));
         }
-        let mut document = documents.remove(0);
-        let id = document.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
-        apply_preferences(store, &cut.execution.identifier, id, &mut document.sections)?;
+        let document = documents.remove(0);
         Ok((document, cut))
     }
 
@@ -148,20 +146,5 @@ impl Host {
 /* === Public Functions === */
 
 /* === Private Functions === */
-
-fn apply_preferences(store: &Store, execution: &str, document: &str, sections: &mut [Section]) -> Result<()> {
-    for section in sections {
-        for card in &mut section.cards {
-            if let Some(card::Body::Plot(plot)) = &mut card.body {
-                let id = plot.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
-                if let Some((points, _)) = store.plot_preferences(execution, document, id)? {
-                    plot.display_points = points;
-                }
-            }
-        }
-        apply_preferences(store, execution, document, &mut section.sections)?;
-    }
-    Ok(())
-}
 
 /* === Tests === */

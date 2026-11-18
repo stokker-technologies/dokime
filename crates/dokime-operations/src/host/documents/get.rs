@@ -193,13 +193,14 @@ pub async fn response_at(
         epoch: if scope.execution_id.is_empty() { format!("cycle:{}", fixed.execution.cycle) } else { fixed.execution.identifier.clone() },
         position: fixed.frontier,
     };
+    let document_id = document
+        .metadata
+        .as_ref()
+        .map(|metadata| metadata.identifier.clone())
+        .filter(|id| !id.is_empty())
+        .ok_or_else(|| Error::Invalid("Get Document: Select a Document with an Identity".into()))?;
     let mut frames = vec![frame(document_frame_frame::Kind::Header(DocumentHeader {
-        document_id: document
-            .metadata
-            .as_ref()
-            .map(|metadata| metadata.identifier.clone())
-            .filter(|id| !id.is_empty())
-            .ok_or_else(|| Error::Invalid("Get Document: Select a Document with an Identity".into()))?,
+        document_id: document_id.clone(),
         metadata: document.metadata.clone(),
         scope: Some(evidence_scope.clone()),
         frontiers: Some(DocumentFrontiers {
@@ -404,7 +405,7 @@ pub async fn response_at(
                 }
                 Some(card::Body::Plot(plot)) => {
                     let plot_id = plot.metadata.as_ref().map_or("", |metadata| metadata.identifier.as_str());
-                    let key = format!("plot-settings:{}/{}/{}", fixed.execution.identifier, request.document_id, plot_id);
+                    let key = format!("plot-settings:{}/{}/{}", fixed.execution.identifier, document_id, plot_id);
                     let initial = PlotSettingsValue {
                         display_points: None,
                         downsample: Downsample::Auto as i32,

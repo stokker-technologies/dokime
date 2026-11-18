@@ -23,9 +23,16 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use prost::Message;
 
 // Local Imports
+use dokime_protocol::host::documents_client::DocumentsClient;
 use dokime_protocol::host::files_client::FilesClient;
+use dokime_protocol::host::plots::settings_client::SettingsClient;
+use dokime_protocol::host::plots::{PlotRequest, PlotSettingsValue, SettingsGetRequest, SettingsSetRequest};
 use dokime_protocol::host::reports_client::ReportsClient;
-use dokime_protocol::host::{FilesReadRequest, ReportCapture, ReportSubject, ReportsCreateRequest, ReportsPublishRequest, report_subject};
+use dokime_protocol::host::{
+    DocumentFrame, DocumentScope, DocumentsGetRequest, FilesReadRequest, ReportCapture, ReportSubject, ReportsCreateRequest,
+    ReportsPublishRequest, document_binding_result, document_frame_frame, report_subject,
+};
+use dokime_protocol::model::{Downsample, card};
 use dokime_runtime::{Host, services};
 use dokime_storage::Store;
 
@@ -70,6 +77,7 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             let origin = host.materialize(&entry, "execution.capture", super::support::parameters(23.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![origin]).await?;
             let execution = cycle.executions[0].clone();
+            let cycle_id = cycle.identifier.clone();
             let prompt = host.next_prompt(&execution).await?;
             super::support::answer(&host, &execution, prompt)?;
             let result = cycle.wait().await?;
@@ -83,14 +91,96 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
                     .await?;
             let endpoint = format!("http://{}", server.endpoint());
             let mut reports = ReportsClient::connect(endpoint.clone()).await?;
-            let mut files = FilesClient::connect(endpoint).await?;
+            let mut files = FilesClient::connect(endpoint.clone()).await?;
+            let mut documents = DocumentsClient::connect(endpoint.clone()).await?;
+            let mut settings = SettingsClient::connect(endpoint).await?;
+
+            // Save Native Plot Preferences Before Capturing Either Reader.
+            let document_id = document.metadata.as_ref().unwrap().identifier.clone();
+            let mut sections = document.sections.iter().collect::<Vec<_>>();
+            let mut plot_id = None;
+            while let Some(section) = sections.pop() {
+                for card in &section.cards {
+                    if let Some(card::Body::Plot(plot)) = card.body.as_ref() {
+                        plot_id = Some(plot.metadata.as_ref().unwrap().identifier.clone());
+                        break;
+                    }
+                }
+                if plot_id.is_some() {
+                    break;
+                }
+                sections.extend(section.sections.iter());
+            }
+            let plot_id = plot_id.ok_or("Fixture Has No Plot")?;
+            let scope = DocumentScope {
+                cycle_id: cycle_id.clone(),
+                execution_id: execution.clone(),
+            };
+            let current = settings
+                .get(SettingsGetRequest {
+                    scope: Some(scope.clone()),
+                    document_id: document_id.clone(),
+                    plot_id: plot_id.clone(),
+                    at: None,
+                })
+                .await?
+                .into_inner();
+            let preferences = PlotSettingsValue {
+                display_points: Some(3),
+                downsample: Downsample::MinMax as i32,
+            };
+            let saved = settings
+                .set(SettingsSetRequest {
+                    scope: Some(scope.clone()),
+                    document_id: document_id.clone(),
+                    plot_id: plot_id.clone(),
+                    value: Some(preferences.clone()),
+                    expected_revision: current.revision,
+                    request_id: "report-plot-preferences".into(),
+                })
+                .await?
+                .into_inner();
+            assert_eq!(saved.value, Some(preferences.clone()));
+            let plot_request = |frame: &DocumentFrame| -> Option<PlotRequest> {
+                let document_frame_frame::Kind::Binding(binding) = frame.frame.as_ref()?.kind.as_ref()? else {
+                    return None;
+                };
+                let document_binding_result::Kind::Plot(plot) = binding.result.as_ref()?.kind.as_ref()? else {
+                    return None;
+                };
+                (plot.metadata.as_ref()?.identifier == plot_id).then(|| plot.request.clone()).flatten()
+            };
+            let mut live_plot = None;
+            let mut page_token = String::new();
+            let mut at = None;
+            loop {
+                let reply = documents
+                    .get(DocumentsGetRequest {
+                        scope: Some(scope.clone()),
+                        document_id: document_id.clone(),
+                        page_token,
+                        at,
+                        ..Default::default()
+                    })
+                    .await?
+                    .into_inner();
+                live_plot = live_plot.or_else(|| reply.frames.iter().find_map(&plot_request));
+                if reply.next_page_token.is_empty() {
+                    break;
+                }
+                page_token = reply.next_page_token;
+                at = reply.resolved_at;
+            }
+            let live_plot = live_plot.ok_or("Document Has No Plot Binding")?;
+            assert_eq!(live_plot.max_points, preferences.display_points.map(u64::from));
+            assert_eq!(live_plot.technique, preferences.downsample);
             let subject = ReportSubject {
                 kind: Some(report_subject::Kind::Execution(execution.clone())),
             };
             let prepared = reports
                 .create(ReportsCreateRequest {
                     subject: Some(subject.clone()),
-                    document_id: document.metadata.as_ref().unwrap().identifier.clone(),
+                    document_id: String::new(),
                     request_id: "document-report".into(),
                 })
                 .await?
@@ -128,7 +218,10 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
                     .iter()
                     .any(|plot| plot.diagnostics.as_ref().unwrap().raw_point_count == result.executions[0].samples.len() as u64)
             );
-            assert!(!captured.document.as_ref().unwrap().frames.is_empty());
+            let captured_document = captured.document.as_ref().unwrap();
+            assert!(!captured_document.frames.is_empty());
+            let captured_plot = captured_document.frames.iter().find_map(&plot_request).ok_or("Report Has No Plot Binding")?;
+            assert_eq!(captured_plot, live_plot);
             assert_eq!(
                 captured.inputs.as_ref().unwrap().resolved_at.as_ref().unwrap().sequence,
                 prepared.resolved_at.as_ref().unwrap().positions[0].sequence

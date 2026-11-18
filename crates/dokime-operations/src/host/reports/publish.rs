@@ -19,12 +19,10 @@
 
 // Third Party Imports
 use harmos_operations::storage::{GetFileBytes, GetFileBytesRequest};
-use harmos_protocol::model::OperationContract;
 use harmos_runtime::storage;
 
 // Local Imports
 use super::PreparedReport;
-use crate::host::ClientSettings;
 use crate::host::files::transfer;
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
@@ -53,9 +51,6 @@ pub const ID: &str = "dokime.host.v1.Reports/Publish";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ReportsPublishRequest, ReportsPublishResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: ReportsPublishRequest) -> Result<ReportsPublishResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let (prepared, revision) = administration::message::<PreparedReport>(context, &request.name).await?;
