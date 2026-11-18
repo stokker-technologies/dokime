@@ -127,6 +127,7 @@ def main() -> None:
     options = parser.parse_args()
     extra = options.extra[1:] if options.extra[:1] == ["--"] else options.extra
     if options.binary == "storage":
+        generated.prepare()
         print(build(Path.cwd(), extra, ("--package", "dokime-runtime", "--bench", "storage")))
         return
     subprocess.run(["mise", "run", "build:typescript", "--profile", "dev"], check=True, creationflags=spawn_flags())
@@ -150,7 +151,7 @@ def main() -> None:
     output = paths.output(directory, "build", "bench")
     environment = dict(os.environ)
     if options.binary in (None, "system-desktop"):
-        # Build And Embed The Instrumented Surface In The Matching Native Shell.
+        # Build and Embed the Instrumented Surface in the Matching Native Shell.
         web = output / "web"
         subprocess.run(
             ["node", "benches/system/build.mjs", str(web)],
