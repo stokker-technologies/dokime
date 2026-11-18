@@ -40,6 +40,7 @@ const { values: options } = parseArgs({
 });
 const workflows = {
   "native-desktop": "execution",
+  "python-paired-desktop": "python",
   "desktop-configuration": "configuration",
   "desktop-appearance": "appearance",
   "desktop-remote": "remote",
@@ -53,8 +54,10 @@ const selected = options.select
         .replace(/^e2e[/\\]/, "")
         .replace(/\.(mjs|js)$/, ""),
     )
-  : stories;
-for (const name of selected) assert.ok(stories.includes(name), `Unknown system story: ${name}`);
+  : stories.filter((name) => name !== "python-paired-desktop");
+for (const name of selected) {
+  assert.ok(stories.includes(name), `Unknown system story: ${name}`);
+}
 const scratch = await mkdtemp(join(tmpdir(), "dokime-desktop-junit-"));
 const suites = [];
 let failed = false;
@@ -97,4 +100,6 @@ try {
   }
   await rm(scratch, { force: true, recursive: true });
 }
-if (failed) process.exitCode = 1;
+if (failed) {
+  process.exitCode = 1;
+}

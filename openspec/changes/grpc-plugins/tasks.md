@@ -109,7 +109,8 @@
 
 - [x] Share the Journey's Submit-and-Observe Report Save With Screenshots and Measure Thermal/OBC Creation, Transfer and Write.
 - [x] Keep Desktop and Python Remote Access Files at `.pair`; Prove the Python Client Reads the Portable File.
-- [ ] Add and Prove Python Drives a Paired Desktop Through the Real Remote Access Export Control and the Unmodified Starter.
+- [x] Add Python Drives a Paired Desktop Through the Real Remote Access Export Control and the Unmodified Starter, Including Its Built SDK Input on Both Native Desktop Lanes.
+- [ ] Resolve Case-Level Criterion Result Projection and Complete the Paired Python Proof; the Runtime Retains `criterion:<id>` Evidence but `Executions/Steps` Projects Only Authored Steps and Its Wire Results Remain Step-Nested. Keep the Criterion Assertion Failing Until the Owner Resolves This Contract.
 
 ## Single Plugin Paths
 

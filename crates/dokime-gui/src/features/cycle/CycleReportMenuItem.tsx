@@ -51,9 +51,13 @@ export function CycleReportMenuItem({ cycleId, executionId, label }: CycleReport
     downloadReport
       .mutateAsync({ executionId, label })
       .then((saved) => {
-        if (!saved) return;
+        if (!saved) {
+          return;
+        }
         toast.success("Report Saved");
-        if (saved.openFailure) toast.error(saved.openFailure);
+        if (saved.openFailure) {
+          toast.error(saved.openFailure);
+        }
       })
       .catch((error: unknown) => toast.error(failureOf(error, "The Report Could Not Be Saved")));
   };

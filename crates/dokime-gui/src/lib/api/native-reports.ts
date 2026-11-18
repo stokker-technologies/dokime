@@ -74,7 +74,9 @@ export async function downloadNativeReport(
     name = required(published.report, "Publish Report").identifier;
   }
   const delivered = await deliverNativeContent(session, { source: { ...source, name }, kind: "html_report", filename, action: "save" });
-  if (!delivered) return null;
+  if (!delivered) {
+    return null;
+  }
   try {
     await commands.desktopOpenPath(delivered.path);
     return { path: delivered.path, openFailure: null };

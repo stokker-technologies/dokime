@@ -81,7 +81,9 @@ const cleanupErrors = [];
 /* === Private Functions === */
 
 async function capture(scene, ready, prepare) {
-  if (options.scene && options.scene !== scene) return;
+  if (options.scene && options.scene !== scene) {
+    return;
+  }
   const viewport = scene === "touch" ? touch : desktop;
   for (const theme of ["light", "dark"]) {
     // Set Appearance Through The Product Controls.
@@ -302,7 +304,9 @@ try {
   await mkdir(evidence, { recursive: true });
   await writeFile(join(work, "empty-gitconfig"), "");
   const chrome = join(process.env.ProgramFiles ?? "", "Google/Chrome/Application/chrome.exe");
-  if (process.platform === "win32" && !process.env.DOKIME_E2E_CHROME && existsSync(chrome)) process.env.DOKIME_E2E_CHROME = chrome;
+  if (process.platform === "win32" && !process.env.DOKIME_E2E_CHROME && existsSync(chrome)) {
+    process.env.DOKIME_E2E_CHROME = chrome;
+  }
   cleanup = await prepareNativeFixture(work, evidence);
   backend = await startBackend(work, evidence, undefined, "backend", true, { environment, plugins: [obcExecutable] });
   session = await startSession(work, backend.endpoint, evidence);
@@ -478,7 +482,16 @@ try {
         "report",
         () =>
           session.execute(
-            "const doc = document.querySelector('#screenshot-report')?.contentDocument; if (!doc) return false; const row = doc.querySelector('li[data-level=case] button[data-tree-select]'); if (!doc.querySelector('[data-execution-section=Report]')) row?.click(); doc.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'}); return doc.querySelectorAll('.uplot canvas').length > 0",
+            `const doc = document.querySelector('#screenshot-report')?.contentDocument;
+            if (!doc) {
+              return false;
+            }
+            const row = doc.querySelector('li[data-level=case] button[data-tree-select]');
+            if (!doc.querySelector('[data-execution-section=Report]')) {
+              row?.click();
+            }
+            doc.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});
+            return doc.querySelectorAll('.uplot canvas').length > 0;`,
           ),
         async (theme) => {
           await session.goto(route);
@@ -605,20 +618,26 @@ try {
     [
       "desktop",
       async () => {
-        if (session) await session.close();
+        if (session) {
+          await session.close();
+        }
       },
     ],
     ["backend", stopBackend],
     [
       "backend process",
       async () => {
-        if (backend) await terminate(backend.child);
+        if (backend) {
+          await terminate(backend.child);
+        }
       },
     ],
     [
       "native fixture",
       async () => {
-        if (cleanup) await cleanup();
+        if (cleanup) {
+          await cleanup();
+        }
       },
     ],
   ]) {
@@ -635,7 +654,9 @@ try {
     await copyFile(join(logs, name), join(evidence, `desktop-${name}`)).catch((error) => cleanupErrors.push(error));
   }
   try {
-    if (process.env.DOKIME_KEEP_EVIDENCE === "1") await cp(work, join(evidence, "fixture"), { recursive: true });
+    if (process.env.DOKIME_KEEP_EVIDENCE === "1") {
+      await cp(work, join(evidence, "fixture"), { recursive: true });
+    }
     await rm(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   } catch (error) {
     cleanupErrors.push(error);
@@ -650,7 +671,9 @@ if (entries.length) {
   manifest.sort(
     (a, b) => scenes.indexOf(a.scene) - scenes.indexOf(b.scene) || ["light", "dark"].indexOf(a.theme) - ["light", "dark"].indexOf(b.theme),
   );
-  for (const entry of entries) await copyFile(join(evidence, entry.image), join(folder, entry.image));
+  for (const entry of entries) {
+    await copyFile(join(evidence, entry.image), join(folder, entry.image));
+  }
   await writeFile(join(folder, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 if (failure || cleanupErrors.length)

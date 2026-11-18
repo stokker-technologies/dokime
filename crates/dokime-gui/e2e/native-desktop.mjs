@@ -35,6 +35,7 @@ import {
 } from "./native-fixture.mjs";
 import { call, invoke } from "./native-rpc.mjs";
 import { printReportSaveTimings, saveReport } from "./report-save.mjs";
+import { pythonDrivesPairedDesktop } from "./python-paired-desktop.mjs";
 
 /* === Re-Exports === */
 
@@ -249,7 +250,7 @@ async function reportsAndHistory() {
   assert.equal(before.report.state, "REPORT_STATE_PENDING");
   await desktop.goto(`/cycles/${cycle.cycleId}?executionId=${executionId}`, { reload: true });
   const path = join(work, "thermal-execution.html");
-  const saved = await saveReport(desktop, path, { label: "Thermal", hostLog: join(evidence, "backend.log") });
+  const saved = await saveReport(desktop, path, { label: "Thermal" });
   const after = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   assert.equal(after.report.state, "REPORT_STATE_READY");
   const html = await readFile(saved.path, "utf8");
@@ -380,7 +381,10 @@ try {
   cleanup = await prepareNativeFixture(work, evidence);
   process.stdout.write(`Evidence: ${evidence}\n`);
   await story("Owned Startup and Restart", owned, true);
-  if (options.workflow !== "ownership") {
+  if (["execution", "python"].includes(options.workflow)) {
+    await story("Python Drives a Paired Desktop", () => pythonDrivesPairedDesktop({ workspace, work, evidence, profile: options.profile }));
+  }
+  if (!["ownership", "python"].includes(options.workflow)) {
     const backend = await startBackend(work, evidence, undefined, "backend", true, { plugins: [pluginExecutable, obcExecutable] });
     desktop = await startSession(join(work, "attached"), backend.endpoint, evidence);
     sessions.push(desktop);
@@ -454,6 +458,8 @@ try {
   }
   if (failures) {
     process.exitCode = 1;
-  } else if (work) await rm(work, { recursive: true, force: true });
+  } else if (work) {
+    await rm(work, { recursive: true, force: true });
+  }
   process.stdout.write(`Native Desktop: ${results.length - failures} Passed; ${failures} Failed\n`);
 }

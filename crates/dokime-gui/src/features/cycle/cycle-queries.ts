@@ -61,7 +61,9 @@ const EMPTY_PROMPTS: Awaited<ReturnType<typeof fetchNativePendingPrompts>> = [];
 
 /** The identity a live read needs. Unreachable while a snapshot stands in. */
 function identityOf(session: ReturnType<typeof useNativeSessionOptional>) {
-  if (!session) throw new Error("A connected native backend is required.");
+  if (!session) {
+    throw new Error("A connected native backend is required.");
+  }
   return session.identity;
 }
 
@@ -128,7 +130,9 @@ export function useCycleCommands(cycleId: string) {
      built without a connection and asks for one only when a command runs. */
   const connection = useNativeSessionOptional();
   const session = () => {
-    if (!connection) throw new Error("A connected native backend is required.");
+    if (!connection) {
+      throw new Error("A connected native backend is required.");
+    }
     return connection;
   };
   const queryClient = useQueryClient();
