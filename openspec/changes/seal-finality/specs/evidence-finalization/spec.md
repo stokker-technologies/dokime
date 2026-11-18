@@ -70,3 +70,19 @@ sealable again.
 
 - **WHEN** report creation fails during a cycle seal
 - **THEN** the cycle reports Seal Failed with the cause and can be sealed again
+
+### Requirement: Seal Call Returns the Outcome
+
+A client's seal call on an execution SHALL return the sealed execution's
+outcome and SHALL return the same outcome when repeated. On a running execution
+it SHALL be refused; it SHALL NOT cancel the run or wait for it.
+
+#### Scenario: Seal After the Run
+
+- **WHEN** a client seals an execution whose run has completed
+- **THEN** it receives the execution's outcome
+
+#### Scenario: Seal a Running Execution
+
+- **WHEN** a client seals an execution that is still running
+- **THEN** the call is refused and names the running execution

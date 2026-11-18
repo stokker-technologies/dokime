@@ -8,6 +8,8 @@
 - [ ] 2.1 Refuse new notes on a sealed execution with an actionable error; prove refusal after seal and acceptance before it.
 - [ ] 2.2 Refuse new attached files on a sealed execution; prove the same pair of cases.
 
+- [ ] 2.3 Offer an execution seal call that returns the outcome, repeats safely and refuses a running execution; notes and artifacts after the run go to the cycle until it is sealed.
+
 ## 3. Cycle Seal
 
 - [ ] 3.1 Verify what the evidence archive contains today (samples, records, files, notes, documents, report) and record any gap against full evidence here before implementing.
