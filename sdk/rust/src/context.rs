@@ -17,8 +17,10 @@
 
 // Standard Library Imports
 use std::{
-    any::{Any, TypeId},
+    any::{self, Any, TypeId},
     collections::HashMap,
+    future, mem,
+    num::NonZeroUsize,
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
@@ -122,7 +124,7 @@ impl Execution {
         })
     }
     pub(crate) fn clear(&self) -> Result<()> {
-        let retired = std::mem::take(&mut *self.resources.lock().map_err(|_| Error::Invalid("Execution Resource Store Poisoned".into()))?);
+        let retired = mem::take(&mut *self.resources.lock().map_err(|_| Error::Invalid("Execution Resource Store Poisoned".into()))?);
         drop(retired);
         Ok(())
     }
@@ -252,7 +254,7 @@ impl Context {
             .get(&TypeId::of::<T>())
             .cloned()
             .and_then(|resource| resource.downcast().ok())
-            .ok_or_else(|| Error::Invalid(format!("Missing Resource: {}", std::any::type_name::<T>())))
+            .ok_or_else(|| Error::Invalid(format!("Missing Resource: {}", any::type_name::<T>())))
     }
 
     pub fn parameters<T: Message>(&self) -> Result<T> {
@@ -282,9 +284,7 @@ impl Context {
             }
         }
     }
-    pub(crate) async fn watch<Q: host::Request>(
-        &self, request: Q, max_item_bytes: std::num::NonZeroUsize,
-    ) -> Result<Watching<Q::Response>> {
+    pub(crate) async fn watch<Q: host::Request>(&self, request: Q, max_item_bytes: NonZeroUsize) -> Result<Watching<Q::Response>> {
         match &self.transport {
             Transport::Harmos(transport) => Ok(Watching {
                 incoming: transport.watch(Wire(request), max_item_bytes).await?,
@@ -304,7 +304,7 @@ impl Context {
         match &self.transport {
             Transport::Harmos(transport) => transport.cancelled().await,
             // The In-Process Host Never Cancels a Running Invocation.
-            Transport::Local(_) => std::future::pending().await,
+            Transport::Local(_) => future::pending().await,
         }
     }
 
@@ -339,7 +339,11 @@ impl Context {
             definition: Some(definition.clone()),
             ..Default::default()
         };
-        let answer = self.host().prompts.create_with(identity, String::new(), HashMap::new(), options).await?;
+        let answer = self
+            .host()
+            .prompts
+            .create_with(identity.clone(), if prompt.declared { identity } else { String::new() }, HashMap::new(), options)
+            .await?;
         if !answer.accepted {
             return Err(Error::Invalid("Create Prompt: Choose an Accepted Operator Answer".into()));
         }

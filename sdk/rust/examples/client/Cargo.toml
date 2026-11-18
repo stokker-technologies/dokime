@@ -43,7 +43,7 @@ path = "src/main.rs"
 
 # Utilities
 dokime = "0.1.5"
-tokio = { version = "1.50.0", features = ["rt", "net", "time"] }
+tokio = { version = "1.50.0", features = ["rt-multi-thread", "net", "time"] }
 tonic = { version = "0.14.8", features = ["transport"] }
 
 # Serialization

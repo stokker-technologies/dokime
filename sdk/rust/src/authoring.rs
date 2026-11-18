@@ -39,12 +39,12 @@ use std::any;
 
 /* === Public Functions === */
 
-pub(crate) fn code_name<T>() -> String {
+pub(crate) fn code_name<T>(type_name: bool) -> String {
     let name = any::type_name::<T>().rsplit("::").next().unwrap_or_default();
     if name.contains("closure") || name.starts_with("fn(") {
         return String::new();
     }
-    let name = name.strip_suffix("Template").or_else(|| name.strip_suffix("Suite")).unwrap_or(name);
+    let name = if type_name { name.strip_suffix("Template").or_else(|| name.strip_suffix("Suite")).unwrap_or(name) } else { name };
     build_identifier("", name, true)
 }
 
@@ -84,8 +84,9 @@ mod tests {
     struct VoltageAccuracyTemplate;
     #[test]
     fn names_follow_code_boundaries_and_preserve_explicit_identifiers() {
-        assert_eq!(code_name::<HTTPAccuracySuite>(), "http_accuracy");
-        assert_eq!(code_name::<VoltageAccuracyTemplate>(), "voltage_accuracy");
+        assert_eq!(code_name::<HTTPAccuracySuite>(true), "http_accuracy");
+        assert_eq!(code_name::<HTTPAccuracySuite>(false), "http_accuracy_suite");
+        assert_eq!(code_name::<VoltageAccuracyTemplate>(true), "voltage_accuracy");
         for name in ["ReadVoltage", "readVoltage", "read_voltage"] {
             assert_eq!(build_identifier("accuracy.voltage", name, true), "accuracy.voltage.read_voltage");
         }

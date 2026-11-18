@@ -112,10 +112,10 @@ mod tests {
     use prost::Message;
     use prost_reflect::DescriptorPool;
 
-    fn roundtrip<T: Payload + PartialEq + core::fmt::Debug>(value: T) {
+    fn roundtrip<T: Payload + Clone + PartialEq + core::fmt::Debug>(value: T) {
+        let expected = value.clone();
         let message = value.into_message();
         let bytes = message.encode_to_vec();
-        let expected = T::from_message(message);
         assert_eq!(decode::<T>(&bytes).unwrap(), expected);
         let pool = DescriptorPool::from_file_descriptor_set(<T::Message as harmos::Message>::types()).unwrap();
         let descriptor = pool.get_message_by_name(&<T::Message as harmos::Message>::name()).unwrap();

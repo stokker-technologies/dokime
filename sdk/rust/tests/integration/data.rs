@@ -65,7 +65,7 @@ struct Payload {
 #[test]
 fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()> {
     // Define Parameters from Data and Compose a Suite by Value.
-    let template = Template::new("data.case", "Data Case").parameters(Inputs {
+    let template = Template::new("case", "Data Case").parameters(Inputs {
         limit: 70.0,
         channels: vec![1, 3],
         serial: None,
@@ -104,17 +104,17 @@ fn compose_typed_data_and_refuse_invalid_declarations_at_startup() -> Result<()>
     assert!(<f64 as dokime::FromValue>::from_value(&value).is_err());
 
     // Reject Duplicate Step Identifiers Before Serving Any Request.
-    let template = Template::new("data.duplicate", "Duplicate")
-        .step(Step::new("Same", async |_: &Context| Ok(())))
-        .step(Step::new("Same", async |_: &Context| Ok(())));
+    let template = Template::new("duplicate", "Duplicate")
+        .step(Step::new("Same", async |_: &Context| Ok(())).identifier("same"))
+        .step(Step::new("Same", async |_: &Context| Ok(())).identifier("same"));
     assert!(Plugin::new("data", "1.0.0").suite(Suite::new("data", "Data").template(template)).declarations().is_err());
 
     // Reject Duplicate Templates Across Suites and Nonfinite Defaults.
     let plugin = Plugin::new("data", "1.0.0")
-        .suite(Suite::new("first", "First").template(Template::new("data.case", "Case")))
-        .suite(Suite::new("second", "Second").template(Template::new("data.case", "Case")));
+        .suite(Suite::new("first", "First").template(Template::new("case", "Case")))
+        .suite(Suite::new("first", "First").template(Template::new("case", "Case")));
     assert!(plugin.declarations().is_err());
-    let template = Template::new("data.invalid", "Invalid").parameters(Inputs {
+    let template = Template::new("invalid", "Invalid").parameters(Inputs {
         limit: f64::NAN,
         channels: Vec::new(),
         serial: None,

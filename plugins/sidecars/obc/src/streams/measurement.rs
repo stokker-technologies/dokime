@@ -23,7 +23,7 @@
 use crate::device::Bench;
 use crate::device::Reading;
 use crate::{settings, suites};
-use dokime::plugin::{Context, DeclarationTypes, Observer, Plugin, Stream};
+use dokime::plugin::{Context, Observer, Plugin, Stream};
 use dokime::{Document, FieldReference, Plot, PlotKind, Result, model};
 
 /* === Constants === */
@@ -38,7 +38,7 @@ pub const SAMPLES: &str = "obc.measurement";
 
 /// One Charger Sample: AC Input Waveform, RMS Values and DC Output.
 #[derive(dokime::Row)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Measurement {
     pub sample_index: i64,
     pub elapsed_s: f64,
@@ -81,7 +81,7 @@ impl Measurement {
 
 /* === Public Functions === */
 
-pub fn catalog<C: DeclarationTypes>(plugin: Plugin<C>) -> Plugin<C> {
+pub fn catalog(plugin: Plugin) -> Plugin {
     let stream = Stream::<Measurement>::new(SAMPLES, "Charger Measurements");
     let observer = Observer::new(&stream, measure).interval_setting(settings::SAMPLE_INTERVAL);
     plugin.stream(stream).observer(observer)

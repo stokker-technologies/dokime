@@ -95,7 +95,7 @@ tonic = { version = "0.14.8", features = ["transport"] }
 # Concurrency
 
 # Async
-tokio = { version = "1.50.0", features = ["sync", "rt", "net", "time"] }
+tokio = { version = "1.50.0", features = ["sync", "rt-multi-thread", "net", "time"] }
 
 # Networking
 
@@ -158,6 +158,10 @@ tonic = { version = "0.14.8", features = ["codegen", "router", "transport"] }
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 # === Test Targets === #
+
+[[test]]
+name = "capture"
+path = "../../examples/test/src/suite.rs"
 
 [[test]]
 name = "integration"

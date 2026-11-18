@@ -27,7 +27,7 @@ use dokime::{PromptArchetype, PromptField, PromptFieldKind, Result, Value, Value
 
 /* === Constants === */
 
-pub const CHECK: &str = "obc.inspection";
+pub const CHECK: &str = "operator_inspection";
 
 /* === Macros === */
 
@@ -62,7 +62,7 @@ pub async fn inspect(ctx: &Context, prompt: &str, note: &str) -> Result<Inspecti
             kind: Some(value::Kind::Text(note.into())),
         },
     )]);
-    let answer = ctx.host().prompts.create(instance(prompt), prompt.into(), values).await?;
+    let answer = ctx.host().prompts.create(instance(prompt), ctx.resolve(prompt)?, values).await?;
     let passed = matches!(answer.values.get("inspection_passed").and_then(|value| value.kind.as_ref()), Some(value::Kind::Boolean(true)));
     let note = match answer.values.get("operator_note").and_then(|value| value.kind.as_ref()) {
         Some(value::Kind::Text(text)) => text.clone(),

@@ -46,7 +46,7 @@ use crate::SecretsDeclarations;
 use crate::SettingDeclaration;
 use crate::SettingsDeclarations;
 use crate::{Error, Message, OperationRequest, Result, context::Executions, message::Wire, stream::Registration, template::validate_names};
-use crate::{PromptDefinitions, RecordContract, RecordContracts, Suites, wire::model};
+use crate::{PromptDefinitions, RecordContracts, Suites};
 use harmos;
 
 use harmos::plugin;
@@ -70,8 +70,6 @@ struct Assembly {
     samplers: Vec<crate::stream::Sampler>,
     inner: plugin::Plugin,
     suites: Vec<Suite>,
-    records: Vec<RecordContract>,
-    prompts: Vec<model::Prompt>,
     settings: Vec<SettingDeclaration>,
     secrets: Vec<SecretDeclaration>,
     registrations: Vec<Registration>,
@@ -88,23 +86,20 @@ struct Assembly {
 impl Plugin {
     pub fn new(identifier: impl Into<String>, version: impl Into<String>) -> Self {
         let identifier = identifier.into();
-        let plugin = Self {
+        Self {
             assembly: Assembly {
                 identifier: identifier.clone(),
                 requirements: Vec::new(),
                 samplers: Vec::new(),
                 inner: plugin::Plugin::new(identifier, version),
                 suites: Vec::new(),
-                records: Vec::new(),
-                prompts: Vec::new(),
                 settings: Vec::new(),
                 secrets: Vec::new(),
                 registrations: Vec::new(),
                 errors: Vec::new(),
                 stop: Vec::new(),
             },
-        };
-        plugin
+        }
     }
 }
 
@@ -227,8 +222,7 @@ impl Plugin {
             return Err(Error::Invalid(format!("Test Template: Declare Exactly One Template {template}")));
         }
         let template = selected.remove(0);
-        let mut prompts = self.assembly.prompts;
-        prompts.extend(template.prompts.iter().cloned());
+        let prompts = template.prompts.clone();
         Ok(crate::testing::Selected {
             plugin: self.assembly.identifier,
             template: template.parts()?,
@@ -249,9 +243,7 @@ impl Plugin {
             requirements: _,
             samplers: _,
             mut inner,
-            mut suites,
-            mut records,
-            mut prompts,
+            suites,
             settings,
             secrets,
             registrations,
@@ -261,8 +253,10 @@ impl Plugin {
         if !errors.is_empty() {
             return Err(Error::Invalid(errors.join("; ")));
         }
-        for suite in &mut suites {
-            for template in &mut suite.templates {
+        let mut records = Vec::new();
+        let mut prompts = Vec::new();
+        for suite in &suites {
+            for template in &suite.templates {
                 records.extend(template.records.iter().cloned());
                 prompts.extend(template.prompts.iter().cloned());
             }

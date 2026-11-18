@@ -21,8 +21,9 @@
 
 // Local Imports
 use crate::device::{Bench, Supply};
+use crate::records::charger;
 use crate::{settings, suites};
-use dokime::plugin::{Context, Criterion, Observer, SampleWindow, Step, Stream, Template};
+use dokime::plugin::{Context, Criterion, Observer, Step, Stream, Template, Window};
 use dokime::{Document, Parameter, Result};
 
 /* === Constants === */
@@ -37,12 +38,12 @@ pub const SAMPLES: &str = "obc.benchmark.observers.samples";
 /* === Structs === */
 
 #[derive(dokime::Row)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Computation {
     pub value: f64,
 }
 #[derive(dokime::Message)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct ComputationColumns {
     pub value: Vec<f64>,
 }
@@ -56,18 +57,20 @@ pub struct ComputationColumns {
 /* === Public Functions === */
 
 pub fn template() -> Template {
-    let samples = Stream::<Computation>::new(SAMPLES, "Heavy Observer Output");
+    let samples = Stream::<Computation>::new("samples", "Heavy Observer Output");
     let observer = Observer::window(&samples, compute).interval_setting(settings::SAMPLE_INTERVAL);
-    Template::new(TEMPLATE, "Heavy Observers")
-        .parameter(Parameter::number("duration_s", "Capture Duration").unit("s").default(0.25).range(0.001..=100.0))
-        .parameter(Parameter::count("iterations", "Iterations per Sample").default(4096_u64).range(1.0..=65536.0))
-        .initialize(initialize)
-        .step(Step::new("Capture Observer Output", capture).identifier("capture"))
-        .criterion(Criterion::new("Observer Output Captured", captured).identifier("captured"))
-        .cleanup(cleanup)
-        .stream(samples)
-        .observer(observer)
-        .document(Document::new("Heavy Observers").id(format!("{TEMPLATE}.report")))
+    charger::catalog(
+        Template::new("observers", "Heavy Observers")
+            .parameter(Parameter::number("duration_s", "Capture Duration").unit("s").default(0.25).range(0.001..=100.0))
+            .parameter(Parameter::count("iterations", "Iterations per Sample").default(4096_u64).range(1.0..=65536.0))
+            .initialize(initialize)
+            .step(Step::new("Capture Observer Output", capture).identifier("capture"))
+            .criterion(Criterion::new("Observer Output Captured", captured).identifier("captured"))
+            .cleanup(cleanup)
+            .stream(samples)
+            .observer(observer)
+            .document(Document::new("Heavy Observers").id(format!("{TEMPLATE}.report"))),
+    )
 }
 async fn initialize(ctx: &Context) -> Result<()> {
     suites::open(ctx, Supply::default(), None).await
@@ -78,13 +81,13 @@ async fn capture(ctx: &Context) -> Result<()> {
     suites::wait(ctx, &bench, samples).await
 }
 async fn captured(ctx: &Context) -> Result<bool> {
-    Ok(ctx.statistics(SAMPLES, "value", "").await?.statistics.is_some_and(|statistics| statistics.count > 0))
+    Ok(ctx.statistics("samples", "value", "").await?.statistics.is_some_and(|statistics| statistics.count > 0))
 }
 async fn cleanup(ctx: &Context) -> Result<()> {
     ctx.get::<Bench>()?.stop();
     Ok(())
 }
-async fn compute(ctx: &Context, window: &SampleWindow) -> Result<ComputationColumns> {
+async fn compute(ctx: &Context, window: &Window) -> Result<ComputationColumns> {
     let iterations: u64 = ctx.parameter("iterations")?;
     let mut value = Vec::new();
     for sample in 0..window.count {

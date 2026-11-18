@@ -37,13 +37,13 @@ use dokime::{Document, FieldReference, Severity, value::Kind};
 /* === Structs === */
 
 #[derive(dokime::Row)]
-#[harmos(package = "execution")]
+#[dokime(package = "execution")]
 struct Reading {
     value: f64,
 }
 
 #[derive(dokime::Parameters)]
-#[harmos(package = "execution")]
+#[dokime(package = "execution")]
 struct Parameters {
     value: f64,
     fail_attempts: u32,
@@ -51,7 +51,7 @@ struct Parameters {
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "execution")]
+#[dokime(package = "execution")]
 struct Attempt {
     value: f64,
     attempt: u32,
@@ -74,7 +74,7 @@ struct Bench {
 /* === Private Functions === */
 
 fn main() -> Result<()> {
-    let reading = Stream::<Reading>::new("execution.reading", "Reading");
+    let reading = Stream::<Reading>::new("reading", "Reading");
     let observer = Observer::new(&reading, read).every(std::time::Duration::from_secs(1));
     let plot = Plot {
         kind: PlotKind::TimeSeries as i32,
@@ -84,7 +84,8 @@ fn main() -> Result<()> {
     let document = Document::new("Execution Report").section(Section::new("Measurements").plot(plot));
     let revision = std::env::var("DOKIME_EXECUTION_REVISION").unwrap_or_else(|_| "1".into());
     let revised = revision != "1";
-    let template = Template::new("execution.capture", "Execution Capture")
+    let template = Template::new("capture", "Execution Capture")
+        .record(Record::<Attempt>::new("attempt", "Attempt"))
         .description(revision)
         .parameters(Parameters {
             value: 10.0,
@@ -125,18 +126,7 @@ fn main() -> Result<()> {
         .document(document)
         .stream(reading)
         .observer(observer);
-    let plugin = Plugin::new("execution", "1.0.0")
-        .suite(Suite::new("execution", "Execution").template(template))
-        .prompt(Prompt::new("execution.continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
-        .requires_host(HostOperation::PromptsCreate)
-        .requires_host(HostOperation::EvidenceRecordsAppend)
-        .requires_host(HostOperation::EvidenceRecordsList)
-        .requires_host(HostOperation::EvidenceStatistics)
-        .requires_host(HostOperation::EvidenceLogsAppend)
-        .requires_host(HostOperation::BackendEnvironment)
-        .requires_host(HostOperation::TimeGet)
-        .requires_host(HostOperation::TimeSleep)
-        .record(Record::<Attempt>::new("execution.attempt", "Attempt"));
+    let plugin = Plugin::new("execution", "1.0.0").suite(Suite::new("execution", "Execution").template(template));
     let plugin = if std::env::args().any(|argument| argument == "--remote") { plugin.remote() } else { plugin };
     plugin.serve()
 }
@@ -163,14 +153,14 @@ async fn baseline(ctx: &Context) -> Result<()> {
 
 async fn measure(ctx: &Context) -> Result<()> {
     if ctx.attempt() == 1 {
-        ctx.host().prompts.create("continue".into(), "execution.continue".into(), Default::default()).await?;
+        ctx.prompt("Continue the Measurement?", &["Continue"]).await?;
     }
     let bench = ctx.get::<Bench>()?;
     let refused =
         ctx.host().evidence.logs.append("missing-execution".into(), Severity::Info, "out-of-scope".into(), ctx.now().await?).await;
     let scope_refused = refused.is_err_and(|error| error.to_string().contains("Append"));
     ctx.record(
-        &Record::<Attempt>::new("execution.attempt", "Attempt"),
+        &Record::<Attempt>::new("attempt", "Attempt"),
         Attempt {
             value: bench.value,
             attempt: ctx.attempt(),
@@ -190,28 +180,28 @@ async fn read(ctx: &Context) -> Result<Reading> {
 }
 
 async fn own_measurements(ctx: &Context) -> Result<bool> {
-    let stats = ctx.statistics("execution.reading", "", "measure").await?;
+    let stats = ctx.statistics("reading", "", "measure").await?;
     let repeated = ctx
         .host()
         .evidence
         .statistics_with(
-            "execution.reading".into(),
+            ctx.resolve("reading")?,
             "value".into(),
             HostEvidenceStatisticsOptions {
-                step: Some("measure".into()),
+                step: Some(ctx.resolve("measure")?),
                 at: stats.resolved_at.clone(),
                 ..Default::default()
             },
         )
         .await?;
-    let mut latest = ctx.statistics("execution.reading", "value", "measure").await?;
+    let mut latest = ctx.statistics("reading", "value", "measure").await?;
     let advanced = latest.resolved_at.as_ref().zip(stats.resolved_at.as_ref()).is_some_and(|(latest, first)| {
         latest.positions.iter().any(|current| {
             first.positions.iter().any(|previous| current.history == previous.history && current.sequence > previous.sequence)
         })
     });
     latest.resolved_at = stats.resolved_at.clone();
-    let records = ctx.records("execution.attempt", "measure", 1).await?;
+    let records = ctx.records(&Record::<Attempt>::new("attempt", "Attempt")).step(measure).list(1).await?;
     let attempt = records
         .last
         .map(|record| <Attempt as encoding::Message>::decode(record.payload.as_slice()))

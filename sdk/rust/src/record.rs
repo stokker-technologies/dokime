@@ -19,6 +19,7 @@
 use std::marker::PhantomData;
 
 // Third Party Imports
+use harmos::Message;
 
 // Local Imports
 use crate::Payload;
@@ -46,7 +47,7 @@ pub struct Record<T: Payload> {
 
 impl<T: Payload> Record<T> {
     pub fn of<H: Fn() -> Self>(_: H, label: impl Into<String>) -> Self {
-        Self::new(crate::authoring::code_name::<H>(), label)
+        Self::new(crate::authoring::code_name::<H>(false), label)
     }
 
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
@@ -58,7 +59,7 @@ impl<T: Payload> Record<T> {
                     description: String::new(),
                     ..Default::default()
                 }),
-                message: <T::Message as harmos::Message>::name(),
+                message: T::Message::name(),
             },
             marker: PhantomData,
         }

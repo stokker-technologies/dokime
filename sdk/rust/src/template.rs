@@ -128,7 +128,7 @@ impl Step {
         let label = label.into();
         Self {
             metadata: Metadata {
-                identifier: code_name::<H>(),
+                identifier: code_name::<H>(false),
                 label,
                 ..Default::default()
             },
@@ -168,7 +168,7 @@ impl Criterion {
         let label = label.into();
         Self {
             metadata: Metadata {
-                identifier: code_name::<H>(),
+                identifier: code_name::<H>(false),
                 label,
                 ..Default::default()
             },
@@ -222,7 +222,7 @@ impl Template {
         }
     }
     pub fn of<T>(label: impl Into<String>) -> Self {
-        Self::new(code_name::<T>(), label)
+        Self::new(code_name::<T>(true), label)
     }
 
     pub fn record<T: Payload>(mut self, record: Record<T>) -> Self {

@@ -21,7 +21,7 @@ use std::{future::Future, pin::Pin, sync::Arc};
 // Third Party Imports
 
 // Local Imports
-use crate::{Context, Message, Payload, Result, context::Executions};
+use crate::{Context, Message, Payload, Result, context::Executions, stream::Registration};
 use harmos;
 use harmos::OperationPolicy;
 use harmos::Visibility;
@@ -89,7 +89,7 @@ impl Operation {
         self.configure.push(Box::new(configure));
         self
     }
-    pub(crate) fn registration(self) -> crate::stream::Registration {
+    pub(crate) fn registration(self) -> Registration {
         Box::new(move |plugin, executions, _| {
             let mut operation = (self.register)(executions);
             for configure in self.configure {

@@ -57,6 +57,11 @@
 - [x] Python: Complete Native Integration Proof With Underscore Identifiers Against This Worktree's Host.
 - [x] Python: Qualify Materialized Step and Criterion Instances With the Shared Identifier Function and Support Bound Methods.
 - [ ] Rust: Follow the Locked Authoring Surface.
+  - [x] Rust: Bind Local Template Declarations, Generate Code Names, Wrap Plain Values and Remove Plugin-Type Growth.
+  - [x] Rust: Migrate the Owned Examples, OBC Plugin and Host Fixture Sources; Keep the Client Flow Separate.
+  - [x] Rust: Complete SDK, Example, Host-Fixture, Format and Focused Language Proof in This Worktree.
+  - [ ] Rust: Migrate the Retired SDK Surface in Owner-Scoped `crates/dokime-runtime/benches/storage/{windows,publication}.rs` and `crates/dokime-gui/benches/system/fixture.rs` (Derive Attributes, Plugin Records, Window Type, Local IDs and Selectors).
+  - [ ] Rust: Resolve Runtime-Defined Plain Context Operation Calls Against the Pinned Carrier's Static `OperationRequest` Contract.
 - [ ] C#: Follow the Locked Authoring Surface.
 - [ ] C++: Follow the Locked Authoring Surface.
 - [ ] Command Line: Implement Locked Point 11.

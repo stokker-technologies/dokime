@@ -33,6 +33,7 @@ use crate::{AnswerRule, EvidenceCondition, Metadata, PromptAction, PromptArchety
 #[derive(Clone)]
 pub struct Prompt {
     pub(crate) definition: model::Prompt,
+    pub(crate) declared: bool,
 }
 
 /* === Enums === */
@@ -43,7 +44,9 @@ pub struct Prompt {
 
 impl From<&str> for Prompt {
     fn from(text: &str) -> Self {
-        Self::new("question", text, text).action("0", "OK")
+        let mut prompt = Self::new("question", text, text).action("0", "OK");
+        prompt.declared = false;
+        prompt
     }
 }
 
@@ -55,11 +58,12 @@ impl From<&Prompt> for Prompt {
 
 impl Prompt {
     pub fn of<H: Fn() -> Self>(_: H, label: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::new(crate::authoring::code_name::<H>(), label, message)
+        Self::new(crate::authoring::code_name::<H>(false), label, message)
     }
 
     pub fn new(identifier: impl Into<String>, label: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
+            declared: true,
             definition: model::Prompt {
                 metadata: Some(Metadata {
                     identifier: identifier.into(),
