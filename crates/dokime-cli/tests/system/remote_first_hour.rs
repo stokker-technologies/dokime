@@ -74,7 +74,9 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                 };
 
                 // Start One Disposable Application with Its Plugin
+                let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
                 let mut host = super::command()
+                    .envs(credentials.environment.iter().cloned())
                     .args(["dev", "--plugin"])
                     .arg(input)
                     .stdin(Stdio::piped())

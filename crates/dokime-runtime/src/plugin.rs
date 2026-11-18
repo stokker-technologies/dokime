@@ -252,10 +252,11 @@ pub fn plugin_settings() -> GrpcPluginSettings {
 fn uv_executable() -> Result<PathBuf> {
     let path = env::var_os("PATH").unwrap_or_default();
     let executable = format!("uv{EXE_SUFFIX}");
-    env::split_paths(&path)
+    let uv = env::split_paths(&path)
         .map(|directory| directory.join(&executable))
         .find(|path| path.is_file())
-        .ok_or_else(|| Error::Invalid("Start Python Plugin: Install uv and Put It on PATH, Then Retry".into()))
+        .ok_or_else(|| Error::Invalid("Start Python Plugin: Install uv and Put It on PATH, Then Retry".into()))?;
+    Ok(uv.canonicalize()?)
 }
 
 fn python_command(project: &Path, uv: &Path) -> Result<Command> {
