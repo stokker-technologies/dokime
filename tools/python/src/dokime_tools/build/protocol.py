@@ -90,7 +90,14 @@ def generate(*, check: bool = False, root: Path, descriptors: Path, configuratio
         command = [sys.executable, str(root / "sdk/python/tools/generate.py"), "--exports-only"]
         if check:
             command.append("--check")
-        subprocess.run(command, check=True, creationflags=spawn_flags())
+        subprocess.run(
+            command,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
     finally:
         shutil.rmtree(output)
 
@@ -102,14 +109,28 @@ def main() -> None:
     if options.check:
         # Verify Protocol Output Against Its Generator.
         command = ["mise", "run", "test", "--", "--package", "dokime-protocol", "--target", "integration"]
-        subprocess.run(command, check=True, creationflags=spawn_flags())
+        subprocess.run(
+            command,
+            check=True,
+            creationflags=spawn_flags(),
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
     else:
         status = cargo.focused(Path.cwd(), "run", ["--locked", "--package", "dokime-protocol-generator"])
         if status:
             raise SystemExit(status)
     # Restore the Protocol Compiler Without Building the Library SDK.
     command = ["mise", "-C", "sdk/csharp", "run", "prepare:protocol"]
-    subprocess.run(command, check=True, creationflags=spawn_flags())
+    subprocess.run(
+        command,
+        check=True,
+        creationflags=spawn_flags(),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     root = Path.cwd()
     selected = configuration(root)
     generate(
@@ -122,7 +143,14 @@ def main() -> None:
     command = ["mise", "-C", "sdk/python", "run", "generate"]
     if options.check:
         command += ["--", "--check"]
-    subprocess.run(command, check=True, creationflags=spawn_flags())
+    subprocess.run(
+        command,
+        check=True,
+        creationflags=spawn_flags(),
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
 
 
 # === Private Functions === #
