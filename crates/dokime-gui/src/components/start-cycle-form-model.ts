@@ -9,11 +9,11 @@
 
 /* === Local Imports === */
 
-import { formatTitleWord } from "@/lib/format";
+import { formatDecimal, formatTitleWord } from "@/lib/format";
+import type { NotificationFailure } from "@/lib/notification-details";
 import { formatListRaw, type ParseResult } from "@/lib/parameter-parser";
 import type { ParameterDefinition, SuiteTemplateEntry, TestCycleSelection } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
-import type { NotificationFailure } from "@/lib/notification-details";
 
 /* === Types === */
 
@@ -153,7 +153,9 @@ function initialParameterRaw(definition: ParameterDefinition): string {
     return parameterGroupVariantId(first) ?? "";
   }
   if (definition.list) {
-    if ((definition.expansion?.kind ?? "single") === "single" && definition.values[0] == null) return "";
+    if ((definition.expansion?.kind ?? "single") === "single" && definition.values[0] == null) {
+      return "";
+    }
     return formatListRaw(
       (definition.expansion?.kind ?? "single") === "single" ? ((definition.values[0] as unknown[]) ?? []) : definition.values,
     );
@@ -170,7 +172,7 @@ function formatPreviewValue(value: unknown, valueType: string): string {
     if (valueType === "int" || valueType === "integer") {
       return String(Math.trunc(value));
     }
-    return Number.isInteger(value) ? String(value) : value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+    return Number.isInteger(value) ? String(value) : formatDecimal(value, 4);
   }
   if (typeof value === "boolean") {
     return value ? "true" : "false";

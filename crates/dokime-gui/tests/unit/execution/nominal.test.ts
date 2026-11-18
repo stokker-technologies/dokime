@@ -18,13 +18,15 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { onTestFinished, test, vi } from "vitest";
+
+// Local Imports
 import { EditableOperatorNotes } from "@/components/document/OperatorNotesView";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { MediaGalleryView } from "@/components/MediaGalleryView";
 import { artifactContentKey, mediaArtifactSource, mediaBlobType } from "@/components/media-gallery-model";
 import { PromptPanel } from "@/components/PromptPanel";
+import { formatPreview } from "@/components/start-cycle-form-model";
 import { ExecutionParameters } from "@/features/cycle/ExecutionParameters";
-// Local Imports
 import {
   executionDocumentSections,
   executionPagePrompts,
@@ -55,7 +57,7 @@ import { durationText } from "@/features/cycle/use-elapsed";
 import { buildArtifactTree, type ArtifactTreeInput } from "@/lib/artifact-tree";
 import { shouldFollowArtifact } from "@/lib/execution-file-text";
 import { advanceFollowCursor, connectingFollowCursor, followTailOffset } from "@/lib/execution-file-paging";
-import { durationParts, formatDuration } from "@/lib/format";
+import { defaultPlotNumber, durationParts, formatDecimal, formatDuration, formatNumber, formatUnitLabel } from "@/lib/format";
 import { promptDecision } from "@/lib/prompts";
 import type { DocumentViewCard, ExecutionFileIdentity, ParameterDefinition, PromptField, PromptRequest } from "@/lib/types";
 
@@ -192,6 +194,53 @@ test("Parameter Rows", () => {
     /<dt[^>]*title="soak"[^>]*>Soak Time<\/dt><dd class="[^"]*text-right[^"]*">10<\/dd><dd class="text-muted-foreground">min<\/dd>/,
   );
   assert.doesNotMatch(html, /truncate/, "a label wraps, it is never clipped");
+});
+
+test("Numbers Use Ungrouped Decimal Points and Preserve Declared Precision", () => {
+  for (const [value, expected] of [
+    [1234567, "1234567"],
+    [1234.5, "1234.5"],
+    [-1234.5678, "-1234.568"],
+    [0, "0"],
+    [-0, "-0"],
+    [0.00049, "0"],
+  ] as const) {
+    assert.equal(formatDecimal(value), expected);
+  }
+  assert.equal(formatDecimal(1234.56789, 4), "1234.5679");
+  assert.equal(formatDecimal(1234.5, 0), "1235");
+  assert.equal(formatDecimal(1152921504606848000), "1152921504606848000");
+  assert.equal(formatPreview([1234567, 1234.56789], "float"), "1234567, 1234.5679");
+  assert.equal(formatPreview([1234.56789], "int"), "1234");
+  assert.equal(formatPreview([-0, 1e21], "float"), "0, 1e+21");
+  assert.equal(defaultPlotNumber(1234.56789), "1234.5679");
+  assert.equal(defaultPlotNumber(1234.56789, 0.01), "1234.57");
+  assert.equal(defaultPlotNumber(0.0001234), "1.2e-4");
+  assert.equal(defaultPlotNumber(1234567), "1.2e+6");
+  assert.equal(formatNumber(1234.5678, { kind: { kind: { case: "normal", value: { maxFractionDigits: 2 } } } }), "1234.57");
+  assert.equal(formatNumber(1234.5, { kind: { kind: { case: "fixed", value: { decimals: 2 } } } }), "1234.50");
+  assert.equal(formatNumber(1234.5, { kind: { kind: { case: "scientific", value: { significantDigits: 3 } } } }), "1.23e+3");
+  assert.equal(formatNumber(1234.5, { kind: { kind: { case: "engineering", value: { significantDigits: 4 } } } }), "1.234e+3");
+  assert.equal(formatNumber(1234.5, { kind: { kind: { case: "siPrefix", value: { significantDigits: 4 } } } }), "1.234k");
+  assert.equal(formatUnitLabel(formatDecimal(1234.5), "V"), "1234.5 [V]");
+});
+
+test("Numbers Keep the Same Display Under Different Machine Locales", () => {
+  const localeString = Number.prototype.toLocaleString;
+  for (const locale of ["de-DE", "ar-EG"]) {
+    const display = vi.spyOn(Number.prototype, "toLocaleString").mockImplementation(function (this: number, locales, options) {
+      return localeString.call(this, locales ?? locale, options);
+    });
+    try {
+      assert.notEqual((1234.5).toLocaleString(), "1234.5");
+      assert.equal(formatDecimal(1234567), "1234567");
+      assert.equal(formatDecimal(1234.5), "1234.5");
+      assert.equal(defaultPlotNumber(1234.56789), "1234.5679");
+      assert.equal(formatNumber(1234.5678, { kind: { kind: { case: "normal", value: { maxFractionDigits: 2 } } } }), "1234.57");
+    } finally {
+      display.mockRestore();
+    }
+  }
 });
 
 test("Duration Formatting", () => {

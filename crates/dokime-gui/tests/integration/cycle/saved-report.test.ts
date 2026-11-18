@@ -14,6 +14,7 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { create } from "@bufbuild/protobuf";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { test, vi } from "vitest";
@@ -26,16 +27,17 @@ import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer
 import { type CompletedDocument, mapNativeDocument } from "@/lib/api/native-documents";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { nativeValueToJson } from "@/lib/host/values";
-import { create } from "@bufbuild/protobuf";
-import { DocumentBindingSchema } from "@host/model";
-import { DocumentCardKind } from "@host/model";
-import { DocumentCardSchema } from "@host/model";
-import { DocumentHeaderSchema } from "@host/model";
-import { DocumentLayoutNodeSchema } from "@host/model";
-import { DocumentSectionIdentitySchema } from "@host/model";
-import { DocumentSummaryGroupSchema } from "@host/model";
-import { DocumentSummaryTileSchema } from "@host/model";
-import { ValueSchema } from "@host/model";
+import {
+  DocumentBindingSchema,
+  DocumentCardKind,
+  DocumentCardSchema,
+  DocumentHeaderSchema,
+  DocumentLayoutNodeSchema,
+  DocumentSectionIdentitySchema,
+  DocumentSummaryGroupSchema,
+  DocumentSummaryTileSchema,
+  ValueSchema,
+} from "@host/model";
 import { documentSummaryTile } from "@/lib/document-presentation";
 import { formatCompactDecimal } from "@/lib/format";
 import { seriesLegendColumns, seriesLegendRows } from "@/lib/statistics";
@@ -105,7 +107,9 @@ function thermalDocument(plotCount: number): CompletedDocument {
   place(1, 0, "statistics", "summary");
   place(2, 0, "records", DocumentCardKind.RECORDS);
   section(3, "plots", "Plots");
-  for (let index = 0; index < plotCount; index++) place(4 + index, 3, `plot-${index}`, DocumentCardKind.PLOT);
+  for (let index = 0; index < plotCount; index++) {
+    place(4 + index, 3, `plot-${index}`, DocumentCardKind.PLOT);
+  }
   place(4 + plotCount, 3, "half", DocumentCardKind.PLOT, 6);
   section(5 + plotCount, "details", "Details", 3);
   place(6 + plotCount, 5 + plotCount, "detail", DocumentCardKind.PLOT);
@@ -192,12 +196,16 @@ test("Saved Report Browser", async () => {
       desktopArtifactDeliver: async (_generation: string, document: { filename: string; source: unknown; action: string }) => {
         assert.deepEqual(document.source, { kind: "cycle_report", cycleId: "cycle-1" });
         assert.equal("bytesBase64" in document, false);
-        if (document.action === "open") return { path: "/native/cache/report.html", origin: "current" };
+        if (document.action === "open") {
+          return { path: "/native/cache/report.html", origin: "current" };
+        }
         saved.push(document.filename);
         return document.filename === "cancelled.html" ? null : { path: `/home/operator/${document.filename}`, origin: "sealed" };
       },
       desktopOpenPath: async (path: string) => {
-        if (refuseOpen) throw new Error("no default browser");
+        if (refuseOpen) {
+          throw new Error("no default browser");
+        }
         opened.push(path);
         return null;
       },
@@ -230,6 +238,31 @@ test("Saved Report Browser", async () => {
     vi.doUnmock("@/lib/desktop-open");
     vi.doUnmock("@/lib/desktop/commands");
     vi.resetModules();
+  }
+});
+
+test("Desktop and Report Summary Values Share Ungrouped Decimal Formatting", () => {
+  for (const [value, expected] of [
+    [1234567, "1234567"],
+    [1234.5, "1234.5"],
+    [-1234.5678, "-1234.568"],
+    [1152921504606848000, "1152921504606848000"],
+  ] as const) {
+    const tile = documentSummaryTile({
+      metadata: { identifier: "mean", label: "Mean" },
+      value,
+      format: "number",
+      presentation: "value",
+      unit: "V",
+    });
+    assert.equal(tile.exact, expected);
+    const host = document.createElement("div");
+    host.innerHTML = renderToStaticMarkup(
+      createElement(Metric, { metricId: tile.metric_id, label: tile.label, value: tile.formatted, exactValue: tile.exact ?? undefined }),
+    );
+    const shown = host.querySelector('[data-document-metric="mean"] strong [data-exact-value]');
+    assert.equal(shown?.getAttribute("data-exact-value"), expected);
+    assert.equal(tile.label, "Mean [V]");
   }
 });
 

@@ -98,6 +98,11 @@ const MAX_SI_EXPONENT = SI_PREFIXES[SI_PREFIXES.length - 1][0];
 
 /* === Public Functions === */
 
+/** Decimal display uses a fixed decimal point and never groups digits. */
+export function formatDecimal(value: number, maximumFractionDigits = 3): string {
+  return value.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits });
+}
+
 /** Format one generated title word while retaining caller-owned acronyms. */
 export function formatTitleWord(word: string, index: number, words: readonly string[]): string {
   const lower = word.toLowerCase();
@@ -150,7 +155,9 @@ export function formatDuration(seconds: number | null | undefined): string | nul
 export function durationParts(seconds: number): DurationParts {
   const sign = seconds < 0 ? "-" : "";
   const magnitude = Math.abs(seconds);
-  if (magnitude === 0) return { figure: "0", unit: "s" };
+  if (magnitude === 0) {
+    return { figure: "0", unit: "s" };
+  }
   const signed = (parts: DurationParts): DurationParts => ({ ...parts, figure: `${sign}${parts.figure}` });
   for (const scale of SUBSECOND_SCALES) {
     const rounded = significant(magnitude / scale.divisor);
@@ -187,7 +194,7 @@ export function formatNumber(value: number, format: Wire<ValueFormat> | null, op
     case "normal":
       return kind.value.maxFractionDigits == null
         ? defaultPlotNumber(value, options?.increment)
-        : value.toLocaleString(undefined, { maximumFractionDigits: kind.value.maxFractionDigits });
+        : formatDecimal(value, kind.value.maxFractionDigits);
     case "fixed":
       return value.toFixed(kind.value.decimals);
     case "scientific":
@@ -235,7 +242,7 @@ export function formatTime(epochSeconds: number, format: Wire<ValueFormat> | nul
  * uPlot's default is `Intl.NumberFormat` with three fraction digits, which
  * prints every reading below a thousandth as `0` and a negative one as `-0`.
  * Values that small or beyond a million switch to exponential notation with
- * two significant digits; the rest keep locale formatting, with the fraction
+ * two significant digits; the rest use ungrouped decimal formatting, with the fraction
  * digits taken from the tick increment when an axis supplies one so that
  * neighbouring ticks never collapse onto the same label.
  */
@@ -260,7 +267,7 @@ export function defaultPlotNumber(value: number, increment?: number): string {
   const fromIncrement =
     increment !== undefined && Number.isFinite(increment) && increment > 0 ? Math.max(0, Math.ceil(-Math.log10(increment))) : undefined;
   const maximumFractionDigits = Math.min(6, fromIncrement ?? 4);
-  return value.toLocaleString(undefined, { maximumFractionDigits });
+  return formatDecimal(value, maximumFractionDigits);
 }
 
 /**
@@ -272,14 +279,22 @@ export function defaultPlotNumber(value: number, increment?: number): string {
  * never a floating-point conversion; text that is not a decimal is unchanged.
  */
 export function formatCompactDecimal(decimal: string): string {
-  if (decimal.length <= COMPACT_DECIMAL_CHARACTERS) return decimal;
+  if (decimal.length <= COMPACT_DECIMAL_CHARACTERS) {
+    return decimal;
+  }
   const parsed = parseDecimal(decimal);
-  if (!parsed) return decimal;
+  if (!parsed) {
+    return decimal;
+  }
   const { negative, numerator, denominator } = parsed;
-  if (numerator === 0n) return "0";
+  if (numerator === 0n) {
+    return "0";
+  }
   // The digit counts place the magnitude within one decade of 10^exponent.
   let exponent = numerator.toString().length - denominator.toString().length;
-  if (!atLeastPower(numerator, denominator, exponent)) exponent -= 1;
+  if (!atLeastPower(numerator, denominator, exponent)) {
+    exponent -= 1;
+  }
   const shift = COMPACT_SIGNIFICANT_DIGITS - 1 - exponent;
   const scaledNumerator = shift >= 0 ? numerator * 10n ** BigInt(shift) : numerator;
   const scaledDenominator = shift >= 0 ? denominator : denominator * 10n ** BigInt(-shift);
@@ -309,7 +324,9 @@ function parseDecimal(text: string): { negative: boolean; numerator: bigint; den
     return denominator === 0n ? null : { negative: rational[1] === "-", numerator: BigInt(rational[2]), denominator };
   }
   const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(text);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   const fraction = match[3] ?? "";
   const power = Number(match[4] ?? 0) - fraction.length;
   const digits = BigInt(`${match[2]}${fraction}`);
