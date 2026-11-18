@@ -18,6 +18,7 @@
 // Standard Library Imports
 use std::collections::BTreeSet;
 use std::num::NonZeroUsize;
+use std::time::Instant;
 
 // Third Party Imports
 use harmos_protocol::model::{Declarations, FileReference, History, PageRequest, Position, ReadCut};
@@ -50,6 +51,7 @@ use dokime_storage::ExecutionState;
 pub(super) async fn collect(
     context: &Context, request: &host::ReportsCreateRequest,
 ) -> Result<(host::ReportCapture, ReadCut, Option<PreparedReport>)> {
+    let phase = Instant::now();
     let subject = request
         .subject
         .as_ref()
@@ -98,6 +100,8 @@ pub(super) async fn collect(
             .collect(),
         revisions: Vec::new(),
     };
+    tracing::info!(phase = "resolve_cut", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let phase = Instant::now();
     let mut capture = host::ReportCapture {
         report: Some(host::ReportMetadata {
             test_cycle_id: cycle.clone(),
@@ -155,6 +159,7 @@ pub(super) async fn collect(
             ),
         });
     }
+    tracing::info!(phase = "planning", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let mut suites = BTreeSet::new();
     let mut prepared = None;
     for cut in &cuts {
@@ -184,6 +189,7 @@ pub(super) async fn collect(
                 file: None,
             });
         }
+        let phase = Instant::now();
         let document = documents::get::response_at(
             context,
             &host::DocumentsGetRequest {
@@ -195,6 +201,8 @@ pub(super) async fn collect(
             cut,
         )
         .await?;
+        tracing::info!(phase = "documents", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        let phase = Instant::now();
         let mut envelopes = Vec::new();
         for frame in &document.frames {
             let Some(host::document_frame_frame::Kind::Binding(binding)) = frame.frame.as_ref().and_then(|frame| frame.kind.as_ref())
@@ -206,15 +214,20 @@ pub(super) async fn collect(
                 continue;
             };
             let plot = plot.request.as_ref().ok_or_else(|| Error::Invalid("Create Report: Restore the Bound Plot Request".into()))?;
-            envelopes.push(crate::host::plots::snapshots::list::snapshot_at(
+            let started = Instant::now();
+            let envelope = crate::host::plots::snapshots::list::snapshot_at(
                 &reader,
                 cut,
                 plot,
                 context.settings.page_items,
                 context.host.now_ns(),
                 &context.host.identity().epoch,
-            )?);
+            )?;
+            tracing::info!(phase = "plot", plot = ?plot.plot_id, samples = envelope.diagnostics.as_ref().map_or(0, |value| value.raw_point_count), elapsed_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+            envelopes.push(envelope);
         }
+        tracing::info!(phase = "plots", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        let phase = Instant::now();
         let mut captured = host::ReportExecution {
             detail: Some(
                 crate::host::executions::get::handle(context, host::ExecutionsGetRequest { name: id.clone(), ..Default::default() })
@@ -238,6 +251,8 @@ pub(super) async fn collect(
             }),
             ..Default::default()
         };
+        tracing::info!(phase = "execution", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        let phase = Instant::now();
         let mut at = None;
         let mut token = String::new();
         loop {
@@ -257,6 +272,8 @@ pub(super) async fn collect(
                 break;
             }
         }
+        tracing::info!(phase = "schemas", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        let phase = Instant::now();
         let mut at = None;
         let mut token = String::new();
         loop {
@@ -281,6 +298,8 @@ pub(super) async fn collect(
                 break;
             }
         }
+        tracing::info!(phase = "traceability", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        let phase = Instant::now();
         let mut at = None;
         let mut token = String::new();
         loop {
@@ -314,6 +333,7 @@ pub(super) async fn collect(
                 break;
             }
         }
+        tracing::info!(phase = "execution_files", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         capture.executions.push(captured);
     }
     if execution.is_none() {
@@ -336,6 +356,7 @@ pub(super) async fn collect(
             .await?,
         );
     }
+    let phase = Instant::now();
     let selection = Some(evidence::AnnotationSelection {
         owner: Some(evidence::AnnotationOwner {
             owner: Some(evidence::AnnotationOwnerOwner {
@@ -369,6 +390,8 @@ pub(super) async fn collect(
             break;
         }
     }
+    tracing::info!(phase = "notes", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let phase = Instant::now();
     let mut at = None;
     let mut token = String::new();
     loop {
@@ -388,6 +411,8 @@ pub(super) async fn collect(
             break;
         }
     }
+    tracing::info!(phase = "health", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let phase = Instant::now();
     let scope = EvidenceScope {
         cycle_id: Some(cycle),
         execution_id: execution,
@@ -416,6 +441,8 @@ pub(super) async fn collect(
             break;
         }
     }
+    tracing::info!(phase = "records", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let phase = Instant::now();
     let mut at = None;
     let mut token = String::new();
     loop {
@@ -452,6 +479,8 @@ pub(super) async fn collect(
             break;
         }
     }
+    tracing::info!(phase = "artifacts", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    let phase = Instant::now();
     if let Some(appearance) = capture.appearance.as_ref().and_then(|reply| reply.appearance.as_ref()) {
         for logo in &appearance.logos {
             if let Some(file) = logo.asset.as_ref().and_then(|asset| asset.file.as_ref()) {
@@ -459,6 +488,7 @@ pub(super) async fn collect(
             }
         }
     }
+    tracing::info!(phase = "logos", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     Ok((capture, resolved_at, prepared))
 }
 

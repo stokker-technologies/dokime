@@ -16,7 +16,8 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::time::Instant;
+use std::{collections::BTreeMap, num::NonZeroUsize, result, sync::Arc};
 
 // Third Party Imports
 use arrow_array::{BooleanArray, Int64Array, RecordBatch, StructArray, UInt64Array};
@@ -103,7 +104,20 @@ impl Store {
     pub fn read_batches(
         &self, selection: BatchSelection<'_>, columns: &[String], mut read: impl FnMut(RecordBatch) -> Result<bool>,
     ) -> Result<()> {
-        self.ordered_batches(selection, columns, false, |batch, _| read(batch))
+        let started = Instant::now();
+        let mut samples = 0;
+        self.ordered_batches(selection, columns, false, |batch, _| {
+            samples += batch.num_rows() as u64;
+            read(batch)
+        })?;
+        tracing::info!(
+            phase = "source_read",
+            stream = selection.stream,
+            samples,
+            elapsed_ms = started.elapsed().as_secs_f64() * 1000.0,
+            "Report Stage"
+        );
+        Ok(())
     }
     pub(crate) fn ordered_batches(
         &self, selection: BatchSelection<'_>, columns: &[String], latest: bool, mut read: impl FnMut(RecordBatch, i64) -> Result<bool>,
@@ -126,7 +140,7 @@ impl Store {
                 ],
                 |row| Ok((catalog::index(row)?, row.get::<_, i64>(5)?)),
             )?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .collect::<result::Result<Vec<_>, _>>()?;
         drop(query);
         let tail = if self.cancelled.is_none() {
             self.intake()?
@@ -185,8 +199,7 @@ impl Store {
                 .collect::<Vec<_>>();
             let values =
                 if selected.is_empty() { StructArray::new_empty_fields(batch.num_rows(), None) } else { StructArray::from(selected) };
-            let batch =
-                RecordBatch::try_from_iter(vec![("_storage", batch.column(0).clone()), ("values", std::sync::Arc::new(values) as _)])?;
+            let batch = RecordBatch::try_from_iter(vec![("_storage", batch.column(0).clone()), ("values", Arc::new(values) as _)])?;
             pending.push((batch, end_ns));
         }
         if latest {

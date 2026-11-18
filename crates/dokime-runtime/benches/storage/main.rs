@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod publication;
+mod reports;
 mod windows;
 
 /* === Re-Exports === */
@@ -428,6 +429,8 @@ fn main() {
     // The In-Process Hosts Run on the Product Host's Multi-Thread Runtime Flavor.
     let executor = Builder::new_multi_thread().enable_all().build().unwrap();
     let _entered = executor.enter();
+    let report_times = reports::Times::default();
+    tracing::subscriber::set_global_default(tracing_subscriber::registry().with(report_times.clone())).unwrap();
     let mut criterion = Criterion::default().configure_from_args();
     let mut group = criterion.benchmark_group("storage");
     group.sample_size(10);
@@ -706,6 +709,7 @@ fn main() {
         }
     }
     group.finish();
+    reports::benchmark(&mut criterion, &executor, &report_times);
     publication::benchmark(&mut criterion, &executor);
     windows::benchmark(&mut criterion, &executor);
     criterion.final_summary();

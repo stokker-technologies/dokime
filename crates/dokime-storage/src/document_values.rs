@@ -19,6 +19,7 @@
 use std::cmp::Ordering;
 use std::iter;
 use std::num::NonZeroUsize;
+use std::time::Instant;
 
 // Third Party Imports
 use arrow_array::{Int64Array, StructArray, UInt64Array};
@@ -58,6 +59,7 @@ impl Store {
     }
     pub fn document_value_filtered(&self, cut: &ExecutionCut, expression: &DataExpression, filters: &[PlotFilter]) -> Result<Value> {
         if let Some(data_expression::Kind::Aggregate(aggregate)) = &expression.kind {
+            let started = Instant::now();
             let value = self.reduce_expression(
                 cut,
                 aggregate.input.as_deref().ok_or(Error::Data("supply the aggregate input"))?,
@@ -65,6 +67,7 @@ impl Store {
                 Aggregate::try_from(aggregate.kind).map_err(|_| Error::Data("select a reducer"))?,
                 aggregate.percentile,
             )?;
+            tracing::info!(phase = "statistics", elapsed_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Stage");
             return scalar::wire(&value);
         }
         let mut selected = None;

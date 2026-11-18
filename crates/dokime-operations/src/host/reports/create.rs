@@ -57,6 +57,7 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
         let started = Instant::now();
         let (capture, resolved_at, prepared) = capture::collect(context, &request).await?;
         let metadata = capture.report.clone().ok_or_else(|| Error::Invalid("Create Report: Capture Its Metadata".into()))?;
+        let phase = Instant::now();
         let template = context.host.report_template();
         let marker = b"<!-- DOKIME_REPORT_DATA -->";
         let insertion = template
@@ -64,6 +65,8 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
             .position(|window| window == marker)
             .ok_or_else(|| Error::Invalid("Create Report: Rebuild the Template with `mise run generate`".into()))?;
         let data = STANDARD.encode(capture.encode_to_vec());
+        tracing::info!(phase = "serialization", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        let phase = Instant::now();
         let mut file =
             tempfile::tempfile().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
         file.write_all(&template[..insertion])
@@ -73,6 +76,8 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
             .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
         file.rewind().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
         let (retained, length, digest) = crate::host::content::transfer::temporary(file)?;
+        tracing::info!(phase = "template", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        let phase = Instant::now();
         let digest =
             (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
         let name = format!("prepared-report/{}", request.request_id);
@@ -148,6 +153,7 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
         prepared.file = Some(reference.clone());
         administration::retain(context, &name, scope.identifier()?, &prepared).await?;
         context.host.retain_report(reference.clone())?;
+        tracing::info!(phase = "upload_retention", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
         tracing::info!(report = %name, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Created");
         Ok(ReportsCreateResponse {
             report: Some(metadata),
