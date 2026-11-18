@@ -15,7 +15,7 @@ foreach (var suite in suites.Values)
 // Keep Exact Statistics in Their Typed Representation When Displaying Them.
 if (args is [_, var execution, var stream, var field])
 {
-  var response = await client.Evidence.Statistics(new EvidenceScope { ExecutionId = execution }, stream, [], new Window(), [], field, "");
+  var response = await client.Evidence.Statistics(stream, [], new Window(), [], field, "", scope: new EvidenceScope { ExecutionId = execution });
   var statistics = response.Statistics;
   Console.WriteLine($"Count: {statistics.Count.ToString(CultureInfo.InvariantCulture)}");
   Console.WriteLine($"Sum: {statistics.Sum}");

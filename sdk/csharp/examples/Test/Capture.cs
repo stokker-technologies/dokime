@@ -15,7 +15,7 @@ public sealed class Capture
   }
 
   [CriterionAttribute("Confirmed")]
-  public Task<bool> Confirmed(Context context) => context.Records(Confirmation, step: (Func<Context, Task>)Confirm).LastAsync();
+  public Task<bool> Confirmed(Context context) => context.Records(Confirmation, step: Confirm).LastAsync();
 
   public static Plugin Plugin => new("example", "0.1.0", Suite.From<Capture>());
 }

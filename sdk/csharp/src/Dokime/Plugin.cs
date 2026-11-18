@@ -15,6 +15,7 @@ public sealed partial class Plugin(string identifier, string version, params Sui
   private readonly RecordContracts records = new();
   private readonly SecretsDeclarations secrets = new();
   private readonly PromptDefinitions prompts = new();
+  private bool built;
   public IReadOnlyList<Suite> Suites { get; } = BindSuites(suites);
 
   private static IReadOnlyList<Suite> BindSuites(Suite[] suites)
@@ -33,7 +34,6 @@ public sealed partial class Plugin(string identifier, string version, params Sui
     }
     return bound;
   }
-  private bool built;
 
   public Plugin Setting(string name, SettingValue defaultValue, string title = "", string description = "")
   {

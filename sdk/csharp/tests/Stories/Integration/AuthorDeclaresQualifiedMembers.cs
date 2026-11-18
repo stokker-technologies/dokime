@@ -105,6 +105,34 @@ public sealed class AuthorDeclaresQualifiedMembers
     Assert.Throws<ArgumentException>(() => new Plugin("invalid", "1.0.0", repeated, repeated).Build());
   }
 
+  [Fact]
+  public void ExplicitSuiteIdentifiersDoNotRenameGroupedTemplates()
+  {
+    var single = new Plugin("one", "1.0.0", Dokime.Plugins.Suite.From<RenamedSuite>()).Suites[0].Templates[0];
+    var grouped = new Plugin("two", "1.0.0", new Dokime.Plugins.Suite("accuracy", "Accuracy", Template.From<RenamedSuite>())).Suites[0].Templates[0];
+    Assert.Equal("chosen", single.Definition.Metadata.Identifier);
+    Assert.Equal("chosen.read_value", single.Resolve((Func<Context, Task>)new RenamedSuite().ReadValue));
+    Assert.Equal("accuracy.renamed", grouped.Definition.Metadata.Identifier);
+  }
+
+  [Fact]
+  public async Task EmptyEvidenceAndRefusedPromptAnswersFail()
+  {
+    var plugin = Capture.Plugin;
+    await using var server = await PluginServer.StartAsync(plugin);
+    var description = await server.Wire.DescribeAsync();
+    var template = plugin.Suites[0].Templates[0];
+    var testCase = (await server.Wire.InvokeAsync<TestCasesMaterializeResponse>(description, "capture.materialize",
+        new TestCasesMaterializeRequest { Template = "capture" })).TestCase;
+    var origin = new Origin { PluginRun = new PluginRun { Plugin = description.Id, Template = "capture", TestCase = testCase } };
+    var criterion = new CriteriaEvaluateRequest { Execution = "capture-run", Criterion = "capture.confirmed", TestCase = testCase, Origin = origin };
+    await Assert.ThrowsAsync<Harmos.PluginFailureException>(() => server.Wire.InvokeAsync<CriteriaEvaluateResponse>(description,
+        "capture.confirmed", criterion, "capture-run", _ => new Dokime.Clients.EvidenceResources.RecordsListResponse().ToByteString()));
+    var step = new StepsExecuteRequest { Execution = "capture-run", Step = "capture.confirm", TestCase = testCase, Origin = origin };
+    await Assert.ThrowsAsync<Harmos.PluginFailureException>(() => server.Wire.InvokeAsync<StepsExecuteResponse>(description,
+        "capture.confirm", step, "capture-run", _ => new Dokime.Clients.PromptsCreateResponse { Accepted = false }.ToByteString()));
+  }
+
   [Theory]
   [InlineData("ReadVoltage")]
   [InlineData("readVoltage")]
@@ -192,6 +220,13 @@ public sealed class AuthorDeclaresQualifiedMembers
 
     [CriterionAttribute("Unrelated")]
     public bool ReadingOK(Context context) => true;
+  }
+
+  [SuiteAttribute(Identifier = "chosen")]
+  public sealed class RenamedSuite
+  {
+    [StepAttribute("Read")]
+    public Task ReadValue(Context context) => Task.CompletedTask;
   }
 
   [SuiteAttribute]

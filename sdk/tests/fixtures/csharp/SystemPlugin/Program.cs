@@ -48,7 +48,7 @@ var template = new Template("cycle", "Thermal Cycle")
           && statistics.Max.Number <= context.Resource<Bench>().Limit;
       var closed = records.Closed;
       return withinLimit && closed;
-    }, Identifier: "within_limit"))
+    }, Identifier: "within-limit"))
     .Cleanup(async context => await context.LogAsync(Severity.Info, "Cleaned Up"));
 var plugin = new Plugin("thermal", "1.0.0", new Dokime.Plugins.Suite("thermal", "Thermal", template))
     .Requires(HostOperation.PromptsCreate)

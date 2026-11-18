@@ -64,11 +64,16 @@ public sealed class Context
     return await Host.Evidence.Records.Append(Execution, identity, payload, at, requestId, policy, cancellationToken);
   }
 
-  public RecordsQuery<T> Records<T>(Record<T> record, object? step = null) =>
+  public RecordsQuery<T> Records<T>(Record<T> record, Func<Context, Task>? step = null) =>
       new(this, Resolve(record), step is null ? "" : Resolve(step));
 
-  public Task<Dokime.Clients.EvidenceStatisticsResponse> StatisticsAsync(IStream stream, string field = "", object? step = null) =>
+  public RecordsQuery<T> Records<T>(Record<T> record, Step step) => new(this, Resolve(record), Resolve(step));
+
+  public Task<Dokime.Clients.EvidenceStatisticsResponse> StatisticsAsync(IStream stream, string field = "", Func<Context, Task>? step = null) =>
       Host.Evidence.Statistics(Resolve(stream), [], new Dokime.Window(), [], field, step is null ? "" : Resolve(step));
+
+  public Task<Dokime.Clients.EvidenceStatisticsResponse> StatisticsAsync(IStream stream, string field, Step step) =>
+      Host.Evidence.Statistics(Resolve(stream), [], new Dokime.Window(), [], field, Resolve(step));
 
   internal string Resolve(object declaration) => template?.Resolve(declaration, Instance)
       ?? throw new ArgumentException("Resolve Declaration: Call From a Template Operation");

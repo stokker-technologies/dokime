@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Reflection;
 using Google.Protobuf;
 using Dokime.Plugins;
 
@@ -18,7 +19,7 @@ public sealed class Operation<TRequest, TResponse>(string identifier, Visibility
   internal void Register(Harmos.Plugins.Plugin plugin, Func<Harmos.Plugins.Context, Context> context,
       Func<Context, TRequest, Task<TResponse>> handler)
   {
-    GetType().GetMethod(nameof(RegisterWire), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+    GetType().GetMethod(nameof(RegisterWire), BindingFlags.Instance | BindingFlags.NonPublic)!
         .MakeGenericMethod(Payload<TRequest>.Descriptor.ClrType, Payload<TResponse>.Descriptor.ClrType)
         .Invoke(this, [plugin, context, handler]);
   }
@@ -49,7 +50,7 @@ public sealed class Operation<TRequest, TResponse>(string identifier, Visibility
 
   internal Task<TResponse> CallAsync(Context context, TRequest request)
   {
-    return (Task<TResponse>)GetType().GetMethod(nameof(CallWireAsync), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+    return (Task<TResponse>)GetType().GetMethod(nameof(CallWireAsync), BindingFlags.Instance | BindingFlags.NonPublic)!
         .MakeGenericMethod(Payload<TRequest>.Descriptor.ClrType, Payload<TResponse>.Descriptor.ClrType)
         .Invoke(this, [context, request])!;
   }

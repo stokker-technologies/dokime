@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Google.Protobuf;
@@ -49,7 +50,7 @@ public sealed class PromptDeclaration
     Identifier = identifier;
     Definition = new Prompt { Message = text, Metadata = new Metadata { Label = label.Length == 0 ? text : label } };
     foreach (var (choice, index) in (choices ?? ["OK"]).Select((choice, index) => (choice, index)))
-      Definition.Actions.Add(new PromptAction { Identifier = index.ToString(System.Globalization.CultureInfo.InvariantCulture), Label = choice });
+      Definition.Actions.Add(new PromptAction { Identifier = index.ToString(CultureInfo.InvariantCulture), Label = choice });
   }
 
   public PromptDeclaration(Prompt definition, string? identifier = null)
@@ -154,7 +155,7 @@ public sealed class Stream<T>(string? identifier = null, Func<Context, Publisher
     else if (produce is not null)
       plugin.Stream<T>(identifier, (raw, publisher) => produce(context(raw), publisher));
     else
-      throw new ArgumentException($"Stream {Identifier} needs a producer or observer");
+      throw new ArgumentException($"Declare Stream {Identifier}: Supply a Producer or Observer");
   }
 }
 
@@ -165,7 +166,7 @@ public sealed class Observer<T> : ISampler where T : IMessage<T>, new()
   public Observer(Stream<T> stream, Duration? interval, Func<Context, Task<T>> read, string intervalSetting = "", string windowSetting = "")
   {
     if (stream.Observer is not null)
-      throw new ArgumentException($"Duplicate observer for {stream.Identifier}");
+      throw new ArgumentException($"Declare Observer {stream.Identifier}: Remove the Duplicate Observer");
     Stream = stream;
     Interval = interval?.Clone();
     Read = read;
@@ -207,7 +208,7 @@ public sealed class WindowObserver<T, TColumns> : ISampler
       string intervalSetting = "", string windowSetting = "")
   {
     if (stream.Observer is not null)
-      throw new ArgumentException($"Duplicate observer for {stream.Identifier}");
+      throw new ArgumentException($"Declare Observer {stream.Identifier}: Remove the Duplicate Observer");
     Stream = stream;
     Interval = interval?.Clone();
     Read = read;

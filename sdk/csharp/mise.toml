@@ -116,6 +116,7 @@ hide = true
 description = "Build the Installed NuGet Examples"
 run = [
   { task = "build:starter --project examples/Client/Client.csproj" },
+  { task = "build:starter --project examples/Flow/Flow.csproj" },
   { task = "build:starter --project examples/Plugin/Plugin.csproj" },
   { task = "build:starter --project examples/Test/Test.csproj" },
 ]

@@ -57,7 +57,8 @@
 - [x] Python: Complete Native Integration Proof With Underscore Identifiers Against This Worktree's Host.
 - [x] Python: Qualify Materialized Step and Criterion Instances With the Shared Identifier Function and Support Bound Methods.
 - [ ] Rust: Follow the Locked Authoring Surface.
-- [ ] C#: Follow the Locked Authoring Surface.
+- [x] C#: Follow the Locked Authoring Surface.
+- [ ] C#: Complete the Language Check and Host Fixture Producer After Resolving the Shared Generator/Python Root Export Conflict.
 - [ ] C++: Follow the Locked Authoring Surface.
 - [ ] Command Line: Implement Locked Point 11.
 
