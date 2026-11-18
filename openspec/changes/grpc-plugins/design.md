@@ -2615,6 +2615,19 @@ of them can proceed from the signatures and ownership above.
 | S3 | SettingGroup has no metadata contract in current flat settings. Recommend product-only group metadata over unchanged saved keys, exposed by the product settings schema. The owner must decide its stored/catalog representation; do not invent nested setting names or a parallel settings registry. |
 | S4 | `plugin-lifecycle/design.md` D1/D2 specify initialize/finalize hooks; this task explicitly asks plugin start/stop and template setup/cleanup. This section follows the task. The owner must reconcile the owning lifecycle change before implementations share those hook names; no alias methods. Native process entries retain that change's run spelling; Python keeps the locked serve spelling. |
 
+Resolutions recorded on 2026-11-18 while the owner was away; each is the
+orchestrator's choice and is reported to the owner for confirmation:
+
+- S2 is settled by the earlier owner decision on `requires` (Option A): authors
+  never declare requirements and the SDK declares every operation the plugin can
+  reference. No new class attribute is added.
+- S4: the plugin class uses the hook names the `plugin-lifecycle` change already
+  agreed, `initialize` and `finalize`; templates keep `setup` and `cleanup`. The
+  signatures in this section apply under those names.
+- S1 and S3 are not needed by the starter and stay open. Nothing in items
+  (a)-(h) may implement serial admission or settings groups until the owner
+  chooses.
+
 Host-owned Ready registration, product plugin administration/invocation wrappers,
 plugin Notes/Create admission, Executions/Seal and retained cycle report/archive
 materialization are implementation dependencies, not unanswered SDK naming
