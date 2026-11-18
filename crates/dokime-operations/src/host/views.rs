@@ -26,10 +26,12 @@ use harmos_protocol::model::{FileReference, PageRequest, ReadCut, Receipt, Resou
 use harmos_runtime::storage::{self, Identifier, StagedFile};
 use prost::Message;
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 // Local Imports
 use crate::host::files::transfer;
 use crate::host::files::uploads::{append, delete, publish};
+use crate::host::projection;
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsDeleteRequest, UploadsPublishRequest};
@@ -135,19 +137,21 @@ pub(crate) fn token(offset: usize, cut: &ReadCut) -> String {
 }
 
 pub(crate) fn page<T: Message>(
-    rows: Vec<T>, cut: &ReadCut, page: Option<&PageRequest>, maximum: usize, maximum_bytes: usize,
+    rows: impl IntoIterator<Item = T, IntoIter: ExactSizeIterator>, cut: &ReadCut, page: Option<&PageRequest>, maximum: usize,
+    maximum_bytes: usize,
 ) -> Result<(Vec<T>, String)> {
+    let rows = rows.into_iter();
     let start = offset(page.map_or("", |page| page.page_token.as_str()), cut)?;
     if start > rows.len() {
         return Err(Error::Invalid("List Resource: Continue Within the Returned View".into()));
     }
-    let limit = crate::host::projection::limit(page.map_or(0, |page| page.page_size), maximum);
+    let limit = projection::limit(page.map_or(0, |page| page.page_size), maximum);
     let bytes = page.filter(|page| page.max_bytes != 0).map_or(maximum_bytes, |page| (page.max_bytes as usize).min(maximum_bytes));
     // Reserve the Cut, Continuation and Collection Summary Envelope Before Rows.
     let mut retained = cut.encoded_len() + 512;
     let total = rows.len();
     let mut selected = Vec::new();
-    for row in rows.into_iter().skip(start).take(limit) {
+    for row in rows.skip(start).take(limit) {
         let size = row.encoded_len() + 12;
         if retained.saturating_add(size) > bytes {
             if selected.is_empty() {
@@ -198,7 +202,7 @@ async fn retain(context: &Context, scope: &Identifier, key: &str, payload: &[u8]
 
     // Produce the Complete View in Bounded Native Chunks Before Publishing Its Index.
     let digest: [u8; 32] = Sha256::digest(payload).into();
-    let request_id = uuid::Uuid::now_v7().to_string();
+    let request_id = Uuid::now_v7().to_string();
     let maximum = transfer::chunk_bytes(context).await?;
     let mutation = transfer::mutation(context, "Retain View", &request_id).await?;
     let created = context
