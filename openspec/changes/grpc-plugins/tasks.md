@@ -148,7 +148,8 @@
   - [x] Replace Top-Level Manifest Scripts and Assets Lists With Strict Plugin, Compatibility and Scripts Tables; Resolve Native Metadata With Static Overrides.
   - [x] Bundle Implicit Assets, Referenced Metadata and Required Launch Inputs; Preserve User Locks and Exclude Private Inputs.
   - [x] Migrate the Eight Starter Manifests and Shared Command-Line Fixture Consumers While Preserving Current Entrypoints and Build Commands.
-  - [ ] Supply Starter Native Metadata and Icons With the SDK Owners; Migrate Runtime Manifest Consumers and Prove Installed Resolved Versions.
+  - [x] Supply Starter Native Metadata and Icons, Stage C# Publish Companions Under Assets and Migrate Runtime Manifest Consumers.
+  - [ ] Prove Installed Resolved Versions After the Library Plugin Manager Retains the Frozen Bundle Version Across Activation and Replacement.
   - [ ] Complete Packaging and CLI Units, Created-Starter Bundle/Inspect/Dev Stories, Focused Compilation, Repository Checks and Package Lint.
 - [ ] (e) Migrate Python Starters, Examples, Generation, Public/Stub Guards, Tests and Stories to the Reference Project Shape; Ship No Lock, Root Entry Scripts, Argument Parsing or Old Imports.
 - [ ] (f) Implement the SDK Surface Specification's Rust SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
