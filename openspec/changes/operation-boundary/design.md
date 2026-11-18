@@ -497,12 +497,21 @@ continues to use the issued storage mutation window with a fresh request identit
 no product retries, serialization or increased receipt limits are introduced.
 The merged OBC report now reaches native HTML generation and file delivery.
 
-The report scene saves and opens real HTML through Create/Publish/Get/download
-within WebDriver's unchanged default async-script deadline. Scene selection owns
-its fixture dependencies as well as image capture: only the complete journey and
-the cycles scene create the separate active observation cycle. They retain its
-readiness, final outcome and seal checks. The report scene requires the completed
-execution and its saved report, without starting an unselected observation.
+Scene selection owns its fixture dependencies as well as image capture: only
+the complete journey and the cycles scene create the separate active observation
+cycle. They retain its readiness, final outcome and seal checks. The report scene
+requires the completed execution and its saved report, without starting an
+unselected observation.
+
+Report-scene acceptance remains open. Its driver awaits picker/Create/Publish/Get/
+download in one WebDriver async script with the unchanged default 30-second bound;
+the final merged-candidate run exceeded that bound. The native-desktop driver
+submits the save and observes completion separately under its existing journey
+policy. These competing workflow shapes need an owner decision: prefer the desktop
+submission/observation shape, preserving every product operation deadline, rather
+than increasing a timeout. This changes the check's effective workflow bound and
+requires approval under the task's no-lengthening rule. Keep the existing bound
+until that decision; a prior successful capture does not replace final proof.
 
 ## Risks / Trade-Offs
 
