@@ -105,13 +105,23 @@ jobs:
       profile: release
       bench: true
   bench:
-    name: Bench / Desktop (${{ matrix.platform }})
+    name: Bench / Desktop / ${{ matrix.variant.name }} (${{ matrix.platform }})
     uses: ./.github/workflows/validate-test.yml
     needs:
     - build_bench
     strategy:
       fail-fast: false
       matrix:
+        platform:
+        - unix
+        - windows
+        variant:
+        - name: Round Trip
+          select: ^desktop_round_trip/
+          suite: desktop-bench-round-trip
+        - name: History
+          select: ^desktop_history_round_trip/
+          suite: desktop-bench-history
         include:
         - platform: unix
           runner: ubuntu-22.04
@@ -125,11 +135,11 @@ jobs:
       platform: ${{ matrix.platform }}
       runner: ${{ matrix.runner }}
       bootstrap: ${{ matrix.bootstrap }}
-      work: Desktop
-      command: bench -- --language rust --layer system --binary system-desktop --refresh-baseline
+      work: Desktop / ${{ matrix.variant.name }}
+      command: bench -- --language rust --layer system --binary system-desktop --refresh-baseline --select "${{ matrix.variant.select }}"
       archives: '["target/ci/build-bench-{platform}.tar.zst"]'
       minutes: 120
-      suite: desktop-bench
+      suite: ${{ matrix.variant.suite }}
   build_python:
     name: Build / SDK / Python
     uses: ./.github/workflows/validate-build-python.yml
