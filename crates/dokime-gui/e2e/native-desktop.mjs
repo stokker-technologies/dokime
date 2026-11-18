@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -425,6 +425,16 @@ try {
       await operation();
     } catch (error) {
       results.push({ name: "Fixture Cleanup", seconds: 0, error });
+    }
+  }
+  if (process.env.DOKIME_KEEP_EVIDENCE === "1") {
+    const roots = [...new Set(sessions.map((instance) => instance.applicationRoot))];
+    for (const [index, root] of roots.entries()) {
+      try {
+        await cp(join(root, "logs"), join(evidence, `desktop-${index}-logs`), { recursive: true });
+      } catch (error) {
+        results.push({ name: "Retain Desktop Diagnostics", seconds: 0, error });
+      }
     }
   }
   await printReportSaveTimings();

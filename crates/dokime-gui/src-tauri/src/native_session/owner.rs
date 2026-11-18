@@ -17,16 +17,25 @@
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 // Third Party Imports
+use tokio::sync::{
+    self,
+    watch::{self, Receiver, Sender},
+};
+use tokio_util::sync::CancellationToken;
 
 // Local Imports
 
 use super::backend::Backend;
 use super::storage::StorageRoot;
-use super::{BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot, StorageResetReason};
-use crate::connection::{ConnectRequest, ConnectionSession, ConnectionTarget};
+use super::{BackendOwnership, BackendSelection, DesktopSessionError, DesktopSessionSnapshot, StorageResetReason};
+use crate::connection::{
+    ConnectRequest, ConnectionSession, ConnectionTarget,
+    host::{Connection, Session},
+};
 use dokime_sdk::client::SettingsGetOptions;
 
 /* === Constants === */
@@ -43,11 +52,11 @@ pub struct DesktopSession(Arc<Inner>);
 struct Inner {
     connection: ConnectionSession,
     state: Mutex<State>,
-    status_updates: tokio::sync::watch::Sender<DesktopSessionSnapshot>,
-    transition: tokio::sync::Mutex<Resources>,
+    status_updates: Sender<DesktopSessionSnapshot>,
+    transition: sync::Mutex<Resources>,
     local: Option<Result<Backend, String>>,
     // Cancelled once, when the operator exits without finishing.
-    abandon: tokio_util::sync::CancellationToken,
+    abandon: CancellationToken,
 }
 
 struct State {
@@ -65,7 +74,7 @@ struct State {
 
 #[derive(Default)]
 struct Resources {
-    local: Option<crate::connection::host::Connection>,
+    local: Option<Connection>,
 }
 
 /* === Enums === */
@@ -84,7 +93,7 @@ impl DesktopSession {
             archive: None,
             connection: connection.status(),
         };
-        let (status_updates, _) = tokio::sync::watch::channel(initial);
+        let (status_updates, _) = watch::channel(initial);
         Self(Arc::new(Inner {
             connection,
             state: Mutex::new(State {
@@ -98,9 +107,9 @@ impl DesktopSession {
                 startup_log: None,
             }),
             status_updates,
-            transition: tokio::sync::Mutex::new(Resources::default()),
+            transition: sync::Mutex::new(Resources::default()),
             local: None,
-            abandon: tokio_util::sync::CancellationToken::new(),
+            abandon: CancellationToken::new(),
         }))
     }
     pub fn with_local_backend(connection: ConnectionSession, backend: Backend) -> Self {
@@ -117,7 +126,7 @@ impl DesktopSession {
         let state = self.0.state.lock().expect("desktop owner poisoned");
         self.snapshot(&state)
     }
-    pub fn subscribe_status(&self) -> tokio::sync::watch::Receiver<DesktopSessionSnapshot> {
+    pub fn subscribe_status(&self) -> Receiver<DesktopSessionSnapshot> {
         self.0.status_updates.subscribe()
     }
     fn snapshot(&self, state: &State) -> DesktopSessionSnapshot {
@@ -148,13 +157,13 @@ impl DesktopSession {
         let state = self.0.state.lock().expect("desktop owner poisoned");
         state.startup_log.clone()
     }
-    fn fail(&self, revision: u64, error: &Error) {
+    fn fail(&self, revision: u64, error: &DesktopSessionError) {
         let error = match error {
-            Error::Archived { error, .. } => error.as_ref(),
+            DesktopSessionError::Archived { error, .. } => error.as_ref(),
             error => error,
         };
         let log = match error {
-            Error::Startup { diagnostics: Some(diagnostics), .. } => diagnostics.log.as_deref().map(PathBuf::from),
+            DesktopSessionError::Startup { diagnostics: Some(diagnostics), .. } => diagnostics.log.as_deref().map(PathBuf::from),
             _ => None,
         };
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
@@ -165,12 +174,12 @@ impl DesktopSession {
             self.publish_status(&mut state);
         }
     }
-    pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, Error> {
+    pub async fn select(&self, selection: BackendSelection) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
         let selected = if let BackendSelection::Profile { identifier } = &selection {
-            let document = super::super::connection::registry::load().await.map_err(|error| Error::Connection { error })?;
+            let document = super::super::connection::registry::load().await.map_err(|error| DesktopSessionError::Connection { error })?;
             Some(
                 crate::connection::registry::get(&document, identifier)
-                    .map_err(|error| Error::Startup {
+                    .map_err(|error| DesktopSessionError::Startup {
                         message: error.to_string(),
                         diagnostics: None,
                     })?
@@ -192,16 +201,18 @@ impl DesktopSession {
             selection
         };
         if let BackendSelection::Attach { request } = &selection {
-            ConnectionSession::validate_target(request.target.clone()).map_err(|error| Error::Connection { error })?;
+            ConnectionSession::validate_target(request.target.clone()).map_err(|error| DesktopSessionError::Connection { error })?;
         }
         if matches!(selection, BackendSelection::OwnedLocal) {
             self.backend()?;
         }
         let revision = self.begin(false)?;
         let owner = self.clone();
-        let result = tokio::spawn(async move { owner.select_owned(revision, selection).await }).await.map_err(|error| Error::Startup {
-            message: error.to_string(),
-            diagnostics: None,
+        let result = tokio::spawn(async move { owner.select_owned(revision, selection).await }).await.map_err(|error| {
+            DesktopSessionError::Startup {
+                message: error.to_string(),
+                diagnostics: None,
+            }
         })?;
         // Startup is over, one way or another: whatever phase it last
         // reported no longer describes anything a caller should show. The
@@ -215,33 +226,33 @@ impl DesktopSession {
             && let Err(error) = self.0.connection.selected_profile(&snapshot.connection.generation, profile.identifier)
         {
             if self.current(revision).is_ok() {
-                self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
-                let failure = Error::Connection { error };
+                self.0.connection.disconnect().map_err(|error| DesktopSessionError::Connection { error })?;
+                let failure = DesktopSessionError::Connection { error };
                 self.fail(revision, &failure);
                 return Err(failure);
             }
-            return Err(Error::Superseded);
+            return Err(DesktopSessionError::Superseded);
         }
         result
     }
-    pub fn remove_profile(&self, identifier: &str) -> Result<(), Error> {
+    pub fn remove_profile(&self, identifier: &str) -> Result<(), DesktopSessionError> {
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
-        if self.0.connection.disconnect_profile(identifier).map_err(|error| Error::Connection { error })? {
-            state.revision = state.revision.checked_add(1).ok_or(Error::Superseded)?;
+        if self.0.connection.disconnect_profile(identifier).map_err(|error| DesktopSessionError::Connection { error })? {
+            state.revision = state.revision.checked_add(1).ok_or(DesktopSessionError::Superseded)?;
             state.ownership = BackendOwnership::None;
             state.phase = None;
             self.publish_status(&mut state);
         }
         Ok(())
     }
-    pub async fn local_client(&self) -> Result<crate::connection::host::Session, Error> {
+    pub async fn local_client(&self) -> Result<Session, DesktopSessionError> {
         let mut resources = self.0.transition.lock().await;
         if resources.local.is_none() {
             let backend = self.backend()?;
             let (local, _) = super::backend::start(&backend, |_| {}).await?;
             resources.local = Some(local);
         }
-        resources.local.as_ref().expect("local host initialized").session().map_err(|error| Error::Startup {
+        resources.local.as_ref().expect("local host initialized").session().map_err(|error| DesktopSessionError::Startup {
             message: error.to_string(),
             diagnostics: None,
         })
@@ -255,80 +266,88 @@ impl DesktopSession {
         }
     }
 
-    pub async fn reset_local_storage(&self, _confirmed: &Path, _root: StorageRoot) -> Result<DesktopSessionSnapshot, Error> {
+    pub async fn reset_local_storage(&self, _confirmed: &Path, _root: StorageRoot) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
         Err(reset_failure("Back Up and Reset is unavailable until the host can preserve installed plugins, settings, identity and secrets independently of the evidence schema. Preserve this root for backup and select a fresh one.".into()))
     }
 
-    pub async fn backup_and_reset_local_storage(&self, _root: StorageRoot, _destination: PathBuf) -> Result<DesktopSessionSnapshot, Error> {
+    pub async fn backup_and_reset_local_storage(
+        &self, _root: StorageRoot, _destination: PathBuf,
+    ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
         Err(reset_failure("Back Up and Reset is unavailable until the host can preserve installed plugins, settings, identity and secrets independently of the evidence schema. Preserve this root for backup and select a fresh one.".into()))
     }
-    pub async fn disconnect(&self) -> Result<DesktopSessionSnapshot, Error> {
+    pub async fn disconnect(&self) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
         self.stop(false).await
     }
-    pub async fn shutdown(&self) -> Result<DesktopSessionSnapshot, Error> {
+    pub async fn shutdown(&self) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
         self.stop(true).await
     }
     // End the owned backend now, without the rest of its orderly stop.
     pub fn abandon(&self) {
         self.0.abandon.cancel();
     }
-    fn backend(&self) -> Result<Backend, Error> {
-        self.0.local.clone().ok_or(Error::LocalBackendUnavailable)?.map_err(|message| Error::Startup { message, diagnostics: None })
+    fn backend(&self) -> Result<Backend, DesktopSessionError> {
+        self.0
+            .local
+            .clone()
+            .ok_or(DesktopSessionError::LocalBackendUnavailable)?
+            .map_err(|message| DesktopSessionError::Startup { message, diagnostics: None })
     }
-    fn begin(&self, closing: bool) -> Result<u64, Error> {
+    fn begin(&self, closing: bool) -> Result<u64, DesktopSessionError> {
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
         if state.closing && !closing {
-            return Err(Error::ShuttingDown);
+            return Err(DesktopSessionError::ShuttingDown);
         }
-        state.revision = state.revision.checked_add(1).ok_or(Error::ShuttingDown)?;
+        state.revision = state.revision.checked_add(1).ok_or(DesktopSessionError::ShuttingDown)?;
         state.closing |= closing;
         state.phase = None;
         state.archived = None;
         state.archive = None;
         state.startup_log = None;
-        // A closing desktop keeps an established connection until its backend
-        // has stopped: the window goes on showing what it showed, and nothing
-        // it still asks is answered as superseded. A connection still being
-        // made is abandoned at once.
-        if !state.closing || state.ownership == BackendOwnership::None {
-            state.ownership = BackendOwnership::None;
-            self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
-        }
+        // A Hidden Closing Window Releases Its Client Watches Before the Host Drains.
+        state.ownership = BackendOwnership::None;
+        self.0.connection.disconnect().map_err(|error| DesktopSessionError::Connection { error })?;
         self.publish_status(&mut state);
         Ok(state.revision)
     }
-    fn current(&self, revision: u64) -> Result<(), Error> {
-        if self.0.state.lock().expect("desktop owner poisoned").revision == revision { Ok(()) } else { Err(Error::Superseded) }
+    fn current(&self, revision: u64) -> Result<(), DesktopSessionError> {
+        if self.0.state.lock().expect("desktop owner poisoned").revision == revision {
+            Ok(())
+        } else {
+            Err(DesktopSessionError::Superseded)
+        }
     }
-    async fn stop(&self, closing: bool) -> Result<DesktopSessionSnapshot, Error> {
+    async fn stop(&self, closing: bool) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
+        let started = Instant::now();
         let revision = self.begin(closing)?;
+        tracing::debug!(stage = "disconnect", elapsed_ms = started.elapsed().as_millis(), "desktop shutdown stage completed");
         let owner = self.clone();
         tokio::spawn(async move {
+            let started = Instant::now();
             let mut resources = owner.0.transition.lock().await;
+            tracing::debug!(stage = "session_transition", elapsed_ms = started.elapsed().as_millis(), "desktop shutdown stage completed");
             if closing {
-                resources.shutdown(&owner.0.abandon).await?;
+                let started = Instant::now();
+                let result = resources.shutdown(&owner.0.abandon).await;
+                tracing::debug!(stage = "embedded_host", elapsed_ms = started.elapsed().as_millis(), "desktop shutdown stage completed");
+                result?;
             }
             owner.current(revision)?;
-            if closing {
-                let mut state = owner.0.state.lock().expect("desktop owner poisoned");
-                state.ownership = BackendOwnership::None;
-                owner.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
-                owner.publish_status(&mut state);
-            }
+            let started = Instant::now();
             owner.0.connection.join_retired().await;
+            tracing::debug!(stage = "retired_connections", elapsed_ms = started.elapsed().as_millis(), "desktop shutdown stage completed");
             Ok(owner.status())
         })
         .await
-        .map_err(|error| Error::Shutdown { message: error.to_string() })?
+        .map_err(|error| DesktopSessionError::Shutdown { message: error.to_string() })?
     }
-    async fn select_owned(&self, revision: u64, selection: BackendSelection) -> Result<DesktopSessionSnapshot, Error> {
+    async fn select_owned(&self, revision: u64, selection: BackendSelection) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
         let mut resources = self.0.transition.lock().await;
         self.current(revision)?;
         self.establish(revision, selection, &mut resources).await
     }
     async fn establish(
         &self, revision: u64, selection: BackendSelection, resources: &mut Resources,
-    ) -> Result<DesktopSessionSnapshot, Error> {
+    ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
         let (request, ownership) = match selection {
             BackendSelection::Profile { .. } => unreachable!("profile resolved before transition"),
             BackendSelection::Attach { request } => (request, BackendOwnership::Attached),
@@ -343,7 +362,7 @@ impl DesktopSession {
                     .as_ref()
                     .expect("local owner initialized")
                     .session()
-                    .map_err(|error| Error::Startup {
+                    .map_err(|error| DesktopSessionError::Startup {
                         message: error.to_string(),
                         diagnostics: None,
                     })?
@@ -369,20 +388,22 @@ impl DesktopSession {
                     let (local, _) = super::backend::start(&backend, |_| {}).await?;
                     resources.local = Some(local);
                 }
-                let session = resources.local.as_ref().expect("local host initialized").session().map_err(|error| Error::Startup {
-                    message: error.to_string(),
-                    diagnostics: None,
-                })?;
-                let context = session.call_options().map_err(|error| Error::Startup {
+                let session =
+                    resources.local.as_ref().expect("local host initialized").session().map_err(|error| DesktopSessionError::Startup {
+                        message: error.to_string(),
+                        diagnostics: None,
+                    })?;
+                let context = session.call_options().map_err(|error| DesktopSessionError::Startup {
                     message: error.to_string(),
                     diagnostics: None,
                 })?;
                 let options = SettingsGetOptions { context, ..Default::default() };
-                let snapshot = session.execute(session.client().settings.get_with(options)).await.map_err(|error| Error::Startup {
-                    message: error.to_string(),
-                    diagnostics: None,
-                })?;
-                snapshot.value.and_then(|settings| settings.client).ok_or_else(|| Error::Startup {
+                let snapshot =
+                    session.execute(session.client().settings.get_with(options)).await.map_err(|error| DesktopSessionError::Startup {
+                        message: error.to_string(),
+                        diagnostics: None,
+                    })?;
+                snapshot.value.and_then(|settings| settings.client).ok_or_else(|| DesktopSessionError::Startup {
                     message: "Read Local Preferences: Host Omitted Client Settings".into(),
                     diagnostics: None,
                 })
@@ -398,7 +419,7 @@ impl DesktopSession {
         }
         let connected = self.0.connection.connect(request).await;
         if let Err(error) = self.current(revision) {
-            self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
+            self.0.connection.disconnect().map_err(|error| DesktopSessionError::Connection { error })?;
             resources.shutdown(&self.0.abandon).await?;
             return Err(error);
         }
@@ -420,29 +441,28 @@ impl DesktopSession {
                 if let Some(snapshot) = snapshot {
                     return Ok(snapshot);
                 }
-                self.0.connection.disconnect().map_err(|error| Error::Connection { error })?;
+                self.0.connection.disconnect().map_err(|error| DesktopSessionError::Connection { error })?;
                 resources.shutdown(&self.0.abandon).await?;
-                Err(Error::Superseded)
+                Err(DesktopSessionError::Superseded)
             }
             Err(error) => {
                 resources.shutdown(&self.0.abandon).await?;
-                Err(Error::Connection { error })
+                Err(DesktopSessionError::Connection { error })
             }
         }
     }
 }
 
 impl Resources {
-    async fn shutdown(&mut self, abandon: &tokio_util::sync::CancellationToken) -> Result<(), Error> {
+    async fn shutdown(&mut self, abandon: &CancellationToken) -> Result<(), DesktopSessionError> {
         if let Some(mut local) = self.local.take() {
             tokio::select! {
-                result = local.close() => result.map_err(|error| Error::Shutdown { message: error.to_string() })?,
+                result = local.close() => result.map_err(|error| DesktopSessionError::Shutdown { message: error.to_string() })?,
                 () = abandon.cancelled() => {
                     tracing::warn!("exiting without finishing the embedded server drain");
-                    return Err(Error::Shutdown { message: "The local server drain was interrupted.".to_owned() });
+                    return Err(DesktopSessionError::Shutdown { message: "The local server drain was interrupted.".to_owned() });
                 }
             }
-            self.local = None;
         }
         Ok(())
     }
@@ -452,8 +472,8 @@ impl Resources {
 
 /* === Private Functions === */
 
-fn reset_failure(message: String) -> Error {
-    Error::StorageReset {
+fn reset_failure(message: String) -> DesktopSessionError {
+    DesktopSessionError::StorageReset {
         reason: StorageResetReason::Failed,
         message,
     }
@@ -464,6 +484,18 @@ fn reset_failure(message: String) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn closing_disconnects_before_the_host_transition_and_refuses_new_selection() {
+        let connection = ConnectionSession::default();
+        let generation = connection.status().generation;
+        let owner = DesktopSession::attached(connection.clone());
+        owner.0.state.lock().unwrap().ownership = BackendOwnership::Attached;
+        owner.begin(true).unwrap();
+        assert_eq!(owner.status().ownership, BackendOwnership::None);
+        assert_ne!(connection.status().generation, generation);
+        assert!(matches!(owner.begin(false), Err(DesktopSessionError::ShuttingDown)));
+    }
 
     #[tokio::test]
     async fn status_watch_publishes_lifecycle_changes_and_ignores_stale_callbacks() {
@@ -482,7 +514,7 @@ mod tests {
 
         owner.fail(
             revision,
-            &Error::Startup {
+            &DesktopSessionError::Startup {
                 message: "failed".to_owned(),
                 diagnostics: None,
             },
@@ -504,7 +536,7 @@ mod tests {
         assert!(latest.status_revision > restarted.status_revision);
     }
 
-    async fn next_status(updates: &mut tokio::sync::watch::Receiver<DesktopSessionSnapshot>) -> DesktopSessionSnapshot {
+    async fn next_status(updates: &mut Receiver<DesktopSessionSnapshot>) -> DesktopSessionSnapshot {
         updates.changed().await.unwrap();
         updates.borrow_and_update().clone()
     }

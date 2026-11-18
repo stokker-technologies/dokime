@@ -7,7 +7,7 @@
  * ***
  */
 
-// The window close: an orderly backend stop, its visible state and the force-quit choice
+// Hide Once, Then Stop the Backend in the Background
 
 /* === Modules === */
 
@@ -21,7 +21,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 // Third Party Imports
@@ -31,11 +31,10 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogResult};
 // Local Imports
 use crate::PRODUCT;
 use crate::native_session::{DesktopSessionControl, DesktopSessionError};
+use crate::rpc::Bridge;
 
 /* === Constants === */
 
-// Keep An Idle Close Within Its One-Second Target Free Of Intermediate State.
-const DESKTOP_CLOSING_VISIBLE_MS: u64 = 1_000;
 // The bounded plugin teardown plus one stop grace for the backend's final
 // checkpoint; past it the operator is offered an explicit choice to exit
 // without finishing.
@@ -68,7 +67,6 @@ struct State {
 #[derive(Clone, Copy, serde::Serialize)]
 struct Announcement {
     stopping: bool,
-    visible: bool,
 }
 
 /* === Enums === */
@@ -77,13 +75,6 @@ enum Failure {
     Retry,
     Exit,
     KeepOpen,
-}
-
-#[derive(Debug, PartialEq)]
-enum CloseRequest {
-    Start,
-    Wait,
-    OfferForceQuit,
 }
 
 /* === Traits === */
@@ -95,23 +86,36 @@ impl Closing {
         self.0.complete.load(Ordering::Acquire)
     }
 
-    // Repeated close requests keep waiting until the stop's deadline passes.
     pub(crate) fn request(&self, app: &tauri::AppHandle, code: i32) {
-        match self.0.request() {
-            CloseRequest::Start => {}
-            CloseRequest::Wait => return,
-            CloseRequest::OfferForceQuit => return self.offer_force_quit(app),
-        }
-        let closing = self.clone();
-        let app = app.clone();
-        tauri::async_runtime::spawn(async move { closing.stop(app, code).await });
+        self.0.request(
+            || {
+                let started = Instant::now();
+                tracing::debug!("desktop close requested");
+                let mut titles = self.0.titles.lock().expect("closing titles poisoned");
+                for (label, window) in app.webview_windows() {
+                    titles.push((label, window.title().unwrap_or_else(|_| PRODUCT.to_owned())));
+                    if let Err(error) = window.hide() {
+                        tracing::error!(%error, "Hide Closing Window: Close the Window After Shutdown Completes");
+                    }
+                    window.state::<Bridge>().cancel_owner(window.label());
+                }
+                tracing::debug!(stage = "hide_windows", elapsed_ms = started.elapsed().as_millis(), "desktop shutdown stage completed");
+            },
+            || {
+                let closing = self.clone();
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move { closing.stop(app, code).await });
+            },
+        );
     }
 
     async fn stop(self, app: tauri::AppHandle, code: i32) {
         // Before The Backend Hears Of It: Its Refusals Belong To The Stop From Here On.
-        announce(&app, Announcement { stopping: true, visible: false });
+        announce(&app, Announcement { stopping: true });
         loop {
+            let started = Instant::now();
             let outcome = self.attempt(&app).await;
+            tracing::debug!(stage = "desktop_session", elapsed_ms = started.elapsed().as_millis(), "desktop shutdown stage completed");
             if self.0.abandoned.load(Ordering::Acquire) {
                 return self.finish(&app, 1);
             }
@@ -124,7 +128,7 @@ impl Closing {
                 Failure::Exit => return self.finish(&app, 1),
                 Failure::KeepOpen => {
                     self.restore_titles(&app);
-                    announce(&app, Announcement { stopping: false, visible: false });
+                    announce(&app, Announcement { stopping: false });
                     self.0.started.store(false, Ordering::Release);
                     return;
                 }
@@ -136,18 +140,12 @@ impl Closing {
         self.0.expired.store(false, Ordering::Release);
         let control = app.state::<DesktopSessionControl>();
         let shutdown = control.shutdown();
-        let visible = tokio::time::sleep(Duration::from_millis(DESKTOP_CLOSING_VISIBLE_MS));
         let deadline = tokio::time::sleep(DESKTOP_CLOSING_DEADLINE);
-        tokio::pin!(shutdown, visible, deadline);
-        let mut shown = false;
+        tokio::pin!(shutdown, deadline);
         loop {
             tokio::select! {
                 biased;
                 result = &mut shutdown => return result,
-                () = &mut visible, if !shown => {
-                    shown = true;
-                    self.show_stopping(app);
-                }
                 () = &mut deadline, if !self.0.expired.load(Ordering::Acquire) => {
                     self.0.expired.store(true, Ordering::Release);
                     self.offer_force_quit(app);
@@ -156,21 +154,11 @@ impl Closing {
         }
     }
 
-    fn show_stopping(&self, app: &tauri::AppHandle) {
-        let mut titles = self.0.titles.lock().expect("closing titles poisoned");
-        for (label, window) in app.webview_windows() {
-            if !titles.iter().any(|(saved, _)| *saved == label) {
-                titles.push((label.clone(), window.title().unwrap_or_else(|_| PRODUCT.to_owned())));
-            }
-            let _ = window.set_title(&format!("{PRODUCT} — Stopping…"));
-        }
-        announce(app, Announcement { stopping: true, visible: true });
-    }
-
     fn restore_titles(&self, app: &tauri::AppHandle) {
         for (label, title) in std::mem::take(&mut *self.0.titles.lock().expect("closing titles poisoned")) {
             if let Some(window) = app.get_webview_window(&label) {
                 let _ = window.set_title(&title);
+                let _ = window.show();
             }
         }
     }
@@ -205,15 +193,13 @@ impl Closing {
 }
 
 impl State {
-    fn request(&self) -> CloseRequest {
-        if self.complete.load(Ordering::Acquire) {
-            return CloseRequest::Wait;
+    fn request(&self, hide: impl FnOnce(), start: impl FnOnce()) {
+        if self.complete.load(Ordering::Acquire) || self.started.swap(true, Ordering::AcqRel) {
+            return;
         }
-        if !self.started.swap(true, Ordering::AcqRel) {
-            self.expired.store(false, Ordering::Release);
-            return CloseRequest::Start;
-        }
-        if self.force_available() { CloseRequest::OfferForceQuit } else { CloseRequest::Wait }
+        self.expired.store(false, Ordering::Release);
+        hide();
+        start();
     }
 
     fn force_available(&self) -> bool {
@@ -264,37 +250,35 @@ async fn failure_choice(app: &tauri::AppHandle, error: &DesktopSessionError) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::{CloseRequest, Ordering, State};
+    use super::{Ordering, State};
+    use std::cell::RefCell;
 
     #[test]
-    fn close_deadline() {
+    fn an_explicit_keep_open_allows_a_fresh_close_without_a_stale_force_choice() {
         let state = State::default();
-        assert_eq!(state.request(), CloseRequest::Start);
-        assert_eq!(state.request(), CloseRequest::Wait);
-        assert!(!state.force_available());
-
+        state.request(|| {}, || {});
         state.expired.store(true, Ordering::Release);
-        assert_eq!(state.request(), CloseRequest::OfferForceQuit);
         assert!(state.force_available());
-
-        // A Dialog Answer Cannot Abandon A Completed Stop.
-        state.complete.store(true, Ordering::Release);
+        state.started.store(false, Ordering::Release);
         assert!(!state.force_available());
-        assert_eq!(state.request(), CloseRequest::Wait);
+        let actions = RefCell::new(Vec::new());
+        state.request(|| actions.borrow_mut().push("hidden"), || actions.borrow_mut().push("shutdown"));
+        assert_eq!(*actions.borrow(), ["hidden", "shutdown"]);
+        assert!(!state.force_available());
     }
 
     #[test]
-    fn stale_force_choice() {
+    fn first_close_hides_before_shutdown_and_repeated_requests_do_nothing() {
         let state = State::default();
-        assert_eq!(state.request(), CloseRequest::Start);
+        let actions = RefCell::new(Vec::new());
+        state.request(|| actions.borrow_mut().push("hidden"), || actions.borrow_mut().push("shutdown"));
+        assert_eq!(*actions.borrow(), ["hidden", "shutdown"]);
+        state.request(|| panic!("already hidden"), || panic!("already stopping"));
         state.expired.store(true, Ordering::Release);
         assert!(state.force_available());
-
-        state.started.store(false, Ordering::Release);
+        state.request(|| panic!("already hidden"), || panic!("already stopping"));
+        state.complete.store(true, Ordering::Release);
         assert!(!state.force_available());
-
-        // A Retry Gets Its Own Full Deadline.
-        assert_eq!(state.request(), CloseRequest::Start);
-        assert_eq!(state.request(), CloseRequest::Wait);
+        state.request(|| panic!("completed"), || panic!("completed"));
     }
 }
