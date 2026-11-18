@@ -129,7 +129,7 @@ fn prompts_settle_answers_and_shutdown_waiters() -> Result<(), Box<dyn Error>> {
             let answer = PromptsCreateResponse {
                 prompt: question.prompt,
                 accepted: true,
-                action: "continue".into(),
+                action: "0".into(),
                 ..Default::default()
             };
             let receipt = host.record_answer(&execution, "answer", &[1], answer.clone())?;

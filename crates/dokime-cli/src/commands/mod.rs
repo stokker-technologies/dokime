@@ -13,6 +13,7 @@
 
 mod catalog;
 mod cycle;
+mod dev;
 mod doctor;
 mod download;
 mod execution;
@@ -36,6 +37,7 @@ mod version;
 // Third Party Imports
 
 // Local Imports
+use crate::{Result, settings::Settings};
 
 /* === Constants === */
 
@@ -51,6 +53,7 @@ mod version;
 pub(crate) enum Command {
     New(new::Args),
     Server(server::Args),
+    Dev(dev::Args),
 
     #[command(subcommand)]
     Plugin(plugin::Command),
@@ -92,6 +95,7 @@ impl Command {
         match self {
             Self::New(_) => "Create Project",
             Self::Server(_) => "Start Host",
+            Self::Dev(_) => "Develop Plugin",
             Self::Plugin(command) => command.action(),
             Self::Proto(_) => "Export Protocol",
             Self::Catalog(command) => command.action(),
@@ -109,12 +113,19 @@ impl Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings: crate::settings::Settings) -> crate::Result<()> {
-    if !matches!(command, Command::New(_) | Command::Server(_) | Command::Doctor(_) | Command::Version(_) | Command::Proto(_)) {
+pub(crate) async fn run(command: Command, endpoint: Option<String>, mut settings: Settings) -> Result<()> {
+    if let Command::Plugin(command) = &command {
+        command.require_trust()?;
+    }
+    if !matches!(
+        command,
+        Command::New(_) | Command::Dev(_) | Command::Server(_) | Command::Doctor(_) | Command::Version(_) | Command::Proto(_)
+    ) {
         settings.pairing = settings.remote.as_deref().map(pairing::File::read).transpose()?;
     }
     match command {
         Command::New(args) => new::run(args, settings).await,
+        Command::Dev(args) => Box::pin(dev::run(args, settings)).await,
         Command::Server(args) => Box::pin(server::run(args, endpoint, settings)).await,
         Command::Plugin(command) => Box::pin(plugin::run(command, endpoint, settings)).await,
         Command::Proto(command) => proto::run(command),

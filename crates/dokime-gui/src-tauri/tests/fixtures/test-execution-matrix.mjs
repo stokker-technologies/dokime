@@ -30,7 +30,7 @@ try {
   if (scenario === "cancel") {
     await api.executionsCancel(session, { name: executionId, requestId: crypto.randomUUID() });
   } else {
-    await api.promptsAnswersCreate(session, { parent: pending.prompts[0].prompt.promptId, requestId: crypto.randomUUID(), action: scenario === "complete" ? "yes" : "no", accepted: true });
+    await api.promptsAnswersCreate(session, { parent: pending.prompts[0].prompt.promptId, requestId: crypto.randomUUID(), action: scenario === "complete" ? "0" : "1", accepted: true });
   }
   while (!(await iterator.next()).done) {}
   // The Host Seals Evidence for Completion, Refusal and Cancellation
@@ -46,7 +46,7 @@ try {
     const samples = await api.evidenceSamplesList(session, { scope: { executionId } });
     assert.ok(samples.samples.length);
     const records = await api.evidenceRecordsList(session, { selection: { scope: { executionId } } });
-    const door = records.records.find(record => record.recordType === "thermal.door");
+    const door = records.records.find(record => record.recordType === "thermal.cycle.door");
     assert.ok(door);
     assert.deepEqual([...door.payload], scenario === "complete" ? [8, 1] : []);
   }

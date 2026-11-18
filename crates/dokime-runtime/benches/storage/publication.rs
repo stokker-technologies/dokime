@@ -33,7 +33,6 @@ use criterion::{Criterion, SamplingMode};
 use tokio::runtime::Runtime;
 
 // Local Imports
-use dokime::plugin::HostOperation;
 use dokime::prelude::*;
 use dokime_protocol::host::PromptsCreateRequest;
 use dokime_protocol::host::evidence_client::EvidenceClient;
@@ -59,26 +58,26 @@ const OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
 /* === Structs === */
 
 #[derive(dokime::Row)]
-#[harmos(package = "storage.benchmark.v1")]
+#[dokime(package = "storage.benchmark.v1")]
 struct Reading {
     timestamp: String,
     value: f64,
 }
 
 #[derive(dokime::Row)]
-#[harmos(package = "storage.benchmark.v1")]
+#[dokime(package = "storage.benchmark.v1")]
 struct Pulse {
     value: f64,
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "storage.benchmark.v1")]
+#[dokime(package = "storage.benchmark.v1")]
 struct Produced {
     rows: u64,
 }
 
 #[derive(dokime::Parameters)]
-#[harmos(package = "storage.benchmark.v1")]
+#[dokime(package = "storage.benchmark.v1")]
 struct Capture {
     rows: u64,
 }
@@ -93,6 +92,7 @@ pub(super) struct Fixture {
     pub root: std::path::PathBuf,
     pub cycle: Cycle,
     pub execution: String,
+    template: String,
 }
 
 /* === Enums === */
@@ -124,7 +124,13 @@ impl Fixture {
         let origin = host.materialize(&plugin, template, parameters).await.unwrap();
         let cycle = host.start_cycle(vec![origin]).await.unwrap();
         let execution = cycle.executions[0].clone();
-        Self { host, root, cycle, execution }
+        Self {
+            host,
+            root,
+            cycle,
+            execution,
+            template: template.into(),
+        }
     }
 
     pub(super) async fn prompt(&self, name: &str) -> PromptsCreateRequest {
@@ -136,7 +142,7 @@ impl Fixture {
                 .pending_prompts()
                 .unwrap()
                 .into_iter()
-                .find(|(execution, prompt)| execution == &self.execution && prompt.prompt == name)
+                .find(|(execution, prompt)| execution == &self.execution && prompt.prompt == format!("{}.{name}", self.template))
             {
                 return prompt;
             }
@@ -151,7 +157,7 @@ impl Fixture {
                 &self.execution,
                 PromptsCreateResponse {
                     prompt: prompt.prompt,
-                    action: "continue".into(),
+                    action: "0".into(),
                     accepted: true,
                     ..Default::default()
                 },
@@ -166,12 +172,13 @@ pub fn serve() -> Result<()> {
     let stream = Stream::<Reading>::new("readings", "Readings");
     let observer = Observer::new(&stream, async |context: &Context| {
         let at = context.now().await?;
-        let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "readings")) {
-            let observed = context.get::<Observed>()?;
-            observed.count.fetch_add(1, Ordering::SeqCst)
-        } else {
-            0
-        };
+        let index =
+            if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "storage.benchmark.capture.readings")) {
+                let observed = context.get::<Observed>()?;
+                observed.count.fetch_add(1, Ordering::SeqCst)
+            } else {
+                0
+            };
         Ok(Reading {
             timestamp: at.to_string(),
             value: (index % 1024) as f64,
@@ -179,6 +186,9 @@ pub fn serve() -> Result<()> {
     })
     .every(Duration::from_millis(1));
     let template = Template::new("capture", "Capture")
+        .record(Record::<Produced>::new("produced", "Produced"))
+        .prompt(Prompt::new("ready", "Ready", "Continue the Measurement?").action("0", "Continue"))
+        .prompt(Prompt::new("captured", "Captured", "Continue the Measurement?").action("0", "Continue"))
         .parameters(Capture { rows: 1024 })
         .initialize(async |context: &Context| {
             context.set(Observed::default());
@@ -189,7 +199,7 @@ pub fn serve() -> Result<()> {
         .observer(observer);
     let pulse = Stream::<Pulse>::new("pulse", "Pulse");
     let observer = Observer::new(&pulse, async |context: &Context| {
-        let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "pulse")) {
+        let index = if context.test_case().is_ok_and(|case| case.streams.iter().any(|stream| stream == "storage.benchmark.export.pulse")) {
             let observed = context.get::<Observed>()?;
             observed.count.fetch_add(1, Ordering::SeqCst)
         } else {
@@ -198,7 +208,10 @@ pub fn serve() -> Result<()> {
         Ok(Pulse { value: index as f64 })
     })
     .every(Duration::from_millis(1));
-    let export = Template::new("export", "Export")
+    let mut export = Template::new("export", "Export")
+        .record(Record::<Produced>::new("produced", "Produced"))
+        .prompt(Prompt::new("ready", "Ready", "Continue the Measurement?").action("0", "Continue"))
+        .prompt(Prompt::new("captured", "Captured", "Continue the Measurement?").action("0", "Continue"))
         .parameters(Capture { rows: 16384 })
         .initialize(async |context: &Context| {
             context.set(Observed::default());
@@ -210,16 +223,9 @@ pub fn serve() -> Result<()> {
     // The Spectrum's First Scheduled Sample Is Outside These Short Captures.
     let spectrum = Stream::<Pulse>::new("spectrum", "Spectrum");
     let spectrum_observer = Observer::new(&spectrum, async |_: &Context| Ok(Pulse { value: 0.0 })).every(Duration::from_secs(86_400));
+    export = export.stream(spectrum).observer(spectrum_observer);
     Plugin::new("storage.benchmark", "1.0.0")
         .suite(Suite::new("storage.benchmark", "Storage Benchmark").template(template).template(export))
-        .stream(spectrum)
-        .observer(spectrum_observer)
-        .prompt(Prompt::new("continue", "Continue", "Continue the Measurement?").action("continue", "Continue"))
-        .requires_host(HostOperation::PromptsCreate)
-        .requires_host(HostOperation::EvidenceRecordsAppend)
-        .requires_host(HostOperation::TimeGet)
-        .requires_host(HostOperation::TimeSleep)
-        .record(Record::<Produced>::new("produced", "Produced"))
         .remote()
         .serve()
 }
@@ -241,7 +247,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
             executor.block_on(async {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iterations {
-                    let fixture = Fixture::new(settings(), plugin.endpoint(), "capture", 1024).await;
+                    let fixture = Fixture::new(settings(), plugin.endpoint(), "storage.benchmark.capture", 1024).await;
                     fixture.prompt("ready").await;
                     let started = Instant::now();
                     fixture.release("ready").await;
@@ -269,7 +275,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
             executor.block_on(async {
                 let mut elapsed = Duration::ZERO;
                 for _ in 0..iterations {
-                    let fixture = Fixture::new(settings(), plugin.endpoint(), "capture", 65536).await;
+                    let fixture = Fixture::new(settings(), plugin.endpoint(), "storage.benchmark.capture", 65536).await;
                     fixture.release("ready").await;
                     fixture.prompt("captured").await;
                     let started = Instant::now();
@@ -296,10 +302,10 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
                     plugin = Some(PluginProcess::start(&std::env::current_exe().unwrap(), true, &settings().placement).await.unwrap());
                 }
                 let plugin = plugin.as_ref().unwrap();
-                let fixture = Fixture::new(settings(), plugin.endpoint(), "export", 16384).await;
+                let fixture = Fixture::new(settings(), plugin.endpoint(), "storage.benchmark.export", 16384).await;
                 fixture.release("ready").await;
                 fixture.release("captured").await;
-                let Fixture { host, root, cycle, execution } = fixture;
+                let Fixture { host, root, cycle, execution, .. } = fixture;
                 let completed = cycle.wait().await.unwrap();
                 assert_eq!(completed.executions[0].samples.len(), 16384, "Prepare Runtime Archive: Retain Every Sample");
                 host.shutdown().await.unwrap();
@@ -433,14 +439,14 @@ pub(super) fn settings() -> HostSettings {
 }
 
 async fn capture(context: &Context) -> Result<()> {
-    context.host().prompts.create("ready".into(), "continue".into(), HashMap::new()).await?;
+    context.prompt(Prompt::new("ready", "Ready", "Continue the Measurement?").action("0", "Continue"), &[]).await?;
     let rows = context.parameters::<Capture>()?.rows;
     let observed = context.get::<Observed>()?;
     // A Controlled Sleep Settles After Every Window Due by Its End.
     context.sleep(Duration::from_millis(rows.saturating_sub(observed.count.load(Ordering::SeqCst)))).await?;
     assert_eq!(observed.count.load(Ordering::SeqCst), rows, "Publish Runtime Samples: Retain the Requested Row Count");
     context.record(&Record::<Produced>::new("produced", "Produced"), Produced { rows }).await?;
-    context.host().prompts.create("captured".into(), "continue".into(), HashMap::new()).await?;
+    context.prompt(Prompt::new("captured", "Captured", "Continue the Measurement?").action("0", "Continue"), &[]).await?;
     Ok(())
 }
 

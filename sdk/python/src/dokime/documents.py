@@ -16,9 +16,8 @@ from typing import Self
 
 # Third Party Imports
 # Local Imports
-import dokime
-from dokime import Card, DataExpression, Metadata
-
+from ._generated import shared
+from ._generated.shared import Card, DataExpression, Metadata
 from .plot import Expression, Plot, _expression
 
 # Type Checking Imports
@@ -36,7 +35,7 @@ __all__ = ["Document", "Section", "Summary", "plot_card", "records_card"]
 
 class Document:
     def __init__(self, label: str) -> None:
-        self.message = dokime.Document(metadata=metadata(label))
+        self.message = shared.Document(metadata=metadata(label))
 
     @property
     def label(self) -> str:
@@ -58,7 +57,7 @@ class Document:
 
 class Section:
     def __init__(self, label: str) -> None:
-        self.message = dokime.model.Section(metadata=metadata(label))
+        self.message = shared.model.Section(metadata=metadata(label))
 
     def id(self, identifier: str) -> Self:
         self.message.metadata.identifier = identifier
@@ -107,7 +106,7 @@ class Section:
 
 class Summary:
     def __init__(self) -> None:
-        self.message = dokime.Summary()
+        self.message = shared.Summary()
 
     def tile(self, label: str, value: Expression, *, unit: str = "") -> Self:
         self.message.tiles.add(metadata=metadata(label), value=_expression(value), unit=unit)
@@ -118,11 +117,11 @@ class Summary:
 
 
 def plot_card(plot: Plot, columns: int = 12) -> Card:
-    return Card(metadata=plot.message.metadata, plot=plot.message, layout=dokime.CardLayout(columns=columns))
+    return Card(metadata=plot.message.metadata, plot=plot.message, layout=shared.CardLayout(columns=columns))
 
 
 def records_card(identifier: str) -> Card:
-    return Card(metadata=Metadata(identifier=identifier, label="Records"), evidence=dokime.EVIDENCE_CARD_RECORDS)
+    return Card(metadata=Metadata(identifier=identifier, label="Records"), evidence=shared.EVIDENCE_CARD_RECORDS)
 
 
 def metadata(label: str) -> Metadata:

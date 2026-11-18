@@ -215,7 +215,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             let pending = client.prompts.list(execution_id.clone(), true).await?;
             let prompt_id = pending.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
             assert_eq!(client.prompts.get(prompt_id.clone()).await?.prompt.unwrap().prompt.unwrap().prompt_id, prompt_id);
-            client.prompts.answers.create(prompt_id, "yes", MapValue::default(), true).await?;
+            client.prompts.answers.create(prompt_id, "0", MapValue::default(), true).await?;
             while let Some(frame) = progress.next().await? {
                 phases.push(frame.phase);
             }
@@ -237,11 +237,11 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 let hold = client
                     .evidence
                     .statistics_with(
-                        "thermal.temperature",
+                        "thermal.cycle.temperature",
                         "celsius",
                         EvidenceStatisticsOptions {
                             scope: Some(scope.clone()),
-                            step: Some("hold".into()),
+                            step: Some("thermal.cycle.hold".into()),
                             ..Default::default()
                         },
                     )
@@ -249,7 +249,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 let execution = client
                     .evidence
                     .statistics_with(
-                        "thermal.temperature",
+                        "thermal.cycle.temperature",
                         "celsius",
                         EvidenceStatisticsOptions { scope: Some(scope), ..Default::default() },
                     )
@@ -258,12 +258,12 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                     .evidence
                     .records
                     .list_with(
-                        "thermal.door",
+                        "thermal.cycle.door",
                         EvidenceRecordsListOptions {
                             scope: Some(RecordScope {
                                 kind: Some(record_scope::Kind::Execution(execution_id.clone())),
                             }),
-                            step: Some("hold".into()),
+                            step: Some("thermal.cycle.hold".into()),
                             ..Default::default()
                         },
                     )
@@ -308,7 +308,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                         execution_id: Some(execution_id.clone()),
                         ..Default::default()
                     },
-                    vec!["thermal.temperature".into()],
+                    vec!["thermal.cycle.temperature".into()],
                     EvidenceSamplesListOptions {
                         versions: Some(Vec::new()),
                         fields: Some(Vec::new()),
@@ -341,7 +341,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             let statistics = client
                 .evidence
                 .statistics_with(
-                    "thermal.temperature",
+                    "thermal.cycle.temperature",
                     "celsius",
                     EvidenceStatisticsOptions {
                         scope: Some(sealed),
@@ -420,7 +420,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                 assert!(running.controls.unwrap().can_cancel);
                 let pending = client.prompts.list(id.clone(), true).await?;
                 let prompt = pending.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-                client.prompts.answers.create(prompt, if closed { "yes" } else { "no" }, MapValue::default(), true).await?;
+                client.prompts.answers.create(prompt, if closed { "0" } else { "1" }, MapValue::default(), true).await?;
                 watches.push(progress);
             }
             for mut progress in watches {
@@ -498,7 +498,7 @@ fn client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
                             execution_id: Some(execution_id),
                             ..Default::default()
                         },
-                        vec!["thermal.temperature".into()],
+                        vec!["thermal.cycle.temperature".into()],
                         EvidenceSamplesListOptions {
                             versions: Some(Vec::new()),
                             fields: Some(Vec::new()),

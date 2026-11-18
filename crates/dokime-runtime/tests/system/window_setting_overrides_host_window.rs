@@ -69,9 +69,10 @@ fn window_setting_overrides_host_window() -> Result<(), Box<dyn Error>> {
         // The Host Grants Its Interval Window; the Plugin's 10 ms Sample Window Setting Grants Its Stream 10 ms Ones.
         let host_count = (dokime_runtime::INTERVAL_WINDOW.as_millis()) as f64;
         let outcome = &cycle.executions[0].execution.outcome;
-        let host_window = granted.get("execution.window.host").unwrap_or_else(|| panic!("Sample the Host Window Stream: {outcome:?}"));
+        let host_window =
+            granted.get("execution.windows.window.host").unwrap_or_else(|| panic!("Sample the Host Window Stream: {outcome:?}"));
         let setting_window =
-            granted.get("execution.window.setting").unwrap_or_else(|| panic!("Sample the Setting Window Stream: {outcome:?}"));
+            granted.get("execution.windows.window.setting").unwrap_or_else(|| panic!("Sample the Setting Window Stream: {outcome:?}"));
         assert_ne!(host_count, 10.0, "Compare Window Lengths: The Host Window Must Differ From the Setting");
         assert_eq!(host_window.len(), 1000, "Sample the Host Window Stream: Retain Every Sample");
         assert_eq!(setting_window.len(), 1000, "Sample the Setting Window Stream: Retain Every Sample");

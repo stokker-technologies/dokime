@@ -104,7 +104,7 @@ fn client_reuses_frozen_schemas() -> Result<(), Box<dyn Error>> {
                     }
                     let pending = client.prompts.list(execution.clone(), true).await?;
                     for prompt in pending.prompts {
-                        client.prompts.answers.create(prompt.prompt.unwrap().prompt_id, "yes", MapValue::default(), true).await?;
+                        client.prompts.answers.create(prompt.prompt.unwrap().prompt_id, "0", MapValue::default(), true).await?;
                     }
                 }
                 executions.push(execution);

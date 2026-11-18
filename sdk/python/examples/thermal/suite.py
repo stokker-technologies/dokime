@@ -1,17 +1,28 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+"""The Shared Thermal Procedure With Local Declarations."""
+
+# === Imports === #
+
+# Standard Library Imports
 from typing import cast
 
+# Third Party Imports
+from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from google.protobuf.message import Message
 
-from dokime import Parameter, Prompt, PromptDefinitions
-from dokime.authoring import Record, Suite, Template, criterion, observer, step, stream, window_observer
-from dokime.plugin import Context, Plugin, Window
+from dokime import Context, Parameter, Plugin, Window, criterion, observer, record, step, stream, window_observer
+from dokime.authoring import Suite, Template
 
-# SPDX-License-Identifier: Apache-2.0
-"""The Same Thermal Procedure as Every SDK."""
+# Local Imports
 
-from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
-
-from dokime.plugin import HostOperation
+# Type Checking Imports
 
 
 # Protobuf Types Belong to the Fixture, Not to the SDK.
@@ -36,6 +47,8 @@ Door = row_type("Door", "closed", descriptor_pb2.FieldDescriptorProto.TYPE_BOOL)
 
 
 class Thermal:
+    door = record(Door, label="Door Check")
+
     async def initialize(self, ctx: Context) -> None:
         limit = ctx.parameters["limit"]
         if not isinstance(limit, (float, int)):
@@ -49,26 +62,26 @@ class Thermal:
 
     @step("Hold", identifier="hold")
     async def hold(self, ctx: Context) -> None:
-        answer = await ctx.host.prompts.create("door", "thermal.door", {})
-        await ctx.record("thermal.door", Door(closed=answer.action == "yes" and answer.accepted))
+        answer = await ctx.prompt("Is the Door Closed?", choices=["Yes", "No"])
+        await ctx.record(self.door, Door(closed=answer == "Yes"))
         await ctx.sleep(2.5)
         await ctx.progress(2, 2, label="Hold")
 
-    @stream("Temperature [°C]", identifier="thermal.temperature", row=Temperature)
+    @stream("Temperature [°C]", row=Temperature)
     @observer(interval_ms=1000)
     def temperature(self, ctx: Context) -> Message:
         return Temperature(celsius=self.limit - 1.0)
 
     # A 1 kHz Stream Answers Each Host Window at Once.
-    @stream("Exact Counter", identifier="thermal.counter", row=Counter)
+    @stream("Exact Counter", row=Counter)
     @window_observer(columns=CounterColumns, interval_ms=1)
     def counter(self, ctx: Context, window: Window) -> Message:
         return CounterColumns(value=[1_152_921_504_606_847_975] * window.count)
 
     @criterion("Temperature Within Limit", identifier="within_limit")
     async def within_limit(self, ctx: Context) -> bool:
-        stats = await ctx.statistics("thermal.temperature", "celsius", step="hold")
-        door = await ctx.records("thermal.door", step="hold").last()
+        stats = await ctx.statistics(self.temperature, "celsius", step=self.hold)
+        door = await ctx.records(self.door, step=self.hold).last()
         return (
             stats.statistics.count > 0
             and stats.statistics.max.number <= self.limit
@@ -82,41 +95,13 @@ class Thermal:
 
 def plugin() -> Plugin:
     template = Template(
-        "thermal.cycle",
         Thermal,
-        "Thermal Cycle",
+        label="Thermal Cycle",
+        identifier="cycle",
         parameters=[
             Parameter(
                 metadata={"identifier": "limit", "label": "Limit"}, type="VALUE_TYPE_NUMBER", expression={"literal": {"number": 85.0}}
             )
         ],
     )
-    prompt = PromptDefinitions(
-        prompts=[
-            Prompt(
-                metadata={"identifier": "thermal.door", "label": "Door Check"},
-                message="Is the Door Closed?",
-                archetype="PROMPT_ARCHETYPE_CONFIRMATION",
-                actions=[{"identifier": "yes", "label": "Yes"}, {"identifier": "no", "label": "No"}],
-            )
-        ],
-    )
-    needed = [
-        HostOperation.PROMPTS_CREATE,
-        HostOperation.EVIDENCE_RECORDS_APPEND,
-        HostOperation.EVIDENCE_RECORDS_LIST,
-        HostOperation.EVIDENCE_STATISTICS,
-        HostOperation.EXECUTIONS_PROGRESS_GET,
-        HostOperation.EXECUTIONS_PROGRESS_SET,
-        HostOperation.EVIDENCE_LOGS_APPEND,
-        HostOperation.TIME_GET,
-        HostOperation.TIME_SLEEP,
-    ]
-    return Plugin(
-        "thermal",
-        "1.0.0",
-        suites=[Suite("thermal", [template], "Thermal")],
-        records=[Record("thermal.door", Door, "Door Check")],
-        sections=[prompt],
-        requires=needed,
-    )
+    return Plugin("thermal", "1.0.0", suites=[Suite("thermal", [template], "Thermal")])

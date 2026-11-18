@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::plugin::{Context, DeclarationTypes, Plugin, Record};
+use dokime::plugin::{Context, Record, Template};
 use dokime::{Error, Message, Result, encoding};
 
 /* === Constants === */
@@ -33,26 +33,26 @@ use dokime::{Error, Message, Result, encoding};
 
 /// The Charger Was Initialized for This Attempt.
 #[derive(dokime::Record)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Initialized {}
 
 /// The Supply Was Energized, With a Note on Why.
 #[derive(dokime::Record)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Started {
     pub note: String,
 }
 
 /// Protection Opened the Charger Supply.
 #[derive(dokime::Record)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Faulted {
     pub fault: String,
 }
 
 /// The Measurement and the Operator's Decision, Together.
 #[derive(dokime::Record)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Completed {
     pub sample_count: u64,
     pub prompt_action: String,
@@ -62,7 +62,7 @@ pub struct Completed {
 
 /// The Charger Was Left De-Energized, With the Procedure's Decision.
 #[derive(dokime::Record)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Stopped {
     pub accepted: bool,
     pub tripped_at_step: u64,
@@ -70,7 +70,7 @@ pub struct Stopped {
 
 /// The Supply at the Start and End of a Steady-State Hold.
 #[derive(dokime::Record)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct HoldEvent {
     pub event: String,
     pub elapsed_s: f64,
@@ -86,32 +86,32 @@ pub struct HoldEvent {
 /* === Public Functions === */
 
 /// Shared Charger Events Used by Several Templates.
-pub fn catalog<C: DeclarationTypes>(plugin: Plugin<C>) -> Plugin<impl DeclarationTypes> {
-    plugin.record(initialized()).record(started()).record(completed()).record(faulted()).record(stopped()).record(hold())
+pub fn catalog(template: Template) -> Template {
+    template.record(initialized()).record(started()).record(completed()).record(faulted()).record(stopped()).record(hold())
 }
 pub fn initialized() -> Record<Initialized> {
-    Record::new("obc.records.charger.initialized", "Charger Initialized")
+    Record::new("initialized", "Charger Initialized")
 }
 pub fn started() -> Record<Started> {
-    Record::new("obc.records.charger.started", "Charger Energized")
+    Record::new("started", "Charger Energized")
 }
 pub fn completed() -> Record<Completed> {
-    Record::new("obc.records.charger.completed", "Measurement Completed")
+    Record::new("completed", "Measurement Completed")
 }
 pub fn faulted() -> Record<Faulted> {
-    Record::new("obc.records.charger.faulted", "Protection Tripped")
+    Record::new("faulted", "Protection Tripped")
 }
 pub fn stopped() -> Record<Stopped> {
-    Record::new("obc.records.charger.stopped", "Charger Disconnected")
+    Record::new("stopped", "Charger Disconnected")
 }
 
 pub fn hold() -> Record<HoldEvent> {
-    Record::new("obc.records.charger.hold", "Supply Hold Event")
+    Record::new("hold", "Supply Hold Event")
 }
 
 /// Decode the Last Record of a Type, Optionally Within One Step.
-pub async fn last<T: Message>(ctx: &Context, record: &Record<T>, step: &str) -> Result<Option<T>> {
-    let records = ctx.records(record.identifier(), step, 0).await?;
+pub async fn last<T: Message>(ctx: &Context, record: &Record<T>) -> Result<Option<T>> {
+    let records = ctx.records(record).list(0).await?;
     records
         .last
         .map(|captured| <T as encoding::Message>::decode(captured.payload.as_slice()))

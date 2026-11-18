@@ -88,7 +88,7 @@ impl PythonPlugin {
         use std::process::Stdio;
         use tokio::io::AsyncBufReadExt;
         use tokio::io::BufReader;
-        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/python/examples/thermal/main.py");
+        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../sdk/python/examples/thermal/plugin.py");
         let mut child = Command::from(dokime_runtime::process::command(python()))
             .arg(script)
             .stdin(Stdio::piped())
@@ -245,7 +245,7 @@ pub fn answer(host: &Host, execution: &str, prompt: PromptsCreateRequest) -> dok
         PromptsCreateResponse {
             prompt: prompt.prompt,
             accepted: true,
-            action: "continue".into(),
+            action: "0".into(),
             ..Default::default()
         },
     )

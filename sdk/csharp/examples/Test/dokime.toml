@@ -1,0 +1,11 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+build = ["mise", "run", "build"]
+executable = "bin/Release/net10.0/dokime-example-test"
+assets = ["bin/Release/net10.0"]

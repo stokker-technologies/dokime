@@ -16,9 +16,11 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::BTreeSet;
 
 // Third Party Imports
 use proc_macro::TokenStream;
+use proc_macro_crate::{FoundCrate, crate_name};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, parse_macro_input};
 
@@ -40,27 +42,27 @@ use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, parse
 
 /* === Public Functions === */
 
-#[proc_macro_derive(Message, attributes(harmos))]
+#[proc_macro_derive(Message, attributes(dokime))]
 pub fn message(input: TokenStream) -> TokenStream {
     expand(parse_macro_input!(input as DeriveInput)).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
-#[proc_macro_derive(Row, attributes(harmos))]
+#[proc_macro_derive(Row, attributes(dokime))]
 pub fn row(input: TokenStream) -> TokenStream {
     expand(parse_macro_input!(input as DeriveInput)).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
-#[proc_macro_derive(Record, attributes(harmos))]
+#[proc_macro_derive(Record, attributes(dokime))]
 pub fn record(input: TokenStream) -> TokenStream {
     expand(parse_macro_input!(input as DeriveInput)).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
-#[proc_macro_derive(Parameters, attributes(harmos))]
+#[proc_macro_derive(Parameters, attributes(dokime))]
 pub fn parameters(input: TokenStream) -> TokenStream {
     expand(parse_macro_input!(input as DeriveInput)).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
-#[proc_macro_derive(Settings, attributes(harmos))]
+#[proc_macro_derive(Settings, attributes(dokime))]
 pub fn settings(input: TokenStream) -> TokenStream {
     expand(parse_macro_input!(input as DeriveInput)).unwrap_or_else(syn::Error::into_compile_error).into()
 }
@@ -68,7 +70,6 @@ pub fn settings(input: TokenStream) -> TokenStream {
 /* === Private Functions === */
 
 fn sdk_path() -> Option<proc_macro2::TokenStream> {
-    use proc_macro_crate::{FoundCrate, crate_name};
     match crate_name("dokime").ok()? {
         FoundCrate::Itself => Some(quote!(::dokime)),
         FoundCrate::Name(name) => {
@@ -88,7 +89,7 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let mut file = None;
     let mut protobuf_name = name.to_string();
     for attr in &input.attrs {
-        if attr.path().is_ident("harmos") {
+        if attr.path().is_ident("dokime") {
             attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("package") {
                     package = meta.value()?.parse::<syn::LitStr>()?.value();
@@ -97,7 +98,7 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 } else if meta.path.is_ident("file") {
                     file = Some(meta.value()?.parse::<syn::LitStr>()?.value());
                 } else {
-                    return Err(meta.error("Expected package or file"));
+                    return Err(meta.error("Expected package, name or file"));
                 }
                 Ok(())
             })?;
@@ -120,14 +121,14 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let mut descriptors = Vec::new();
     let mut defaults = Vec::new();
     let mut dependencies = Vec::new();
-    let mut tags = std::collections::BTreeSet::new();
+    let mut tags = BTreeSet::new();
     let mut oneofs = Vec::new();
     for (index, field) in fields.iter().enumerate() {
         let ident = field.ident.as_ref().unwrap();
         let field_name = ident.to_string().trim_start_matches("r#").to_owned();
         let mut tag = index as u32 + 1;
         for attr in &field.attrs {
-            if attr.path().is_ident("harmos") {
+            if attr.path().is_ident("dokime") {
                 attr.parse_nested_meta(|meta| {
                     if !meta.path.is_ident("tag") {
                         return Err(meta.error("Expected tag"));
@@ -170,8 +171,8 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         let encoding = quote!(#sdk::encoding::#module);
         let type_name = if scalar.is_none() {
             dependencies.push(quote! {
-                <#ty as #sdk::encoding::ContractMessage>::register(types);
-                let type_name = <#ty as #sdk::encoding::ContractMessage>::name();
+                <#ty as #sdk::encoding::contract::Message>::register(types);
+                let type_name = <#ty as #sdk::encoding::contract::Message>::name();
                 let dependency = types.file.iter().find(|file| {
                     file.message_type.iter().any(|message| format!("{}.{}", file.package.as_deref().unwrap_or(""), message.name.as_deref().unwrap_or("")) == type_name)
                 }).and_then(|file| file.name.clone());
@@ -180,7 +181,7 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                     if !current.dependency.contains(&dependency) { current.dependency.push(dependency); }
                 }
             });
-            quote!(Some(format!(".{}", <#ty as #sdk::encoding::ContractMessage>::name())))
+            quote!(Some(format!(".{}", <#ty as #sdk::encoding::contract::Message>::name())))
         } else {
             quote!(None)
         };
@@ -258,7 +259,8 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             fn encoded_len(&self) -> usize { 0 #(+ #lengths)* }
             fn clear(&mut self) { *self = Default::default(); }
         }
-        impl #sdk::encoding::ContractMessage for #name {
+        impl #sdk::Message for #name {}
+        impl #sdk::encoding::contract::Message for #name {
             fn name() -> String { #full_name.into() }
             fn types() -> #sdk::encoding::FileDescriptorSet {
                 let mut types = #sdk::encoding::FileDescriptorSet::default();

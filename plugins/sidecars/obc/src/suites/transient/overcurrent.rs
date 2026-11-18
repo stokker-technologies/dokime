@@ -58,10 +58,11 @@ struct Outcome {
 /* === Public Functions === */
 
 pub fn template() -> Template {
-    let template = Template::new(TEMPLATE, "Overcurrent Protection")
+    let template = Template::new("overcurrent", "Overcurrent Protection")
         .description("Step the load until the overcurrent latch opens the supply, then probe a restart.")
         .tag("device")
         .tag("protection");
+    let template = charger::catalog(template);
     let template = parameters(template, supply());
     let template =
         parameters(template, [Parameter::numbers("load_steps_ohm", "Load Steps", [100.0, 50.0, 10.0]).unit("ohm").items(1..=16).build()]);
@@ -164,7 +165,7 @@ async fn disconnect(ctx: &Context) -> Result<()> {
 
 async fn protected(ctx: &Context) -> Result<bool> {
     let stopped = charger::stopped();
-    Ok(charger::last(ctx, &stopped, "").await?.is_some_and(|stopped| stopped.accepted))
+    Ok(charger::last(ctx, &stopped).await?.is_some_and(|stopped| stopped.accepted))
 }
 
 async fn cleanup(ctx: &Context) -> Result<()> {

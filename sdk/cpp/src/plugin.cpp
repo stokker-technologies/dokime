@@ -16,7 +16,27 @@
 #include "dokime/plugin/v1/test_cases.pb.h"
 #include <google/protobuf/util/message_differencer.h>
 #include <limits>
+#include <regex>
 #include <set>
+
+using dokime::plugin::v1::CriteriaEvaluateRequest;
+using dokime::plugin::v1::CriteriaEvaluateResponse;
+using dokime::plugin::v1::ExecutionsCleanupRequest;
+using dokime::plugin::v1::ExecutionsCleanupResponse;
+using dokime::plugin::v1::ExecutionsInitializeRequest;
+using dokime::plugin::v1::ExecutionsInitializeResponse;
+using dokime::plugin::v1::StepsExecuteRequest;
+using dokime::plugin::v1::StepsExecuteResponse;
+using dokime::plugin::v1::TestCasesMaterializeRequest;
+using dokime::plugin::v1::TestCasesMaterializeResponse;
+using std::find_if;
+using std::function;
+using std::optional;
+using std::regex;
+using std::regex_replace;
+using std::size_t;
+using std::to_string;
+using std::vector;
 
 using google::protobuf::util::MessageDifferencer;
 using harmos::Declarations;
@@ -32,9 +52,7 @@ using std::move;
 using std::numeric_limits;
 using std::set;
 using std::shared_ptr;
-using std::size_t;
 using std::string;
-using std::to_string;
 using std::uint32_t;
 
 /* === Macros === */
@@ -49,41 +67,25 @@ using std::uint32_t;
 
 /* === Public Functions === */
 
-using dokime::plugin::v1::CriteriaEvaluateRequest;
-using dokime::plugin::v1::CriteriaEvaluateResponse;
-using dokime::plugin::v1::ExecutionsCleanupRequest;
-using dokime::plugin::v1::ExecutionsCleanupResponse;
-using dokime::plugin::v1::ExecutionsInitializeRequest;
-using dokime::plugin::v1::ExecutionsInitializeResponse;
-using dokime::plugin::v1::StepsExecuteRequest;
-using dokime::plugin::v1::StepsExecuteResponse;
-using dokime::plugin::v1::TestCasesMaterializeRequest;
-using dokime::plugin::v1::TestCasesMaterializeResponse;
-using std::function;
-using std::vector;
-
 namespace dokime::plugin {
 namespace {
-void identifier(const string &value) {
-  if (value.empty())
-    throw invalid_argument("Identifier Is Required");
-}
 template <class Q>
 Context execution_context(harmos::plugin::Context &transport, const Q &request, const string &template_id,
-                          const shared_ptr<detail::Executions> &executions, const string &action, string item = {}) {
+                          const shared_ptr<detail::Executions> &executions, shared_ptr<const detail::Bindings> bindings,
+                          const string &action, string item = {}) {
   const auto &origin = request.origin();
   const bool same_case = MessageDifferencer::Equals(request.test_case(), origin.plugin_run().test_case());
   const bool has_entry = !origin.plugin_run().plugin().empty();
   const bool same_template = origin.plugin_run().template_() == template_id;
   if (request.execution().empty() || transport.scope() != request.execution() || !origin.has_plugin_run() || !same_case || !same_template ||
       !has_entry)
-    throw invalid_argument(action + ": Execution Scope, Template and Frozen Origin Must Agree");
+    throw invalid_argument(action + ": Supply Matching Execution Scope, Template and Frozen Origin");
   auto resources = executions->open(request.execution());
   {
     lock_guard lock(resources->mutex);
     resources->test_case = request.test_case();
   }
-  return Context(transport, request.test_case(), move(item), move(resources));
+  return Context(transport, request.test_case(), move(item), move(resources), move(bindings));
 }
 } // namespace
 
@@ -93,52 +95,177 @@ Metadata metadata(string identifier, string label) {
   value.set_label(move(label));
   return value;
 }
-Plugin::Plugin(string identifier, string version)
-    : native_(identifier, move(version)), identifier_(move(identifier)), executions_(make_shared<detail::Executions>()) {
+string build_identifier(string name, optional<string> explicit_identifier, string prefix, bool class_name) {
+  string local;
+  if (explicit_identifier) {
+    local = *explicit_identifier;
+  } else {
+    if (class_name) {
+      for (const auto &suffix : {string("Template"), string("Suite")})
+        if (name.ends_with(suffix)) {
+          name.resize(name.size() - suffix.size());
+          break;
+        }
+    }
+    name = regex_replace(name, regex("([A-Z]+)([A-Z][a-z])"), "$1_$2");
+    name = regex_replace(name, regex("([a-z0-9])([A-Z])"), "$1_$2");
+    for (const auto character : name)
+      local += character >= 'A' && character <= 'Z' ? static_cast<char>(character + ('a' - 'A')) : character;
+  }
+  if (local.empty() || local.find_first_not_of(" \t\r\n") == string::npos)
+    throw invalid_argument("Build Plugin: Supply a Nonempty Declaration Identifier");
+  return prefix.empty() ? local : prefix + "." + local;
+}
+PromptDeclaration::PromptDeclaration(string name, string text, vector<string> choices, optional<string> identifier)
+    : Declaration(move(name), text, move(identifier)) {
+  value.set_message(text);
+  value.mutable_metadata()->set_label(text);
+  if (choices.empty())
+    choices.push_back("OK");
+  size_t index = 0;
+  for (const auto &choice : choices) {
+    auto *action = value.add_actions();
+    action->set_identifier(to_string(index++));
+    action->set_label(choice);
+  }
+}
+PromptDeclaration::PromptDeclaration(string name, Prompt value, optional<string> identifier)
+    : Declaration(move(name), value.metadata().label(), identifier), value(move(value)) {
+  if (!identifier && !this->value.metadata().identifier().empty())
+    this->identifier = this->value.metadata().identifier();
+}
+Case::Case(shared_ptr<const detail::Bindings> bindings, const vector<Step> &steps, const vector<Criterion> &criteria)
+    : bindings_(move(bindings)), steps_(steps), criteria_(criteria) {}
+Case &Case::step(const Step &step, string label, optional<string> identifier) {
+  const auto declared = find_if(steps_.begin(), steps_.end(), [&](const Step &value) {
+    return value.key == step.key;
+  });
+  if (declared == steps_.end())
+    throw invalid_argument("Materialize Step: Declare the Handler on This Template Before Adding It");
+  const auto operation = bindings_->identifiers.at(step.key);
+  const auto identity = identifier ? build_identifier(step.name, identifier, bindings_->template_id) : operation;
+  for (const auto &existing : message.steps())
+    if (existing.metadata().identifier() == identity)
+      throw invalid_argument("Materialize Step: Supply Unique Local Instance Identifiers");
+  auto *value = message.add_steps();
+  *value->mutable_metadata() = metadata(identity, move(label));
+  value->set_operation(operation);
+  value->set_repeatable(declared->repeatable);
+  return *this;
+}
+Case &Case::criterion(const Criterion &criterion, string label, optional<string> identifier) {
+  const auto declared = find_if(criteria_.begin(), criteria_.end(), [&](const Criterion &value) {
+    return value.key == criterion.key;
+  });
+  if (declared == criteria_.end())
+    throw invalid_argument("Materialize Criterion: Declare the Handler on This Template Before Adding It");
+  const auto operation = bindings_->identifiers.at(criterion.key);
+  const auto identity = identifier ? build_identifier(criterion.name, identifier, bindings_->template_id) : operation;
+  for (const auto &existing : message.criteria())
+    if (existing.metadata().identifier() == identity)
+      throw invalid_argument("Materialize Criterion: Supply Unique Local Instance Identifiers");
+  auto *value = message.add_criteria();
+  *value->mutable_metadata() = metadata(identity, move(label));
+  value->set_operation(operation);
+  return *this;
+}
+Plugin::Plugin(string identifier, string version, vector<Suite> suites)
+    : native_(move(identifier), move(version)), executions_(make_shared<detail::Executions>()) {
   native_.on_stop([state = executions_] {
     state->clear();
   });
+  context_operations();
+  for (auto &suite : suites)
+    this->suite(move(suite));
 }
-
 Plugin &Plugin::suite(Suite suite) {
-  identifier(suite.metadata.identifier());
+  const auto suite_id = build_identifier(suite.name, suite.identifier, {}, true);
   for (const auto &existing : suites_.suites())
-    if (existing.metadata().identifier() == suite.metadata.identifier())
-      throw invalid_argument("Duplicate Suite Identifier");
-  dokime::Suite declaration;
-  *declaration.mutable_metadata() = move(suite.metadata);
-  for (auto &value : suite.templates) {
-    const auto id = value.definition.metadata().identifier();
-    identifier(id);
+    if (existing.metadata().identifier() == suite_id)
+      throw invalid_argument("Build Plugin: Supply Unique Suite Identifiers");
+
+  // Validate Every Declaration Before Registering Operations.
+  set<string> templates;
+  vector<shared_ptr<detail::Bindings>> bound;
+  for (const auto &value : suite.templates) {
+    const auto id = suite.single ? suite_id : build_identifier(value.name, value.identifier, suite_id, true);
+    if (!templates.insert(id).second)
+      throw invalid_argument("Build Plugin: Supply Unique Template Identifiers");
     for (const auto &existing : suites_.suites())
       for (const auto &previous : existing.templates())
         if (previous.metadata().identifier() == id)
-          throw invalid_argument("Duplicate Template Identifier");
-    for (const auto &previous : declaration.templates())
-      if (previous.metadata().identifier() == id)
-        throw invalid_argument("Duplicate Template Identifier");
+          throw invalid_argument("Build Plugin: Supply Unique Template Identifiers");
+    auto bindings = make_shared<detail::Bindings>();
+    bindings->template_id = id;
+    set<string> names;
+    for (const auto &name : {"materialize", "initialize", "cleanup"})
+      names.insert(build_identifier(name, {}, id));
+    auto bind = [&](const Declaration &member) {
+      const auto identity = build_identifier(member.name, member.identifier, id);
+      if (!names.insert(identity).second || !bindings->identifiers.emplace(member.key, identity).second)
+        throw invalid_argument("Build Plugin: Give Every Template Member a Unique Declaration and Identifier: " + identity);
+    };
+    for (const auto &step : value.steps) {
+      bind(step);
+      if (!step.run || step.retries == numeric_limits<uint32_t>::max())
+        throw invalid_argument("Declare Step: Supply a Handler and a Smaller Retry Count");
+    }
+    for (const auto &criterion : value.criteria) {
+      bind(criterion);
+      if (!criterion.evaluate)
+        throw invalid_argument("Declare Criterion: Supply a Handler");
+    }
+    for (const auto &record : value.records)
+      bind(record.declaration);
+    for (const auto &stream : value.streams)
+      bind(stream.declaration);
+    for (const auto &prompt : value.prompts)
+      bind(prompt);
+    bound.push_back(move(bindings));
+  }
+  dokime::Suite declaration;
+  *declaration.mutable_metadata() = metadata(suite_id, suite.label.empty() ? suite.name : suite.label);
+  size_t index = 0;
+  for (auto &value : suite.templates) {
+    const auto bindings = bound[index++];
+    const auto id = bindings->template_id;
+    TestCaseTemplate definition;
+    *definition.mutable_metadata() = metadata(id, value.label.empty() ? value.name : value.label);
+    definition.mutable_parameters()->Assign(value.parameters.begin(), value.parameters.end());
+    definition.mutable_documents()->Assign(value.documents.begin(), value.documents.end());
+    definition.mutable_files()->Assign(value.files.begin(), value.files.end());
+    for (auto &record : value.records) {
+      const auto identity = bindings->identifiers.at(record.declaration.key);
+      *record.contract.mutable_metadata() = metadata(identity, record.declaration.label.empty() ? identity : record.declaration.label);
+      *records_.add_records() = move(record.contract);
+      record.message(native_);
+    }
+    for (auto &prompt : value.prompts) {
+      const auto identity = bindings->identifiers.at(prompt.key);
+      prompt.value.mutable_metadata()->set_identifier(identity);
+      prompt.value.set_owner_suite(suite_id);
+      prompt.value.set_template_(id);
+      bindings->prompts.emplace(prompt.key, prompt.value);
+      *prompts_.add_prompts() = move(prompt.value);
+    }
     const auto state = executions_;
     TestCase test_case;
-    set<string> steps;
-    size_t step_index = 0;
     for (auto &step : value.steps) {
-      identifier(step.metadata.identifier());
-      if (!step.run || !steps.insert(step.metadata.identifier()).second)
-        throw invalid_argument("Step Handler Is Required and Identifiers Must Be Unique");
-      if (step.retries == numeric_limits<uint32_t>::max())
-        throw invalid_argument("Retry Count Is Too Large");
-      const auto operation_id = id + ".step." + to_string(step_index++);
+      const auto operation_id = bindings->identifiers.at(step.key);
       auto *declared = test_case.add_steps();
-      *declared->mutable_metadata() = step.metadata;
+      *declared->mutable_metadata() = metadata(operation_id, step.label);
       declared->set_operation(operation_id);
       declared->set_repeatable(step.repeatable);
-      const auto item = step.metadata.identifier();
+      const auto item = operation_id;
       Operation<StepsExecuteRequest, StepsExecuteResponse> operation(
           operation_id, VISIBILITY_PROTECTED,
-          [state, id, item, run = move(step.run)](harmos::plugin::Context &transport, StepsExecuteRequest request) {
-            if (request.step() != item)
-              throw invalid_argument("Execute Step: Identifier Does Not Match Its Operation");
-            auto ctx = execution_context(transport, request, id, state, "Execute Step", item);
+          [state, bindings, id, item, run = step.run](harmos::plugin::Context &transport, StepsExecuteRequest request) {
+            bool matches = false;
+            for (const auto &step : request.test_case().steps())
+              matches = matches || (step.metadata().identifier() == request.step() && step.operation() == item);
+            if (!matches)
+              throw invalid_argument("Execute Step: Supply the Item Bound to This Operation");
+            auto ctx = execution_context(transport, request, id, state, bindings, "Execute Step", request.step());
             run(ctx);
             return StepsExecuteResponse{};
           });
@@ -151,57 +278,64 @@ Plugin &Plugin::suite(Suite suite) {
       }
       native_.operation(operation);
     }
-    set<string> criteria;
-    size_t criterion_index = 0;
     for (auto &criterion : value.criteria) {
-      identifier(criterion.metadata.identifier());
-      if (!criterion.evaluate || !criteria.insert(criterion.metadata.identifier()).second)
-        throw invalid_argument("Criterion Handler Is Required and Identifiers Must Be Unique");
-      const auto operation_id = id + ".criterion." + to_string(criterion_index++);
+      const auto operation_id = bindings->identifiers.at(criterion.key);
       auto *declared = test_case.add_criteria();
-      *declared->mutable_metadata() = criterion.metadata;
+      *declared->mutable_metadata() = metadata(operation_id, criterion.label);
       declared->set_operation(operation_id);
-      const auto item = criterion.metadata.identifier();
+      const auto item = operation_id;
       native_.operation(Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(
           operation_id, VISIBILITY_PROTECTED,
-          [state, id, item, evaluate = move(criterion.evaluate)](harmos::plugin::Context &transport, CriteriaEvaluateRequest request) {
-            if (request.criterion() != item)
-              throw invalid_argument("Evaluate Criterion: Identifier Does Not Match Its Operation");
-            auto ctx = execution_context(transport, request, id, state, "Evaluate Criterion", item);
+          [state, bindings, id, item, evaluate = criterion.evaluate](harmos::plugin::Context &transport, CriteriaEvaluateRequest request) {
+            bool matches = false;
+            for (const auto &criterion : request.test_case().criteria())
+              matches = matches || (criterion.metadata().identifier() == request.criterion() && criterion.operation() == item);
+            if (!matches)
+              throw invalid_argument("Evaluate Criterion: Supply the Item Bound to This Operation");
+            auto ctx = execution_context(transport, request, id, state, bindings, "Evaluate Criterion", request.criterion());
             CriteriaEvaluateResponse response;
             response.set_passed(evaluate(ctx));
             return response;
           }));
     }
-    for (auto &stream : value.streams)
-      test_case.add_streams(move(stream));
-    value.definition.set_materialize(id + ".materialize");
+    for (const auto &stream : value.streams) {
+      test_case.add_streams(bindings->identifiers.at(stream.declaration.key));
+      stream.register_(native_, bindings, state);
+    }
+    definition.set_materialize(build_identifier("materialize", {}, id));
     native_.operation(Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(
-        id + ".materialize", VISIBILITY_PROTECTED,
-        [id, test_case, materialize = move(value.materialize)](harmos::plugin::Context &transport, TestCasesMaterializeRequest request) {
+        build_identifier("materialize", {}, id), VISIBILITY_PROTECTED,
+        [id, test_case, bindings, steps = value.steps, criteria = value.criteria,
+         materialize = move(value.materialize)](harmos::plugin::Context &transport, TestCasesMaterializeRequest request) {
           try {
             transport.scope();
-            throw invalid_argument("Materialize Requires No Execution Scope");
+            throw invalid_argument("Materialize Test Case: Omit the Execution Scope");
           } catch (const Failure &failure) {
             if (failure.value.code() != "scope_required")
               throw;
           }
           if (request.template_() != id)
-            throw invalid_argument("Materialize Requires Its Template and No Execution Scope");
+            throw invalid_argument("Materialize Test Case: Supply the Bound Template Without an Execution Scope");
           auto result = test_case;
           *result.mutable_parameters() = request.parameters();
-          if (materialize)
-            materialize(result, request.parameters());
+          if (materialize) {
+            Case custom(bindings, steps, criteria);
+            *custom.message.mutable_parameters() = request.parameters();
+            *custom.message.mutable_streams() = result.streams();
+            materialize(custom, request.parameters());
+            result = move(custom.message);
+          }
           TestCasesMaterializeResponse response;
           *response.mutable_test_case() = move(result);
           return response;
         }));
     if (value.initialize) {
-      value.definition.set_initialize(id + ".initialize");
+      definition.set_initialize(build_identifier("initialize", {}, id));
       native_.operation(Operation<ExecutionsInitializeRequest, ExecutionsInitializeResponse>(
-          id + ".initialize", VISIBILITY_PROTECTED,
-          [state, id, initialize = move(value.initialize)](harmos::plugin::Context &transport, ExecutionsInitializeRequest request) {
-            auto ctx = execution_context(transport, request, id, state, "Initialize Execution");
+          build_identifier("initialize", {}, id), VISIBILITY_PROTECTED,
+          [state, bindings, id, initialize = move(value.initialize)](harmos::plugin::Context &transport,
+                                                                     ExecutionsInitializeRequest request) {
+            auto ctx = execution_context(transport, request, id, state, bindings, "Initialize Execution");
             try {
               initialize(ctx);
             } catch (...) {
@@ -212,11 +346,11 @@ Plugin &Plugin::suite(Suite suite) {
           }));
     }
     // Always Register Cleanup So the Host Can Release Execution Resources.
-    value.definition.set_cleanup(id + ".cleanup");
+    definition.set_cleanup(build_identifier("cleanup", {}, id));
     native_.operation(Operation<ExecutionsCleanupRequest, ExecutionsCleanupResponse>(
-        id + ".cleanup", VISIBILITY_PROTECTED,
-        [state, id, cleanup = move(value.cleanup)](harmos::plugin::Context &transport, ExecutionsCleanupRequest request) {
-          auto ctx = execution_context(transport, request, id, state, "Clean Up Execution");
+        build_identifier("cleanup", {}, id), VISIBILITY_PROTECTED,
+        [state, bindings, id, cleanup = move(value.cleanup)](harmos::plugin::Context &transport, ExecutionsCleanupRequest request) {
+          auto ctx = execution_context(transport, request, id, state, bindings, "Clean Up Execution");
           try {
             if (cleanup)
               cleanup(ctx);
@@ -228,18 +362,10 @@ Plugin &Plugin::suite(Suite suite) {
           return ExecutionsCleanupResponse{};
         }));
     // Declare the Procedure on the Template So Catalogs Show It Before Materialization.
-    *value.definition.mutable_steps() = test_case.steps();
-    *declaration.add_templates() = move(value.definition);
+    *definition.mutable_steps() = test_case.steps();
+    *declaration.add_templates() = move(definition);
   }
   *suites_.add_suites() = move(declaration);
-  return *this;
-}
-Plugin &Plugin::prompt(Prompt prompt) {
-  identifier(prompt.metadata().identifier());
-  for (const auto &existing : prompts_.prompts())
-    if (existing.metadata().identifier() == prompt.metadata().identifier())
-      throw invalid_argument("Duplicate Prompt Identifier");
-  *prompts_.add_prompts() = move(prompt);
   return *this;
 }
 Plugin &Plugin::context_operations() {
@@ -267,7 +393,13 @@ harmos::plugin::Plugin Plugin::compose() const {
     result.section(prompts_);
   if (records_.records_size())
     result.section(records_);
+  if (secrets_.secrets_size())
+    result.section(secrets_);
   return result;
+}
+Plugin &Plugin::secrets(SecretsDeclarations secrets) {
+  secrets_ = move(secrets);
+  return *this;
 }
 Declarations Plugin::declarations() const {
   return compose().declarations();

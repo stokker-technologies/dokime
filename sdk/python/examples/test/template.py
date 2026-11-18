@@ -1,29 +1,25 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
-
-"""Compose the Same Test Using an Explicit Template."""
+"""A Deterministic Suite Shared With The Cross-Language Host Story."""
 
 # === Imports === #
 
 # Standard Library Imports
 
 # Third Party Imports
-from google.protobuf.wrappers_pb2 import BoolValue
+# Local Imports
 from suite import Capture
 
-# Local Imports
-from dokime import Prompt, PromptDefinitions
-from dokime.authoring import Record, Suite, Template
-from dokime.plugin import HostOperation, Plugin
+from dokime import Plugin, Template
+from dokime.authoring import Suite
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -37,25 +33,8 @@ from dokime.plugin import HostOperation, Plugin
 
 
 def plugin() -> Plugin:
-    confirmation = Prompt(
-        metadata={"identifier": "example.confirmation", "label": "Confirmation"},
-        message="Continue?",
-        actions=[{"identifier": "yes", "label": "Yes"}, {"identifier": "no", "label": "No"}],
-    )
-    template = Template("example.capture", Capture, "Capture")
-    return Plugin(
-        "example",
-        "0.1.0",
-        suites=[Suite("example", [template], "Example")],
-        records=[Record("example.confirmation", BoolValue, "Confirmation")],
-        sections=[PromptDefinitions(prompts=[confirmation])],
-        requires=[
-            HostOperation.PROMPTS_CREATE,
-            HostOperation.EVIDENCE_RECORDS_APPEND,
-            HostOperation.EVIDENCE_RECORDS_LIST,
-            HostOperation.TIME_GET,
-        ],
-    )
+    template = Template(Capture, label="Capture")
+    return Plugin("example", "0.1.0", suites=[Suite("example", [template], "Example")])
 
 
 # === Private Functions === #

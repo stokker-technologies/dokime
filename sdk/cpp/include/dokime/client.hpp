@@ -18,6 +18,12 @@
 #include <functional>
 #include <map>
 
+namespace dokime {
+using harmos::client::PluginPlacement;
+using harmos::client::PluginState;
+using harmos::client::PluginValue;
+} // namespace dokime
+
 namespace dokime::client {
 harmos::FileReference upload(Client &client, const std::filesystem::path &path,
                              const std::function<void(grpc::ClientContext &)> &configure = {});

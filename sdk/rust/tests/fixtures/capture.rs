@@ -35,14 +35,14 @@ use dokime::{FileLocation, FileRule, FileRuleAction, FileSelection, FileSource, 
 /* === Structs === */
 
 #[derive(dokime::Parameters)]
-#[harmos(package = "capture")]
+#[dokime(package = "capture")]
 struct Device {
     root: String,
     outside: String,
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "capture")]
+#[dokime(package = "capture")]
 struct Captured {
     files: u32,
     bytes: u64,
@@ -50,7 +50,7 @@ struct Captured {
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "capture")]
+#[dokime(package = "capture")]
 struct Refused {
     refused: bool,
     classification: String,
@@ -70,17 +70,23 @@ struct Running(AtomicU64);
 /* === Private Functions === */
 
 fn main() -> Result<()> {
-    let copy = Template::new("capture.copy", "Copy Device Files").parameters(device()).step(Step::new("Copy", copy).identifier("copy"));
-    let window = Template::new("capture.window", "Capture a Device Window")
+    let copy = Template::new("copy", "Copy Device Files")
+        .record(Record::<Captured>::new("captured", "Captured"))
+        .parameters(device())
+        .step(Step::new("Copy", copy).identifier("copy"));
+    let window = Template::new("window", "Capture a Device Window")
+        .record(Record::<Captured>::new("captured", "Captured"))
         .parameters(device())
         .initialize(initialize)
         .step(Step::new("Start", start).identifier("start"))
         .step(Step::new("Produce", produce).identifier("produce"))
         .step(Step::new("Stop", stop).identifier("stop"));
-    let refused = Template::new("capture.refused", "Escape the Capture Roots")
+    let refused = Template::new("refused", "Escape the Capture Roots")
+        .record(Record::<Refused>::new("refusal", "Refused"))
         .parameters(device())
         .step(Step::new("Escape", escape).identifier("escape"));
-    let cancelled = Template::new("capture.cancelled", "Cancel a Running Capture")
+    let cancelled = Template::new("cancelled", "Cancel a Running Capture")
+        .record(Record::<Captured>::new("captured", "Captured"))
         .parameters(device())
         .initialize(initialize)
         .step(Step::new("Start", start).identifier("start"))
@@ -88,14 +94,6 @@ fn main() -> Result<()> {
         .step(Step::new("Hold", hold).identifier("hold"));
     Plugin::new("capture", "1.0.0")
         .suite(Suite::new("capture", "Capture").template(copy).template(window).template(refused).template(cancelled))
-        .prompt(Prompt::new("capture.hold", "Hold", "Keep the Capture Running?").action("continue", "Continue"))
-        .requires_host(HostOperation::FilesCapture)
-        .requires_host(HostOperation::FilesCapturesStart)
-        .requires_host(HostOperation::FilesCapturesStop)
-        .requires_host(HostOperation::PromptsCreate)
-        .requires_host(HostOperation::EvidenceRecordsAppend)
-        .record(Record::<Captured>::new("capture.captured", "Captured"))
-        .record(Record::<Refused>::new("capture.refused", "Refused"))
         .serve()
 }
 
@@ -134,7 +132,7 @@ async fn copy(ctx: &Context) -> Result<()> {
         bytes,
         gaps: copied.gaps.len() as u32,
     };
-    ctx.record(&Record::<Captured>::new("capture.captured", "Captured"), captured).await?;
+    ctx.record(&Record::<Captured>::new("captured", "Captured"), captured).await?;
     Ok(())
 }
 
@@ -171,7 +169,7 @@ async fn stop(ctx: &Context) -> Result<()> {
         bytes: stopped.artifacts.iter().map(|artifact| artifact.size_bytes).sum(),
         gaps: stopped.gaps.len() as u32,
     };
-    ctx.record(&Record::<Captured>::new("capture.captured", "Captured"), captured).await?;
+    ctx.record(&Record::<Captured>::new("captured", "Captured"), captured).await?;
     Ok(())
 }
 
@@ -184,12 +182,12 @@ async fn escape(ctx: &Context) -> Result<()> {
         refused: escaped.is_err(),
         classification,
     };
-    ctx.record(&Record::<Refused>::new("capture.refused", "Refused"), refused).await?;
+    ctx.record(&Record::<Refused>::new("refusal", "Refused"), refused).await?;
     Ok(())
 }
 
 async fn hold(ctx: &Context) -> Result<()> {
-    ctx.host().prompts.create("hold".into(), "capture.hold".into(), Default::default()).await?;
+    ctx.prompt("Keep the Capture Running?", &["Continue"]).await?;
     Ok(())
 }
 

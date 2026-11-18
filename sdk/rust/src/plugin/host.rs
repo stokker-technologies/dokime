@@ -142,6 +142,47 @@ pub enum HostOperation {
     TimeGet,
     TimeSleep,
 }
+impl HostOperation {
+    pub const ALL: [Self; 37] = [
+        Self::BackendEnvironment,
+        Self::ContentArtifactsCreate,
+        Self::DocumentsAppendParts,
+        Self::EffectsCreate,
+        Self::EffectsGet,
+        Self::EffectsSet,
+        Self::EvidenceLogsAppend,
+        Self::EvidenceRecordsList,
+        Self::EvidenceRecordsAppend,
+        Self::EvidenceTraceabilityGet,
+        Self::EvidenceTraceabilitySet,
+        Self::EvidenceStatistics,
+        Self::ExecutionsProgressGet,
+        Self::ExecutionsProgressSet,
+        Self::FilesCapturesStart,
+        Self::FilesCapturesStop,
+        Self::FilesUploadsCreate,
+        Self::FilesUploadsGet,
+        Self::FilesUploadsResume,
+        Self::FilesUploadsAppend,
+        Self::FilesUploadsPublish,
+        Self::FilesUploadsDelete,
+        Self::FilesGet,
+        Self::FilesRead,
+        Self::FilesWatch,
+        Self::FilesDelete,
+        Self::FilesCapture,
+        Self::PromptsCreate,
+        Self::SecretsGet,
+        Self::InvocationsGet,
+        Self::InvocationsCancel,
+        Self::InvocationsWatch,
+        Self::OperationsList,
+        Self::OperationsGet,
+        Self::PluginsSettingsList,
+        Self::TimeGet,
+        Self::TimeSleep,
+    ];
+}
 impl Plugin {
     pub fn requires_host(self, operation: HostOperation) -> Self {
         match operation {

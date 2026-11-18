@@ -68,6 +68,10 @@ dokime = "0.1.5"
 
 # === Dev Dependencies === #
 
+[dev-dependencies]
+# Async
+tokio = { version = "1.50.0", features = ["macros", "rt"] }
+
 # === Target Dependencies === #
 
 # === Test Targets === #

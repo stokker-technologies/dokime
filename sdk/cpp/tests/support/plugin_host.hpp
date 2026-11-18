@@ -37,6 +37,7 @@ public:
       throw harmos::TransportError(status.error_code(), status.error_message());
     return response;
   }
+  std::function<std::string(const std::string &, const std::string &)> child;
   template <class R, class Q> R invoke(std::string operation, Q request, std::string scope = {}) {
     grpc::ClientContext context;
     auto call = stub_->Invoke(&context);
@@ -47,14 +48,37 @@ public:
     frame.mutable_request()->set_scope(std::move(scope));
     frame.mutable_request()->set_payload(harmos::plugin::detail::encode(request));
     call->Write(frame);
-    call->WritesDone();
     harmos::plugin::v1::InstanceInvokeResponse output;
     std::string payload;
     while (call->Read(&output)) {
-      if (output.response().has_failure())
-        throw harmos::Failure(output.response().failure());
-      if (output.has_response())
+      if (output.has_child()) {
+        if (!child) {
+          context.TryCancel();
+          call->WritesDone();
+          call->Finish();
+          throw std::invalid_argument("Answer Child Call: Register the Test Host Handler");
+        }
+        try {
+          harmos::plugin::v1::InstanceInvokeRequest reply;
+          reply.mutable_child()->set_call(output.child().call());
+          reply.mutable_child()->set_payload(child(output.child().operation(), output.child().payload()));
+          call->Write(reply);
+        } catch (...) {
+          context.TryCancel();
+          call->WritesDone();
+          call->Finish();
+          throw;
+        }
+      }
+      if (output.has_response()) {
+        call->WritesDone();
+        if (output.response().has_failure()) {
+          const auto failure = output.response().failure();
+          call->Finish();
+          throw harmos::Failure(failure);
+        }
         payload = output.response().payload();
+      }
     }
     auto status = call->Finish();
     if (!status.ok())

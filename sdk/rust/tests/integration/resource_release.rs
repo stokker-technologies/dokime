@@ -43,7 +43,7 @@ use harmos_protocol::plugin::Window;
 
 // The Fixture's Resource State Row, One Value per Sample.
 #[derive(dokime::Message)]
-#[harmos(package = "resources.v1")]
+#[dokime(package = "resources.v1")]
 struct ResourceStateColumns {
     before: Vec<bool>,
     present: Vec<bool>,
@@ -93,7 +93,7 @@ async fn cleanup_releases_resources_while_an_observer_finishes_its_device_read()
         origin: Some(origin.clone()),
     };
     process.invoke("resources.case.initialize", "retained", request).await?.finish::<ExecutionsInitializeResponse>().await?;
-    let (grants, mut samples) = process.publish("resources.state", "retained").await?;
+    let (grants, mut samples) = process.publish("resources.case.state", "retained").await?;
     let window = Window {
         start: Some(prost_types::Timestamp { seconds: 100, nanos: 0 }),
         period: Some(prost_types::Duration { seconds: 1, nanos: 0 }),

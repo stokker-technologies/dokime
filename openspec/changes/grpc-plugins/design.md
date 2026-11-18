@@ -551,27 +551,33 @@ await plugin.close()
 | Language | Folder | Plugin Placement | Distribution |
 | --- | --- | --- | --- |
 | Rust | `sdk/rust` | Managed and remote | `dokime` crate with plugin and client halves |
-| Python | `sdk/python` | Remote | One pure wheel |
+| Python | `sdk/python` | Managed and remote | One pure wheel |
 | C# | `sdk/csharp` | Managed and remote | NuGet package |
 | C++ | `sdk/cpp` | Managed and remote | Source archive with CMake |
 
 Each has both halves and builds on the Harmos SDK for the same language. Go
 is outside the pilot.
 
-A managed plugin is any executable that serves `harmos.v1` on the endpoint
-the host passes at start. `dokime plugin bundle` packages the output of any
-language's build the same way, so Rust, C# and C++ plugins can all be
-managed. Python has no executable to bundle and stays remote.
+A plugin project has a strict `dokime.toml` manifest with exactly one native
+`executable` or `launch` command, an optional `build` command and relative `assets`.
+Paths stay inside the project root. Native executable paths may omit the platform
+suffix; Windows resolves the corresponding `.exe` when the unsuffixed file is absent.
+`dokime plugin bundle` builds the project and freezes its description, then packages
+the executable and assets or the launch project's inventory after applying `.gitignore`.
+Python launch projects include `pyproject.toml`, `uv.lock` and `plugin.py`; the host
+runs their configured `uv` launch command. All four languages support managed bundles.
 
 ```sh
-dokime plugin bundle --executable build/thermal.exe --out thermal.dokime
+dokime plugin bundle ./thermal --out thermal.dokime
 ```
 
 ## One Command-Line Tool and Starters
 
 ```sh
 dokime new my-plugin --lang rust|python|csharp|cpp
-dokime plugin bundle | dev | inspect            # managed bundles
+dokime plugin bundle <folder> --out plugin.dokime
+dokime plugin inspect --bundle plugin.dokime
+dokime dev --plugin <bundle-or-manifest-folder>
 dokime installer package
 dokime proto export
 ```
@@ -778,3 +784,148 @@ both WebView lanes, fixtures, format/lint/language checks and locked dependency
 metadata. Hosted CI/Nightly provide full proof only after authorized delivery.
 Nightly publication gates on packaging, not suite results. No source checkbox or
 historical Windows result establishes passing final native proof or push authority.
+
+## Authoring Surface (Locked by the Owner, 2026-11-18)
+
+Applies to every SDK language; Python is the reference implementation, the others follow its shape.
+
+1. **Only the product package.** Every example, starter and consumer-facing snippet imports only from `dokime`. Nothing an author writes imports or names the underlying library. The SDK re-exports what authors need (operation decorator, context, visibility).
+2. **Short Prompt.** Examples and starters ask the operator with `ctx.prompt(text, choices=[...])`, which returns the chosen label. Its implicit local identifier is `question`, qualified by the bound template (`capture.question` or `accuracy.voltage.question`) in every language. The long host-operation form is not used in examples.
+3. **Qualified Identifiers.** A template is `<suite>.<template>` (`accuracy.voltage`). Everything declared inside a template (records, streams, prompts, steps, criteria) is `<suite>.<template>.<name>` on the wire and in evidence. Authors write and pass only the local declaration; the SDK qualifies it.
+4. **Generated Identifiers.** An identifier the author does not give is generated from the code name, never from the label: class name minus a trailing `Template` or `Suite`, method or attribute name for members; all code-name word boundaries become `_`, and names are lowercased in every language. `ReadVoltage`, `readVoltage` and `read_voltage` all become `read_voltage`. For example, `VoltageAccuracy` becomes `voltage_accuracy`, `HTTPAccuracySuite` becomes `http_accuracy`, and `read_voltage` stays `read_voltage`. An explicit `identifier=` wins. The existing label-derived fallback for steps and criteria is replaced by this rule.
+5. **Declarations Live on the Template.** Records are declared on the template class (as streams already are with the stream decorator) and on observers. The plugin-level `records=` argument is removed.
+6. **Plain Values.** Records and simple operations accept `str`, `bool`, `int`, `float` (and the language's equivalents); the SDK wraps them in the well-known wrapper messages. Structured rows stay protobuf messages.
+7. **No `sections`.** The raw declaration-section list is removed from the author-facing plugin value; the SDK builds every section from typed declarations.
+8. **Visibility Is a Type.** `Visibility.PUBLIC` (an enum) replaces module constants.
+9. **`requires` Leaves the Author Surface.** Starters and examples never pass it. (Deleting the host-side requirement check is a separate decision pending an inventory; do not touch the host check.)
+10. **Python Project Layout.** `plugin.py` is the plugin entry point: it starts the sidecar and nothing else. `main.py` is the client-plus-plugin flow: it starts the plugin and drives it through the client. Suites live in their own module(s). A Python plugin project is a folder with `pyproject.toml` and `plugin.py`.
+11. **Running and Bundling.**
+    - `dokime dev --plugin <path>` starts the application with console logging and a temporary data root and attaches one plugin. `<path>` is a bundle file or a project folder containing `dokime.toml`, for every language. A project runs its configured build before starting its executable or launch command. An installed sibling desktop attaches when present and closes with the disposable host.
+    - `dokime plugin dev --executable` is deleted.
+    - `dokime plugin bundle <folder> --out <bundle>` accepts a manifest project folder. The manifest's optional `build` command runs before description and packaging. Exactly one `executable` or `launch` is required; native `assets` may name files or folders. Launch projects apply `.gitignore` to their file inventory. Python projects require `pyproject.toml` and `uv.lock` after their build, and launch `plugin.py` with `uv`; Python and `uv` on the host are an accepted requirement.
+    - Installing a plugin asks the user once whether they trust it: a confirmation in the desktop, an explicit `--trust` flag on the command line (which never prompts).
+
+Target starter (Python):
+
+```python
+from dokime import Plugin, Context, suite, step, criterion, record
+
+@suite(label="Capture")
+class Capture:
+    confirmation = record(bool, label="Confirmation")
+
+    @step("Confirm")
+    async def confirm(self, ctx: Context) -> None:
+        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
+        await ctx.record(self.confirmation, answer == "Yes")
+
+    @criterion("Confirmed")
+    async def confirmed(self, ctx: Context) -> bool:
+        return await ctx.records(self.confirmation, step=self.confirm).last()
+
+plugin = Plugin("example", "0.1.0", suites=[Capture])
+```
+
+Qualified identifiers change the identifiers stored in evidence; existing roots need a fresh root (development storage policy).
+
+Single-class suites use the suite identifier for their sole template, and <suite>.<name> for members. Grouped templates use <suite>.<template> and <suite>.<template>.<name>.
+
+
+### Python Reference Shape
+
+```python
+from dokime import Plugin, Context, Visibility, operation, suite, step, criterion, record, prompt
+from dokime.authoring import Suite, Template
+
+@suite(label="Capture")
+class Capture:
+    confirmation = record(bool, label="Confirmation")
+    question = prompt("Continue?", choices=["Yes", "No"])
+
+    @step("Confirm")
+    async def confirm(self, ctx: Context) -> None:
+        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
+        await ctx.record(self.confirmation, answer == "Yes")
+
+    @criterion("Confirmed")
+    async def confirmed(self, ctx: Context) -> bool:
+        return await ctx.records(self.confirmation, step=self.confirm).last()
+
+plugin = Plugin("example", "0.1.0", suites=[Capture])
+
+class Operations:
+    @operation("example.echo", request=str, response=str, visibility=Visibility.PUBLIC)
+    async def echo(self, ctx: Context, request: str) -> str:
+        return request
+```
+
+`Context.prompt` accepts text or a template prompt declaration and returns a choice
+label. `prompt` also accepts a full product `Prompt` message for structured fields,
+rules and actions. `Context.record(declaration, value)` accepts plain values or
+protobuf rows; `Context.records(declaration, step=bound_step).last()` returns the
+plain value or structured row and refuses an empty result. `Context.statistics`
+takes the stream declaration or bound stream method and an optional bound step.
+`Context.operation(Operation(...))(value)` wraps and unwraps simple operation
+payloads. Python `int` uses `Int64Value`; bool, str and float use BoolValue,
+StringValue and DoubleValue. Records and operations share the same conversion.
+
+A single-class `Capture` suite has template `capture`, step `capture.confirm` and
+record `capture.confirmation`. Grouped `Suite("accuracy", [Template(VoltageTemplate)])`
+has template `accuracy.voltage`; a `read_voltage` method becomes
+`accuracy.voltage.read_voltage`. Explicit `identifier="rms"` on that method gives
+`accuracy.voltage.rms`. Qualification is stored on the plugin's bound template;
+reusing a class in another suite never mutates its local declarations.
+Steps and criteria added during materialization use the same single identifier
+function and underscore rule to qualify distinct local instance identifiers there;
+both unbound and bound methods resolve to their declared handler.
+
+Rust, C#, C++ and command-line starters must follow the same imports/namespaces,
+short prompts, code-name identifiers and single-class versus grouped-template rule,
+local record/prompt declarations, primitive wrappers, enum visibility, declaration
+references and removal of raw records/sections and example requirement lists.
+Python launchers must start `plugin.py`; `main.py` drives the plugin through a client.
+Command-line running, bundling and trust behavior remains point 11's separate owner.
+
+Generated underscore identifiers satisfy the pinned carrier
+`crates/harmos-protocol/src/schema/identity.rs` segment grammar without a library
+change or a second identifier family. Explicit identifiers remain author supplied.
+
+The Python SDK generator owns `sdk/python/src/dokime/__init__.py`, composing model
+exports with product authoring exports. Shared generation owns the remaining
+descriptor projections and excludes this root barrel from publication and drift
+validation; product generation checks validate it through its SDK owner.
+
+Rust runtime-defined plain operation calls remain an upstream decision: at the
+pinned carrier revision, `sdk/rust/src/message.rs:52` requires an
+`OperationRequest` with a static `ID`, and `sdk/rust/src/context.rs:223` accepts
+only that request type. Product `sdk/rust/src/context.rs:271` therefore cannot
+call a runtime-named `Operation` with primitive payload conversion. The carrier
+needs a typed call that accepts the operation declaration/identity as a value,
+while preserving requirement/fingerprint checks, scope, policy and cancellation;
+no product transport bypass or library change is introduced here.
+
+Generated host-request bindings preserve each method's unary or Watch shape,
+including the streaming metadata used in requirement fingerprints. A unary view
+of a Watch is invalid; automatic requirements must not be narrowed to hide it.
+
+### Authoring Adoption Owners
+
+- Rust: `sdk/rust/src/{lib.rs,context.rs,suite.rs,template.rs,plugin/}` and
+  `sdk/rust/examples/` adopt the reference surface and qualify their evidence IDs.
+- C#: `sdk/csharp/src/Dokime/{Authoring.cs,Plugin.cs,Context.cs}` and
+  `sdk/csharp/examples/` adopt it; `sdk/tests/fixtures/csharp/` follows the same IDs.
+- C++: `sdk/cpp/include/dokime/plugin.hpp`, its implementation and
+  `sdk/cpp/examples/` adopt it; `sdk/tests/fixtures/cpp/` follows the same IDs.
+- Command line: `crates/dokime-cli/{build.rs,src/commands/new.rs}` embeds the new
+  Python project files; `src/commands/plugin/` and the application development
+  command own point 11 and must invoke `plugin.py` for Python projects.
+- Native Python fixture launch: `crates/dokime-runtime/tests/support/mod.rs:91`
+  must launch `sdk/python/examples/thermal/plugin.py`.
+- Thermal evidence selectors: `crates/dokime-runtime/tests/support/thermal.rs`
+  and system stories `client_answers_operator_prompts.rs`,
+  `client_browses_sealed_history.rs`, `client_runs_thermal_suite_over_grpc.rs`,
+  `csharp_plugin_matches_rust_thermal_evidence.rs`,
+  `cpp_plugin_matches_rust_thermal_evidence.rs`,
+  `python_plugin_matches_rust_thermal_evidence.rs` and
+  `thermal_suite_survives_host_restart.rs` must use qualified template members
+  and answer the prompt's actual action identifier.

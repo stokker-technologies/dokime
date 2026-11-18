@@ -33,20 +33,20 @@ use dokime::prelude::*;
 /* === Structs === */
 
 #[derive(dokime::Row)]
-#[harmos(package = "execution")]
+#[dokime(package = "execution")]
 struct Reading {
     value: f64,
 }
 
 /// One Granted Window of Readings, Each Holding the Window's Sample Count.
 #[derive(dokime::Message)]
-#[harmos(package = "execution")]
+#[dokime(package = "execution")]
 struct ReadingColumns {
     value: Vec<f64>,
 }
 
 #[derive(dokime::Parameters)]
-#[harmos(package = "execution")]
+#[dokime(package = "execution")]
 struct CaptureRows {
     rows: u64,
 }
@@ -70,7 +70,7 @@ struct Lagging;
 /* === Private Functions === */
 
 fn main() -> Result<()> {
-    let boundary_stream = Stream::<Reading>::new("execution.boundary", "Boundary Samples");
+    let boundary_stream = Stream::<Reading>::new("boundary", "Boundary Samples");
     let boundary_observer = Observer::new(&boundary_stream, async |context: &Context| {
         // Only the Boundary Template's Own Scope Counts Its Rows; Any Other Demand on the Stream Answers Zero.
         let Ok(published) = context.get::<Published>() else {
@@ -80,71 +80,73 @@ fn main() -> Result<()> {
         Ok(Reading { value: index as f64 })
     })
     .every(std::time::Duration::from_millis(1));
-    let boundary = Template::new("execution.boundary", "Publication Boundary")
+    let boundary = Template::new("boundary", "Publication Boundary")
         .parameters(CaptureRows { rows: 1024 })
         .initialize(async |context: &Context| {
             context.set(Published::default());
             Ok(())
         })
-        .step(Step::new("Capture", async |context: &Context| {
-            // A Scoped Sleep Settles After Every Window Due by Its End, So It Spans the Remaining Rows.
-            let rows = context.parameters::<CaptureRows>()?.rows;
-            let published = context.get::<Published>()?;
-            context.sleep(Duration::from_millis(rows.saturating_sub(published.count.load(Ordering::SeqCst)))).await
-        }))
+        .step(
+            Step::new("Capture", async |context: &Context| {
+                // A Scoped Sleep Settles After Every Window Due by Its End, So It Spans the Remaining Rows.
+                let rows = context.parameters::<CaptureRows>()?.rows;
+                let published = context.get::<Published>()?;
+                context.sleep(Duration::from_millis(rows.saturating_sub(published.count.load(Ordering::SeqCst)))).await
+            })
+            .identifier("capture"),
+        )
         .stream(boundary_stream)
         .observer(boundary_observer);
     // Two Window Observers at 1 kHz: One Takes the Host Window, One Its Plugin Duration Setting.
-    let granted = async |_: &Context, window: &SampleWindow| {
+    let granted = async |_: &Context, window: &Window| {
         Ok(ReadingColumns {
             value: vec![window.count as f64; window.count as usize],
         })
     };
-    let host_stream = Stream::<Reading>::new("execution.window.host", "Host Window Samples");
+    let host_stream = Stream::<Reading>::new("window.host", "Host Window Samples");
     let host_observer = Observer::window(&host_stream, granted).every(Duration::from_millis(1));
-    let setting_stream = Stream::<Reading>::new("execution.window.setting", "Setting Window Samples");
+    let setting_stream = Stream::<Reading>::new("window.setting", "Setting Window Samples");
     let setting_observer = Observer::window(&setting_stream, granted).every(Duration::from_millis(1)).window_setting("sample_window");
-    let windows = Template::new("execution.windows", "Window Override")
+    let windows = Template::new("windows", "Window Override")
         .parameters(CaptureRows { rows: 1000 })
-        .step(Step::new("Capture", async |context: &Context| {
-            context.sleep(Duration::from_millis(context.parameters::<CaptureRows>()?.rows)).await
-        }))
+        .step(
+            Step::new("Capture", async |context: &Context| {
+                context.sleep(Duration::from_millis(context.parameters::<CaptureRows>()?.rows)).await
+            })
+            .identifier("capture"),
+        )
         .stream(host_stream)
         .observer(host_observer)
         .stream(setting_stream)
         .observer(setting_observer);
     // One 1 MHz Window Holding More Rows Than the Shared Plugin Publication Pool Admits at Once: the Step's
     // 10 s Sleep Cuts the Hour-Long Window, While the Real-Clock Connection Demand Never Reaches Its End.
-    let overflow_stream = Stream::<Reading>::new("execution.window.overflow", "Overflow Window Samples");
-    let overflow_observer = Observer::window(&overflow_stream, async |_: &Context, window: &SampleWindow| {
-        Ok(ReadingColumns {
-            value: vec![0.0; window.count as usize],
-        })
+    let overflow_stream = Stream::<Reading>::new("window.overflow", "Overflow Window Samples");
+    let overflow_observer = Observer::window(&overflow_stream, async |_: &Context, window: &Window| {
+        Ok(ReadingColumns { value: vec![0.0; window.count as usize] })
     })
     .every(Duration::from_micros(1))
     .window_setting("overflow_window");
-    let overflow = Template::new("execution.overflow", "Window Overflow")
-        .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(10)).await))
+    let overflow = Template::new("overflow", "Window Overflow")
+        .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(10)).await).identifier("capture"))
         .stream(overflow_stream)
         .observer(overflow_observer);
     // A 1 kHz Stream Whose Observer, in the Lag Template's Own Scope, Waits 100 ms of Host Time Inside Each Window: the
     // Wait Advances a Controlled Clock While the Window Stays Unanswered, So the Stream Falls Behind Its Window End.
-    let lag_stream = Stream::<Reading>::new("execution.window.lag", "Lagging Window Samples");
-    let lag_observer = Observer::window(&lag_stream, async |context: &Context, window: &SampleWindow| {
+    let lag_stream = Stream::<Reading>::new("window.lag", "Lagging Window Samples");
+    let lag_observer = Observer::window(&lag_stream, async |context: &Context, window: &Window| {
         if context.get::<Lagging>().is_ok() {
             context.sleep(Duration::from_millis(100)).await?;
         }
-        Ok(ReadingColumns {
-            value: vec![0.0; window.count as usize],
-        })
+        Ok(ReadingColumns { value: vec![0.0; window.count as usize] })
     })
     .every(Duration::from_millis(1));
-    let lag = Template::new("execution.lag", "Window Lag")
+    let lag = Template::new("lag", "Window Lag")
         .initialize(async |context: &Context| {
             context.set(Lagging);
             Ok(())
         })
-        .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(2)).await))
+        .step(Step::new("Capture", async |context: &Context| context.sleep(Duration::from_secs(2)).await).identifier("capture"))
         .stream(lag_stream)
         .observer(lag_observer);
     Plugin::new("execution", "1.0.0")

@@ -53,7 +53,8 @@ struct Decision {
 /* === Public Functions === */
 
 pub fn template() -> Template {
-    let template = parameters(Template::new(TEMPLATE, "Single Phase"), supply());
+    let template = parameters(Template::new("single_phase", "Single Phase"), supply());
+    let template = charger::catalog(template).prompt(crate::prompts::catalog().into_iter().next().expect("Inspection Prompt"));
     let template = parameters(template, timing("Observation Duration", 0.05));
     template
         .parameter(Parameter::number("minimum_efficiency", "Minimum Efficiency").default(0.9).range(0.0..=1.0))

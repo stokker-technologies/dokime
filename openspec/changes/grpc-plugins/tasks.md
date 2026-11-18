@@ -49,3 +49,45 @@
 - [ ] 6.1 Run final focused host, CLI, installed four-language SDK and generated-consumer proof on the combined published dependency candidate; include frozen-origin/schema evolution and plugin absence, bounded retained queries/watch gaps, authorization, Public peer calls/cancellation and execution-file live producer/follow behavior.
 - [ ] 6.2 Run final managed/remote plugin and self-driving script stories, both native WebView lanes and packaged desktop/installer organization, licensing, signing and update journeys on native Windows and Linux. Source inspection and historical Windows results do not close this proof.
 - [ ] 6.3 After all source owners hand off, complete configured format/lint/language checks, Tests producer, locked dependency metadata and authorized hosted CI/Nightly; repair failures without weakening checks and obtain delivery authorization before pushing.
+
+## Locked Authoring Surface
+
+- [x] Python: Implement Product Exports, Typed Declarations, Generated Names, Plain Values and Visibility; Remove Raw Records and Sections.
+- [x] Python: Migrate Every Python Example and README to the Locked Surface and Entrypoint Layout.
+- [x] Python: Complete Native Integration Proof With Underscore Identifiers Against This Worktree's Host.
+- [x] Python: Qualify Materialized Step and Criterion Instances With the Shared Identifier Function and Support Bound Methods.
+- [ ] Rust: Follow the Locked Authoring Surface.
+  - [x] Rust: Bind Local Template Declarations, Generate Code Names, Wrap Plain Values and Remove Plugin-Type Growth.
+  - [x] Rust: Migrate the Owned Examples, OBC Plugin and Host Fixture Sources; Keep the Client Flow Separate.
+  - [x] Rust: Complete SDK, Example, Host-Fixture, Format and Focused Language Proof in This Worktree.
+  - [x] Rust: Migrate the Retired SDK Surface in Owner-Scoped `crates/dokime-runtime/benches/storage/{windows,publication}.rs` and `crates/dokime-gui/benches/system/fixture.rs` (Derive Attributes, Plugin Records, Window Type, Local IDs and Selectors).
+  - [ ] Rust: Resolve Runtime-Defined Plain Context Operation Calls Against the Pinned Carrier's Static `OperationRequest` Contract.
+- [x] C#: Follow the Locked Authoring Surface.
+- [x] C#: Complete the Language Check and Host Fixture Producer With SDK-Owned Python Root Exports.
+- [x] C++: Follow the Locked Authoring Surface.
+- [x] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
+- [x] C++: Complete the Prescribed Host-Fixture Producer Proof With This Task's Authorized Release Build.
+- [x] Command Line: Implement Locked Point 11 With the Manifest-Project Amendment.
+
+- [x] Integration: Normalize Member Code Names and Qualify Short Prompts Across All Four SDKs.
+- [x] Integration: Give the Python SDK Sole Ownership of Its Authoring Root Exports.
+- [x] Integration: Migrate Thermal and OBC Evidence Selectors and the Python Plugin Fixture Entrypoint.
+- [x] Integration: Add a Shared Four-Language Capture Description and Record Contract Story Under `sdk/tests`.
+- [ ] Integration: Prove Generation, Ordered Host Fixtures, Four SDKs, Shared Stories, Command-Line Development Stories and Migrated Runtime Stories on the Combined Tree.
+  - [x] Windows: Complete the Ordered Native Proof on the Combined Authoring Candidate.
+  - [ ] Linux: Complete the Same Ordered Native Proof After Authorized Delivery.
+- [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
+- [x] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
+
+## Plugin Project Manifests
+
+- [x] Pin the Launch-Capable Library Revision in the Workspace and Rust Consumer Manifests and Locks.
+- [x] Read Strict `dokime.toml` Plugin Manifests With One Native Executable or Launch Command and Confined Relative Paths.
+- [x] Build Manifest Projects Before Development or Bundling; Require Python Project and Lock Inputs Before Use.
+- [x] Bundle Native Executables With File or Folder Assets and Launch Projects With Their Git-Ignored File Inventory.
+- [x] Replace Executable Flags and Python-Folder Detection With Bundle or Manifest-Project Development Inputs.
+- [x] Attach the Sibling Packaged Desktop When Present and Close It With the Disposable Host.
+- [x] Bound Native Catalog Registration Stack Use Without Changing Operation Policies, Thread Placement or Stack Sizes.
+- [x] Embed Manifest Files in the Four Test Starters and Update README Command Examples.
+- [x] Complete Focused CLI, Packaging and Runtime Unit Proof, Owned-File Formatting, Locked Metadata and Three-Package Compilation With Tests.
+- [x] Migrate Product and Desktop-Fixture Tooling From Retired `--executable` Calls to Manifest Projects in `tools/python/src/dokime_tools/{build/rust/__main__.py,build/desktop_fixtures.py,dev/desktop.py}`.

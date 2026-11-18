@@ -22,10 +22,11 @@ pub use crate::context::Context;
 pub use crate::operation::Operation;
 pub use crate::prompt::Prompt;
 pub use crate::record::Record;
-pub use crate::stream::{Observer, SampleWindow, Stream};
+pub use crate::stream::{Observer, Stream};
 pub use crate::suite::Suite;
 pub use crate::template::{Criterion, Step, Template};
 pub use harmos::plugin::Publisher;
+pub use harmos::plugin::Window;
 pub use types::*;
 include!("host_exports.rs");
 
@@ -34,26 +35,27 @@ include!("host_exports.rs");
 // Standard Library Imports
 use std::{
     collections::HashMap,
-    marker::PhantomData,
     sync::{Arc, Mutex},
 };
 
 // Third Party Imports
-use prost::{
-    bytes::{Buf, BufMut},
-    encoding::{DecodeContext, WireType},
-};
 
 // Local Imports
 use crate::SecretDeclaration;
 use crate::SecretsDeclarations;
 use crate::SettingDeclaration;
 use crate::SettingsDeclarations;
-use crate::{Error, Message, OperationRequest, Result, context::Executions, message::Wire, stream::Registration, template::validate_names};
-use crate::{Prompt as PromptDefinition, PromptDefinitions, RecordContract, RecordContracts, Suites};
-use harmos::Error as HarmosError;
-use harmos::Message as HarmosMessage;
-use harmos::plugin::Plugin as HarmosPlugin;
+use crate::context::{self, Executions};
+use crate::data;
+use crate::host::Request;
+use crate::message::Wire;
+use crate::stream::{Registration, Sampler};
+use crate::template::validate_names;
+use crate::testing::Selected;
+use crate::{Declarations, Error, Message, OperationRequest, Result};
+use crate::{PromptDefinitions, RecordContracts, Suites};
+
+use harmos::plugin;
 
 /* === Constants === */
 
@@ -64,19 +66,16 @@ use harmos::plugin::Plugin as HarmosPlugin;
 /* === Structs === */
 
 // A Product Plugin. Composition Is Inert Until Declaration Validation or Serve.
-pub struct Plugin<C = ()> {
+pub struct Plugin {
     assembly: Assembly,
-    marker: PhantomData<fn() -> C>,
 }
 
 struct Assembly {
     identifier: String,
     requirements: Vec<&'static str>,
-    samplers: Vec<crate::stream::Sampler>,
-    inner: HarmosPlugin,
+    samplers: Vec<Sampler>,
+    inner: plugin::Plugin,
     suites: Vec<Suite>,
-    records: Vec<RecordContract>,
-    prompts: Vec<PromptDefinition>,
     settings: Vec<SettingDeclaration>,
     secrets: Vec<SecretDeclaration>,
     registrations: Vec<Registration>,
@@ -84,20 +83,9 @@ struct Assembly {
     stop: Vec<Box<dyn Fn() -> Result<()> + Send + Sync>>,
 }
 
-struct Records<C> {
-    message: Wire<RecordContracts>,
-    marker: PhantomData<fn() -> C>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
-
-// Descriptor Accumulation for Typed Record Contracts; Normally Inferred by the Builder.
-#[doc(hidden)]
-pub trait DeclarationTypes: Send + Sync + 'static {
-    fn types() -> prost_types::FileDescriptorSet;
-}
 
 /* === Implementations === */
 
@@ -109,22 +97,26 @@ impl Plugin {
                 identifier: identifier.clone(),
                 requirements: Vec::new(),
                 samplers: Vec::new(),
-                inner: HarmosPlugin::new(identifier, version),
+                inner: plugin::Plugin::new(identifier, version),
                 suites: Vec::new(),
-                records: Vec::new(),
-                prompts: Vec::new(),
                 settings: Vec::new(),
                 secrets: Vec::new(),
                 registrations: Vec::new(),
                 errors: Vec::new(),
                 stop: Vec::new(),
             },
-            marker: PhantomData,
         }
     }
 }
 
-impl<C: DeclarationTypes> Plugin<C> {
+impl Plugin {
+    fn with_requirements(self) -> Self {
+        if !self.assembly.requirements.is_empty() {
+            return self;
+        }
+        HostOperation::ALL.into_iter().fold(self, |plugin, operation| plugin.requires_host(operation))
+    }
+
     pub fn suite(mut self, suite: Suite) -> Self {
         self.assembly.suites.push(suite);
         self
@@ -134,23 +126,22 @@ impl<C: DeclarationTypes> Plugin<C> {
         self
     }
     pub fn requires_operation<Q: OperationRequest>(mut self) -> Self {
+        if self.assembly.requirements.contains(&Q::ID) {
+            return self;
+        }
         self.assembly.requirements.push(Q::ID);
         self.assembly.inner = self.assembly.inner.requires::<Q>();
         self
     }
-    pub(crate) fn requires<Q: crate::host::Request>(self) -> Self {
+    pub(crate) fn requires<Q: Request>(self) -> Self {
         self.requires_operation::<Wire<Q>>()
-    }
-    pub fn prompt(mut self, prompt: Prompt) -> Self {
-        self.assembly.prompts.push(prompt.definition);
-        self
     }
     pub fn setting(mut self, setting: SettingDeclaration) -> Self {
         self.assembly.settings.push(setting);
         self
     }
     pub fn settings<T: Message>(mut self, defaults: T) -> Self {
-        match crate::data::settings(defaults) {
+        match data::settings(defaults) {
             Ok(settings) => self.assembly.settings.extend(settings),
             Err(error) => self.assembly.errors.push(error.to_string()),
         }
@@ -159,13 +150,6 @@ impl<C: DeclarationTypes> Plugin<C> {
     pub fn secret(mut self, secret: SecretDeclaration) -> Self {
         self.assembly.secrets.push(secret);
         self
-    }
-    pub fn record<T: Message>(mut self, record: Record<T>) -> Plugin<(C, T)> {
-        self.assembly.records.push(record.definition);
-        Plugin {
-            assembly: self.assembly,
-            marker: PhantomData,
-        }
     }
     pub fn stream<T: Message>(mut self, stream: Stream<T>) -> Self {
         self.assembly.registrations.push(stream.registration());
@@ -187,7 +171,12 @@ impl<C: DeclarationTypes> Plugin<C> {
     }
 
     // Select One Template and What an In-Process Host Needs to Run It.
-    pub(crate) fn into_testing(self, template: &str) -> Result<crate::testing::Selected> {
+    pub(crate) fn into_testing(self, template: &str) -> Result<Selected> {
+        let this = self.with_requirements();
+        this.select_testing(template)
+    }
+
+    fn select_testing(self, template: &str) -> Result<Selected> {
         if !self.assembly.errors.is_empty() {
             return Err(Error::Invalid(self.assembly.errors.join("; ")));
         }
@@ -198,25 +187,29 @@ impl<C: DeclarationTypes> Plugin<C> {
         if selected.len() != 1 {
             return Err(Error::Invalid(format!("Test Template: Declare Exactly One Template {template}")));
         }
-        Ok(crate::testing::Selected {
+        let template = selected.remove(0);
+        let prompts = template.prompts.clone();
+        Ok(Selected {
             plugin: self.assembly.identifier,
-            template: selected.remove(0).parts()?,
-            prompts: self.assembly.prompts,
+            template: template.parts()?,
+            prompts,
             requirements: self.assembly.requirements,
             samplers: self.assembly.samplers,
         })
     }
 
     // Finish Composition Without Opening a Socket or Running Author Callbacks.
-    pub fn into_harmos(self) -> Result<HarmosPlugin> {
+    fn into_harmos(self) -> Result<plugin::Plugin> {
+        self.with_requirements().assemble()
+    }
+
+    fn assemble(self) -> Result<plugin::Plugin> {
         let Assembly {
             identifier: _,
             requirements: _,
             samplers: _,
             mut inner,
             suites,
-            records,
-            prompts,
             settings,
             secrets,
             registrations,
@@ -225,6 +218,14 @@ impl<C: DeclarationTypes> Plugin<C> {
         } = self.assembly;
         if !errors.is_empty() {
             return Err(Error::Invalid(errors.join("; ")));
+        }
+        let mut records = Vec::new();
+        let mut prompts = Vec::new();
+        for suite in &suites {
+            for template in &suite.templates {
+                records.extend(template.records.iter().cloned());
+                prompts.extend(template.prompts.iter().cloned());
+            }
         }
         validate_names(
             suites.iter().filter_map(|suite| suite.definition.metadata.as_ref().map(|metadata| metadata.identifier.as_str())),
@@ -268,10 +269,7 @@ impl<C: DeclarationTypes> Plugin<C> {
             inner = inner.section(Wire(Suites { suites: definitions }));
         }
         if !records.is_empty() {
-            inner = inner.section(Records::<C> {
-                message: Wire(RecordContracts { records }),
-                marker: PhantomData,
-            });
+            inner = inner.section(Wire(RecordContracts { records }));
         }
         if !prompts.is_empty() {
             inner = inner.section(Wire(PromptDefinitions { prompts }));
@@ -280,77 +278,20 @@ impl<C: DeclarationTypes> Plugin<C> {
             inner = inner.settings(SettingsDeclarations { values: settings });
         }
         for register in registrations {
-            inner = register(inner, executions.clone());
+            inner = register(inner, executions.clone(), "");
         }
-        inner = inner.on_stop(move || crate::context::clear(&executions).map_err(HarmosError::from));
+        inner = inner.on_stop(move || context::clear(&executions).map_err(harmos::Error::from));
         for cleanup in stop {
-            inner = inner.on_stop(move || cleanup().map_err(HarmosError::from));
+            inner = inner.on_stop(move || cleanup().map_err(harmos::Error::from));
         }
         inner.declarations()?;
         Ok(inner)
     }
-    pub fn declarations(self) -> Result<crate::Declarations> {
+    pub fn declarations(self) -> Result<Declarations> {
         self.into_harmos()?.declarations().map_err(Error::from)
     }
     pub fn serve(self) -> Result<()> {
         self.into_harmos()?.serve().map_err(Error::from)
-    }
-}
-
-impl DeclarationTypes for () {
-    fn types() -> prost_types::FileDescriptorSet {
-        prost_types::FileDescriptorSet::default()
-    }
-}
-
-impl<C: DeclarationTypes, T: Message> DeclarationTypes for (C, T) {
-    fn types() -> prost_types::FileDescriptorSet {
-        let mut types = C::types();
-        harmos::encoding::merge_descriptor_types(&mut types, T::types());
-        types
-    }
-}
-
-impl<C> std::fmt::Debug for Records<C> {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.message.fmt(formatter)
-    }
-}
-
-impl<C: Send + Sync> prost::Message for Records<C> {
-    fn encode_raw(&self, buffer: &mut impl BufMut) {
-        self.message.encode_raw(buffer);
-    }
-    fn merge_field(
-        &mut self, tag: u32, wire: WireType, buffer: &mut impl Buf, context: DecodeContext,
-    ) -> std::result::Result<(), prost::DecodeError> {
-        self.message.merge_field(tag, wire, buffer, context)
-    }
-    fn encoded_len(&self) -> usize {
-        self.message.encoded_len()
-    }
-    fn clear(&mut self) {
-        self.message.clear();
-    }
-}
-
-impl<C: DeclarationTypes> HarmosMessage for Records<C> {
-    fn name() -> String {
-        <Wire<RecordContracts> as HarmosMessage>::name()
-    }
-    fn types() -> prost_types::FileDescriptorSet {
-        let mut types = <Wire<RecordContracts> as HarmosMessage>::types();
-        harmos::encoding::merge_descriptor_types(&mut types, C::types());
-        types
-    }
-}
-
-impl<C> Default for Records<C> {
-    fn default() -> Self {
-        Self {
-            message: Wire::default(),
-            marker: PhantomData,
-        }
     }
 }
 

@@ -64,7 +64,7 @@ fn main() -> Result<()> {
     let initialize_dropped = dropped.clone();
     let observer_entered = entered.clone();
     let observer_released = released.clone();
-    let stream = Stream::<ResourceState>::new("resources.state", "Resource State");
+    let stream = Stream::<ResourceState>::new("state", "Resource State");
     let observer = Observer::new(&stream, async move |ctx: &Context| {
         let before = ctx.get::<Device>().is_ok();
         observer_entered.notify_one();
@@ -76,7 +76,7 @@ fn main() -> Result<()> {
         })
     })
     .every(std::time::Duration::from_secs(1));
-    let template = Template::new("resources.case", "Resource Lifetime")
+    let template = Template::new("case", "Resource Lifetime")
         .initialize(async move |ctx: &Context| {
             ctx.set(Device(initialize_dropped.clone()));
             Ok(())

@@ -11,13 +11,11 @@
 # === Imports === #
 
 # Standard Library Imports
-# Third Party Imports
-# Local Imports
-from google.protobuf.wrappers_pb2 import BoolValue
 
-from dokime import Prompt, PromptDefinitions
-from dokime.authoring import Record, criterion, step, suite
-from dokime.plugin import Context, HostOperation, Plugin
+# Third Party Imports
+from dokime import Context, Plugin, criterion, record, step, suite
+
+# Local Imports
 
 # Type Checking Imports
 
@@ -32,48 +30,24 @@ __all__ = ["Capture", "plugin"]
 # === Classes === #
 
 
-@suite("example.capture", label="Capture")
+@suite(label="Capture")
 class Capture:
-    @step("Confirm", identifier="confirm")
-    async def confirm(self, ctx: Context) -> None:
-        answer = await ctx.host.prompts.create("confirmation", "example.confirmation", {})
-        await ctx.record("example.confirmation", value=answer.accepted and answer.action == "yes")
+    confirmation = record(bool, label="Confirmation")
 
-    @criterion("Confirmed", identifier="confirmed")
+    @step("Confirm")
+    async def confirm(self, ctx: Context) -> None:
+        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
+        await ctx.record(self.confirmation, answer == "Yes")
+
+    @criterion("Confirmed")
     async def confirmed(self, ctx: Context) -> bool:
-        confirmation = await ctx.records("example.confirmation", step="confirm").last()
-        return isinstance(confirmation, BoolValue) and confirmation.value
+        return await ctx.records(self.confirmation, step=self.confirm).last()
 
 
 # === Public Functions === #
 
-
-def plugin() -> Plugin:
-    needed = [
-        HostOperation.PROMPTS_CREATE,
-        HostOperation.EVIDENCE_RECORDS_APPEND,
-        HostOperation.EVIDENCE_RECORDS_LIST,
-        HostOperation.TIME_GET,
-    ]
-    definition = PromptDefinitions(
-        prompts=[
-            Prompt(
-                metadata={"identifier": "example.confirmation", "label": "Confirmation"},
-                message="Continue?",
-                actions=[{"identifier": "yes", "label": "Yes"}, {"identifier": "no", "label": "No"}],
-            )
-        ],
-    )
-    return Plugin(
-        "example",
-        "0.1.0",
-        suites=[Capture],
-        records=[Record("example.confirmation", BoolValue, "Confirmation")],
-        sections=[definition],
-        requires=needed,
-    )
-
-
 # === Private Functions === #
 
 # === Entry Point === #
+
+plugin = Plugin("example", "0.1.0", suites=[Capture])

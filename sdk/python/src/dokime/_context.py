@@ -11,8 +11,8 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Sequence
-from typing import Any, ClassVar, TypeVar, cast
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, ClassVar, TypeVar, cast
 from uuid import uuid4
 
 # Third Party Imports
@@ -20,7 +20,7 @@ from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import FileMetadata, OperationPolicy, PageRequest, Receipt, SettingValue, plugin
-from harmos.plugin import Operation
+from harmos._invocation import FailureError
 
 # Local Imports
 from ._generated.host import HostRoot
@@ -37,7 +37,6 @@ from ._generated.shared import (
     CapturedRecordSelection,
     EvidenceStatisticsResponse,
     ExecutionProgressValue,
-    Prompt,
     RecordsListResponse,
     TraceabilityEntry,
 )
@@ -46,7 +45,12 @@ from ._wire.model.v1.documents_pb2 import Card, Section
 from ._wire.model.v1.evidence_pb2 import ArtifactScope, Severity, Window
 from ._wire.model.v1.files_pb2 import FileSource
 from ._wire.model.v1.metadata_pb2 import Metadata
-from .authoring import Record
+
+if TYPE_CHECKING:
+    from . import operations
+
+from ._payloads import Payload, message_type, pack, unpack
+from .authoring import PromptDeclaration, Record, Template, prompt
 from .transfers import upload_bytes
 from .values import Scalar, encode
 
@@ -65,23 +69,27 @@ class Context:
     def __init__(
         self,
         transport: plugin.Context,
-        parameters: dict[str, Scalar],
-        operations: Sequence[Operation[Any, Any]],
-        records: Sequence[Record] = (),
+        parameters: dict[str, Scalar] | None = None,
+        template: Template | None = None,
         *,
         termination: int | None = None,
         secrets: Sequence[str] = (),
     ) -> None:
         self._transport = transport
         self.host = HostRoot(transport)
-        self.parameters = parameters
-        self.execution = transport.scope()
+        self.parameters = parameters or {}
+        try:
+            self.execution = transport.scope()
+        except FailureError as error:
+            if error.value.code != "scope_required":
+                raise
+            self.execution = ""
         self.attempt = transport.attempt
         self.termination = termination
-        self._records = {item.identifier: item for item in records}
+        self._template = template
         self._secrets = frozenset(secrets)
 
-    def operation[Q: Message, R: Message](self, operation: Operation[Q, R]) -> "BoundOperation[Q, R]":
+    def operation[Q: Payload, R: Payload](self, operation: "operations.Operation[Q, R]") -> "BoundOperation[Q, R]":
         return BoundOperation(self._transport, operation)
 
     async def sleep(self, duration: float | Duration) -> None:
@@ -96,40 +104,63 @@ class Context:
     async def cancelled(self) -> str:
         return await self._transport.cancelled()
 
-    async def prompt(self, text: str, *, choices: Sequence[str] = ()) -> str:
-        definition = Prompt(metadata={"identifier": "question", "label": text}, message=text)
-        for index, choice in enumerate(choices or ("OK",)):
-            definition.actions.add(identifier=str(index), label=choice)
-        response = await self.host.prompts.create("question", "", {}, definition=definition)
+    async def prompt(self, text: str | PromptDeclaration, *, choices: Sequence[str] = ()) -> str:
+        if self._template is None:
+            raise ValueError("Create Prompt: Call From a Template Operation")
+        identity = f"{self._template.identifier}.question"
+        if isinstance(text, PromptDeclaration):
+            identity = self._resolve(text)
+            assert self._template is not None
+            definition = self._template._prompts[id(text)]
+        else:
+            definition = prompt(text, choices=choices).value
+            definition.metadata.identifier = identity
+        response = await self.host.prompts.create(
+            identity, identity if isinstance(text, PromptDeclaration) else "", {}, definition=definition
+        )
         if not response.accepted:
-            raise ValueError("Create Prompt: Operator Answer Was Not Accepted")
+            raise ValueError("Create Prompt: Choose an Accepted Operator Answer")
         actions = {action.identifier: action.label for action in definition.actions}
-        return actions.get(response.action, response.action)
+        if response.action not in actions:
+            raise ValueError("Read Prompt Answer: Choose One of the Declared Actions")
+        return actions[response.action]
 
-    async def record(
-        self, kind: str, payload: Message | None = None, *, request_id: str | None = None, **fields: object
+    async def record[T: Payload](
+        self,
+        declaration: Record[T],
+        payload: T,
+        *,
+        request_id: str | None = None,
     ) -> RecordsAppendResponse:
-        definition = self._records.get(kind)
-        if definition is None:
-            raise ValueError(f"Append Record: Undeclared Record Kind {kind}")
-        row = payload if payload is not None else definition.row(**fields)
-        if not isinstance(row, definition.row):
-            raise TypeError(f"Append Record: Invalid Payload for {kind}")
+        kind = self._resolve(declaration)
+        row = pack(declaration.row, payload)
         return await self.host.evidence.records.append(
             self.execution, kind, row.SerializeToString(), await self.now(), request_id=request_id
         )
 
-    def records(self, kind: str, *, step: str = "") -> "RecordsQuery":
-        if kind not in self._records:
-            raise ValueError(f"Read Records: Undeclared Record Kind {kind}")
-        return RecordsQuery(self, self._records[kind], step)
+    def records[T: Payload](self, declaration: Record[T], *, step: Callable[..., object] | None = None) -> "RecordsQuery[T]":
+        self._resolve(declaration)
+        return RecordsQuery(self, declaration, self._resolve(step) if step is not None else "")
 
-    async def statistics(self, stream: str, field: str = "", *, step: str = "") -> EvidenceStatisticsResponse:
-        return await self.host.evidence.statistics(stream, [], Window(), [], field, step)
+    async def statistics(
+        self,
+        stream: object,
+        field: str = "",
+        *,
+        step: Callable[..., object] | None = None,
+    ) -> EvidenceStatisticsResponse:
+        return await self.host.evidence.statistics(
+            self._resolve(stream), [], Window(), [], field, self._resolve(step) if step is not None else ""
+        )
+
+    def _resolve(self, declaration: object) -> str:
+        if self._template is None:
+            raise ValueError("Resolve Declaration: Call From a Template Operation")
+        return self._template.resolve(declaration)
 
     async def secret(self, identifier: str) -> bytes:
         if identifier not in self._secrets:
-            raise ValueError(f"Read Secret: Undeclared Secret {identifier}")
+            raise ValueError(f"Read Secret: Declare {identifier} on the Plugin Before Reading It")
         return (await self.host.secrets.get(identifier)).secret
 
     async def settings(self) -> dict[str, SettingValue]:
@@ -205,34 +236,39 @@ class Context:
         return await self.host.effects.set(ticket, value, current.revision, request_id=request_id)
 
 
-class BoundOperation[RequestT: Message, ResponseT: Message]:
+class BoundOperation[RequestT: Payload, ResponseT: Payload]:
     __type_params__: ClassVar[tuple[TypeVar, ...]]
 
-    def __init__(self, transport: plugin.Context, operation: Operation[RequestT, ResponseT]) -> None:
+    def __init__(self, transport: plugin.Context, operation: "operations.Operation[RequestT, ResponseT]") -> None:
         self._transport = transport
         self._operation = operation
 
     async def __call__(self, request: RequestT, *, policy: OperationPolicy | None = None) -> ResponseT:
-        return await self._transport.call(self._operation, request, policy=policy)
+        wire = self._operation._wire()
+        response = await self._transport.call(wire, pack(self._operation.request, request), policy=policy)
+        return unpack(self._operation.response, response)
 
 
-class RecordsQuery:
-    def __init__(self, context: Context, definition: Record, step: str) -> None:
+class RecordsQuery[T: Payload]:
+    def __init__(self, context: Context, definition: Record[T], step: str) -> None:
         self._context = context
         self._definition = definition
         self._step = step
 
     async def read(self, *, limit: int = 0) -> RecordsListResponse:
         return await self._context.host.evidence.records.list(
-            self._definition.identifier, [], Window(), self._step, CapturedRecordSelection(), page=PageRequest(page_size=limit)
+            self._context._resolve(self._definition), [], Window(), self._step, CapturedRecordSelection(), page=PageRequest(page_size=limit)
         )
 
     async def count(self) -> int:
         return (await self.read()).count
 
-    async def last(self) -> Message | None:
+    async def last(self) -> T:
         response = await self.read()
-        return self._definition.row.FromString(response.last.payload) if response.HasField("last") else None
+        if not response.HasField("last"):
+            raise ValueError("Read Records: Append a Record Before Reading the Last Value")
+        message = message_type(self._definition.row).FromString(response.last.payload)
+        return unpack(self._definition.row, message)
 
 
 # === Public Functions === #

@@ -16,7 +16,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::HashMap;
 
 // Third Party Imports
 
@@ -24,14 +23,14 @@ use std::collections::HashMap;
 use crate::device::{Bench, Supply};
 use crate::records::charger;
 use crate::{settings, suites};
-use dokime::plugin::{Context, Criterion, Observer, Prompt, Record, SampleWindow, Step, Stream, Template};
+use dokime::plugin::{Context, Criterion, Observer, Prompt, Record, Step, Stream, Template, Window};
 use dokime::{Aggregate, Document, Error, FieldReference, Parameter, PromptArchetype, Result, Summary, Value, model, value};
 
 /* === Constants === */
 
 pub const TEMPLATE: &str = "obc.benchmark.exact_values";
 pub const METER: &str = "obc.benchmark.exact_values.meter";
-pub const CONFIRMATION: &str = "obc.benchmark.exact_values.confirmation";
+pub const CONFIRMATION: &str = "obc.benchmark.exact_values.confirmation_record";
 pub const CONFIRM: &str = "obc.benchmark.exact_values.confirm";
 pub const REGISTER: u64 = 1_152_921_504_606_847_975;
 
@@ -43,20 +42,20 @@ pub const REGISTER: u64 = 1_152_921_504_606_847_975;
 
 /// The Exact Integer the Revenue Meter Reports Every Sample.
 #[derive(dokime::Row)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct MeterRegister {
     pub energy_register: u64,
 }
 
 /// One Window of Meter Register Readings.
 #[derive(dokime::Message)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct MeterRegisterColumns {
     pub energy_register: Vec<u64>,
 }
 
 #[derive(dokime::Record)]
-#[harmos(package = "obc")]
+#[dokime(package = "obc")]
 pub struct Confirmation {
     pub accepted: bool,
 }
@@ -70,27 +69,31 @@ pub struct Confirmation {
 /* === Public Functions === */
 
 pub fn contracts() -> Record<Confirmation> {
-    Record::new(CONFIRMATION, "Meter Readings Confirmed")
+    Record::new("confirmation_record", "Meter Readings Confirmed")
 }
 pub fn prompt() -> Prompt {
-    Prompt::new(CONFIRM, "Confirm Meter Readings", "Does the Meter Register Look Plausible?")
+    Prompt::new("confirm", "Confirm Meter Readings", "Does the Meter Register Look Plausible?")
         .archetype(PromptArchetype::Confirmation)
         .action("yes", "Yes")
         .action("no", "No")
 }
 pub fn template() -> Template {
-    let meter = Stream::<MeterRegister>::new(METER, "Revenue Meter Register");
+    let meter = Stream::<MeterRegister>::new("meter", "Revenue Meter Register");
     let observer = Observer::window(&meter, read_register).interval_setting(settings::SAMPLE_INTERVAL);
-    Template::new(TEMPLATE, "Exact Values")
-        .parameter(Parameter::number("duration_s", "Capture Duration").unit("s").default(0.25).range(0.001..=100.0))
-        .initialize(initialize)
-        .step(Step::new("Capture Meter Register", capture).identifier("capture"))
-        .step(Step::new("Confirm Meter Register", confirmation).identifier("confirmation"))
-        .criterion(Criterion::new("Exact Meter Register", exact).identifier("exact_register"))
-        .cleanup(cleanup)
-        .stream(meter)
-        .observer(observer)
-        .document(document())
+    charger::catalog(
+        Template::new("exact_values", "Exact Values")
+            .record(contracts())
+            .prompt(prompt())
+            .parameter(Parameter::number("duration_s", "Capture Duration").unit("s").default(0.25).range(0.001..=100.0))
+            .initialize(initialize)
+            .step(Step::new("Capture Meter Register", capture).identifier("capture"))
+            .step(Step::new("Confirm Meter Register", confirmation).identifier("confirmation"))
+            .criterion(Criterion::new("Exact Meter Register", exact).identifier("exact_register"))
+            .cleanup(cleanup)
+            .stream(meter)
+            .observer(observer)
+            .document(document()),
+    )
 }
 pub fn document() -> Document {
     let register = || FieldReference::new(METER).field("energy_register");
@@ -126,29 +129,23 @@ async fn capture(ctx: &Context) -> Result<()> {
     suites::wait(ctx, &bench, samples).await
 }
 async fn confirmation(ctx: &Context) -> Result<()> {
-    let answer = ctx.host().prompts.create("confirm".into(), CONFIRM.into(), HashMap::new()).await?;
-    ctx.record(
-        &contracts(),
-        Confirmation {
-            accepted: answer.accepted && answer.action == "yes",
-        },
-    )
-    .await?;
+    let answer = ctx.prompt(prompt(), &[]).await?;
+    ctx.record(&contracts(), Confirmation { accepted: answer == "Yes" }).await?;
     Ok(())
 }
 async fn exact(ctx: &Context) -> Result<bool> {
-    let Some(statistics) = ctx.statistics(METER, "energy_register", "").await?.statistics else {
+    let Some(statistics) = ctx.statistics("meter", "energy_register", "").await?.statistics else {
         return Ok(false);
     };
     let exact = |value: Option<Value>| matches!(value.and_then(|value| value.kind), Some(value::Kind::UnsignedInteger(REGISTER)));
-    let confirmed = charger::last(ctx, &contracts(), "").await?.is_some_and(|record| record.accepted);
+    let confirmed = charger::last(ctx, &contracts()).await?.is_some_and(|record| record.accepted);
     Ok(statistics.count > 0 && exact(statistics.min) && exact(statistics.max) && confirmed)
 }
 async fn cleanup(ctx: &Context) -> Result<()> {
     ctx.get::<Bench>()?.stop();
     Ok(())
 }
-async fn read_register(ctx: &Context, window: &SampleWindow) -> Result<MeterRegisterColumns> {
+async fn read_register(ctx: &Context, window: &Window) -> Result<MeterRegisterColumns> {
     if suites::captures(ctx, METER) {
         ctx.get::<Bench>()?.advance_by(window.count);
     }

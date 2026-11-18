@@ -28,7 +28,7 @@ pub mod suites;
 // Third Party Imports
 
 // Local Imports
-use dokime::plugin::{DeclarationTypes, HostOperation, Plugin};
+use dokime::plugin::{HostOperation, Plugin};
 use dokime::{Declarations, Result};
 
 /* === Constants === */
@@ -50,7 +50,7 @@ pub const IDENTIFIER: &str = "obc";
 /* === Public Functions === */
 
 /// Compose the Plugin-Level Catalogs and the Execution-Owned Templates.
-pub fn plugin() -> Result<Plugin<impl DeclarationTypes>> {
+pub fn plugin() -> Result<Plugin> {
     let mut plugin = Plugin::new(IDENTIFIER, env!("CARGO_PKG_VERSION"));
     for suite in suites::catalog() {
         plugin = plugin.suite(suite);
@@ -61,10 +61,6 @@ pub fn plugin() -> Result<Plugin<impl DeclarationTypes>> {
     for setting in settings::catalog() {
         plugin = plugin.setting(setting);
     }
-    for prompt in prompts::catalog() {
-        plugin = plugin.prompt(prompt);
-    }
-    plugin = plugin.prompt(suites::benchmark::exact_values::prompt()).prompt(suites::benchmark::plots::prompt());
     for operation in [
         HostOperation::PromptsCreate,
         HostOperation::EvidenceRecordsAppend,
@@ -85,11 +81,7 @@ pub fn plugin() -> Result<Plugin<impl DeclarationTypes>> {
     ] {
         plugin = plugin.requires_host(operation);
     }
-    let plugin = records::catalog(plugin);
-    Ok(plugin
-        .record(suites::transient::startup::checkpoint())
-        .record(suites::benchmark::exact_values::contracts())
-        .record(suites::benchmark::plots::contracts()))
+    Ok(plugin)
 }
 
 /// The Frozen Catalog the Host Admits, Without Opening a Socket.
