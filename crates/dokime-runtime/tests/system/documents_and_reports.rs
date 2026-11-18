@@ -134,13 +134,13 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
                     scope: Some(scope.clone()),
                     document_id: document_id.clone(),
                     plot_id: plot_id.clone(),
-                    value: Some(preferences.clone()),
+                    value: Some(preferences),
                     expected_revision: current.revision,
                     request_id: "report-plot-preferences".into(),
                 })
                 .await?
                 .into_inner();
-            assert_eq!(saved.value, Some(preferences.clone()));
+            assert_eq!(saved.value, Some(preferences));
             let plot_request = |frame: &DocumentFrame| -> Option<PlotRequest> {
                 let document_frame_frame::Kind::Binding(binding) = frame.frame.as_ref()?.kind.as_ref()? else {
                     return None;

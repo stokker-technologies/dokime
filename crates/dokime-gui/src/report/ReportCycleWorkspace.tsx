@@ -84,7 +84,6 @@ export function ReportCycleWorkspace({ selection, source }: ReportCycleWorkspace
       ? {
           cycleId: plan.test_cycle.test_cycle_id,
           executionId: started.test_execution_id,
-          caseId: started.case_id,
         }
       : row
         ? {

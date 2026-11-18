@@ -14,9 +14,16 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::path::{Path, PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 // Third Party Imports
+use sha2::{Digest, Sha256};
+use tempfile::NamedTempFile;
+use tokio::fs::{self, File};
+use tokio::io::AsyncWriteExt;
 
 // Local Imports
 use dokime_sdk::client::{
@@ -25,14 +32,11 @@ use dokime_sdk::client::{
 };
 
 use super::desktop::ArtifactSource;
-use crate::connection::SessionLease;
+use crate::connection::{SessionLease, host};
 use dokime_sdk::client::EvidenceSubject;
 use dokime_sdk::client::ReportOrigin;
 use dokime_sdk::client::ReportSubject;
 use dokime_sdk::client::{evidence_subject, report_subject};
-use sha2::{Digest, Sha256};
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 
 /* === Constants === */
 
@@ -45,12 +49,6 @@ use tokio::io::AsyncWriteExt;
 #[derive(Debug)]
 pub(crate) struct VerifiedContent {
     pub path: PathBuf,
-
-    #[allow(dead_code)]
-    pub size_bytes: u64,
-
-    #[allow(dead_code)]
-    pub sha256: String,
 
     pub content_type: Option<String>,
 
@@ -100,8 +98,8 @@ impl DeliveryError {
     }
 }
 
-impl From<crate::connection::host::Error> for DeliveryError {
-    fn from(error: crate::connection::host::Error) -> Self {
+impl From<host::Error> for DeliveryError {
+    fn from(error: host::Error) -> Self {
         Self {
             stage: DeliveryStage::Request,
             failure: DeliveryFailure::Rpc(error.into()),
@@ -216,6 +214,7 @@ pub(crate) async fn fetch_verified(
         return Err(invalid("Read Content: Selected File Identity Changed"));
     }
     let frame_bytes = frame_bytes
+        .saturating_sub(1024)
         .min(usize::try_from(selected.chunk_bytes).map_err(|_| invalid("Read Content: Invalid Chunk Limit"))?)
         .min(usize::try_from(selected.message_bytes.saturating_sub(1024)).map_err(|_| invalid("Read Content: Invalid Message Limit"))?);
     if frame_bytes == 0 {
@@ -224,8 +223,8 @@ pub(crate) async fn fetch_verified(
     let content_type = reference.metadata.as_ref().map(|metadata| metadata.media_type.clone());
     let directory =
         destination.parent().ok_or_else(|| DeliveryError::local(DeliveryStage::Prepare, "Select a destination with a parent directory"))?;
-    tokio::fs::create_dir_all(directory).await.map_err(write_error)?;
-    let staged = tempfile::NamedTempFile::new_in(directory).map_err(write_error)?;
+    fs::create_dir_all(directory).await.map_err(write_error)?;
+    let staged = NamedTempFile::new_in(directory).map_err(write_error)?;
     let mut file = File::from_std(staged.reopen().map_err(write_error)?);
     let mut digest = Sha256::new();
     let mut offset = 0;
@@ -251,7 +250,7 @@ pub(crate) async fn fetch_verified(
         digest.update(&reply.data);
         file.write_all(&reply.data).await.map_err(write_error)?;
     }
-    if digest.clone().finalize().as_slice() != reference.sha256.as_slice() {
+    if digest.finalize().as_slice() != reference.sha256.as_slice() {
         return Err(invalid("Read Content: SHA-256 Mismatch"));
     }
     lease.guard(async {}).await.map_err(|error| DeliveryError {
@@ -263,13 +262,7 @@ pub(crate) async fn fetch_verified(
     drop(file);
     let path = destination.to_path_buf();
     staged.persist_noclobber(&path).map_err(|error| DeliveryError::local(DeliveryStage::Rename, error.to_string()))?;
-    Ok(VerifiedContent {
-        path,
-        size_bytes: offset,
-        sha256: digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
-        content_type,
-        report_origin,
-    })
+    Ok(VerifiedContent { path, content_type, report_origin })
 }
 
 /* === Private Functions === */
@@ -278,7 +271,7 @@ fn invalid(message: impl Into<String>) -> DeliveryError {
     DeliveryError::local(DeliveryStage::Stream, message)
 }
 
-fn write_error(error: std::io::Error) -> DeliveryError {
+fn write_error(error: io::Error) -> DeliveryError {
     DeliveryError::local(DeliveryStage::Write, error.to_string())
 }
 

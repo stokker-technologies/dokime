@@ -20,8 +20,12 @@ import assert from "node:assert/strict";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { test, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 // Local Imports
+import type { DocumentSurface } from "@/features/cycle/document-view-model";
+import { ReportCycleWorkspace } from "@/report/ReportCycleWorkspace";
 import { NativeIntegerValue } from "@/lib/api/native-values";
 import { materializeReport, readReportCapture, reportOutcome } from "@/report/native-report";
 import {
@@ -32,6 +36,8 @@ import {
   ExecutionState,
   FileReferenceSchema,
   LogoVariant,
+  LogsAppendRequestSchema,
+  RecordsListResponseSchema,
   ReportCaptureSchema,
   ReportFileSchema,
   ResultStatus,
@@ -41,6 +47,11 @@ import {
 /* === Re-Exports === */
 
 /* === Constants === */
+
+vi.mock("@/features/cycle/ExecutionSectionsView", () => ({
+  ExecutionSectionsView: ({ surface }: { surface: DocumentSurface }) =>
+    createElement("output", { "data-record-count": surface.view.records.length }),
+}));
 
 /* === Types === */
 
@@ -171,6 +182,27 @@ test("Embedded Protobuf Uses the Live Document and Value Decoders", async () => 
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+test("Execution Reports Keep Records Without a Case Tag", async () => {
+  const capture = await nativeReport();
+  capture.records.push(
+    create(RecordsListResponseSchema, {
+      records: [
+        {
+          recordId: "captured-record",
+          recordType: "dokime.log",
+          timestamp: { seconds: 1n },
+          scope: { cycleId: "cycle", executionId: "execution", stepId: "step" },
+          payload: toBinary(LogsAppendRequestSchema, create(LogsAppendRequestSchema, { message: "captured-value" })),
+        },
+      ],
+    }),
+  );
+  const { source } = await materializeReport(capture);
+  assert.equal(source.records.length, 1);
+  const html = renderToStaticMarkup(createElement(ReportCycleWorkspace, { source, selection: { executionId: "execution" } }));
+  assert.match(html, /data-record-count="1"/);
 });
 
 test("Incomplete Embedded Documents Are Refused by the Live Assembler", async () => {
