@@ -23,6 +23,7 @@ use std::error::Error;
 use harmos_protocol::host::{PluginState, plugin_placement};
 use harmos_protocol::model::ReadCut;
 use tokio::time;
+use tonic::Code;
 use tonic::transport::Endpoint;
 
 // Local Imports
@@ -128,7 +129,9 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
             let name = admitted.executions[0].summary.as_ref().unwrap().execution_id.clone();
 
             // Refuse Seal Before Starting Without Admitting Work
-            assert!(client.executions.seal(name.clone()).await.is_err());
+            let error = client.executions.seal(name.clone()).await.unwrap_err();
+            assert_ne!(error.code(), Code::DeadlineExceeded);
+            assert!(error.message().contains(&name));
             assert!(client.executions.get(name.clone()).await?.execution.unwrap().outcome.is_none());
             client.executions.start(name.clone(), Default::default()).await?;
 
@@ -145,7 +148,9 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 }
             }
             // Refuse Seal During the Prompt Without Cancelling or Waiting
-            assert!(client.executions.seal(name.clone()).await.is_err());
+            let error = client.executions.seal(name.clone()).await.unwrap_err();
+            assert_ne!(error.code(), Code::DeadlineExceeded);
+            assert!(error.message().contains(&name));
             assert!(client.executions.get(name.clone()).await?.execution.unwrap().outcome.is_none());
             let first = client
                 .executions
