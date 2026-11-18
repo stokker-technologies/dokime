@@ -6,14 +6,16 @@
 #
 # ***
 
-"""An Author Materializes, Retries And Releases Isolated Executions Through A Host."""
+"""Class Materialization and Scoped Execution State."""
 
 # === Imports === #
 
 # Standard Library Imports
 import asyncio
+import runpy
 import unittest
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, ClassVar, cast
 
 # Third Party Imports
@@ -21,8 +23,20 @@ from harmos import plugin
 from harmos._wire.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
-from dokime_sdk import Plugin, Scalar, Suite
-from dokime_sdk.templates import Context, Materialization, Termination, TestTemplate, criterion, materialize, step
+import dokime_sdk.operations
+from dokime_sdk import Client, Failure, Plugin, ResultStatus, Scalar, Suite
+from dokime_sdk.templates import (
+    Context,
+    Materialization,
+    ParameterDefinition,
+    Termination,
+    TestTemplate,
+    criterion,
+    materialize,
+    observer,
+    step,
+    stream,
+)
 
 # Type Checking Imports
 
@@ -99,6 +113,36 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(author._sessions)
 
+    async def test_plugin_observers_use_the_actual_plugin_without_execution_fields(self) -> None:
+        contexts: list[dokime_sdk.operations.Context] = []
+
+        class ObserverPlugin(Plugin):
+            version = "1.0.0"
+
+            def __init__(self) -> None:
+                self.reading_count = 0
+                super().__init__()
+
+            @stream("Reading", row=int)
+            @observer()
+            async def reading(self, ctx: dokime_sdk.operations.Context) -> int:
+                contexts.append(ctx)
+                self.reading_count += 1
+                return self.reading_count
+
+        author = ObserverPlugin()
+        definition, handler, observing = author._plugin._registrations()[1][0]
+        self.assertTrue(observing)
+        self.assertEqual(definition.id, "observer.reading")
+        transport = plugin.Context(Request(attempt=1), author._identifier, {})
+        for expected in (1, 2):
+            result = await cast(Any, handler)(transport)
+            self.assertEqual(result.value, expected)
+        for context in contexts:
+            self.assertIs(context.plugin, author)
+            self.assertFalse(hasattr(context, "execution"))
+            self.assertFalse(hasattr(context, "parameters"))
+
     async def test_cleanup_retains_partial_state_after_failed_or_cancelled_setup(self) -> None:
         for failure in (ValueError, asyncio.CancelledError):
             events: list[object] = []
@@ -147,6 +191,75 @@ class MaterializationStory(unittest.IsolatedAsyncioTestCase):
             await handler(transport, request)
             self.assertEqual(events, [author, ("partial", Termination.FAILED)])
             self.assertFalse(author._sessions)
+
+
+class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
+    async def test_class_template_materialization_retry_and_artifacts_through_host(self) -> None:
+        instances: list[list[int]] = []
+        attempts: list[tuple[int, int]] = []
+
+        class ChannelsTestTemplate(TestTemplate):
+            parameters: ClassVar[list[ParameterDefinition]] = [
+                ParameterDefinition(metadata={"identifier": "channels"}, type="VALUE_TYPE_LIST", element_type="VALUE_TYPE_INTEGER")
+            ]
+
+            def __init__(self) -> None:
+                self.channels: list[int] = []
+
+            @materialize
+            def channels_case(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
+                channels = parameters["channels"]
+                if not isinstance(channels, list):
+                    raise TypeError("Materialize Channels: Supply a List")
+                for channel in channels:
+                    case.step("Measure", self.measure, identifier=f"channel_{channel}", channel=channel)
+                case.criterion("All Channels", self.all_channels)
+
+            async def setup(self, ctx: Context) -> None:
+                instances.append(self.channels)
+
+            @step("Measure", retries=1)
+            async def measure(self, ctx: Context, *, channel: int) -> None:
+                attempts.append((channel, ctx.attempt))
+                if channel == 2 and ctx.attempt == 1:
+                    raise dokime_sdk.operations.FailureError(
+                        Failure("Transient", "retry_measurement", "Measurement Requires Another Attempt", "Retry Measurement")
+                    )
+                measured = channel * channel
+                await ctx.artifact(f"channel_{channel}.bin", measured.to_bytes(4, "big"))
+                self.channels.append(measured)
+
+            @criterion("All Channels")
+            async def all_channels(self, ctx: Context) -> bool:
+                return self.channels == [4, 16]
+
+        class ChannelsSuite(Suite):
+            templates: ClassVar[list[type[TestTemplate]]] = [ChannelsTestTemplate]
+
+        class ChannelsPlugin(Plugin):
+            version = "1.0.0"
+            suites: ClassVar[list[type[Suite]]] = [ChannelsSuite]
+
+        mechanical = Path(__file__).resolve().parents[2] / "examples/test/tests/host.py"
+        host = await runpy.run_path(str(mechanical))["Host"].start(self)
+        client = cast(Client, host.client)
+        author = ChannelsPlugin()
+        await client.plugins.register(author)
+        cases = await client.cases.materialize(ChannelsTestTemplate, parameters={"channels": [[2, 4]]})
+        self.assertEqual(len(cases), 1)
+        self.assertEqual(instances, [])
+        for _ in range(2):
+            cycle = await client.cycle(label="Channel Measurements")
+            execution = await cycle.execution(cases[0])
+            async for _ in execution.run():
+                pass
+            outcome = await execution.seal()
+            self.assertEqual(outcome.status, ResultStatus.PASSED)
+            await cycle.seal()
+            self.assertTrue(await cycle.evidence())
+        self.assertEqual(instances, [[4, 16], [4, 16]])
+        self.assertEqual(attempts, [(2, 1), (2, 2), (4, 1)] * 2)
+        self.assertFalse(author._sessions)
 
 
 # === Public Functions === #

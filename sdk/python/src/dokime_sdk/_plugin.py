@@ -285,6 +285,8 @@ class Plugin:
                         raise TypeError("Evaluate Criterion: Handler Must Return bool")
                     return CriteriaEvaluateResponse(passed=result)
                 return response_type()
+            except dokime_sdk.operations.FailureError as error:
+                raise harmos.Failure(dokime_sdk.operations._failure(error.failure)) from error
             finally:
                 if kind == "cleanup":
                     self._sessions.pop(key, None)

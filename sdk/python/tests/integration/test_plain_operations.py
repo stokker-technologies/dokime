@@ -35,8 +35,8 @@ from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 
 # Local Imports
 import dokime_sdk.operations
-from dokime_sdk import Plugin, Suite
-from dokime_sdk.operations import Operation, Visibility, operation
+from dokime_sdk import Failure, Plugin, Suite
+from dokime_sdk.operations import FailureError, Operation, Visibility, operation
 from dokime_sdk.templates import Context, TestTemplate, criterion, observer, prompt, record, step, stream
 
 # Type Checking Imports
@@ -119,6 +119,55 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             finally:
                 call.cancel()
 
+    async def test_author_failures_keep_classification_and_causes_on_the_carrier(self) -> None:
+        @operation("example.failure", visibility=Visibility.PUBLIC)
+        async def fail(ctx: dokime_sdk.operations.Context, request: bool) -> bool:
+            raise FailureError(
+                Failure(
+                    "Transient",
+                    "outer_failure",
+                    "Read Failed",
+                    "Retry Read",
+                    cause=Failure("Refused", "inner_failure", "Device Refused", "Check Device"),
+                    details={"device": "42"},
+                    diagnostics="trace_42",
+                )
+            )
+
+        class FailurePlugin(Plugin):
+            version = "1.0.0"
+            operations: ClassVar[list[Callable[..., object]]] = [fail]
+
+        author = FailurePlugin()
+        endpoint = await author._activate("127.0.0.1:0")
+        self.addAsyncCleanup(endpoint.close)
+        channel = insecure_channel(endpoint.address)
+        self.addAsyncCleanup(channel.close)
+        invoke = channel.stream_stream(
+            "/harmos.plugin.v1.Instance/Invoke",
+            request_serializer=InstanceInvokeRequest.SerializeToString,
+            response_deserializer=InstanceInvokeResponse.FromString,
+        )
+        call = invoke()
+        try:
+            await call.write(
+                InstanceInvokeRequest(
+                    request=Request(
+                        operation="example.failure", payload=BoolValue(value=True).SerializeToString(), invocation="failure", attempt=1
+                    )
+                )
+            )
+            response = await call.read()
+            assert isinstance(response, InstanceInvokeResponse)
+            failure = response.response.failure
+            self.assertEqual(failure.code, "outer_failure")
+            self.assertEqual(failure.cause.code, "inner_failure")
+            self.assertEqual(dict(failure.details), {"device": "42"})
+            self.assertEqual(failure.diagnostics, "trace_42")
+            self.assertNotEqual(failure.classification, failure.cause.classification)
+        finally:
+            call.cancel()
+
     async def test_scalar_streams_use_declared_payload_types(self) -> None:
         class ReadingsTestTemplate(TestTemplate):
             @step("Start")
@@ -195,6 +244,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
 
     async def test_records_roundtrip_plain_values_and_bound_step_filters(self) -> None:
         story = self
+
         class CaptureTestTemplate(TestTemplate):
             question = prompt("Choose a Reading", choices=["Yes", "No"])
             flag = record(bool)
