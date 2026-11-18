@@ -24,7 +24,7 @@ use harmos_runtime::operations::{ExecutionContext, HostContext, Lane, OperationF
 use harmos_runtime::plugin::grpc::CallingPlugin;
 
 // Local Imports
-use crate::host::{ClientSettings, Context};
+use crate::host::{self, ClientSettings, Context};
 use crate::{Error, Resources, Result};
 
 /* === Constants === */
@@ -191,122 +191,127 @@ pub fn factory<O: ProtobufOperation>(timeout: Duration) -> Result<OperationFacto
 }
 
 pub fn registration(settings: &ClientSettings) -> Result<Registration> {
+    let factories: &[(fn(Duration) -> Result<OperationFactory>, Duration)] = &[
+        (factory::<host::backend::appearance::Operation>, settings.read_timeout),
+        (factory::<host::backend::environment::Operation>, settings.mutation_timeout),
+        (factory::<host::backend::overview::get::Operation>, settings.read_timeout),
+        (factory::<host::cases::create::Operation>, settings.mutation_timeout),
+        (factory::<host::cases::delete::Operation>, settings.mutation_timeout),
+        (factory::<host::cases::get::Operation>, settings.read_timeout),
+        (factory::<host::cases::list::Operation>, settings.read_timeout),
+        (factory::<host::cases::parameters::Operation>, settings.read_timeout),
+        (factory::<host::content::artifacts::get::Operation>, settings.read_timeout),
+        (factory::<host::content::artifacts::list::Operation>, settings.read_timeout),
+        (factory::<host::content::execution_files::get::Operation>, settings.read_timeout),
+        (factory::<host::content::execution_files::list::Operation>, settings.read_timeout),
+        (factory::<host::cycles::create::Operation>, settings.mutation_timeout),
+        (factory::<host::cycles::get::Operation>, settings.read_timeout),
+        (factory::<host::cycles::list::Operation>, settings.read_timeout),
+        (factory::<host::cycles::seal::Operation>, settings.mutation_timeout),
+        (factory::<host::cycles::set::Operation>, settings.mutation_timeout),
+        (factory::<host::documents::append_parts::Operation>, settings.mutation_timeout),
+        (factory::<host::documents::get::Operation>, settings.read_timeout),
+        (factory::<host::evidence::archive::Operation>, settings.read_timeout),
+        (factory::<host::evidence::health_events::list::Operation>, settings.read_timeout),
+        (factory::<host::evidence::logs::append::Operation>, settings.mutation_timeout),
+        (factory::<host::evidence::notes::create::Operation>, settings.mutation_timeout),
+        (factory::<host::evidence::notes::get::Operation>, settings.read_timeout),
+        (factory::<host::evidence::notes::list::Operation>, settings.read_timeout),
+        (factory::<host::evidence::notes::set::Operation>, settings.mutation_timeout),
+        (factory::<host::evidence::records::append::Operation>, settings.mutation_timeout),
+        (factory::<host::evidence::records::list::Operation>, settings.read_timeout),
+        (factory::<host::evidence::samples::list::Operation>, settings.read_timeout),
+        (factory::<host::evidence::statistics::Operation>, settings.read_timeout),
+        (factory::<host::evidence::traceability::get::Operation>, settings.read_timeout),
+        (factory::<host::evidence::traceability::set::Operation>, settings.mutation_timeout),
+        (factory::<host::executions::cancel::Operation>, settings.mutation_timeout),
+        (factory::<host::executions::commands::create::Operation>, settings.mutation_timeout),
+        (factory::<host::executions::commands::get::Operation>, settings.read_timeout),
+        (factory::<host::executions::create::Operation>, settings.mutation_timeout),
+        (factory::<host::executions::delete::Operation>, settings.mutation_timeout),
+        (factory::<host::executions::get::Operation>, settings.read_timeout),
+        (factory::<host::executions::list::Operation>, settings.read_timeout),
+        (factory::<host::executions::parameters::Operation>, settings.read_timeout),
+        (factory::<host::executions::progress::get::Operation>, settings.read_timeout),
+        (factory::<host::executions::progress::set::Operation>, settings.mutation_timeout),
+        (factory::<host::executions::schemas::get::Operation>, settings.read_timeout),
+        (factory::<host::executions::set::Operation>, settings.mutation_timeout),
+        (factory::<host::executions::start::Operation>, settings.mutation_timeout),
+        (factory::<host::executions::steps::Operation>, settings.read_timeout),
+        (factory::<host::executions::stop::Operation>, settings.mutation_timeout),
+        (factory::<host::files::delete::Operation>, settings.mutation_timeout),
+        (factory::<host::files::get::Operation>, settings.read_timeout),
+        (factory::<host::files::read::Operation>, settings.read_timeout),
+        (factory::<host::files::uploads::append::Operation>, settings.mutation_timeout),
+        (factory::<host::files::uploads::create::Operation>, settings.mutation_timeout),
+        (factory::<host::files::uploads::delete::Operation>, settings.mutation_timeout),
+        (factory::<host::files::uploads::get::Operation>, settings.read_timeout),
+        (factory::<host::files::uploads::publish::Operation>, settings.mutation_timeout),
+        (factory::<host::files::uploads::resume::Operation>, settings.mutation_timeout),
+        (factory::<host::plots::settings::get::Operation>, settings.read_timeout),
+        (factory::<host::plots::settings::set::Operation>, settings.mutation_timeout),
+        (factory::<host::plots::snapshots::list::Operation>, settings.read_timeout),
+        (factory::<host::plugins::secrets::list::Operation>, settings.read_timeout),
+        (factory::<host::prompt_definitions::get::Operation>, settings.read_timeout),
+        (factory::<host::prompt_definitions::list::Operation>, settings.read_timeout),
+        (factory::<host::prompts::answers::create::Operation>, settings.mutation_timeout),
+        (factory::<host::prompts::create::Operation>, settings.mutation_timeout),
+        (factory::<host::prompts::get::Operation>, settings.read_timeout),
+        (factory::<host::prompts::list::Operation>, settings.read_timeout),
+        (factory::<host::record_schemas::get::Operation>, settings.read_timeout),
+        (factory::<host::record_schemas::list::Operation>, settings.read_timeout),
+        (factory::<host::reports::create::Operation>, settings.mutation_timeout),
+        (factory::<host::reports::get::Operation>, settings.read_timeout),
+        (factory::<host::reports::publish::Operation>, settings.mutation_timeout),
+        (factory::<host::secrets::delete::Operation>, settings.mutation_timeout),
+        (factory::<host::secrets::export::Operation>, settings.read_timeout),
+        (factory::<host::secrets::get::Operation>, settings.read_timeout),
+        (factory::<host::secrets::import::Operation>, settings.mutation_timeout),
+        (factory::<host::secrets::list::Operation>, settings.read_timeout),
+        (factory::<host::secrets::set::Operation>, settings.mutation_timeout),
+        (factory::<host::settings::get::Operation>, settings.read_timeout),
+        (factory::<host::settings::schema::Operation>, settings.read_timeout),
+        (factory::<host::settings::set::Operation>, settings.mutation_timeout),
+        (factory::<host::storage::sources::get::Operation>, settings.read_timeout),
+        (factory::<host::storage::sources::set::Operation>, settings.mutation_timeout),
+        (factory::<host::stream_schemas::get::Operation>, settings.read_timeout),
+        (factory::<host::stream_schemas::list::Operation>, settings.read_timeout),
+        (factory::<host::suites::get::Operation>, settings.read_timeout),
+        (factory::<host::suites::list::Operation>, settings.read_timeout),
+        (factory::<host::backend::overview::watch::Operation>, settings.watch_timeout),
+        (factory::<host::cases::watch::Operation>, settings.watch_timeout),
+        (factory::<host::content::artifacts::watch::Operation>, settings.watch_timeout),
+        (factory::<host::content::execution_files::watch::Operation>, settings.watch_timeout),
+        (factory::<host::cycles::watch::Operation>, settings.watch_timeout),
+        (factory::<host::documents::watch::Operation>, settings.watch_timeout),
+        (factory::<host::evidence::health_events::watch::Operation>, settings.watch_timeout),
+        (factory::<host::evidence::notes::watch::Operation>, settings.watch_timeout),
+        (factory::<host::evidence::records::watch::Operation>, settings.watch_timeout),
+        (factory::<host::evidence::samples::watch::Operation>, settings.watch_timeout),
+        (factory::<host::evidence::traceability::watch::Operation>, settings.watch_timeout),
+        (factory::<host::executions::progress::watch::Operation>, settings.watch_timeout),
+        (factory::<host::executions::watch::Operation>, settings.watch_timeout),
+        (factory::<host::files::watch::Operation>, settings.watch_timeout),
+        (factory::<host::plots::snapshots::watch::Operation>, settings.watch_timeout),
+        (factory::<host::prompts::watch::Operation>, settings.watch_timeout),
+        (factory::<host::secrets::watch::Operation>, settings.watch_timeout),
+        (factory::<host::content::artifacts::create::Operation>, settings.mutation_timeout),
+        (factory::<host::files::capture::Operation>, settings.mutation_timeout),
+        (factory::<host::files::captures::start::Operation>, settings.mutation_timeout),
+        (factory::<host::files::captures::stop::Operation>, settings.mutation_timeout),
+        (factory::<host::aggregates::get::Operation>, settings.mutation_timeout),
+        (factory::<host::effects::create::Operation>, settings.mutation_timeout),
+        (factory::<host::effects::get::Operation>, settings.mutation_timeout),
+        (factory::<host::effects::set::Operation>, settings.mutation_timeout),
+        (factory::<host::media::captures::create::Operation>, settings.mutation_timeout),
+        (factory::<host::media::captures::get::Operation>, settings.mutation_timeout),
+        (factory::<host::media::captures::stop::Operation>, settings.mutation_timeout),
+        (factory::<host::media::captures::watch::Operation>, settings.watch_timeout),
+    ];
     let mut registration = Registration::new(Lane::default());
-    registration = registration.entry(factory::<crate::host::backend::appearance::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::backend::environment::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::backend::overview::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::cases::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::cases::delete::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::cases::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::cases::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::cases::parameters::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::content::artifacts::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::content::artifacts::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::content::execution_files::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::content::execution_files::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::cycles::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::cycles::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::cycles::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::cycles::seal::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::cycles::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::documents::append_parts::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::documents::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::archive::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::health_events::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::logs::append::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::notes::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::notes::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::notes::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::notes::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::records::append::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::records::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::samples::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::statistics::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::traceability::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::traceability::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::cancel::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::commands::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::commands::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::delete::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::parameters::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::progress::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::progress::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::schemas::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::start::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::steps::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::stop::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::delete::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::read::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::uploads::append::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::uploads::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::uploads::delete::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::uploads::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::uploads::publish::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::uploads::resume::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::plots::settings::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::plots::settings::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::plots::snapshots::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::plugins::secrets::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::prompt_definitions::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::prompt_definitions::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::prompts::answers::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::prompts::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::prompts::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::prompts::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::record_schemas::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::record_schemas::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::reports::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::reports::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::reports::publish::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::secrets::delete::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::secrets::export::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::secrets::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::secrets::import::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::secrets::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::secrets::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::settings::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::settings::schema::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::settings::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::storage::sources::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::storage::sources::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::stream_schemas::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::stream_schemas::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::suites::get::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::suites::list::Operation>(settings.read_timeout)?);
-    registration = registration.entry(factory::<crate::host::backend::overview::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::cases::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::content::artifacts::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::content::execution_files::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::cycles::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::documents::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::health_events::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::notes::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::records::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::samples::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::evidence::traceability::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::progress::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::executions::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::plots::snapshots::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::prompts::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::secrets::watch::Operation>(settings.watch_timeout)?);
-    registration = registration.entry(factory::<crate::host::content::artifacts::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::capture::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::captures::start::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::files::captures::stop::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::aggregates::get::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::effects::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::effects::get::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::effects::set::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::media::captures::create::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::media::captures::get::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::media::captures::stop::Operation>(settings.mutation_timeout)?);
-    registration = registration.entry(factory::<crate::host::media::captures::watch::Operation>(settings.watch_timeout)?);
+    for (factory, timeout) in factories {
+        registration = registration.entry(factory(*timeout)?);
+    }
     Ok(registration)
 }
 

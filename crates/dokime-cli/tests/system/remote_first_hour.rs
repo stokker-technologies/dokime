@@ -73,7 +73,19 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;
                     bundle
                 } else {
-                    project.join("test")
+                    // Resolve the SDK Candidate Exported by This Worktree.
+                    let input = project.join("test");
+                    let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
+                    let wheel = super::root()
+                        .join("target/build")
+                        .join(profile)
+                        .join("any/python")
+                        .join(format!("dokime_sdk-{}-py3-none-any.whl", env!("CARGO_PKG_VERSION")));
+                    let source = serde_json::to_string(&wheel.to_string_lossy())?;
+                    let manifest = input.join("pyproject.toml");
+                    let contents = fs::read_to_string(&manifest)?;
+                    fs::write(manifest, format!("{contents}\n[tool.uv.sources]\ndokime-sdk = {{ path = {source} }}\n"))?;
+                    input
                 };
 
                 // Start One Disposable Application with Its Plugin
