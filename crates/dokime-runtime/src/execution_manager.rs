@@ -477,7 +477,8 @@ mod tests {
         manager.inner.store.append(
             "execution",
             Evidence {
-                kind: "run:start".into(),
+                kind: "step:start".into(),
+                step: "measure".into(),
                 ..Default::default()
             },
         )?;
