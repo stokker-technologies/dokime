@@ -89,7 +89,10 @@ fn embed_examples() {
                     let kind = entry.file_type().expect("Read example file type");
                     if kind.is_dir() {
                         let name = entry.file_name();
-                        if !["target", "build", "bin", "obj", ".git", ".venv", "__pycache__"].iter().any(|excluded| name == *excluded) {
+                        if !["target", "build", "bin", "obj", ".git", ".venv", "__pycache__", "_input", "_output", "credentials"]
+                            .iter()
+                            .any(|excluded| name == *excluded)
+                        {
                             pending.push(path);
                         }
                         continue;
@@ -97,7 +100,13 @@ fn embed_examples() {
                     if !kind.is_file() {
                         panic!("Embed Example: Expected a Regular File at {}", path.display());
                     }
-                    if language == "python" && entry.file_name() == "uv.lock" {
+                    let filename = entry.file_name();
+                    let filename = filename.to_str().expect("Example filename is UTF-8");
+                    if (language == "python" && filename == "uv.lock")
+                        || filename == ".env"
+                        || filename.ends_with(".pair")
+                        || filename.ends_with(".pyc")
+                    {
                         continue;
                     }
                     let relative = path

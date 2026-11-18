@@ -78,7 +78,7 @@ def build(profile: str) -> list[str]:
     project = output / "product/plugin-obc"
     project.mkdir(parents=True, exist_ok=True)
     stage_file(binaries / f"plugin-obc{extension}", project / f"plugin-obc{extension}")
-    (project / "dokime.toml").write_text('executable = "plugin-obc"\n', encoding="utf-8")
+    (project / "dokime.toml").write_text('[plugin]\n[scripts]\nexecutable = "plugin-obc"\n', encoding="utf-8")
     bundle = binaries / "plugin-obc.dokime"
     subprocess.run(
         [

@@ -181,9 +181,9 @@ mod tests {
             let cli = Cli::try_parse_from(arguments).unwrap();
             commands::run(cli.command, None, Settings::default()).await?;
             let project = PluginProject::read(&destination.join(folder))?;
-            assert!(project.manifest.build.is_some());
-            assert_eq!(project.manifest.launch.is_some(), language == "python");
-            assert_eq!(project.manifest.executable.is_some(), language != "python");
+            assert!(project.manifest.scripts.build.is_some());
+            assert_eq!(project.manifest.scripts.launch.is_some(), language == "python");
+            assert_eq!(project.manifest.scripts.executable.is_some(), language != "python");
         }
         Ok(())
     }
@@ -196,7 +196,7 @@ mod tests {
         runtime.set_len(Limits::default().file_bytes as u64 + 1)?;
         let root = parent.path().join("plugin");
         fs::create_dir(&root)?;
-        fs::write(root.join("dokime.toml"), "launch = ['interpreter', 'payload.bin']\n")?;
+        fs::write(root.join("dokime.toml"), "[plugin]\n[scripts]\nlaunch = ['interpreter', 'payload.bin']\n")?;
         fs::write(root.join("payload.bin"), [2, 3, 5, 7])?;
 
         // Bundle Only the Plugin's Sources
@@ -211,7 +211,7 @@ mod tests {
         let bundle = Bundle::inspect(&bytes, Limits::default())?;
         let inventory = bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>();
         assert_eq!(inventory, ["dokime.json", "dokime.toml", "payload.bin"]);
-        assert_eq!(bundle.manifest().launch, project.manifest.launch);
+        assert_eq!(bundle.manifest().launch, project.manifest.scripts.launch);
         assert_eq!(bundle.file("payload.bin"), Some([2, 3, 5, 7].as_slice()));
         Ok(())
     }
@@ -231,7 +231,10 @@ mod tests {
         let interpreter = env::current_exe()?;
         let program = interpreter.file_name().unwrap().to_str().unwrap();
         let test = "commands::plugin::tests::launch_folder_round_trip_runs_the_native_interpreter_in_its_root";
-        fs::write(root.path().join("dokime.toml"), format!("launch = ['{program}', '--exact', '{test}', '--nocapture']\n"))?;
+        fs::write(
+            root.path().join("dokime.toml"),
+            format!("[plugin]\n[scripts]\nlaunch = ['{program}', '--exact', '{test}', '--nocapture']\n"),
+        )?;
         fs::write(root.path().join("payload.bin"), [2, 3, 5, 7])?;
         fs::write(root.path().join(".gitignore"), "ignored.bin\n")?;
         fs::write(root.path().join("ignored.bin"), [11])?;
@@ -246,7 +249,7 @@ mod tests {
         };
         let bytes = dokime_packaging::bundle::create_project(&project, identity, Some(b"description"))?;
         let bundle = Bundle::inspect(&bytes, Limits::default())?;
-        assert_eq!(bundle.manifest().launch, project.manifest.launch);
+        assert_eq!(bundle.manifest().launch, project.manifest.scripts.launch);
         assert!(bundle.manifest().files.iter().all(|file| file.executable.is_none()));
         let inventory = bundle.manifest().files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>();
         assert_eq!(inventory, [".gitignore", "description.pb", "dokime.json", "dokime.toml", "payload.bin"]);

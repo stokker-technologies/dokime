@@ -72,7 +72,9 @@ class ProductCompilerRecordTests(unittest.TestCase):
                 if args[0][1:3] == ["plugin", "bundle"]:
                     project = Path(args[0][3])
                     self.assertEqual((project / plugin.name).read_bytes(), plugin.read_bytes())
-                    self.assertEqual((project / "dokime.toml").read_text(encoding="utf-8"), 'executable = "plugin-obc"\n')
+                    self.assertEqual(
+                        (project / "dokime.toml").read_text(encoding="utf-8"), '[plugin]\n[scripts]\nexecutable = "plugin-obc"\n'
+                    )
                     Path(args[0][5]).write_bytes(b"bundled plugin fixture")
                     return
                 kwargs["stdout"].write("replacement build")

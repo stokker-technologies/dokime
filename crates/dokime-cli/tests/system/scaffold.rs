@@ -72,7 +72,7 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                             let entry = entry?;
                             let path = entry.path();
                             if entry.file_type()?.is_dir() {
-                                if !["target", "build", "bin", "obj", ".git", ".venv", "__pycache__"]
+                                if !["target", "build", "bin", "obj", ".git", ".venv", "__pycache__", "_input", "_output", "credentials"]
                                     .iter()
                                     .any(|name| entry.file_name() == *name)
                                 {
@@ -81,7 +81,13 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                                 continue;
                             }
                             let destination = project.join(folder).join(path.strip_prefix(&root)?);
-                            if language == "python" && entry.file_name() == "uv.lock" {
+                            let filename = entry.file_name();
+                            let filename = filename.to_str().ok_or("Inspect Starter: Use UTF-8 Filenames")?;
+                            if (language == "python" && filename == "uv.lock")
+                                || filename == ".env"
+                                || filename.ends_with(".pair")
+                                || filename.ends_with(".pyc")
+                            {
                                 assert!(!destination.exists());
                                 continue;
                             }

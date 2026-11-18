@@ -68,7 +68,7 @@ def build(profile: str) -> None:
     project = output / "projects/thermal"
     project.mkdir(parents=True, exist_ok=True)
     shutil.copy2(executable, project / executable.name)
-    (project / "dokime.toml").write_text('executable = "dokime-rust-thermal"\n', encoding="utf-8")
+    (project / "dokime.toml").write_text('[plugin]\n[scripts]\nexecutable = "dokime-rust-thermal"\n', encoding="utf-8")
     bundle = output / "thermal.dokime"
     bundle.unlink(missing_ok=True)
     result = subprocess.run(
@@ -89,7 +89,7 @@ def build(profile: str) -> None:
     project = output / "projects/plugin-obc"
     project.mkdir(parents=True, exist_ok=True)
     shutil.copy2(executable, project / executable.name)
-    (project / "dokime.toml").write_text('executable = "plugin-obc"\n', encoding="utf-8")
+    (project / "dokime.toml").write_text('[plugin]\n[scripts]\nexecutable = "plugin-obc"\n', encoding="utf-8")
     bundle = output / "plugin-obc.dokime"
     bundle.unlink(missing_ok=True)
     result = subprocess.run(

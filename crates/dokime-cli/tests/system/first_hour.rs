@@ -68,7 +68,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
             let prepared = directory.path().join("prepared-plugin");
             fs::create_dir(&prepared)?;
             fs::copy(&executable, prepared.join(format!("plugin{EXE_SUFFIX}")))?;
-            fs::write(prepared.join("dokime.toml"), "executable = 'plugin'\n")?;
+            fs::write(prepared.join("dokime.toml"), "[plugin]\n[scripts]\nexecutable = 'plugin'\n")?;
             let bundle = directory.path().join("first.dokime");
             super::run(&["plugin", "bundle", prepared.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
             super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;

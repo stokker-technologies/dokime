@@ -61,17 +61,25 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: Setting
     let mut process = PluginProcess::start(&project.root, false, &settings.placement()).await?;
     let description = process.describe().await;
     let closed = process.close().await;
-    let description = description?;
+    let mut description = description?;
     closed?;
     if description.id.is_empty() || description.declarations.is_none() {
         return Err("Bundle Plugin: Make the Plugin Describe Its Identity and Declarations".into());
     }
+    let metadata = project.resolve_metadata(&description.version)?;
     let identity = Identity {
         name: description.id.clone(),
-        version: description.version.parse().map_err(|source| Error::Invalid(format!("Bundle Plugin: Read Its Version: {source}")))?,
+        version: metadata
+            .version
+            .as_deref()
+            .ok_or("Bundle Plugin: Set plugin.version")?
+            .parse()
+            .map_err(|source| Error::Invalid(format!("Bundle Plugin: Set plugin.version or Describe a Valid Version: {source}")))?,
         description: String::new(),
         package: Default::default(),
     };
+    let (identity, _) = project.resolve(identity)?;
+    description.version = identity.version.to_string();
     let declarations = description.encode_to_vec();
     let bytes = dokime_packaging::bundle::create_project(&project, identity, Some(&declarations))?;
     let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
