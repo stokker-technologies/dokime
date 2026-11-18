@@ -3,7 +3,7 @@ use super::{Error, Session};
 use dokime_protocol::host;
 use harmos_protocol as library;
 
-pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [43, 111, 8, 158, 195, 192, 31, 7, 219, 94, 125, 7, 158, 133, 14, 97, 199, 144, 212, 242, 148, 97, 118, 192, 25, 52, 254, 139, 201, 118, 33, 247];
+pub(crate) const DESCRIPTOR_SHA256: [u8; 32] = [136, 148, 118, 133, 91, 30, 201, 10, 6, 85, 197, 175, 135, 112, 181, 110, 138, 6, 100, 118, 143, 176, 108, 94, 79, 150, 164, 91, 40, 57, 229, 191];
 
 pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Result<Vec<u8>, Error> {
     match path {
@@ -28,6 +28,7 @@ pub(super) async fn call(session: &Session, path: &str, payload: &[u8]) -> Resul
         "/dokime.host.v1.Executions/Get" => Box::pin(session.call::<host::ExecutionsGetRequest, host::ExecutionsGetResponse>("/dokime.host.v1.Executions/Get", payload)).await,
         "/dokime.host.v1.Executions/List" => Box::pin(session.call::<host::ExecutionsListRequest, host::ExecutionsListResponse>("/dokime.host.v1.Executions/List", payload)).await,
         "/dokime.host.v1.Executions/Parameters" => Box::pin(session.call::<host::ExecutionsParametersRequest, host::ExecutionsParametersResponse>("/dokime.host.v1.Executions/Parameters", payload)).await,
+        "/dokime.host.v1.Executions/Seal" => Box::pin(session.call::<host::ExecutionsSealRequest, host::ExecutionsSealResponse>("/dokime.host.v1.Executions/Seal", payload)).await,
         "/dokime.host.v1.Executions/Set" => Box::pin(session.call::<host::ExecutionsSetRequest, host::ExecutionsSetResponse>("/dokime.host.v1.Executions/Set", payload)).await,
         "/dokime.host.v1.Executions/Start" => Box::pin(session.call::<host::ExecutionsStartRequest, host::ExecutionsStartResponse>("/dokime.host.v1.Executions/Start", payload)).await,
         "/dokime.host.v1.Executions/Steps" => Box::pin(session.call::<host::ExecutionsStepsRequest, host::ExecutionsStepsResponse>("/dokime.host.v1.Executions/Steps", payload)).await,

@@ -19,6 +19,7 @@
 use std::{
     collections::HashMap,
     future::Future,
+    mem,
     sync::{
         Arc, Mutex, OnceLock, Weak,
         atomic::{AtomicBool, Ordering},
@@ -28,13 +29,19 @@ use std::{
 // Third Party Imports
 use harmos_protocol::host::PluginEntry;
 use harmos_runtime::plugin::manager;
+use prost_types::Timestamp;
 use tokio::{
-    sync::watch::{self, Receiver, Sender},
+    runtime::Handle,
+    sync::{
+        self, oneshot,
+        watch::{self, Receiver, Sender},
+    },
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
 
 // Local Imports
+use crate::execution;
 use crate::run_control::RunControl;
 use crate::services::composition::Application;
 use crate::streams::SampleScope;
@@ -74,7 +81,7 @@ pub(crate) struct Runtime {
     pub sample_failures: Arc<Mutex<HashMap<String, String>>>,
     pub runtime: OnceLock<Weak<harmos_runtime::Runtime<Application>>>,
     pub library_plugins: OnceLock<manager::Manager>,
-    admission: tokio::sync::Mutex<()>,
+    admission: sync::Mutex<()>,
     shutting_down: AtomicBool,
     tasks: Mutex<Vec<JoinHandle<()>>>,
     progress: Mutex<HashMap<String, Sender<Progress>>>,
@@ -131,7 +138,7 @@ impl ExecutionManager {
                 runtime: OnceLock::new(),
                 library_plugins: OnceLock::new(),
                 active: Mutex::new(HashMap::new()),
-                admission: tokio::sync::Mutex::new(()),
+                admission: sync::Mutex::new(()),
                 shutting_down: AtomicBool::new(false),
                 tasks: Mutex::new(Vec::new()),
                 progress: Mutex::new(HashMap::new()),
@@ -142,7 +149,7 @@ impl ExecutionManager {
         self.inner.context.set(Arc::downgrade(context)).map_err(|_| Error::Invalid("Bind Host Context: Assemble the Host Only Once".into()))
     }
     pub(crate) async fn submit_execution_command(&self, request: CommandsCreateRequest) -> Result<ExecutionCommandReceipt> {
-        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let (sender, receiver) = oneshot::channel();
         {
             let _admission = self.inner.admission.lock().await;
             self.admit("Submit Execution Command")?;
@@ -159,13 +166,13 @@ impl ExecutionManager {
         let _admission = self.inner.admission.lock().await;
         self.admit("Start Cycle")?;
         self.reap_finished().await?;
-        crate::execution::start(self.clone(), origins).await
+        execution::start(self.clone(), origins).await
     }
     pub(crate) async fn start_execution_mode(&self, execution: &str, mode: ExecutionMode) -> Result<Cycle> {
         let _admission = self.inner.admission.lock().await;
         self.admit("Start Execution")?;
         self.reap_finished().await?;
-        crate::execution::start_existing_mode(self.clone(), execution, mode).await
+        execution::start_existing_mode(self.clone(), execution, mode).await
     }
     fn admit(&self, action: &str) -> Result<()> {
         if self.is_shutting_down() {
@@ -222,7 +229,7 @@ impl ExecutionManager {
         Ok(())
     }
     async fn reap_finished(&self) -> Result<()> {
-        let tasks = std::mem::take(&mut *lock(&self.inner.tasks)?);
+        let tasks = mem::take(&mut *lock(&self.inner.tasks)?);
         let mut failure = None;
         for task in tasks {
             if !task.is_finished() {
@@ -239,8 +246,7 @@ impl ExecutionManager {
         Ok(())
     }
     pub(crate) fn spawn(&self, task: impl Future<Output = ()> + Send + 'static) -> Result<()> {
-        let runtime = tokio::runtime::Handle::try_current()
-            .map_err(|_| Error::Invalid("Start Host Work: Run the Host Inside Its Tokio Runtime".into()))?;
+        let runtime = Handle::try_current().map_err(|_| Error::Invalid("Start Host Work: Run the Host Inside Its Tokio Runtime".into()))?;
         let mut tasks = lock(&self.inner.tasks)?;
         tasks.push(runtime.spawn(task));
         Ok(())
@@ -259,7 +265,7 @@ impl ExecutionManager {
             self.inner.store.save_cycle(&CycleSummary {
                 cycle_id: identifier.into(),
                 continue_automatically: true,
-                created_at: Some(prost_types::Timestamp {
+                created_at: Some(Timestamp {
                     seconds: now.div_euclid(1_000_000_000),
                     nanos: now.rem_euclid(1_000_000_000) as i32,
                 }),
@@ -367,7 +373,7 @@ impl ExecutionManager {
         }
         // Cleanup Must Not Wait for a New Operator Question During Shutdown
         self.inner.prompts.close_admission()?;
-        let tasks = std::mem::take(&mut *lock(&self.inner.tasks)?);
+        let tasks = mem::take(&mut *lock(&self.inner.tasks)?);
         let mut failure = None;
         for task in tasks {
             if let Err(error) = task.await {

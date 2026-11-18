@@ -559,6 +559,10 @@ pub struct ProgressWatchResponse {
     pub phase: ::prost::alloc::string::String,
     #[prost(bool, tag = "5")]
     pub finished: bool,
+    #[prost(bool, tag = "6")]
+    pub sealed: bool,
+    #[prost(message, optional, tag = "7")]
+    pub outcome: ::core::option::Option<super::ExecutionOutcome>,
 }
 #[allow(clippy::all)]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]

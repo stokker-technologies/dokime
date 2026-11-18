@@ -318,6 +318,22 @@ class ExecutionsCancelResponse(_message.Message):
     receipt: _receipt_pb2.Receipt
     def __init__(self, execution: _Optional[_Union[ExecutionDetail, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
 
+class ExecutionsSealRequest(_message.Message):
+    __slots__ = ("name", "request_id")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    request_id: str
+    def __init__(self, name: _Optional[str] = ..., request_id: _Optional[str] = ...) -> None: ...
+
+class ExecutionsSealResponse(_message.Message):
+    __slots__ = ("outcome", "receipt")
+    OUTCOME_FIELD_NUMBER: _ClassVar[int]
+    RECEIPT_FIELD_NUMBER: _ClassVar[int]
+    outcome: ExecutionOutcome
+    receipt: _receipt_pb2.Receipt
+    def __init__(self, outcome: _Optional[_Union[ExecutionOutcome, _Mapping]] = ..., receipt: _Optional[_Union[_receipt_pb2.Receipt, _Mapping]] = ...) -> None: ...
+
 class ExecutionsDeleteRequest(_message.Message):
     __slots__ = ("name", "request_id")
     NAME_FIELD_NUMBER: _ClassVar[int]

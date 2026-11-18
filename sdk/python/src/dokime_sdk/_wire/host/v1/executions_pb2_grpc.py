@@ -81,6 +81,11 @@ class ExecutionsStub:
                 request_serializer=dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsCancelRequest.SerializeToString,
                 response_deserializer=dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsCancelResponse.FromString,
                 _registered_method=True)
+        self.Seal = channel.unary_unary(
+                '/dokime.host.v1.Executions/Seal',
+                request_serializer=dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsSealRequest.SerializeToString,
+                response_deserializer=dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsSealResponse.FromString,
+                _registered_method=True)
         self.Delete = channel.unary_unary(
                 '/dokime.host.v1.Executions/Delete',
                 request_serializer=dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsDeleteRequest.SerializeToString,
@@ -164,6 +169,14 @@ class ExecutionsServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Seal(self, request, context):
+        """Return the outcome automatically sealed by a completed run; repetition returns the same outcome.
+        Refuse running and never-started executions without starting, cancelling or waiting for work.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Delete(self, request, context):
         """Delete the Executions resource; admission and policy are owned by the executor.
         """
@@ -227,6 +240,11 @@ def add_ExecutionsServicer_to_server(servicer, server):
                     servicer.Cancel,
                     request_deserializer=dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsCancelRequest.FromString,
                     response_serializer=dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsCancelResponse.SerializeToString,
+            ),
+            'Seal': grpc.unary_unary_rpc_method_handler(
+                    servicer.Seal,
+                    request_deserializer=dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsSealRequest.FromString,
+                    response_serializer=dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsSealResponse.SerializeToString,
             ),
             'Delete': grpc.unary_unary_rpc_method_handler(
                     servicer.Delete,
@@ -467,6 +485,33 @@ class Executions:
             '/dokime.host.v1.Executions/Cancel',
             dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsCancelRequest.SerializeToString,
             dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsCancelResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Seal(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dokime.host.v1.Executions/Seal',
+            dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsSealRequest.SerializeToString,
+            dokime_dot_host_dot_v1_dot_executions__pb2.ExecutionsSealResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -90,6 +90,10 @@ struct ExecutionsCancelOptions {
   std::optional<std::string> request_id;
   std::shared_ptr<grpc::ClientContext> context;
 };
+struct ExecutionsSealOptions {
+  std::optional<std::string> request_id;
+  std::shared_ptr<grpc::ClientContext> context;
+};
 struct ExecutionsDeleteOptions {
   std::optional<std::string> request_id;
   std::shared_ptr<grpc::ClientContext> context;
@@ -2227,6 +2231,18 @@ struct ExecutionsResource {
     const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Cancel(context.get(), request, &response);
     if (!status.ok()) {
       throw std::runtime_error("Call executions.cancel: " + status.error_message());
+    }
+    return response;
+  }
+  ::dokime::client::ExecutionsSealResponse seal(const std::string &name, client::ExecutionsSealOptions options = {}) {
+    detail::packages::dokime::host::ExecutionsSealRequest request;
+    request.set_name(name);
+    request.set_request_id(options.request_id ? *options.request_id : ::harmos::detail::request_id());
+    auto context = options.context ? options.context : std::make_shared<grpc::ClientContext>();
+    detail::packages::dokime::host::ExecutionsSealResponse response;
+    const auto status = detail::packages::dokime::host::Executions::NewStub(channel)->Seal(context.get(), request, &response);
+    if (!status.ok()) {
+      throw std::runtime_error("Call executions.seal: " + status.error_message());
     }
     return response;
   }

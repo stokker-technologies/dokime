@@ -582,6 +582,7 @@ using ::dokime::detail::payloads::client::ExecutionSelection;
 using ::dokime::detail::payloads::client::ExecutionsGetResponse;
 using ::dokime::detail::payloads::client::ExecutionsListResponse;
 using ::dokime::detail::payloads::client::ExecutionsParametersResponse;
+using ::dokime::detail::payloads::client::ExecutionsSealResponse;
 using ::dokime::detail::payloads::client::ExecutionsSetResponse;
 using ::dokime::detail::payloads::client::ExecutionsStartResponse;
 using ::dokime::detail::payloads::client::ExecutionsStepsResponse;

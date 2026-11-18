@@ -793,6 +793,10 @@ from dokime_sdk._wire.host.v1.executions_pb2 import ExecutionsParametersResponse
 
 ExecutionsParametersResponse.__module__ = "dokime_sdk.client"
 ExecutionsParametersResponse.__qualname__ = "ExecutionsParametersResponse"
+from dokime_sdk._wire.host.v1.executions_pb2 import ExecutionsSealResponse
+
+ExecutionsSealResponse.__module__ = "dokime_sdk.client"
+ExecutionsSealResponse.__qualname__ = "ExecutionsSealResponse"
 from dokime_sdk._wire.host.v1.executions_pb2 import ExecutionsSetResponse
 
 ExecutionsSetResponse.__module__ = "dokime_sdk.client"
@@ -2039,6 +2043,7 @@ __all__ = [
     "ExecutionsGetResponse",
     "ExecutionsListResponse",
     "ExecutionsParametersResponse",
+    "ExecutionsSealResponse",
     "ExecutionsSetResponse",
     "ExecutionsStartResponse",
     "ExecutionsStepsResponse",

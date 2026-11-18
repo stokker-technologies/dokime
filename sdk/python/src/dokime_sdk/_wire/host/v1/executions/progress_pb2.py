@@ -22,13 +22,14 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
+from dokime_sdk._wire.host.v1 import executions_pb2 as dokime_dot_host_dot_v1_dot_executions__pb2
 from dokime_sdk._wire.model.v1 import execution_pb2 as dokime_dot_model_dot_v1_dot_execution__pb2
 from harmos._wire.model.v1 import callers_pb2 as harmos_dot_model_dot_v1_dot_callers__pb2
 from harmos._wire.model.v1 import position_pb2 as harmos_dot_model_dot_v1_dot_position__pb2
 from harmos._wire.model.v1 import receipt_pb2 as harmos_dot_model_dot_v1_dot_receipt__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n(dokime/host/v1/executions/progress.proto\x12\x19\x64okime.host.v1.executions\x1a\x1f\x64okime/model/v1/execution.proto\x1a\x1dharmos/model/v1/callers.proto\x1a\x1eharmos/model/v1/position.proto\x1a\x1dharmos/model/v1/receipt.proto\"c\n\x12ProgressGetRequest\x12\x11\n\x04name\x18\x01 \x01(\tH\x00\x88\x01\x01\x12*\n\x02\x61t\x18\x02 \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x01\x88\x01\x01\x42\x07\n\x05_nameB\x05\n\x03_at\"\x8f\x01\n\x13ProgressGetResponse\x12\x36\n\x05value\x18\x01 \x01(\x0b\x32\'.dokime.model.v1.ExecutionProgressValue\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12.\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x19.harmos.model.v1.Position\"W\n\x14ProgressWatchRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12*\n\x02\x61t\x18\x02 \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x00\x88\x01\x01\x42\x05\n\x03_at\"\xb2\x01\n\x15ProgressWatchResponse\x12\x36\n\x05value\x18\x01 \x01(\x0b\x32\'.dokime.model.v1.ExecutionProgressValue\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12.\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x19.harmos.model.v1.Position\x12\r\n\x05phase\x18\x04 \x01(\t\x12\x10\n\x08\x66inished\x18\x05 \x01(\x08\"\x97\x01\n\x12ProgressSetRequest\x12\x11\n\x04name\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x36\n\x05value\x18\x02 \x01(\x0b\x32\'.dokime.model.v1.ExecutionProgressValue\x12\x19\n\x11\x65xpected_revision\x18\x03 \x01(\x0c\x12\x12\n\nrequest_id\x18\x04 \x01(\tB\x07\n\x05_name\"\x8a\x01\n\x13ProgressSetResponse\x12\x36\n\x05value\x18\x01 \x01(\x0b\x32\'.dokime.model.v1.ExecutionProgressValue\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12)\n\x07receipt\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.Receipt2\xd6\x02\n\x08Progress\x12j\n\x03Get\x12-.dokime.host.v1.executions.ProgressGetRequest\x1a..dokime.host.v1.executions.ProgressGetResponse\"\x04\xc8\xf3\x18\x03\x12r\n\x05Watch\x12/.dokime.host.v1.executions.ProgressWatchRequest\x1a\x30.dokime.host.v1.executions.ProgressWatchResponse\"\x04\xc8\xf3\x18\x01\x30\x01\x12j\n\x03Set\x12-.dokime.host.v1.executions.ProgressSetRequest\x1a..dokime.host.v1.executions.ProgressSetResponse\"\x04\xc8\xf3\x18\x02\x42%\xaa\x02\"Dokime.Clients.ExecutionsResourcesb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n(dokime/host/v1/executions/progress.proto\x12\x19\x64okime.host.v1.executions\x1a\x1f\x64okime/host/v1/executions.proto\x1a\x1f\x64okime/model/v1/execution.proto\x1a\x1dharmos/model/v1/callers.proto\x1a\x1eharmos/model/v1/position.proto\x1a\x1dharmos/model/v1/receipt.proto\"c\n\x12ProgressGetRequest\x12\x11\n\x04name\x18\x01 \x01(\tH\x00\x88\x01\x01\x12*\n\x02\x61t\x18\x02 \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x01\x88\x01\x01\x42\x07\n\x05_nameB\x05\n\x03_at\"\x8f\x01\n\x13ProgressGetResponse\x12\x36\n\x05value\x18\x01 \x01(\x0b\x32\'.dokime.model.v1.ExecutionProgressValue\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12.\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x19.harmos.model.v1.Position\"W\n\x14ProgressWatchRequest\x12\x0c\n\x04name\x18\x01 \x01(\t\x12*\n\x02\x61t\x18\x02 \x01(\x0b\x32\x19.harmos.model.v1.PositionH\x00\x88\x01\x01\x42\x05\n\x03_at\"\xf5\x01\n\x15ProgressWatchResponse\x12\x36\n\x05value\x18\x01 \x01(\x0b\x32\'.dokime.model.v1.ExecutionProgressValue\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12.\n\x0bresolved_at\x18\x03 \x01(\x0b\x32\x19.harmos.model.v1.Position\x12\r\n\x05phase\x18\x04 \x01(\t\x12\x10\n\x08\x66inished\x18\x05 \x01(\x08\x12\x0e\n\x06sealed\x18\x06 \x01(\x08\x12\x31\n\x07outcome\x18\x07 \x01(\x0b\x32 .dokime.host.v1.ExecutionOutcome\"\x97\x01\n\x12ProgressSetRequest\x12\x11\n\x04name\x18\x01 \x01(\tH\x00\x88\x01\x01\x12\x36\n\x05value\x18\x02 \x01(\x0b\x32\'.dokime.model.v1.ExecutionProgressValue\x12\x19\n\x11\x65xpected_revision\x18\x03 \x01(\x0c\x12\x12\n\nrequest_id\x18\x04 \x01(\tB\x07\n\x05_name\"\x8a\x01\n\x13ProgressSetResponse\x12\x36\n\x05value\x18\x01 \x01(\x0b\x32\'.dokime.model.v1.ExecutionProgressValue\x12\x10\n\x08revision\x18\x02 \x01(\x0c\x12)\n\x07receipt\x18\x03 \x01(\x0b\x32\x18.harmos.model.v1.Receipt2\xd6\x02\n\x08Progress\x12j\n\x03Get\x12-.dokime.host.v1.executions.ProgressGetRequest\x1a..dokime.host.v1.executions.ProgressGetResponse\"\x04\xc8\xf3\x18\x03\x12r\n\x05Watch\x12/.dokime.host.v1.executions.ProgressWatchRequest\x1a\x30.dokime.host.v1.executions.ProgressWatchResponse\"\x04\xc8\xf3\x18\x01\x30\x01\x12j\n\x03Set\x12-.dokime.host.v1.executions.ProgressSetRequest\x1a..dokime.host.v1.executions.ProgressSetResponse\"\x04\xc8\xf3\x18\x02\x42%\xaa\x02\"Dokime.Clients.ExecutionsResourcesb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -42,18 +43,18 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_PROGRESS'].methods_by_name['Watch']._serialized_options = b'\310\363\030\001'
   _globals['_PROGRESS'].methods_by_name['Set']._loaded_options = None
   _globals['_PROGRESS'].methods_by_name['Set']._serialized_options = b'\310\363\030\002'
-  _globals['_PROGRESSGETREQUEST']._serialized_start=198
-  _globals['_PROGRESSGETREQUEST']._serialized_end=297
-  _globals['_PROGRESSGETRESPONSE']._serialized_start=300
-  _globals['_PROGRESSGETRESPONSE']._serialized_end=443
-  _globals['_PROGRESSWATCHREQUEST']._serialized_start=445
-  _globals['_PROGRESSWATCHREQUEST']._serialized_end=532
-  _globals['_PROGRESSWATCHRESPONSE']._serialized_start=535
-  _globals['_PROGRESSWATCHRESPONSE']._serialized_end=713
-  _globals['_PROGRESSSETREQUEST']._serialized_start=716
-  _globals['_PROGRESSSETREQUEST']._serialized_end=867
-  _globals['_PROGRESSSETRESPONSE']._serialized_start=870
-  _globals['_PROGRESSSETRESPONSE']._serialized_end=1008
-  _globals['_PROGRESS']._serialized_start=1011
-  _globals['_PROGRESS']._serialized_end=1353
+  _globals['_PROGRESSGETREQUEST']._serialized_start=231
+  _globals['_PROGRESSGETREQUEST']._serialized_end=330
+  _globals['_PROGRESSGETRESPONSE']._serialized_start=333
+  _globals['_PROGRESSGETRESPONSE']._serialized_end=476
+  _globals['_PROGRESSWATCHREQUEST']._serialized_start=478
+  _globals['_PROGRESSWATCHREQUEST']._serialized_end=565
+  _globals['_PROGRESSWATCHRESPONSE']._serialized_start=568
+  _globals['_PROGRESSWATCHRESPONSE']._serialized_end=813
+  _globals['_PROGRESSSETREQUEST']._serialized_start=816
+  _globals['_PROGRESSSETREQUEST']._serialized_end=967
+  _globals['_PROGRESSSETRESPONSE']._serialized_start=970
+  _globals['_PROGRESSSETRESPONSE']._serialized_end=1108
+  _globals['_PROGRESS']._serialized_start=1111
+  _globals['_PROGRESS']._serialized_end=1453
 # @@protoc_insertion_point(module_scope)

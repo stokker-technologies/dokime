@@ -61,6 +61,8 @@ use dokime_protocol::host::ExecutionsListRequest;
 use dokime_protocol::host::ExecutionsListResponse;
 use dokime_protocol::host::ExecutionsParametersRequest;
 use dokime_protocol::host::ExecutionsParametersResponse;
+use dokime_protocol::host::ExecutionsSealRequest;
+use dokime_protocol::host::ExecutionsSealResponse;
 use dokime_protocol::host::ExecutionsSetRequest;
 use dokime_protocol::host::ExecutionsSetResponse;
 use dokime_protocol::host::ExecutionsStartRequest;
@@ -633,6 +635,22 @@ pub struct ExecutionsCancelOptions {
     pub context: CallOptions,
 }
 impl Clone for ExecutionsCancelOptions {
+    fn clone(&self) -> Self {
+        Self {
+            request_id: self.request_id.clone(),
+            context: CallOptions {
+                metadata: self.context.metadata.clone(),
+                timeout: self.context.timeout,
+            },
+        }
+    }
+}
+#[derive(Default)]
+pub struct ExecutionsSealOptions {
+    pub request_id: Option<String>,
+    pub context: CallOptions,
+}
+impl Clone for ExecutionsSealOptions {
     fn clone(&self) -> Self {
         Self {
             request_id: self.request_id.clone(),
@@ -4213,6 +4231,32 @@ impl Executions {
             )
             .await
             .map_err(|error| action_error("executions.cancel", error))?;
+        let response = response.into_inner();
+        Ok(response)
+    }
+    pub async fn seal(&self, name: impl Into<String>) -> Result<ExecutionsSealResponse, tonic::Status> {
+        self.seal_with(name, ExecutionsSealOptions::default()).await
+    }
+    pub async fn seal_with(
+        &self, name: impl Into<String>, options: ExecutionsSealOptions,
+    ) -> Result<ExecutionsSealResponse, tonic::Status> {
+        let value = ExecutionsSealRequest {
+            name: name.into(),
+            request_id: match options.request_id {
+                Some(value) => value,
+                None => request_id()?,
+            },
+        };
+        let request = options.context.request(value);
+        let response = self
+            .client
+            .unary::<ExecutionsSealRequest, ExecutionsSealResponse>(
+                PathAndQuery::from_static("/dokime.host.v1.Executions/Seal"),
+                request,
+                ExecutionsSealResponse::default().descriptor(),
+            )
+            .await
+            .map_err(|error| action_error("executions.seal", error))?;
         let response = response.into_inner();
         Ok(response)
     }

@@ -187,6 +187,24 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
             assert_eq!(response.outcome, sealed.outcome);
             assert!(reattached.next().await?.is_none());
 
+            // A Retained Opening Cut Cannot Replay Pre-Seal Progress After Seal
+            let mut reattached = client
+                .executions
+                .progress
+                .watch_with(
+                    name.clone(),
+                    ExecutionsProgressWatchOptions {
+                        at: first.resolved_at.clone(),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let response = reattached.next().await?.ok_or("Watch Progress: Missing Sealed Opening")?;
+            assert!(response.sealed);
+            assert_eq!(response.value, terminal.value);
+            assert_eq!(response.outcome, terminal.outcome);
+            assert!(reattached.next().await?.is_none());
+
             // Whole-Value Replacement Clears Fields and Execution Detail Agrees
             let current = client
                 .executions

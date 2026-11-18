@@ -1,3 +1,4 @@
+from dokime_sdk._wire.host.v1 import executions_pb2 as _executions_pb2
 from dokime_sdk._wire.model.v1 import execution_pb2 as _execution_pb2
 from harmos._wire.model.v1 import callers_pb2 as _callers_pb2
 from harmos._wire.model.v1 import position_pb2 as _position_pb2
@@ -36,18 +37,22 @@ class ProgressWatchRequest(_message.Message):
     def __init__(self, name: _Optional[str] = ..., at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ...) -> None: ...
 
 class ProgressWatchResponse(_message.Message):
-    __slots__ = ("value", "revision", "resolved_at", "phase", "finished")
+    __slots__ = ("value", "revision", "resolved_at", "phase", "finished", "sealed", "outcome")
     VALUE_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_AT_FIELD_NUMBER: _ClassVar[int]
     PHASE_FIELD_NUMBER: _ClassVar[int]
     FINISHED_FIELD_NUMBER: _ClassVar[int]
+    SEALED_FIELD_NUMBER: _ClassVar[int]
+    OUTCOME_FIELD_NUMBER: _ClassVar[int]
     value: _execution_pb2.ExecutionProgressValue
     revision: bytes
     resolved_at: _position_pb2.Position
     phase: str
     finished: bool
-    def __init__(self, value: _Optional[_Union[_execution_pb2.ExecutionProgressValue, _Mapping]] = ..., revision: _Optional[bytes] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ..., phase: _Optional[str] = ..., finished: _Optional[bool] = ...) -> None: ...
+    sealed: bool
+    outcome: _executions_pb2.ExecutionOutcome
+    def __init__(self, value: _Optional[_Union[_execution_pb2.ExecutionProgressValue, _Mapping]] = ..., revision: _Optional[bytes] = ..., resolved_at: _Optional[_Union[_position_pb2.Position, _Mapping]] = ..., phase: _Optional[str] = ..., finished: _Optional[bool] = ..., sealed: _Optional[bool] = ..., outcome: _Optional[_Union[_executions_pb2.ExecutionOutcome, _Mapping]] = ...) -> None: ...
 
 class ProgressSetRequest(_message.Message):
     __slots__ = ("name", "value", "expected_revision", "request_id")

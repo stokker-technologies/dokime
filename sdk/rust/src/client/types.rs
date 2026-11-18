@@ -115,6 +115,7 @@ pub use crate::wire::host::ExecutionsDeleteResponse;
 pub use crate::wire::host::ExecutionsGetResponse;
 pub use crate::wire::host::ExecutionsListResponse;
 pub use crate::wire::host::ExecutionsParametersResponse;
+pub use crate::wire::host::ExecutionsSealResponse;
 pub use crate::wire::host::ExecutionsSetResponse;
 pub use crate::wire::host::ExecutionsStartResponse;
 pub use crate::wire::host::ExecutionsStepsResponse;

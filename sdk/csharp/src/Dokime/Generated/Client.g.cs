@@ -1724,6 +1724,28 @@ public sealed class ExecutionsResource
     }
     return response;
   }
+  public async Task<global::Dokime.Clients.ExecutionsSealResponse> Seal(string name, string? requestId = null, CallOptions context = default)
+  {
+    var request = new global::Dokime.Clients.ExecutionsSealRequest
+    {
+      Name = name,
+      RequestId = requestId ?? Guid.NewGuid().ToString("N"),
+    };
+    var method = new Method<global::Dokime.Clients.ExecutionsSealRequest, global::Dokime.Clients.ExecutionsSealResponse>(MethodType.Unary, "dokime.host.v1.Executions", "Seal",
+        Marshallers.Create<global::Dokime.Clients.ExecutionsSealRequest>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsSealRequest.Parser.ParseFrom(bytes)),
+        Marshallers.Create<global::Dokime.Clients.ExecutionsSealResponse>(value => value.ToByteArray(), bytes => global::Dokime.Clients.ExecutionsSealResponse.Parser.ParseFrom(bytes)));
+    using var call = invoker.AsyncUnaryCall(method, null, context, request);
+    global::Dokime.Clients.ExecutionsSealResponse response;
+    try
+    {
+      response = await call.ResponseAsync;
+    }
+    catch (RpcException error)
+    {
+      throw new RpcException(new Status(error.StatusCode, "Call executions.seal: " + error.Status.Detail), error.Trailers);
+    }
+    return response;
+  }
   public async Task<global::Dokime.Clients.ExecutionsDeleteResponse> Delete(string name, string? requestId = null, CallOptions context = default)
   {
     var request = new global::Dokime.Clients.ExecutionsDeleteRequest

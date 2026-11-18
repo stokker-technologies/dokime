@@ -76,7 +76,9 @@ class ProgressServicer:
         raise NotImplementedError('Method not implemented!')
 
     def Watch(self, request, context):
-        """Observe durable changes to the Progress resource; admission and policy are owned by the executor.
+        """Observe current progress and updates through seal, then end after one sealed frame.
+        An already sealed execution yields one terminal frame. Clients require sealed=true
+        before accepting stream completion; an earlier end or error is incomplete observation.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

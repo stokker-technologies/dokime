@@ -578,6 +578,7 @@ using ::dokime::host::v1::ExecutionSelection;
 using ::dokime::host::v1::ExecutionsGetResponse;
 using ::dokime::host::v1::ExecutionsListResponse;
 using ::dokime::host::v1::ExecutionsParametersResponse;
+using ::dokime::host::v1::ExecutionsSealResponse;
 using ::dokime::host::v1::ExecutionsSetResponse;
 using ::dokime::host::v1::ExecutionsStartResponse;
 using ::dokime::host::v1::ExecutionsStepsResponse;

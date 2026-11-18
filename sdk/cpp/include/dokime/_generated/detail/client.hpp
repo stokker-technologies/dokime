@@ -230,6 +230,15 @@ namespace dokime::host {
 using ::dokime::host::v1::Executions;
 }
 namespace dokime::host {
+using ::dokime::host::v1::ExecutionsSealRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::ExecutionsSealResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Executions;
+}
+namespace dokime::host {
 using ::dokime::host::v1::ExecutionsDeleteRequest;
 }
 namespace dokime::host {

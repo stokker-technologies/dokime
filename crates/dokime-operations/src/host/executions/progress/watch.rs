@@ -75,7 +75,7 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
                             return;
                         }
                     };
-                    let sealed = !pinned_opening && cut.state == ExecutionState::Sealed;
+                    let sealed = cut.state == ExecutionState::Sealed;
                     if !sealed && let Some(failure) = live.failure {
                         let _ = sender.send(Err(Status::internal(format!("Watch Progress: {failure}")))).await;
                         return;
@@ -94,6 +94,26 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
                             let _ = sender.send(Err(crate::host::status(error))).await;
                             return;
                         }
+                    };
+                    // Validate a Requested Cut, Then Return Only Current Terminal Progress Once Sealed.
+                    let saved = if sealed && pinned_opening {
+                        match crate::host::executions::progress::get::handle(
+                            &context,
+                            ProgressGetRequest {
+                                name: Some(request.name.clone()),
+                                at: None,
+                            },
+                        )
+                        .await
+                        {
+                            Ok(saved) => saved,
+                            Err(error) => {
+                                let _ = sender.send(Err(crate::host::status(error))).await;
+                                return;
+                            }
+                        }
+                    } else {
+                        saved
                     };
                     let outcome = if sealed { cut.execution.outcome } else { None };
                     if sealed && outcome.as_ref().is_none_or(|outcome| outcome.attribution.is_none()) {
@@ -125,11 +145,11 @@ pub async fn handle(context: &Context, request: ProgressWatchRequest) -> Result<
                             return;
                         }
                     }
-                    if pinned_opening {
-                        continue;
-                    }
                     if sealed {
                         return;
+                    }
+                    if pinned_opening {
+                        continue;
                     }
                     if live.finished {
                         let _ = sender

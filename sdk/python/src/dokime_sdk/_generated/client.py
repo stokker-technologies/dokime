@@ -234,6 +234,8 @@ from dokime_sdk._wire.host.v1.executions_pb2 import (
     ExecutionsListResponse,
     ExecutionsParametersRequest,
     ExecutionsParametersResponse,
+    ExecutionsSealRequest,
+    ExecutionsSealResponse,
     ExecutionsSetRequest,
     ExecutionsSetResponse,
     ExecutionsStartRequest,
@@ -2737,6 +2739,28 @@ class ExecutionsResource:
             timeout=timeout,
             credentials=credentials,
             action="executions.cancel",
+        )
+        return response
+
+    async def seal(
+        self,
+        name: str,
+        *,
+        request_id: str | None = None,
+        call_metadata: Metadata | None = None,
+        timeout: float | None = None,
+        credentials: CallCredentials | None = None,
+    ) -> ExecutionsSealResponse:
+        request = ExecutionsSealRequest(name=name, request_id=request_id if request_id is not None else str(uuid4()))
+        response = await unary(
+            self._channel,
+            "/dokime.host.v1.Executions/Seal",
+            request,
+            ExecutionsSealResponse,
+            metadata=call_metadata,
+            timeout=timeout,
+            credentials=credentials,
+            action="executions.seal",
         )
         return response
 
