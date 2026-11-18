@@ -12,14 +12,14 @@ import { useCallback, useMemo, useState } from "react";
 
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import { updatePlotSettings } from "@/lib/api/native-documents";
 import { useReportDefaults } from "@/lib/application-settings";
 import { orderedDocumentSections } from "@/lib/document-layout";
-import { useLivePlotPayloads } from "@/plots/live-data";
 import { PlotSettingsButton } from "@/plots/PlotSettingsDialog";
-import { type PlotDisplaySettings, PlotSettingsEditorContext } from "@/plots/plot-settings";
+import { useLivePlotPayloads } from "@/plots/live-data";
+import { PlotSettingsEditorContext, type PlotDisplaySettings } from "@/plots/plot-settings";
+import { updatePlotSettings } from "../../lib/api/native-document-session";
 import { DocumentCardContent } from "./DocumentSurface";
-import { DocumentWorkspacePresentation, type DocumentWorkspaceViewProps, visibleDocumentPlots } from "./DocumentWorkspacePresentation";
+import { DocumentWorkspacePresentation, visibleDocumentPlots, type DocumentWorkspaceViewProps } from "./DocumentWorkspacePresentation";
 import { isDocumentSurfaceCard } from "./document-surface-policy";
 
 /* === Components === */

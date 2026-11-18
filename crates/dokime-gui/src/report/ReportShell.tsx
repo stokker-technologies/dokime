@@ -23,7 +23,6 @@ import { CycleSidebarCasesView } from "@/features/cycle/CycleSidebarCasesView";
 import { useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import { AppShellLayout, type FrozenShell } from "@/shell/AppShellLayout";
 import { SidebarFrame } from "@/shell/SidebarFrame";
-import { FrozenStatusBar } from "@/shell/StatusBarFrame";
 
 /* === Re-Exports === */
 
@@ -55,7 +54,7 @@ export function ReportShell({ children, frozen }: { children: ReactNode; frozen:
           </ul>
         </SidebarFrame>
       }
-      statusBar={<FrozenStatusBar status={frozen.status} />}
+      statusBar={null}
     >
       {children}
     </AppShellLayout>

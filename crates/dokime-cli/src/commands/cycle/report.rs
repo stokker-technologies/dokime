@@ -58,7 +58,6 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     let options = ReportsCreateOptions {
         context: settings.context()?,
         request_id: Some(settings.request_id(args.request_id)?),
-        ..Default::default()
     };
     let report = client.reports.create_with(subject, "", options).await?;
     let reference = report.file.ok_or("Fetch Report: Missing File Reference")?;

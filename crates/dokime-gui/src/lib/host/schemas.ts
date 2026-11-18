@@ -3,16 +3,17 @@
 
 /* === External Imports === */
 
-import { create, createFileRegistry, toBinary } from "@bufbuild/protobuf";
-import { FileDescriptorSetSchema, type FileDescriptorSet } from "@bufbuild/protobuf/wkt";
+import { create, type createFileRegistry, toBinary } from "@bufbuild/protobuf";
+import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import type { ExecutionDetail } from "@host/model";
+import { frozenRegistry } from "./schema-registry";
 
 /* === Local Imports === */
 
-import * as rpc from "./client";
+import { NATIVE_MAX_PAGES } from "@/lib/api/native-values";
 import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import { NATIVE_MAX_PAGES } from "@/lib/api/native-values";
+import * as rpc from "./client";
 
 /* === Classes === */
 
@@ -78,15 +79,6 @@ export class FrozenSchemaCache {
 
 /* === Constants === */
 
-export function recordMessage(
-  registry: ReturnType<typeof createFileRegistry>,
-  identity: string,
-  records?: readonly { recordType: string; messageName: string }[],
-) {
-  const name = records ? records.find((record) => record.recordType === identity)?.messageName : identity;
-  return name ? registry.getMessage(name) : undefined;
-}
-
 const caches = new Map<string, FrozenSchemaCache>();
 
 /* === Public Functions === */
@@ -99,23 +91,4 @@ export function executionSchemas(session: SessionIdentity): FrozenSchemaCache {
     caches.set(session.generation, cache);
   }
   return cache;
-}
-
-/** Descriptor Inventories Are Unordered; Resolve Imports After Verifying Their Original Bytes. */
-function frozenRegistry(types: FileDescriptorSet): ReturnType<typeof createFileRegistry> {
-  const pending = new Map(types.file.map((file) => [file.name, file]));
-  if (pending.size !== types.file.length) throw new Error("Read Schemas: Duplicate Descriptor File");
-  const ordered: FileDescriptorSet["file"] = [];
-  const ready = new Set<string>();
-  while (pending.size) {
-    const before = pending.size;
-    for (const [name, file] of pending) {
-      if (!file.dependency.every((dependency) => ready.has(dependency))) continue;
-      ordered.push(file);
-      ready.add(name);
-      pending.delete(name);
-    }
-    if (pending.size === before) throw new Error(`Read Schemas: Missing or Cyclic Descriptor Imports in ${[...pending.keys()].join(", ")}`);
-  }
-  return createFileRegistry(create(FileDescriptorSetSchema, { file: ordered }));
 }

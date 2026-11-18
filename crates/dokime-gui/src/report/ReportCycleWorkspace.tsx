@@ -26,7 +26,6 @@ import {
   buildCycleCases,
   buildCycleExecutionRows,
   type CycleSelection,
-  cycleState,
   finishedCaseCount,
   isUnstartedExecution,
   selectedCycleRow,
@@ -37,6 +36,7 @@ import { ExecutionSectionsView } from "@/features/cycle/ExecutionSectionsView";
 import { NodeSummary } from "@/features/cycle/NodeSummary";
 import { usePlotWindow } from "@/features/cycle/PlotWindowSlider";
 import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
+import { reportOutcome } from "./native-report";
 
 /* === Re-Exports === */
 
@@ -84,7 +84,6 @@ export function ReportCycleWorkspace({ selection, source }: ReportCycleWorkspace
       ? {
           cycleId: plan.test_cycle.test_cycle_id,
           executionId: started.test_execution_id,
-          caseId: started.case_id,
         }
       : row
         ? {
@@ -134,7 +133,7 @@ export function ReportCycleWorkspace({ selection, source }: ReportCycleWorkspace
           live={false}
           onRename={null}
           progress={`${finishedCaseCount(cases)} of ${cases.length} cases finished`}
-          status={cycleState(plan.test_cycle.phase, plan.test_cycle.status, false)}
+          status={reportOutcome(source)}
           subject="Cycle"
           title={plan.test_cycle.title}
         />

@@ -9,11 +9,11 @@
 
 /* === External Imports === */
 
+import { DokimeToaster } from "@/components/DokimeToaster";
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { failureOf } from "@/lib/notification-details";
 import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { DokimeToaster } from "@/components/DokimeToaster";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
@@ -49,13 +49,14 @@ const root = reportRoot();
 async function start(): Promise<void> {
   const text = document.getElementById("hub-report-data")?.textContent?.trim();
   if (!text) throw new Error("Report data is unavailable.");
-  const [{ readReportPayload }, { ReportApp }] = await Promise.all([import("./report-data"), import("./ReportApp")]);
-  const payload = readReportPayload();
-  const brand = applyReportAppearance(payload.appearance);
+  const [{ readReportCapture, materializeReport }, { ReportApp }] = await Promise.all([import("./native-report"), import("./ReportApp")]);
+  const capture = readReportCapture();
+  const { source, appearance } = await materializeReport(capture);
+  const brand = applyReportAppearance(appearance);
   root.render(
     <StrictMode>
       <BrandProvider brand={brand}>
-        <ReportApp payload={payload} />
+        <ReportApp source={source} />
       </BrandProvider>
     </StrictMode>,
   );

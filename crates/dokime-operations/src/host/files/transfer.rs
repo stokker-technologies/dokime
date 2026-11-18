@@ -73,6 +73,7 @@ pub(crate) async fn mutation(context: &Context, action: &str, request_id: &str) 
     let scope = context.caller.as_ref().map_or("", |caller| caller.execution.as_str());
     let digest = Sha256::digest(format!("{scope}/{action}/{request_id}"));
     let key = Identifier::new(crate::host::views::hex(&digest)).map_err(|cause| Error::Invalid(format!("{action}: {cause}")))?;
+    tracing::debug!(action, request_id, window = %window.id, mutation = %key, "Admit Storage Mutation");
     Ok(MutationId { window: window.id, key })
 }
 pub(crate) fn staged(upload: &Upload) -> Result<StagedFile> {

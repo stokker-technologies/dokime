@@ -25,7 +25,11 @@ use std::{
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tonic::server::{Grpc, NamedService, UnaryService};
-use tonic::{Request, Response, Status, codegen::BoxFuture};
+use tonic::{
+    Request, Response, Status,
+    codegen::{self, BoxFuture},
+};
+use tonic_prost::ProstCodec;
 
 // Local Imports
 use dokime_sdk::History;
@@ -78,7 +82,7 @@ impl NamedService for Storage {
     const NAME: &'static str = "dokime.host.v1.Files";
 }
 
-impl tonic::codegen::Service<HttpRequest> for Content {
+impl codegen::Service<HttpRequest> for Content {
     type Response = HttpResponse;
     type Error = Infallible;
     type Future = BoxFuture<HttpResponse, Self::Error>;
@@ -89,16 +93,14 @@ impl tonic::codegen::Service<HttpRequest> for Content {
         let service = self.0.clone();
         Box::pin(async move {
             Ok(match request.uri().path() {
-                "/dokime.host.v1.content.Artifacts/Get" => {
-                    Grpc::new(tonic_prost::ProstCodec::default()).unary(Metadata(service), request).await
-                }
+                "/dokime.host.v1.content.Artifacts/Get" => Grpc::new(ProstCodec::default()).unary(Metadata(service), request).await,
                 _ => Status::unimplemented("Read Artifact: Fixture Route Is Unavailable").into_http(),
             })
         })
     }
 }
 
-impl tonic::codegen::Service<HttpRequest> for Storage {
+impl codegen::Service<HttpRequest> for Storage {
     type Response = HttpResponse;
     type Error = Infallible;
     type Future = BoxFuture<HttpResponse, Self::Error>;
@@ -109,8 +111,8 @@ impl tonic::codegen::Service<HttpRequest> for Storage {
         let service = self.0.clone();
         Box::pin(async move {
             Ok(match request.uri().path() {
-                "/dokime.host.v1.Files/Get" => Grpc::new(tonic_prost::ProstCodec::default()).unary(FileInformation, request).await,
-                "/dokime.host.v1.Files/Read" => Grpc::new(tonic_prost::ProstCodec::default()).unary(Download(service), request).await,
+                "/dokime.host.v1.Files/Get" => Grpc::new(ProstCodec::default()).unary(FileInformation, request).await,
+                "/dokime.host.v1.Files/Read" => Grpc::new(ProstCodec::default()).unary(Download(service), request).await,
                 _ => Status::unimplemented("Read File Bytes: Fixture Route Is Unavailable").into_http(),
             })
         })
@@ -155,8 +157,8 @@ impl UnaryService<FilesGetRequest> for FileInformation {
         Box::pin(async move {
             Ok(Response::new(FilesGetResponse {
                 file: request.into_inner().file,
-                chunk_bytes: 4096,
-                message_bytes: 32768,
+                chunk_bytes: 4 * 1024 * 1024,
+                message_bytes: 8 * 1024 * 1024,
                 resolved_at: Some(ReadCut {
                     positions: vec![Position {
                         history: Some(History {
@@ -216,7 +218,7 @@ impl UnaryService<FilesReadRequest> for Download {
 /* === Public Functions === */
 
 pub fn bytes() -> Vec<u8> {
-    (0..16_391).map(|index| (index % 251) as u8).collect()
+    (0..4 * 1024 * 1024 + 391).map(|index| (index % 251) as u8).collect()
 }
 
 /* === Private Functions === */

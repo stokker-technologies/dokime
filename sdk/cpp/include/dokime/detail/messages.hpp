@@ -342,8 +342,6 @@ inline constexpr auto ANSWER_OPERATOR_LE = static_cast<::dokime::model::v1::Answ
 inline constexpr auto ANSWER_OPERATOR_CONTAINS = static_cast<::dokime::model::v1::AnswerOperator>(9);
 inline constexpr auto ANSWER_OPERATOR_STARTS_WITH = static_cast<::dokime::model::v1::AnswerOperator>(10);
 inline constexpr auto ANSWER_OPERATOR_ENDS_WITH = static_cast<::dokime::model::v1::AnswerOperator>(11);
-using ::dokime::host::v1::SecretsGetResponse;
-using ::dokime::host::v1::SecretWritable;
 using ::dokime::model::v1::DynamicDefault;
 using ::dokime::model::v1::DynamicDefaultKey;
 using ::dokime::model::v1::FileParameter;
@@ -368,6 +366,8 @@ inline constexpr auto PARAMETER_BINARY_OPERATOR_ADD = static_cast<::dokime::mode
 inline constexpr auto PARAMETER_BINARY_OPERATOR_SUBTRACT = static_cast<::dokime::model::v1::ParameterBinaryOperator>(2);
 inline constexpr auto PARAMETER_BINARY_OPERATOR_MULTIPLY = static_cast<::dokime::model::v1::ParameterBinaryOperator>(3);
 inline constexpr auto PARAMETER_BINARY_OPERATOR_DIVIDE = static_cast<::dokime::model::v1::ParameterBinaryOperator>(4);
+using ::dokime::host::v1::SecretsGetResponse;
+using ::dokime::host::v1::SecretWritable;
 using ::dokime::model::v1::Listeners;
 using ::dokime::model::v1::RecordContract;
 using ::dokime::model::v1::RecordContracts;
@@ -917,12 +917,18 @@ inline constexpr auto PROMPT_KIND_FORM = static_cast<::dokime::host::v1::PromptK
 inline constexpr auto PROMPT_KIND_CHOICE = static_cast<::dokime::host::v1::PromptKind>(3);
 inline constexpr auto PROMPT_KIND_STATUS = static_cast<::dokime::host::v1::PromptKind>(4);
 inline constexpr auto PROMPT_KIND_VERIFICATION = static_cast<::dokime::host::v1::PromptKind>(5);
+using ::dokime::host::v1::ReportCapture;
+using ::dokime::host::v1::ReportCase;
+using ::dokime::host::v1::ReportExecution;
+using ::dokime::host::v1::ReportFile;
 using ::dokime::host::v1::ReportMetadata;
 using ::dokime::host::v1::ReportOrigin;
 using ::dokime::host::v1::ReportsCreateResponse;
 using ::dokime::host::v1::ReportsGetResponse;
 using ::dokime::host::v1::ReportsPublishResponse;
 using ::dokime::host::v1::ReportSubject;
+using ::dokime::host::v1::SuitesGetResponse;
+using ::dokime::host::v1::SuitesListResponse;
 using ::dokime::host::v1::prompts::AnswersCreateResponse;
 inline constexpr auto REPORT_ORIGIN_UNSPECIFIED = static_cast<::dokime::host::v1::ReportOrigin>(0);
 inline constexpr auto REPORT_ORIGIN_SEALED = static_cast<::dokime::host::v1::ReportOrigin>(1);
@@ -1003,8 +1009,6 @@ inline constexpr auto THEME_MODE_LIGHT = static_cast<::dokime::host::v1::ThemeMo
 inline constexpr auto THEME_MODE_DARK = static_cast<::dokime::host::v1::ThemeMode>(3);
 using ::dokime::host::v1::StreamSchemasGetResponse;
 using ::dokime::host::v1::StreamSchemasListResponse;
-using ::dokime::host::v1::SuitesGetResponse;
-using ::dokime::host::v1::SuitesListResponse;
 using ::dokime::host::v1::storage::SourcesGetResponse;
 using ::dokime::host::v1::storage::SourcesSetResponse;
 using ::dokime::host::v1::storage::StorageSource;

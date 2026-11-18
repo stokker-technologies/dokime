@@ -427,7 +427,6 @@ fn client_pairs_and_rotates_remote_access() -> Result<(), Box<dyn Error>> {
                         ((request.clone()).subject).unwrap_or_default(),
                         (request.clone()).document_id,
                         ReportsCreateOptions {
-                            at: (request.clone()).at,
                             request_id: Some((request.clone()).request_id),
                             context: context_request,
                         }

@@ -21,7 +21,7 @@ import { realpath } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import { setTimeout } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 // Third Party Imports
@@ -114,10 +114,10 @@ export class ReportBrowser {
           browser.target = target;
           browser.tabs.add(target.id);
         }
-        await browser.mounted(target, url, signal);
-        response.writeHead(204).end();
-      } catch {
-        response.writeHead(400).end("Owned report browser refused the request");
+        const reader = await browser.mounted(target, url, signal);
+        response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(reader));
+      } catch (error) {
+        response.writeHead(400).end(`Owned report browser refused the request: ${String(error)}`);
       }
     });
     try {
@@ -133,7 +133,7 @@ export class ReportBrowser {
         )
           break;
         if (Date.now() >= deadline) throw new Error("Owned report browser startup timed out");
-        await delay(100);
+        await setTimeout(100);
       }
       await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
       const listening = server.address();
@@ -147,7 +147,11 @@ export class ReportBrowser {
     }
   }
 
-  private async mounted(target: Target, url: string, signal: AbortSignal): Promise<void> {
+  private async mounted(
+    target: Target,
+    url: string,
+    signal: AbortSignal,
+  ): Promise<{ headings: string[]; outcome: string; points: number }> {
     const socket = new WebSocket(target.webSocketDebuggerUrl);
     try {
       await once(socket, "open", { signal });
@@ -172,11 +176,26 @@ export class ReportBrowser {
               const ready = () => {
                 // Host Reports Are Self-Contained HTML With Frozen Evidence.
                 if (document.readyState !== 'complete') return false;
-                if (!document.querySelector('h1')?.textContent?.trim()) return false;
-                const identity = [...document.querySelectorAll('body > dl dt')].map(node => node.textContent);
-                if (!identity.includes('Execution') || !identity.includes('Cycle')) return false;
-                if (!document.querySelector('section h2') || !document.querySelector('section ol li')) return false;
-                resolve(true);
+                const report = document.querySelector('[data-execution-section=Report]');
+                if (!report) {
+                  document.querySelector('li[data-level=case] button[data-tree-select]')?.click();
+                  return false;
+                }
+                report.scrollIntoView({block:'start'});
+                const plot = report.querySelector('[data-plot-id]:has(.uplot canvas)');
+                if (!plot) return false;
+                const columns = [...plot.querySelectorAll('thead th')];
+                const count = columns.findIndex(node => node.textContent.trim() === 'Count');
+                const points = Math.max(0, ...[...plot.querySelectorAll('tbody tr')].map(row =>
+                  Number(row.children[count]?.textContent.replace(/[^0-9]/g, '') || 0)));
+                if (points === 0) return false;
+                const status = document.querySelector('[aria-label="Execution Status"]');
+                if (!status) return false;
+                resolve({
+                  headings: [...document.querySelectorAll('h1,h2,h3')].map(node => node.textContent.trim()),
+                  outcome: status.textContent.trim(),
+                  points,
+                });
                 return true;
               };
               if (ready()) return;
@@ -203,7 +222,7 @@ export class ReportBrowser {
         if (message.id !== sequence) continue;
         if (message.error?.message?.includes("context was destroyed")) continue;
         assert.ok(!message.error && !message.result?.exceptionDetails, JSON.stringify(message.error ?? message.result?.exceptionDetails));
-        if (message.result?.result?.value === true) return;
+        if (message.result?.result?.value?.headings) return message.result.result.value;
       }
       throw new Error("The owned report browser closed before rendering");
     } finally {
@@ -259,7 +278,7 @@ export class ReportBrowser {
         this.process.kill("SIGKILL");
         await Promise.race([
           exited,
-          delay(this.wait, undefined, { signal: timer.signal }).then(() => {
+          setTimeout(this.wait, undefined, { signal: timer.signal }).then(() => {
             throw new Error("Owned report browser did not exit");
           }),
         ]);

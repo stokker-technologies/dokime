@@ -16,12 +16,17 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::num::NonZeroUsize;
 
 // Third Party Imports
+use harmos_protocol::model::{Declarations, ReadCut, ResourceRevision};
+use prost::Message;
+use prost_types::Timestamp;
 
 // Local Imports
-use crate::{Error, Result, host::Context};
+use crate::host::{Context, cases, projection};
+use crate::{Error, Result};
 use dokime_protocol::host::ArchiveScope;
 use dokime_protocol::host::CaseActions;
 use dokime_protocol::host::CaseParameter;
@@ -39,19 +44,14 @@ use dokime_protocol::host::ResultStatus;
 use dokime_protocol::host::ResultSummary;
 use dokime_protocol::host::execution_outcome::Attribution;
 use dokime_protocol::model::ExecutionProgressValue;
+use dokime_protocol::model::Metadata;
 use dokime_protocol::model::Origin;
+use dokime_protocol::model::Suites;
 use dokime_protocol::model::Termination;
 use dokime_protocol::model::TestCase;
 use dokime_protocol::model::Value;
 use dokime_protocol::model::origin::Kind;
-use dokime_storage::{ExecutionSnapshot, ExecutionState};
-use harmos_protocol::model::ReadCut;
-use harmos_protocol::model::ResourceRevision;
-use prost::Message;
-use prost_types::Timestamp;
-use std::collections::BTreeSet;
-use std::collections::HashMap;
-use std::num::NonZeroUsize;
+use dokime_storage::{ExecutionCut, ExecutionSnapshot, ExecutionState, Store};
 
 /* === Constants === */
 
@@ -70,10 +70,7 @@ use std::num::NonZeroUsize;
 /* === Public Functions === */
 
 pub(crate) fn read(context: &Context, id: &str) -> Result<ExecutionSnapshot> {
-    if !context.host.store().identifiers()?.iter().any(|identifier| identifier == id) {
-        return Err(Error::NotFound("Inspect Execution: Select an Existing Execution".into()));
-    }
-    let cut = context.host.store().cut(id)?;
+    let cut = existing_cut(context, id)?;
     Ok(ExecutionSnapshot {
         execution: cut.execution,
         state: cut.state,
@@ -83,12 +80,21 @@ pub(crate) fn read(context: &Context, id: &str) -> Result<ExecutionSnapshot> {
     })
 }
 pub(crate) fn evidence(context: &Context, id: &str) -> Result<ExecutionSnapshot> {
-    let mut snapshot = read(context, id)?;
-    let cut = context.host.store().cut(id)?;
-    let limit = NonZeroUsize::new(context.settings.page_items).unwrap();
+    let store = context.host.store();
+    let cut = existing_cut(context, id)?;
+    evidence_at(&store, &cut, NonZeroUsize::new(context.settings.page_items).unwrap())
+}
+pub(crate) fn evidence_at(store: &Store, cut: &ExecutionCut, limit: NonZeroUsize) -> Result<ExecutionSnapshot> {
+    let mut snapshot = ExecutionSnapshot {
+        execution: cut.execution.clone(),
+        state: cut.state,
+        seal: cut.seal.clone(),
+        evidence: Vec::new(),
+        samples: Vec::new(),
+    };
     let mut after = 0;
     loop {
-        let page = context.host.store().evidence_page(id, after, cut.frontier, limit)?;
+        let page = store.evidence_page(&cut.execution.identifier, after, cut.frontier, limit)?;
         if page.is_empty() {
             break;
         }
@@ -126,8 +132,14 @@ pub(crate) fn snapshots(context: &Context, cycle: &str) -> Result<Vec<ExecutionS
 }
 pub(crate) fn summary(context: &Context, snapshot: &ExecutionSnapshot) -> Result<ExecutionSummary> {
     let (case_id, _, archived) = context.host.store().execution_presentation(&snapshot.execution.identifier)?;
-    let mut summary = crate::host::projection::summary(snapshot, context.host.controls(&snapshot.execution.identifier)?);
-    summary.case_id = case_id;
+    let mut summary = projection::summary(snapshot, context.host.controls(&snapshot.execution.identifier)?);
+    summary.case_id = if case_id.is_empty()
+        && matches!(snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(Kind::PluginRun(_)))
+    {
+        snapshot.execution.identifier.clone()
+    } else {
+        case_id
+    };
     summary.archived = archived;
     Ok(summary)
 }
@@ -144,6 +156,16 @@ pub(crate) async fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
             })
         })
         .ok_or_else(|| Error::NotFound("Inspect Cycle: Select an Existing Cycle".into()))?;
+    if cycle.metadata.as_ref().is_none_or(|metadata| metadata.label.is_empty()) {
+        for row in &rows {
+            if let Some((Some(metadata), _)) = template_metadata(row)?
+                && !metadata.label.is_empty()
+            {
+                cycle.metadata = Some(metadata);
+                break;
+            }
+        }
+    }
     let mut running = 0;
     let mut queued = 0;
     let mut paused = cycle.status == CycleStatus::Paused as i32;
@@ -153,14 +175,14 @@ pub(crate) async fn cycle(context: &Context, id: &str) -> Result<CycleSummary> {
         queued += u64::from(controls.can_start);
         paused |= controls.paused;
     }
-    let mut cases: BTreeSet<_> = crate::host::cases::storage::list(context, id).await?.into_iter().map(|case| case.case_id).collect();
+    let mut cases: BTreeSet<_> = cases::storage::list(context, id).await?.into_iter().map(|case| case.case_id).collect();
     for row in
         rows.iter().filter(|row| matches!(row.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()), Some(Kind::PluginRun(_))))
     {
         let (case, _, _) = context.host.store().execution_presentation(&row.execution.identifier)?;
         cases.insert(if case.is_empty() { row.execution.identifier.clone() } else { case });
     }
-    let counts = crate::host::projection::counts(rows.iter().filter_map(|row| row.execution.outcome.as_ref()));
+    let counts = projection::counts(rows.iter().filter_map(|row| row.execution.outcome.as_ref()));
     let mut result = ResultSummary {
         status: counts.result_status.unwrap_or(ResultStatus::Pending as i32),
         declared: counts.declared_count as u32,
@@ -210,7 +232,7 @@ pub(crate) async fn cycles(context: &Context) -> Result<Vec<CycleSummary>> {
 }
 pub(crate) async fn cases(context: &Context, cycle_id: &str) -> Result<Vec<CaseSummary>> {
     cycle(context, cycle_id).await?;
-    let mut cases: BTreeMap<_, _> = crate::host::cases::storage::list(context, cycle_id)
+    let mut cases: BTreeMap<_, _> = cases::storage::list(context, cycle_id)
         .await?
         .into_iter()
         .map(|case| {
@@ -247,6 +269,12 @@ pub(crate) async fn cases(context: &Context, cycle_id: &str) -> Result<Vec<CaseS
             },
             ..Default::default()
         });
+        if entry.metadata.as_ref().is_none_or(|metadata| metadata.label.is_empty())
+            && let Some((suite, metadata)) = template_metadata(&snapshot)?
+        {
+            entry.metadata = Some(metadata);
+            entry.suite_id = suite.map(|metadata| metadata.identifier).unwrap_or_default();
+        }
         entry.attempt_count += 1;
         entry.latest_execution_id = Some(snapshot.execution.identifier.clone());
         entry.latest_execution_status = Some(summary.state);
@@ -277,7 +305,7 @@ pub(crate) async fn planned(context: &Context, cycle: &str, case: &str) -> Resul
     if !cases(context, cycle).await?.iter().any(|entry| entry.case_id == case) {
         return Err(Error::NotFound("Inspect Case: Select a Case in This Cycle".into()));
     }
-    match crate::host::cases::storage::read(context, case, Some(cycle)).await {
+    match cases::storage::read(context, case, Some(cycle)).await {
         Ok(case) => return Ok(case),
         Err(Error::NotFound(_)) => {}
         Err(error) => return Err(error),
@@ -327,32 +355,27 @@ pub(crate) fn time(value: Option<Timestamp>) -> (i64, i32) {
 }
 
 pub(crate) fn detail(context: &Context, name: &str) -> Result<ExecutionDetail> {
-    let snapshot = crate::host::execution_state::read(context, name)?;
+    let snapshot = read(context, name)?;
     let progress = context.host.store().resource_value(name, "progress", None)?;
     let controls = context.host.controls(name)?;
-    let summary = crate::host::execution_state::summary(context, &snapshot)?;
+    let summary = summary(context, &snapshot)?;
     let outcomes = context.host.store().cycle_outcomes(&snapshot.execution.cycle)?;
-    let cycle_counts = crate::host::projection::counts(&outcomes);
+    let cycle_counts = projection::counts(&outcomes);
     let reports = context.host.store().reports(name)?;
-    let schemas = crate::host::projection::schemas(&snapshot)?;
+    let schemas = projection::schemas(&snapshot)?;
     let (started_at, finished_at) = context.host.store().execution_times(name)?;
     Ok(ExecutionDetail {
         progress: Some(ExecutionProgressValue::decode(progress.payload.as_slice())?),
         resolved_at: Some(progress.resolved_at),
-        started_at: started_at.map(crate::host::projection::timestamp),
-        finished_at: if snapshot.state == ExecutionState::Sealed { finished_at.map(crate::host::projection::timestamp) } else { None },
+        started_at: started_at.map(projection::timestamp),
+        finished_at: if snapshot.state == ExecutionState::Sealed { finished_at.map(projection::timestamp) } else { None },
         input_parameter_count: snapshot
             .execution
             .origin
             .as_ref()
-            .and_then(|origin| crate::host::execution_state::case(origin).ok())
+            .and_then(|origin| case(origin).ok())
             .map_or(0, |case| case.parameters.len() as u64),
-        step_count: snapshot
-            .execution
-            .origin
-            .as_ref()
-            .and_then(|origin| crate::host::execution_state::case(origin).ok())
-            .map_or(0, |case| case.steps.len() as u64),
+        step_count: snapshot.execution.origin.as_ref().and_then(|origin| case(origin).ok()).map_or(0, |case| case.steps.len() as u64),
         summary: Some(summary),
         controls: Some(controls),
         cycle_counts: Some(cycle_counts),
@@ -361,7 +384,7 @@ pub(crate) fn detail(context: &Context, name: &str) -> Result<ExecutionDetail> {
             ..Default::default()
         }),
         cycle_id: snapshot.execution.cycle.clone(),
-        scope: Some(crate::host::projection::scope(&snapshot)),
+        scope: Some(projection::scope(&snapshot)),
         origin: snapshot.execution.origin.clone(),
         outcome: snapshot.execution.outcome.clone(),
         seal: snapshot.seal.clone(),
@@ -371,5 +394,33 @@ pub(crate) fn detail(context: &Context, name: &str) -> Result<ExecutionDetail> {
 }
 
 /* === Private Functions === */
+
+fn template_metadata(snapshot: &ExecutionSnapshot) -> Result<Option<(Option<Metadata>, Metadata)>> {
+    let Some(Kind::PluginRun(run)) = snapshot.execution.origin.as_ref().and_then(|origin| origin.kind.as_ref()) else {
+        return Ok(None);
+    };
+    let catalog = Declarations::decode(snapshot.execution.catalog.as_slice())?;
+    for section in catalog.sections {
+        if section.r#type != "dokime.model.v1.Suites" {
+            continue;
+        }
+        for suite in Suites::decode(section.payload.as_slice())?.suites {
+            let metadata =
+                suite.templates.into_iter().filter_map(|template| template.metadata).find(|metadata| metadata.identifier == run.template);
+            if let Some(metadata) = metadata {
+                return Ok(Some((suite.metadata, metadata)));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn existing_cut(context: &Context, id: &str) -> Result<ExecutionCut> {
+    let store = context.host.store();
+    if !store.identifiers()?.iter().any(|identifier| identifier == id) {
+        return Err(Error::NotFound("Inspect Execution: Select an Existing Execution".into()));
+    }
+    Ok(store.cut(id)?)
+}
 
 /* === Tests === */

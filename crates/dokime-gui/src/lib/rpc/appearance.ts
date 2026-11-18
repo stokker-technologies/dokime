@@ -1,10 +1,10 @@
+import { logoVariant } from "../native-appearance";
 // Dokime — SPDX-License-Identifier: Apache-2.0
 // Native appearance resources. The session owner disposes resources when replaced.
 
 import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
-import type { Wire } from "./canonical.js";
 import * as rpc from "../host/client";
-import { LogoVariant } from "@host/model";
+import type { Wire } from "./canonical.js";
 
 import type { SessionIdentity } from "./transport.js";
 
@@ -68,20 +68,5 @@ export async function loadAppearance(session: SessionIdentity): Promise<Appearan
   } catch (error) {
     dispose();
     throw error;
-  }
-}
-
-function logoVariant(logo: AppearanceSnapshot["logos"][number]): RuntimeAppLogo["variant"] {
-  switch (logo.variant) {
-    case LogoVariant.TRANSPARENT_ON_LIGHT:
-      return "transparent_on_light";
-    case LogoVariant.TRANSPARENT_ON_DARK:
-      return "transparent_on_dark";
-    case LogoVariant.CONTAINED_ON_LIGHT:
-      return "contained_on_light";
-    case LogoVariant.CONTAINED_ON_DARK:
-      return "contained_on_dark";
-    default:
-      return invalid();
   }
 }

@@ -797,6 +797,24 @@ namespace dokime::host::prompts {
 using ::dokime::host::v1::prompts::Answers;
 }
 namespace dokime::host {
+using ::dokime::host::v1::SuitesGetRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::SuitesGetResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Suites;
+}
+namespace dokime::host {
+using ::dokime::host::v1::SuitesListRequest;
+}
+namespace dokime::host {
+using ::dokime::host::v1::SuitesListResponse;
+}
+namespace dokime::host {
+using ::dokime::host::v1::Suites;
+}
+namespace dokime::host {
 using ::dokime::host::v1::ReportsGetRequest;
 }
 namespace dokime::host {
@@ -948,24 +966,6 @@ using ::dokime::host::v1::StreamSchemasListResponse;
 }
 namespace dokime::host {
 using ::dokime::host::v1::StreamSchemas;
-}
-namespace dokime::host {
-using ::dokime::host::v1::SuitesGetRequest;
-}
-namespace dokime::host {
-using ::dokime::host::v1::SuitesGetResponse;
-}
-namespace dokime::host {
-using ::dokime::host::v1::Suites;
-}
-namespace dokime::host {
-using ::dokime::host::v1::SuitesListRequest;
-}
-namespace dokime::host {
-using ::dokime::host::v1::SuitesListResponse;
-}
-namespace dokime::host {
-using ::dokime::host::v1::Suites;
 }
 namespace harmos::host::access {
 using ::harmos::host::v1::access::CertificatesCreateRequest;

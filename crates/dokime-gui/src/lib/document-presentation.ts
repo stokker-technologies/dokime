@@ -19,8 +19,8 @@
 
 // Local Imports
 
-import { COMPACT_DECIMAL_CHARACTERS, formatCompactDecimal, formatUnitLabel } from "@/lib/format";
-import type { DocumentCardLayout, TelemetrySummaryTilePayload_Serialize } from "./document-contracts";
+import { COMPACT_DECIMAL_CHARACTERS, formatCompactDecimal, formatDecimal, formatUnitLabel } from "@/lib/format";
+import type { DocumentCardLayout, TelemetrySummaryFormat, TelemetrySummaryPresentation, TelemetrySummaryState } from "./document-contracts";
 import { formatRecordValue } from "./record-display";
 import type {
   DocumentDataExpression,
@@ -42,10 +42,15 @@ const DOCUMENTS_UNAVAILABLE_REASON_BYTES = 512;
 
 /* === Types === */
 
-type SummaryTile = Omit<TelemetrySummaryTilePayload_Serialize, "value" | "stat" | "metadata"> & {
+type SummaryTile = {
   metadata: Metadata;
   value: unknown;
-  stat?: TelemetrySummaryTilePayload_Serialize["stat"];
+  unavailable?: string | null;
+  stat?: "latest";
+  format: TelemetrySummaryFormat;
+  presentation: TelemetrySummaryPresentation;
+  unit?: string | null;
+  state?: TelemetrySummaryState | null;
 };
 
 type PlotDeclaration = Omit<Partial<DocumentViewPlot>, "fft" | "interval" | "histogram" | "reference_lines" | "reference_bands"> &
@@ -221,7 +226,9 @@ export function validateSummaryResult(tile: { value?: unknown; state?: unknown; 
 }
 
 export function unavailableReason(value: unknown): string | undefined {
-  if (value === undefined || value === null) return undefined;
+  if (value === undefined || value === null) {
+    return undefined;
+  }
   if (
     typeof value !== "string" ||
     !value.trim() ||
@@ -285,10 +292,14 @@ function expressionStream(expression?: DocumentDataExpression | null): string | 
 
 function expressionField(expression: DocumentDataExpression): string | null {
   const source = expression.source;
-  if (!isRecord(source)) return null;
+  if (!isRecord(source)) {
+    return null;
+  }
   for (const key of ["field", "name", "record_type", "artifact"]) {
     const field = source[key];
-    if (typeof field === "string" && field) return field;
+    if (typeof field === "string" && field) {
+      return field;
+    }
   }
   return null;
 }
@@ -299,7 +310,9 @@ function telemetryField(expression?: DocumentDataExpression | null): string | nu
 
 function documentValue(value: unknown): string {
   value = numericValue(value) ?? value;
-  if (typeof value === "number") return Number.isFinite(value) ? value.toLocaleString() : "-";
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? formatDecimal(value) : "-";
+  }
   return formatRecordValue(value, null);
 }
 
@@ -318,7 +331,9 @@ function summaryValue(value: unknown, format: SummaryTile["format"], unit?: stri
     typeof value.decimal === "string"
       ? value.decimal
       : null;
-  if (number === null && decimal === null) return { formatted: rendered, exact: rendered };
+  if (number === null && decimal === null) {
+    return { formatted: rendered, exact: rendered };
+  }
   if (format === "percent" && number !== null) {
     const percent = `${number.toFixed(Math.abs(number) >= 10 ? 0 : 1)}%`;
     return { formatted: percent, exact: percent };

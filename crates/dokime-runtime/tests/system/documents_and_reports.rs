@@ -17,17 +17,24 @@
 
 // Standard Library Imports
 use std::error::Error;
-use std::num::NonZeroUsize;
 
 // Third Party Imports
+use base64::{Engine, engine::general_purpose::STANDARD};
+use prost::Message;
 
 // Local Imports
-use dokime::Document;
-use dokime::FieldReference;
-use dokime::model::Section;
-use dokime_protocol::builders::Plot;
-use dokime_runtime::Host;
-use dokime_runtime::RenderSettings;
+use dokime_protocol::host::documents_client::DocumentsClient;
+use dokime_protocol::host::files_client::FilesClient;
+use dokime_protocol::host::plots::settings_client::SettingsClient;
+use dokime_protocol::host::plots::{PlotRequest, PlotSettingsValue, SettingsGetRequest, SettingsSetRequest};
+use dokime_protocol::host::reports_client::ReportsClient;
+use dokime_protocol::host::{
+    DocumentFrame, DocumentScope, DocumentsGetRequest, FilesReadRequest, ReportCapture, ReportSubject, ReportsCreateRequest,
+    ReportsPublishRequest, document_binding_result, document_frame_frame, report_subject,
+};
+use dokime_protocol::model::{Downsample, card};
+use dokime_runtime::{Host, services};
+use dokime_storage::Store;
 
 /* === Constants === */
 
@@ -45,6 +52,15 @@ use dokime_runtime::RenderSettings;
 
 /* === Public Functions === */
 
+pub(super) fn decode_report(html: &[u8]) -> Result<ReportCapture, Box<dyn Error>> {
+    let html = str::from_utf8(html)?;
+    let start = html.find("id=\"hub-report-data\"").or_else(|| html.find("id=hub-report-data")).ok_or("Report Data Element Is Missing")?;
+    let element = &html[start..];
+    let data = element.split_once('>').ok_or("Report Data Is Missing")?.1.split_once("</script>").ok_or("Report Data Is Incomplete")?.0;
+    let bytes = STANDARD.decode(data.trim())?;
+    Ok(ReportCapture::decode(bytes.as_slice())?)
+}
+
 /* === Private Functions === */
 
 /* === Tests === */
@@ -61,53 +77,171 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             let origin = host.materialize(&entry, "execution.capture", super::support::parameters(23.0, 0, true)).await?;
             let cycle = host.start_cycle(vec![origin]).await?;
             let execution = cycle.executions[0].clone();
+            let cycle_id = cycle.identifier.clone();
             let prompt = host.next_prompt(&execution).await?;
             super::support::answer(&host, &execution, prompt)?;
             let result = cycle.wait().await?;
-            let fixed = host.snapshot(&execution).await?;
             let before = host.execution(&execution)?;
-
-            // Render Real HTML with Bounded Stored-Sample Queries and No Publication
-            let settings = RenderSettings {
-                page_size: NonZeroUsize::new(2).unwrap(),
-                display_points: NonZeroUsize::new(3).unwrap(),
-            };
-            let output = host.render_document(&fixed, document.clone(), settings)?;
-            let html = output.html()?;
-            let text = std::str::from_utf8(&html)?;
-            assert!(text.contains("<svg") && text.contains("<polyline"));
-            assert!(text.contains(&format!("data-count=\"{}\"", result.executions[0].samples.len())));
-            assert!(output.path().is_file());
-            assert!(host.reports(&execution)?.is_empty());
-            assert_eq!(host.execution(&execution)?, before);
-            let one_at_a_time = host.render_document(
-                &fixed,
-                document.clone(),
-                RenderSettings {
-                    page_size: NonZeroUsize::new(1).unwrap(),
-                    ..settings
-                },
-            )?;
-            assert_eq!(one_at_a_time.html()?, html);
-
-            // Refuse an Unresolvable Plot Without Publishing Any Partial Output
-            let invalid = Document::new("Missing Field").section(
-                Section::new("Measurements").plot(Plot::time_series(FieldReference::new("execution.capture.reading").field("absent"))),
-            );
-            assert!(host.render_document(&fixed, invalid, settings).is_err());
-            assert!(host.reports(&execution)?.is_empty());
-
-            // Publish Explicitly and Reopen the Frozen Document and HTML
-            let published = host.publish_report(&output)?;
-            assert_eq!(published.document, Some(document));
-            assert_eq!(published.html, html);
-            assert_eq!(host.reports(&execution)?, vec![published.clone()]);
-            assert_eq!(host.execution(&execution)?, before);
-            let temporary = output.path().to_owned();
-            drop(output);
-            assert!(!temporary.exists());
             host.shutdown().await?;
             drop(host);
+
+            // Create Through the Active Host Operation Without Publication.
+            let server =
+                services::serve(([127, 0, 0, 1], 0).into(), root.path(), super::support::settings(), super::support::service_settings())
+                    .await?;
+            let endpoint = format!("http://{}", server.endpoint());
+            let mut reports = ReportsClient::connect(endpoint.clone()).await?;
+            let mut files = FilesClient::connect(endpoint.clone()).await?;
+            let mut documents = DocumentsClient::connect(endpoint.clone()).await?;
+            let mut settings = SettingsClient::connect(endpoint).await?;
+
+            // Save Native Plot Preferences Before Capturing Either Reader.
+            let document_id = document.metadata.as_ref().unwrap().identifier.clone();
+            let mut sections = document.sections.iter().collect::<Vec<_>>();
+            let mut plot_id = None;
+            while let Some(section) = sections.pop() {
+                for card in &section.cards {
+                    if let Some(card::Body::Plot(plot)) = card.body.as_ref() {
+                        plot_id = Some(plot.metadata.as_ref().unwrap().identifier.clone());
+                        break;
+                    }
+                }
+                if plot_id.is_some() {
+                    break;
+                }
+                sections.extend(section.sections.iter());
+            }
+            let plot_id = plot_id.ok_or("Fixture Has No Plot")?;
+            let scope = DocumentScope {
+                cycle_id: cycle_id.clone(),
+                execution_id: execution.clone(),
+            };
+            let current = settings
+                .get(SettingsGetRequest {
+                    scope: Some(scope.clone()),
+                    document_id: document_id.clone(),
+                    plot_id: plot_id.clone(),
+                    at: None,
+                })
+                .await?
+                .into_inner();
+            let preferences = PlotSettingsValue {
+                display_points: Some(3),
+                downsample: Downsample::MinMax as i32,
+            };
+            let saved = settings
+                .set(SettingsSetRequest {
+                    scope: Some(scope.clone()),
+                    document_id: document_id.clone(),
+                    plot_id: plot_id.clone(),
+                    value: Some(preferences),
+                    expected_revision: current.revision,
+                    request_id: "report-plot-preferences".into(),
+                })
+                .await?
+                .into_inner();
+            assert_eq!(saved.value, Some(preferences));
+            let plot_request = |frame: &DocumentFrame| -> Option<PlotRequest> {
+                let document_frame_frame::Kind::Binding(binding) = frame.frame.as_ref()?.kind.as_ref()? else {
+                    return None;
+                };
+                let document_binding_result::Kind::Plot(plot) = binding.result.as_ref()?.kind.as_ref()? else {
+                    return None;
+                };
+                (plot.metadata.as_ref()?.identifier == plot_id).then(|| plot.request.clone()).flatten()
+            };
+            let mut live_plot = None;
+            let mut page_token = String::new();
+            let mut at = None;
+            loop {
+                let reply = documents
+                    .get(DocumentsGetRequest {
+                        scope: Some(scope.clone()),
+                        document_id: document_id.clone(),
+                        page_token,
+                        at,
+                        ..Default::default()
+                    })
+                    .await?
+                    .into_inner();
+                live_plot = live_plot.or_else(|| reply.frames.iter().find_map(&plot_request));
+                if reply.next_page_token.is_empty() {
+                    break;
+                }
+                page_token = reply.next_page_token;
+                at = reply.resolved_at;
+            }
+            let live_plot = live_plot.ok_or("Document Has No Plot Binding")?;
+            assert_eq!(live_plot.max_points, preferences.display_points.map(u64::from));
+            assert_eq!(live_plot.technique, preferences.downsample);
+            let subject = ReportSubject {
+                kind: Some(report_subject::Kind::Execution(execution.clone())),
+            };
+            let prepared = reports
+                .create(ReportsCreateRequest {
+                    subject: Some(subject.clone()),
+                    document_id: String::new(),
+                    request_id: "document-report".into(),
+                })
+                .await?
+                .into_inner();
+            let file = prepared.file.unwrap();
+            let store = Store::open(root.path())?;
+            assert!(store.reports(&execution)?.is_empty());
+            assert_eq!(store.read(&execution)?, before);
+            let mut html = Vec::new();
+            let mut at = None;
+            while (html.len() as u64) < file.length {
+                let reply = files
+                    .read(FilesReadRequest {
+                        file: Some(file.clone()),
+                        offset: html.len() as u64,
+                        max_bytes: 0,
+                        at,
+                    })
+                    .await?
+                    .into_inner();
+                assert!(!reply.data.is_empty());
+                at = reply.resolved_at;
+                html.extend(reply.data);
+            }
+            let capture = decode_report(&html)?;
+            assert_eq!(capture.executions.len(), 1);
+            let captured = &capture.executions[0];
+            assert_eq!(captured.detail.as_ref().unwrap().execution.as_ref().unwrap().summary.as_ref().unwrap().execution_id, execution);
+            assert!(
+                captured
+                    .plots
+                    .as_ref()
+                    .unwrap()
+                    .envelopes
+                    .iter()
+                    .any(|plot| plot.diagnostics.as_ref().unwrap().raw_point_count == result.executions[0].samples.len() as u64)
+            );
+            let captured_document = captured.document.as_ref().unwrap();
+            assert!(!captured_document.frames.is_empty());
+            let captured_plot = captured_document.frames.iter().find_map(&plot_request).ok_or("Report Has No Plot Binding")?;
+            assert_eq!(captured_plot, live_plot);
+            assert_eq!(
+                captured.inputs.as_ref().unwrap().resolved_at.as_ref().unwrap().sequence,
+                prepared.resolved_at.as_ref().unwrap().positions[0].sequence
+            );
+
+            // Publication Retains the Same Inputs and File Across Restart.
+            reports
+                .publish(ReportsPublishRequest {
+                    name: file.metadata.unwrap().id,
+                    subject: Some(subject),
+                    expected_revision: file.sha256,
+                    request_id: "publish-document-report".into(),
+                })
+                .await?;
+            let published = store.reports(&execution)?.remove(0);
+            assert_eq!(published.document, Some(document));
+            assert_eq!(published.html, html);
+            assert_eq!(store.read(&execution)?, before);
+            server.close().await?;
+            drop(store);
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
             assert_eq!(host.reports(&execution)?, vec![published]);
             assert_eq!(host.execution(&execution)?, before);

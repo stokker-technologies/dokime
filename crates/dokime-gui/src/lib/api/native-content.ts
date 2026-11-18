@@ -13,24 +13,26 @@
 
 /* === Local Imports === */
 
-import * as desktopProtocol from "@generated/desktop-protocol";
-import * as hostModel from "@host/model";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import { EXECUTION_FILE_WINDOW_BYTES } from "@/lib/execution-file-paging";
-import { openNativeArtifactUpload } from "@/lib/rpc/artifact-upload";
-import { required, cutKey } from "@/lib/rpc/canonical";
-import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/host/client";
+import { openNativeArtifactUpload } from "@/lib/rpc/artifact-upload";
+import type { Wire } from "@/lib/rpc/canonical";
+import { cutKey, required } from "@/lib/rpc/canonical";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import type {
-  ArtifactRecord,
-  ExecutionFileFollowEvent,
-  ExecutionFileIdentity,
-  ExecutionFileLifecycle,
-  ExecutionFileReadWindow,
-} from "@/lib/types";
+import type { ArtifactRecord, ExecutionFileFollowEvent, ExecutionFileIdentity, ExecutionFileReadWindow } from "@/lib/types";
+import * as desktopProtocol from "@generated/desktop-protocol";
+import * as hostModel from "@host/model";
+import {
+  type ArtifactMetadata,
+  type ExecutionFileMetadata,
+  type NativeArtifactUploadOptions,
+  mapArtifactMetadata,
+  mapExecutionFile,
+  mapFileState,
+} from "./native-content-projection";
 import { deliverNativeArtifact } from "./native-delivery";
-import { NATIVE_MAX_PAGES, NativeApiLimitError, nowIso, safeNumber, sha256Hex, timestampIso } from "./native-values";
+import { NATIVE_MAX_PAGES, NativeApiLimitError, safeNumber, sha256Hex } from "./native-values";
 
 const GUI_CONTENT_BYTES = 2_147_483_648;
 const GUI_SMALL_PAGE_ITEMS = 100;
@@ -38,12 +40,8 @@ const GUI_SMALL_PAGE_ITEMS = 100;
 /* === Canonical Types === */
 
 type ArtifactScope = NonNullable<ArtifactMetadata["scope"]>;
-type ArtifactMetadata = Wire<Awaited<ReturnType<typeof rpc.contentArtifactsList>>>["artifacts"][number];
-type ExecutionFileMetadata = Wire<Awaited<ReturnType<typeof rpc.contentExecutionFilesList>>>["files"][number];
+
 type ExecutionFilesCursor = NonNullable<Wire<Awaited<ReturnType<typeof rpc.contentExecutionFilesList>>>["resolvedAt"]>;
-type ExecutionFileKind = ExecutionFileMetadata["kind"];
-type ExecutionFileState = ExecutionFileMetadata["state"];
-type ArtifactState = ArtifactMetadata["state"];
 
 const NATIVE_CONTENT_BYTES = GUI_CONTENT_BYTES;
 const NATIVE_UPLOAD_SLICE_BYTES = desktopProtocol.UPLOAD_SLICE_BYTES;
@@ -236,17 +234,6 @@ export async function openNativeArtifact(
   });
 }
 
-export type NativeArtifactUploadOptions = {
-  file: Blob;
-  filename: string;
-  label?: string | null;
-  description?: string | null;
-  mediaType?: string | null;
-  scope?: ArtifactRecord["scope"];
-  groupId?: string | null;
-  groupLabel?: string | null;
-};
-
 export async function uploadNativeArtifact(session: NativeContentSession, options: NativeArtifactUploadOptions): Promise<ArtifactRecord> {
   const scope = uploadScope(options.scope);
   const filename = operatorUploadName(options.filename);
@@ -308,29 +295,6 @@ export function uploadScope(scope: ArtifactRecord["scope"]): ArtifactScope {
   };
 }
 
-function mapArtifactMetadata(metadata: ArtifactMetadata, overrides?: NativeArtifactUploadOptions): ArtifactRecord {
-  const scope = metadata.scope ?? null;
-  const filename = metadata.filename || overrides?.filename || metadata.artifactId;
-  const contentType = overrides?.mediaType ?? metadata.contentType;
-  return {
-    artifact_id: metadata.artifactId,
-    label: overrides?.label ?? filename,
-    path: filename,
-    href: null,
-    downloadHref: null,
-    media_type: contentType ?? null,
-    content_kind: mapContentKind(contentType, filename),
-    stream_state: mapArtifactState(metadata.state),
-    description: metadata.error ?? overrides?.description ?? null,
-    size_bytes: safeNumber(metadata.sizeBytes, "Artifact Metadata size"),
-    group_id: overrides?.groupId ?? "cycle-artifacts",
-    group_label: overrides?.groupLabel ?? "Cycle Artifacts",
-    supersedes_artifact_id: null,
-    created_at: timestampIso(metadata.createdAt) ?? nowIso(),
-    scope: overrides?.scope ?? scope,
-  };
-}
-
 /** A bare operator filename lands in the `upload/` folder; a relative path keeps its own. */
 function operatorUploadName(filename: string): string {
   const name = filename.trim();
@@ -366,80 +330,6 @@ function nativeArtifactSource(artifact: Pick<ArtifactRecord, "artifact_id" | "gr
     };
   }
   return { kind: "artifact", artifactId: artifact.artifact_id };
-}
-
-function mapArtifactState(state: ArtifactState): "static" | "streaming" | "finalized" | "interrupted" {
-  switch (state) {
-    case hostModel.ArtifactState.COMPLETE:
-      return "finalized";
-    case hostModel.ArtifactState.CANCELLED:
-    case hostModel.ArtifactState.REJECTED:
-    case hostModel.ArtifactState.FAILED:
-      return "interrupted";
-    default:
-      return "static";
-  }
-}
-
-function mapContentKind(contentType: string | undefined, filename: string): "text" | "binary" | "media" | "unknown" {
-  const normalized = contentType?.toLowerCase() ?? "";
-  if (
-    normalized.startsWith("text/") ||
-    ["application/json", "application/ndjson", "application/xml"].includes(normalized) ||
-    /\.(csv|jsonl?|log|md|toml|txt|xml|ya?ml)$/iu.test(filename)
-  ) {
-    return "text";
-  }
-  if (normalized.startsWith("image/") || normalized.startsWith("audio/") || normalized.startsWith("video/")) {
-    return "media";
-  }
-  return "binary";
-}
-
-function mapExecutionFile(executionId: string, file: ExecutionFileMetadata): ArtifactRecord {
-  const createdAt = timestampIso(file.createdAt) ?? nowIso();
-  return {
-    artifact_id: `${executionId}:${file.relativePath}`,
-    label: file.relativePath.split("/").at(-1) || file.relativePath,
-    path: file.relativePath,
-    href: null,
-    downloadHref: null,
-    media_type: file.contentType ?? null,
-    content_kind: mapFileKind(file.kind),
-    stream_state: mapFileState(file.state),
-    description: "Execution folder file",
-    size_bytes: safeNumber(file.sizeBytes, "Execution File Metadata size"),
-    group_id: "execution-files",
-    group_label: "Execution Files",
-    created_at: createdAt,
-    scope: { executionId: executionId },
-  };
-}
-
-function mapFileKind(kind: ExecutionFileKind): "text" | "binary" | "media" | "unknown" {
-  switch (kind) {
-    case hostModel.ExecutionFileKind.TEXT:
-      return "text";
-    case hostModel.ExecutionFileKind.BINARY:
-      return "binary";
-    case hostModel.ExecutionFileKind.MEDIA:
-      return "media";
-    default:
-      return "unknown";
-  }
-}
-
-function mapFileState(state: ExecutionFileState): ExecutionFileLifecycle {
-  switch (state) {
-    case hostModel.ExecutionFileState.STREAMING:
-      return "streaming";
-    case hostModel.ExecutionFileState.FINALIZED:
-      return "finalized";
-    case hostModel.ExecutionFileState.INTERRUPTED:
-      return "interrupted";
-    default:
-      return "static";
-  }
 }
 
 /** Bounded Library Range Reads, Pinned to One Returned Cut and Verified Digest. */

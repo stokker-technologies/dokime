@@ -44,7 +44,7 @@ pub struct Prompt {
 
 impl From<&str> for Prompt {
     fn from(text: &str) -> Self {
-        let mut prompt = Self::new("question", text, text).action("0", "OK");
+        let mut prompt = Self::new("question", text, text).archetype(PromptArchetype::Choice).action("0", "OK");
         prompt.declared = false;
         prompt
     }

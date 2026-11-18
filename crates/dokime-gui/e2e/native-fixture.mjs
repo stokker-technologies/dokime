@@ -16,7 +16,7 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import { createInterface } from "node:readline";
 
-import { setTimeout as delay } from "node:timers/promises";
+import { setTimeout } from "node:timers/promises";
 
 import { fileURLToPath } from "node:url";
 
@@ -132,7 +132,7 @@ async function waitUntil(description, check, timeout, interval) {
       } catch (failure) {
         last = failure;
       }
-      await measured("poll-delay", description, () => delay(interval));
+      await measured("poll-delay", description, () => setTimeout(interval));
     }
     throw new Error(`Timed out: ${description}${last ? ` (last error: ${last.message})` : ""}`);
   });
@@ -424,7 +424,9 @@ async function startSessionMeasured(work, endpoint, evidence, distribution, { st
         }
       }
       observer.observe(document, {attributes: true, childList: true, characterData: true, subtree: true});
-      if (maximumWait != null) timer = setTimeout(() => finish({value: false}), maximumWait);
+      if (maximumWait != null) {
+        timer = globalThis.setTimeout(() => finish({value: false}), maximumWait);
+      }
       check();
     `,
         [args, maximumWait],
@@ -1366,7 +1368,7 @@ async function stopBackendMeasured() {
   try {
     const [code, signal] = await Promise.race([
       exited,
-      delay(WAIT_MS, undefined, { signal: timer.signal }).then(() => {
+      setTimeout(WAIT_MS, undefined, { signal: timer.signal }).then(() => {
         throw new Error(`Native backend did not drain within its ${WAIT_MS / 1000} second deadline`);
       }),
     ]);
@@ -1428,7 +1430,7 @@ async function windowsPicker(script, environment) {
     const line = await Promise.race([
       worker.responses.next(),
       worker.closed,
-      delay(WAIT_MS, undefined, { signal: timer.signal }).then(() => {
+      setTimeout(WAIT_MS, undefined, { signal: timer.signal }).then(() => {
         throw new Error("Native picker host did not answer");
       }),
     ]);
@@ -1775,8 +1777,11 @@ async function openNativeReport(path) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ path }),
   });
-  assert.ok(reopened.ok, `The owned report browser reopens saved HTML: ${await reopened.text()}`);
+  const response = await reopened.text();
+  assert.ok(reopened.ok, `The owned report browser reopens saved HTML: ${response}`);
+  const reader = JSON.parse(response);
   await reportBrowser.closeTabs();
+  return reader;
 }
 
 async function discardHostCredentials(root) {

@@ -16,17 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::io::{Seek, Write};
 
 // Third Party Imports
-use harmos_protocol::model::{FileMetadata, OperationContract, ReadCut};
+use base64::{Engine, engine::general_purpose::STANDARD};
+use harmos_protocol::model::FileMetadata;
+use prost::Message;
 
 // Local Imports
-use super::PreparedReport;
-use crate::host::ClientSettings;
+use super::capture;
 use crate::host::files::uploads::{append, create, delete, publish};
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
-use dokime_protocol::host::DocumentScope;
 use dokime_protocol::host::ReportsCreateRequest;
 use dokime_protocol::host::ReportsCreateResponse;
 use dokime_protocol::host::files::{UploadsAppendRequest, UploadsCreateRequest, UploadsDeleteRequest, UploadsPublishRequest};
@@ -50,13 +51,25 @@ pub const ID: &str = "dokime.host.v1.Reports/Create";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<ReportsCreateRequest, ReportsCreateResponse>(ID, settings.mutation_timeout)
-}
 pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<ReportsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
-        let subject = request.subject.as_ref().ok_or_else(|| Error::Invalid("Create Report: Select Its Execution or Cycle".into()))?;
-        let (file, metadata) = context.host.render_report(subject, &request.document_id, request.at.as_ref()).await?;
+        let (capture, resolved_at, prepared) = capture::collect(context, &request).await?;
+        let metadata = capture.report.clone().ok_or_else(|| Error::Invalid("Create Report: Capture Its Metadata".into()))?;
+        let template = context.host.report_template();
+        let marker = b"<!-- DOKIME_REPORT_DATA -->";
+        let insertion = template
+            .windows(marker.len())
+            .position(|window| window == marker)
+            .ok_or_else(|| Error::Invalid("Create Report: Rebuild the Template with `mise run generate`".into()))?;
+        let data = STANDARD.encode(capture.encode_to_vec());
+        let mut file =
+            tempfile::tempfile().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+        file.write_all(&template[..insertion])
+            .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+        file.write_all(data.as_bytes()).map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+        file.write_all(&template[insertion + marker.len()..])
+            .map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
+        file.rewind().map_err(|source| Error::Invalid(format!("Create Report: Write Its Temporary HTML: {source}")))?;
         let (retained, length, digest) = crate::host::content::transfer::temporary(file)?;
         let digest =
             (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
@@ -129,29 +142,15 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
             }
         };
 
-        if let Some(execution) = &metadata.test_execution_id {
-            let scope = DocumentScope {
-                cycle_id: metadata.test_cycle_id.clone(),
-                execution_id: execution.clone(),
-            };
-            let (document, cut) = context.host.current_document(&scope, &request.document_id)?;
-            let prepared = PreparedReport {
-                execution: execution.clone(),
-                execution_seal: cut.seal,
-                document: Some(document),
-                file: Some(reference.clone()),
-            };
-            administration::retain(context, &name, Scope::Execution(execution).identifier()?, &prepared).await?;
+        if let Some(mut prepared) = prepared {
+            prepared.file = Some(reference.clone());
+            administration::retain(context, &name, Scope::Execution(&prepared.execution).identifier()?, &prepared).await?;
         }
         context.host.retain_report(reference.clone())?;
-        let position = context.host.store().evidence_position(None)?;
         Ok(ReportsCreateResponse {
             report: Some(metadata),
             file: Some(reference),
-            resolved_at: Some(ReadCut {
-                positions: vec![position],
-                revisions: Vec::new(),
-            }),
+            resolved_at: Some(resolved_at),
             receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
         })
     })

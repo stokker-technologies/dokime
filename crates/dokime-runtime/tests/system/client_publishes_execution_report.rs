@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{error::Error, str};
+use std::error::Error;
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
@@ -161,7 +161,12 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             assert_eq!(published[0].identifier, metadata.report.as_ref().unwrap().identifier);
             assert_eq!(published[0].execution_seal, before.seal);
             assert_eq!(Sha256::digest(&published[0].html).as_slice(), file.sha256);
-            assert!(str::from_utf8(&published[0].html)?.contains("<svg"));
+            let capture = super::documents_and_reports::decode_report(&published[0].html)?;
+            assert_eq!(
+                capture.executions[0].detail.as_ref().unwrap().execution.as_ref().unwrap().summary.as_ref().unwrap().execution_id,
+                identifier
+            );
+            assert!(!capture.executions[0].plots.as_ref().unwrap().envelopes.is_empty());
             assert_eq!(store.read(&identifier)?, before);
             assert_eq!(
                 reports

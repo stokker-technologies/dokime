@@ -11,7 +11,6 @@
 
 /* === External Imports === */
 
-import type { Value as SerializedValue } from "@/lib/document-contracts";
 import { isDatetimeValue } from "@/lib/record-display";
 import type { JsonObject } from "@/lib/types";
 
@@ -19,11 +18,9 @@ type Timestamp = { seconds: bigint; nanos: number };
 
 /* === Constants === */
 
-const DOCUMENTS_VALUE_DEPTH = 128;
 const GUI_CASE_ITEMS = 1_000;
 const GUI_CONCURRENT_READS = 4;
 const GUI_MAXIMUM_PAGES = 100;
-const GUI_NUMBER_TEXT_CHARS = 1_024;
 const GUI_PAGE_ITEMS = 500;
 const GUI_SMALL_PAGE_ITEMS = 100;
 
@@ -242,57 +239,6 @@ export function nativeObjectValue(fields: JsonObject): JsonObject | NativeObject
 }
 
 /** Decode the portable Harmos value representation used by stored declarations. */
-export function serializedValueToJson(value: SerializedValue): unknown {
-  return serializedValue(value, 0);
-}
-
-export function serializedValueObjectToJson(values: Record<string, SerializedValue>): JsonObject {
-  return Object.fromEntries(Object.entries(values).map(([name, value]) => [name, serializedValue(value, 0)]));
-}
-
-function serializedValue(value: SerializedValue, depth: number): unknown {
-  if (depth > DOCUMENTS_VALUE_DEPTH) throw new Error("Stored value nesting exceeds the portable value limit.");
-  switch (value.type) {
-    case "null":
-      return null;
-    case "bool":
-    case "text":
-      return value.value;
-    case "integer":
-    case "unsigned": {
-      const text = value.value;
-      if (text.length > 20 || !/^-?\d+$/.test(text)) throw new Error("Invalid stored integer.");
-      const integer = BigInt(text);
-      const unsigned = value.type === "unsigned";
-      const minimum = unsigned ? 0n : -9223372036854775808n;
-      const maximum = unsigned ? 18446744073709551615n : 9223372036854775807n;
-      if (integer < minimum || integer > maximum) throw new Error("Stored integer exceeds its declared range.");
-      const number = Number(integer);
-      return !unsigned && Number.isSafeInteger(number) ? number : new NativeIntegerValue(integer, unsigned);
-    }
-    case "number": {
-      const text = value.value;
-      const special = ["nan", "inf", "-inf"].includes(text);
-      if (text.length > GUI_NUMBER_TEXT_CHARS || (!special && !/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text))) {
-        throw new Error("Invalid stored number.");
-      }
-      const number = text === "nan" ? NaN : text === "inf" ? Infinity : text === "-inf" ? -Infinity : Number(text);
-      if (!special && !Number.isFinite(number)) throw new Error("Stored finite number exceeds its declared range.");
-      return new NativeNumberValue(number);
-    }
-    case "datetime":
-      return { $datetime: value.value };
-    case "array":
-      return value.value.map((item) => serializedValue(item, depth + 1));
-    case "object":
-      return nativeObjectValue(
-        Object.fromEntries(Object.entries(value.value).map(([name, item]) => [name, serializedValue(item, depth + 1)])),
-      );
-    default:
-      throw new Error("Unknown portable stored value kind.");
-  }
-}
-
 /* === Mapping and Bounded Reads === */
 
 export function timestampIso(timestamp?: Timestamp): string | null {

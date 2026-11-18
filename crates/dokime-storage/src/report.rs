@@ -16,16 +16,16 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::result;
 
 // Third Party Imports
-use prost::Message;
+use prost::{Message, encoding};
 use rusqlite::params;
 use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::{Error, Result, Store, store};
 
-use dokime_protocol::host::plots::PlotSettingsValue;
 use dokime_protocol::model::Document;
 
 /* === Constants === */
@@ -64,11 +64,6 @@ pub struct Report {
 /* === Implementations === */
 
 impl Store {
-    pub fn plot_preferences(&self, execution: &str, document: &str, plot: &str) -> Result<Option<(Option<u32>, i32)>> {
-        Ok(self
-            .administration::<PlotSettingsValue>(&format!("plot-settings:{execution}/{document}/{plot}"))?
-            .map(|value| (value.display_points, value.downsample)))
-    }
     pub fn publish_report(&self, execution: &str, execution_seal: &[u8], document: Document, html: Vec<u8>) -> Result<Report> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction()?;
@@ -88,8 +83,8 @@ impl Store {
         let mut payload = report.encode_to_vec();
         report.seal = report_digest(&payload)?;
         report.identifier = report.seal.iter().map(|byte| format!("{byte:02x}")).collect();
-        prost::encoding::string::encode(2, &report.identifier, &mut payload);
-        prost::encoding::bytes::encode(6, &report.seal, &mut payload);
+        encoding::string::encode(2, &report.identifier, &mut payload);
+        encoding::bytes::encode(6, &report.seal, &mut payload);
         transaction.execute(
             "INSERT INTO reports VALUES (?1,?2,?3) ON CONFLICT(execution,id) DO NOTHING",
             params![execution, report.identifier, payload],
@@ -100,7 +95,7 @@ impl Store {
     pub fn reports(&self, execution: &str) -> Result<Vec<Report>> {
         let connection = self.lock()?;
         let mut statement = connection.prepare("SELECT payload FROM reports WHERE execution=?1 ORDER BY id")?;
-        let bytes = statement.query_map([execution], |row| row.get::<_, Vec<u8>>(0))?.collect::<std::result::Result<Vec<_>, _>>()?;
+        let bytes = statement.query_map([execution], |row| row.get::<_, Vec<u8>>(0))?.collect::<result::Result<Vec<_>, _>>()?;
         bytes
             .iter()
             .map(|bytes| {
@@ -128,8 +123,8 @@ fn report_digest(bytes: &[u8]) -> Result<Vec<u8>> {
     let mut remaining = bytes;
     while !remaining.is_empty() {
         let start = bytes.len() - remaining.len();
-        let (tag, wire) = prost::encoding::decode_key(&mut remaining)?;
-        prost::encoding::skip_field(wire, tag, &mut remaining, prost::encoding::DecodeContext::default())?;
+        let (tag, wire) = encoding::decode_key(&mut remaining)?;
+        encoding::skip_field(wire, tag, &mut remaining, encoding::DecodeContext::default())?;
         if tag != 2 && tag != 6 {
             hash.update(&bytes[start..bytes.len() - remaining.len()]);
         }

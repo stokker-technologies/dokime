@@ -25,6 +25,7 @@ import { DisconnectedSettings } from "@/features/settings/SettingsSurface";
 import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import { DESKTOP_SESSION_STATUS_EVENT, type DesktopLaunch, type DesktopSessionSnapshot } from "@/lib/desktop/session";
+import { formatDecimal } from "@/lib/format";
 import { BrandMark } from "@/shell/BrandMark";
 import { useNativeSessionController } from "./context";
 import { connectionError, startupDiagnostics, storageRecoveryArchive, storageRecoveryAvailable } from "./errors";
@@ -57,12 +58,16 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
   const archive = storageRecoveryArchive(error);
 
   useEffect(() => {
-    if (!error) return;
+    if (!error) {
+      return;
+    }
     let active = true;
     void commands
       .desktopSessionStatus()
       .then((status) => {
-        if (active) setFailedEndpoint(status.connection.endpoint);
+        if (active) {
+          setFailedEndpoint(status.connection.endpoint);
+        }
       })
       .catch(() => {});
     return () => {
@@ -78,7 +83,9 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
     let active = true;
     let unlisten: (() => void) | undefined;
     const applyStatus = (status: DesktopSessionSnapshot) => {
-      if (!active || status.statusRevision < statusRevision.current) return;
+      if (!active || status.statusRevision < statusRevision.current) {
+        return;
+      }
       statusRevision.current = status.statusRevision;
       setPhase(status.phase);
       setArchivedBytes(status.archivedBytes ?? null);
@@ -104,7 +111,9 @@ export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunc
     };
   }, [busy]);
 
-  if (settings) return <DisconnectedSettings close={() => setSettings(false)} />;
+  if (settings) {
+    return <DisconnectedSettings close={() => setSettings(false)} />;
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6">
@@ -232,7 +241,9 @@ function StartupSteps({ current }: { current: string | null }) {
   const phases: string[] = [...STARTUP_PHASES];
   // A phase this build does not know (a newer CLI) is shown where it is
   // rather than dropped, so the list never contradicts the backend.
-  if (current && !phases.includes(current)) phases.push(current);
+  if (current && !phases.includes(current)) {
+    phases.push(current);
+  }
   const index = current ? phases.indexOf(current) : -1;
 
   return (
@@ -257,7 +268,7 @@ function ResetSteps({ current, archivedBytes, backup }: { current: string | null
           done={position < index}
           key={name}
           label={phaseLabel(name)}
-          detail={name === "archiving" && archivedBytes !== null ? `${archivedBytes.toLocaleString()} B` : null}
+          detail={name === "archiving" && archivedBytes !== null ? `${formatDecimal(archivedBytes)} B` : null}
         />
       ))}
     </ol>
@@ -326,9 +337,17 @@ function stateSentence({
   launch: DesktopLaunch | null;
   reset: boolean;
 }): string {
-  if (reset) return "Resetting local storage.";
-  if (busy) return "Starting the backend.";
-  if (error) return "Connect to a backend to plan and run cycles.";
-  if (!launch) return "Reading this desktop's settings.";
+  if (reset) {
+    return "Resetting local storage.";
+  }
+  if (busy) {
+    return "Starting the backend.";
+  }
+  if (error) {
+    return "Connect to a backend to plan and run cycles.";
+  }
+  if (!launch) {
+    return "Reading this desktop's settings.";
+  }
   return "Connect to a backend to plan and run cycles.";
 }

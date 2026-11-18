@@ -78,7 +78,9 @@ async function story(name, run, required = false) {
     process.stderr.write(`${name}: ${error.stack ?? error}\n`);
     await desktop?.screenshot(name).catch(() => {});
     await writeFile(join(evidence, `${name}.txt`), `${error.stack}\n${await desktop?.text().catch(() => "")}`).catch(() => {});
-    if (required) throw error;
+    if (required) {
+      throw error;
+    }
   }
 }
 
@@ -221,7 +223,9 @@ async function exactBench() {
   const values = await until("Exact Summary Tiles", () =>
     desktop.execute(`
     const tiles = [...document.querySelectorAll('[data-document-metric]')];
-    if (tiles.length < 11 || tiles.some(tile => tile.dataset.documentValuePresent !== 'true')) return null;
+    if (tiles.length < 11 || tiles.some(tile => tile.dataset.documentValuePresent !== 'true')) {
+      return null;
+    }
     const values = tiles.map(tile => [tile.dataset.documentMetric, tile.querySelector('strong [data-exact-value]')?.dataset.exactValue]);
     // Sealed evidence is complete; the view shows it once the settled run's document refresh lands,
     // until then tiles may hold a capture taken before the samples were saved.
@@ -229,23 +233,20 @@ async function exactBench() {
     return captured ? Object.fromEntries(values) : null;`),
   );
   const base = 1152921504606847975n;
-  for (const name of ["mean", "median", "min", "max", "first", "last"]) assert.equal(values[name], String(base));
-  // Percentiles Are Floating-Point Values; Their Digit Grouping Follows the Platform Locale.
-  for (const name of ["p05", "p95", "p99"]) assert.equal(values[name].replace(/[^0-9]/g, ""), String(BigInt(Number(base))));
-  const count = BigInt(values.count.replace(/[^0-9]/g, ""));
+  for (const name of ["mean", "median", "min", "max", "first", "last"]) {
+    assert.equal(values[name], String(base));
+  }
+  for (const name of ["p05", "p95", "p99"]) {
+    assert.equal(values[name], String(BigInt(Number(base))));
+  }
+  const count = BigInt(values.count);
   assert.ok(count > 0n);
   assert.equal(values.sum, String(base * count));
 }
 
 async function reportsAndHistory() {
-  const subject = { execution: executionId };
-  const preview = await call(desktop, "Reports", "Create", { subject, requestId: crypto.randomUUID() });
-  await call(desktop, "Reports", "Publish", {
-    subject,
-    name: preview.file.metadata.id,
-    expectedRevision: preview.file.sha256,
-    requestId: crypto.randomUUID(),
-  });
+  const before = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
+  assert.equal(before.report.state, "REPORT_STATE_PENDING");
   const status = await invoke(desktop, "desktop_session_status");
   const path = join(work, "thermal-execution.html");
   await desktop.execute(
@@ -277,8 +278,17 @@ async function reportsAndHistory() {
   assert.equal(saved.value.origin, "sealed");
   const html = await readFile(saved.value.path, "utf8");
   await writeFile(join(evidence, "thermal-execution.html"), html);
-  assert.ok(html.includes(executionId), "The Saved Report Identifies the Frozen Execution");
-  await openNativeReport(saved.value.path);
+  const reader = await openNativeReport(saved.value.path);
+  assert.ok(
+    reader.headings.some((heading) => heading.includes("Thermal")),
+    "The Reader Sees the Authored Subject Name",
+  );
+  assert.match(reader.outcome, /Passed/);
+  assert.ok(
+    reader.headings.some((heading) => heading.includes("Report")),
+    "The Reader Sees a Document Section",
+  );
+  assert.ok(reader.points > 0, "The Reader Sees a Plot with Data");
   await desktop.goto("/history");
   await until("History Lists Sealed Execution", async () => (await desktop.text()).includes("Thermal"));
   await desktop.goto(`/cycles/${cycle.cycleId}?executionId=${executionId}`, { reload: true });
@@ -414,12 +424,16 @@ try {
     }
     if (["configuration", "remote", "execution"].includes(options.workflow))
       await story("Settings Plugins Secrets and Diagnostics", settings);
-    if (["appearance", "execution"].includes(options.workflow)) await story("Appearance and Touch", appearance);
+    if (["appearance", "execution"].includes(options.workflow)) {
+      await story("Appearance and Touch", appearance);
+    }
   }
 } catch (error) {
   process.stderr.write(`${error.stack}\n`);
   process.exitCode = 1;
-  if (!results.some((result) => result.error)) results.push({ name: "Fixture Setup", seconds: 0, error });
+  if (!results.some((result) => result.error)) {
+    results.push({ name: "Fixture Setup", seconds: 0, error });
+  }
 } finally {
   for (const instance of sessions.toReversed()) {
     if (!instance.closed)
@@ -461,7 +475,8 @@ try {
         "</testsuite></testsuites>",
     );
   }
-  if (failures) process.exitCode = 1;
-  else if (work) await rm(work, { recursive: true, force: true });
+  if (failures) {
+    process.exitCode = 1;
+  } else if (work) await rm(work, { recursive: true, force: true });
   process.stdout.write(`Native Desktop: ${results.length - failures} Passed; ${failures} Failed\n`);
 }

@@ -3526,14 +3526,13 @@ class ReportsResource:
         subject: ReportSubject,
         document_id: str,
         *,
-        at: ReadCut | None = None,
         request_id: str | None = None,
         call_metadata: Metadata | None = None,
         timeout: float | None = None,
         credentials: CallCredentials | None = None,
     ) -> ReportsCreateResponse:
         request = ReportsCreateRequest(
-            subject=subject, document_id=document_id, at=at, request_id=request_id if request_id is not None else str(uuid4())
+            subject=subject, document_id=document_id, request_id=request_id if request_id is not None else str(uuid4())
         )
         response = await unary(
             self._channel,

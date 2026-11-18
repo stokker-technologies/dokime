@@ -11,33 +11,18 @@
 
 /* === External Imports === */
 
-import type { Parameter, ParameterExpression } from "@host/model";
-import type { Suite, TestCaseTemplate } from "@host/model";
 import { required } from "@/lib/rpc/canonical";
+import type { Parameter, ParameterExpression, Suite, TestCaseTemplate } from "@host/model";
 import { ValueType } from "@host/model";
 
 /* === Local Imports === */
 
 import { NATIVE_CASE_LIMIT, NativeApiLimitError, safeNumber, uniqueStrings } from "@/lib/api/native-values";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { ParameterDefinition, SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
-import * as client from "./client";
 import { metadataJson, nativeValueToJson, valueTypeName } from "./values";
 
 /* === Public Functions === */
-
-export async function fetchNativeSuites(session: SessionIdentity): Promise<TestSuiteEntry[]> {
-  return (await listSuites(session)).map(mapSuite);
-}
-
-export async function fetchNativeSuite(session: SessionIdentity, suiteId: string): Promise<TestSuiteEntry | null> {
-  return mapSuite(required((await client.suitesGet(session, { name: suiteId })).value, "Get Suite"));
-}
-
-async function listSuites(session: SessionIdentity): Promise<Wire<Suite>[]> {
-  return (await client.suitesList(session, {})).values;
-}
 
 export function mapSuite(definition: Wire<Suite>): TestSuiteEntry {
   const identifier = required(definition.metadata?.identifier, "Read Suite Identity");

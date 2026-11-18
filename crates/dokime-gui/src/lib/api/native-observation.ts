@@ -11,22 +11,20 @@
 
 /* === Local Imports === */
 
-import type { EvidenceScope } from "@host/model";
-import { defaultBrand } from "@/lib/brand";
-import { required, type Wire } from "@/lib/rpc/canonical";
+import { mapRuntimeShell } from "./native-runtime-projection";
+
 import * as rpc from "@/lib/host/client";
-import { CycleStatus } from "@host/model";
-import { ResultStatus } from "@host/model";
-import { nativeValueToJson } from "@/lib/host/values";
+import { required, type Wire } from "@/lib/rpc/canonical";
+import type { EvidenceScope } from "@host/model";
+import { type NativeTraceabilitySnapshot, mapNativeTraceability } from "./native-traceability-projection";
 export type RuntimeStateFrame = Wire<
   Awaited<ReturnType<typeof rpc.backendOverviewWatch>> extends NativeStream<infer Frame> ? Frame : never
 >;
 
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import { traceabilitySnapshotFromItems } from "@/lib/traceability";
-import type { ExecutionResultSummary, HubLiveState, RunStatus, TraceabilitySnapshot } from "@/lib/types";
+import type { HubLiveState, TraceabilitySnapshot } from "@/lib/types";
 import { listNativeCycles } from "./native-planning";
-import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, nowIso, safeNumber, timestampIso } from "./native-values";
+import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError } from "./native-values";
 
 /* === Types === */
 
@@ -35,7 +33,7 @@ interface ExecutionProgressFrame {
   progress: { testExecutionId: string; label: string; phase: string; completed: bigint; total: bigint } | null;
   finished: boolean;
 }
-type NativeTraceabilitySnapshot = Wire<Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>["snapshots"][number]>;
+
 type TraceabilityCut = Wire<NonNullable<Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>["resolvedAt"]>>;
 
 /* === Runtime shell === */
@@ -50,50 +48,6 @@ async function fetchRuntimeShellCycles(session: SessionIdentity): Promise<Runtim
   const snapshot = required(reply.overview, "Read Backend Overview");
   const cycles = await listNativeCycles(session);
   return [{ ...snapshot, cycleSummaries: cycles }];
-}
-
-export function mapRuntimeShell(snapshots: readonly RuntimeShellSnapshot[], cycleId: string): HubLiveState {
-  const first = snapshots[0];
-  if (!first) throw new Error("Native runtime shell returned no snapshot.");
-  const cycles = snapshots.flatMap((snapshot) => snapshot.cycleSummaries);
-  // The caller names the run this shell describes. There is no fallback
-  // choice: a shell that cannot say which cycle it belongs to belongs to none.
-  const cycle = cycles.find((candidate) => candidate.cycleId === cycleId) ?? null;
-  const title = cycle?.metadata?.label || first.hubMetadata?.label || defaultBrand.label;
-  const updatedAt = timestampIso(cycle?.updatedAt) ?? timestampIso(cycle?.createdAt) ?? nowIso();
-  const revision = safeNumber(first.revision, "Backend.Overview.Get revision");
-  return {
-    run: {
-      session_id: first.sessionId,
-      title,
-      template_id: null,
-      template_slug: "",
-      label: title,
-      metadata: {},
-      status: mapRunStatus(cycle?.status),
-      started_at: timestampIso(cycle?.startedAt),
-      finished_at: cycle && isTerminalCycle(cycle.status) ? updatedAt : null,
-      updated_at: updatedAt,
-      run_dir: null,
-      local_url: null,
-      lan_url: null,
-      rerun_command: null,
-    },
-    session_id: first.sessionId,
-    title,
-    revision,
-    records: [],
-    telemetry: {},
-    pending_prompts: [],
-    notes: [],
-    health: [],
-    result_summary: cycle?.result ? mapResult(cycle.result, { cycleId: cycle.cycleId }) : null,
-    traceability: null,
-    artifacts: [],
-    installed_plugins: [],
-    updated_at: updatedAt,
-    revisions: revisions(revision),
-  };
 }
 
 type TraceabilityResponse = Awaited<ReturnType<typeof rpc.evidenceTraceabilityGet>>;
@@ -222,73 +176,6 @@ function matchesTraceabilityScope(wanted: Wire<EvidenceScope> | undefined, actua
   return matchesFields && (!origin || JSON.stringify(origin.kind?.kind) === JSON.stringify(actual.origin?.kind?.kind));
 }
 
-function mapNativeTraceability(
-  snapshots: NativeTraceabilitySnapshot[],
-  requestedScope: Wire<EvidenceScope> | undefined,
-  operation: string,
-): TraceabilitySnapshot {
-  const items = snapshots.map((snapshot) => {
-    if (!snapshot?.traceabilityId) {
-      throw new NativeApiLimitError(operation, "snapshot omitted its traceability id");
-    }
-    if (!snapshot.createdAt) {
-      throw new NativeApiLimitError(operation, "snapshot omitted its creation timestamp");
-    }
-    const createdAt = timestampIso(snapshot.createdAt);
-    if (!createdAt) {
-      throw new NativeApiLimitError(operation, "snapshot contained an invalid creation timestamp");
-    }
-    if (!Array.isArray(snapshot.entries)) {
-      throw new NativeApiLimitError(operation, "snapshot omitted its entry collection");
-    }
-    const entries = snapshot.entries.map((entry) => {
-      if (!entry?.metadata) {
-        throw new NativeApiLimitError(operation, "traceability entry omitted its metadata");
-      }
-      if (!entry.value) {
-        throw new NativeApiLimitError(operation, "traceability entry omitted its value");
-      }
-      let value: unknown;
-      try {
-        value = nativeValueToJson(entry.value);
-      } catch (error) {
-        throw new NativeApiLimitError(operation, `traceability entry contained an invalid value: ${String(error)}`);
-      }
-      if (value === undefined) {
-        throw new NativeApiLimitError(operation, "traceability entry contained an unknown value");
-      }
-      return {
-        metadata: {
-          identifier: entry.metadata.identifier,
-          label: entry.metadata.label,
-          description: entry.metadata.description,
-        },
-        value,
-        source: entry.source,
-        unit: entry.unit,
-      };
-    });
-    return {
-      traceability_id: snapshot.traceabilityId,
-      scope: snapshot.scope,
-      metadata: snapshot.metadata
-        ? {
-            identifier: snapshot.metadata.identifier,
-            label: snapshot.metadata.label,
-            description: snapshot.metadata.description,
-          }
-        : null,
-      entries,
-      created_at: createdAt,
-    };
-  });
-  const result = traceabilitySnapshotFromItems(items, (value) => value ?? null);
-  if (requestedScope) {
-    result.scope = requestedScope ?? null;
-  }
-  return result;
-}
-
 function assertTraceabilitySession(session: SessionIdentity, operation: string): void {
   if (!session.isCurrent()) throw new Error(`${operation} lost its owning connection.`);
 }
@@ -400,72 +287,3 @@ export async function openNativeExecutionProgressStream(
 }
 
 /* === Private mapping === */
-
-function mapRunStatus(status?: CycleStatus): RunStatus {
-  switch (status) {
-    case CycleStatus.RUNNING:
-      return "running";
-    case CycleStatus.PAUSED:
-      return "paused";
-    case CycleStatus.STOPPING:
-      return "stopping";
-    case CycleStatus.COMPLETED:
-      return "completed";
-    case CycleStatus.FAILED:
-      return "failed";
-    case CycleStatus.STOPPED:
-      return "stopped";
-    default:
-      return "idle";
-  }
-}
-
-function isTerminalCycle(status: CycleStatus): boolean {
-  return [CycleStatus.COMPLETED, CycleStatus.FAILED, CycleStatus.BLOCKED, CycleStatus.STOPPED].includes(status);
-}
-
-function mapResult(
-  result: NonNullable<RuntimeShellSnapshot["cycleSummaries"][number]["result"]>,
-  scope: Wire<EvidenceScope>,
-): ExecutionResultSummary {
-  return {
-    outcome:
-      result.status === ResultStatus.PASSED
-        ? "completed"
-        : result.status === ResultStatus.FAILED
-          ? "failed"
-          : result.status === ResultStatus.BLOCKED
-            ? "unknown"
-            : "unknown",
-    headline: result.status === ResultStatus.PASSED ? "passed" : "failed",
-    warnings: [],
-    evidence: [
-      {
-        passed: result.passed,
-        failed: result.failed,
-        blocked: result.blocked,
-        skipped: result.skipped,
-      },
-    ],
-    updated_at: nowIso(),
-    scope,
-  };
-}
-
-function revisions(revision: number): HubLiveState["revisions"] {
-  return {
-    run: revision,
-    prompts: revision,
-    cycles: revision,
-    document: revision,
-    records: revision,
-    artifacts: revision,
-    executionFiles: revision,
-    notes: revision,
-    health: revision,
-    result_summary: revision,
-    traceability: revision,
-    contracts: revision,
-    telemetry: { __all__: revision },
-  };
-}

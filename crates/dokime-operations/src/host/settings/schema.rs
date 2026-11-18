@@ -18,10 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::OperationContract;
 
 // Local Imports
-use crate::host::ClientSettings;
 use crate::{Result, host::Context};
 use dokime_protocol::host::SettingsFrame;
 use dokime_protocol::host::SettingsSchemaRequest;
@@ -49,9 +47,6 @@ pub const ID: &str = "dokime.host.v1.Settings/Schema";
 
 /* === Public Functions === */
 
-pub fn declaration(settings: &ClientSettings) -> Result<OperationContract> {
-    crate::host::declaration::<SettingsSchemaRequest, SettingsSchemaResponse>(ID, settings.read_timeout)
-}
 pub async fn handle(context: &Context, request: SettingsSchemaRequest) -> Result<SettingsSchemaResponse> {
     crate::host::complete(ID, context.settings.read_timeout, async {
         let owner = Scope::Root(&context.host.identity().backend_id).identifier()?;

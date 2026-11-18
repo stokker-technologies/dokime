@@ -9,39 +9,32 @@
 
 /* === External Imports === */
 
-import type { EvidenceScope } from "@host/model";
 import type { Wire } from "@/lib/rpc/canonical";
-import { type Query, type QueryClient, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { EvidenceScope } from "@host/model";
+import { useMutation, useQueries, useQuery, useQueryClient, type Query, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
-import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
 import { createRuntimeProjectionRefreshCoordinator, type RuntimeProjectionRefreshCoordinator } from "@/app/live/runtime-refresh";
+import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
 import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
 import { fetchNativeExecutionFiles } from "@/lib/api/native-content";
+import { mapNativeDocument, mapNativeDocumentCard, nativeDocumentCardKey, type CompletedDocument } from "@/lib/api/native-documents";
 import {
-  type CompletedDocument,
-  type NativeDocumentRequest,
-  type NativeDocumentSession,
-  fetchNativeDocument,
-  mapNativeDocument,
-  mapNativeDocumentCard,
-  nativeDocumentCardKey,
-} from "@/lib/api/native-documents";
-import {
+  RECORD_TAIL,
   appendRecordTail,
   fetchNativeRecordTail,
-  type NativeEvidenceSession,
   openNativeRecordStream,
-  RECORD_TAIL,
+  type NativeEvidenceSession,
   type RecordTail,
 } from "@/lib/api/native-evidence";
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeTraceability } from "@/lib/api/native-observation";
 import { respondNativePrompt } from "@/lib/api/native-prompts";
-import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
 import { failureOf } from "@/lib/notification-details";
+import type { DocumentViewCard, DocumentViewPayload } from "@/lib/types";
+import { fetchNativeDocument, type NativeDocumentRequest, type NativeDocumentSession } from "../../lib/api/native-document-session";
 import { documentRetry, documentRetryDelay, mergeDocumentProgress } from "./document-query-model";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 

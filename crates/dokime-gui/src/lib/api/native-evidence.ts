@@ -11,32 +11,26 @@
 
 /* === External Imports === */
 
+import { executionSchemas } from "@/lib/host/schemas";
+import { cutKey, required } from "@/lib/rpc/canonical";
 import type { EvidenceScope } from "@host/model";
-import { type createFileRegistry, fromBinary, ScalarType } from "@bufbuild/protobuf";
-import { FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
-import { reflect, isReflectMessage, isReflectList, isReflectMap, type ReflectMessage } from "@bufbuild/protobuf/reflect";
-import { executionSchemas, recordMessage } from "@/lib/host/schemas";
-import { required, cutKey } from "@/lib/rpc/canonical";
-import { Severity } from "@host/model";
-import { LogsAppendRequestSchema } from "@host/model";
+import type { CapturedRecord, RecordPage } from "./native-record-projection";
 
 /* === Local Imports === */
 
-import { nativeRecordScope } from "@/lib/host/values";
-import { fallbackRecordDisplay } from "@/lib/record-display";
-import type { Wire } from "@/lib/rpc/canonical";
+import { decodeFrozenRecords } from "./native-record-projection";
+
 import * as rpc from "@/lib/host/client";
+import { nativeRecordScope } from "@/lib/host/values";
+import type { Wire } from "@/lib/rpc/canonical";
 
 type Cursor = NonNullable<RecordPage["resolvedAt"]>;
 
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import type { HubRecord, JsonObject } from "@/lib/types";
-import { mapBounded, NativeIntegerValue, NativeNumberValue, NativeApiLimitError, safeNumber, timestampIso } from "./native-values";
+import type { HubRecord } from "@/lib/types";
+import { NativeApiLimitError, mapBounded } from "./native-values";
 
 /* === Canonical Types === */
-
-type RecordPage = Wire<Awaited<ReturnType<typeof rpc.evidenceRecordsList>>>;
-type CapturedRecord = RecordPage["records"][number];
 
 /* === Constants === */
 
@@ -164,58 +158,12 @@ export async function openNativeRecordStream(
 
 /* === Mapping === */
 
-function mapNativeRecord(record: CapturedRecord, details: JsonObject): HubRecord {
-  const timestamp = timestampIso(record.timestamp);
-  if (!timestamp) throw new Error(`Native record ${record.recordId} has no valid timestamp.`);
-  const level =
-    record.severity === Severity.FAILURE
-      ? "error"
-      : record.severity === Severity.WARNING
-        ? "warning"
-        : record.severity === Severity.DEBUG
-          ? "debug"
-          : "info";
-  if (record.error) {
-    details.error = {
-      message: record.error.message,
-      code: record.error.code ?? null,
-      source: record.error.source ?? null,
-      cause_chain: record.error.causeChain.map((cause) => ({
-        message: cause.message,
-        code: cause.code ?? null,
-        source: cause.source ?? null,
-      })),
-      stacktrace_attachment: record.error.stacktraceAttachment ?? null,
-      trace_id: record.error.traceId ?? null,
-      correlation_id: record.error.correlationId ?? null,
-    };
-  }
-  return {
-    record_id: record.recordId,
-    record_type: record.recordType,
-    template_id: record.scope?.templateId ?? null,
-    source: record.source,
-    timestamp,
-    session_id: record.scope?.sessionId ?? null,
-    sequence: safeNumber(record.sequence, "Evidence.CapturedRecord sequence"),
-    level,
-    display: fallbackRecordDisplay(level),
-    message: record.message ?? record.error?.message ?? null,
-    details,
-    related_sample_id: record.relatedSampleId ?? null,
-    related_stream: record.relatedStreamId ?? null,
-    related_artifact_id: record.relatedArtifactId ?? null,
-    scope: record.scope ?? null,
-  };
-}
-
 async function decodeRecords(session: SessionIdentity, records: CapturedRecord[]): Promise<HubRecord[]> {
   const details = new Map<string, Promise<Awaited<ReturnType<typeof rpc.executionsGet>>>>();
   return mapBounded(records, async (record) => {
     if (!session.isCurrent()) throw new Error("Read Records: Owning Connection Changed");
     if (record.recordType === "dokime.log") {
-      const log = fromBinary(LogsAppendRequestSchema, record.payload);
-      return mapNativeRecord(record, { message: log.message, severity: log.severity });
+      return decodeFrozenRecords([record])[0];
     }
     const name = required(record.scope?.executionId, "Read Record Execution Identity");
     let pending = details.get(name);
@@ -225,59 +173,6 @@ async function decodeRecords(session: SessionIdentity, records: CapturedRecord[]
     }
     const detail = required((await pending).execution, "Read Record Execution");
     const registry = await executionSchemas(session).get(session, detail);
-    const message = recordMessage(registry, record.recordType, detail.schemas?.records);
-    if (!message) throw new Error(`Read Record ${record.recordType}: Frozen Contract Is Missing`);
-    return mapNativeRecord(record, recordFields(reflect(message, fromBinary(message, record.payload)), 0));
-  });
-}
-
-function recordFields(message: ReflectMessage, depth: number): JsonObject {
-  if (depth > 64) throw new Error("Read Record: Payload Nesting Exceeds the View Budget");
-  const result: JsonObject = {};
-  for (const field of message.fields) {
-    if (field.presence !== FeatureSet_FieldPresence.IMPLICIT && !message.isSet(field)) continue;
-    result[field.name] = recordValue(message.get(field), field.scalar, depth + 1);
-  }
-  return result;
-}
-
-function recordValue(value: unknown, scalar: ScalarType | undefined, depth: number): unknown {
-  if (depth > 64) throw new Error("Read Record: Payload Nesting Exceeds the View Budget");
-  if (isReflectMessage(value)) {
-    if (value.desc.typeName === "google.protobuf.Timestamp") {
-      const fields = recordFields(value, depth);
-      const seconds = fields.seconds instanceof NativeIntegerValue ? BigInt(fields.seconds.decimal) : BigInt(String(fields.seconds ?? 0));
-      const timestamp = timestampIso({ seconds, nanos: Number(fields.nanos ?? 0) });
-      if (!timestamp) throw new Error("Read Record: Invalid Payload Timestamp");
-      return { $datetime: timestamp };
-    }
-    return recordFields(value, depth);
-  }
-  if (isReflectList(value)) return Array.from(value, (item) => recordValue(item, value.field().scalar, depth + 1));
-  if (isReflectMap(value))
-    return Object.fromEntries(Array.from(value, ([key, item]) => [String(key), recordValue(item, value.field().scalar, depth + 1)]));
-  if (typeof value === "bigint") {
-    const unsigned = scalar === ScalarType.UINT64 || scalar === ScalarType.FIXED64;
-    const number = Number(value);
-    return unsigned || !Number.isSafeInteger(number) ? new NativeIntegerValue(value, unsigned) : number;
-  }
-  if (typeof value === "number" && (scalar === ScalarType.DOUBLE || scalar === ScalarType.FLOAT)) return new NativeNumberValue(value);
-  return value;
-}
-
-/** Decode Immutable Evidence With Its Verified Frozen Registry. */
-export function decodeFrozenRecords(
-  records: CapturedRecord[],
-  registry?: ReturnType<typeof createFileRegistry>,
-  recordsBindings?: readonly { recordType: string; messageName: string }[],
-): HubRecord[] {
-  return records.map((record) => {
-    if (record.recordType === "dokime.log") {
-      const log = fromBinary(LogsAppendRequestSchema, record.payload);
-      return mapNativeRecord(record, { message: log.message, severity: log.severity });
-    }
-    const message = registry ? recordMessage(registry, record.recordType, recordsBindings) : undefined;
-    if (!message) throw new Error(`Read Record ${record.recordType}: Frozen Contract Is Missing`);
-    return mapNativeRecord(record, recordFields(reflect(message, fromBinary(message, record.payload)), 0));
+    return decodeFrozenRecords([record], registry, detail.schemas?.records)[0];
   });
 }

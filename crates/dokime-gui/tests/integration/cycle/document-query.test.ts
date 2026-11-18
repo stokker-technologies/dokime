@@ -41,8 +41,10 @@ vi.mock("@/app/native-session/context", () => {
   };
   return { useNativeSession: () => session, useNativeSessionOptional: () => session };
 });
-vi.mock("@/lib/api/native-documents", () => ({
+vi.mock("@/lib/api/native-document-session", () => ({
   fetchNativeDocument: (...args: unknown[]) => backend.fetch(...args),
+}));
+vi.mock("@/lib/api/native-documents", () => ({
   mapNativeDocument: (capture: { view: DocumentViewPayload }) => capture.view,
   mapNativeDocumentCard: (capture: { card: DocumentViewCard }, id: string) => {
     assert.equal(capture.card.card_id, id);
@@ -110,7 +112,9 @@ test("Card Queries Refresh Independently", async () => {
     }
     if (input.cardIds?.[0] === "slow") {
       slowReads++;
-      if (slowReads > 1) return { card: card("slow", 4) };
+      if (slowReads > 1) {
+        return { card: card("slow", 4) };
+      }
       (signal as AbortSignal).addEventListener("abort", () => {
         cancelled++;
       });
@@ -132,7 +136,9 @@ test("Card Queries Refresh Independently", async () => {
       };
     }
     fastReads++;
-    if (fastReads > 1) fastRefreshed.resolve();
+    if (fastReads > 1) {
+      fastRefreshed.resolve();
+    }
     return { card: card("fast", fastReads) };
   });
   function Probe() {

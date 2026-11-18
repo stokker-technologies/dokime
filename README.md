@@ -30,7 +30,7 @@ operator questions, retries, cancellation, cleanup and report publication.
 - Managed executable plugins and remote gRPC plugins.
 - Scoped records, typed Arrow stream files, frozen schemas and sealed evidence.
 - Operator prompts, interactive execution controls and explicit cleanup.
-- Bounded plot/document reads, HTML preview and explicit report publication.
+- Bounded plot/document reads, self-contained HTML reports and explicit publication.
 - Authenticated remote access through the composed library Access services.
 
 ## Interfaces
@@ -38,8 +38,8 @@ operator questions, retries, cancellation, cleanup and report publication.
 ### GUI
 
 The native desktop is back in the Cargo workspace and uses the execution host.
-Its Product includes native installers; the remaining document-capture limitation
-and unavailable host controls are listed in [GUI Guidance](docs/gui.md).
+Its product includes native installers and self-contained HTML reports.
+See [GUI Guidance](docs/gui.md) for host connections and controls.
 
 #### Examples
 

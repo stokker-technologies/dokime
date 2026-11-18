@@ -12,11 +12,11 @@
 
 /* === Local Imports === */
 
-import { CyclePhase, CycleStatus } from "@host/model";
-import { type CycleState, cycleState } from "@/features/cycle/cycle-workspace-model";
-import { mapCycleStatus } from "@/lib/api/native-planning";
-import type { CycleSummary } from "@/lib/api/native-planning";
+import { cycleState, type CycleState } from "@/features/cycle/cycle-workspace-model";
 import type { PromptRequest } from "@/lib/types";
+import { CyclePhase, CycleStatus } from "@host/model";
+import type { CycleSummary } from "../../lib/api/native-planning-projection";
+import { mapCycleStatus } from "../../lib/api/native-planning-projection";
 
 /* === Constants === */
 

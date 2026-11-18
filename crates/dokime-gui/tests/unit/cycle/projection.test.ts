@@ -13,13 +13,10 @@
 import assert from "node:assert/strict";
 
 // Third Party Imports
+import { create } from "@bufbuild/protobuf";
+import { CycleSummarySchema, ExecutionOutcomeSchema, ExecutionState, ExecutionSummarySchema, Termination } from "@host/model";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { test, vi } from "vitest";
-import { create } from "@bufbuild/protobuf";
-import { ExecutionState, ExecutionOutcomeSchema } from "@host/model";
-import { ExecutionSummarySchema } from "@host/model";
-import { CycleSummarySchema } from "@host/model";
-import { Termination } from "@host/model";
 
 // Local Imports
 import {
@@ -28,9 +25,9 @@ import {
   createThrottledRefresh,
   settledOf,
 } from "@/app/live/runtime-refresh";
-import type { RuntimeStateFrame } from "@/lib/api/native-observation";
-import { mapNativeExecutionSummary, projectExecutionStatus } from "@/lib/api/native-planning";
 import { invalidateWorkflowDocuments, workflowQueryKeys } from "@/features/cycle/server-state";
+import type { RuntimeStateFrame } from "@/lib/api/native-observation";
+import { mapNativeExecutionSummary, projectExecutionStatus } from "../../../src/lib/api/native-planning-projection";
 
 /* === Re-Exports === */
 

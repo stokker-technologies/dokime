@@ -18,13 +18,12 @@
 
 /* === External Imports === */
 
-import { failureOf } from "@/lib/notification-details";
 import { Settings2 } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
-import { NotificationMessage } from "@/components/NotificationMessage";
 
 /* === Local Imports === */
 
+import { NotificationMessage } from "@/components/NotificationMessage";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,6 +39,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useReportDefaults } from "@/lib/application-settings";
+import { formatDecimal } from "@/lib/format";
+import { failureOf } from "@/lib/notification-details";
 import type { DocumentDownsampleTechnique } from "@/lib/types";
 import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 import type { PlotSettingsButtonProps } from "./plot-settings";
@@ -102,7 +103,9 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (invalid || busy) return;
+    if (invalid || busy) {
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -134,7 +137,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             max={NATIVE_PLOT_MAX_POINTS}
             min={0}
             onChange={(event) => setPointsRaw(event.target.value)}
-            placeholder={`Default (${defaults.plotPoints.toLocaleString()})`}
+            placeholder={`Default (${formatDecimal(defaults.plotPoints)})`}
             step={1}
             type="number"
             value={pointsRaw}
@@ -156,8 +159,8 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
 
         <p className="text-xs text-muted-foreground">
           {invalid
-            ? `Enter between 1 and ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} points, use 0 for every sample, or leave empty for the default.`
-            : `Leave the points empty for the host default, or use 0 for every sample; a long live run is compacted near ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} samples per trace.`}
+            ? `Enter between 1 and ${formatDecimal(NATIVE_PLOT_MAX_POINTS)} points, use 0 for every sample, or leave empty for the default.`
+            : `Leave the points empty for the host default, or use 0 for every sample; a long live run is compacted near ${formatDecimal(NATIVE_PLOT_MAX_POINTS)} samples per trace.`}
         </p>
         {error ? <NotificationMessage error={error}>{failureOf(error, "Operation Failed").message}</NotificationMessage> : null}
 
@@ -181,9 +184,15 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
 /** `null` for the default, a bounded integer, or `undefined` when the text is not one. */
 function parseDisplayPoints(raw: string): number | null | undefined {
   const text = raw.trim();
-  if (!text) return null;
+  if (!text) {
+    return null;
+  }
   const value = Number(text);
-  if (!Number.isSafeInteger(value)) return undefined;
-  if (value < 0 || value > NATIVE_PLOT_MAX_POINTS) return undefined;
+  if (!Number.isSafeInteger(value)) {
+    return undefined;
+  }
+  if (value < 0 || value > NATIVE_PLOT_MAX_POINTS) {
+    return undefined;
+  }
   return value;
 }
