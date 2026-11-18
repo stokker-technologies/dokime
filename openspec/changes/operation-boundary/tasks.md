@@ -96,6 +96,8 @@ switch with slices 2–4; no old-ledger reader remains behind new append operati
 - [ ] 5.3 Replace remaining storage notifications in every `host/**/watch.rs`, including documents/plots/content and `host/{backend,secrets}`, with D8 native sources and G3 frontier/resync behavior. Administration/overview counts use row operations; remove direct secrets administration deletion/scans. Compose live status separately, use native byte/production watches for files/uploads and keep media capture Watch explicitly unsupported. Prove focused runtime-state, health, secrets and content-watch stories, including filtered progress and complete compounds.
 - [x] 5.3a Before completing a plot snapshot watch, compare every delivered plot revision with its final evidence frontier and drain refreshed pages when sealing overtakes the delivered page. Prove the pre-seal-page and partial-final-page decisions deterministically, without sleeps or timing assertions. Native watch-source adoption remains in 5.3.
 
+- [x] 5.2e Bind statistics-cache hits to the complete request with the normalized field, preserve the recorded request on hits, and add deterministic same-frontier time-window, scope, version and audit-selection regressions. The canonical storage cutover remains open in 5.1–5.2.
+
 ## 6. Bootstrap, Final Removal and Facade Adoption
 
 Storage-only assembly, maintenance and removal of superseded storage paths use

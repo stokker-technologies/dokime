@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::num::NonZeroUsize;
+use std::result;
 
 // Third Party Imports
 use prost::Message;
@@ -68,7 +69,19 @@ impl Store {
     ) -> Result<Option<StatisticsRead>> {
         let key = (execution.into(), request.stream.clone(), request.field.clone(), after);
         let cache = self.statistics.lock().map_err(|_| Error::Invalid("Read Statistics: Restart After the Query Cache Failed".into()))?;
-        Ok(cache.get(&key).filter(|(frontier, _)| *frontier == through).map(|(_, read)| read.clone()))
+        Ok(cache
+            .get(&key)
+            .filter(|(frontier, read)| {
+                *frontier == through
+                    && read.request.as_ref().is_some_and(|cached| {
+                        let mut cached = cached.clone();
+                        if cached.field.is_empty() {
+                            cached.field.clone_from(&request.field);
+                        }
+                        cached == *request
+                    })
+            })
+            .map(|(_, read)| read.clone()))
     }
     pub fn cache_statistics(
         &self, execution: &str, request: &EvidenceStatisticsRequest, after: u64, through: u64, read: StatisticsRead,
@@ -134,7 +147,7 @@ impl Store {
             .query_map(params![execution, position(after)?, position(through)?, position(limit.get() as u64)?], |row| {
                 row.get::<_, Vec<u8>>(0)
             })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .collect::<result::Result<Vec<_>, _>>()?;
         bytes.iter().map(|bytes| Evidence::decode(bytes.as_slice()).map_err(Into::into)).collect()
     }
     pub fn step_range(&self, execution: &str, step: &str, frontier: u64, limit: NonZeroUsize) -> Result<(u64, u64)> {
