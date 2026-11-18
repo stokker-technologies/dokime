@@ -14,14 +14,13 @@ import { numericValue } from "@/lib/utils";
 
 import type { ParameterDefinition, ParameterListDefinition } from "./types";
 
-const GUI_RANGE_ITEMS = 10_000;
-
 export type ParseResult = { ok: true; values: unknown[] } | { ok: false; error: string };
 
-const NUMERIC_TYPES = new Set(["int", "integer", "float", "number"]);
+const NUMERIC_TYPES = new Set(["int", "integer", "unsigned", "float", "number"]);
+const INTEGER_TYPES = new Set(["int", "integer", "unsigned"]);
 const BOOL_TYPES = new Set(["bool", "boolean"]);
 
-const RANGE_HARD_CAP = GUI_RANGE_ITEMS;
+const RANGE_HARD_CAP = 10_000;
 
 /* === Public === */
 
@@ -132,6 +131,16 @@ function boundedResult(result: ParseResult, definition: ParameterDefinition): Pa
   if (!result.ok) return result;
   if ((definition.expansion?.kind ?? "single") === "single" && result.values.length > 1) {
     return { ok: false, error: "This parameter accepts one value." };
+  }
+  const valueType = (definition.value_type ?? "").toLowerCase();
+  if (INTEGER_TYPES.has(valueType)) {
+    const values: unknown[] = [];
+    for (const value of result.values) {
+      const parsed = coerceSingle(String(value), valueType);
+      if (!parsed.ok) return parsed;
+      values.push(parsed.value);
+    }
+    result = { ok: true, values };
   }
   for (const value of result.values) {
     const error = numericBoundsError(value, definition);
@@ -376,19 +385,14 @@ function coerceListItem(item: unknown, elementType: string): { ok: true; value: 
     return coerceSingle(String(item), elementType);
   }
   if (NUMERIC_TYPES.has(elementType)) {
-    if (item instanceof NativeIntegerValue || item instanceof NativeNumberValue) return { ok: true, value: item };
+    if (item instanceof NativeIntegerValue || item instanceof NativeNumberValue) return coerceSingle(String(item), elementType);
     if (typeof item === "number") {
-      if ((elementType === "int" || elementType === "integer") && !Number.isSafeInteger(item))
+      if (INTEGER_TYPES.has(elementType) && !Number.isSafeInteger(item))
         return {
           ok: false,
           error: "Use exact integer text for integers outside the safe JavaScript range.",
         };
-      return Number.isFinite(item)
-        ? {
-            ok: true,
-            value: elementType === "int" || elementType === "integer" ? item : new NativeNumberValue(item),
-          }
-        : { ok: false, error: "value is not a valid number." };
+      return coerceSingle(String(item), elementType);
     }
     const text = String(item).trim();
     // `Number("")` is 0; an empty field is an unfinished entry, not a zero.
@@ -410,7 +414,7 @@ function tryNumericExpansion(input: string, valueType: string): ParseResult | nu
     const start = Number(linspace[1]);
     const stop = Number(linspace[2]);
     const n = Number(linspace[3]);
-    if ((valueType === "int" || valueType === "integer") && ![start, stop].every(Number.isSafeInteger)) {
+    if (INTEGER_TYPES.has(valueType) && ![start, stop].every(Number.isSafeInteger)) {
       return {
         ok: false,
         error: "Integer ranges require exact safe integer endpoints; enter wider integers individually.",
@@ -459,7 +463,7 @@ function tryNumericExpansion(input: string, valueType: string): ParseResult | nu
 
 function expandRange(opts: { start: number; stop: number; step: number; valueType: string; inclusive: boolean }): ParseResult {
   const { start, stop, step, valueType, inclusive } = opts;
-  if ((valueType === "int" || valueType === "integer") && ![start, stop, step].every(Number.isSafeInteger)) {
+  if (INTEGER_TYPES.has(valueType) && ![start, stop, step].every(Number.isSafeInteger)) {
     return {
       ok: false,
       error: "Integer ranges require exact safe integer endpoints and steps; enter wider integers individually.",
@@ -511,8 +515,8 @@ function epsilon(value: number): number {
 }
 
 function coerceNumber(value: number, valueType: string): number | NativeNumberValue {
-  if (valueType === "int" || valueType === "integer") {
-    return Math.round(value);
+  if (INTEGER_TYPES.has(valueType)) {
+    return value;
   }
   // Strip trailing FP noise to keep previews readable.
   return new NativeNumberValue(Number(value.toFixed(12)));
@@ -520,22 +524,16 @@ function coerceNumber(value: number, valueType: string): number | NativeNumberVa
 
 function coerceSingle(raw: string, valueType: string): { ok: true; value: unknown } | { ok: false; error: string } {
   if (NUMERIC_TYPES.has(valueType)) {
-    if (valueType === "int" || valueType === "integer") {
+    if (INTEGER_TYPES.has(valueType)) {
       try {
-        return { ok: true, value: parseNativeInteger(raw.trim().replace(/\.0+$/, "")) };
+        return { ok: true, value: parseNativeInteger(raw.trim().replace(/\.0+$/, ""), valueType === "unsigned") };
       } catch {
-        return { ok: false, error: `"${raw}" is not a valid 64-bit integer.` };
+        return { ok: false, error: `"${raw}" is not a valid ${valueType === "unsigned" ? "unsigned" : "signed"} 64-bit integer.` };
       }
     }
     const parsed = Number(raw);
     if (!Number.isFinite(parsed)) {
       return { ok: false, error: `"${raw}" is not a valid number.` };
-    }
-    if ((valueType === "int" || valueType === "integer") && !Number.isInteger(parsed)) {
-      // accept "10" "10.0" but reject "10.5" for int.
-      if (Number(raw) !== Math.trunc(Number(raw))) {
-        return { ok: false, error: `"${raw}" is not a valid integer.` };
-      }
     }
     return { ok: true, value: new NativeNumberValue(parsed) };
   }

@@ -268,13 +268,13 @@ export function assertIntegerRange(value: bigint, unsigned = false): void {
     throw new Error("Native integer values must fit their signed or unsigned 64-bit range.");
 }
 
-export function parseNativeInteger(text: string): number | NativeIntegerValue {
+export function parseNativeInteger(text: string, unsigned?: boolean): number | NativeIntegerValue {
   if (!/^[+-]?\d+$/.test(text.trim())) throw new Error("Expected a whole number.");
   const value = BigInt(text);
-  const unsigned = value >= 1n << 63n;
-  assertIntegerRange(value, unsigned);
+  const isUnsigned = unsigned ?? value >= 1n << 63n;
+  assertIntegerRange(value, isUnsigned);
   const number = Number(value);
-  return Number.isSafeInteger(number) ? number : new NativeIntegerValue(value, unsigned);
+  return !isUnsigned && Number.isSafeInteger(number) ? number : new NativeIntegerValue(value, isUnsigned);
 }
 
 export function uniqueStrings(values: string[]): string[] {

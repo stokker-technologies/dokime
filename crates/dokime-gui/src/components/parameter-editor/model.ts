@@ -35,7 +35,7 @@ import type { NotificationProblem } from "@/lib/notification-details";
 export const SEGMENTED_CHOICE_LIMIT = 4;
 
 const BOOLEAN_TYPES = new Set(["bool", "boolean"]);
-const NUMERIC_TYPES = new Set(["int", "integer", "float", "number"]);
+const NUMERIC_TYPES = new Set(["int", "integer", "unsigned", "float", "number"]);
 
 /* === Types === */
 
