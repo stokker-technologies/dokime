@@ -57,6 +57,9 @@ from dokime_sdk.operations import Operation, Visibility
 
 class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
+        self.changed_binding = False
+        self.settled_seal = False
+        owner = self
         self.trace: list[Message] = []
         trace = self.trace
         cycle = cycles_pb2.CycleSummary(cycle_id="cycle", metadata={"label": "Capture"}, phase="CYCLE_PHASE_ACTIVE")
@@ -111,7 +114,7 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
 
             async def Seal(self, request: cycles_pb2.CyclesSealRequest, context: ServicerContext) -> cycles_pb2.CyclesSealResponse:
                 trace.append(request)
-                return cycles_pb2.CyclesSealResponse()
+                return cycles_pb2.CyclesSealResponse(seal=b"settled" if owner.settled_seal else b"")
 
             async def Watch(
                 self, request: cycles_pb2.CyclesWatchRequest, context: ServicerContext
@@ -155,7 +158,10 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
                 self, request: executions_pb2.ExecutionsGetRequest, context: ServicerContext
             ) -> executions_pb2.ExecutionsGetResponse:
                 trace.append(request)
-                return executions_pb2.ExecutionsGetResponse(execution=detail)
+                observed = executions_pb2.ExecutionDetail.FromString(detail.SerializeToString())
+                if owner.changed_binding:
+                    observed.summary.case_id = "foreign"
+                return executions_pb2.ExecutionsGetResponse(execution=observed)
 
             async def Start(
                 self, request: executions_pb2.ExecutionsStartRequest, context: ServicerContext
@@ -329,7 +335,23 @@ class ClientHandlesStory(unittest.IsolatedAsyncioTestCase):
         await cycle.refresh()
         self.assertEqual(cycle.label, "Capture")
         with self.assertRaises(ValueError):
-            await cycle.execution(Case(Client(self.client._transport), "foreign", "", "", ""))
+            await cycle.execution(Case._bind(Client._bind(self.client._transport), "foreign", "", "", ""))
+
+    async def test_refresh_refuses_a_changed_execution_binding(self) -> None:
+        execution = await self.client.executions.get("execution")
+        self.changed_binding = True
+        with self.assertRaises(SdkError):
+            await execution.refresh()
+        self.assertEqual(execution.case.identifier, "case")
+        self.assertEqual(execution._detail.summary.case_id, "case")
+
+    async def test_settled_cycle_seal_uses_its_acknowledgement_without_extra_readback(self) -> None:
+        cycle = await self.client.cycles.get("cycle")
+        self.settled_seal = True
+        self.trace.clear()
+        await cycle.seal(request_id="settled-seal")
+        self.assertEqual(self.trace, [cycles_pb2.CyclesSealRequest(name="cycle", request_id="settled-seal")])
+        self.assertEqual(cycle.phase, "Sealed")
 
     async def test_lost_reply_keeps_the_identity_for_an_unchanged_replay(self) -> None:
         with self.assertRaises(SdkError) as failed:

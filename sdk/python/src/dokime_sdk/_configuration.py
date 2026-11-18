@@ -35,13 +35,14 @@ from pathlib import Path
 def load() -> dict[str, str]:
     path = Path.cwd() / ".env"
     try:
-        content = path.read_text(encoding="utf-8-sig")
+        content = path.read_text(encoding="utf-8-sig", newline="")
     except FileNotFoundError:
         return {}
-    except UnicodeError as error:
-        raise ValueError(f"Read {path}:1: Save the File as UTF-8") from error
+    except UnicodeDecodeError as error:
+        number = error.object[: error.start].count(b"\n") + 1
+        raise ValueError(f"Read {path}:{number}: Save the File as UTF-8") from error
     except OSError as error:
-        raise OSError(f"Read {path}:1: Make the Configuration File Readable") from error
+        raise OSError(error.errno, f"Read {path}:1: Make the Configuration File Readable", str(path)) from error
     return parse(content, path)
 
 
@@ -55,8 +56,9 @@ def resolve(key: str, explicit: str | None, values: dict[str, str]) -> str:
 
 def parse(content: str, path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
-    for number, raw in enumerate(content.removeprefix("\ufeff").split("\n"), 1):
-        line = raw.removesuffix("\r").strip(" \t")
+    lines = content.removeprefix("\ufeff").split("\n")
+    for number, raw in enumerate(lines, 1):
+        line = (raw.removesuffix("\r") if number < len(lines) else raw).strip(" \t")
         if "\x00" in line or "\r" in line:
             raise _malformed(path, number)
         if not line or line.startswith("#"):

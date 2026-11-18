@@ -13,7 +13,6 @@
 # Standard Library Imports
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping, Sequence
-from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
@@ -28,7 +27,7 @@ from harmos.plugin import Endpoint
 # Local Imports
 from ._authoring import _Template
 from ._configuration import load, resolve
-from ._errors import Failure, SdkError, call, invalid, project_failure, refused, transport_error
+from ._errors import Failure, SdkError, call, chain, invalid, project_failure, refused, transport_error
 from ._generated import client_types
 from ._generated.client import ClientRoot
 from ._generated.shared import MapValue
@@ -44,7 +43,7 @@ if TYPE_CHECKING:
     from ._authoring import Record, Stream, TestTemplate
     from ._evidence import RecordsQuery, SamplesQuery
     from ._plugin import Plugin
-    from .operations import Operation
+    from .operations import Operation, OperationPolicy
 
 # === Public Exports === #
 
@@ -60,24 +59,42 @@ class _SealedProgress(Protocol):
 
 
 class Client:
-    def __init__(self, transport: ClientRoot) -> None:
+    _transport: ClientRoot
+    plugins: "Plugins"
+    cases: "Cases"
+    cycles: "Cycles"
+    executions: "Executions"
+    _schemas: FrozenSchemaCache
+    _prompt_handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None
+    _prompt_task: asyncio.Task[None] | None
+    _close_task: asyncio.Task[None] | None
+    _closed: bool
+
+    def __init__(self) -> None:
+        raise TypeError("Connect a Client with await connect()")
+
+    @classmethod
+    def _bind(cls, transport: ClientRoot) -> "Client":
+        self = object.__new__(cls)
         self._transport = transport
         self.plugins = Plugins(self)
         self.cases = Cases(self)
         self.cycles = Cycles(self)
         self.executions = Executions(self)
         self._schemas = FrozenSchemaCache()
-        self._prompt_handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None = None
-        self._prompt_task: asyncio.Task[None] | None = None
+        self._prompt_handler = None
+        self._prompt_task = None
         self._closed = False
-        self._close_task: asyncio.Task[None] | None = None
+        self._close_task = None
+
+        return self
 
     async def cycle(self, *, label: str, request_id: str | None = None) -> "Cycle":
         identity = _identity(request_id)
         reply = await call(
             "cycles.create", self._transport.cycles.create([], Metadata(label=label), False, "", request_id=identity), identity
         )
-        return Cycle(self, reply.cycle)
+        return Cycle._bind(self, reply.cycle)
 
     def operation[Q: Payload, R: Payload](self, operation: "Operation[Q, R]") -> "BoundOperation[Q, R]":
         return BoundOperation(self, operation)
@@ -140,6 +157,13 @@ class Client:
                 if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
                     failures.append(_cleanup_failure(result))
             self._prompt_task = None
+        registrations = list(self.plugins._pending)
+        for registration in registrations:
+            registration.cancel()
+        results = await asyncio.gather(*registrations, return_exceptions=True)
+        for result in results:
+            if isinstance(result, BaseException) and not isinstance(result, asyncio.CancelledError):
+                failures.append(_cleanup_failure(result))
         for entry in list(self.plugins._owned.values()):
             results = await asyncio.gather(entry.unregister(), return_exceptions=True)
             for result in results:
@@ -151,11 +175,14 @@ class Client:
                 failures.append(_cleanup_failure(result))
         self._closed = True
         if failures:
-            cause: Failure | None = None
-            for failure in reversed(failures):
-                cause = _append_failure(failure, cause)
             raise SdkError(
-                Failure("Refused", "cleanup_failed", "Client Cleanup Failed", "Resolve Each Cleanup Failure and Retry Close", cause=cause)
+                Failure(
+                    "Refused",
+                    "cleanup_failed",
+                    "Client Cleanup Failed",
+                    "Resolve Each Cleanup Failure and Retry Close",
+                    cause=chain(failures),
+                )
             )
 
 
@@ -165,8 +192,17 @@ class Plugins:
         self._owned: dict[str, RegisteredPlugin] = {}
         self._bindings: dict[type, list[tuple[str, str, str]]] = {}
         self._templates: dict[str, _Template] = {}
+        self._pending: set[asyncio.Task[RegisteredPlugin]] = set()
 
     async def register(self, plugin: "Plugin", *, address: str | None = None, request_id: str | None = None) -> "RegisteredPlugin":
+        pending = asyncio.create_task(self._register(plugin, address=address, request_id=request_id))
+        self._pending.add(pending)
+        try:
+            return await pending
+        finally:
+            self._pending.discard(pending)
+
+    async def _register(self, plugin: "Plugin", *, address: str | None = None, request_id: str | None = None) -> "RegisteredPlugin":
         if self._client._close_task is not None:
             raise ValueError("Register Plugin: Connect a New Client After Close")
         selected = resolve("DOKIME_PLUGIN_ADDRESS", address, load())
@@ -184,7 +220,7 @@ class Plugins:
                 ),
                 identity,
             )
-            entry = RegisteredPlugin(self._client, reply.entry, endpoint)
+            entry = RegisteredPlugin._bind(self._client, reply.entry, endpoint, label=plugin._label)
             self._owned[entry.identifier] = entry
             entry._check_failure(identity)
             if entry.state != "Ready":
@@ -206,7 +242,7 @@ class Plugins:
                                 if entry.state == "Ready":
                                     self._bind(plugin, entry.identifier)
                                     return entry
-                    raise invalid("plugins.watch", "Plugin Readiness Observation Ended Before Ready")
+                    raise invalid("plugins.watch", "Plugin Readiness Observation Ended Before Ready", request_id=identity)
                 except AioRpcError as error:
                     raise transport_error("plugins.watch", error, identity) from error
                 finally:
@@ -249,16 +285,39 @@ class Plugins:
 
     async def get(self, identifier: str) -> "RegisteredPlugin":
         reply = await call("plugins.get", self._client._transport.plugins.get(identifier))
-        return RegisteredPlugin(self._client, reply.entry)
+        owned = self._owned.get(identifier)
+        if owned is not None:
+            owned._entry.CopyFrom(reply.entry)
+            return owned
+        return RegisteredPlugin._bind(self._client, reply.entry)
 
 
 class RegisteredPlugin:
-    def __init__(self, client: Client, entry: client_types.PluginEntry, endpoint: Endpoint | None = None) -> None:
+    _client: Client
+    _entry: client_types.PluginEntry
+    _endpoint: Endpoint | None
+    _unregister_id: str
+    _detached: bool
+    _label: str | None
+
+    def __init__(self) -> None:
+        raise TypeError("Obtain a Plugin Through client.plugins")
+
+    @classmethod
+    def _bind(
+        cls, client: Client, entry: client_types.PluginEntry, endpoint: Endpoint | None = None, *, label: str | None = None
+    ) -> "RegisteredPlugin":
+        self = object.__new__(cls)
         self._client = client
+        if not entry.name:
+            raise invalid("plugins.get", "The Host Returned No Plugin Entry Identity")
         self._entry = client_types.PluginEntry.FromString(entry.SerializeToString())
         self._endpoint = endpoint
         self._unregister_id = _identity(None)
         self._detached = False
+        self._label = label
+
+        return self
 
     @property
     def identifier(self) -> str:
@@ -266,7 +325,7 @@ class RegisteredPlugin:
 
     @property
     def label(self) -> str:
-        return self._entry.description.id or self.identifier
+        return self._label or self._entry.description.id or self.identifier
 
     @property
     def version(self) -> str:
@@ -353,18 +412,31 @@ class Cases:
             self._client._transport.cases.create(client_types.SelectionPlan(selections=[selection]), False, request_id=identity),
             identity,
         )
-        return [Case(self._client, item.case_id, item.metadata.label, item.suite_id, item.template_id) for item in reply.cases]
+        return [Case._bind(self._client, item.case_id, item.metadata.label, item.suite_id, item.template_id) for item in reply.cases]
 
     async def get(self, identifier: str, *, cycle: str = "") -> "Case":
         reply = await call("cases.get", self._client._transport.cases.get(identifier, cycle))
         value = reply.value.summary
-        return Case(self._client, value.case_id, value.metadata.label, value.suite_id, value.template_id, cycle, reply.resolved_at)
+        return Case._bind(self._client, value.case_id, value.metadata.label, value.suite_id, value.template_id, cycle, reply.resolved_at)
 
 
 class Case:
-    def __init__(
-        self, client: Client, identifier: str, label: str, suite: str, template: str, cycle: str = "", at: harmos.ReadCut | None = None
-    ) -> None:
+    _client: Client
+    identifier: str
+    label: str
+    suite: str
+    template: str
+    _cycle: str
+    _at: harmos.ReadCut | None
+
+    def __init__(self) -> None:
+        raise TypeError("Obtain a Case Through client.cases")
+
+    @classmethod
+    def _bind(
+        cls, client: Client, identifier: str, label: str, suite: str, template: str, cycle: str = "", at: harmos.ReadCut | None = None
+    ) -> "Case":
+        self = object.__new__(cls)
         self._client = client
         self.identifier = identifier
         self.label = label
@@ -372,6 +444,8 @@ class Case:
         self.template = template
         self._cycle = cycle
         self._at = at
+
+        return self
 
     async def parameters(self) -> dict[str, Scalar]:
         if self._at is None:
@@ -391,7 +465,7 @@ class Cycles:
 
     async def get(self, identifier: str) -> "Cycle":
         reply = await call("cycles.get", self._client._transport.cycles.get(identifier))
-        return Cycle(self._client, reply.cycle, reply.revision)
+        return Cycle._bind(self._client, reply.cycle, reply.revision)
 
     async def list(self, *, text: str = "", page_size: int = 0) -> AsyncIterator["Cycle"]:
         if page_size < 0:
@@ -411,7 +485,7 @@ class Cycles:
             elif at != reply.resolved_at:
                 raise invalid("cycles.list", "The Retained Read Cut Changed")
             for cycle in reply.cycles:
-                yield Cycle(self._client, cycle)
+                yield Cycle._bind(self._client, cycle)
             if not reply.next_page_token:
                 return
             if reply.next_page_token in tokens:
@@ -426,7 +500,7 @@ class Executions:
 
     async def get(self, identifier: str) -> "Execution":
         reply = await call("executions.get", self._client._transport.executions.get(identifier))
-        return Execution(self._client, reply.execution)
+        return Execution._bind(self._client, reply.execution)
 
     async def list(
         self, *, cycle: str | None = None, template: str | None = None, state: str | None = None, page_size: int = 0
@@ -462,7 +536,7 @@ class Executions:
             elif at != reply.resolved_at:
                 raise invalid("executions.list", "The Retained Read Cut Changed")
             for execution in reply.executions:
-                yield Execution(self._client, execution)
+                yield Execution._bind(self._client, execution)
             if not reply.next_page_token:
                 return
             if reply.next_page_token in tokens:
@@ -472,10 +546,23 @@ class Executions:
 
 
 class Cycle:
-    def __init__(self, client: Client, summary: client_types.CycleSummary, revision: bytes = b"") -> None:
+    _client: Client
+    _summary: client_types.CycleSummary
+    _revision: bytes
+
+    def __init__(self) -> None:
+        raise TypeError("Obtain a Cycle Through client.cycle or client.cycles")
+
+    @classmethod
+    def _bind(cls, client: Client, summary: client_types.CycleSummary, revision: bytes = b"") -> "Cycle":
+        self = object.__new__(cls)
         self._client = client
+        if not summary.cycle_id:
+            raise invalid("cycles.get", "The Host Returned No Cycle Identity")
         self._summary = client_types.CycleSummary.FromString(summary.SerializeToString())
         self._revision = revision
+
+        return self
 
     @property
     def identifier(self) -> str:
@@ -501,8 +588,8 @@ class Cycle:
             identity,
         )
         if len(reply.executions) != 1:
-            raise invalid("executions.create", "The Host Must Return Exactly One Bound Execution")
-        return Execution(self._client, reply.executions[0], self, case)
+            raise invalid("executions.create", "The Host Must Return Exactly One Bound Execution", request_id=identity)
+        return Execution._bind(self._client, reply.executions[0], self, case)
 
     async def refresh(self) -> "Cycle":
         value = await self._client.cycles.get(self.identifier)
@@ -513,7 +600,8 @@ class Cycle:
         identity = _identity(request_id)
         reply = await call("cycles.seal", self._client._transport.cycles.seal(self.identifier, request_id=identity), identity)
         if reply.seal:
-            await self.refresh()
+            self._summary.phase = client_types.CYCLE_PHASE_SEALED
+            self._summary.sealed = True
             return
         watch = self._client._transport.cycles.watch(
             client_types.CycleSelection(cycle_ids=[self.identifier]), client_types.CycleFilter(), client_types.CycleOrder()
@@ -530,7 +618,7 @@ class Cycle:
                         return
                     if self.phase == "Seal Failed":
                         raise refused("cycles.seal", summary.seal_failure, "Resolve the Seal Failure and Retry Seal", request_id=identity)
-            raise invalid("cycles.watch", "Cycle Observation Ended Before Seal Settlement")
+            raise invalid("cycles.watch", "Cycle Observation Ended Before Seal Settlement", request_id=identity)
         except AioRpcError as error:
             raise transport_error("cycles.watch", error, identity) from error
         finally:
@@ -547,21 +635,48 @@ class Cycle:
 
 
 class Execution:
-    def __init__(self, client: Client, detail: client_types.ExecutionDetail, cycle: Cycle | None = None, case: Case | None = None) -> None:
+    _client: Client
+    _detail: client_types.ExecutionDetail
+    cycle: Cycle
+    case: Case
+
+    def __init__(self) -> None:
+        raise TypeError("Obtain an Execution Through a Cycle or client.executions")
+
+    @classmethod
+    def _bind(
+        cls, client: Client, detail: client_types.ExecutionDetail, cycle: Cycle | None = None, case: Case | None = None
+    ) -> "Execution":
+        self = object.__new__(cls)
         self._client = client
+        if not detail.summary.execution_id or not detail.cycle_id or not detail.summary.case_id:
+            raise invalid("executions.get", "The Host Returned an Incomplete Execution Binding")
+        if (cycle is not None and detail.cycle_id != cycle.identifier) or (case is not None and detail.summary.case_id != case.identifier):
+            raise invalid("executions.create", "The Host Returned an Execution Outside Its Cycle or Case")
         self._detail = client_types.ExecutionDetail.FromString(detail.SerializeToString())
-        self.cycle = cycle or Cycle(client, client_types.CycleSummary(cycle_id=detail.cycle_id))
-        self.case = case or Case(
+        self.cycle = cycle or Cycle._bind(client, client_types.CycleSummary(cycle_id=detail.cycle_id))
+        self.case = case or Case._bind(
             client, detail.summary.case_id, "", detail.admitted_suite.identifier, detail.admitted_template.identifier, detail.cycle_id
         )
+
+        return self
 
     @property
     def identifier(self) -> str:
         return self._detail.summary.execution_id
 
+    def _observe(self, detail: client_types.ExecutionDetail, request_id: str | None = None) -> None:
+        if (
+            detail.summary.execution_id != self.identifier
+            or detail.cycle_id != self.cycle.identifier
+            or detail.summary.case_id != self.case.identifier
+        ):
+            raise invalid("executions.get", "The Host Changed the Bound Execution Identity, Cycle or Case", request_id=request_id)
+        self._detail.CopyFrom(detail)
+
     async def refresh(self) -> "Execution":
         reply = await call("executions.get", self._client._transport.executions.get(self.identifier))
-        self._detail.CopyFrom(reply.execution)
+        self._observe(reply.execution)
         return self
 
     async def start(self, *, request_id: str | None = None) -> None:
@@ -571,7 +686,7 @@ class Execution:
             self._client._transport.executions.start(self.identifier, client_types.EXECUTION_MODE_AUTOMATIC, request_id=identity),
             identity,
         )
-        self._detail.CopyFrom(reply.execution)
+        self._observe(reply.execution, identity)
 
     async def watch(self) -> AsyncGenerator[Progress]:
         # Require the Agreed Host Field; Never Translate the Superseded Terminal Contract.
@@ -606,12 +721,12 @@ class Execution:
     async def stop(self, *, request_id: str | None = None) -> None:
         identity = _identity(request_id)
         reply = await call("executions.stop", self._client._transport.executions.stop(self.identifier, request_id=identity), identity)
-        self._detail.CopyFrom(reply.execution)
+        self._observe(reply.execution, identity)
 
     async def cancel(self, *, request_id: str | None = None) -> None:
         identity = _identity(request_id)
         reply = await call("executions.cancel", self._client._transport.executions.cancel(self.identifier, request_id=identity), identity)
-        self._detail.CopyFrom(reply.execution)
+        self._observe(reply.execution, identity)
 
     async def seal(self, *, request_id: str | None = None) -> Outcome:
         raise refused(
@@ -653,15 +768,21 @@ class BoundOperation[Q: Payload, R: Payload]:
         self._client = client
         self._operation = operation
 
-    async def __call__(self, value: Q) -> R:
+    async def __call__(self, request: Q, *, policy: "OperationPolicy | None" = None) -> R:
+        if policy is not None:
+            raise refused(
+                "invocations.create",
+                "The Host Invocation Contract Has No Operation Policy Override",
+                "Publish the Product Invocation Policy Contract and Regenerate Bindings",
+            )
         definition = self._operation._definition()
-        request = pack(self._operation.request, value)
+        encoded = pack(self._operation.request, request)
         observed = await call("operations.get", self._client._transport.operations.get(definition.id))
         if observed.contract.fingerprint != definition.fingerprint or observed.contract.visibility != harmos.VISIBILITY_PUBLIC:
             raise invalid("operations.get", "The Public Operation Contract Differs from the Declared Contract")
         payload = await call(
             "invocations.create",
-            self._client._transport.invocations.create(definition.id, definition.fingerprint, request.SerializeToString()),
+            self._client._transport.invocations.create(definition.id, definition.fingerprint, encoded.SerializeToString()),
         )
         return unpack(self._operation.response, message_type(self._operation.response).FromString(payload))
 
@@ -669,11 +790,6 @@ class BoundOperation[Q: Payload, R: Payload]:
 # === Public Functions === #
 
 # === Private Functions === #
-
-
-def _append_failure(failure: Failure, following: Failure | None) -> Failure:
-    cause = _append_failure(failure.cause, following) if failure.cause is not None else following
-    return replace(failure, cause=cause)
 
 
 def _cleanup_failure(error: BaseException) -> Failure:

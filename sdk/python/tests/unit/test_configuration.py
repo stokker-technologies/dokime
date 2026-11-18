@@ -61,6 +61,7 @@ class ConfigurationStory(TestCase):
             "A=one\x00two",
             "A='multi\nline'",
             "A=x\ry",
+            "A=x\r",
         ):
             with self.subTest(line=line), self.assertRaises(ValueError) as failed:
                 parse("# Header\n" + line, Path("settings.env"))
@@ -95,8 +96,9 @@ class ConfigurationStory(TestCase):
             (child / ".env").write_text("DOKIME_REMOTE=http://child:2", encoding="utf-8-sig")
             self.assertEqual(load(), {"DOKIME_REMOTE": "http://child:2"})
             (child / ".env").write_bytes(b"KEY=ok\nKEY2=\xff")
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ValueError) as failed:
                 load()
+            self.assertIn(f"{child / '.env'}:2:", str(failed.exception))
 
 
 # === Public Functions === #

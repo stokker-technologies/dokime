@@ -11,7 +11,7 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Awaitable, Mapping
+from collections.abc import Awaitable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 
@@ -65,6 +65,13 @@ class FailureError(SdkError):
 # === Public Functions === #
 
 
+def chain(failures: Sequence[Failure]) -> Failure | None:
+    cause: Failure | None = None
+    for failure in reversed(failures):
+        cause = _append_failure(failure, cause)
+    return cause
+
+
 def project_failure(value: harmos.FailureValue) -> Failure:
     classification = Classification.Name(value.classification)
     return Failure(
@@ -84,8 +91,10 @@ def refused(operation: str, message: str, action: str, *, request_id: str | None
     return SdkError(Failure("Refused", "host_capability_required", message, action, operation), request_id=request_id)
 
 
-def invalid(operation: str, message: str) -> SdkError:
-    return SdkError(Failure("Permanent", "invalid_response", message, "Read Again from the Intended Host", operation))
+def invalid(operation: str, message: str, *, request_id: str | None = None) -> SdkError:
+    return SdkError(
+        Failure("Permanent", "invalid_response", message, "Read Again from the Intended Host", operation), request_id=request_id
+    )
 
 
 async def call[T](operation: str, pending: Awaitable[T], request_id: str | None = None) -> T:
@@ -133,5 +142,11 @@ def transport_error(operation: str, error: AioRpcError, request_id: str | None =
 
 
 # === Private Functions === #
+
+
+def _append_failure(failure: Failure, following: Failure | None) -> Failure:
+    cause = _append_failure(failure.cause, following) if failure.cause is not None else following
+    return replace(failure, cause=cause)
+
 
 # === Entry Point === #

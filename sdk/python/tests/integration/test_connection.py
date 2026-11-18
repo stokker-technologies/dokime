@@ -21,9 +21,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 # Third Party Imports
-from grpc import ChannelConnectivity, method_handlers_generic_handler, unary_unary_rpc_method_handler
+from grpc import ChannelConnectivity, StatusCode
 from grpc.aio import Channel, ServicerContext, UnaryStreamClientInterceptor, UnaryUnaryClientInterceptor, insecure_channel, server
+from harmos import FailureValue
 from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusGetResponse
+from harmos._wire.host.v1.status_pb2_grpc import StatusServicer, add_StatusServicer_to_server
 
 # Local Imports
 from dokime_sdk._connection import connect
@@ -63,15 +65,16 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(listener.close)
         return f"http://127.0.0.1:{listener.getsockname()[1]}"
 
-    async def listening(self, identity: str) -> str:
-        async def status(request: StatusGetRequest, context: ServicerContext) -> StatusGetResponse:
-            return StatusGetResponse(status={"identity": {"host_id": identity}})
+    async def listening(self, identity: str, failure: FailureValue | None = None) -> str:
+        class Status(StatusServicer):
+            async def Get(self, request: StatusGetRequest, context: ServicerContext) -> StatusGetResponse:
+                if failure is not None:
+                    context.set_trailing_metadata((("grpc-status-details-bin", failure.SerializeToString()),))
+                    await context.abort(StatusCode.PERMISSION_DENIED, "Host Refused Connection")
+                return StatusGetResponse(status={"identity": {"host_id": identity}})
 
         listener = server()
-        handler = unary_unary_rpc_method_handler(
-            status, request_deserializer=StatusGetRequest.FromString, response_serializer=StatusGetResponse.SerializeToString
-        )
-        listener.add_generic_rpc_handlers((method_handlers_generic_handler("harmos.host.v1.Status", {"Get": handler}),))
+        add_StatusServicer_to_server(Status(), listener)
         port = listener.add_insecure_port("127.0.0.1:0")
         await listener.start()
         self.addAsyncCleanup(listener.stop, None)
@@ -104,6 +107,13 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.channels[0].get_state(), ChannelConnectivity.SHUTDOWN)
         self.assertEqual((await client._transport.status.get()).status.identity.host_id, "intended-host")
 
+    async def test_accepted_pairing_endpoint_does_not_inspect_later_endpoints(self) -> None:
+        accepted = await self.listening("intended-host")
+        client = await connect(self.pairing([accepted, "not-an-origin"]))
+        self.addAsyncCleanup(client.close)
+        self.assertEqual(len(self.channels), 1)
+        self.assertEqual((await client._transport.status.get()).status.identity.host_id, "intended-host")
+
     async def test_all_refused_errors_follow_file_order(self) -> None:
         endpoints = [self.refused(), self.refused()]
         path = self.pairing(endpoints)
@@ -130,6 +140,23 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(client.close)
         self.assertEqual(bounded.call_args.args[1], 4.25)
         self.assertEqual((await client._transport.status.get()).status.identity.host_id, "intended-host")
+
+    async def test_connection_failure_preserves_the_remote_classification_and_cause(self) -> None:
+        remote = FailureValue(
+            classification="CLASSIFICATION_REFUSED",
+            code="access",
+            action="Export a New Pairing",
+            cause={"classification": "CLASSIFICATION_PERMANENT", "code": "revoked", "details": {"key": "identity"}},
+        )
+        endpoint = await self.listening("intended-host", remote)
+        with self.assertRaises(SdkError) as failed:
+            await connect(endpoint, expected_backend_id="intended-host")
+        self.assertEqual(failed.exception.failure.classification, "Refused")
+        failure = failed.exception.failure.cause
+        self.assertIsNotNone(failure)
+        assert failure is not None and failure.cause is not None
+        self.assertEqual((failure.code, failure.cause.code), ("access", "revoked"))
+        self.assertEqual(failure.cause.details, {"key": "identity"})
 
     async def test_invalid_connection_budget(self) -> None:
         for value in (0.0, -1.0, float("inf"), float("nan")):

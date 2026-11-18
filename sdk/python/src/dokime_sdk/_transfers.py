@@ -53,7 +53,7 @@ async def upload_bytes(uploads: Uploads, data: bytes, *, metadata: FileMetadata,
     handle = Upload.FromString(created.upload.SerializeToString())
     try:
         if not created.HasField("upload") or not 0 < created.chunk_bytes < created.message_bytes:
-            raise invalid("uploads.create", "Invalid Upload or Host Limits")
+            raise invalid("uploads.create", "Invalid Upload or Host Limits", request_id=identity)
         for offset in range(0, len(data), created.chunk_bytes):
             chunk = data[offset : offset + created.chunk_bytes]
             acknowledged = await call(
@@ -66,18 +66,18 @@ async def upload_bytes(uploads: Uploads, data: bytes, *, metadata: FileMetadata,
                 or acknowledged.upload.writer_generation != handle.writer_generation
                 or acknowledged.upload.accepted_length != offset + len(chunk)
             ):
-                raise invalid("uploads.append", "The Host Returned a Different Upload Fence or Offset")
+                raise invalid("uploads.append", "The Host Returned a Different Upload Fence or Offset", request_id=identity)
             handle.CopyFrom(acknowledged.upload)
         published = await call(
             "uploads.publish", uploads.publish(handle, len(data), sha256(data).digest(), request_id=f"{identity}/publish"), identity
         )
         published_file = True
         if not published.HasField("upload") or published.upload.length != len(data) or published.upload.sha256 != sha256(data).digest():
-            raise invalid("uploads.publish", "Published Identity Differs from the Content")
+            raise invalid("uploads.publish", "Published Identity Differs from the Content", request_id=identity)
         return published.upload
     except BaseException as error:
         try:
-            if not published_file:
+            if not published_file and created.HasField("upload"):
                 await uploads.delete(handle, request_id=f"{identity}/abandon")
         except (SdkError, AioRpcError, ValueError, OSError, RuntimeError) as cleanup:
             error.add_note(f"Abandon Upload Failed: {cleanup}")
@@ -87,6 +87,8 @@ async def upload_bytes(uploads: Uploads, data: bytes, *, metadata: FileMetadata,
 async def download_report(
     client: ClientRoot, execution: str, *, document: str = "", max_bytes: int, request_id: str | None = None
 ) -> bytes:
+    if max_bytes <= 0:
+        raise ValueError("Download Report: Supply a Positive Read Limit")
     report = await call(
         "reports.create", client.reports.create(ReportSubject(execution=execution), document, request_id=request_id), request_id
     )

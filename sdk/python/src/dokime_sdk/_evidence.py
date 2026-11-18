@@ -17,6 +17,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
 
 # Third Party Imports
+from google.protobuf.descriptor_pb2 import DescriptorProto
 from google.protobuf.timestamp_pb2 import Timestamp
 from harmos import PageRequest, ReadCut
 
@@ -268,6 +269,8 @@ class SamplesQuery[T: Payload]:
 def _selector[T: Payload](
     execution: "Execution", declaration: Record[T] | Stream | str, row_type: type[T] | None
 ) -> tuple[str, type[T] | None]:
+    if row_type is not None:
+        message_type(row_type)
     if isinstance(declaration, str):
         if not declaration:
             raise ValueError("Read Evidence: Supply a Nonempty Selector")
@@ -302,7 +305,11 @@ async def _decode[T: Payload](execution: "Execution", name: str, payload: bytes,
     if row_type is None:
         return cast(T, value)
     expected = message_type(row_type)
-    if value.DESCRIPTOR.full_name != expected.DESCRIPTOR.full_name:
+    frozen = DescriptorProto()
+    value.DESCRIPTOR.CopyToProto(frozen)
+    declared = DescriptorProto()
+    expected.DESCRIPTOR.CopyToProto(declared)
+    if value.DESCRIPTOR.full_name != expected.DESCRIPTOR.full_name or frozen != declared:
         raise invalid("evidence.decode", "The Frozen Message Binding Differs from the Declared Row Type")
     return unpack(row_type, expected.FromString(payload))
 

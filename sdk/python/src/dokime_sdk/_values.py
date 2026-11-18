@@ -30,7 +30,6 @@ if TYPE_CHECKING:
 
 # === Public Exports === #
 
-__all__ = ["decode", "encode"]
 
 # === Constants === #
 

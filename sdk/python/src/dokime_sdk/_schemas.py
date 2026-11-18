@@ -17,7 +17,7 @@ from typing import Protocol
 
 # Third Party Imports
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
-from google.protobuf.message import Message
+from google.protobuf.message import DecodeError, Message
 from harmos import PageRequest, Position
 
 # Local Imports
@@ -28,7 +28,6 @@ from ._generated.client_types import ExecutionDetail, SchemasGetResponse
 
 # === Public Exports === #
 
-__all__ = ["FrozenSchemaCache"]
 
 # === Constants === #
 
@@ -102,7 +101,10 @@ class FrozenSchemaCache:
                 if not ready:
                     raise invalid("executions.schemas.get", "Decode Evidence: Missing or Cyclic Descriptor Dependencies")
                 for item in ready:
-                    pool.Add(item)
+                    try:
+                        pool.Add(item)
+                    except (TypeError, ValueError) as error:
+                        raise invalid("executions.schemas.get", "The Frozen Descriptor Set Is Invalid") from error
                     added.add(item.name)
                     del pending[item.name]
             self._pools[digest] = pool
@@ -114,7 +116,10 @@ class FrozenSchemaCache:
             descriptor = self._pools[digest].FindMessageTypeByName(bindings[name])
         except KeyError as error:
             raise invalid("executions.schemas.get", f"Decode Evidence: Unknown Frozen Message {name}") from error
-        return message_factory.GetMessageClass(descriptor).FromString(payload)
+        try:
+            return message_factory.GetMessageClass(descriptor).FromString(payload)
+        except DecodeError as error:
+            raise invalid("evidence.decode", "The Retained Payload Does Not Match Its Frozen Message") from error
 
 
 # === Public Functions === #

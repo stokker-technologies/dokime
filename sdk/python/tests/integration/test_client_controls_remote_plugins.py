@@ -116,7 +116,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
             identifier = "example"
             version = "1.0.0"
 
-        registration = asyncio.create_task(self.client.plugins.register(ExamplePlugin(), request_id="register"))
+        registration = asyncio.create_task(self.client.plugins.register(ExamplePlugin(), address="127.0.0.1:0", request_id="register"))
         await self.observing.wait()
         self.assertFalse(registration.done())
         self.ready.set()
@@ -132,6 +132,35 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list(self.entries), ["other"])
         self.assertIsNone(registered._endpoint)
 
+    async def test_lookup_of_an_owned_entry_preserves_its_sidecar_lifetime(self) -> None:
+        class LookedUpPlugin(Plugin):
+            identifier = "lookup"
+            version = "1.0.0"
+            label = "Display Label"
+
+        self.ready.set()
+        registered = await self.client.plugins.register(LookedUpPlugin(), address="127.0.0.1:0")
+        looked_up = await self.client.plugins.get(registered.identifier)
+        self.assertIs(looked_up, registered)
+        self.assertEqual(looked_up.label, "Display Label")
+        await looked_up.unregister()
+        self.assertIsNone(registered._endpoint)
+        self.assertEqual(self.entries, {})
+        self.assertEqual(self.client.plugins._owned, {})
+
+    async def test_close_unwinds_registration_that_is_waiting_for_readiness(self) -> None:
+        class PendingPlugin(Plugin):
+            identifier = "pending"
+            version = "1.0.0"
+
+        registration = asyncio.create_task(self.client.plugins.register(PendingPlugin(), address="127.0.0.1:0"))
+        await self.observing.wait()
+        await self.client.close()
+        with self.assertRaises(asyncio.CancelledError):
+            await registration
+        self.assertEqual(self.entries, {})
+        self.assertEqual(self.client.plugins._owned, {})
+
     async def test_close_reports_refusal_attempts_every_entry_and_closes_the_channel_last(self) -> None:
         class RunningPlugin(Plugin):
             identifier = "running"
@@ -144,10 +173,10 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         client = await connect(self.endpoint)
         self.addAsyncCleanup(client._transport.close)
         self.ready.set()
-        running = await client.plugins.register(RunningPlugin())
+        running = await client.plugins.register(RunningPlugin(), address="127.0.0.1:0")
         assert running._endpoint is not None
         self.addAsyncCleanup(running._endpoint.close)
-        await client.plugins.register(IdlePlugin())
+        await client.plugins.register(IdlePlugin(), address="127.0.0.1:0")
         self.refuse_delete.add("running")
         self.trace.clear()
         with self.assertRaises(SdkError) as failed:
@@ -169,7 +198,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
         self.fail_ready = True
         self.ready.set()
         with self.assertRaises(SdkError) as failed:
-            await self.client.plugins.register(FailingPlugin(), request_id="register-failure")
+            await self.client.plugins.register(FailingPlugin(), address="127.0.0.1:0", request_id="register-failure")
         self.assertEqual(failed.exception.request_id, "register-failure")
         cause = failed.exception.failure.cause
         self.assertIsNotNone(cause)
@@ -183,7 +212,7 @@ class ClientStory(unittest.IsolatedAsyncioTestCase):
             identifier = "waiting"
             version = "1.0.0"
 
-        registration = asyncio.create_task(self.client.plugins.register(WaitingPlugin()))
+        registration = asyncio.create_task(self.client.plugins.register(WaitingPlugin(), address="127.0.0.1:0"))
         await self.observing.wait()
         registration.cancel()
         with self.assertRaises(asyncio.CancelledError):

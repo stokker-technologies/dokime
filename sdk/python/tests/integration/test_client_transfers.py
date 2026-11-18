@@ -111,7 +111,7 @@ class ClientTransferStory(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(host.stop, None)
         self.client = await connect(f"http://127.0.0.1:{port}")
         self.addAsyncCleanup(self.client.close)
-        self.cycle = Cycle(self.client, CycleSummary(cycle_id="cycle"))
+        self.cycle = Cycle._bind(self.client, CycleSummary(cycle_id="cycle"))
 
     async def test_upload_preserves_acknowledged_fences_and_child_identities(self) -> None:
         artifact = await self.cycle.artifact("capture.bin", b"abcde", mime="test/data", request_id="attach")

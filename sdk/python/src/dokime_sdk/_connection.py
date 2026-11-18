@@ -14,6 +14,7 @@
 import json
 from asyncio import wait_for
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from dataclasses import replace
 from math import isfinite
 from pathlib import Path
 from typing import TypedDict
@@ -37,7 +38,7 @@ from grpc.aio import (
 # Local Imports
 from ._client import Client
 from ._configuration import load, resolve
-from ._errors import Failure, SdkError
+from ._errors import Failure, SdkError, chain, transport_error
 from ._generated.client import ClientRoot
 
 # Type Checking Imports
@@ -129,17 +130,39 @@ async def connect(
         _endpoint(selected)
         if not selected.startswith("http://"):
             raise ValueError("Connect: Use a Direct HTTP Origin or a Pinned HTTPS Pairing File")
-    for selected in endpoints:
-        _endpoint(selected)
-    failures = []
+        if certificate_pem:
+            raise ValueError("Connect: HTTP Cannot Carry a Certificate; Select a Pinned HTTPS Pairing File")
+    failures: list[Failure] = []
     for selected in endpoints:
         try:
             return await _connect_endpoint(selected, connect_timeout, certificate_pem, access_key, expected_backend_id)
-        except (AioRpcError, TimeoutError, ValueError) as error:
-            failure = str(error) or type(error).__name__
-            failures.append(f"{selected}: {failure}")
+        except AioRpcError as error:
+            failure = transport_error("connect", error).failure
+            failures.append(replace(failure, details={**failure.details, "connection_endpoint": selected}))
+        except (TimeoutError, ValueError) as error:
+            reason = str(error) or type(error).__name__
+            failures.append(
+                Failure(
+                    "Timed Out" if isinstance(error, TimeoutError) else "Refused",
+                    type(error).__name__,
+                    reason,
+                    "Check the Host Listener or Export a New Pairing",
+                    "connect",
+                    details={"connection_endpoint": selected},
+                )
+            )
+    message = "; ".join(f"{failure.details['connection_endpoint']}: {failure.message}" for failure in failures)
+    classifications = {failure.classification for failure in failures}
+    classification = failures[0].classification if len(classifications) == 1 else "Transient"
     raise SdkError(
-        Failure("Transient", "connection_failed", "; ".join(failures), "Check the Host Listener or Export a New Pairing", "connect")
+        Failure(
+            classification,
+            "connection_failed",
+            message,
+            "Check the Host Listener or Export a New Pairing",
+            "connect",
+            cause=chain(failures),
+        )
     )
 
 
@@ -166,7 +189,7 @@ async def _connect_endpoint(
         channel = insecure_channel(endpoint.netloc, interceptors=interceptors)
     wire = ClientRoot(channel)
     wire._owned_channel = channel
-    client = Client(wire)
+    client = Client._bind(wire)
     try:
         await wait_for(_ready(channel, wire, expected_backend_id), connect_timeout)
         return client
@@ -176,6 +199,8 @@ async def _connect_endpoint(
 
 
 def _endpoint(selected: str) -> SplitResult:
+    if any(character.isspace() or ord(character) < 32 for character in selected):
+        raise ValueError("Connect: Remove Whitespace and Control Characters from the Endpoint")
     endpoint = urlsplit(selected)
     if (
         endpoint.scheme not in ("http", "https")

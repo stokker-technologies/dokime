@@ -14,8 +14,10 @@
 import unittest
 from hashlib import sha256
 
+from google.protobuf import descriptor_pool, message_factory
+
 # Third Party Imports
-from google.protobuf.descriptor_pb2 import FileDescriptorSet
+from google.protobuf.descriptor_pb2 import FileDescriptorProto, FileDescriptorSet
 from google.protobuf.wrappers_pb2 import BoolValue, UInt64Value
 from grpc.aio import ServicerContext, server
 
@@ -152,6 +154,16 @@ class ClientEvidenceStory(unittest.IsolatedAsyncioTestCase):
             await self.execution.records("flag").read(limit=3)
         with self.assertRaises(SdkError):
             await self.execution.records("flag", row_type=int).read()
+
+    async def test_declared_row_type_must_match_the_frozen_fields_not_only_the_name(self) -> None:
+        definition = FileDescriptorProto(name="foreign.proto", package="google.protobuf", syntax="proto3")
+        row = definition.message_type.add(name="BoolValue")
+        row.field.add(name="value", number=1, type=9, label=1)
+        pool = descriptor_pool.DescriptorPool()
+        pool.Add(definition)
+        foreign = message_factory.GetMessageClass(pool.FindMessageTypeByName("google.protobuf.BoolValue"))
+        with self.assertRaises(SdkError):
+            await self.execution.records("flag", row_type=foreign).read()
 
     async def test_samples_preserve_nanoseconds_unsigned_values_and_refuse_truncation(self) -> None:
         query = self.execution.samples("counter", fields=["value"])
