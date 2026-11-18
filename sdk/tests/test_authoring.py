@@ -6,6 +6,7 @@
 
 import asyncio
 import os
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -32,10 +33,13 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         root = Path(__file__).resolve().parents[2]
         extension = ".exe" if os.name == "nt" else ""
         configuration = os.environ.get("DOKIME_CSHARP_CONFIGURATION", "Release").lower()
+        dotnet = subprocess.check_output(
+            ["mise", "-C", str(root / "sdk/csharp"), "which", "dotnet"], text=True, creationflags=spawn_flags(),
+        ).strip()
         commands = {
             "python": [sys.executable, str(root / "sdk/python/examples/test/plugin.py"), "--address", "127.0.0.1:0"],
             "rust": [str(root / f"target/debug/dokime-rust-test{extension}"), "--remote"],
-            "csharp": [str(root / f"target/cs/bin/Test/{configuration}/dokime-example-test{extension}"), "--remote"],
+            "csharp": [dotnet, str(root / f"target/cs/bin/Test/{configuration}/dokime-example-test.dll"), "--remote"],
             "cpp": [str(root / f"target/cp/tests/tests/dokime-story-plugin{extension}"), "--address", "127.0.0.1:0"],
         }
         descriptions = {}
@@ -54,8 +58,11 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                         line = (await process.stdout.readline()).decode().strip()
                         if not line:
                             raise RuntimeError(f"Describe {language} Capture: Build and Correct the Example Plugin")
-                        address = line.removeprefix("harmos listening ")
-                        if address.startswith("http://"):
+                        if line.startswith("harmos listening "):
+                            address = line.removeprefix("harmos listening ")
+                            break
+                        if line.startswith("http://"):
+                            address = line
                             break
                     channel = insecure_channel(address.removeprefix("http://"))
                     try:

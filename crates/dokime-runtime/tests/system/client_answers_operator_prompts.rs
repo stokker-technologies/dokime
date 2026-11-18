@@ -21,7 +21,6 @@ use std::error::Error;
 
 // Third Party Imports
 use harmos_protocol::host::plugin_placement;
-use tonic::Code;
 use tonic::transport::Endpoint;
 
 // Local Imports
