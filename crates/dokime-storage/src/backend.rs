@@ -63,9 +63,9 @@ use harmos_storage::query::{FileSelection, ObjectSelection, RecordSelection, Sch
 use harmos_storage::writes::SampleAppend;
 use harmos_storage::{
     BackendFailure, BackendSnapshot, CompoundExchange, Error, FileCheckpoint, FileChunk, FileMetadata, FilePhase, FileProgress,
-    FileReference, Identifier, IdentityKind, IdentitySelection, MemorySize, MutationReceipt, ObjectCatalog, ObjectEntry, ObjectKey,
-    ObjectPoint, ReadLimits, Result, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor, StorageFuture,
-    StorageSchema, StoreHistory, StoredIdentity, StoredRecord, StoredRow,
+    FileReference, Identifier, IdentityKind, IdentitySelection, MemorySize, MutationId, MutationReceipt, ObjectCatalog, ObjectEntry,
+    ObjectKey, ObjectPoint, ReadLimits, Result, ScanPage, SchemaKey, StagedFile, StorageBackend, StorageBatch, StorageCursor,
+    StorageFuture, StorageSchema, StoreHistory, StoredIdentity, StoredRecord, StoredRow,
 };
 use rusqlite::{Connection, ErrorCode, OpenFlags, OptionalExtension, Row, TransactionBehavior, params};
 use serde::{Serialize, de::DeserializeOwned};
@@ -731,6 +731,24 @@ impl StorageBackend for Backend {
             tx.commit().map_err(db)
         }))
     }
+    fn get_mutation_receipt<'a>(&'a self, id: &'a MutationId) -> StorageFuture<'a, Option<MutationReceipt>> {
+        let id = id.clone();
+        Box::pin(self.call(move |state| {
+            state.check()?;
+            let (seconds, nanos) = expiry(state.clock.date())?;
+            let data: Option<Vec<u8>> = state
+                .connection
+                .query_row(
+                    "SELECT data FROM storage_mutations WHERE id=?1 AND (expires_at_s,expires_at_ns)>(?2,?3)",
+                    params![text(&id)?, seconds, nanos],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(db)?;
+            data.map(|data| decode(&data)).transpose()
+        }))
+    }
+
     fn list_mutation_receipts(&self, limits: ReadLimits) -> StorageFuture<'_, Vec<MutationReceipt>> {
         Box::pin(self.call(move |state| {
             state.check()?;
