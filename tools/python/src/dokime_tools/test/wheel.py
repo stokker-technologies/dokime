@@ -91,6 +91,7 @@ def main() -> None:
         if options.stubs:
             commands.append([str(python), "-I", str(root / "sdk/python/tools/generated.py")])
             commands.append([str(python), "-I", str(root / "sdk/python/tools/stubs.py")])
+            commands.append([str(python), "-I", "-m", "mypy", "--strict", "--no-incremental", str(root / "sdk/python/tests/generation")])
         for command in commands:
             result = subprocess.run(
                 command, cwd=example, env=environment, creationflags=spawn_flags(), capture_output=True, text=True, check=False

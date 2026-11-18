@@ -250,6 +250,8 @@ class BoundOperation[RequestT: Payload, ResponseT: Payload]:
 
 
 class RecordsQuery[T: Payload]:
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     def __init__(self, context: Context, definition: Record[T], step: str) -> None:
         self._context = context
         self._definition = definition

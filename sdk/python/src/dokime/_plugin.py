@@ -109,7 +109,7 @@ class Plugin:
         ):
             if any(not item for item in identifiers) or len(identifiers) != len(set(identifiers)):
                 raise ValueError(f"Build Plugin: Supply Unique, Nonempty {name.title()} Identifiers")
-        methods = {}
+        methods: dict[str, Callable[..., Awaitable[Message | None]]] = {}
         if operations is not None:
             for cls in reversed(type(operations).__mro__):
                 for name, method in vars(cls).items():

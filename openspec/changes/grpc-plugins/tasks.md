@@ -54,6 +54,7 @@
 
 - [x] Python: Implement Product Exports, Typed Declarations, Generated Names, Plain Values and Visibility; Remove Raw Records and Sections.
 - [x] Python: Keep Authoring Exports at the Root, Remove Duplicate Plugin Exports and Pass the Repository Public-Surface Check.
+- [x] Python: Pass Strict Installed-Wheel Stubs and Typed Authoring Consumers, Including Plain Payloads and Decorators.
 - [x] Python: Migrate Every Python Example and README to the Locked Surface and Entrypoint Layout.
 - [x] Python: Complete Native Integration Proof With Underscore Identifiers Against This Worktree's Host.
 - [x] Python: Qualify Materialized Step and Criterion Instances With the Shared Identifier Function and Support Bound Methods.

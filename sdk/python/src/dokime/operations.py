@@ -16,7 +16,7 @@ import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, cast
+from typing import Any, ClassVar, TypeVar, cast
 
 # Third Party Imports
 import harmos
@@ -44,13 +44,15 @@ __all__ = ["Operation", "Visibility", "operation"]
 
 
 class Visibility(IntEnum):
-    PRIVATE = harmos.VISIBILITY_PRIVATE
-    PROTECTED = harmos.VISIBILITY_PROTECTED
-    PUBLIC = harmos.VISIBILITY_PUBLIC
+    PRIVATE = int(harmos.VISIBILITY_PRIVATE)
+    PROTECTED = int(harmos.VISIBILITY_PROTECTED)
+    PUBLIC = int(harmos.VISIBILITY_PUBLIC)
 
 
 @dataclass(frozen=True)
 class Operation[Q: Payload, R: Payload]:
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     identifier: str
     request: type[Q]
     response: type[R]
