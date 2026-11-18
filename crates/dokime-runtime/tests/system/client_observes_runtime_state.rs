@@ -155,7 +155,7 @@ fn client_observes_runtime_state() -> Result<(), Box<dyn Error>> {
             drop(cancelled);
             assert!(client.executions.get(identifier.clone()).await?.execution.unwrap().controls.unwrap().can_cancel);
             let prompt = client.prompts.list(identifier.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-            client.prompts.answers.create(prompt, "yes", MapValue::default(), true).await?;
+            client.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
             let mut terminal = false;
             while let Some(frame) = progress.next().await? {
                 terminal |= frame.finished;

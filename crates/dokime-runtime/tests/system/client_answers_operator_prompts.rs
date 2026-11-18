@@ -81,7 +81,6 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
             let client = Client::from_channel(channel.clone(), super::support::client_settings())?;
             let prompts = Client::from_channel(channel.clone(), super::support::client_settings())?.prompts.clone();
             let answers = Client::from_channel(channel.clone(), super::support::client_settings())?.prompts.answers.clone();
-            let definitions = Client::from_channel(channel.clone(), super::support::client_settings())?.prompt_definitions.clone();
             let entry = client
                 .plugins
                 .create(
@@ -95,11 +94,6 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                 .entry
                 .unwrap();
             super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
-            let catalog = definitions.list(String::new()).await?;
-            assert_eq!(catalog.values.len(), 1);
-            let definition = definitions.get("thermal.door", String::new(), Default::default()).await?.value.unwrap();
-            assert_eq!(definition.metadata.as_ref().unwrap().identifier, catalog.values[0].metadata.as_ref().unwrap().identifier);
-            assert_eq!(definitions.get("missing", String::new(), Default::default()).await.unwrap_err().code(), Code::NotFound);
             let cases = super::support::materialize(&client, "thermal", "thermal.cycle", HashMap::new()).await?;
             let mut repeated_origin = cases[0].origin.clone().unwrap();
             if let Some(origin::Kind::PluginRun(run)) = repeated_origin.kind.as_mut() {
@@ -157,7 +151,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
             assert!(prompts.get(prompt_id.clone()).await?.prompt.unwrap().response.is_none());
             let request = AnswersCreateRequest {
                 parent: prompt_id.clone(),
-                action: "yes".into(),
+                action: "0".into(),
                 accepted: true,
                 request_id: "operator-answer".into(),
                 ..Default::default()
@@ -197,7 +191,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                 answers
                     .create_with(
                         prompt_id.clone(),
-                        "no",
+                        "1",
                         Default::default(),
                         Default::default(),
                         PromptsAnswersCreateOptions {
@@ -264,7 +258,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                         ExecutionCommandAction::try_from(ExecutionCommandAction::RunStep as i32)?,
                         ExecutionsCommandsCreateOptions {
                             request_id: Some(command.into()),
-                            step_id: Some("hold".into()),
+                            step_id: Some("thermal.cycle.hold".into()),
                             ..Default::default()
                         },
                     )
@@ -277,7 +271,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                     runtime.next().await?.unwrap();
                 };
                 assert!(!questions.contains(&question));
-                client.prompts.answers.create(question.clone(), "yes", MapValue::default(), true).await?;
+                client.prompts.answers.create(question.clone(), "0", MapValue::default(), true).await?;
                 questions.push(question);
                 loop {
                     let saved = commands.get(command, repeated.clone()).await?.command.unwrap();

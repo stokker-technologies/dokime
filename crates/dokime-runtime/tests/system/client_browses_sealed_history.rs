@@ -163,7 +163,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                     .is_empty()
             );
             let prompt = client.prompts.list(identifier.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-            client.prompts.answers.create(prompt, "yes", MapValue::default(), true).await?;
+            client.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
             while progress.next().await?.is_some() {}
             let saved = executions.get_with(identifier.clone(), ExecutionsGetOptions { at: None, ..Default::default() }).await?;
             let steps = executions
@@ -220,7 +220,7 @@ fn client_browses_sealed_history() -> Result<(), Box<dyn Error>> {
                     execution_id: Some(identifier.clone()),
                     ..Default::default()
                 }),
-                streams: vec!["thermal.temperature".into()],
+                streams: vec!["thermal.cycle.temperature".into()],
                 page: Some(PageRequest { page_size: 1, ..Default::default() }),
                 ..Default::default()
             };

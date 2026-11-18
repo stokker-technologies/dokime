@@ -194,23 +194,19 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             let answer = Some(("submit", inspection()));
             let (startup, _) = run(&client, "obc.transient", "obc.transient.startup", HashMap::new(), answer).await?;
             let messages = [
-                ("obc.records.charger.initialized", "obc.Initialized"),
-                ("obc.records.charger.started", "obc.Started"),
+                ("obc.transient.startup.initialized", "obc.Initialized"),
+                ("obc.transient.startup.started", "obc.Started"),
                 ("obc.transient.startup.checkpoint", "obc.Checkpoint"),
-                ("obc.records.charger.completed", "obc.Completed"),
+                ("obc.transient.startup.completed", "obc.Completed"),
             ];
             let captured = records(&client, &startup, &messages).await?;
             for record in ["initialized", "started", "checkpoint", "completed"] {
-                let identifier = if record == "checkpoint" {
-                    "obc.transient.startup.checkpoint".into()
-                } else {
-                    format!("obc.records.charger.{record}")
-                };
+                let identifier = format!("obc.transient.startup.{record}");
                 assert_eq!(captured[&identifier].len(), 1, "{record}");
             }
             let checkpoint = &captured["obc.transient.startup.checkpoint"][0];
             assert_eq!(checkpoint.get_field_by_name("sample_index").unwrap().as_ref(), &prost_reflect::Value::U64(10));
-            let completed = &captured["obc.records.charger.completed"][0];
+            let completed = &captured["obc.transient.startup.completed"][0];
             assert_eq!(completed.get_field_by_name("sample_count").unwrap().as_ref(), &prost_reflect::Value::U64(20));
             assert_eq!(completed.get_field_by_name("accepted").unwrap().as_ref(), &prost_reflect::Value::Bool(true));
             assert_eq!(
@@ -303,32 +299,32 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
             let answer = Some(("submit", inspection()));
             let (steady, _) = run(&client, "obc.steady_state", "obc.steady_state.single_phase", parameters, answer).await?;
             let messages = [
-                ("obc.records.charger.initialized", "obc.Initialized"),
-                ("obc.records.charger.started", "obc.Started"),
-                ("obc.records.charger.hold", "obc.HoldEvent"),
-                ("obc.records.charger.completed", "obc.Completed"),
+                ("obc.steady_state.single_phase.initialized", "obc.Initialized"),
+                ("obc.steady_state.single_phase.started", "obc.Started"),
+                ("obc.steady_state.single_phase.hold", "obc.HoldEvent"),
+                ("obc.steady_state.single_phase.completed", "obc.Completed"),
             ];
             let captured = records(&client, &steady, &messages).await?;
-            let events = captured["obc.records.charger.hold"]
+            let events = captured["obc.steady_state.single_phase.hold"]
                 .iter()
                 .map(|record| record.get_field_by_name("event").unwrap().as_str().unwrap().to_owned())
                 .collect::<Vec<_>>();
             assert_eq!(events, ["hold_started", "hold_reached"]);
-            let completed = &captured["obc.records.charger.completed"][0];
+            let completed = &captured["obc.steady_state.single_phase.completed"][0];
             assert_eq!(completed.get_field_by_name("sample_count").unwrap().as_ref(), &prost_reflect::Value::U64(150));
 
             // Protection Trips on the Third Load Step and Refuses a Latched Restart
             let (protection, _) = run(&client, "obc.transient", "obc.transient.overcurrent", HashMap::new(), None).await?;
             let messages = [
-                ("obc.records.charger.initialized", "obc.Initialized"),
-                ("obc.records.charger.started", "obc.Started"),
-                ("obc.records.charger.faulted", "obc.Faulted"),
-                ("obc.records.charger.stopped", "obc.Stopped"),
+                ("obc.transient.overcurrent.initialized", "obc.Initialized"),
+                ("obc.transient.overcurrent.started", "obc.Started"),
+                ("obc.transient.overcurrent.faulted", "obc.Faulted"),
+                ("obc.transient.overcurrent.stopped", "obc.Stopped"),
             ];
             let captured = records(&client, &protection, &messages).await?;
-            let stopped = &captured["obc.records.charger.stopped"][0];
+            let stopped = &captured["obc.transient.overcurrent.stopped"][0];
             assert_eq!(stopped.get_field_by_name("tripped_at_step").unwrap().as_ref(), &prost_reflect::Value::U64(3));
-            let faulted = &captured["obc.records.charger.faulted"][0];
+            let faulted = &captured["obc.transient.overcurrent.faulted"][0];
             assert_eq!(faulted.get_field_by_name("fault").unwrap().as_str(), Some("overcurrent"));
 
             // Overvoltage Has Its Own Protection Ladder and Restart Refusal
@@ -337,16 +333,16 @@ fn client_runs_packaged_obc_plugin() -> Result<(), Box<dyn Error>> {
                 &client,
                 &voltage,
                 &[
-                    ("obc.records.charger.initialized", "obc.Initialized"),
-                    ("obc.records.charger.started", "obc.Started"),
-                    ("obc.records.charger.faulted", "obc.Faulted"),
-                    ("obc.records.charger.stopped", "obc.Stopped"),
+                    ("obc.transient.overvoltage.initialized", "obc.Initialized"),
+                    ("obc.transient.overvoltage.started", "obc.Started"),
+                    ("obc.transient.overvoltage.faulted", "obc.Faulted"),
+                    ("obc.transient.overvoltage.stopped", "obc.Stopped"),
                 ],
             )
             .await?;
-            assert_eq!(captured["obc.records.charger.faulted"][0].get_field_by_name("fault").unwrap().as_str(), Some("overvoltage"));
+            assert_eq!(captured["obc.transient.overvoltage.faulted"][0].get_field_by_name("fault").unwrap().as_str(), Some("overvoltage"));
             assert_eq!(
-                captured["obc.records.charger.stopped"][0].get_field_by_name("tripped_at_step").unwrap().as_ref(),
+                captured["obc.transient.overvoltage.stopped"][0].get_field_by_name("tripped_at_step").unwrap().as_ref(),
                 &prost_reflect::Value::U64(3)
             );
             // Exercise Each Independent Benchmark and the Balanced Three-Phase Template
@@ -386,7 +382,7 @@ fn real_clock_executions_end_passed() -> Result<(), Box<dyn Error>> {
 
             // Every Run Seals Passed; Counts and Durations Belong to the Controlled-Clock Stories
             let limit = HashMap::from([("limit".into(), vec![Value { kind: Some(value::Kind::Number(85.0)) }])]);
-            run(&client, "thermal", "thermal.cycle", limit, Some(("yes", MapValue::default()))).await?;
+            run(&client, "thermal", "thermal.cycle", limit, Some(("0", MapValue::default()))).await?;
             run(&client, "obc.transient", "obc.transient.startup", HashMap::new(), Some(("submit", inspection()))).await?;
             run(&client, "obc.benchmark", "obc.benchmark.exact_values", HashMap::new(), Some(("yes", MapValue::default()))).await?;
             let parameters = HashMap::from([

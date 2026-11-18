@@ -75,7 +75,7 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
             )
             samples = await client.evidence.samples.list(
                 EvidenceScope(execution_id=identifier),
-                ["thermal.temperature"],
+                ["thermal.cycle.temperature"],
                 [],
                 [],
                 [],
@@ -150,7 +150,7 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
             prompt_id = pending.prompts[0].prompt.prompt_id
             prompt = await client.prompts.get(prompt_id)
             assert prompt.prompt.prompt.prompt_id == prompt_id
-            await client.prompts.answers.create(prompt_id, "yes", MapValue(), True)
+            await client.prompts.answers.create(prompt_id, "0", MapValue(), True)
         assert "prompt" in phases and "finished" in phases
 
         # Decode the Captured Record Using Its Frozen Descriptors
@@ -180,7 +180,7 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
         assert fields["closed"] is True
         samples = await client.evidence.samples.list(
             EvidenceScope(execution_id=identifier),
-            ["thermal.temperature"],
+            ["thermal.cycle.temperature"],
             [],
             [],
             [],

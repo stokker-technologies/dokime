@@ -54,7 +54,6 @@ use dokime_sdk::client::SelectionPlan;
 use dokime_sdk::client::SnapshotsWatchResponse;
 use dokime_sdk::client::{ClientSettings, PlotRequest};
 use dokime_sdk::model::Section;
-use dokime_sdk::plugin::HostOperation;
 use dokime_sdk::{Result, prelude::*};
 
 use dokime_sdk::{
@@ -81,7 +80,7 @@ pub const HISTORY_WINDOW: Duration = Duration::from_secs(600);
 /* === Structs === */
 
 #[derive(dokime_sdk::Row)]
-#[harmos(package = "desktop.benchmark.v1")]
+#[dokime(package = "desktop.benchmark.v1")]
 struct Row {
     timestamp: f64,
     y0: f64,
@@ -278,7 +277,7 @@ impl Fixture {
         // Sample Visibility, Rather Than an Elapsed Delay, Establishes Readiness
         let request = SnapshotsWatchRequest {
             requests: vec![PlotRequest {
-                stream: "bench.pipeline".into(),
+                stream: "bench.pipeline.capture.samples".into(),
                 y_keys: vec!["y1".into()],
                 scope: Some(EvidenceScope {
                     execution_id: Some(self.execution.clone()),
@@ -329,9 +328,9 @@ impl Fixture {
 /* === Public Functions === */
 
 pub fn serve() -> Result<()> {
-    let stream = Stream::<Row>::new("bench.pipeline", "Pipeline Samples");
+    let stream = Stream::<Row>::new("samples", "Pipeline Samples");
     let observer = Observer::new(&stream, observe).interval_setting("sample_interval");
-    let template = Template::new("bench.pipeline.capture", "Pipeline Capture")
+    let template = Template::new("capture", "Pipeline Capture")
         .initialize(async |context: &Context| {
             context.set(History::default());
             let address = std::env::var("DOKIME_DESKTOP_BENCH_CONTROL")
@@ -360,7 +359,6 @@ pub fn serve() -> Result<()> {
             }),
         })
         .suite(Suite::new("bench.pipeline", "Pipeline Bench").template(template))
-        .requires_host(HostOperation::TimeSleep)
         .remote()
         .serve()
 }
@@ -395,7 +393,7 @@ fn document(count: usize) -> Document {
         PlotKind::Histogram,
         PlotKind::BoxPlot,
     ];
-    let field = |name: &str| FieldReference::new("bench.pipeline").field(name);
+    let field = |name: &str| FieldReference::new("bench.pipeline.capture.samples").field(name);
     let cards = (0..count)
         .map(|index| {
             let kind = if index < count - 9 { PlotKind::TimeSeries } else { kinds[index - count + 9] };

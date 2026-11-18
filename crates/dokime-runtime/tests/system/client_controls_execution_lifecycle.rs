@@ -399,7 +399,7 @@ fn client_controls_execution_lifecycle() -> Result<(), Box<dyn Error>> {
         }
         let held = client.executions.commands.get("hold-command", identifier.clone()).await?;
         let prompt = client.prompts.list(identifier.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-        client.prompts.answers.create(prompt, "yes", MapValue::default(), true).await?;
+        client.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
         loop {
             let receipt =
                 Client::from_channel(Endpoint::from_shared(process.url.clone())?.connect().await?, super::support::client_settings())?

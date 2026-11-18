@@ -24,8 +24,8 @@ use dokime::Termination;
 use dokime::Value;
 use dokime::client::ResultStatus;
 use dokime_protocol::host::PromptsCreateResponse;
-use dokime_protocol::model::origin::Kind as OriginKind;
-use dokime_protocol::model::value::Kind as ValueKind;
+use dokime_protocol::model::origin;
+use dokime_protocol::model::value;
 use dokime_runtime::Host;
 use dokime_runtime::PluginProcess;
 use dokime_runtime::RunState;
@@ -75,11 +75,11 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
                 assert_eq!(catalog.suites[0].templates[0].metadata.as_ref().unwrap().identifier, "thermal.cycle");
 
                 // Materialize Purely and Freeze Catalog and Process Identity
-                let parameters = HashMap::from([("limit".into(), Value { kind: Some(ValueKind::Number(85.0)) })]);
+                let parameters = HashMap::from([("limit".into(), Value { kind: Some(value::Kind::Number(85.0)) })]);
                 let origin = host.materialize(&entry, "thermal.cycle", parameters.clone()).await?;
                 assert_eq!(origin, host.materialize(&entry, "thermal.cycle", parameters).await?);
                 assert!(host.executions()?.is_empty() || snapshots.len() == 1);
-                let Some(OriginKind::PluginRun(run)) = origin.kind.as_ref() else { panic!("Expected PluginRun") };
+                let Some(origin::Kind::PluginRun(run)) = origin.kind.as_ref() else { panic!("Expected PluginRun") };
                 assert_eq!(run.digest, host.description(&entry)?.declarations.unwrap().digest);
                 assert_eq!(run.started_at, host.description(&entry)?.started_at);
                 assert_eq!(run.test_case.as_ref().unwrap().steps.len(), 2);
@@ -94,7 +94,7 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
                     &execution,
                     PromptsCreateResponse {
                         prompt: prompt.prompt,
-                        action: "yes".into(),
+                        action: "0".into(),
                         accepted: true,
                         ..Default::default()
                     },
@@ -128,8 +128,8 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
                         RunState::Finished
                     ]
                 );
-                let temperatures = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.temperature").collect::<Vec<_>>();
-                let counters = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.counter").collect::<Vec<_>>();
+                let temperatures = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.cycle.temperature").collect::<Vec<_>>();
+                let counters = snapshot.samples.iter().filter(|sample| sample.stream == "thermal.cycle.counter").collect::<Vec<_>>();
                 assert_eq!(snapshot.samples.len(), 2502);
                 assert_eq!(temperatures.len(), 2);
                 assert_eq!(counters.len(), 2500);
@@ -143,7 +143,7 @@ fn thermal_suite_survives_host_restart() -> Result<(), Box<dyn Error>> {
                 );
                 assert!(snapshot.samples.iter().all(|sample| sample.receipt_ns >= sample.source_ns));
                 assert!(snapshot.samples.windows(2).all(|pair| pair[0].position < pair[1].position));
-                assert_eq!(snapshot.records("thermal.door").len(), 1);
+                assert_eq!(snapshot.records("thermal.cycle.door").len(), 1);
                 assert_eq!(snapshot.logs()?.len(), 2);
                 assert_eq!(snapshot.progress()?.iter().map(|progress| progress.completed).collect::<Vec<_>>(), vec![1, 2]);
                 assert!(!snapshot.seal.is_empty());

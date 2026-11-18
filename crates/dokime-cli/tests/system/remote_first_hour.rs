@@ -107,7 +107,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                         "--suite",
                         suite,
                         "--template",
-                        "example.capture",
+                        "capture",
                         "--out",
                         cases.to_str().unwrap(),
                     ];
@@ -128,7 +128,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
 
                     // Await the Prompt Event and Answer It From the Command Line
                     super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", execution, "--json"]).await?;
-                    super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", execution, "--action", "yes", "--accepted"])
+                    super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", execution, "--action", "0", "--accepted"])
                         .await?;
                     super::run(&["--endpoint", &endpoint, "execution", "wait", execution]).await?;
                     let detail: Value =
@@ -211,7 +211,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     // Start the Appended Execution and Complete Its Prompt
                     super::run(&["--endpoint", &endpoint, "execution", "start", appended]).await?;
                     super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", appended, "--json"]).await?;
-                    super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", appended, "--action", "yes", "--accepted"])
+                    super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", appended, "--action", "0", "--accepted"])
                         .await?;
                     super::run(&["--endpoint", &endpoint, "execution", "wait", appended]).await?;
                     let completed: Value =
@@ -223,7 +223,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     super::run(&["--endpoint", &endpoint, "execution", "start", stopped]).await?;
                     super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", stopped, "--json"]).await?;
                     super::run(&["--endpoint", &endpoint, "execution", "stop", stopped]).await?;
-                    super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", stopped, "--action", "yes", "--accepted"])
+                    super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", stopped, "--action", "0", "--accepted"])
                         .await?;
                     super::run(&["--endpoint", &endpoint, "execution", "wait", stopped]).await?;
                     let stopped_detail: Value =
@@ -255,7 +255,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     for execution in rerun_executions.executions {
                         let id = execution.summary.unwrap().execution_id;
                         super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", &id, "--json"]).await?;
-                        super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", &id, "--action", "yes", "--accepted"])
+                        super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", &id, "--action", "0", "--accepted"])
                             .await?;
                         super::run(&["--endpoint", &endpoint, "execution", "wait", &id]).await?;
                         let detail: Value =

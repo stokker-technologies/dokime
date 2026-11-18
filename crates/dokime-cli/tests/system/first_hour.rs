@@ -89,7 +89,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 let suites: Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
                 let suite = suites["values"][0]["metadata"]["identifier"].as_str().ok_or("List Suites: Missing Suite Identity")?;
                 // Preview Without Registration, Then Recover the Same Registered Reply
-                let plan = serde_json::json!({"plan":{"selections":[{"suite_id":suite,"template_id":"example.capture"}],"max_cases":1}});
+                let plan = serde_json::json!({"plan":{"selections":[{"suite_id":suite,"template_id":"capture"}],"max_cases":1}});
                 let input = directory.path().join("plan.json");
                 fs::write(&input, serde_json::to_vec(&plan)?)?;
                 let preview: Value = serde_json::from_str(
@@ -121,7 +121,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                     "--suite",
                     suite,
                     "--template",
-                    "example.capture",
+                    "capture",
                     "--out",
                     cases.to_str().unwrap(),
                 ])
@@ -135,7 +135,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 )?;
                 let execution = executions["executions"][0]["summary"]["execution_id"].as_str().ok_or("Start Cycle: Missing Execution")?;
                 super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", execution, "--json"]).await?;
-                super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", execution, "--action", "yes", "--accepted"]).await?;
+                super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", execution, "--action", "0", "--accepted"]).await?;
                 super::run(&["--endpoint", &endpoint, "execution", "wait", execution]).await?;
                 let report = directory.path().join("rust.html");
                 if let Err(error) =
@@ -209,7 +209,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                     "--suite",
                     suite,
                     "--template",
-                    "example.capture",
+                    "capture",
                     "--out",
                     cases.to_str().unwrap(),
                     "--parameters",
@@ -225,7 +225,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 )?;
                 let execution = executions["executions"][0]["summary"]["execution_id"].as_str().unwrap();
                 super::run(&["--endpoint", &endpoint, "execution", "prompt", "next", execution, "--json"]).await?;
-                super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", execution, "--action", "yes", "--accepted"]).await?;
+                super::run(&["--endpoint", &endpoint, "execution", "prompt", "answer", execution, "--action", "0", "--accepted"]).await?;
                 super::run(&["--endpoint", &endpoint, "execution", "wait", execution]).await?;
                 let report = directory.path().join("python.html");
                 if let Err(error) =
