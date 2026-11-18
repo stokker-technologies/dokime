@@ -3,7 +3,13 @@
 The C++20 SDK provides template declarations, execution context operations and a
 composed host client. The [test example](examples/test/main.cpp) is the starter;
 its entry point serves the sidecar and drains the event engine at shutdown.
-The [client example](examples/client/main.cpp) connects to an existing host.
+The separate [client-plus-plugin example](examples/client/main.cpp) uploads a
+compiled `.dokime` bundle to an existing host. The host starts the managed
+sidecar; the client discovers Capture, runs it, answers its operator prompt and
+removes the plugin entry while preserving the evidence. Run the executable as
+`dokime-example-client HOST:PORT PATH/TO/CAPTURE.dokime`. Use a bundle built from
+the test starter with its native dependencies. The C++ entry point stays a
+sidecar; Python's in-process nonblocking endpoint is not needed for this flow.
 
 ## Author a Suite
 
