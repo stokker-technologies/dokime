@@ -1,23 +1,21 @@
 # ***
 #
-# Dokime
+# Starter Project
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
-"""A Deterministic Suite Shared With The Cross-Language Host Story."""
+"""Serve the Plugin; Dokime Starts This Module or Connects to It."""
 
 # === Imports === #
 
 # Standard Library Imports
+import asyncio
 
 # Third Party Imports
 # Local Imports
-from suite import Capture
-
-from dokime_sdk import Plugin, Template
-from dokime_sdk.authoring import Suite
+from starter_project.plugin import ExamplePlugin
 
 # Type Checking Imports
 
@@ -32,11 +30,14 @@ from dokime_sdk.authoring import Suite
 # === Public Functions === #
 
 
-def plugin() -> Plugin:
-    template = Template(Capture, label="Capture")
-    return Plugin("example", "0.1.0", suites=[Suite("example", [template], "Example")])
+async def main() -> None:
+    plugin = ExamplePlugin()
+    await plugin.serve()
 
 
 # === Private Functions === #
 
 # === Entry Point === #
+
+if __name__ == "__main__":
+    asyncio.run(main())

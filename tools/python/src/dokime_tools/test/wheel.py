@@ -66,7 +66,7 @@ def main() -> None:
     try:
         python = install / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         example = install / "test"
-        shutil.copytree(root / "sdk/python/examples/test", example, ignore=shutil.ignore_patterns(".venv", "__pycache__"))
+        shutil.copytree(root / "sdk/python/examples/starter", example, ignore=shutil.ignore_patterns(".venv", "__pycache__"))
         commands = [
             ["uv", "venv", "--python", sys.executable, str(install / ".venv")],
             ["uv", "pip", "install", "--python", str(python), str(wheels[0]), *(stub_requirements if options.stubs else [])],
@@ -91,6 +91,7 @@ def main() -> None:
                 ),
             ],
         ]
+        commands.append(["uv", "pip", "install", "--python", str(python), "--no-deps", str(example)])
         if not options.generated_only:
             commands.append([str(python), "-m", "unittest", "discover", "-s", "tests", "-v"])
         if options.stubs:

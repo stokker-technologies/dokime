@@ -12,6 +12,7 @@
 # === Imports === #
 
 # Standard Library Imports
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,7 +24,7 @@ from pathlib import Path
 # isort: split
 
 # Local Imports
-from dokime_tools.build.protocol_callers import check_public_surfaces
+from dokime_tools.build.protocol_callers import PYTHON_PUBLIC_HOMES, check_public_surfaces
 
 # Type Checking Imports
 
@@ -56,82 +57,32 @@ class GenerationContracts(unittest.TestCase):
                 finally:
                     scratch.cleanup()
 
-    def test_duplicate_exports_distinguish_namespaces_from_values(self) -> None:
-        value = "class Value: pass\n__all__ = ['Value']\n"
-        namespace = "__all__ = ['Value']\n"
-        cases = (
-            ("classes", {"__init__.py": value, "client.py": value}, True),
-            ("functions", {"__init__.py": "def Value(): pass\n" + namespace, "client.py": value}, True),
-            ("constants", {"__init__.py": "Value = 1\n" + namespace, "client.py": value}, True),
-            ("module_files", {"client.py": namespace, "Value.py": "", "plugin/__init__.py": namespace, "plugin/Value.py": ""}, False),
-            (
-                "subpackages",
-                {"client.py": namespace, "Value/__init__.py": "", "plugin/__init__.py": namespace, "plugin/Value/__init__.py": ""},
-                False,
-            ),
-            (
-                "relative_imports",
-                {
-                    "__init__.py": "from . import Value\n" + namespace,
-                    "Value.py": "",
-                    "plugin/__init__.py": "from ..nested import Value\n" + namespace,
-                    "nested/Value.py": "",
-                },
-                False,
-            ),
-            (
-                "reexported_modules",
-                {
-                    "__init__.py": "from .shared import Value\n" + namespace,
-                    "shared.py": "from .nested import Value\n",
-                    "nested/Value.py": "",
-                    "client.py": "from .shared import Value\n" + namespace,
-                },
-                False,
-            ),
-            ("class_then_module", {"client.py": value, "plugin/__init__.py": namespace, "plugin/Value.py": ""}, True),
-            ("module_then_class", {"client.py": namespace, "Value.py": "", "plugin/__init__.py": value}, True),
-            (
-                "class_between_modules",
-                {
-                    "__init__.py": "from .nested import Value\n" + namespace,
-                    "nested/Value.py": "",
-                    "client.py": value,
-                    "plugin/__init__.py": namespace,
-                    "plugin/Value.py": "",
-                },
-                True,
-            ),
-            (
-                "imported_classes",
-                {
-                    "__init__.py": "from .shared import Value\n" + namespace,
-                    "client.py": "from .shared import Value\n" + namespace,
-                    "shared.py": value,
-                },
-                True,
-            ),
-            (
-                "cyclic_imports",
-                {"__init__.py": "from .client import Value\n" + namespace, "client.py": "from . import Value\n" + namespace},
-                True,
-            ),
-        )
-        for name, files, duplicate in cases:
-            with self.subTest(name=name):
-                scratch_directory = tempfile.TemporaryDirectory()
-                try:
-                    root = Path(scratch_directory.name)
-                    for relative, source in files.items():
-                        path = root / "sdk/python/src/dokime_sdk" / relative
-                        path.parent.mkdir(parents=True, exist_ok=True)
-                        path.write_text(source, encoding="utf-8")
-                    if duplicate:
-                        self.assertRaisesRegex(ValueError, "Duplicate Public Export Value", check_public_surfaces, root)
-                    else:
-                        check_public_surfaces(root)
-                finally:
-                    scratch_directory.cleanup()
+    def test_three_public_homes_have_one_inventory(self) -> None:
+        scratch = Path(tempfile.mkdtemp())
+        try:
+            package = scratch / "sdk/python/src/dokime_sdk"
+            for module, names in PYTHON_PUBLIC_HOMES.items():
+                relative = f"{module}/__init__.py" if module == "templates" else f"{module}.py" if module else "__init__.py"
+                path = package / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("\n".join(f"{name} = object()" for name in sorted(names)), encoding="utf-8")
+            check_public_surfaces(scratch)
+            root = package / "__init__.py"
+            original = root.read_text()
+            for source in ("Context = object()", "__all__ = []", "from ._client import Client as OtherClient"):
+                with self.subTest(source=source):
+                    root.write_text(original + "\n" + source, encoding="utf-8")
+                    self.assertRaises(ValueError, check_public_surfaces, scratch)
+            root.write_text(original, encoding="utf-8")
+            fourth = package / "client.py"
+            fourth.write_text("from ._generated.client import ClientRoot", encoding="utf-8")
+            self.assertRaisesRegex(ValueError, "Fourth Python Public Home", check_public_surfaces, scratch)
+            fourth.unlink()
+            templates = package / "templates/__init__.py"
+            templates.write_text(templates.read_text().replace("Context = object()", ""), encoding="utf-8")
+            self.assertRaisesRegex(ValueError, "Missing.*Context", check_public_surfaces, scratch)
+        finally:
+            shutil.rmtree(scratch)
 
     def test_private_wire_paths_are_refused_only_at_public_entry_points(self) -> None:
         scratch_directory = tempfile.TemporaryDirectory()
@@ -148,13 +99,6 @@ class GenerationContracts(unittest.TestCase):
             internal.replace(public)
             self.assertRaises(ValueError, check_public_surfaces, root)
             public.write_text('#include "detail/messages.hpp"', encoding="utf-8")
-            exports = root / "sdk/python/src/dokime_sdk"
-            exports.mkdir(parents=True)
-            (exports / "__init__.py").write_text("__all__ = ['Value']", encoding="utf-8")
-            (exports / "client.py").write_text("__all__ = ['Value']", encoding="utf-8")
-            self.assertRaises(ValueError, check_public_surfaces, root)
-            (exports / "client.py").write_text("__all__ = ['Client']", encoding="utf-8")
-            check_public_surfaces(root)
         finally:
             scratch_directory.cleanup()
 

@@ -1,48 +1,27 @@
 # ***
 #
-# dokime-rust-workspace
+# Starter Project
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
-
-"""Compile the Generated Public Client and Plugin Call Shapes."""
+"""Type-Check the Three SDK Public Homes and Bound Client Flow."""
 
 # === Imports === #
 
 # Standard Library Imports
-from typing import Self, assert_type
+from typing import assert_type
 
 # Third Party Imports
-from google.protobuf.wrappers_pb2 import Int64Value
-
 # Local Imports
-from dokime_sdk import (
-    Case,
-    Context,
-    FileReference,
-    FileSource,
-    Operation,
-    Output,
-    Visibility,
-    Window,
-    criterion,
-    materialize,
-    model,
-    observer,
-    operation,
-    prompt,
-    record,
-    step,
-    stream,
-    suite,
-    window_observer,
-)
-from dokime_sdk.client import ClientRoot
+import dokime_sdk.operations
+import dokime_sdk.templates
+from dokime_sdk import Case, Client, Cycle, Execution, Outcome, Plugin, Progress, Suite
+from dokime_sdk.operations import Visibility, operation
+from dokime_sdk.templates import TestTemplate, criterion, record, step
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -53,67 +32,60 @@ from dokime_sdk.client import ClientRoot
 # === Classes === #
 
 
-@suite()
-class TypedAuthor:
-    accepted = record(bool)
-    count = record(int)
-    reading = record(float)
-    label = record(str)
-    message = record(Int64Value)
-    question = prompt("Continue?")
+class ConfirmationTestTemplate(TestTemplate):
+    confirmation = record(bool)
 
-    @materialize
-    def case(self, case: Case, parameters: dict[str, bool | str | int | float | None]) -> None:
-        case.step("Measure", self.measure)
-        case.criterion("Accept", self.accept)
+    @step("Confirm")
+    async def confirm(self, ctx: dokime_sdk.templates.Context) -> None:
+        assert_type(await ctx.prompt("Continue?", choices=["Yes", "No"]), str)
+        await ctx.record(self.confirmation, True)
+        assert_type(await ctx.records(self.confirmation, step=self.confirm).last(), bool)
 
-    @step("Measure")
-    async def measure(self, context: Context) -> None:
-        await context.record(self.accepted, True)
-        await context.record(self.count, 1)
-        await context.record(self.reading, 1.5)
-        await context.record(self.label, "ready")
-        await context.record(self.message, Int64Value(value=1))
-        assert_type(await context.records(self.accepted).last(), bool)
-        assert_type(await context.records(self.count).last(), int)
-        assert_type(await context.records(self.reading).last(), float)
-        assert_type(await context.records(self.label).last(), str)
-        assert_type(await context.records(self.message).last(), Int64Value)
-        assert_type(await context.prompt(self.question), str)
-        assert_type(await context.operation(Operation("read", request=str, response=int, visibility=Visibility.PUBLIC))("count"), int)
+    @criterion("Confirmed")
+    async def confirmed(self, ctx: dokime_sdk.templates.Context) -> bool:
+        return await ctx.records(self.confirmation, step=self.confirm).last()
 
-    @criterion("Accept")
-    def accept(self, context: Context) -> bool:
-        return True
 
-    @stream("Reading")
-    @observer()
-    def sample(self, context: Context) -> float:
-        return 1.5
+class CaptureSuite(Suite):
+    templates = (ConfirmationTestTemplate,)
 
-    @stream("Window", row=int)
-    @window_observer(columns=Int64Value)
-    def samples(self, context: Context, window: Window) -> list[int]:
-        return [1] * window.count
 
-    @operation("echo", request=str, response=str, visibility=Visibility.PUBLIC)
-    async def echo(self, context: Context, value: str) -> str:
-        return value
-
-    @classmethod
-    def instance(cls) -> Self:
-        return cls()
+class ExamplePlugin(Plugin):
+    version = "1.0.0"
+    suites = (CaptureSuite,)
 
 
 # === Public Functions === #
 
 
-async def generated_surface(client: ClientRoot, context: Context) -> None:
-    """Type-Check Content Calls Without Starting a Product Host."""
-    await client.plugins.list()
-    await context.host.files.capture(FileSource(), "output")
-    await context.host.content.artifacts.create(FileReference(), "capture.bin", "application/octet-stream")
-    await context.host.evidence.statistics("stream", [], model.Window(), list[Output](), "field", "step")
+@operation("example.echo", visibility=Visibility.PUBLIC)
+async def echo(ctx: dokime_sdk.operations.Context, request: str) -> str:
+    assert_type(ctx.plugin, Plugin)
+    return request
+
+
+async def client_surface(client: Client) -> None:
+    await client.plugins.register(ExamplePlugin())
+    cycle = await client.cycle(label="Capture")
+    assert_type(cycle, Cycle)
+    cases = await client.cases.materialize(ConfirmationTestTemplate)
+    assert_type(cases, list[Case])
+    for case in cases:
+        execution = await cycle.execution(case)
+        assert_type(execution, Execution)
+        async for progress in execution.run():
+            assert_type(progress, Progress)
+        assert_type(await execution.seal(), Outcome)
+        assert_type(await execution.evidence(), bytes)
+    await cycle.seal()
+    assert_type(await cycle.evidence(), bytes)
+    assert_type(
+        await client.operation(dokime_sdk.operations.Operation("example.echo", request=str, response=str, visibility=Visibility.PUBLIC))(
+            "value"
+        ),
+        str,
+    )
+    await client.close()
 
 
 # === Private Functions === #

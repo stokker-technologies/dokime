@@ -1,48 +1,34 @@
 # ***
 #
-# Dokime
+# Starter Project
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
-
-"""Pure SDK Thermal Client Journey"""
+"""Run and Reopen Thermal Evidence Through Bound SDK Handles."""
 
 # === Imports === #
 
+# Standard Library Imports
 import asyncio
+import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
-from dokime_sdk import (
-    CapturedRecordSelection,
-    EvidenceScope,
-    MapValue,
-    Metadata,
-    RecordScope,
-    Value,
-    model,
+# Local Imports
+from dokime_sdk import PromptAnswer, PromptQuestion, ResultStatus, connect
+
+# Third Party Imports
+from thermal_example.plugin import (
+    Door,
+    Temperature,
+    ThermalCycleTestTemplate,
+    ThermalPlugin,
 )
-from dokime_sdk.client import (
-    PLUGIN_STATE_READY,
-    RESULT_STATUS_PASSED,
-    BucketRequest,
-    ExecutionDetail,
-    ExecutionFilter,
-    ExecutionOrder,
-    ExecutionSelection,
-    PluginPlacement,
-    PluginRemote,
-    PluginValue,
-    RegisteredSelection,
-    RegisteredSelectionParametersEntry,
-    ReportSubject,
-    SelectionPlan,
-    SelectionValues,
-)
-from dokime_sdk.connection import connect
-from dokime_sdk.schemas import FrozenSchemaCache
+
+# Type Checking Imports
 
 # === Public Exports === #
 
@@ -55,134 +41,88 @@ from dokime_sdk.schemas import FrozenSchemaCache
 # === Public Functions === #
 
 
-async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None:
-    # Connect Through the Composed Client Surface
+async def journey(phase: str, url: str, expected: Path) -> None:
+    # Connect to the Same Host Before and After Its Process Restart.
     client = await connect(url)
     try:
         if phase == "read":
-            # Resolve the Original Frozen Evidence After Process Restart
-            saved = ExecutionDetail.FromString(expected.read_bytes())
-            identifier = saved.summary.execution_id
-            detail = (await client.executions.get(identifier)).execution
-            assert detail == saved
-            records = await client.evidence.records.list(
-                "",
-                [],
-                model.Window(),
-                "",
-                CapturedRecordSelection(),
-                scope=RecordScope(execution=identifier),
+            saved = json.loads(expected.read_text(encoding="utf-8"))
+            execution = await client.executions.get(saved["identifier"])
+            cycle = await client.cycles.get(saved["cycle"])
+            outcome = await execution.seal()
+            assert asdict(outcome) == saved["outcome"]
+        else:
+            # Admit the Python Class and Let the Script's Operator Answer Once.
+            await client.plugins.register(ThermalPlugin())
+
+            async def answer(question: PromptQuestion) -> PromptAnswer:
+                assert question.choices == ("Yes", "No")
+                return PromptAnswer("Yes")
+
+            client.on_prompt(answer)
+            cycle = await client.cycle(label="Thermal Cycle")
+            cases = await client.cases.materialize(
+                ThermalCycleTestTemplate, parameters={"limit": [85.0]}
             )
-            samples = await client.evidence.samples.list(
-                EvidenceScope(execution_id=identifier),
-                ["thermal.cycle.temperature"],
-                [],
-                [],
-                [],
-                [],
-                model.Window(),
-                BucketRequest(),
-                False,
-            )
-            assert records.SerializeToString(deterministic=True) == expected.with_suffix(".records").read_bytes()
-            assert samples.SerializeToString(deterministic=True) == expected.with_suffix(".samples").read_bytes()
-            return
+            assert len(cases) == 1
+            execution = await cycle.execution(cases[0])
+            phases = []
+            async for progress in execution.run():
+                phases.append(progress.phase)
+            assert "prompt" in phases
+            outcome = await execution.seal()
+            assert outcome.status == ResultStatus.PASSED
+            await cycle.seal()
 
-        # Create the Library Plugin Entry and Read Its Product Catalog
-        placement = PluginPlacement(remote=PluginRemote(url=plugin_url))
-        entry = (await client.plugins.create("thermal", placement, PluginValue(enabled=True))).entry
-        changes = client.plugins.watch(name=entry.name)
-        try:
-            while entry.state != PLUGIN_STATE_READY:
-                if entry.HasField("failure"):
-                    raise RuntimeError(f"Await Thermal Plugin Ready: {entry.failure}")
-                if await anext(changes, None) is None:
-                    raise RuntimeError("Await Thermal Plugin Ready: Watch Closed")
-                entry = (await client.plugins.get(entry.name)).entry
-        finally:
-            await changes.aclose()
-        assert (await client.plugins.list()).entries == [entry]
-        suites = await client.suites.list("")
-        suite_id = suites.values[0].metadata.identifier
-        suite = (await client.suites.get(suite_id, "", 0)).value
-        assert suite.templates[0].metadata.identifier == "thermal.cycle"
-
-        # Preview the Selection and Admit Its Frozen Origin
-        selection = RegisteredSelection(
-            suite_id=suite_id,
-            template_id="thermal.cycle",
-            parameters=[RegisteredSelectionParametersEntry(key="limit", value=SelectionValues(values=[Value(number=85.0)]))],
+        # Read Frozen Rows Using the Product Handles and the Fixture's Row Types.
+        records = await execution.records("thermal.cycle.door", row_type=Door).read()
+        assert len(records) == 1
+        assert (
+            records[0].value.SerializeToString()
+            == Door(closed=True).SerializeToString()
         )
-        cases = await client.cases.create(SelectionPlan(selections=[selection]), True)
-        cycle = await client.cycles.create(
-            [case.origin for case in cases.cases],
-            Metadata(label="Thermal Cycle"),
-            True,
-            "",
+        samples = await execution.samples(
+            "thermal.cycle.temperature", row_type=Temperature
+        ).collect()
+        assert [sample.timestamp_ns for sample in samples] == [
+            1_000_000_000,
+            2_000_000_000,
+        ]
+        assert all(
+            sample.value.SerializeToString()
+            == Temperature(celsius=84.0).SerializeToString()
+            for sample in samples
         )
-        admitted = await client.executions.list(
-            cycle.cycle.cycle_id,
-            ExecutionSelection(),
-            ExecutionFilter(),
-            ExecutionOrder(),
-        )
-        identifier = admitted.executions[0].summary.execution_id
-
-        # Await the Prompt and Its Durable Answer Through Composed Resources
-        phases: list[str] = []
-        async for progress in client.executions.progress.watch(identifier):
-            phases.append(progress.phase)
-            if progress.phase != "prompt":
-                continue
-            pending = await client.prompts.list(identifier, True)
-            prompt_id = pending.prompts[0].prompt.prompt_id
-            prompt = await client.prompts.get(prompt_id)
-            assert prompt.prompt.prompt.prompt_id == prompt_id
-            await client.prompts.answers.create(prompt_id, "0", MapValue(), True)
-        assert "prompt" in phases and "finished" in phases
-
-        # Decode the Captured Record Using Its Frozen Descriptors
-        detail = (await client.executions.get(identifier)).execution
-        assert detail.summary.state == 3 and detail.seal
-        assert detail.outcome.evaluated.status == RESULT_STATUS_PASSED
-        listed = await client.executions.list("", ExecutionSelection(), ExecutionFilter(), ExecutionOrder())
-        assert [execution.summary for execution in listed.executions] == [detail.summary]
-        records = await client.evidence.records.list(
-            "",
-            [],
-            model.Window(),
-            "",
-            CapturedRecordSelection(),
-            scope=RecordScope(execution=identifier),
-        )
-        assert len(records.records) == 1 and records.records[0].payload
-        schemas = FrozenSchemaCache()
-        door = await schemas.decode(client, detail, records.records[0].record_type, records.records[0].payload)
-        fields = {field.name: value for field, value in door.ListFields()}
-        assert fields["closed"] is True
-        samples = await client.evidence.samples.list(
-            EvidenceScope(execution_id=identifier),
-            ["thermal.cycle.temperature"],
-            [],
-            [],
-            [],
-            [],
-            model.Window(),
-            BucketRequest(),
-            False,
-        )
-        assert all(sample.WhichOneof("kind") == "raw" for sample in samples.samples)
-        times = [(sample.raw.timestamp.seconds, sample.raw.timestamp.nanos) for sample in samples.samples]
-        assert times == [(1, 0), (2, 0)], f"Sample the Hold at 1 s and 2 s: {times}"
-        assert all(sample.raw.payload for sample in samples.samples)
-        assert all(sample.raw.values.values["celsius"].number == 84.0 for sample in samples.samples)
-
-        # Read the Prepared Report Through the Shared File Resource
-        prepared = await client.reports.create(ReportSubject(execution=identifier), "")
-        await client.files.read(prepared.file, 0, prepared.file.length)
-        expected.write_bytes(detail.SerializeToString(deterministic=True))
-        expected.with_suffix(".records").write_bytes(records.SerializeToString(deterministic=True))
-        expected.with_suffix(".samples").write_bytes(samples.SerializeToString(deterministic=True))
+        retained = {
+            "identifier": execution.identifier,
+            "cycle": cycle.identifier,
+            "outcome": asdict(outcome),
+            "records": [
+                (
+                    row.identifier,
+                    row.sequence,
+                    row.timestamp_ns,
+                    row.value.SerializeToString().hex(),
+                )
+                for row in records
+            ],
+            "samples": [
+                (
+                    row.identifier,
+                    row.sequence,
+                    row.timestamp_ns,
+                    row.value.SerializeToString().hex(),
+                )
+                for row in samples
+            ],
+        }
+        normalized = json.dumps(retained, sort_keys=True)
+        if phase == "read":
+            assert normalized == expected.read_text(encoding="utf-8")
+            assert await cycle.evidence() == expected.with_suffix(".zip").read_bytes()
+        else:
+            expected.write_text(normalized, encoding="utf-8")
+            expected.with_suffix(".zip").write_bytes(await cycle.evidence())
     finally:
         await client.close()
 
@@ -192,4 +132,4 @@ async def journey(phase: str, url: str, plugin_url: str, expected: Path) -> None
 # === Entry Point === #
 
 if __name__ == "__main__":
-    asyncio.run(journey(sys.argv[1], sys.argv[2], sys.argv[3], Path(sys.argv[4])))
+    asyncio.run(journey(sys.argv[1], sys.argv[2], Path(sys.argv[3])))

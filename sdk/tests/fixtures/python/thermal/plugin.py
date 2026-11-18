@@ -1,23 +1,22 @@
 # ***
 #
-# dokime-rust-workspace
+# Starter Project
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
-"""Serve the Shared Thermal Suite Until Explicit Stdin Close."""
+"""Serve the Plugin; Dokime Starts This Module or Connects to It."""
 
 # === Imports === #
+
 # Standard Library Imports
-# SPDX-License-Identifier: Apache-2.0
 import asyncio
 import sys
 
 # Third Party Imports
-from suite import plugin
-
 # Local Imports
+from thermal_example.plugin import ThermalPlugin
 
 # Type Checking Imports
 
@@ -33,12 +32,13 @@ from suite import plugin
 
 
 async def main() -> None:
-    endpoint = await plugin().start("127.0.0.1:0")
-    print(endpoint.url, flush=True)
+    plugin = ThermalPlugin()
+    serving = asyncio.create_task(plugin.serve())
     try:
         await asyncio.to_thread(sys.stdin.buffer.read)
     finally:
-        await endpoint.close()
+        serving.cancel()
+        await asyncio.gather(serving, return_exceptions=True)
 
 
 # === Private Functions === #

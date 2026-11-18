@@ -13,7 +13,6 @@
 # Standard Library Imports
 import asyncio
 import os
-import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -28,7 +27,7 @@ from harmos._wire.plugin.v1.instance_pb2 import InstanceGetRequest, InstanceGetR
 # isort: split
 
 # Local Imports
-from dokime_sdk import RecordContracts, Suites
+from dokime_sdk._generated.shared import RecordContracts, Suites
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import policy
 
@@ -48,16 +47,36 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         root = Path(__file__).resolve().parents[2]
         extension = ".exe" if os.name == "nt" else ""
         configuration = os.environ.get("DOKIME_CSHARP_CONFIGURATION", "Release").lower()
-        dotnet = subprocess.check_output(
-            ["mise", "-C", str(root / "sdk/csharp"), "which", "dotnet"],
-            text=True,
+        locating = await asyncio.create_subprocess_exec(
+            "mise", "-C", str(root / "sdk/csharp"), "which", "dotnet",
+            stdout=asyncio.subprocess.PIPE,
             creationflags=spawn_flags(),
-        ).strip()
+        )
+        output, _ = await locating.communicate()
+        if locating.returncode:
+            raise RuntimeError("Locate C# Fixture: Install Its Declared dotnet Tool With Mise")
+        dotnet = output.decode().strip()
         commands = {
-            "python": [sys.executable, str(root / "sdk/python/examples/test/plugin.py"), "--address", "127.0.0.1:0"],
-            "rust": [str(root / f"target/debug/dokime-rust-test{extension}"), "--remote"],
-            "csharp": [dotnet, str(root / f"target/cs/bin/Test/{configuration}/dokime-example-test.dll"), "--remote"],
-            "cpp": [str(root / f"target/cp/tests/tests/dokime-story-plugin{extension}"), "--address", "127.0.0.1:0"],
+            "python": [
+                sys.executable,
+                str(root / "sdk/tests/fixtures/python/capture/plugin.py"),
+            ],
+            "rust": [
+                str(root / f"target/debug/dokime-rust-test{extension}"),
+                "--remote",
+            ],
+            "csharp": [
+                dotnet,
+                str(
+                    root / f"target/cs/bin/Test/{configuration}/dokime-example-test.dll"
+                ),
+                "--remote",
+            ],
+            "cpp": [
+                str(root / f"target/cp/tests/tests/dokime-story-plugin{extension}"),
+                "--address",
+                "127.0.0.1:0",
+            ],
         }
         descriptions = {}
         timeout = policy.load(root).deadline("integration")
@@ -77,7 +96,9 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                     while True:
                         line = (await process.stdout.readline()).decode().strip()
                         if not line:
-                            raise RuntimeError(f"Describe {language} Capture: Build and Correct the Example Plugin")
+                            raise RuntimeError(
+                                f"Describe {language} Capture: Build and Correct the Example Plugin"
+                            )
                         if line.startswith("harmos listening "):
                             address = line.removeprefix("harmos listening ")
                             break
@@ -91,7 +112,13 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                             request_serializer=InstanceGetRequest.SerializeToString,
                             response_deserializer=InstanceGetResponse.FromString,
                         )
-                        response = await get(InstanceGetRequest(revision=1, host="authoring_equivalence", host_version="1.0.0"))
+                        response = await get(
+                            InstanceGetRequest(
+                                revision=1,
+                                host="authoring_equivalence",
+                                host_version="1.0.0",
+                            )
+                        )
                         descriptions[language] = contracts(response.declarations)
                     finally:
                         await channel.close()
@@ -100,11 +127,40 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
                     process.terminate()
                 await process.wait()
         expected = descriptions["python"]
-        self.assertEqual(expected["operations"], ["capture.cleanup", "capture.confirm", "capture.confirmed", "capture.materialize"])
-        self.assertEqual(expected["records"], [("capture.confirmation", "google.protobuf.BoolValue")])
+        self.assertEqual(
+            expected["operations"],
+            [
+                "capture.confirmation.cleanup",
+                "capture.confirmation.confirm",
+                "capture.confirmation.confirmed",
+                "capture.confirmation.materialize",
+            ],
+        )
+        self.assertEqual(
+            expected["records"],
+            [("capture.confirmation.confirmation", "google.protobuf.BoolValue")],
+        )
         self.assertEqual(
             expected["suites"],
-            [("capture", [("capture", "capture.materialize", "", "capture.cleanup", [("capture.confirm", "capture.confirm")])])],
+            [
+                (
+                    "capture",
+                    [
+                        (
+                            "capture.confirmation",
+                            "capture.confirmation.materialize",
+                            "",
+                            "capture.confirmation.cleanup",
+                            [
+                                (
+                                    "capture.confirmation.confirm",
+                                    "capture.confirmation.confirm",
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ],
         )
         for language, description in descriptions.items():
             self.assertEqual(description, expected, language)
@@ -124,7 +180,9 @@ def contracts(declarations: Declarations) -> dict[str, object]:
     return {
         "operations": sorted(operation.id for operation in declarations.operations),
         "streams": sorted(stream.id for stream in declarations.streams),
-        "records": sorted((record.metadata.identifier, record.message) for record in records.records),
+        "records": sorted(
+            (record.metadata.identifier, record.message) for record in records.records
+        ),
         "suites": [
             (
                 suite.metadata.identifier,
@@ -134,7 +192,10 @@ def contracts(declarations: Declarations) -> dict[str, object]:
                         template.materialize,
                         template.initialize,
                         template.cleanup,
-                        [(step.metadata.identifier, step.operation) for step in template.steps],
+                        [
+                            (step.metadata.identifier, step.operation)
+                            for step in template.steps
+                        ],
                     )
                     for template in suite.templates
                 ],

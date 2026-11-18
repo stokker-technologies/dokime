@@ -48,17 +48,17 @@ The existing [screenshots](docs/screenshots/) document desktop workflows.
 ### CLI
 
 `dokime` creates SDK projects, packages executable plugins, hosts Dokime and
-controls a running host. `dokime new` embeds the SDK's `plugin` and `test` examples
-(`Plugin` and `Test` for C#). See [Command-Line Usage](docs/execution-host.md#command-line-tool).
+controls a running host. `dokime new --lang python` embeds one Python project;
+the other languages embed their plugin and test projects. See [Command-Line Usage](docs/execution-host.md#command-line-tool).
 
 #### Examples
 
 ```sh
 mise run build -- --package dokime-cli
 ./target/debug/dokime new bench --lang python
-./target/debug/dokime dev --plugin ./bench/test
-./target/debug/dokime dev --no-desktop --plugin ./bench/test
-./target/debug/dokime plugin bundle ./bench/test --out ./bench.dokime
+./target/debug/dokime dev --plugin ./bench
+./target/debug/dokime dev --no-desktop --plugin ./bench
+./target/debug/dokime plugin bundle ./bench --out ./bench.dokime
 ./target/debug/dokime server --endpoint 127.0.0.1:7000 --storage ./bench-data
 ./target/debug/dokime --endpoint http://127.0.0.1:7000 access pairing export --label Operator --out operator.pair
 ./target/debug/dokime --remote operator.pair --connect-timeout 10 status --json
@@ -69,14 +69,16 @@ mise run build -- --package dokime-cli
 The pure Python `dokime-sdk` package (import `dokime_sdk`) composes remote plugins and async clients over Harmos gRPC.
 Resources close explicitly. See the [Python SDK](sdk/python/README.md).
 
-`await connect("operator.pair", connect_timeout=10.0)` (from `dokime_sdk.connection`) overrides the
+`await connect("operator.pair", connect_timeout=10.0)` (from `dokime_sdk`) overrides the
 30-second connection budget for each endpoint attempt. The CLI's
 `--connect-timeout <seconds>` overrides `connect_timeout_s` for one invocation.
 
 #### Examples
 
-The [Python test example](sdk/python/examples/test/) serves a suite with an
-operator question, confirmation record and criterion:
+The [Python starter](sdk/python/examples/starter/) contains one uv project with
+a confirmation suite, an echo operation and a client flow. Its host-free
+`uv run python -m unittest` checks the plugin description. The client saves
+sealed evidence under `_output/`; answer its operator question in the desktop:
 
 ```sh
 mise -C sdk/python run build

@@ -28,6 +28,7 @@ test = [
 dev = ["dokime-tools", "ruff==0.17.0", "ty==0.0.86"]
 # SDK Authored Build Hooks and Generators Are Included in the Python Type Check.
 sdk-tooling = [
+  "rich",
   "hatchling==1.33.0",
   "grpcio-tools==1.85.1",
   "mypy-protobuf==5.1.0",

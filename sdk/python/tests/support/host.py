@@ -21,8 +21,7 @@ from tempfile import TemporaryDirectory
 from unittest import IsolatedAsyncioTestCase
 
 # Third Party Imports
-from dokime_sdk.client import ClientRoot
-from dokime_sdk.connection import connect
+from dokime_sdk import Client, connect
 
 # Local Imports
 
@@ -43,7 +42,7 @@ class Host:
         # The Host Keeps Its Credentials in This Story's Own Namespace, Which Cleanup Removes.
         self.credentials = f"dokime-story-{uuid.uuid4().hex}"
         self.children: list[Process] = []
-        self._client: ClientRoot | None = None
+        self._client: Client | None = None
         self.process: Process | None = None
         self.binary: str | None = None
         self.environment = dict(os.environ)
@@ -155,7 +154,7 @@ class Host:
         return host
 
     @property
-    def client(self) -> ClientRoot:
+    def client(self) -> Client:
         if self._client is None:
             raise RuntimeError("Use SDK Host: Start the Host Before Calling Its Client")
         return self._client

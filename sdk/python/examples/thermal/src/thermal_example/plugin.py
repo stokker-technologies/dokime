@@ -11,18 +11,22 @@
 # === Imports === #
 
 # Standard Library Imports
+import asyncio
 from typing import cast
+
+from dokime_sdk import Plugin, Suite
+from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, observer, record, step, stream, window_observer
 
 # Third Party Imports
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from google.protobuf.message import Message
 
-from dokime_sdk import Context, Parameter, Plugin, Window, criterion, observer, record, step, stream, window_observer
-from dokime_sdk.authoring import Suite, Template
-
 # Local Imports
 
 # Type Checking Imports
+
+
+# === Public Functions === #
 
 
 # Protobuf Types Belong to the Fixture, Not to the SDK.
@@ -40,16 +44,25 @@ def row_type(name: str, field: str, kind: int, *, repeated: bool = False) -> typ
     return message_factory.GetMessageClass(pool.FindMessageTypeByName(f"thermal.{name}"))
 
 
+# === Constants === #
+
 Temperature = row_type("Temperature", "celsius", descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE)
 Counter = row_type("Counter", "value", descriptor_pb2.FieldDescriptorProto.TYPE_UINT64)
 CounterColumns = row_type("CounterColumns", "value", descriptor_pb2.FieldDescriptorProto.TYPE_UINT64, repeated=True)
 Door = row_type("Door", "closed", descriptor_pb2.FieldDescriptorProto.TYPE_BOOL)
 
 
-class Thermal:
+# === Classes === #
+
+
+class ThermalCycleTestTemplate(TestTemplate):
+    identifier = "cycle"
+    label = "Thermal Cycle"
+    parameters = [Parameter.number("limit", "Limit").default(85.0).build()]
+
     door = record(Door, label="Door Check")
 
-    async def initialize(self, ctx: Context) -> None:
+    async def setup(self, ctx: Context) -> None:
         limit = ctx.parameters["limit"]
         if not isinstance(limit, (float, int)):
             raise TypeError("Initialize Thermal Cycle: Limit Must Be Numeric")
@@ -82,9 +95,11 @@ class Thermal:
     async def within_limit(self, ctx: Context) -> bool:
         stats = await ctx.statistics(self.temperature, "celsius", step=self.hold)
         door = await ctx.records(self.door, step=self.hold).last()
+        maximum = stats.max
         return (
-            stats.statistics.count > 0
-            and stats.statistics.max.number <= self.limit
+            stats.count > 0
+            and isinstance(maximum, (int, float))
+            and maximum <= self.limit
             and door is not None
             and door.SerializeToString() == Door(closed=True).SerializeToString()
         )
@@ -93,15 +108,26 @@ class Thermal:
         await ctx.log("Cleaned Up")
 
 
-def plugin() -> Plugin:
-    template = Template(
-        Thermal,
-        label="Thermal Cycle",
-        identifier="cycle",
-        parameters=[
-            Parameter(
-                metadata={"identifier": "limit", "label": "Limit"}, type="VALUE_TYPE_NUMBER", expression={"literal": {"number": 85.0}}
-            )
-        ],
-    )
-    return Plugin("thermal", "1.0.0", suites=[Suite("thermal", [template], "Thermal")])
+class ThermalSuite(Suite):
+    templates = [ThermalCycleTestTemplate]
+
+
+class ThermalPlugin(Plugin):
+    version = "1.0.0"
+    suites = [ThermalSuite]
+
+
+# === Public Functions === #
+
+
+async def main() -> None:
+    plugin = ThermalPlugin()
+    await plugin.serve()
+
+
+# === Private Functions === #
+
+# === Entry Point === #
+
+if __name__ == "__main__":
+    asyncio.run(main())

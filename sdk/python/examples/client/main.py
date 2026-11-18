@@ -12,12 +12,11 @@
 # === Imports === #
 
 # Standard Library Imports
-import argparse
 import asyncio
 
 # Third Party Imports
 # Local Imports
-from dokime_sdk.connection import connect
+from dokime_sdk import connect
 
 # Type Checking Imports
 
@@ -34,19 +33,10 @@ from dokime_sdk.connection import connect
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("endpoint")
-    options = parser.parse_args()
-    client = await connect(options.endpoint)
+    client = await connect()
     try:
-        status = await client.status.get()
-        print(status.status.identity.host_id)
-        entries = await client.plugins.list()
-        for entry in entries.entries:
-            print(entry.name)
-            suites = await client.suites.list(entry.name)
-            for suite in suites.values:
-                print(suite.metadata.label)
+        async for cycle in client.cycles.list():
+            print(f"{cycle.identifier}: {cycle.label}")
     finally:
         await client.close()
 

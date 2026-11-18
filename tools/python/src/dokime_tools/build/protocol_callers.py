@@ -33,6 +33,131 @@ from ..process import spawn_flags
 
 # === Constants === #
 
+PYTHON_PUBLIC_HOMES = {
+    "": frozenset(
+        [
+            "Artifact",
+            "Case",
+            "Cases",
+            "Client",
+            "Cycle",
+            "Cycles",
+            "Execution",
+            "Executions",
+            "Failure",
+            "Note",
+            "Outcome",
+            "Plugin",
+            "Plugins",
+            "Progress",
+            "PromptAnswer",
+            "PromptQuestion",
+            "RegisteredPlugin",
+            "ResultStatus",
+            "Scalar",
+            "SdkError",
+            "Suite",
+            "connect",
+        ]
+    ),
+    "operations": frozenset(
+        [
+            "BoundOperation",
+            "Context",
+            "FailureError",
+            "Operation",
+            "OperationPolicy",
+            "Payload",
+            "RetryPolicy",
+            "SecretDeclaration",
+            "SettingDeclaration",
+            "SettingGroup",
+            "SettingValue",
+            "StreamSubscription",
+            "Visibility",
+            "operation",
+        ]
+    ),
+    "templates": frozenset(
+        [
+            "Aggregate",
+            "AxisScale",
+            "BarArrangement",
+            "CaptureGap",
+            "CaptureMode",
+            "CaptureResult",
+            "CapturedArtifact",
+            "Card",
+            "Context",
+            "ContourRender",
+            "DataExpression",
+            "Document",
+            "Environment",
+            "Expression",
+            "FileLocation",
+            "FileParameter",
+            "FileRule",
+            "FileRuleAction",
+            "FileSelection",
+            "FileSource",
+            "FtpLocation",
+            "GridAxisEntry",
+            "GridHighlight",
+            "LineField",
+            "LineMarker",
+            "LineMatcher",
+            "Materialization",
+            "MirrorCapture",
+            "Parameter",
+            "ParameterDefinition",
+            "Plot",
+            "PlotStyle",
+            "Prompt",
+            "PromptDeclaration",
+            "Record",
+            "RecordRow",
+            "RecordsQuery",
+            "Reduction",
+            "ReferenceBand",
+            "ReferenceLine",
+            "SampleRow",
+            "SamplesQuery",
+            "Section",
+            "Severity",
+            "Statistics",
+            "Stream",
+            "StreamCapture",
+            "Summary",
+            "Termination",
+            "TestTemplate",
+            "Window",
+            "XyInterval",
+            "bar",
+            "box_plot",
+            "contour",
+            "criterion",
+            "field",
+            "frequency_series",
+            "grid_chart",
+            "histogram",
+            "materialize",
+            "observer",
+            "pie",
+            "plot_card",
+            "prompt",
+            "record",
+            "records_card",
+            "step",
+            "stream",
+            "time_series",
+            "trajectory",
+            "window_observer",
+            "xy",
+        ]
+    ),
+}
+
+
 # === Types === #
 
 # === Classes === #
@@ -83,7 +208,6 @@ def check_public_surfaces(root: Path) -> None:
             line = grpc_path.sub("", line)
             if wire.search(line) or re.search(r"\bv\d+\b", line):
                 findings.append(f"{relative.as_posix()}:{number}: Public Surface Names a Wire Package")
-    exports: dict[str, bool] = {}
     if (root / "sdk/python/src/dokime").exists():
         findings.append("sdk/python/src/dokime: Remove the Retired Python Package; Use dokime_sdk")
     for path in sorted((root / "sdk/python/src/dokime_sdk").rglob("*")):
@@ -99,24 +223,40 @@ def check_public_surfaces(root: Path) -> None:
                 imports = [node.module]
             if any(name.split(".")[0] == "dokime" for name in imports):
                 findings.append(f"{path.relative_to(root)}:{node.lineno}: Replace the Retired Python Import with dokime_sdk")
-    for name in ("__init__.py", "client.py", "plugin/__init__.py"):
-        path = root / "sdk/python/src/dokime_sdk" / name
+    package = root / "sdk/python/src/dokime_sdk"
+    for module, expected in PYTHON_PUBLIC_HOMES.items():
+        relative = f"{module}/__init__.py" if module == "templates" else f"{module}.py" if module else "__init__.py"
+        path = package / relative
         if not path.is_file():
+            if package.is_dir():
+                findings.append(f"{relative}: Missing Python Public Home")
             continue
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if not isinstance(node, ast.Assign) or not any(
-                isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets
-            ):
-                continue
-            if not isinstance(node.value, (ast.List, ast.Tuple)):
-                raise TypeError(f"Check Public Exports: Declare Explicit Names in {path}")
-            for item in node.value.elts:
-                if not isinstance(item, ast.Constant) or not isinstance(item.value, str):
-                    raise TypeError(f"Check Public Exports: Declare String Names in {path}")
-                namespace = _is_namespace_export(path, item.value)
-                if item.value in exports and not (namespace and exports[item.value]):
-                    findings.append(f"{path.relative_to(root)}: Duplicate Public Export {item.value}")
-                exports[item.value] = namespace and exports.get(item.value, True)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names = set()
+        for node in tree.body:
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                names.add(node.name)
+            if isinstance(node, ast.TypeAlias) and isinstance(node.name, ast.Name):
+                names.add(node.name.id)
+            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                names.update(target.id for target in targets if isinstance(target, ast.Name))
+            if isinstance(node, ast.ImportFrom):
+                names.update(item.name for item in node.names if item.name in expected)
+            if isinstance(node, (ast.Import, ast.ImportFrom)) and any(item.asname is not None for item in node.names):
+                findings.append(f"{relative}:{node.lineno}: Remove Python Import Aliases")
+        if "__all__" in names:
+            findings.append(f"{relative}: Remove __all__; Declare the Three Public Homes Directly")
+        names = {name for name in names if not name.startswith("_")}
+        if names != expected:
+            findings.append(
+                f"{relative}: Python Public Inventory Missing {sorted(expected - names)}; Unexpected {sorted(names - expected)}"
+            )
+    for path in package.glob("*"):
+        if path.name.startswith("_") or path.name in {"operations.py", "templates", "py.typed", "LICENSE", "NOTICE"}:
+            continue
+        if path.suffix in {".py", ".pyi"} or path.is_dir():
+            findings.append(f"{path.relative_to(root)}: Remove the Fourth Python Public Home")
     for path in sorted((root / "sdk/csharp/src/Dokime").rglob("*.cs")):
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if re.search(r"^namespace .*\.V\d+\b", line):
@@ -133,23 +273,6 @@ def check_public_surfaces(root: Path) -> None:
 
 
 # === Private Functions === #
-
-
-def _is_namespace_export(path: Path, name: str, visited: frozenset[Path] = frozenset()) -> bool:
-    if path in visited:
-        return False
-    if (path.parent / name).is_dir() or (path.parent / f"{name}.py").is_file():
-        return True
-    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-        if not isinstance(node, ast.ImportFrom) or not node.level or not any(item.name == name for item in node.names):
-            continue
-        source = path.parents[node.level - 1].joinpath(*(node.module or "").split("."))
-        if (source / name).is_dir() or (source / f"{name}.py").is_file():
-            return True
-        source = source / "__init__.py" if source.is_dir() else source.with_suffix(".py")
-        if source.is_file() and _is_namespace_export(source, name, visited | {path}):
-            return True
-    return False
 
 
 # === Entry Point === #

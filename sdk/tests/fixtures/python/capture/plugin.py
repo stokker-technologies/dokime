@@ -1,27 +1,26 @@
 # ***
 #
-# Dokime
+# Starter Project
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
-"""A Deterministic Suite Shared With The Cross-Language Host Story."""
+"""The Example Plugin: Its Suites and Operations."""
 
 # === Imports === #
 
 # Standard Library Imports
+import asyncio
 
 # Third Party Imports
-from dokime_sdk import Context, Plugin, criterion, record, step, suite
-
 # Local Imports
+from dokime_sdk import Plugin, Suite
+from dokime_sdk.templates import Context, TestTemplate, criterion, record, step
 
 # Type Checking Imports
 
 # === Public Exports === #
-
-__all__ = ["Capture", "plugin"]
 
 # === Constants === #
 
@@ -30,9 +29,8 @@ __all__ = ["Capture", "plugin"]
 # === Classes === #
 
 
-@suite(label="Capture")
-class Capture:
-    confirmation = record(bool, label="Confirmation")
+class ConfirmationTestTemplate(TestTemplate):
+    confirmation = record(bool)
 
     @step("Confirm")
     async def confirm(self, ctx: Context) -> None:
@@ -44,10 +42,25 @@ class Capture:
         return await ctx.records(self.confirmation, step=self.confirm).last()
 
 
+class CaptureSuite(Suite):
+    templates = (ConfirmationTestTemplate,)
+
+
+class CapturePlugin(Plugin):
+    version = "1.0.0"
+    suites = (CaptureSuite,)
+
+
 # === Public Functions === #
+
+
+async def main() -> None:
+    await CapturePlugin().serve()
+
 
 # === Private Functions === #
 
 # === Entry Point === #
 
-plugin = Plugin("example", "0.1.0", suites=[Capture])
+if __name__ == "__main__":
+    asyncio.run(main())
