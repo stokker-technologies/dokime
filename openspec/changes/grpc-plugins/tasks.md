@@ -39,6 +39,7 @@
 - [ ] 5.12 Complete CLI parity: interactive execution driving, planning shorthand and host/plugin development supervision with unexpected-exit cleanup; verify existing export, pairing, raw discovery/calls and installer commands rather than reimplementing them.
 - [x] 5.12.1 Implement saved execution/cycle evidence export through the bounded, verified download path.
 - [x] 5.12.2 Restore current-host GUI execution-matrix fixtures and independent native desktop story drivers.
+- [x] 5.12.3 Add the global --connect-timeout override for direct and paired connections, retaining ordered endpoint fallback and reporting every failed endpoint.
 - [ ] 5.13 Implement retained Effects Create/Get/Set and prove inverse retention, owner-qualified confirmations, reverse restoration and failed-startup restoration; all three handlers currently return Unimplemented.
 - [ ] 5.14 Resolve the supported media API with the owner and implement retained Media.Captures Create/Get/Watch/Stop behavior, currently Unimplemented; keep unavailable host capture controls explicit. Aggregates.Get implementation belongs to operation-boundary 5.1.
 - [ ] 5.15 Complete local capture line matchers/markers and retained FTP/FTPS/SSH sources with feature-gated source operations, secret-backed settings, mirroring, one-shot semantics and bounded pending buffers; current capture engine explicitly defers matchers and FTP/FTPS and has no SFTP implementation.

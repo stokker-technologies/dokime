@@ -14,7 +14,9 @@
 # Standard Library Imports
 import json
 import os
+from asyncio import wait_for
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from math import isfinite
 from pathlib import Path
 from typing import TypedDict
 from urllib.parse import urlsplit
@@ -22,6 +24,8 @@ from urllib.parse import urlsplit
 # Third Party Imports
 from grpc import ssl_channel_credentials
 from grpc.aio import (
+    AioRpcError,
+    Channel,
     ClientCallDetails,
     Metadata,
     UnaryStreamCall,
@@ -41,6 +45,8 @@ from .client import ClientRoot
 # === Public Exports === #
 
 # === Constants === #
+
+_CONNECT_TIMEOUT_S = 30.0
 
 # === Types === #
 
@@ -102,19 +108,43 @@ class _StreamMetadata(UnaryStreamClientInterceptor):
 async def connect(
     target: str | Path | None = None,
     *,
+    connect_timeout: float = _CONNECT_TIMEOUT_S,
     certificate_pem: str | None = None,
     access_key: str | None = None,
     expected_backend_id: str | None = None,
 ) -> ClientRoot:
+    if not isfinite(connect_timeout) or connect_timeout <= 0:
+        raise ValueError("Connect: Supply a Positive Finite connect_timeout in Seconds")
     selected = str(target or os.environ.get("DOKIME_REMOTE", ""))
     if not selected:
         raise ValueError("Connect: Name an Endpoint or .pair File, or Set DOKIME_REMOTE")
+    endpoints = [selected]
     if selected.endswith(".pair"):
         pairing = _pairing(Path(selected))
         certificate_pem = pairing["certificate_pem"]
         access_key = pairing["access_key"]
         expected_backend_id = pairing["backend_identifier"]
-        selected = pairing["endpoints"][0]
+        endpoints = pairing["endpoints"]
+    failures = []
+    for selected in endpoints:
+        try:
+            return await _connect_endpoint(selected, connect_timeout, certificate_pem, access_key, expected_backend_id)
+        except (AioRpcError, TimeoutError, ValueError) as error:
+            failure = str(error) or type(error).__name__
+            failures.append(f"{selected}: {failure}")
+    raise ValueError(f"Connect: {'; '.join(failures)}; Check the Host Listener or Export a New Pairing")
+
+
+# === Private Functions === #
+
+
+async def _connect_endpoint(
+    selected: str,
+    connect_timeout: float,
+    certificate_pem: str | None,
+    access_key: str | None,
+    expected_backend_id: str | None,
+) -> ClientRoot:
     endpoint = urlsplit(selected)
     if (
         endpoint.scheme not in ("http", "https")
@@ -140,19 +170,20 @@ async def connect(
     client = ClientRoot(channel)
     client._owned_channel = channel
     try:
-        if expected_backend_id:
-            status = await client.status.get()
-            if status.status.identity.host_id != expected_backend_id:
-                raise ValueError("Connect: Host Identity Differs from the Paired Host")
-        else:
-            await channel.channel_ready()
+        await wait_for(_ready(channel, client, expected_backend_id), connect_timeout)
         return client
     except BaseException:
         await client.close()
         raise
 
 
-# === Private Functions === #
+async def _ready(channel: Channel, client: ClientRoot, expected_backend_id: str | None) -> None:
+    if expected_backend_id:
+        # Prove Identity With a Fail-Fast Call Before Waiting for Readiness.
+        status = await client.status.get()
+        if status.status.identity.host_id != expected_backend_id:
+            raise ValueError("Connect: Host Identity Differs from the Paired Host; Export a Pairing From the Intended Host")
+    await channel.channel_ready()
 
 
 def _pairing(path: Path) -> Pairing:
