@@ -545,6 +545,31 @@ mod tests {
     }
 
     #[test]
+    fn managed_launch_keeps_staged_runtime_companions() -> crate::Result<()> {
+        let root = tempfile::tempdir()?;
+        fs::create_dir_all(root.path().join("assets/plugin"))?;
+        fs::write(root.path().join(".gitignore"), "assets/\n")?;
+        fs::write(root.path().join("dokime.toml"), "[plugin]\n[scripts]\nlaunch=['dotnet','assets/plugin/example.dll']\n")?;
+        for name in ["example.dll", "example.deps.json", "example.runtimeconfig.json", "dependency.dll"] {
+            fs::write(root.path().join("assets/plugin").join(name), name.as_bytes())?;
+        }
+        let project = crate::project::PluginProject::read(root.path())?;
+        let identity = Identity {
+            name: "managed".into(),
+            version: "1.2.3".parse()?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        let bytes = super::create_project(&project, identity, None)?;
+        let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
+        assert_eq!(bundle.manifest().launch.as_deref(), project.manifest.scripts.launch.as_deref());
+        for name in ["example.dll", "example.deps.json", "example.runtimeconfig.json", "dependency.dll"] {
+            assert_eq!(bundle.file(&format!("assets/plugin/{name}")), Some(name.as_bytes()));
+        }
+        Ok(())
+    }
+
+    #[test]
     fn native_inventory_contains_only_executable_assets_and_referenced_metadata() -> crate::Result<()> {
         let root = tempfile::tempdir()?;
         fs::write(root.path().join("dokime.toml"), "[plugin]\nversion='1.0.0'\nreadme='README.md'\n[scripts]\nexecutable='plugin'\n")?;

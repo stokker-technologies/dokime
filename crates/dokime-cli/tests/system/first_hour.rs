@@ -53,6 +53,41 @@ use dokime_runtime::process;
 /* === Private Functions === */
 
 #[test]
+fn managed_installation_preserves_resolved_bundle_version() -> Result<(), Box<dyn Error>> {
+    super::credentials::run(Box::pin(async {
+        time::timeout(super::HANG_GUARD, async {
+            // Bundle a Native Starter With an Explicit Version Override.
+            let directory = super::credentials::tempdir()?;
+            let project = directory.path().join("plugin");
+            fs::create_dir(&project)?;
+            fs::copy(super::fixtures().join(format!("dokime-example-test{EXE_SUFFIX}")), project.join(format!("plugin{EXE_SUFFIX}")))?;
+            fs::write(project.join("dokime.toml"), "[plugin]\nversion = '8.7.6'\n[scripts]\nexecutable = 'plugin'\n")?;
+            let output = directory.path().join("overridden.dokime");
+            super::run(&["plugin", "bundle", project.to_str().unwrap(), "--out", output.to_str().unwrap()]).await?;
+
+            // Verify Both Frozen Versions Before Installing the Bundle.
+            let bytes = fs::read(&output)?;
+            let bundle = Bundle::inspect(&bytes, Limits::default())?;
+            let version = bundle.manifest().identity.version.to_string();
+            assert_eq!(version, "8.7.6");
+            let descriptor = dokime_protocol::descriptor_pool().get_message_by_name("harmos.plugin.v1.InstanceGetResponse").unwrap();
+            let description =
+                DynamicMessage::decode(descriptor, bundle.file("description.pb").ok_or("Bundle Plugin: Freeze Its Description")?)?;
+            assert_eq!(description.get_field_by_name("version").unwrap().as_ref(), &prost_reflect::Value::String(version.clone()));
+
+            // Read the Installed Version After the Host Reports Readiness.
+            let host = super::HostProcess::start().await?;
+            let installed = super::run(&["--endpoint", &host.endpoint, "plugin", "install", output.to_str().unwrap(), "--json"]).await;
+            host.close().await?;
+            let installed: Value = serde_json::from_str(&installed?)?;
+            assert_eq!(installed["entry"]["description"]["version"], version);
+            Ok(())
+        })
+        .await?
+    }))
+}
+
+#[test]
 fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> {
     super::credentials::run(Box::pin(async {
         time::timeout(super::HANG_GUARD, async {
