@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::env::consts::EXE_SUFFIX;
+use std::env::{self, consts::EXE_SUFFIX};
 use std::error::Error;
 use std::fs;
 use std::process::Stdio;
@@ -51,6 +51,8 @@ use dokime_protocol::host::{CasesCreateResponse, ExecutionsCreateRequest};
 
 /* === Private Functions === */
 
+/* === Tests === */
+
 #[test]
 fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
     super::credentials::run(Box::pin(async {
@@ -75,7 +77,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                 } else {
                     // Resolve the SDK Candidate Exported by This Worktree.
                     let input = project.join("test");
-                    let profile = std::env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
+                    let profile = env::var("TEST_PROFILE").unwrap_or_else(|_| "dev".into());
                     let wheel = super::root()
                         .join("target/build")
                         .join(profile)
@@ -92,7 +94,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                 let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
                 let mut host = super::command()
                     .envs(credentials.environment.iter().cloned())
-                    .args(["dev", "--plugin"])
+                    .args(["dev", "--no-desktop", "--plugin"])
                     .arg(input)
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
@@ -297,5 +299,3 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
         .await?
     }))
 }
-
-/* === Tests === */

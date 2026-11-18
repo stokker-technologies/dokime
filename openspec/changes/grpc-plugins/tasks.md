@@ -89,6 +89,8 @@
 - [x] Bundle Native Executables With File or Folder Assets and Launch Projects With Their Git-Ignored File Inventory.
 - [x] Replace Executable Flags and Python-Folder Detection With Bundle or Manifest-Project Development Inputs.
 - [x] Attach the Sibling Packaged Desktop When Present and Close It With the Disposable Host.
+- [x] Add `dokime dev --no-desktop` to Skip Desktop Lookup and Use It in Every Automated Caller While Preserving Default Desktop Supervision.
+- [ ] Complete Native Windows Proof of the Headless Development Flag With CLI Units, All CLI System Stories, Present-Sibling Reruns, Formatting, Focused Compilation and Rust Lint.
 - [x] Bound Native Catalog Registration Stack Use Without Changing Operation Policies, Thread Placement or Stack Sizes.
 - [x] Embed Manifest Files in the Four Test Starters and Update README Command Examples.
 - [x] Complete Focused CLI, Packaging and Runtime Unit Proof, Owned-File Formatting, Locked Metadata and Three-Package Compilation With Tests.

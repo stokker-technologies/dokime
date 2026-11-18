@@ -27,7 +27,7 @@ use std::{
 // Third Party Imports
 use tempfile::Builder;
 use tokio::{
-    io::AsyncReadExt,
+    io::{AsyncReadExt, stdin},
     process::{Child, Command},
     time,
 };
@@ -49,6 +49,9 @@ use dokime_runtime::{PluginProcess, STOP_GRACE, process, services};
 pub(crate) struct Args {
     #[arg(long, help = "Bundle File or Plugin Folder Containing dokime.toml")]
     plugin: PathBuf,
+
+    #[arg(long, help = "Start the Host and Plugin Without Looking for a Desktop")]
+    no_desktop: bool,
 }
 
 /* === Enums === */
@@ -74,7 +77,7 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
     let mut server = None;
     let mut process = None;
     let mut desktop = None;
-    let mut stdin = tokio::io::stdin();
+    let mut stdin = stdin();
     let mut buffer = [0; 1];
 
     // Start Through the Server Command and the Existing Plugin Commands
@@ -110,7 +113,7 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
         };
         println!("{endpoint}");
         println!("Data Root: {}", root.path().display());
-        if let Some(executable) = desktop_executable(&env::current_exe()?) {
+        if let Some(executable) = desktop_executable(&env::current_exe()?, args.no_desktop) {
             let mut command = process::command(executable);
             command
                 .args(["--endpoint", &endpoint, "--shutdown-stdin"])
@@ -118,7 +121,7 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
                 .env_remove("DOKIME_REMOTE")
                 .stdin(Stdio::piped());
             desktop = Some(Command::from(command).kill_on_drop(true).spawn()?);
-        } else {
+        } else if !args.no_desktop {
             eprintln!("Desktop Unavailable: No Existing CLI Desktop Locator; Started the Host Only");
         }
         io::stdout().flush()?;
@@ -134,7 +137,7 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
                 } => {
                     let status = result?;
                     if !status.success() {
-                        return Err(format!("Develop Plugin: Desktop Exited with {status}; Inspect Its Console Logs").into());
+                        return Err(format!("Develop Plugin: Desktop Exited with {status}; Inspect Its Console Logs or Run with --no-desktop").into());
                     }
                     break;
                 }
@@ -172,7 +175,10 @@ pub(crate) async fn run(args: Args, mut settings: Settings) -> Result<()> {
 
 /* === Private Functions === */
 
-fn desktop_executable(cli: &Path) -> Option<PathBuf> {
+fn desktop_executable(cli: &Path, no_desktop: bool) -> Option<PathBuf> {
+    if no_desktop {
+        return None;
+    }
     let desktop = cli.parent()?.join(format!("dokime-gui{EXE_SUFFIX}"));
     desktop.is_file().then_some(desktop)
 }
@@ -196,22 +202,25 @@ async fn close_desktop(desktop: &mut Child) -> io::Result<()> {
 mod tests {
     use std::{env::consts::EXE_SUFFIX, fs};
 
+    use tempfile::tempdir;
+
     use super::desktop_executable;
     use crate::Result;
 
     #[test]
-    fn desktop_lookup_uses_only_the_cli_sibling() -> Result<()> {
-        let root = tempfile::tempdir()?;
+    fn desktop_lookup_obeys_no_desktop_and_uses_only_the_cli_sibling() -> Result<()> {
+        let root = tempdir()?;
         let bin = root.path().join("bin");
         fs::create_dir(&bin)?;
         let cli = bin.join(format!("dokime{EXE_SUFFIX}"));
         fs::write(root.path().join(format!("dokime-gui{EXE_SUFFIX}")), b"other location")?;
-        assert!(desktop_executable(&cli).is_none());
+        assert!(desktop_executable(&cli, false).is_none());
         let sibling = bin.join(format!("dokime-gui{EXE_SUFFIX}"));
         fs::write(&sibling, b"desktop fixture")?;
-        assert_eq!(desktop_executable(&cli), Some(sibling.clone()));
+        assert_eq!(desktop_executable(&cli, false), Some(sibling.clone()));
+        assert!(desktop_executable(&cli, true).is_none());
         fs::remove_file(sibling)?;
-        assert!(desktop_executable(&cli).is_none());
+        assert!(desktop_executable(&cli, false).is_none());
         Ok(())
     }
 }
