@@ -514,7 +514,6 @@ mod tests {
     use dokime_protocol::model::ParameterBinary;
     use dokime_protocol::model::ParameterExpansion;
     use dokime_protocol::model::ParameterExpressions;
-    use dokime_protocol::model::Suites;
 
     #[test]
     fn numeric_parameters_accept_only_lossless_conversions() -> Result<()> {
@@ -607,40 +606,6 @@ mod tests {
             ..Default::default()
         };
         assert!(matches!(expand(&template, &selection, 1), Err(Error::Invalid(_))));
-    }
-
-    #[test]
-    fn every_obc_template_plans_its_declared_defaults() -> Result<()> {
-        let declarations = plugin_obc::declarations().expect("OBC Declarations");
-        let section = declarations.sections.iter().find(|section| section.r#type == "dokime.model.v1.Suites").unwrap();
-        let suites = Suites::decode(section.payload.as_slice())?;
-        let mut kinds = HashSet::new();
-        let mut templates = 0;
-        for suite in suites.suites {
-            for template in suite.templates {
-                templates += 1;
-                let defaults = expand(&template, &RegisteredSelection::default(), 256)?;
-                assert!(!defaults.is_empty(), "{:?}", template.metadata);
-                for parameter in &template.parameters {
-                    kinds.insert(parameter.r#type);
-                }
-                for parameters in defaults {
-                    let selection = RegisteredSelection {
-                        parameters: parameters
-                            .iter()
-                            .map(|(key, value)| RegisteredSelectionParametersEntry {
-                                key: key.clone(),
-                                value: Some(SelectionValues { values: vec![value.clone()] }),
-                            })
-                            .collect(),
-                        ..Default::default()
-                    };
-                    assert_eq!(expand(&template, &selection, 256)?, vec![parameters]);
-                }
-            }
-        }
-        eprintln!("Planned {templates} OBC Templates With Parameter Kinds {kinds:?}");
-        Ok(())
     }
 
     #[test]

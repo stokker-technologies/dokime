@@ -1536,7 +1536,6 @@ dependencies = [
  "harmos-query",
  "harmos-runtime",
  "keyring",
- "plugin-obc",
  "prost",
  "prost-reflect",
  "prost-types",
