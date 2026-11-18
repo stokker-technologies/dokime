@@ -1,27 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Collections.Concurrent;
-using Dokime;
-using Dokime.Plugins;
 using Google.Protobuf;
 using Harmos.Plugins;
 using Harmos;
-using ModelCriterion = Dokime.Criterion;
-using ModelStep = Dokime.Step;
-using ModelSuite = Dokime.Suite;
-using TransportContext = Harmos.Plugins.Context;
-using TransportPlugin = Harmos.Plugins.Plugin;
 
 namespace Dokime.Plugins;
 
 /// <summary>Composed suites served through the exact-revision Harmos SDK.</summary>
 public sealed partial class Plugin(string identifier, string version, params Suite[] suites)
 {
-  private readonly TransportPlugin transport = new(identifier, version);
+  private readonly Harmos.Plugins.Plugin transport = new(identifier, version);
   private readonly ConcurrentDictionary<string, Lazy<Task<ExecutionResource>>> resources = new();
   private readonly RecordContracts records = new();
   private readonly SecretsDeclarations secrets = new();
+  private readonly PromptDefinitions prompts = new();
   private bool built;
+  public IReadOnlyList<Suite> Suites { get; } = BindSuites(suites);
+
+  private static IReadOnlyList<Suite> BindSuites(Suite[] suites)
+  {
+    var identifiers = new HashSet<string>(StringComparer.Ordinal);
+    var bound = new List<Suite>();
+    foreach (var suite in suites)
+    {
+      var identity = Identifiers.Build("", suite.Metadata.Identifier);
+      Unique(identifiers, identity);
+      var templates = suite.Templates.Select(template => template.Bind(identity, suite.Single)).ToArray();
+      var templateIdentifiers = new HashSet<string>(StringComparer.Ordinal);
+      foreach (var template in templates)
+        Unique(templateIdentifiers, template.Definition.Metadata.Identifier);
+      bound.Add(new Suite(identity, suite.Metadata.Label, templates) { Single = suite.Single });
+    }
+    return bound;
+  }
 
   public Plugin Setting(string name, SettingValue defaultValue, string title = "", string description = "")
   {
@@ -46,18 +58,12 @@ public sealed partial class Plugin(string identifier, string version, params Sui
     return this;
   }
 
-  public Plugin Record<T>(Record<T> record) where T : IMessage<T>, new()
+  public Plugin Operation<TRequest, TResponse>(Dokime.Authoring.Operation<TRequest, TResponse> operation,
+      Func<Context, TRequest, Task<TResponse>> handler)
   {
     if (built)
-      throw new InvalidOperationException("Declare Record: Plugin Is Already Built");
-    if (records.Records.Any(item => item.Metadata.Identifier == record.Identifier))
-      throw new ArgumentException($"Declare Record: Duplicate Identifier {record.Identifier}");
-    transport.Message<T>();
-    records.Records.Add(new RecordContract
-    {
-      Metadata = new Metadata { Identifier = record.Identifier, Label = record.Label },
-      Message = new T().Descriptor.FullName
-    });
+      throw new InvalidOperationException("Declare Operation: Create the Plugin Before Serving It");
+    operation.Register(transport, raw => new Context(raw, new TestCase()), handler);
     return this;
   }
 
@@ -69,27 +75,33 @@ public sealed partial class Plugin(string identifier, string version, params Sui
   }
 
   /// <summary>Add instrument operations or requirements before serving.</summary>
-  public TransportPlugin Build()
+  internal Harmos.Plugins.Plugin Build()
   {
     if (built)
       return transport;
+    if (transport.Declarations().Requires.Count == 0)
+      foreach (var operation in Enum.GetValues<HostOperation>())
+        this.Requires(operation);
     var identifiers = new HashSet<string>(StringComparer.Ordinal);
     var section = new Suites();
-    foreach (var suite in suites)
+    foreach (var suite in Suites)
     {
       Unique(identifiers, suite.Metadata.Identifier);
-      var definition = new ModelSuite { Metadata = suite.Metadata.Clone() };
+      var definition = new Dokime.Suite { Metadata = suite.Metadata.Clone() };
       foreach (var template in suite.Templates)
       {
-        Unique(identifiers, template.Definition.Metadata.Identifier);
+        if (!suite.Single)
+          Unique(identifiers, template.Definition.Metadata.Identifier);
         Register(template, definition, identifiers);
       }
       section.Suites_.Add(definition);
     }
-    if (suites.Length > 0)
+    if (Suites.Count > 0)
       transport.Section(section);
     if (records.Records.Count > 0)
       transport.Section(records);
+    if (prompts.Prompts.Count > 0)
+      transport.Section(prompts);
     if (secrets.Secrets.Count > 0)
       transport.Section(secrets);
     transport.OnStop(DisposeResourcesAsync);
@@ -109,24 +121,24 @@ public sealed partial class Plugin(string identifier, string version, params Sui
     }
   }
 
-  private void Register(Template template, ModelSuite suite, HashSet<string> identifiers)
+  private void Register(Template template, Dokime.Suite suite, HashSet<string> identifiers)
   {
     var name = template.Definition.Metadata.Identifier;
     var definition = template.Definition.Clone();
-    definition.Materialize = $"{name}.materialize";
+    definition.Materialize = Identifiers.Build("", "materialize", name);
     // Cleanup Always Exists to Release SDK-Owned Resources.
-    definition.Cleanup = $"{name}.cleanup";
+    definition.Cleanup = Identifiers.Build("", "cleanup", name);
     if (template.InitializeBody is not null || template.CreateResource is not null)
-      definition.Initialize = $"{name}.initialize";
+      definition.Initialize = Identifiers.Build("", "initialize", name);
     suite.Templates.Add(definition);
 
     var testCase = new TestCase();
     var local = new HashSet<string>(StringComparer.Ordinal);
-    foreach (var (step, index) in template.Steps.Select((step, index) => (step, index)))
+    foreach (var step in template.Steps)
     {
-      Unique(local, step.Identifier);
-      var operation = $"{name}.step.{index}";
-      testCase.Steps.Add(new ModelStep { Metadata = new Metadata { Identifier = step.Identifier, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
+      var operation = template.Resolve(step);
+      Unique(local, operation);
+      testCase.Steps.Add(new Dokime.Step { Metadata = new Metadata { Identifier = operation, Label = step.Label }, Operation = operation, Repeatable = step.Repeatable });
       // Declare the Procedure on the Template So Catalogs Show It Before Materialization.
       definition.Steps.Add(testCase.Steps[^1].Clone());
       transport.Operation(new Operation<StepsExecuteRequest, StepsExecuteResponse>(operation, Visibility.Protected, policy: step.Policy, replaySafe: step.ReplaySafe), async (raw, request) =>
@@ -139,11 +151,11 @@ public sealed partial class Plugin(string identifier, string version, params Sui
         return new StepsExecuteResponse();
       });
     }
-    foreach (var (criterion, index) in template.Criteria.Select((criterion, index) => (criterion, index)))
+    foreach (var criterion in template.Criteria)
     {
-      Unique(local, criterion.Identifier);
-      var operation = $"{name}.criterion.{index}";
-      testCase.Criteria.Add(new ModelCriterion { Metadata = new Metadata { Identifier = criterion.Identifier, Label = criterion.Label }, Operation = operation });
+      var operation = template.Resolve(criterion);
+      Unique(local, operation);
+      testCase.Criteria.Add(new Dokime.Criterion { Metadata = new Metadata { Identifier = operation, Label = criterion.Label }, Operation = operation });
       transport.Operation(new Operation<CriteriaEvaluateRequest, CriteriaEvaluateResponse>(operation, Visibility.Protected, policy: criterion.Policy), async (raw, request) =>
       {
         Validate(raw, request.Execution, name, request.TestCase, request.Origin, operation);
@@ -155,9 +167,27 @@ public sealed partial class Plugin(string identifier, string version, params Sui
     }
     foreach (var stream in template.Streams)
     {
-      Unique(identifiers, stream.Identifier);
-      testCase.Streams.Add(stream.Identifier);
-      stream.Register(transport, raw => ObserverContext(raw, name));
+      var identity = template.Resolve(stream);
+      Unique(identifiers, identity);
+      testCase.Streams.Add(identity);
+      stream.Register(transport, identity, raw => ObserverContext(raw, template));
+    }
+    foreach (var record in template.Records)
+    {
+      var identity = template.Resolve(record);
+      Unique(identifiers, identity);
+      record.Register(transport, records, identity);
+    }
+    foreach (var prompt in template.Prompts)
+    {
+      var identity = template.Resolve(prompt);
+      Unique(identifiers, identity);
+      var value = prompt.Definition.Clone();
+      value.Metadata ??= new Metadata();
+      value.Metadata.Identifier = identity;
+      value.OwnerSuite = template.OwnerSuite;
+      value.Template = name;
+      prompts.Prompts.Add(value);
     }
     transport.Operation(new Operation<TestCasesMaterializeRequest, TestCasesMaterializeResponse>(definition.Materialize, Visibility.Protected, policy: template.MaterializePolicy), (raw, request) =>
     {
@@ -172,6 +202,19 @@ public sealed partial class Plugin(string identifier, string version, params Sui
       var result = testCase.Clone();
       result.Parameters.Add(request.Parameters.ToDictionary(item => item.Key, item => item.Value.Clone()));
       result = template.MaterializeBody?.Invoke(result, result.Parameters) ?? result;
+      var materialized = new HashSet<string>(StringComparer.Ordinal);
+      foreach (var step in result.Steps)
+      {
+        if (!testCase.Steps.Any(known => known.Metadata.Identifier == step.Metadata.Identifier))
+          step.Metadata.Identifier = Identifiers.Build("", step.Metadata.Identifier, name);
+        Unique(materialized, step.Metadata.Identifier);
+      }
+      foreach (var criterion in result.Criteria)
+      {
+        if (!testCase.Criteria.Any(known => known.Metadata.Identifier == criterion.Metadata.Identifier))
+          criterion.Metadata.Identifier = Identifiers.Build("", criterion.Metadata.Identifier, name);
+        Unique(materialized, criterion.Metadata.Identifier);
+      }
       if (result.Steps.Any(item => !testCase.Steps.Any(known => known.Operation == item.Operation)) ||
               result.Criteria.Any(item => !testCase.Criteria.Any(known => known.Operation == item.Operation)) ||
               result.Streams.Any(item => !testCase.Streams.Contains(item)))
@@ -196,7 +239,7 @@ public sealed partial class Plugin(string identifier, string version, params Sui
       try
       {
         if (template.CleanupBody is not null)
-          await template.CleanupBody(new Context(raw, request.TestCase, owned?.Resource));
+          await template.CleanupBody(new Context(raw, request.TestCase, owned?.Resource, template, owned?.Instance));
       }
       finally
       {
@@ -207,32 +250,33 @@ public sealed partial class Plugin(string identifier, string version, params Sui
     });
   }
 
-  private async Task<Context> GetContextAsync(TransportContext raw, Template template, TestCase testCase)
+  private async Task<Context> GetContextAsync(Harmos.Plugins.Context raw, Template template, TestCase testCase)
   {
     var key = $"{template.Definition.Metadata.Identifier}/{raw.Scope()}";
     var pending = resources.GetOrAdd(key, _ => new Lazy<Task<ExecutionResource>>(async () =>
     {
-      var context = new Context(raw, testCase);
+      var instance = template.CreateInstance();
+      var context = new Context(raw, testCase, template: template, instance: instance);
       var resource = template.CreateResource is null ? null : await template.CreateResource(context);
-      return new ExecutionResource(testCase.Clone(), resource);
+      return new ExecutionResource(testCase.Clone(), resource, instance);
     }));
     var owned = await pending.Value;
     if (!owned.TestCase.Equals(testCase))
       throw new ArgumentException("Read Execution Resource: Frozen Case Changed Within the Same Scope");
-    return new Context(raw, testCase, owned.Resource);
+    return new Context(raw, testCase, owned.Resource, template, owned.Instance);
   }
 
-  private Context ObserverContext(TransportContext raw, string template)
+  private Context ObserverContext(Harmos.Plugins.Context raw, Template template)
   {
-    if (resources.TryGetValue($"{template}/{raw.Scope()}", out var pending) && pending.IsValueCreated && pending.Value.IsCompletedSuccessfully)
+    if (resources.TryGetValue($"{template.Definition.Metadata.Identifier}/{raw.Scope()}", out var pending) && pending.IsValueCreated && pending.Value.IsCompletedSuccessfully)
     {
       var owned = pending.Value.Result;
-      return new Context(raw, owned.TestCase, owned.Resource);
+      return new Context(raw, owned.TestCase, owned.Resource, template, owned.Instance);
     }
-    return new Context(raw, new TestCase());
+    return new Context(raw, new TestCase(), template: template, instance: template.CreateInstance());
   }
 
-  private void Validate(TransportContext raw, string execution, string template, TestCase testCase, Origin origin, string action)
+  private void Validate(Harmos.Plugins.Context raw, string execution, string template, TestCase testCase, Origin origin, string action)
   {
     if (string.IsNullOrWhiteSpace(execution) || raw.Scope() != execution || testCase is null ||
         origin?.PluginRun is not { } run || string.IsNullOrWhiteSpace(run.Plugin) || run.Template != template || !testCase.Equals(run.TestCase))
@@ -267,5 +311,5 @@ public sealed partial class Plugin(string identifier, string version, params Sui
     if (!identifiers.Add(identifier))
       throw new ArgumentException($"Build Plugin: Duplicate Identifier {identifier}");
   }
-  private sealed record ExecutionResource(TestCase TestCase, IAsyncDisposable? Resource);
+  private sealed record ExecutionResource(TestCase TestCase, IAsyncDisposable? Resource, object? Instance);
 }

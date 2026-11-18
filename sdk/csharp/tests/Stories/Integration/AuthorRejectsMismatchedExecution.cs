@@ -5,8 +5,6 @@ using Dokime.Plugins;
 using Harmos;
 using Stories.Support;
 using Xunit;
-using Step = Dokime.Plugins.Step;
-using Suite = Dokime.Plugins.Suite;
 
 namespace Stories.Integration;
 
@@ -17,20 +15,20 @@ public sealed class AuthorRejectsMismatchedExecution
   {
     // Compose an Instrument That Must Be Released Even If Cleanup Fails.
     var instrument = new Instrument();
-    var template = new Template("guard.case", "Guard")
+    var template = new Template("case", "Guard")
         .Resource(_ => Task.FromResult<IAsyncDisposable>(instrument))
-        .Step(new Step("read", "Read", _ =>
+        .Step(new Dokime.Plugins.Step("Read", _ =>
         {
           instrument.Reads++;
           return Task.CompletedTask;
-        }))
+        }, Identifier: "read"))
         .Cleanup(_ => throw new InvalidOperationException("Fixture cleanup failed"));
-    var plugin = new Plugin("guard", "1.0.0", new Suite("guards", "Guards", template));
+    var plugin = new Plugin("guard", "1.0.0", new Dokime.Plugins.Suite("guard", "Guards", template));
     await using var server = await PluginServer.StartAsync(plugin);
     var description = await server.Wire.DescribeAsync();
     var testCase = (await server.Wire.InvokeAsync<TestCasesMaterializeResponse>(description, "guard.case.materialize", new TestCasesMaterializeRequest { Template = "guard.case" })).TestCase;
     var origin = new Origin { PluginRun = new PluginRun { Plugin = "guard", Template = "guard.case", TestCase = testCase } };
-    var request = new StepsExecuteRequest { Execution = "execution-a", Step = "read", TestCase = testCase, Origin = origin };
+    var request = new StepsExecuteRequest { Execution = "execution-a", Step = "guard.case.read", TestCase = testCase, Origin = origin };
 
     // Reject a Payload That Selects a Different Execution Than the Parent Scope.
     await Assert.ThrowsAsync<PluginFailureException>(() => server.Wire.InvokeAsync<StepsExecuteResponse>(description,

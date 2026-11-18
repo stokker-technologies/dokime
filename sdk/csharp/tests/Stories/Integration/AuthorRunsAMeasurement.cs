@@ -10,11 +10,6 @@ using Google.Protobuf.WellKnownTypes;
 using Harmos;
 using Stories.Support;
 using Xunit;
-using Value = Dokime.Value;
-using Stream = Dokime.Plugins.Stream<Dokime.Clients.Statistics>;
-using Criterion = Dokime.Plugins.Criterion;
-using Step = Dokime.Plugins.Step;
-using Suite = Dokime.Plugins.Suite;
 
 namespace Stories.Integration;
 
@@ -25,38 +20,39 @@ public sealed class AuthorRunsAMeasurement
   {
     // Compose a Suite with an Owned Instrument, Record and Host-Sampled Stream.
     var instrument = new Instrument();
-    var record = new Record<Statistics>("measurement", "Measurement");
-    var stream = new Stream("journey.readings");
-    var template = new Template("journey.measure", "Measure")
+    var record = new Record<Statistics>("Measurement", identifier: "measurement");
+    var stream = new Dokime.Plugins.Stream<Statistics>("readings");
+    var template = new Template("measure", "Measure")
+        .Record(record)
         .Resource(_ => Task.FromResult<IAsyncDisposable>(instrument))
         .Initialize(context =>
         {
           context.Resource<Instrument>().Initialized = true;
           return Task.CompletedTask;
         })
-        .Step(new Step("read", "Read", async context =>
+        .Step(new Dokime.Plugins.Step("Read", async context =>
         {
           context.Resource<Instrument>().Reads++;
           await context.RecordAsync(record, new Statistics { Count = 1, Mean = context.Parameters["target"] },
               sourceAt: new Timestamp { Seconds = 120 }, requestId: "measurement-read");
-        }, Policy: new OperationPolicy { Retries = new RetryPolicy { TotalAttempts = 3, Initial = new Duration { Nanos = 100_000_000 } } }, ReplaySafe: true))
+        }, Identifier: "read", Policy: new OperationPolicy { Retries = new RetryPolicy { TotalAttempts = 3, Initial = new Duration { Nanos = 100_000_000 } } }, ReplaySafe: true))
         .Observer(new Observer<Statistics>(stream, new Duration { Seconds = 1 }, context =>
-            Task.FromResult(new Statistics { Count = context.Sequence, Mean = new Value { Number = context.Resource<Instrument>().Reads } })))
-        .Criterion(new Criterion("captured", "Captured", async context =>
-            (await context.Host.Evidence.Records.List(record.Identifier, [], new Window(), "", new CapturedRecordSelection(), page: new PageRequest { PageSize = 8, MaxBytes = 4096, PageToken = "continuation" },
-                at: new ReadCut { Positions = { new Position { History = new History { Store = "evidence", Epoch = "epoch" }, Sequence = 1 } } })).Count == 1))
+            Task.FromResult(new Statistics { Count = context.Sequence, Mean = new Dokime.Value { Number = context.Resource<Instrument>().Reads } })))
+        .Criterion(new Dokime.Plugins.Criterion("Captured", async context =>
+            (await context.Host.Evidence.Records.List(context.Resolve(record), [], new Window(), "", new CapturedRecordSelection(), page: new PageRequest { PageSize = 8, MaxBytes = 4096, PageToken = "continuation" },
+                at: new ReadCut { Positions = { new Position { History = new History { Store = "evidence", Epoch = "epoch" }, Sequence = 1 } } })).Count == 1, Identifier: "captured"))
         .Cleanup(context =>
         {
           context.Resource<Instrument>().Cleaned = true;
           return Task.CompletedTask;
         });
-    var plugin = new Plugin("journey", "1.0.0", new Suite("journey", "Journey", template))
-        .Record(record).Requires(HostOperation.EvidenceRecordsAppend).Requires(HostOperation.EvidenceRecordsList);
+    var plugin = new Plugin("journey", "1.0.0", new Dokime.Plugins.Suite("journey", "Journey", template))
+        .Requires(HostOperation.EvidenceRecordsAppend).Requires(HostOperation.EvidenceRecordsList);
     await using var server = await PluginServer.StartAsync(plugin);
 
     // Discover the Catalog and Materialize the Same Resolved Case Twice.
     var description = await server.Wire.DescribeAsync();
-    var materialize = new TestCasesMaterializeRequest { Template = "journey.measure", Parameters = { ["target"] = new Value { Number = 42 } } };
+    var materialize = new TestCasesMaterializeRequest { Template = "journey.measure", Parameters = { ["target"] = new Dokime.Value { Number = 42 } } };
     var testCase = (await server.Wire.InvokeAsync<TestCasesMaterializeResponse>(description, "journey.measure.materialize", materialize)).TestCase;
     var repeated = (await server.Wire.InvokeAsync<TestCasesMaterializeResponse>(description, "journey.measure.materialize", materialize)).TestCase;
     Assert.Equal(testCase, repeated);
@@ -79,7 +75,7 @@ public sealed class AuthorRunsAMeasurement
     // Execute the Step and Acknowledge Its Typed Record on the Parent Call.
     RecordsAppendRequest? stored = null;
     await server.Wire.InvokeAsync<StepsExecuteResponse>(description, testCase.Steps[0].Operation,
-        new StepsExecuteRequest { Execution = "execution-a", Step = "read", TestCase = testCase, Origin = origin }, "execution-a", child =>
+        new StepsExecuteRequest { Execution = "execution-a", Step = "journey.measure.read", TestCase = testCase, Origin = origin }, "execution-a", child =>
         {
           Assert.Equal(HostContracts.EvidenceRecordsAppend.Contract.Id, child.Operation);
           stored = RecordsAppendRequest.Parser.ParseFrom(child.Payload);
@@ -91,9 +87,9 @@ public sealed class AuthorRunsAMeasurement
     Assert.Equal(42, Statistics.Parser.ParseFrom(stored.Payload).Mean.Number);
 
     // Grant the Observer One Explicit Host Window of Two Samples; Each Sample Sees Its Own Sequence.
-    var columns = await server.Wire.WindowAsync(stream.Identifier, "execution-a", new Timestamp { Seconds = 123 }, new Duration { Seconds = 1 }, 2);
+    var columns = await server.Wire.WindowAsync("journey.measure.readings", "execution-a", new Timestamp { Seconds = 123 }, new Duration { Seconds = 1 }, 2);
     var counts = new RepeatedField<ulong>();
-    var means = new RepeatedField<Value>();
+    var means = new RepeatedField<Dokime.Value>();
     var input = new CodedInputStream(columns.ToByteArray());
     for (var tag = input.ReadTag(); tag != 0; tag = input.ReadTag())
     {
@@ -103,7 +99,7 @@ public sealed class AuthorRunsAMeasurement
           counts.AddEntriesFrom(input, FieldCodec.ForUInt64(tag));
           break;
         case Statistics.MeanFieldNumber:
-          means.AddEntriesFrom(input, FieldCodec.ForMessage(tag, Value.Parser));
+          means.AddEntriesFrom(input, FieldCodec.ForMessage(tag, Dokime.Value.Parser));
           break;
         default:
           input.SkipLastField();
@@ -115,7 +111,7 @@ public sealed class AuthorRunsAMeasurement
 
     // Evaluate Captured Evidence and Release the Instrument After Cleanup.
     var verdict = await server.Wire.InvokeAsync<CriteriaEvaluateResponse>(description, testCase.Criteria[0].Operation,
-        new CriteriaEvaluateRequest { Execution = "execution-a", Criterion = "captured", TestCase = testCase, Origin = origin }, "execution-a",
+        new CriteriaEvaluateRequest { Execution = "execution-a", Criterion = "journey.measure.captured", TestCase = testCase, Origin = origin }, "execution-a",
         child =>
         {
           Assert.Equal(HostContracts.EvidenceRecordsList.Contract.Id, child.Operation);

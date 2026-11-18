@@ -62,7 +62,8 @@
   - [x] Rust: Complete SDK, Example, Host-Fixture, Format and Focused Language Proof in This Worktree.
   - [ ] Rust: Migrate the Retired SDK Surface in Owner-Scoped `crates/dokime-runtime/benches/storage/{windows,publication}.rs` and `crates/dokime-gui/benches/system/fixture.rs` (Derive Attributes, Plugin Records, Window Type, Local IDs and Selectors).
   - [ ] Rust: Resolve Runtime-Defined Plain Context Operation Calls Against the Pinned Carrier's Static `OperationRequest` Contract.
-- [ ] C#: Follow the Locked Authoring Surface.
+- [x] C#: Follow the Locked Authoring Surface.
+- [ ] C#: Complete the Language Check and Host Fixture Producer After Resolving the Shared Generator/Python Root Export Conflict.
 - [ ] C++: Follow the Locked Authoring Surface.
 - [ ] Command Line: Implement Locked Point 11.
 
