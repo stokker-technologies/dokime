@@ -64,6 +64,8 @@
   - [ ] Rust: Resolve Runtime-Defined Plain Context Operation Calls Against the Pinned Carrier's Static `OperationRequest` Contract.
 - [x] C#: Follow the Locked Authoring Surface.
 - [ ] C#: Complete the Language Check and Host Fixture Producer After Resolving the Shared Generator/Python Root Export Conflict.
-- [ ] C++: Follow the Locked Authoring Surface.
+- [x] C++: Follow the Locked Authoring Surface.
+- [x] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
+- [ ] C++: Complete the Prescribed Host-Fixture Producer Proof After Resolving Its Release-Only Build Against the Worker Debug-Only Rule.
 - [ ] Command Line: Implement Locked Point 11.
 
