@@ -16,7 +16,9 @@ import contextlib
 import io
 import json
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 # isort: split
@@ -50,17 +52,85 @@ from .environment import isolate_environment
 
 
 class PinTests(unittest.TestCase):
+    def setUp(self) -> None:
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.directory = Path(scratch.name)
+
     def test_release_and_nightly(self) -> None:
         packages = [
             {"name": "direct", "source": "git+https://example.test/direct#123"},
             {"name": "transitive", "source": "git+https://example.test/transitive#456"},
         ]
+        with (
+            patch.object(policy, "execute", return_value=json.dumps({"packages": packages})),
+            patch.dict(os.environ, {}, clear=True),
+            self.assertRaises(policy.ToolError),
+        ):
+            pins.check(self.directory)
         with patch.object(policy, "execute", return_value=json.dumps({"packages": packages})), patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(policy.ToolError):
-                pins.check(ROOT)
-            self.assertFalse(pins.check(ROOT, warn=True))
+            self.assertFalse(pins.check(self.directory, warn=True))
         with patch.object(policy, "execute", return_value=json.dumps({"packages": [{"name": "local", "source": None}]})):
-            self.assertTrue(pins.check(ROOT))
+            self.assertTrue(pins.check(self.directory))
+
+    def test_starter_git_requirement_is_rejected_without_cargo_git_sources(self) -> None:
+        manifest = self.directory / "sdk/python/examples/test/pyproject.toml"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(
+            '[project]\ndependencies = ["dokime-sdk @ git+https://example.test/sdk@nightly#subdirectory=sdk/python"]\n',
+            encoding="utf-8",
+        )
+        with patch.object(policy, "execute", return_value='{"packages": []}'), self.assertRaises(policy.ToolError) as failure:
+            pins.check(self.directory)
+        self.assertIn("dokime-sdk (sdk/python/examples/test/pyproject.toml)", str(failure.exception))
+        with patch.object(policy, "execute", return_value='{"packages": []}'):
+            self.assertFalse(pins.check(self.directory, warn=True))
+
+    def test_python_uv_git_sources_are_rejected(self) -> None:
+        for source in ('{ git = "https://example.test/sdk", tag = "nightly" }', '[{ git = "https://example.test/sdk" }]'):
+            manifest = self.directory / "sdk/python/examples/plugin/pyproject.toml"
+            manifest.parent.mkdir(parents=True, exist_ok=True)
+            manifest.write_text(
+                '[project]\ndependencies = ["dokime-sdk"]\n[tool.uv.sources]\ndokime-sdk = ' + source + "\n", encoding="utf-8"
+            )
+            with (
+                self.subTest(source=source),
+                patch.object(policy, "execute", return_value='{"packages": []}'),
+                self.assertRaises(policy.ToolError),
+            ):
+                pins.check(self.directory)
+
+    def test_optional_and_group_git_requirements_are_reported(self) -> None:
+        manifest = self.directory / "sdk/python/pyproject.toml"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(
+            '[project.optional-dependencies]\ntransport = ["transport @ git+https://example.test/transport"]\n'
+            '[dependency-groups]\nbuild = ["generator @ git+https://example.test/generator", {include-group = "base"}]\nbase = []\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            pins.python_git_dependencies(self.directory),
+            {"transport (sdk/python/pyproject.toml)", "generator (sdk/python/pyproject.toml)"},
+        )
+
+    def test_transitive_python_git_lock_is_rejected(self) -> None:
+        lock = self.directory / "sdk/python/uv.lock"
+        lock.parent.mkdir(parents=True)
+        lock.write_text(
+            '[[package]]\nname = "transport"\nsource = {git = "https://example.test/transport?rev=abc#abc"}\n', encoding="utf-8"
+        )
+        with patch.object(policy, "execute", return_value='{"packages": []}'), self.assertRaises(policy.ToolError) as failure:
+            pins.check(self.directory)
+        self.assertIn("transport (sdk/python/uv.lock)", str(failure.exception))
+
+    def test_registry_python_starter_and_lock_are_allowed(self) -> None:
+        manifest = self.directory / "sdk/python/examples/test/pyproject.toml"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text('[project]\ndependencies = ["dokime-sdk==1.2.3"]\n', encoding="utf-8")
+        lock = manifest.parent / "uv.lock"
+        lock.write_text('[[package]]\nname = "dokime-sdk"\nsource = {registry = "https://pypi.org/simple"}\n', encoding="utf-8")
+        with patch.object(policy, "execute", return_value='{"packages": []}'):
+            self.assertTrue(pins.check(self.directory))
 
     def test_nightly_skips(self) -> None:
         with (
@@ -73,7 +143,7 @@ class PinTests(unittest.TestCase):
             self.assertFalse(check.call_args.kwargs["warn"])
 
     def test_dry_run_channel_reaches_the_crate_dry_run(self) -> None:
-        # Nightly Reports Git Pins As Pending; Every Other Caller Keeps The Stable Refusal.
+        # Nightly Reports Git Pins as Pending; Every Other Caller Keeps the Stable Refusal.
         cases = (
             ({"RELEASE_CHANNEL": "nightly"}, [], "nightly"),
             ({}, [], "stable"),

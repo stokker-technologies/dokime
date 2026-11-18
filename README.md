@@ -57,8 +57,11 @@ controls a running host. `dokime new` embeds the SDK's `plugin` and `test` examp
 mise run build -- --package dokime-cli
 ./target/debug/dokime new bench --lang python
 ./target/debug/dokime dev --plugin ./bench/test
+./target/debug/dokime dev --no-desktop --plugin ./bench/test
 ./target/debug/dokime plugin bundle ./bench/test --out ./bench.dokime
 ./target/debug/dokime server --endpoint 127.0.0.1:7000 --storage ./bench-data
+./target/debug/dokime --endpoint http://127.0.0.1:7000 access pairing export --label Operator --out operator.pair
+./target/debug/dokime --remote operator.pair status --json
 ```
 
 ### Python
@@ -139,28 +142,32 @@ dokime --version
 ### Create a Python Starter
 
 ```sh
-dokime new bench --lang python
-cd bench/test
+dokime new my-project --lang python
+cd my-project/test
 mise trust
-uv add "dokime-sdk @ https://github.com/stokker-technologies/dokime/releases/download/nightly/dokime_sdk-0.1.5-py3-none-any.whl"
 dokime dev --plugin .
 ```
 
-`dokime new` writes the `plugin` and `test` examples; `bench/test` holds the suite,
-its `plugin.py` entry point, the `main.py` client flow and `dokime.toml`. The `uv add`
-line takes the SDK wheel from the same Nightly. `dokime dev` starts a disposable host
+`dokime new` writes the `plugin` and `test` examples; `my-project/test` holds the suite,
+its `plugin.py` entry point, the `main.py` client flow and `dokime.toml`.
+`dokime dev` starts a disposable host
 with the plugin attached and prints its endpoint. Bundle the plugin for installation
-with `dokime plugin bundle . --out ../bench.dokime`.
+with `dokime plugin bundle . --out ../my-project.dokime`.
 
 ### From Source
 
 Build `dokime-cli`, create a project from the [SDK examples](docs/product-guide.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
 managed `.dokime` bundle or add a remote plugin URL, materialize a case and run it.
+
 For development, `dokime dev --plugin <bundle-or-plugin-folder>` reads `dokime.toml` in
 plugin folders, runs their configured build, and starts a disposable host with console
 logging. It opens a sibling `dokime-gui` desktop when installed and removes its data root
-on exit. Python projects require `uv` on PATH, `pyproject.toml` and `uv.lock`.
+on exit.
+
+Pass `--no-desktop` to start only the host and plugin without looking for a
+desktop; automated callers always pass this flag. Python projects require `uv` on
+PATH, `pyproject.toml` and `uv.lock`.
 The [Execution Host Guide](docs/execution-host.md) lists the exact commands and
 configuration; the [Product Guide](docs/product-guide.md) explains the model.
 
