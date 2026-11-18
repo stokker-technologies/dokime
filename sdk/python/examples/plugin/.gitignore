@@ -1,0 +1,3 @@
+.venv/
+*.pair
+__pycache__/

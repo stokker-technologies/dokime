@@ -12,13 +12,12 @@
 # === Imports === #
 
 # Standard Library Imports
+import argparse
 import asyncio
-import sys
 
 # Third Party Imports
-from operations import plugin
-
 # Local Imports
+from operations import plugin
 
 # Type Checking Imports
 
@@ -36,10 +35,13 @@ from operations import plugin
 
 
 async def main() -> None:
-    endpoint = await plugin.start("127.0.0.1:0")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--address", default="127.0.0.1:0")
+    options = parser.parse_args()
+    endpoint = await plugin.start(options.address)
     print(endpoint.url, flush=True)
     try:
-        await asyncio.to_thread(sys.stdin.buffer.read)
+        await asyncio.Event().wait()
     finally:
         await endpoint.close()
 
@@ -49,4 +51,7 @@ async def main() -> None:
 # === Entry Point === #
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

@@ -23,7 +23,7 @@ use reqwest::Client;
 use serde_json::Value;
 
 // Local Imports
-use crate::settings::Settings;
+use crate::{Result, settings::Settings};
 
 /* === Constants === */
 
@@ -65,7 +65,7 @@ enum Language {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(args: Args, settings: Settings) -> crate::Result<()> {
+pub(crate) async fn run(args: Args, settings: Settings) -> Result<()> {
     let files = match args.lang {
         Language::Rust => RUST,
         Language::Python => PYTHON,
@@ -105,7 +105,7 @@ pub(crate) async fn run(args: Args, settings: Settings) -> crate::Result<()> {
         presets = Some((url, digest));
     }
     fs::create_dir(&args.path)?;
-    let result = (|| -> crate::Result<()> {
+    let result = (|| -> Result<()> {
         for (relative, bytes) in files {
             let destination = args.path.join(relative);
             fs::create_dir_all(destination.parent().unwrap())?;
@@ -137,8 +137,22 @@ pub(crate) async fn run(args: Args, settings: Settings) -> crate::Result<()> {
 mod tests {
     use std::{error::Error, fs};
 
-    use super::{Args, Language, run};
+    use super::{Args, CPP, CSHARP, Language, PYTHON, RUST, run};
     use crate::settings::Settings;
+
+    #[test]
+    fn every_buildable_starter_embeds_project_configuration() {
+        for (files, folders) in
+            [(RUST, ["plugin", "test"]), (PYTHON, ["plugin", "test"]), (CSHARP, ["Plugin", "Test"]), (CPP, ["plugin", "test"])]
+        {
+            for folder in folders {
+                for name in ["dokime.toml", "mise.toml", ".gitignore", ".gitattributes"] {
+                    let relative = format!("{folder}/{name}");
+                    assert!(files.iter().any(|(path, _)| *path == relative), "{relative}");
+                }
+            }
+        }
+    }
 
     #[tokio::test]
     async fn python_starters_leave_dependency_locking_to_the_user() -> Result<(), Box<dyn Error>> {

@@ -1,0 +1,10 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+build = ["mise", "run", "build"]
+executable = "target/debug/dokime-example-plugin"

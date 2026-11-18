@@ -19,6 +19,7 @@
 use std::{error::Error, fs};
 
 // Third Party Imports
+use serde_json::Value;
 
 // Local Imports
 
@@ -85,7 +86,7 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                                 continue;
                             }
                             if path.file_name().is_some_and(|name| name == "CMakePresets.json") {
-                                let presets: serde_json::Value = serde_json::from_slice(&fs::read(destination)?)?;
+                                let presets: Value = serde_json::from_slice(&fs::read(destination)?)?;
                                 let coordinates = &presets["configurePresets"][0]["cacheVariables"];
                                 assert_eq!(coordinates["DOKIME_SDK_URL"], arguments[5]);
                                 assert_eq!(coordinates["DOKIME_SDK_SHA256"], arguments[7]);

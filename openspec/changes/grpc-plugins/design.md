@@ -590,6 +590,10 @@ dokime proto export
   The first `uv sync` resolves the dependency named by `pyproject.toml` and creates
   the user's lock file, which belongs in their version control. In-repository
   example locks are removed; repository tests install the working-tree SDK.
+- Every buildable starter folder, including both `plugin` and `test` (`Plugin`
+  and `Test` for C#), owns root `dokime.toml`, `mise.toml`, `.gitignore` and
+  `.gitattributes` files. The manifest builds and launches that folder's plugin;
+  tasks only name operations the folder supports.
 - A starter is an ordinary project in its language, with a mise task that
   wraps its build. `dokime new` fails for a language without an SDK and lists
   the supported ones.
