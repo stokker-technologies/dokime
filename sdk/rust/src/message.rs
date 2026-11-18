@@ -16,18 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::fmt;
+use std::{fmt, result};
 
 // Third Party Imports
 use prost::{
-    Message,
+    DecodeError, Message,
     bytes::{Buf, BufMut},
     encoding::{DecodeContext, WireType},
 };
 use prost_reflect::ReflectMessage;
+use prost_types::FileDescriptorSet;
 
 // Local Imports
-use harmos;
 
 /* === Constants === */
 
@@ -59,9 +59,7 @@ impl<T: Message> Message for Wire<T> {
     fn encode_raw(&self, buffer: &mut impl BufMut) {
         self.0.encode_raw(buffer);
     }
-    fn merge_field(
-        &mut self, tag: u32, wire: WireType, buffer: &mut impl Buf, context: DecodeContext,
-    ) -> std::result::Result<(), prost::DecodeError> {
+    fn merge_field(&mut self, tag: u32, wire: WireType, buffer: &mut impl Buf, context: DecodeContext) -> result::Result<(), DecodeError> {
         self.0.merge_field(tag, wire, buffer, context)
     }
     fn encoded_len(&self) -> usize {
@@ -76,9 +74,9 @@ impl<T: ReflectMessage + Default + 'static> harmos::Message for Wire<T> {
     fn name() -> String {
         T::default().descriptor().full_name().into()
     }
-    fn types() -> prost_types::FileDescriptorSet {
+    fn types() -> FileDescriptorSet {
         let descriptor = T::default().descriptor();
-        let types = prost_types::FileDescriptorSet {
+        let types = FileDescriptorSet {
             file: descriptor.parent_pool().files().map(|file| file.file_descriptor_proto().clone()).collect(),
         };
         harmos_protocol::schema::operation_types(&types, &[descriptor.full_name()]).expect("Generated Protocol Message Descriptor")

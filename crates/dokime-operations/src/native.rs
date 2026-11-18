@@ -127,6 +127,8 @@ pub(crate) use download;
 
 /* === Type Aliases === */
 
+type Factory = fn(Duration) -> Result<OperationFactory>;
+
 /* === Structs === */
 
 #[derive(Default)]
@@ -191,7 +193,7 @@ pub fn factory<O: ProtobufOperation>(timeout: Duration) -> Result<OperationFacto
 }
 
 pub fn registration(settings: &ClientSettings) -> Result<Registration> {
-    let factories: &[(fn(Duration) -> Result<OperationFactory>, Duration)] = &[
+    let factories: &[(Factory, Duration)] = &[
         (factory::<host::backend::appearance::Operation>, settings.read_timeout),
         (factory::<host::backend::environment::Operation>, settings.mutation_timeout),
         (factory::<host::backend::overview::get::Operation>, settings.read_timeout),

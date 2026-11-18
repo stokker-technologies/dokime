@@ -19,12 +19,13 @@
 use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 // Third Party Imports
-use prost_reflect::{DescriptorPool, DynamicMessage};
+use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor};
+use prost_types::FileDescriptorSet;
 
 // Local Imports
+use crate::authoring;
 use crate::operation::{self, Action, FutureResult};
-use crate::{Context, Message, Result, context::Executions};
-use harmos;
+use crate::{Context, Error, Message, Result, context::Executions};
 use harmos::plugin;
 
 use harmos::plugin::Publisher;
@@ -35,6 +36,7 @@ use harmos::plugin::Publisher;
 
 /* === Type Aliases === */
 
+type ObserverFactory = Box<dyn FnOnce(Executions, &str) -> plugin::Observer + Send>;
 type Producer<T> = Box<dyn FnOnce(plugin::Stream<T>, Executions) -> plugin::Stream<T> + Send>;
 pub(crate) type Registration = Box<dyn FnOnce(plugin::Plugin, Executions, &str) -> plugin::Plugin + Send>;
 
@@ -49,7 +51,7 @@ pub struct Stream<T: Message> {
 }
 
 pub struct Observer {
-    register: Box<dyn FnOnce(Executions, &str) -> plugin::Observer + Send>,
+    register: ObserverFactory,
     configure: Vec<Box<dyn FnOnce(plugin::Observer) -> plugin::Observer + Send>>,
     pub(crate) sampler: Sampler,
 }
@@ -60,7 +62,7 @@ pub(crate) struct Sampler {
     pub stream: String,
     pub interval: Option<Duration>,
     pub setting: Option<String>,
-    pub types: prost_types::FileDescriptorSet,
+    pub types: FileDescriptorSet,
     pub name: String,
     pub sample: Arc<dyn Sample>,
 }
@@ -85,7 +87,7 @@ struct Columns<T, C, H> {
 
 impl<T: Message> Stream<T> {
     pub fn of<H: Fn() -> Self>(_: H, label: impl Into<String>) -> Self {
-        Self::new(crate::authoring::code_name::<H>(false), label)
+        Self::new(authoring::code_name::<H>(false), label)
     }
 
     pub fn new(identifier: impl Into<String>, label: impl Into<String>) -> Self {
@@ -118,7 +120,7 @@ impl<T: Message> Stream<T> {
     }
     pub(crate) fn registration(self) -> Registration {
         Box::new(move |plugin, executions, prefix| {
-            let identifier = crate::authoring::build_identifier(prefix, &self.identifier, false);
+            let identifier = authoring::build_identifier(prefix, &self.identifier, false);
             let stream = plugin::Stream::new(identifier).description(self.description);
             let stream = match self.producer {
                 Some(producer) => producer(stream, executions),
@@ -147,7 +149,7 @@ impl Observer {
         let sampler = Sampler::new::<T>(&identifier, Arc::new(Encoded(action.clone())));
         Self {
             register: Box::new(move |executions, prefix| {
-                let identifier = crate::authoring::build_identifier(prefix, &identifier, false);
+                let identifier = authoring::build_identifier(prefix, &identifier, false);
                 let stream = plugin::Stream::<T>::new(identifier);
                 plugin::Observer::new(&stream, async move |transport: &plugin::Context| {
                     let context = Context::publication(transport, &executions)?;
@@ -180,7 +182,7 @@ impl Observer {
         );
         Self {
             register: Box::new(move |executions, prefix| {
-                let identifier = crate::authoring::build_identifier(prefix, &identifier, false);
+                let identifier = authoring::build_identifier(prefix, &identifier, false);
                 let stream = plugin::Stream::<T>::new(identifier);
                 plugin::Observer::window(&stream, async move |transport: &plugin::Context, window: &plugin::Window| {
                     let context = Context::publication(transport, &executions)?;
@@ -277,8 +279,8 @@ where
 
 /// Split Encoded Columns Into One Encoded Row per Sample, Refusing a Column of Another Length.
 fn columns_rows<T: Message, C: Message>(columns: &[u8], count: u64) -> Result<Vec<Vec<u8>>> {
-    let invalid = |error: String| crate::Error::Invalid(format!("Answer Sample Window: {error}"));
-    let descriptor = |types, name: String| -> Result<prost_reflect::MessageDescriptor> {
+    let invalid = |error: String| Error::Invalid(format!("Answer Sample Window: {error}"));
+    let descriptor = |types, name: String| -> Result<MessageDescriptor> {
         let pool = DescriptorPool::from_file_descriptor_set(types).map_err(|error| invalid(error.to_string()))?;
         pool.get_message_by_name(&name).ok_or_else(|| invalid(format!("declare the message {name}")))
     };
