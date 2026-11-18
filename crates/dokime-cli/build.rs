@@ -88,6 +88,9 @@ fn embed_examples() {
                     let path = entry.path();
                     let kind = entry.file_type().expect("Read example file type");
                     if kind.is_dir() {
+                        if language == "csharp" && path == root.join("assets/plugin") {
+                            continue;
+                        }
                         let name = entry.file_name();
                         if !["target", "build", "bin", "obj", ".git", ".venv", "__pycache__", "_input", "_output", "credentials"]
                             .iter()
