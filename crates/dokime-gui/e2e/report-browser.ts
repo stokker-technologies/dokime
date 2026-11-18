@@ -21,7 +21,7 @@ import { realpath } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import { setTimeout } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 // Third Party Imports
@@ -133,7 +133,7 @@ export class ReportBrowser {
         )
           break;
         if (Date.now() >= deadline) throw new Error("Owned report browser startup timed out");
-        await delay(100);
+        await setTimeout(100);
       }
       await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
       const listening = server.address();
@@ -278,7 +278,7 @@ export class ReportBrowser {
         this.process.kill("SIGKILL");
         await Promise.race([
           exited,
-          delay(this.wait, undefined, { signal: timer.signal }).then(() => {
+          setTimeout(this.wait, undefined, { signal: timer.signal }).then(() => {
             throw new Error("Owned report browser did not exit");
           }),
         ]);

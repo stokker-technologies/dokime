@@ -526,63 +526,67 @@ try {
       );
       await session.key("Escape");
 
-      // Retain An Active Cycle Beside The Completed One On The Home Surface.
-      const active = await call(session, "Cycles", "Create", {
-        requestId: crypto.randomUUID(),
-        metadata: { label: "Continuous Observation" },
-        continueAutomatically: false,
-      }).then((reply) => reply.cycle);
-      const activeId = randomUUID();
-      await call(session, "Executions", "Create", {
-        requestId: crypto.randomUUID(),
-        parent: active.cycleId,
-        executions: [{ executionId: activeId, caseId: plan.cases[0].caseId }],
-      });
-      await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
-      await until("registered active row", () =>
-        session.find("css selector", `li[data-execution-id="${activeId}"] button[data-tree-actions]`),
-      );
-      await session.clickCss(`li[data-execution-id="${activeId}"] button[data-tree-actions]`);
-      await session.clickNamed("menuitem", "Start Execution");
-      // The Operator Answers After Capturing The Active And Touch Views.
-      await until("active observation", async () => {
-        await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
-        return session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)");
-      });
-      await capture(
-        "cycles",
-        () =>
-          session.execute(
-            "return document.body.innerText.includes('AC Characterization') && document.body.innerText.includes('Continuous Observation') && !document.body.innerText.includes('Loading cycles')",
-          ),
-        () => session.goto("/cycles"),
-      );
-      await capture(
-        "touch",
-        () => session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)"),
-        async () => {
-          await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
-          await until("touch live plots", async () => {
-            await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
-            return session.find("css selector", ".uplot canvas");
-          });
-        },
-      );
+      if (!options.scene || options.scene === "cycles") {
+        // Retain An Active Cycle Beside The Completed One On The Home Surface.
+        const active = await call(session, "Cycles", "Create", {
+          requestId: crypto.randomUUID(),
+          metadata: { label: "Continuous Observation" },
+          continueAutomatically: false,
+        }).then((reply) => reply.cycle);
+        const activeId = randomUUID();
+        await call(session, "Executions", "Create", {
+          requestId: crypto.randomUUID(),
+          parent: active.cycleId,
+          executions: [{ executionId: activeId, caseId: plan.cases[0].caseId }],
+        });
+        await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
+        await until("registered active row", () =>
+          session.find("css selector", `li[data-execution-id="${activeId}"] button[data-tree-actions]`),
+        );
+        await session.clickCss(`li[data-execution-id="${activeId}"] button[data-tree-actions]`);
+        await session.clickNamed("menuitem", "Start Execution");
+        // The Operator Answers After Capturing The Active And Touch Views.
+        await until("active observation", async () => {
+          await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
+          return session.execute(
+            "return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)",
+          );
+        });
+        await capture(
+          "cycles",
+          () =>
+            session.execute(
+              "return document.body.innerText.includes('AC Characterization') && document.body.innerText.includes('Continuous Observation') && !document.body.innerText.includes('Loading cycles')",
+            ),
+          () => session.goto("/cycles"),
+        );
+        await capture(
+          "touch",
+          () => session.execute("return document.querySelectorAll('.uplot canvas').length >= 1 && /Running/.test(document.body.innerText)"),
+          async () => {
+            await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
+            await until("touch live plots", async () => {
+              await session.execute("document.querySelector('[data-execution-section=Report]')?.scrollIntoView({block:'start'});");
+              return session.find("css selector", ".uplot canvas");
+            });
+          },
+        );
 
-      // Let The Active Case Finish Normally Before Shutting Down Its Backend.
-      await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
-      const observed = await until(
-        "active observation completed",
-        async () => {
-          await answerPendingPrompts(session);
-          const result = await call(session, "Executions", "Get", { name: activeId }).then((reply) => reply.execution);
-          return result.summary?.state === "EXECUTION_STATE_SEALED" ? result : null;
-        },
-        undefined,
-        500,
-      );
-      assert.equal(observed.outcome.evaluated?.status, "RESULT_STATUS_PASSED");
-      await call(session, "Cycles", "Seal", { requestId: crypto.randomUUID(), name: active.cycleId });
+        // Let The Active Case Finish Normally Before Shutting Down Its Backend.
+        await session.goto(`/cycles/${active.cycleId}?executionId=${activeId}`);
+        const observed = await until(
+          "active observation completed",
+          async () => {
+            await answerPendingPrompts(session);
+            const result = await call(session, "Executions", "Get", { name: activeId }).then((reply) => reply.execution);
+            return result.summary?.state === "EXECUTION_STATE_SEALED" ? result : null;
+          },
+          undefined,
+          500,
+        );
+        assert.equal(observed.outcome.evaluated?.status, "RESULT_STATUS_PASSED");
+        await call(session, "Cycles", "Seal", { requestId: crypto.randomUUID(), name: active.cycleId });
+      }
     }
   }
 } catch (error) {
