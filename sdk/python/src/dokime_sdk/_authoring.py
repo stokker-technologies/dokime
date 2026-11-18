@@ -12,13 +12,13 @@
 
 # Standard Library Imports
 import inspect
+import math
 import re
-from collections.abc import Callable, Sequence
-from copy import copy
+from collections.abc import Callable, Mapping, Sequence
+from copy import copy, deepcopy
 from dataclasses import dataclass, field
-from types import FunctionType
-from typing import Any, ClassVar, TypeVar
-from weakref import WeakKeyDictionary
+from types import FunctionType, MappingProxyType
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, cast
 
 # Third Party Imports
 from google.protobuf.message import Message
@@ -28,36 +28,19 @@ from dokime_sdk._generated import shared
 from dokime_sdk._generated.shared import DataExpression, FileParameter, Parameter, TestCase, TestCaseTemplate
 
 from ._payloads import Payload, message_type
-from .documents import Document
-from .plot import Expression
-from .values import Scalar, encode
+from ._values import Scalar, encode
 
 # Type Checking Imports
+if TYPE_CHECKING:
+    from . import operations, templates
+    from .templates._documents import Document
+    from .templates._plots import Expression
 
 # === Public Exports === #
 
-__all__ = [
-    "Case",
-    "Criterion",
-    "Record",
-    "Step",
-    "Stream",
-    "Suite",
-    "Template",
-    "criterion",
-    "materialize",
-    "observer",
-    "prompt",
-    "record",
-    "step",
-    "stream",
-    "suite",
-    "window_observer",
-]
 
 # === Constants === #
 
-_SUITES: WeakKeyDictionary[type, "Suite"] = WeakKeyDictionary()
 
 # === Types === #
 
@@ -81,6 +64,7 @@ class Step:
     identifier: str | None = None
     retries: int = 0
     repeatable: bool = False
+    policy: "operations.OperationPolicy | None" = None
 
 
 @dataclass(frozen=True)
@@ -88,15 +72,20 @@ class Criterion:
     label: str
     handler: Callable[..., object]
     identifier: str | None = None
+    policy: "operations.OperationPolicy | None" = None
 
 
 @dataclass(frozen=True)
-class Stream:
+class Stream[T: Payload = float]:
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     identifier: str | None = None
-    row: type[Payload] = float
+    row: type[T] = field(default_factory=lambda: cast(type[T], float))
     label: str = ""
 
-    def field(self, name: str = "value") -> Expression:
+    def field(self, name: str = "value") -> "Expression":
+        from .templates._plots import Expression
+
         return Expression(DataExpression(stream={"identifier": self.identifier, "field": name}))
 
 
@@ -116,15 +105,15 @@ class PromptDeclaration:
 
 
 @dataclass
-class Template:
+class _Template:
     instance: type
     label: str = ""
     identifier: str | None = None
     steps: Sequence[Step] = ()
     criteria: Sequence[Criterion] = ()
-    streams: Sequence[Stream] = ()
+    streams: Sequence[Stream[Any]] = ()
     parameters: Sequence[Parameter] = ()
-    documents: Sequence[Document] = ()
+    documents: Sequence["Document"] = ()
     files: Sequence[FileParameter] = ()
     records: Sequence[Record[Any]] = field(init=False)
     prompts: Sequence[PromptDeclaration] = field(init=False)
@@ -146,15 +135,17 @@ class Template:
         self.streams = tuple(self.streams) + tuple(
             method.__dokime_stream__ for method in self._methods.values() if hasattr(method, "__dokime_stream__")
         )
+        if sum(bool(getattr(method, "__dokime_materialize__", False)) for method in self._methods.values()) > 1:
+            raise ValueError("Build Template: Declare Exactly One Custom Materializer")
         self.records = tuple(member for member in self._methods.values() if isinstance(member, Record))
         self.prompts = tuple(member for member in self._methods.values() if isinstance(member, PromptDeclaration))
 
-    def bind(self, prefix: str, *, single: bool = False) -> "Template":
+    def bind(self, prefix: str) -> "_Template":
         local = build_identifier(self.instance.__name__, self.identifier, class_name=True)
         bound = copy(self)
-        bound.identifier = prefix if single else build_identifier(local, prefix=prefix)
+        bound.identifier = build_identifier(local, prefix=prefix)
         bound._identifiers = {}
-        bound._lifecycle = {name: build_identifier(name, prefix=bound.identifier) for name in ("materialize", "initialize", "cleanup")}
+        bound._lifecycle = {name: build_identifier(name, prefix=bound.identifier) for name in ("materialize", "setup", "cleanup")}
         bound._prompts = {}
         names: list[str] = []
         declarations: list[tuple[object, str, str | None]] = []
@@ -196,15 +187,15 @@ class Template:
 
     def definition(self) -> TestCaseTemplate:
         value = TestCaseTemplate(
-            metadata={"identifier": self.identifier, "label": self.label or self.instance.__name__},
+            metadata={"identifier": self.identifier, "label": self.label or build_label(self.instance.__name__)},
             materialize=self._lifecycle["materialize"],
             cleanup=self._lifecycle["cleanup"],
             parameters=self.parameters,
             files=self.files,
             documents=[item.message for item in self.documents],
         )
-        if "initialize" in self._methods:
-            value.initialize = self._lifecycle["initialize"]
+        if self._methods.get("setup") is not TestTemplate.setup:
+            value.initialize = self._lifecycle["setup"]
         # Declare the Procedure on the Template So Catalogs Show It Before Materialization.
         for declared in self.steps:
             entry = value.steps.add(
@@ -214,11 +205,11 @@ class Template:
             entry.repeatable = declared.repeatable
         return value
 
-    def build(self, parameters: dict[str, Scalar]) -> "Case":
-        case = Case(self, parameters)
+    def build(self, parameters: Mapping[str, Scalar]) -> "Materialization":
+        case = Materialization(self, parameters)
         custom = next((method for method in self._methods.values() if getattr(method, "__dokime_materialize__", False)), None)
         if custom is not None:
-            result = custom(self.instance, case, parameters)
+            result = custom(self.instance(), case, case.parameters)
             if inspect.isawaitable(result):
                 if inspect.iscoroutine(result):
                     result.close()
@@ -231,36 +222,66 @@ class Template:
         return case
 
 
-@dataclass(frozen=True)
+class TestTemplate:
+    identifier: ClassVar[str | None] = None
+    label: ClassVar[str | None] = None
+    parameters: ClassVar[Sequence[Parameter]] = ()
+    files: ClassVar[Sequence[FileParameter]] = ()
+    documents: ClassVar[Sequence["Document"]] = ()
+
+    def __init__(self) -> None:
+        pass
+
+    async def setup(self, ctx: "templates.Context") -> None:
+        pass
+
+    async def cleanup(self, ctx: "templates.Context") -> None:
+        pass
+
+
 class Suite:
-    identifier: str | None
-    templates: Sequence[Template]
-    label: str = ""
-    _single: bool = False
+    identifier: ClassVar[str | None] = None
+    label: ClassVar[str | None] = None
+    templates: ClassVar[Sequence[type[TestTemplate]]] = ()
+
+    def __init__(self) -> None:
+        pass
+
+
+@dataclass(frozen=True)
+class _Suite:
+    identifier: str
+    templates: tuple[_Template, ...]
+    label: str
 
     def definition(self) -> shared.Suite:
         return shared.Suite(
-            metadata={"identifier": self.identifier, "label": self.label or self.identifier},
+            metadata={"identifier": self.identifier, "label": self.label},
             templates=[item.definition() for item in self.templates],
         )
 
 
-class Case:
-    def __init__(self, template: Template, parameters: dict[str, Scalar]) -> None:
+class Materialization:
+    def __init__(self, template: _Template, parameters: Mapping[str, Scalar]) -> None:
         self.template = template
+        self.parameters: Mapping[str, Scalar] = MappingProxyType(deepcopy(parameters))
         self.message = TestCase(
             parameters={key: encode(value) for key, value in parameters.items()},
             streams=[template.resolve(item) for item in template.streams],
         )
         self.bindings: dict[tuple[str, str], tuple[Callable[..., object], dict[str, object]]] = {}
 
-    def step(self, label: str, handler: Callable[..., object], *, identifier: str | None = None, **arguments: object) -> "Case":
+    def step(self, label: str, handler: Callable[..., object], *, identifier: str | None = None, **arguments: object) -> "Materialization":
         return self._add("step", label, handler, identifier, arguments)
 
-    def criterion(self, label: str, handler: Callable[..., object], *, identifier: str | None = None, **arguments: object) -> "Case":
+    def criterion(
+        self, label: str, handler: Callable[..., object], *, identifier: str | None = None, **arguments: object
+    ) -> "Materialization":
         return self._add("criterion", label, handler, identifier, arguments)
 
-    def _add(self, kind: str, label: str, handler: Callable[..., object], identifier: str | None, arguments: dict[str, object]) -> "Case":
+    def _add(
+        self, kind: str, label: str, handler: Callable[..., object], identifier: str | None, arguments: dict[str, object]
+    ) -> "Materialization":
         handler = getattr(handler, "__func__", handler)
         definitions = self.template.steps if kind == "step" else self.template.criteria
         definition = next((item for item in definitions if item.handler is handler), None)
@@ -290,12 +311,12 @@ def build_identifier(name: str, explicit: str | None = None, *, prefix: str | No
         local = explicit
     else:
         if class_name:
-            name = re.sub(r"(?:Template|Suite)$", "", name)
+            name = re.sub(r"(?:TestTemplate|Plugin|Suite)$", "", name)
         name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
         name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
         local = name.lower()
-    if not local or not local.strip():
-        raise ValueError("Build Plugin: Supply a Nonempty Declaration Identifier")
+    if not re.fullmatch(r"[a-z0-9_]+", local):
+        raise ValueError("Build Plugin: Supply a Nonempty Lowercase Local Declaration Identifier")
     return f"{prefix}.{local}" if prefix else local
 
 
@@ -326,25 +347,34 @@ def prompt(
 
 
 def step[**P, R](
-    label: str, *, identifier: str | None = None, retries: int = 0, repeatable: bool = False
+    label: str,
+    *,
+    identifier: str | None = None,
+    retries: int = 0,
+    repeatable: bool = False,
+    policy: "operations.OperationPolicy | None" = None,
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    if retries < 0:
+    if retries and policy is not None and policy.retries is not None:
+        raise ValueError("Declare Step: Choose retries or Policy Retries, Not Both")
+    if type(retries) is not int or retries < 0:
         raise ValueError("Declare Step: Supply a Nonnegative Retry Count")
 
     def decorate(handler: Callable[P, R]) -> Callable[P, R]:
         if not isinstance(handler, FunctionType):
             raise TypeError("Register Definition: Supply a Function")
-        vars(handler)["__dokime_step__"] = Step(label, handler, identifier, retries, repeatable)
+        vars(handler)["__dokime_step__"] = Step(label, handler, identifier, retries, repeatable, policy)
         return handler
 
     return decorate
 
 
-def criterion[**P, R](label: str, *, identifier: str | None = None) -> Callable[[Callable[P, R]], Callable[P, R]]:
+def criterion[**P, R](
+    label: str, *, identifier: str | None = None, policy: "operations.OperationPolicy | None" = None
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     def decorate(handler: Callable[P, R]) -> Callable[P, R]:
         if not isinstance(handler, FunctionType):
             raise TypeError("Register Definition: Supply a Function")
-        vars(handler)["__dokime_criterion__"] = Criterion(label, handler, identifier)
+        vars(handler)["__dokime_criterion__"] = Criterion(label, handler, identifier, policy)
         return handler
 
     return decorate
@@ -391,22 +421,43 @@ def stream[**P, R](label: str, *, identifier: str | None = None, row: type[Paylo
     return decorate
 
 
-def suite[ClassT](
-    identifier: str | None = None, *, label: str = "", parameters: Sequence[Parameter] = (), documents: Sequence[Document] = ()
-) -> Callable[[type[ClassT]], type[ClassT]]:
-    def decorate(instance: type[ClassT]) -> type[ClassT]:
-        template = Template(instance, label, identifier, parameters=parameters, documents=documents)
-        _SUITES[instance] = Suite(identifier, (template,), label, True)
-        return instance
-
-    return decorate
+def build_label(name: str) -> str:
+    name = re.sub(r"(?:TestTemplate|Plugin|Suite)$", "", name)
+    name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1 \2", name)
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", name)
+    words = name.replace("_", " ").split()
+    minor = {"a", "an", "the", "and", "but", "or", "nor", "as", "at", "by", "for", "in", "of", "on", "per", "to", "via"}
+    return " ".join(
+        word if word.isupper() else word.lower() if 0 < index < len(words) - 1 and word.lower() in minor else word.capitalize()
+        for index, word in enumerate(words)
+    )
 
 
 # === Private Functions === #
 
 
+def bind_suite(declaration: type[Suite]) -> _Suite:
+    if not isinstance(declaration, type) or not issubclass(declaration, Suite):
+        raise TypeError("Build Plugin: List Suite Classes in suites")
+    identity = build_identifier(declaration.__name__, declaration.identifier, class_name=True)
+    templates = []
+    for item in tuple(declaration.templates):
+        if not isinstance(item, type) or not issubclass(item, TestTemplate):
+            raise TypeError("Build Suite: List TestTemplate Classes in templates")
+        template = _Template(
+            item,
+            item.label or build_label(item.__name__),
+            item.identifier,
+            parameters=tuple(deepcopy(item.parameters)),
+            files=tuple(deepcopy(item.files)),
+            documents=tuple(deepcopy(item.documents)),
+        ).bind(identity)
+        templates.append(template)
+    return _Suite(identity, tuple(templates), declaration.label or build_label(declaration.__name__))
+
+
 def _sampling[**P, R](sampling: Sampling) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    if sampling.interval_ms <= 0:
+    if not math.isfinite(sampling.interval_ms) or sampling.interval_ms <= 0:
         raise ValueError("Declare Observer: Supply a Positive Interval")
 
     def decorate(handler: Callable[P, R]) -> Callable[P, R]:

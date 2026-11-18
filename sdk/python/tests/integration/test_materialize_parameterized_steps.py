@@ -11,35 +11,18 @@
 # === Imports === #
 
 # Standard Library Imports
-import runpy
+import asyncio
 import unittest
-from operator import mul
-from pathlib import Path
-from typing import Self
-from uuid import uuid4
+from collections.abc import Mapping
+from typing import Any, ClassVar, cast
 
 # Third Party Imports
-from google.protobuf.wrappers_pb2 import Int32Value
-from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
+from harmos import plugin
+from harmos._wire.plugin.v1.invocation_pb2 import Request
 
 # Local Imports
-from dokime_sdk import (
-    CLASSIFICATION_TRANSIENT,
-    ArtifactScope,
-    Context,
-    FailureError,
-    FailureValue,
-    Metadata,
-    Operation,
-    Parameter,
-    Plugin,
-    Visibility,
-    operation,
-)
-from dokime_sdk.authoring import Case, criterion, materialize, step, suite
-from dokime_sdk.client import EXECUTION_MODE_AUTOMATIC, ExecutionBinding, RegisteredSelection, SelectionPlan
-from dokime_sdk.plugin import HostOperation
-from dokime_sdk.values import Scalar, encode
+from dokime_sdk import Plugin, Scalar, Suite
+from dokime_sdk.templates import Context, Materialization, Termination, TestTemplate, criterion, materialize, step
 
 # Type Checking Imports
 
@@ -53,154 +36,117 @@ from dokime_sdk.values import Scalar, encode
 
 
 class MaterializationStory(unittest.IsolatedAsyncioTestCase):
-    async def test_freeze_explicit_members_retry_and_cleanup(self) -> None:
-        # Compose A Parameter-Dependent Template With Execution-Owned State.
-        instances: list[tuple[list[int], list[tuple[int, int]]]] = []
-        reading = Operation("example.reading.square", int, int, Visibility.PRIVATE)
-
-        class Operations:
-            @operation(reading.identifier, request=int, response=int, visibility=Visibility.PRIVATE)
-            async def read(self, ctx: Context, request: int) -> int:
-                return mul(request, request)
-
-        @suite(
-            "example.channels",
-            label="Channels",
-            parameters=[
-                Parameter(
-                    metadata={"identifier": "channels", "label": "Channels"}, type="VALUE_TYPE_LIST", element_type="VALUE_TYPE_INTEGER"
-                )
-            ],
-        )
-        class Channels:
-            def __init__(self) -> None:
-                self.channels: list[int] = []
-                self.attempts: list[tuple[int, int]] = []
-                instances.append((self.channels, self.attempts))
-
+    async def test_scoped_class_handlers_share_execution_state_and_plugin(self) -> None:
+        class ChannelsTestTemplate(TestTemplate):
             @materialize
-            def cases(cls: type[Self], case: Case, parameters: dict[str, Scalar]) -> None:
+            def channels(self, case: Materialization, parameters: Mapping[str, Scalar]) -> None:
                 channels = parameters["channels"]
                 if not isinstance(channels, list):
                     raise TypeError("Materialize Channels: Supply a List")
                 for channel in channels:
-                    case.step(f"Channel {channel}", cls.measure, identifier=f"channel-{channel}", channel=channel)
-                case.criterion("All Channels", cls.all_channels)
+                    case.step("Read", self.measure, identifier=f"channel_{channel}", channel=channel)
+                case.criterion("All Channels", self.all_channels)
 
-            @step("Measure", retries=1)
+            async def setup(self, ctx: Context) -> None:
+                self.measured: list[int] = []
+                cast(ChannelsPlugin, ctx.plugin).events.append((ctx.execution, "setup"))
+
+            @step("Measure")
             async def measure(self, ctx: Context, *, channel: int) -> None:
-                self.attempts.append((channel, ctx.attempt))
-                if channel == 2 and ctx.attempt == 1:
-                    raise FailureError(
-                        FailureValue(
-                            classification=CLASSIFICATION_TRANSIENT,
-                            code="retry_measurement",
-                            message="Retry measurement",
-                        )
-                    )
-                measured = await ctx.operation(reading)(channel)
-                await ctx.artifact(f"channel-{channel}.pb", Int32Value(value=measured).SerializeToString())
-                self.channels.append(measured)
+                self.measured.append(channel * channel)
+                cast(ChannelsPlugin, ctx.plugin).events.append((ctx.execution, channel))
 
             @criterion("All Channels")
-            def all_channels(self, ctx: Context) -> bool:
-                channels = ctx.parameters["channels"]
-                if not isinstance(channels, list) or not all(isinstance(channel, int) for channel in channels):
-                    raise TypeError("Evaluate Channels: Supply Integer Channels")
-                return self.channels == [int(channel) * int(channel) for channel in channels if isinstance(channel, int)]
+            async def all_channels(self, ctx: Context) -> bool:
+                return self.measured == [4, 16]
 
-        # Admit The Plugin Through A Real Product Host And Its Client Root.
-        mechanical = Path(__file__).resolve().parents[2] / "examples/test/tests/host.py"
-        host = await runpy.run_path(str(mechanical))["Host"].start(self)
-        required = [
-            HostOperation.CONTENT_ARTIFACTS_CREATE,
-            HostOperation.FILES_UPLOADS_CREATE,
-            HostOperation.FILES_UPLOADS_APPEND,
-            HostOperation.FILES_UPLOADS_PUBLISH,
-            HostOperation.FILES_UPLOADS_DELETE,
-        ]
-        plugin = Plugin("channels", "1.0.0", suites=[Channels], requires=required, operations=Operations())
-        self.assertNotIn(reading.identifier, {operation.id for operation in plugin.declarations().operations})
-        endpoint = await plugin.start("127.0.0.1:0")
-        self.addAsyncCleanup(endpoint.close)
-        self.addAsyncCleanup(host.close)
-        await host.client.plugins.create("channels", PluginPlacement(remote=PluginRemote(url=endpoint.url)), PluginValue(enabled=True))
-        watching = host.client.plugins.watch(name="channels")
-        try:
-            async for _ in watching:
-                entry = (await host.client.plugins.get("channels")).entry
-                if entry.HasField("failure"):
-                    raise RuntimeError(f"Activate Channels: {entry.failure}")
-                if entry.state == PLUGIN_STATE_READY:
-                    break
-        finally:
-            await watching.aclose()
-        suites = (await host.client.suites.list("channels")).values
-        # The Catalog Declares the Procedure Before Any Case Is Materialized.
-        declared = (await host.client.suites.get(suites[0].metadata.identifier, "", 0)).value.templates[0].steps
+            async def cleanup(self, ctx: Context) -> None:
+                cast(ChannelsPlugin, ctx.plugin).events.append((ctx.execution, ctx.termination))
+
+        class ChannelsSuite(Suite):
+            templates: ClassVar[list[type[TestTemplate]]] = [ChannelsTestTemplate]
+
+        class ChannelsPlugin(Plugin):
+            version = "1.0.0"
+            suites: ClassVar[list[type[Suite]]] = [ChannelsSuite]
+
+            def __init__(self) -> None:
+                self.events: list[tuple[str, object]] = []
+                super().__init__()
+
+        author = ChannelsPlugin()
+        template = author._suites[0].templates[0]
+        case = template.build({"channels": [2, 4]}).message
+        self.assertEqual([item.operation for item in case.steps], ["channels.channels.measure"] * 2)
+        handlers = {definition.id: (definition, handler) for definition, handler in author._plugin._registrations()[0]}
+        for execution in ("first", "second"):
+            origin = {"plugin_run": {"plugin": author._identifier, "template": template.identifier, "test_case": case}}
+            transport = plugin.Context(Request(scope=execution, attempt=1), author._identifier, {})
+            for name, arguments in (
+                ("setup", {}),
+                ("measure", {"step": "channels.channels.channel_2"}),
+                ("measure", {"step": "channels.channels.channel_4"}),
+                ("all_channels", {"criterion": "channels.channels.all_channels"}),
+                ("cleanup", {"termination": Termination.COMPLETED.value}),
+            ):
+                definition, handler = handlers[f"channels.channels.{name}"]
+                request = cast(Any, definition.request)(execution=execution, test_case=case, origin=origin, **arguments)
+                result = await handler(transport, request)
+                if name == "all_channels":
+                    self.assertTrue(cast(Any, result).passed)
         self.assertEqual(
-            [(item.metadata.identifier, item.metadata.label, item.operation) for item in declared],
-            [("example.channels.measure", "Measure", "example.channels.measure")],
+            author.events, [(execution, item) for execution in ("first", "second") for item in ("setup", 2, 4, Termination.COMPLETED)]
         )
-        plan = SelectionPlan(
-            selections=[
-                RegisteredSelection(
-                    suite_id=suites[0].metadata.identifier,
-                    template_id="example.channels",
-                    parameters=[{"key": "channels", "value": {"values": [encode([2, 4])]}}],
-                )
-            ]
-        )
-        first = (await host.client.cases.create(plan, True)).cases
-        second = (await host.client.cases.create(plan, True)).cases
-        self.assertEqual([case.origin for case in first], [case.origin for case in second])
-        self.assertEqual(instances, [])
-        case = first[0].origin.plugin_run.test_case
-        self.assertEqual([item.metadata.identifier for item in case.steps], ["example.channels.channel-2", "example.channels.channel-4"])
+        self.assertFalse(author._sessions)
 
-        # Execute Twice; The Host Owns Retry, Scope And Cleanup.
-        identifiers = []
-        for _ in range(2):
-            registered = await host.client.cases.create(plan, False)
-            cycle = (await host.client.cycles.create([], Metadata(label="Channel Measurements"), False, "")).cycle
-            identifier = str(uuid4())
-            identifiers.append(identifier)
-            await host.client.executions.create(
-                cycle.cycle_id, [ExecutionBinding(execution_id=identifier, case_id=registered.cases[0].case_id)]
-            )
-            await host.client.executions.start(identifier, EXECUTION_MODE_AUTOMATIC)
-            finished = False
-            async for progress in host.client.executions.progress.watch(identifier):
-                finished = progress.finished
-            self.assertTrue(finished)
-            execution = (await host.client.executions.get(identifier)).execution
-            self.assertEqual(
-                execution.outcome.evaluated.status,
-                execution.outcome.evaluated.DESCRIPTOR.fields_by_name["status"].enum_type.values_by_name["RESULT_STATUS_PASSED"].number,
-                execution,
-            )
+    async def test_cleanup_retains_partial_state_after_failed_or_cancelled_setup(self) -> None:
+        for failure in (ValueError, asyncio.CancelledError):
+            events: list[object] = []
 
-            # Read Each Execution's Artifacts Through Its Exact Native File Owner.
-            artifacts = await host.client.content.artifacts.list(ArtifactScope(execution_id=identifier))
-            contents = {}
-            for artifact in artifacts.artifacts:
-                self.assertEqual(artifact.scope.execution_id, identifier)
-                selected = await host.client.content.artifacts.get(artifact.artifact_id)
-                self.assertEqual(selected.file.metadata.scope, f"execution/{identifier}")
-                page = await host.client.files.read(selected.file, 0, 1024)
-                contents[artifact.filename] = page.data
-            expected = {f"channel-{channel}.pb": Int32Value(value=channel * channel).SerializeToString() for channel in (2, 4)}
-            self.assertEqual(contents, expected)
-        self.assertEqual(len(set(identifiers)), 2)
-        self.assertEqual([item[0] for item in instances], [[4, 16], [4, 16]])
-        self.assertEqual([item[1] for item in instances], [[(2, 1), (2, 2), (4, 1)]] * 2)
-        self.assertFalse(endpoint.plugin._sessions)
-        try:
-            Plugin("duplicate", "1.0.0", suites=[Channels, Channels]).declarations()
-        except ValueError:
-            pass
-        else:
-            self.fail("Duplicate Suite Was Admitted")
+            class PartialTestTemplate(TestTemplate):
+                async def setup(self, ctx: Context) -> None:
+                    self.device = "partial"
+                    cast(PartialPlugin, ctx.plugin).events.append(ctx.plugin)
+                    raise cast(PartialPlugin, ctx.plugin).failure_type()
+
+                async def cleanup(self, ctx: Context) -> None:
+                    cast(PartialPlugin, ctx.plugin).events.append((self.device, ctx.termination))
+
+            class PartialSuite(Suite):
+                templates: ClassVar[list[type[TestTemplate]]] = [PartialTestTemplate]
+
+            class PartialPlugin(Plugin):
+                version = "1.0.0"
+                suites: ClassVar[list[type[Suite]]] = [PartialSuite]
+
+                def __init__(self) -> None:
+                    self.events: list[object] = []
+                    self.failure_type: type[BaseException] = ValueError
+                    super().__init__()
+
+            author = PartialPlugin()
+            author.events = events
+            author.failure_type = failure
+            template = author._suites[0].templates[0]
+            case = template.build({}).message
+            origin = {"plugin_run": {"plugin": author._identifier, "template": template.identifier, "test_case": case}}
+            transport = plugin.Context(Request(scope="execution", attempt=1), author._identifier, {})
+            handlers = {definition.id: (definition, handler) for definition, handler in author._plugin._registrations()[0]}
+            definition, handler = handlers["partial.partial.setup"]
+            request = cast(Any, definition.request)(execution="execution", test_case=case, origin=origin)
+            try:
+                await handler(transport, request)
+            except failure:
+                pass
+            else:
+                self.fail("Setup Must Preserve Its Failure")
+            definition, handler = handlers["partial.partial.cleanup"]
+            request = cast(Any, definition.request)(
+                execution="execution", test_case=case, origin=origin, termination=Termination.FAILED.value
+            )
+            await handler(transport, request)
+            self.assertEqual(events, [author, ("partial", Termination.FAILED)])
+            self.assertFalse(author._sessions)
 
 
 # === Public Functions === #

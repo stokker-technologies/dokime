@@ -15,16 +15,17 @@ import asyncio
 import inspect
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
+from importlib.metadata import packages_distributions, version
 from types import FunctionType
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 # Third Party Imports
 import harmos
 import harmos.plugin
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
-from harmos import VISIBILITY_PROTECTED, Declarations, OperationPolicy, RetryPolicy, SettingDeclaration
-from harmos.plugin import Operation, Publisher, Window, observer, on_stop, operation, publisher, window_observer
+from harmos import VISIBILITY_PROTECTED, Declarations, OperationPolicy
+from harmos.plugin import Publisher, Window, observer, on_stop, operation, publisher, window_observer
 
 # Local Imports
 import dokime_sdk.operations
@@ -32,10 +33,11 @@ from dokime_sdk._wire.model.v1.prompts_pb2 import PromptDefinitions
 from dokime_sdk._wire.model.v1.record_contracts_pb2 import RecordContract, RecordContracts
 from dokime_sdk._wire.model.v1.suites_pb2 import Suites
 
-from ._context import Context
+from ._authoring import Materialization, Sampling, Stream, Suite, _Template, bind_suite, build_identifier, build_label
 from ._generated.host import HostOperation, host_requirement
-from ._generated.shared import SecretDeclaration, SecretsDeclarations
+from ._generated.shared import SecretsDeclarations
 from ._payloads import message_type, pack
+from ._values import decode
 from ._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
 from ._wire.plugin.v1.executions_pb2 import (
     ExecutionsCleanupRequest,
@@ -45,14 +47,12 @@ from ._wire.plugin.v1.executions_pb2 import (
 )
 from ._wire.plugin.v1.steps_pb2 import StepsExecuteRequest, StepsExecuteResponse
 from ._wire.plugin.v1.test_cases_pb2 import TestCasesMaterializeRequest, TestCasesMaterializeResponse
-from .authoring import _SUITES, Case, Sampling, Stream, Suite, Template, build_identifier
-from .values import decode
+from .templates._context import Context
 
 # Type Checking Imports
 
 # === Public Exports === #
 
-__all__ = ["Endpoint", "Plugin"]
 
 # === Constants === #
 
@@ -64,75 +64,87 @@ __all__ = ["Endpoint", "Plugin"]
 @dataclass
 class _Session:
     instance: object
-    case: Case
+    case: Materialization
     origin: bytes
 
 
 class Plugin:
-    def __init__(
-        self,
-        identifier: str,
-        version: str,
-        *,
-        suites: Sequence[Suite | type] = (),
-        requires: Sequence[Operation[Any, Any] | dokime_sdk.operations.Operation[Any, Any] | HostOperation] | None = None,
-        messages: Sequence[type[Message]] = (),
-        operations: object | None = None,
-        secrets: Sequence[SecretDeclaration] = (),
-        settings: Sequence[SettingDeclaration] = (),
-    ) -> None:
-        self.identifier = identifier
-        self.version = version
-        self.suites = tuple(_suite(item) for item in suites)
-        self.records = tuple((template, record) for suite in self.suites for template in suite.templates for record in template.records)
-        self.requires = (
-            tuple(host_requirement(item) for item in HostOperation)
-            if requires is None
-            else tuple(
-                host_requirement(item)
-                if isinstance(item, HostOperation)
-                else item._definition()
-                if isinstance(item, dokime_sdk.operations.Operation)
-                else item
-                for item in requires
-            )
-        )
-        self.secrets = tuple(secrets)
+    identifier: ClassVar[str | None] = None
+    label: ClassVar[str | None] = None
+    version: ClassVar[str | None] = None
+    suites: ClassVar[Sequence[type[Suite]]] = ()
+    operations: ClassVar[Sequence[Callable[..., object]]] = ()
+    settings: ClassVar[Sequence[dokime_sdk.operations.SettingDeclaration]] = ()
+    secrets: ClassVar[Sequence[dokime_sdk.operations.SecretDeclaration]] = ()
+
+    def __init__(self) -> None:
+        self._identifier = build_identifier(type(self).__name__, self.identifier, class_name=True)
+        self._label = self.label if self.label is not None else build_label(type(self).__name__)
+        distributions = packages_distributions().get(type(self).__module__.split(".")[0], ())
+        if self.version is None and len(distributions) != 1:
+            raise ValueError("Build Plugin: Install Its Owning Distribution or Declare version on the Plugin Class")
+        self._version = self.version if self.version is not None else version(next(iter(distributions)))
+        self._suites = tuple(bind_suite(item) for item in tuple(self.suites))
+        self._records = tuple((template, record) for suite in self._suites for template in suite.templates for record in template.records)
+        self._operations = tuple(self.operations)
+        self._secrets = tuple(self.secrets)
+        self._settings = tuple(self.settings)
+        self._requires = tuple(host_requirement(item) for item in HostOperation)
         self._sessions: dict[tuple[str, str], _Session] = {}
         self._ready: dict[tuple[str, str], asyncio.Event] = {}
-        templates = [template for suite in self.suites for template in suite.templates]
+        templates = [template for suite in self._suites for template in suite.templates]
         for name, identifiers in (
-            ("suite", [item.identifier for item in self.suites]),
+            ("suite", [item.identifier for item in self._suites]),
             ("template", [item.identifier for item in templates]),
-            ("record", [template.resolve(item) for template, item in self.records]),
-            ("secret", [item.metadata.identifier for item in self.secrets]),
+            ("record", [template.resolve(item) for template, item in self._records]),
+            ("secret", [item.identifier for item in self._secrets]),
         ):
             if any(not item for item in identifiers) or len(identifiers) != len(set(identifiers)):
                 raise ValueError(f"Build Plugin: Supply Unique, Nonempty {name.title()} Identifiers")
         methods: dict[str, Callable[..., Awaitable[Message | None]]] = {}
-        if operations is not None:
-            for cls in reversed(type(operations).__mro__):
-                for name, method in vars(cls).items():
-                    if hasattr(method, "__dokime_operation__"):
-                        methods[f"external_{name}"] = dokime_sdk.operations._bind_operation(getattr(operations, name))
+        operation_identities = []
+        for index, function in enumerate(self._operations):
+            if not isinstance(function, FunctionType) or not hasattr(function, "__dokime_operation__"):
+                raise TypeError("Build Plugin: List Decorated Plain Functions in operations")
+            definition = cast(dokime_sdk.operations.Operation[Any, Any], vars(function)["__dokime_operation__"])
+            operation_identities.append(definition.identifier)
+            methods[f"external_{index}"] = dokime_sdk.operations._bind_operation(function, self)
+        if len(operation_identities) != len(set(operation_identities)):
+            raise ValueError("Build Plugin: Give Every Operation a Unique Identifier")
         for index, template in enumerate(templates):
             methods[f"materialize_{index}"] = self._materialize(template)
-            if "initialize" in template._methods:
-                methods[f"initialize_{index}"] = self._execution(template, "initialize")
+            if template.definition().HasField("initialize"):
+                methods[f"initialize_{index}"] = self._execution(template, "setup")
             methods[f"cleanup_{index}"] = self._execution(template, "cleanup")
             lifecycle: Sequence[tuple[str, Sequence[Any]]] = (("step", template.steps), ("criterion", template.criteria))
             for kind, definitions in lifecycle:
                 for position, definition in enumerate(definitions):
                     methods[f"{kind}_{index}_{position}"] = self._execution(
-                        template, kind, definition.handler, getattr(definition, "retries", 0)
+                        template, kind, definition.handler, getattr(definition, "retries", 0), definition.policy
                     )
             for position, (name, method) in enumerate(template._methods.items()):
                 if hasattr(method, "__dokime_stream__"):
                     methods[f"stream_{index}_{position}"] = self._stream(template, name, method)
+        self._streams: dict[int, str] = {}
+        plugin_methods: dict[str, object] = {}
+        for cls in reversed(type(self).__mro__):
+            plugin_methods.update(vars(cls))
+        for index, (name, method) in enumerate(plugin_methods.items()):
+            declaration = getattr(method, "__dokime_stream__", None)
+            if not isinstance(declaration, Stream):
+                continue
+            if not isinstance(method, FunctionType):
+                raise TypeError("Declare Plugin Stream: Decorate a Plain Method")
+            identity = build_identifier(name, declaration.identifier, prefix=self._identifier)
+            if identity in self._streams.values():
+                raise ValueError("Build Plugin: Give Every Plugin Stream a Unique Identifier")
+            self._streams[id(method)] = identity
+            self._streams[id(declaration)] = identity
+            methods[f"plugin_stream_{index}"] = self._stream(None, name, method)
         methods["release"] = self._stop()
         adapter = type("DokimeOperations", (), methods)()
-        contributions: list[Message] = [Suites(suites=[item.definition() for item in self.suites])] if self.suites else []
-        if self.records:
+        contributions: list[Message] = [Suites(suites=[item.definition() for item in self._suites])] if self._suites else []
+        if self._records:
             contributions.append(
                 RecordContracts(
                     records=[
@@ -140,23 +152,23 @@ class Plugin:
                             metadata={"identifier": template.resolve(item), "label": item.label or template.resolve(item)},
                             message=message_type(item.row).DESCRIPTOR.full_name,
                         )
-                        for template, item in self.records
+                        for template, item in self._records
                     ],
                 )
             )
         prompts = [value for template in templates for value in template._prompts.values()]
         if prompts:
             contributions.append(PromptDefinitions(prompts=prompts))
-        if self.secrets:
-            contributions.append(SecretsDeclarations(secrets=self.secrets))
+        if self._secrets:
+            contributions.append(SecretsDeclarations(secrets=[item._definition() for item in self._secrets]))
         self._plugin = harmos.plugin.Plugin(
             adapter,
-            id=identifier,
-            version=version,
-            requires=self.requires,
+            id=self._identifier,
+            version=self._version,
+            requires=self._requires,
             sections=contributions,
-            settings=settings,
-            messages=[*messages, *(message_type(record.row) for _, record in self.records)],
+            settings=[item._definition() for item in self._settings],
+            messages=[*(message_type(record.row) for _, record in self._records)],
         )
 
         self._plugin.declarations()
@@ -164,12 +176,29 @@ class Plugin:
     def declarations(self) -> Declarations:
         return self._plugin.declarations()
 
-    async def start(self, address: str = "127.0.0.1:7001") -> "Endpoint":
-        # Harmos Owns Transport, Fingerprints, Cancellation And Stream Backpressure.
-        endpoint = await self._plugin.start(address)
-        return Endpoint(endpoint, self)
+    async def initialize(self, ctx: dokime_sdk.operations.Context) -> None:
+        pass
 
-    def _materialize(self, template: Template) -> Callable[..., Awaitable[Message]]:
+    async def finalize(self, ctx: dokime_sdk.operations.Context) -> None:
+        pass
+
+    async def serve(self, address: str | None = None) -> None:
+        endpoint = await self._activate(address)
+        try:
+            await endpoint.server.wait_for_termination()
+        finally:
+            await endpoint.close()
+
+    async def _activate(self, address: str | None = None) -> harmos.plugin.Endpoint:
+        from ._configuration import load, resolve
+
+        if type(self).initialize is not Plugin.initialize or type(self).finalize is not Plugin.finalize:
+            raise ValueError(
+                "Activate Plugin: Adopt Carrier Activation Hooks With an Admitted Context Before Overriding initialize or finalize"
+            )
+        return await self._plugin.start(resolve("DOKIME_PLUGIN_ADDRESS", address, load()))
+
+    def _materialize(self, template: _Template) -> Callable[..., Awaitable[Message]]:
         async def execute(adapter: object, transport: harmos.plugin.Context, request: TestCasesMaterializeRequest) -> Message:
             try:
                 transport.scope()
@@ -192,12 +221,17 @@ class Plugin:
         )(execute)
 
     def _execution(
-        self, template: Template, kind: str, handler: Callable[..., object] | None = None, retries: int = 0
+        self,
+        template: _Template,
+        kind: str,
+        handler: Callable[..., object] | None = None,
+        retries: int = 0,
+        policy: dokime_sdk.operations.OperationPolicy | None = None,
     ) -> Callable[..., Awaitable[Message]]:
         request_type, response_type = {
             "step": (StepsExecuteRequest, StepsExecuteResponse),
             "criterion": (CriteriaEvaluateRequest, CriteriaEvaluateResponse),
-            "initialize": (ExecutionsInitializeRequest, ExecutionsInitializeResponse),
+            "setup": (ExecutionsInitializeRequest, ExecutionsInitializeResponse),
             "cleanup": (ExecutionsCleanupRequest, ExecutionsCleanupResponse),
         }[kind]
 
@@ -230,10 +264,10 @@ class Plugin:
                 raise ValueError(f"{kind.title()} Execution: Frozen Definition Changed")
             context = Context(
                 transport,
+                self,
                 {name: decode(value) for name, value in request.test_case.parameters.items()},
                 template,
                 termination=request.termination if isinstance(request, ExecutionsCleanupRequest) else None,
-                secrets=[item.metadata.identifier for item in self.secrets],
             )
             function = handler or template._methods.get(kind)
             arguments: dict[str, object] = {}
@@ -257,50 +291,44 @@ class Plugin:
                     self._ready.pop(key, None)
 
         identity = template.resolve(handler) if handler is not None else template._lifecycle[kind]
-        policy = OperationPolicy(retries=RetryPolicy(total_attempts=retries + 1, initial={"nanos": 100_000_000})) if retries else None
+        wire_policy = policy._definition() if policy is not None else None
+        if retries:
+            wire_policy = wire_policy or OperationPolicy()
+            wire_policy.retries.total_attempts = retries + 1
         return operation(
             identity,
             request=request_type,
             response=response_type,
             visibility=VISIBILITY_PROTECTED,
-            policy=policy,
+            policy=wire_policy,
             replay_safe=bool(retries),
         )(execute)
 
     def _stream(
-        self, template: Template, name: str, method: FunctionType
+        self, template: _Template | None, name: str, method: FunctionType
     ) -> Callable[..., Awaitable[Message]] | Callable[..., Awaitable[None]]:
         definition = cast(Stream, vars(method)["__dokime_stream__"])
-        identity = template.resolve(method)
+        identity = template.resolve(method) if template is not None else self._streams[id(method)]
         sampling = cast(Sampling | None, getattr(method, "__dokime_observer__", None))
 
         async def observe(adapter: object, transport: harmos.plugin.Context) -> Message:
-            key = (cast(str, template.identifier), transport.scope())
-            await self._ready.setdefault(key, asyncio.Event()).wait()
-            session = self._sessions[key]
-            context = Context(transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
-            result = getattr(session.instance, name)(context)
+            instance, context = await self._stream_context(template, transport)
+            result = getattr(instance, name)(context)
             if inspect.isawaitable(result):
                 result = await result
             return pack(definition.row, result)
 
         async def observe_window(adapter: object, transport: harmos.plugin.Context, window: Window) -> Message:
-            key = (cast(str, template.identifier), transport.scope())
-            await self._ready.setdefault(key, asyncio.Event()).wait()
-            session = self._sessions[key]
-            context = Context(transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
-            result = getattr(session.instance, name)(context, window)
+            instance, context = await self._stream_context(template, transport)
+            result = getattr(instance, name)(context, window)
             if inspect.isawaitable(result):
                 result = await result
             columns = cast(type[Message], sampling.columns if sampling else None)
             return pack(columns, result)
 
         async def publish(adapter: object, transport: harmos.plugin.Context, publisher: Publisher) -> None:
-            key = (cast(str, template.identifier), transport.scope())
-            await self._ready.setdefault(key, asyncio.Event()).wait()
-            session = self._sessions[key]
-            context = Context(transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
-            async for result in getattr(session.instance, name)(context):
+            instance, context = await self._stream_context(template, transport)
+            async for result in getattr(instance, name)(context):
                 row = pack(definition.row, result)
                 await publisher.publish(row)
 
@@ -327,6 +355,19 @@ class Plugin:
             )(observe_window)
         return publisher(identity, row=message_type(definition.row), description=definition.label)(publish)
 
+    async def _stream_context(
+        self,
+        template: _Template | None,
+        transport: harmos.plugin.Context,
+    ) -> tuple[object, dokime_sdk.operations.Context]:
+        if template is None:
+            return self, dokime_sdk.operations.Context(transport, self)
+        key = (cast(str, template.identifier), transport.scope())
+        await self._ready.setdefault(key, asyncio.Event()).wait()
+        session = self._sessions[key]
+        context = Context(transport, self, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
+        return session.instance, context
+
     def _stop(self) -> Callable[..., Awaitable[None]]:
         async def release(adapter: object) -> None:
             self._sessions.clear()
@@ -335,33 +376,10 @@ class Plugin:
         return on_stop(release)
 
 
-class Endpoint:
-    def __init__(self, transport: harmos.plugin.Endpoint, plugin: Plugin) -> None:
-        self._transport = transport
-        self.plugin = plugin
-        self.url = f"http://{transport.address}"
-        self.address = transport.address
-
-    async def close(self) -> None:
-        await self._transport.close()
-        self.plugin._sessions.clear()
-        self.plugin._ready.clear()
-
-
 # === Public Functions === #
 
 
 # === Private Functions === #
-
-
-def _suite(value: Suite | type) -> Suite:
-    registered = value if isinstance(value, Suite) else _SUITES.get(value) if isinstance(value, type) else None
-    if not isinstance(registered, Suite):
-        raise TypeError("Build Plugin: Supply a Suite or a Class Decorated with suite")
-    name = registered.templates[0].instance.__name__ if registered._single else ""
-    identity = build_identifier(name, registered.identifier, class_name=True)
-    templates = tuple(template.bind(identity, single=registered._single) for template in registered.templates)
-    return Suite(identity, templates, registered.label, registered._single)
 
 
 # === Entry Point === #

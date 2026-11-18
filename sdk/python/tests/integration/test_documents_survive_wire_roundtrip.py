@@ -12,16 +12,13 @@
 
 # Standard Library Imports
 import unittest
-from datetime import UTC, datetime
 from typing import Any, cast
+
+import dokime_sdk.templates
 
 # Third Party Imports
 # Local Imports
-from dokime_sdk import GridAxisEntry, Value, plot
-from dokime_sdk.authoring import Stream
-from dokime_sdk.documents import Document, Section, Summary, plot_card, records_card
-from dokime_sdk.parameters import Parameter
-from dokime_sdk.values import Scalar, decode, encode
+from dokime_sdk.templates import Document, GridAxisEntry, Parameter, Section, Stream, Summary, plot_card, records_card
 
 # Type Checking Imports
 
@@ -40,15 +37,15 @@ class DocumentStory(unittest.TestCase):
         samples = Stream("example.samples")
         reading = samples.field("temperature").scale(2.0)
         contour = (
-            plot.contour(reading)
+            dokime_sdk.templates.contour(reading)
             .x(samples.field("x"))
             .y(samples.field("y"))
-            .reduce(plot.Reduction.MEAN)
-            .render(plot.ContourRender.BANDS)
+            .reduce(dokime_sdk.templates.Reduction.MEAN)
+            .render(dokime_sdk.templates.ContourRender.BANDS)
             .label("Temperature")
         )
         grid = (
-            plot.grid_chart(samples.field("value"))
+            dokime_sdk.templates.grid_chart(samples.field("value"))
             .row(samples.field("row"))
             .column(samples.field("column"))
             .frame(samples.field("frame"))
@@ -64,17 +61,12 @@ class DocumentStory(unittest.TestCase):
         surface, playback, summary = reopened.sections[0].cards
         self.assertEqual(surface.plot.z.transform.input.stream.identifier, "example.samples")
         self.assertEqual(surface.plot.z.transform.scale, 2.0)
-        self.assertEqual(surface.plot.kind, plot.contour(reading).message.kind)
+        self.assertEqual(surface.plot.kind, dokime_sdk.templates.contour(reading).message.kind)
         self.assertEqual(playback.plot.grid.frame.stream.field, "frame")
         self.assertEqual(summary.summary.tiles[0].value.aggregate.input, reading.message)
         self.assertFalse(reading.message.HasField("aggregate"))
 
-        # Preserve Parameter Precision, Explicit Null And Source Datetimes.
-        values: list[Scalar] = [None, True, -(2**63), 2**64 - 1, 1.25, "reading", b"\x00\xff", [1, None], datetime(2026, 1, 2, tzinfo=UTC)]
-        self.assertEqual([decode(encode(value)) for value in values], values)
-        self.assertRaises(ValueError, encode, datetime(2026, 1, 2))
-        self.assertRaises(ValueError, decode, Value())
-        self.assertRaises(TypeError, plot.xy(reading).reduce, cast(Any, "mean"))
+        self.assertRaises(TypeError, dokime_sdk.templates.xy(reading).reduce, cast(Any, "mean"))
 
     def test_parameter_plot_card_shorthands_roundtrip(self) -> None:
         builder = Parameter.number("voltage", "Voltage").unit("V").default(230.0).range(0.0, 300.0)
@@ -92,7 +84,7 @@ class DocumentStory(unittest.TestCase):
         ladder = Parameter.numbers("ladder", "Ladder", [10.0, 20.0]).items(1, 8).build()
         self.assertEqual([value.number for value in ladder.expression.literal.list.values], [10.0, 20.0])
         self.assertEqual((ladder.min_items, ladder.max_items), (1, 8))
-        line = plot.Plot.line("voltage", "Voltage").unit("V").y(plot.field("samples", "voltage"))
+        line = dokime_sdk.templates.Plot.line("voltage", "Voltage").unit("V").y(dokime_sdk.templates.field("samples", "voltage"))
         card = plot_card(line, columns=6)
         line.message.y.clear()
         self.assertEqual(len(card.plot.y), 1)

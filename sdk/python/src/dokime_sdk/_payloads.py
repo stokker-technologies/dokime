@@ -42,7 +42,7 @@ def message_type[T: Payload](row_type: type[T]) -> type[Message]:
     wrapper = wrappers.get(row_type)
     if wrapper is not None:
         return wrapper
-    if issubclass(row_type, Message):
+    if isinstance(row_type, type) and issubclass(row_type, Message):
         return row_type
     raise TypeError("Declare Payload: Supply bool, str, int, float or a Protobuf Message")
 
@@ -56,6 +56,8 @@ def pack[T: Payload](row_type: type[T], value: T) -> Message:
 
 
 def unpack[T: Payload](row_type: type[T], message: Message) -> T:
+    if not isinstance(message, message_type(row_type)):
+        raise TypeError(f"Decode Payload: Supply the Declared {row_type.__name__} Message")
     value = message if issubclass(row_type, Message) else cast(Any, message).value
     return cast(T, value)
 

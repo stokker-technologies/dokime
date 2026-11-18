@@ -133,6 +133,11 @@
 
 - [x] (a) Rename the Python Package Alone per the SDK Surface Specification Ownership Inventory; Regenerate Imports, Wheel Paths and Guards Without Keeping `dokime` Aliases.
 - [ ] (b) Implement the SDK Surface Specification's Python Authoring Classes, Separate Contexts, `ctx.plugin` and `plugin.serve()`; Resolve Its Named Capability Decisions Before Their Dependent Work.
+  - [x] Bind Explicit Plugin, Suite and TestTemplate Classes, Derived Identities and Labels, Annotated Plain Operations and Separate Contexts; Move Documents, Plots and Parameters to Templates and Delete Replaced Authoring Entry Points.
+  - [x] Prove Fixed Builder-Description Wire Equivalence, Scoped Template State, Primitive Records and Operations, and Cleanup After Failed or Cancelled Template Setup With Python-Only Tests.
+  - [ ] Resolve Carrier Activation Contexts and Stream Subscription Support; Prove Plugin initialize/finalize Order, Failed/Cancelled Initialization Finalization, Admission Draining and Repeated Shutdown.
+  - [ ] Resolve Shared Template/Client Query Ownership, Termination Values and Activation Calls; Complete Typed Readback, Artifact Projection, Plugin Notes, Requirement Inference and Local Document Declaration Binding.
+  - [ ] Complete Installed-Wheel Stub/Public-Home Consumer Proof After Item (e) Updates Its Inventories, Then Run the Required Host Stories on the Combined Candidate.
 - [ ] (c) Implement the SDK Surface Specification's Python Bound Handles, Host Compositions and Configuration Precedence/Grammar With Secret Storage, Readback, Controls, Seal, Evidence, Notes, Artifacts and Explicit Close.
 - [ ] (d) Implement the Exact Manifest Schema, Dynamic Metadata, Implicit Assets, Bundle Identity/Version and Four-Language `dokime new` Embedding per the SDK Surface Specification.
   - [x] Replace Top-Level Manifest Scripts and Assets Lists With Strict Plugin, Compatibility and Scripts Tables; Resolve Native Metadata With Static Overrides.

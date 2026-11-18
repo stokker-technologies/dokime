@@ -17,8 +17,8 @@ from typing import Self, cast
 
 # Third Party Imports
 # Local Imports
-from ._generated import shared
-from ._generated.shared import (
+from .._generated import shared
+from .._generated.shared import (
     DataExpression,
     FieldReference,
     GridAxisEntry,
@@ -33,28 +33,6 @@ from ._generated.shared import (
 
 # === Public Exports === #
 
-__all__ = [
-    "Aggregate",
-    "AxisScale",
-    "BarArrangement",
-    "ContourRender",
-    "Expression",
-    "Plot",
-    "PlotStyle",
-    "Reduction",
-    "XyInterval",
-    "bar",
-    "box_plot",
-    "contour",
-    "field",
-    "frequency_series",
-    "grid_chart",
-    "histogram",
-    "pie",
-    "time_series",
-    "trajectory",
-    "xy",
-]
 
 # === Constants === #
 
@@ -198,7 +176,7 @@ class Plot:
         return self
 
     def label(self, label: str) -> Self:
-        from .documents import metadata
+        from ._documents import metadata
 
         identifier = self.message.metadata.identifier
         self.message.metadata.CopyFrom(metadata(label))

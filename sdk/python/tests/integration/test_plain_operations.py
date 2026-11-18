@@ -13,6 +13,8 @@
 
 # Standard Library Imports
 import unittest
+from collections.abc import Callable
+from typing import Any, ClassVar, cast
 
 from google.protobuf.json_format import MessageToDict
 
@@ -32,13 +34,10 @@ from harmos._wire.plugin.v1.instance_pb2 import (
 from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 
 # Local Imports
-from dokime_sdk import Context, Operation, Plugin, Visibility, criterion, observer, prompt, record, step, stream, suite
-from dokime_sdk._generated.host import HostOperation, host_requirement
-from dokime_sdk._wire.host.v1.evidence.records_pb2 import CapturedRecord, RecordsAppendRequest, RecordsListRequest, RecordsListResponse
-from dokime_sdk._wire.host.v1.prompts_pb2 import PromptsCreateRequest, PromptsCreateResponse
-from dokime_sdk._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
-from dokime_sdk._wire.plugin.v1.steps_pb2 import StepsExecuteRequest
-from dokime_sdk.operations import operation
+import dokime_sdk.operations
+from dokime_sdk import Plugin, Suite
+from dokime_sdk.operations import Operation, Visibility, operation
+from dokime_sdk.templates import Context, TestTemplate, criterion, observer, prompt, record, step, stream
 
 # Type Checking Imports
 
@@ -54,35 +53,41 @@ from dokime_sdk.operations import operation
 
 class PlainValueStory(unittest.IsolatedAsyncioTestCase):
     async def test_operations_use_plain_values_over_the_real_carrier(self) -> None:
-        increment = Operation("example.increment", int, int, Visibility.PRIVATE)
+        increment_operation = Operation("example.increment", int, int, Visibility.PRIVATE)
 
-        class Operations:
-            @operation("example.flag", request=bool, response=bool, visibility=Visibility.PUBLIC)
-            def flag(self, ctx: Context, request: bool) -> bool:
-                return not request
+        @operation("example.flag", visibility=Visibility.PUBLIC)
+        async def flag(ctx: dokime_sdk.operations.Context, request: bool) -> bool:
+            self.assertIs(ctx.plugin, plugin)
+            self.assertFalse(hasattr(ctx, "execution"))
+            self.assertFalse(hasattr(ctx, "parameters"))
+            return not request
 
-            @operation("example.text", request=str, response=str, visibility=Visibility.PUBLIC)
-            async def text(self, ctx: Context, request: str) -> str:
-                return request.upper()
+        @operation("example.text", visibility=Visibility.PUBLIC)
+        async def text(ctx: dokime_sdk.operations.Context, request: str) -> str:
+            return request.upper()
 
-            @operation("example.number", request=float, response=float, visibility=Visibility.PUBLIC)
-            def number(self, ctx: Context, request: float) -> float:
-                return request * 2
+        @operation("example.number", visibility=Visibility.PUBLIC)
+        async def number(ctx: dokime_sdk.operations.Context, request: float) -> float:
+            return request * 2
 
-            @operation("example.integer", request=int, response=int, visibility=Visibility.PUBLIC)
-            async def integer(self, ctx: Context, request: int) -> int:
-                return await ctx.operation(increment)(request)
+        @operation("example.integer", visibility=Visibility.PUBLIC)
+        async def integer(ctx: dokime_sdk.operations.Context, request: int) -> int:
+            return await ctx.operation(increment_operation)(request)
 
-            @operation("example.increment", request=int, response=int, visibility=Visibility.PRIVATE)
-            def increment(self, ctx: Context, request: int) -> int:
-                return request + 1
+        @operation("example.increment", visibility=Visibility.PRIVATE)
+        async def increment(ctx: dokime_sdk.operations.Context, request: int) -> int:
+            return request + 1
 
-            @operation("example.structured", request=BoolValue, response=BoolValue, visibility=Visibility.PUBLIC)
-            def structured(self, ctx: Context, request: BoolValue) -> BoolValue:
-                return BoolValue(value=not request.value)
+        @operation("example.structured", visibility=Visibility.PUBLIC)
+        async def structured(ctx: dokime_sdk.operations.Context, request: BoolValue) -> BoolValue:
+            return BoolValue(value=not request.value)
 
-        plugin = Plugin("plain", "1.0.0", operations=Operations())
-        endpoint = await plugin.start("127.0.0.1:0")
+        class PlainPlugin(Plugin):
+            version = "1.0.0"
+            operations: ClassVar[list[Callable[..., object]]] = [flag, text, number, integer, increment, structured]
+
+        plugin = PlainPlugin()
+        endpoint = await plugin._activate("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
         channel = insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
@@ -115,8 +120,7 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                 call.cancel()
 
     async def test_scalar_streams_use_declared_payload_types(self) -> None:
-        @suite()
-        class Readings:
+        class ReadingsTestTemplate(TestTemplate):
             @step("Start")
             def start(self, ctx: Context) -> None:
                 pass
@@ -131,14 +135,21 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             def accepted(self, ctx: Context) -> bool:
                 return True
 
-        plugin = Plugin("streams", "1.0.0", suites=[Readings])
-        endpoint = await plugin.start("127.0.0.1:0")
+        class ReadingsSuite(Suite):
+            templates: ClassVar[list[type[TestTemplate]]] = [ReadingsTestTemplate]
+
+        class StreamsPlugin(Plugin):
+            version = "1.0.0"
+            suites: ClassVar[list[type[Suite]]] = [ReadingsSuite]
+
+        plugin = StreamsPlugin()
+        endpoint = await plugin._activate("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
         channel = insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
-        template = plugin.suites[0].templates[0]
+        template = plugin._suites[0].templates[0]
         case = template.build({}).message
-        origin = {"plugin_run": {"plugin": plugin.identifier, "template": template.identifier, "test_case": case}}
+        origin = {"plugin_run": {"plugin": plugin._identifier, "template": template.identifier, "test_case": case}}
         invoke = channel.stream_stream(
             "/harmos.plugin.v1.Instance/Invoke",
             request_serializer=InstanceInvokeRequest.SerializeToString,
@@ -146,11 +157,16 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         )
         call = invoke()
         try:
-            request = StepsExecuteRequest(execution="execution", step="readings.start", test_case=case, origin=origin)
+            definition = next(item for item, _ in plugin._plugin._registrations()[0] if item.id == "readings.readings.start")
+            request = cast(Any, definition.request)(execution="execution", step="readings.readings.start", test_case=case, origin=origin)
             await call.write(
                 InstanceInvokeRequest(
                     request=Request(
-                        operation="readings.start", payload=request.SerializeToString(), invocation="start", scope="execution", attempt=1
+                        operation="readings.readings.start",
+                        payload=request.SerializeToString(),
+                        invocation="start",
+                        scope="execution",
+                        attempt=1,
                     )
                 )
             )
@@ -167,19 +183,19 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
         for name, row, expected in (("voltage", DoubleValue, [2.5, 2.5]), ("accepted", BoolValue, [True, True])):
             call = samples()
             try:
-                await call.write(InstanceSamplesRequest(open={"stream": f"readings.{name}", "scope": "execution"}))
+                await call.write(InstanceSamplesRequest(open={"stream": f"readings.readings.{name}", "scope": "execution"}))
                 await call.write(InstanceSamplesRequest(window={"start": {}, "count": 2, "period": {"seconds": 1}}))
                 response = await call.read()
                 assert isinstance(response, InstanceSamplesResponse)
                 self.assertEqual(response.batch.count, 2)
-                values = columns_type(row, f"readings.{name}").FromString(response.batch.columns)
+                values = columns_type(row, f"readings.readings.{name}").FromString(response.batch.columns)
                 self.assertEqual(MessageToDict(values)["value"], expected)
             finally:
                 call.cancel()
 
     async def test_records_roundtrip_plain_values_and_bound_step_filters(self) -> None:
-        @suite()
-        class CaptureSuite:
+        story = self
+        class CaptureTestTemplate(TestTemplate):
             question = prompt("Choose a Reading", choices=["Yes", "No"])
             flag = record(bool)
             text = record(str)
@@ -190,6 +206,13 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             @step("Save")
             async def save(self, ctx: Context) -> None:
                 answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
+                story.assertIs(ctx.plugin, plugin)
+                try:
+                    await ctx.record(self.integer, cast(Any, True))
+                except TypeError:
+                    pass
+                else:
+                    story.fail("A Boolean Must Not Encode as an Integer Record")
                 await ctx.record(self.flag, answer == "Yes")
                 await ctx.record(self.text, await ctx.prompt(self.question))
                 await ctx.record(self.integer, 2**60 + 3)
@@ -206,8 +229,15 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                     and await ctx.records(self.structured, step=self.save).last() == BoolValue(value=True)
                 )
 
-        plugin = Plugin("records", "1.0.0", suites=[CaptureSuite])
-        endpoint = await plugin.start("127.0.0.1:0")
+        class CaptureSuite(Suite):
+            templates: ClassVar[list[type[TestTemplate]]] = [CaptureTestTemplate]
+
+        class RecordsPlugin(Plugin):
+            version = "1.0.0"
+            suites: ClassVar[list[type[Suite]]] = [CaptureSuite]
+
+        plugin = RecordsPlugin()
+        endpoint = await plugin._activate("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
         channel = insecure_channel(endpoint.address)
         self.addAsyncCleanup(channel.close)
@@ -216,15 +246,26 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
             request_serializer=InstanceInvokeRequest.SerializeToString,
             response_deserializer=InstanceInvokeResponse.FromString,
         )
-        template = plugin.suites[0].templates[0]
+        template = plugin._suites[0].templates[0]
         case = template.build({}).message
-        origin = {"plugin_run": {"plugin": plugin.identifier, "template": template.identifier, "test_case": case}}
+        origin = {"plugin_run": {"plugin": plugin._identifier, "template": template.identifier, "test_case": case}}
+        definitions = {item.id: item for item, _ in plugin._plugin._registrations()[0]}
         requests: list[tuple[str, Message]] = [
-            ("capture.save", StepsExecuteRequest(execution="execution", step="capture.save", test_case=case, origin=origin)),
-            ("capture.matches", CriteriaEvaluateRequest(execution="execution", criterion="capture.matches", test_case=case, origin=origin)),
+            (
+                "capture.capture.save",
+                cast(Any, definitions["capture.capture.save"].request)(
+                    execution="execution", step="capture.capture.save", test_case=case, origin=origin
+                ),
+            ),
+            (
+                "capture.capture.matches",
+                cast(Any, definitions["capture.capture.matches"].request)(
+                    execution="execution", criterion="capture.capture.matches", test_case=case, origin=origin
+                ),
+            ),
         ]
-        requirements = {host_requirement(item).id: (item, host_requirement(item)) for item in HostOperation}
-        records: dict[str, CapturedRecord] = {}
+        requirements = {item.id: item for item in plugin._requires}
+        records: dict[str, bytes] = {}
         for operation_id, request in requests:
             call = invoke()
             try:
@@ -244,28 +285,31 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                     assert isinstance(frame, InstanceInvokeResponse), "Invoke Template: Expected a Response Before End of Stream"
                     if frame.HasField("response"):
                         self.assertFalse(frame.response.HasField("failure"), frame.response.failure)
-                        if operation_id == "capture.matches":
-                            self.assertTrue(CriteriaEvaluateResponse.FromString(frame.response.payload).passed)
+                        if operation_id == "capture.capture.matches":
+                            self.assertTrue(cast(Any, definitions[operation_id].response.FromString(frame.response.payload)).passed)
                         break
-                    kind, requirement = requirements[frame.child.operation]
-                    child = requirement.request.FromString(frame.child.payload)
-                    response = requirement.response()
-                    if kind == HostOperation.TIME_GET:
+                    requirement = requirements[frame.child.operation]
+                    kind = frame.child.operation
+                    child = cast(Any, requirement.request.FromString(frame.child.payload))
+                    response = cast(Any, requirement.response())
+                    if kind == "harmos.host.v1.Time/Get":
                         response = TimeGetResponse(now=Timestamp())
-                    elif kind == HostOperation.PROMPTS_CREATE:
-                        asked = PromptsCreateRequest.FromString(frame.child.payload)
+                    elif kind == "dokime.host.v1.Prompts/Create":
+                        asked = child
                         if asked.prompt_type:
-                            self.assertEqual(asked.prompt_type, "capture.question")
+                            self.assertEqual(asked.prompt_type, "capture.capture.question")
                         action = next(action for action in asked.definition.actions if action.label == "No")
-                        response = PromptsCreateResponse(action=action.identifier, accepted=True)
-                    elif kind == HostOperation.EVIDENCE_RECORDS_APPEND:
-                        child = RecordsAppendRequest.FromString(frame.child.payload)
-                        records[child.kind] = CapturedRecord(payload=child.payload, record_type=child.kind)
-                    elif kind == HostOperation.EVIDENCE_RECORDS_LIST:
-                        child = RecordsListRequest.FromString(frame.child.payload)
-                        self.assertEqual(child.step, "capture.save")
+                        response.action = action.identifier
+                        response.accepted = True
+                    elif kind == "dokime.host.v1.evidence.Records/Append":
+                        records[child.kind] = child.payload
+                    elif kind == "dokime.host.v1.evidence.Records/List":
+                        self.assertEqual(child.step, "capture.capture.save")
                         last = records.get(child.record_type)
-                        response = RecordsListResponse(count=int(last is not None), last=last)
+                        response.count = int(last is not None)
+                        if last is not None:
+                            response.last.payload = last
+                            response.last.record_type = child.record_type
                     else:
                         self.fail(f"Unexpected Host Call: {kind}")
                     await call.write(
@@ -273,7 +317,16 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                     )
             finally:
                 call.cancel()
-        self.assertEqual(set(records), {"capture.flag", "capture.text", "capture.integer", "capture.number", "capture.structured"})
+        self.assertEqual(
+            set(records),
+            {
+                "capture.capture.flag",
+                "capture.capture.text",
+                "capture.capture.integer",
+                "capture.capture.number",
+                "capture.capture.structured",
+            },
+        )
 
 
 # === Public Functions === #

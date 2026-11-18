@@ -13,7 +13,6 @@
 # Standard Library Imports
 
 import argparse
-import ast
 import hashlib
 import json
 import shutil
@@ -115,81 +114,29 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                     raise ValueError("Check Python Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(drift))
             else:
                 (source / "_wire/sources.json").write_text(text, encoding="utf-8", newline="\n")
-        # Compose the Product Authoring Barrel From the Generated Model Export Inventory.
-        shared = ast.parse((source / "_generated/shared.py").read_text(encoding="utf-8"))
-        names = sorted(
-            {
-                item.name
-                for node in shared.body
-                if isinstance(node, ast.ImportFrom)
-                for item in node.names
-                if item.name != "Visibility" and not item.name.startswith("VISIBILITY_")
-            }
-        )
-        additions = {
-            "._context": ["Context"],
-            "._plugin": ["Plugin"],
-            ".authoring": [
-                "Case",
-                "Template",
-                "criterion",
-                "materialize",
-                "observer",
-                "prompt",
-                "record",
-                "step",
-                "stream",
-                "suite",
-                "window_observer",
-            ],
-            ".operations": ["Operation", "Visibility", "operation"],
-            "harmos.plugin": ["Window"],
-            "harmos": ["FailureValue"],
+        # Generate the Closed Product Root; Operations and Templates Own Their Contexts.
+        homes = {
+            "_authoring": ["Suite"],
+            "_plugin": ["Plugin"],
+            "_client": ["Case", "Cases", "Client", "Cycle", "Cycles", "Execution", "Executions", "Plugins", "RegisteredPlugin"],
+            "_connection": ["connect"],
+            "_errors": ["Failure", "SdkError"],
+            "_values": ["Artifact", "Note", "Outcome", "Progress", "PromptAnswer", "PromptQuestion", "ResultStatus", "Scalar"],
         }
-        lines = [
-            "# @generated from protocol descriptors and product authoring exports; do not edit.",
-            "from harmos._invocation import FailureError",
-        ]
-        lines.extend(f"from ._generated.shared import {name}" for name in names)
-        for module, exports in additions.items():
-            lines.extend(f"from {module} import {name}" for name in exports)
-        exports = sorted({"FailureError", *names, *(name for values in additions.values() for name in values)})
-        lines.extend(["", "__all__ = " + repr(exports), ""])
+        lines = ["# @generated from the product public-home inventory; do not edit."]
+        lines.extend(f"from . import {module}" for module in homes)
+        lines.append("")
+        for module, names in homes.items():
+            lines.extend(f"{name} = {module}.{name}" for name in names)
         barrel = output / "__init__.py"
-        barrel.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+        barrel.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         subprocess.run(
-            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I,RUF022", "--fix", str(barrel)],
+            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I", "--fix", str(barrel)],
             check=True,
         )
         subprocess.run([sys.executable, "-m", "ruff", "format", "--config", str(sdk / "ruff.toml"), str(barrel)], check=True)
         text = barrel.read_text(encoding="utf-8")
         target = source / "__init__.py"
-        if check:
-            if target.read_text(encoding="utf-8") != text:
-                raise ValueError("Check Python Exports: Run mise -C sdk/python run generate")
-        else:
-            target.write_text(text, encoding="utf-8", newline="\n")
-
-        # Compose the Plugin Barrel Without Duplicating the Root Authoring Exports.
-        plugin_types = ast.parse((source / "_generated/plugin_types.py").read_text(encoding="utf-8"))
-        names = sorted({item.name for node in plugin_types.body if isinstance(node, ast.ImportFrom) for item in node.names})
-        lines = [
-            "# @generated from protocol descriptors; do not edit.",
-            "from .._generated.host import HostOperation, HostRoot",
-            *(f"from .._generated.plugin_types import {name}" for name in names),
-            "",
-            "__all__ = " + repr(["HostOperation", "HostRoot", *names]),
-            "",
-        ]
-        barrel = output / "plugin.py"
-        barrel.write_text("\n".join(lines), encoding="utf-8", newline="\n")
-        subprocess.run(
-            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I,RUF022", "--fix", str(barrel)],
-            check=True,
-        )
-        subprocess.run([sys.executable, "-m", "ruff", "format", "--config", str(sdk / "ruff.toml"), str(barrel)], check=True)
-        text = barrel.read_text(encoding="utf-8")
-        target = source / "plugin/__init__.py"
         if check:
             if target.read_text(encoding="utf-8") != text:
                 raise ValueError("Check Python Exports: Run mise -C sdk/python run generate")
