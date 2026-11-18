@@ -11,7 +11,7 @@ add_test(NAME builders COMMAND dokime-builders)
 add_executable(dokime-client-journey integration/client_reads_backend.cpp)
 target_link_libraries(dokime-client-journey PRIVATE Dokime::Cpp Catch2::Catch2WithMain)
 add_test(NAME client_reads_backend COMMAND dokime-client-journey)
-add_executable(dokime-authoring-journey integration/author_materializes_suite.cpp)
+add_executable(dokime-authoring-journey authoring.cpp)
 target_link_libraries(dokime-authoring-journey PRIVATE Dokime::Cpp Catch2::Catch2WithMain)
 add_test(NAME author_materializes_suite COMMAND dokime-authoring-journey)
 set_tests_properties(builders client_reads_backend author_materializes_suite PROPERTIES TIMEOUT 240)
@@ -19,7 +19,7 @@ set_tests_properties(builders client_reads_backend author_materializes_suite PRO
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_executable(dokime-story-plugin ../examples/test/main.cpp)
 target_link_libraries(dokime-story-plugin PRIVATE Dokime::Cpp)
-add_executable(dokime-plugin-journey integration/plugin_executes_case.cpp)
+add_executable(dokime-plugin-journey integration/capture_roundtrip.cpp)
 target_link_libraries(dokime-plugin-journey PRIVATE Dokime::Cpp Catch2::Catch2)
 foreach(placement managed remote)
   add_test(NAME plugin_executes_case_${placement}
@@ -45,3 +45,12 @@ target_include_directories(dokime_thermal_protocol SYSTEM PUBLIC "${thermal_gene
 target_link_libraries(dokime_thermal_protocol PUBLIC Dokime::Cpp)
 add_executable(dokime-system-suite "${thermal}/main.cpp")
 target_link_libraries(dokime-system-suite PRIVATE dokime_thermal_protocol)
+
+add_executable(dokime-value-plugin support/value_plugin.cpp)
+target_link_libraries(dokime-value-plugin PRIVATE Dokime::Cpp)
+add_executable(dokime-values-journey integration/values_roundtrip.cpp)
+target_link_libraries(dokime-values-journey PRIVATE Dokime::Cpp Catch2::Catch2)
+add_test(NAME values_roundtrip
+  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/support/run_plugin.py"
+    $<TARGET_FILE:dokime-value-plugin> $<TARGET_FILE:dokime-values-journey> managed)
+set_tests_properties(values_roundtrip PROPERTIES TIMEOUT 240)
