@@ -1,13 +1,13 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
 
-"""TODO: Describe this module's responsibility."""
+"""Typed Product Operations With Plain Payloads."""
 
 # === Imports === #
 
@@ -25,13 +25,16 @@ from harmos import plugin
 
 # Local Imports
 from ._context import Context
+from ._generated.shared import OperationPolicy
+from ._payloads import Payload, message_type, pack, unpack
 from .authoring import build_identifier
-from .payloads import Payload, message_type, pack, unpack
 
 # Type Checking Imports
 
 
 # === Public Exports === #
+
+__all__ = ["Operation", "Visibility", "operation"]
 
 # === Constants === #
 
@@ -52,20 +55,19 @@ class Operation[Q: Payload, R: Payload]:
     request: type[Q]
     response: type[R]
     visibility: Visibility
-    policy: harmos.OperationPolicy | None = None
+    policy: OperationPolicy | None = None
     description: str = ""
     replay_safe: bool = False
 
     def __post_init__(self) -> None:
-        build_identifier(self.identifier, self.identifier)
         if not isinstance(self.visibility, Visibility):
             raise TypeError("Declare Operation: Supply a Visibility Member")
         message_type(self.request)
         message_type(self.response)
 
-    def wire(self) -> plugin.Operation[Message, Message]:
+    def _wire(self) -> plugin.Operation[Message, Message]:
         return plugin.Operation(
-            self.identifier,
+            build_identifier(self.identifier, self.identifier),
             message_type(self.request),
             message_type(self.response),
             cast(Any, self.visibility.value),
@@ -84,7 +86,7 @@ def operation[Q: Payload, R: Payload, F: Callable](
     request: type[Q],
     response: type[R],
     visibility: Visibility,
-    policy: harmos.OperationPolicy | None = None,
+    policy: OperationPolicy | None = None,
     description: str = "",
     replay_safe: bool = False,
 ) -> Callable[[F], F]:
@@ -97,9 +99,9 @@ def operation[Q: Payload, R: Payload, F: Callable](
     return decorate
 
 
-def bind_operation(handler: Callable[..., object]) -> Callable[..., Awaitable[Message]]:
+def _bind_operation(handler: Callable[..., object]) -> Callable[..., Awaitable[Message]]:
     definition = cast(Operation[Any, Any], vars(handler)["__dokime_operation__"])
-    wire = definition.wire()
+    wire = definition._wire()
 
     async def execute(adapter: object, transport: plugin.Context, request: Message) -> Message:
         context = Context(transport)

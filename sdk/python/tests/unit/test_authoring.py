@@ -1,13 +1,13 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
 
-"""TODO: Describe this module's responsibility."""
+"""Declaration Binding and Plain Payload Authoring Contracts."""
 
 # === Imports === #
 
@@ -19,9 +19,9 @@ from pathlib import Path
 # Third Party Imports
 from google.protobuf.wrappers_pb2 import BoolValue
 
-from dokime import Context, Plugin, PromptDefinitions, Template, criterion, observer, prompt, record, step, stream, suite
+from dokime import Context, Plugin, Prompt, PromptDefinitions, Template, criterion, observer, prompt, record, step, stream, suite
+from dokime._payloads import message_type, pack, unpack
 from dokime.authoring import Suite
-from dokime.payloads import message_type, pack, unpack
 
 # Local Imports
 
@@ -127,6 +127,27 @@ class AuthoringStory(unittest.TestCase):
         for declaration in (Repeated, Empty, CrossKind, EmptySuite):
             self.assertRaises(ValueError, Plugin, "invalid", "1.0.0", suites=[declaration])
         self.assertRaises(ValueError, Plugin, "invalid", "1.0.0", suites=[Repeated, Repeated])
+
+    def test_structured_prompt_fields_survive_template_binding(self) -> None:
+        definition = Prompt(
+            message="Enter a Reading",
+            fields=[{"metadata": {"identifier": "reading", "label": "Reading"}, "type": "VALUE_TYPE_NUMBER", "required": True}],
+            actions=[{"identifier": "save", "label": "Save"}],
+        )
+
+        @suite()
+        class ReadingSuite:
+            question = prompt(definition)
+
+        definition.fields.clear()
+        plugin = Plugin("prompts", "1.0.0", suites=[ReadingSuite])
+        section = next(item for item in plugin.declarations().sections if item.type.endswith("PromptDefinitions"))
+        bound = PromptDefinitions.FromString(section.payload).prompts[0]
+        self.assertEqual(bound.metadata.identifier, "reading.question")
+        self.assertEqual(bound.template, "reading")
+        self.assertTrue(bound.fields[0].required)
+        self.assertEqual(bound.fields[0].metadata.identifier, "reading")
+        self.assertEqual(bound.actions[0].identifier, "save")
 
     def test_primitive_and_structured_payloads_roundtrip(self) -> None:
         values = [False, True, "a value", -(2**63), 2**63 - 1, 2.125, BoolValue(value=True)]

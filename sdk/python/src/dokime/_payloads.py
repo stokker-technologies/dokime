@@ -1,13 +1,13 @@
 # ***
 #
-# dokime-rust-workspace
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 # ***
 
 
-"""TODO: Describe this module's responsibility."""
+"""Plain and Structured Payloads at the Protobuf Boundary."""
 
 # === Imports === #
 

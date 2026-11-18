@@ -27,9 +27,10 @@ from google.protobuf.wrappers_pb2 import DoubleValue
 from dokime._generated import shared
 from dokime._generated.shared import DataExpression, FileParameter, Parameter, TestCase, TestCaseTemplate
 
+from ._payloads import Payload, message_type
+
 # Local Imports
 from .documents import Document
-from .payloads import Payload, message_type
 from .plot import Expression
 from .values import Scalar, encode
 
@@ -220,7 +221,7 @@ class Template:
             if inspect.isawaitable(result):
                 if inspect.iscoroutine(result):
                     result.close()
-                raise TypeError("Materialize must be synchronous and pure")
+                raise TypeError("Materialize Test Case: Use a Synchronous, Pure Materializer")
             return case
         for value in self.steps:
             case.step(value.label, value.handler, identifier=None)
@@ -262,14 +263,14 @@ class Case:
         definitions = self.template.steps if kind == "step" else self.template.criteria
         definition = next((item for item in definitions if item.handler is handler), None)
         if definition is None:
-            raise ValueError(f"Undeclared {kind} handler: {handler}")
+            raise ValueError(f"Materialize {kind.title()}: Declare the Handler on This Template Before Adding It")
         identity = (
             self.template.resolve(handler)
             if identifier is None
             else build_identifier(getattr(handler, "__name__", ""), identifier, prefix=self.template.identifier)
         )
         if not identity or (kind, identity) in self.bindings:
-            raise ValueError(f"Duplicate or empty {kind} identifier: {identity}")
+            raise ValueError(f"Materialize {kind.title()}: Supply a Unique, Nonempty Local Identifier: {identity}")
         operation = self.template.resolve(handler)
         entries = self.message.steps if kind == "step" else self.message.criteria
         value = entries.add(metadata={"identifier": identity, "label": label}, operation=operation)
@@ -325,7 +326,7 @@ def step[**P, R](
     label: str, *, identifier: str | None = None, retries: int = 0, repeatable: bool = False
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
     if retries < 0:
-        raise ValueError("Retries must be nonnegative")
+        raise ValueError("Declare Step: Supply a Nonnegative Retry Count")
 
     def decorate(handler: Callable[P, R]) -> Callable[P, R]:
         if not isinstance(handler, FunctionType):
@@ -403,7 +404,7 @@ def suite[ClassT](
 
 def _sampling[**P, R](sampling: Sampling) -> Callable[[Callable[P, R]], Callable[P, R]]:
     if sampling.interval_ms <= 0:
-        raise ValueError("Observer interval must be positive")
+        raise ValueError("Declare Observer: Supply a Positive Interval")
 
     def decorate(handler: Callable[P, R]) -> Callable[P, R]:
         if not isinstance(handler, FunctionType):

@@ -49,8 +49,8 @@ from ._wire.model.v1.metadata_pb2 import Metadata
 if TYPE_CHECKING:
     from . import operations
 
+from ._payloads import Payload, message_type, pack, unpack
 from .authoring import PromptDeclaration, Record, Template, prompt
-from .payloads import Payload, message_type, pack, unpack
 from .transfers import upload_bytes
 from .values import Scalar, encode
 
@@ -158,7 +158,7 @@ class Context:
 
     async def secret(self, identifier: str) -> bytes:
         if identifier not in self._secrets:
-            raise ValueError(f"Read Secret: Undeclared Secret {identifier}")
+            raise ValueError(f"Read Secret: Declare {identifier} on the Plugin Before Reading It")
         return (await self.host.secrets.get(identifier)).secret
 
     async def settings(self) -> dict[str, SettingValue]:
@@ -242,7 +242,7 @@ class BoundOperation[RequestT: Payload, ResponseT: Payload]:
         self._operation = operation
 
     async def __call__(self, request: RequestT, *, policy: OperationPolicy | None = None) -> ResponseT:
-        wire = self._operation.wire()
+        wire = self._operation._wire()
         response = await self._transport.call(wire, pack(self._operation.request, request), policy=policy)
         return unpack(self._operation.response, response)
 

@@ -34,6 +34,7 @@ from dokime._wire.model.v1.suites_pb2 import Suites
 from ._context import Context
 from ._generated.host import HostOperation, host_requirement
 from ._generated.shared import SecretDeclaration, SecretsDeclarations
+from ._payloads import message_type
 from ._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
 from ._wire.plugin.v1.executions_pb2 import (
     ExecutionsCleanupRequest,
@@ -46,7 +47,6 @@ from ._wire.plugin.v1.test_cases_pb2 import TestCasesMaterializeRequest, TestCas
 
 # Local Imports
 from .authoring import _SUITES, Case, Sampling, Stream, Suite, Template, build_identifier
-from .payloads import message_type
 from .values import decode
 
 # Type Checking Imports
@@ -92,7 +92,7 @@ class Plugin:
             else tuple(
                 host_requirement(item)
                 if isinstance(item, HostOperation)
-                else item.wire()
+                else item._wire()
                 if isinstance(item, dokime.operations.Operation)
                 else item
                 for item in requires
@@ -109,13 +109,13 @@ class Plugin:
             ("secret", [item.metadata.identifier for item in self.secrets]),
         ):
             if any(not item for item in identifiers) or len(identifiers) != len(set(identifiers)):
-                raise ValueError(f"Build Plugin: Duplicate or Empty {name} Identifier")
+                raise ValueError(f"Build Plugin: Supply Unique, Nonempty {name.title()} Identifiers")
         methods = {}
         if operations is not None:
             for cls in reversed(type(operations).__mro__):
                 for name, method in vars(cls).items():
                     if hasattr(method, "__dokime_operation__"):
-                        methods[f"external_{name}"] = dokime.operations.bind_operation(getattr(operations, name))
+                        methods[f"external_{name}"] = dokime.operations._bind_operation(getattr(operations, name))
                         continue
                     if any(
                         hasattr(method, attribute)

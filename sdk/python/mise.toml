@@ -59,12 +59,6 @@ hide = true
 description = "Check Generated Python Messages"
 run = 'uv run --no-sync --project ../../tools/python python tools/generated.py'
 
-[tasks.conformance]
-hide = true
-description = "Test Library Conformance"
-usage = 'flag "--profile <profile>" default="dev"'
-run = 'mise -C ../.. run test -- --language python --layer system --profile {{usage.profile}}'
-
 [tasks.example-test]
 hide = true
 description = "Test the Test Examples"

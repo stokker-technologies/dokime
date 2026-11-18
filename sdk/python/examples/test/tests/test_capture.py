@@ -16,7 +16,6 @@ from uuid import uuid4
 
 # Third Party Imports
 from google.protobuf.wrappers_pb2 import BoolValue
-from harmos.client import PLUGIN_STATE_READY, PluginPlacement, PluginRemote, PluginValue
 
 # Local Imports
 from host import Host
@@ -24,8 +23,12 @@ from suite import plugin
 
 from dokime import CapturedRecordSelection, MapValue, Metadata, RecordScope, model
 from dokime.client import (
+    PLUGIN_STATE_READY,
     RESULT_STATUS_PASSED,
     ExecutionBinding,
+    PluginPlacement,
+    PluginRemote,
+    PluginValue,
     RegisteredSelection,
     SelectionPlan,
 )
@@ -46,7 +49,7 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
     async def test_serve_capture_and_release(self) -> None:
         # Serve And Admit The Starter Through A Prepared Product Host.
         host = await Host.start(self)
-        endpoint = await plugin().start("127.0.0.1:0")
+        endpoint = await plugin.start("127.0.0.1:0")
         self.addAsyncCleanup(endpoint.close)
         self.addAsyncCleanup(host.close)
         created = await host.client.plugins.create(
@@ -66,10 +69,10 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
         suites = (await host.client.suites.list(created.entry.name)).values
         self.assertEqual(len(suites), 1)
         suite = (await host.client.suites.get(suites[0].metadata.identifier, created.entry.name, 1)).value
-        plan = SelectionPlan(selections=[RegisteredSelection(suite_id=suite.metadata.identifier, template_id="example.capture")])
+        plan = SelectionPlan(selections=[RegisteredSelection(suite_id=suite.metadata.identifier, template_id="capture")])
         cases = (await host.client.cases.create(plan, False)).cases
         case = cases[0].origin.plugin_run.test_case
-        self.assertEqual([item.metadata.identifier for item in case.steps], ["confirm"])
+        self.assertEqual([item.metadata.identifier for item in case.steps], ["capture.confirm"])
 
         # Await The Operator Question And Answer With The Client Root.
         cycle = (await host.client.cycles.create([], Metadata(label="Example Capture"), True, "")).cycle
@@ -81,7 +84,9 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
                 prompts = await host.client.prompts.list("", True, execution_id=execution_id)
                 self.assertEqual(len(prompts.prompts), 1)
                 asked = (await host.client.prompts.get(prompts.prompts[0].prompt.prompt_id)).prompt
-                await host.client.prompts.answers.create(asked.prompt.prompt_id, "yes", MapValue(), True)
+                await host.client.prompts.answers.create(
+                    asked.prompt.prompt_id, asked.prompt.definition.actions[0].identifier, MapValue(), True
+                )
             finished = progress.finished
         self.assertTrue(finished)
         execution = (await host.client.executions.get(execution_id)).execution
@@ -89,7 +94,7 @@ class CaptureStory(unittest.IsolatedAsyncioTestCase):
 
         # Inspect Acknowledged Evidence After The Host Has Run Cleanup.
         records = await host.client.evidence.records.list(
-            "example.confirmation", [], model.Window(), "", CapturedRecordSelection(), scope=RecordScope(execution=execution_id)
+            "capture.confirmation", [], model.Window(), "", CapturedRecordSelection(), scope=RecordScope(execution=execution_id)
         )
         self.assertEqual(len(records.records), 1)
         self.assertTrue(all(BoolValue.FromString(record.payload).value for record in records.records))

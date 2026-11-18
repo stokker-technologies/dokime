@@ -52,7 +52,10 @@
 
 ## Locked Authoring Surface
 
-- [ ] Python: Implement Locked Points 1–10 and Focused Proof.
+- [x] Python: Implement Product Exports, Typed Declarations, Generated Names, Plain Values and Visibility; Remove Raw Records and Sections.
+- [x] Python: Migrate Every Python Example and README to the Locked Surface and Entrypoint Layout.
+- [ ] Python: Complete Native Integration Proof After Resolving Hyphenated Identifier Admission.
+- [ ] Python: Resolve Deferred Materialized Instance Identifier Qualification With the Owner.
 - [ ] Rust: Follow the Locked Authoring Surface.
 - [ ] C#: Follow the Locked Authoring Surface.
 - [ ] C++: Follow the Locked Authoring Surface.

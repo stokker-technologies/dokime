@@ -22,4 +22,4 @@ run = "uv run python -m unittest discover -s tests -v"
 
 [tasks.dev]
 description = "Serve the Remote Plugin"
-run = "uv run python main.py"
+run = "uv run python plugin.py"

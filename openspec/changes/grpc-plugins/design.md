@@ -824,3 +824,87 @@ Qualified identifiers change the identifiers stored in evidence; existing roots 
 
 Single-class suites use the suite identifier for their sole template, and <suite>.<name> for members. Grouped templates use <suite>.<template> and <suite>.<template>.<name>.
 
+
+### Python Reference Shape
+
+```python
+from dokime import Plugin, Context, Visibility, operation, suite, step, criterion, record, prompt
+from dokime.authoring import Suite, Template
+
+@suite(label="Capture")
+class Capture:
+    confirmation = record(bool, label="Confirmation")
+    question = prompt("Continue?", choices=["Yes", "No"])
+
+    @step("Confirm")
+    async def confirm(self, ctx: Context) -> None:
+        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
+        await ctx.record(self.confirmation, answer == "Yes")
+
+    @criterion("Confirmed")
+    async def confirmed(self, ctx: Context) -> bool:
+        return await ctx.records(self.confirmation, step=self.confirm).last()
+
+plugin = Plugin("example", "0.1.0", suites=[Capture])
+
+class Operations:
+    @operation("example.echo", request=str, response=str, visibility=Visibility.PUBLIC)
+    async def echo(self, ctx: Context, request: str) -> str:
+        return request
+```
+
+`Context.prompt` accepts text or a template prompt declaration and returns a choice
+label. `prompt` also accepts a full product `Prompt` message for structured fields,
+rules and actions. `Context.record(declaration, value)` accepts plain values or
+protobuf rows; `Context.records(declaration, step=bound_step).last()` returns the
+plain value or structured row and refuses an empty result. `Context.statistics`
+takes the stream declaration or bound stream method and an optional bound step.
+`Context.operation(Operation(...))(value)` wraps and unwraps simple operation
+payloads. Python `int` uses `Int64Value`; bool, str and float use BoolValue,
+StringValue and DoubleValue. Records and operations share the same conversion.
+
+A single-class `Capture` suite has template `capture`, step `capture.confirm` and
+record `capture.confirmation`. Grouped `Suite("accuracy", [Template(VoltageTemplate)])`
+has template `accuracy.voltage`; a `read_voltage` method becomes
+`accuracy.voltage.read-voltage`. Explicit `identifier="rms"` on that method gives
+`accuracy.voltage.rms`. Qualification is stored on the plugin's bound template;
+reusing a class in another suite never mutates its local declarations. Existing
+parameterized materializers supply distinct explicit local identifiers for repeated
+instances of one method; those deferred instance identifiers are qualified when
+freezing the case, because their parameter values are unavailable at plugin assembly.
+
+Rust, C#, C++ and command-line starters must follow the same imports/namespaces,
+short prompts, code-name identifiers and single-class versus grouped-template rule,
+local record/prompt declarations, primitive wrappers, enum visibility, declaration
+references and removal of raw records/sections and example requirement lists.
+Python launchers must start `plugin.py`; `main.py` drives the plugin through a client.
+Command-line running, bundling and trust behavior remains point 11's separate owner.
+
+Native proof currently exposes a contract conflict: the pinned carrier's
+`crates/harmos-protocol/src/schema/identity.rs` accepts only alphanumeric or underscore
+segments for local operation identities. Generated hyphenated names are rejected
+at host admission. The locked Python names are retained; host admission needs an
+owner decision and repair before the native integration proof can pass. No grammar
+shim or alternate identifier family is introduced here.
+
+### Authoring Adoption Owners
+
+- Rust: `sdk/rust/src/{lib.rs,context.rs,suite.rs,template.rs,plugin/}` and
+  `sdk/rust/examples/` adopt the reference surface and qualify their evidence IDs.
+- C#: `sdk/csharp/src/Dokime/{Authoring.cs,Plugin.cs,Context.cs}` and
+  `sdk/csharp/examples/` adopt it; `sdk/tests/fixtures/csharp/` follows the same IDs.
+- C++: `sdk/cpp/include/dokime/plugin.hpp`, its implementation and
+  `sdk/cpp/examples/` adopt it; `sdk/tests/fixtures/cpp/` follows the same IDs.
+- Command line: `crates/dokime-cli/{build.rs,src/commands/new.rs}` embeds the new
+  Python project files; `src/commands/plugin/` and the application development
+  command own point 11 and must invoke `plugin.py` for Python projects.
+- Native Python fixture launch: `crates/dokime-runtime/tests/support/mod.rs:91`
+  must launch `sdk/python/examples/thermal/plugin.py`.
+- Thermal evidence selectors: `crates/dokime-runtime/tests/support/thermal.rs`
+  and system stories `client_answers_operator_prompts.rs`,
+  `client_browses_sealed_history.rs`, `client_runs_thermal_suite_over_grpc.rs`,
+  `csharp_plugin_matches_rust_thermal_evidence.rs`,
+  `cpp_plugin_matches_rust_thermal_evidence.rs`,
+  `python_plugin_matches_rust_thermal_evidence.rs` and
+  `thermal_suite_survives_host_restart.rs` must use qualified template members
+  and answer the prompt's actual action identifier.
