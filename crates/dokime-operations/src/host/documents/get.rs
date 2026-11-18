@@ -73,7 +73,7 @@ use dokime_protocol::model::PlotFilter;
 use dokime_protocol::model::Section;
 use dokime_protocol::model::card;
 use dokime_storage::persisted::Scope;
-use dokime_storage::{ExecutionCut, ExecutionState};
+use dokime_storage::{ExecutionCut, ExecutionState, Store};
 
 /* === Constants === */
 
@@ -161,7 +161,15 @@ pub async fn handle(context: &Context, request: DocumentsGetRequest) -> Result<D
 
 /// Build Document Frames from a Resolved Declaration and One Evidence Cut.
 pub async fn response_at(
-    context: &Context, request: &DocumentsGetRequest, mut document: Document, fixed: &ExecutionCut,
+    context: &Context, request: &DocumentsGetRequest, document: Document, fixed: &ExecutionCut,
+) -> Result<DocumentsGetResponse> {
+    let (mut reader, _cancellation) = context.host.store().read_session()?;
+    reader.reuse_sample_reads()?;
+    response_at_with_reader(context, request, document, fixed, &reader).await
+}
+
+pub(crate) async fn response_at_with_reader(
+    context: &Context, request: &DocumentsGetRequest, mut document: Document, fixed: &ExecutionCut, reader: &Store,
 ) -> Result<DocumentsGetResponse> {
     let scope = request.scope.as_ref().ok_or_else(|| Error::Invalid("Get Document: Select Its Execution or Cycle".into()))?;
     let cycle_matches = scope.cycle_id == fixed.execution.cycle;
@@ -169,11 +177,10 @@ pub async fn response_at(
     if !cycle_matches || !execution_matches {
         return Err(Error::Invalid("Get Document: Keep the Evidence Cut Within Its Selected Scope".into()));
     }
-    let (reader, _cancellation) = context.host.store().read_session()?;
-    append_parts::replay(&reader, fixed, &mut document, context.settings.page_items)?;
-    let mut expanded = expansion::expand(&reader, fixed, &document, 0, context.settings.page_items)?;
+    append_parts::replay(reader, fixed, &mut document, context.settings.page_items)?;
+    let mut expanded = expansion::expand(reader, fixed, &document, 0, context.settings.page_items)?;
     while let Some(next) = expanded.next {
-        let page = expansion::expand(&reader, fixed, &document, next, context.settings.page_items)?;
+        let page = expansion::expand(reader, fixed, &document, next, context.settings.page_items)?;
         merge_sections(&mut expanded.document.sections, page.document.sections)?;
         for kind in page.frames {
             if !expanded.frames.contains(&kind) {
@@ -437,7 +444,7 @@ pub async fn response_at(
                         });
                         Ok(DocumentPlotDefinition {
                             request: Some(selected),
-                            presentation: Some(plot::presentation(&reader, fixed, &plot)?),
+                            presentation: Some(plot::presentation(reader, fixed, &plot)?),
                             metadata: plot.metadata.clone(),
                             z_expression: plot.z.clone(),
                         })

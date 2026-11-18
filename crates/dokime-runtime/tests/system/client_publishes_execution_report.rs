@@ -93,8 +93,20 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
                     },
                 )
                 .await?;
-            let file = preview.file.unwrap();
-            assert_eq!(preview.report.unwrap().origin, ReportOrigin::Current as i32);
+            // Replay Returns the Original Metadata, Cut, Receipt and File Without Recollecting.
+            let replay = reports
+                .create_with(
+                    subject.clone(),
+                    document.metadata.as_ref().map_or(String::new(), |metadata| metadata.identifier.clone()),
+                    ReportsCreateOptions {
+                        request_id: Some("preview".into()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(replay, preview);
+            let file = preview.file.clone().unwrap();
+            assert_eq!(preview.report.as_ref().unwrap().origin, ReportOrigin::Current as i32);
             let store = Store::open(root.path())?;
             assert!(store.reports(&identifier)?.is_empty());
             assert_eq!(store.read(&identifier)?, before);
@@ -119,6 +131,17 @@ fn client_publishes_execution_report() -> Result<(), Box<dyn Error>> {
             let client = Client::from_channel(channel, super::support::client_settings())?;
             let reports = &client.reports;
             let executions = &client.executions;
+            let replay = reports
+                .create_with(
+                    subject.clone(),
+                    document.metadata.as_ref().map_or(String::new(), |metadata| metadata.identifier.clone()),
+                    ReportsCreateOptions {
+                        request_id: Some("preview".into()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(replay, preview);
             let current = executions.get_with(identifier.clone(), ExecutionsGetOptions { at: None, ..Default::default() }).await?;
             assert_eq!(current.execution.unwrap().report.unwrap().state, ReportState::Pending as i32);
             let request = ReportsPublishRequest {

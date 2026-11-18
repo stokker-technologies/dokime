@@ -23,16 +23,18 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use prost::Message;
 
 // Local Imports
+use dokime_operations::host::plots::snapshots::list;
 use dokime_protocol::host::documents_client::DocumentsClient;
 use dokime_protocol::host::files_client::FilesClient;
 use dokime_protocol::host::plots::settings_client::SettingsClient;
-use dokime_protocol::host::plots::{PlotRequest, PlotSettingsValue, SettingsGetRequest, SettingsSetRequest};
+use dokime_protocol::host::plots::snapshots_client::SnapshotsClient;
+use dokime_protocol::host::plots::{PlotRequest, PlotSettingsValue, SettingsGetRequest, SettingsSetRequest, SnapshotsListRequest};
 use dokime_protocol::host::reports_client::ReportsClient;
 use dokime_protocol::host::{
     DocumentFrame, DocumentScope, DocumentsGetRequest, FilesReadRequest, ReportCapture, ReportSubject, ReportsCreateRequest,
     ReportsPublishRequest, document_binding_result, document_frame_frame, report_subject,
 };
-use dokime_protocol::model::{Downsample, card};
+use dokime_protocol::model::{Downsample, PlotHistogramOptions, PlotKind, card};
 use dokime_runtime::{Host, services};
 use dokime_storage::Store;
 
@@ -93,7 +95,8 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             let mut reports = ReportsClient::connect(endpoint.clone()).await?;
             let mut files = FilesClient::connect(endpoint.clone()).await?;
             let mut documents = DocumentsClient::connect(endpoint.clone()).await?;
-            let mut settings = SettingsClient::connect(endpoint).await?;
+            let mut settings = SettingsClient::connect(endpoint.clone()).await?;
+            let mut plots = SnapshotsClient::connect(endpoint).await?;
 
             // Save Native Plot Preferences Before Capturing Either Reader.
             let document_id = document.metadata.as_ref().unwrap().identifier.clone();
@@ -151,6 +154,7 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
                 (plot.metadata.as_ref()?.identifier == plot_id).then(|| plot.request.clone()).flatten()
             };
             let mut live_plot = None;
+            let mut live_frames = Vec::new();
             let mut page_token = String::new();
             let mut at = None;
             loop {
@@ -165,6 +169,7 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
                     .await?
                     .into_inner();
                 live_plot = live_plot.or_else(|| reply.frames.iter().find_map(&plot_request));
+                live_frames.extend(reply.frames);
                 if reply.next_page_token.is_empty() {
                     break;
                 }
@@ -220,11 +225,59 @@ fn documents_and_reports() -> Result<(), Box<dyn Error>> {
             );
             let captured_document = captured.document.as_ref().unwrap();
             assert!(!captured_document.frames.is_empty());
+            assert_eq!(
+                captured_document.frames.iter().map(Message::encode_to_vec).collect::<Vec<_>>(),
+                live_frames.iter().map(Message::encode_to_vec).collect::<Vec<_>>()
+            );
             let captured_plot = captured_document.frames.iter().find_map(&plot_request).ok_or("Report Has No Plot Binding")?;
             assert_eq!(captured_plot, live_plot);
             assert_eq!(
                 captured.inputs.as_ref().unwrap().resolved_at.as_ref().unwrap().sequence,
                 prepared.resolved_at.as_ref().unwrap().positions[0].sequence
+            );
+
+            // Compare Embedded Bytes With a Separate Batch at the Fixed Fixture Cut.
+            let fixed = store.cut(&execution)?;
+            let (reader, _cancellation) = store.read_session()?;
+            let envelope = &captured.plots.as_ref().unwrap().envelopes[0];
+            let expected = list::snapshots_at(
+                &reader,
+                &fixed,
+                vec![captured_plot.clone()],
+                super::support::service_settings().page_items,
+                0,
+                &envelope.epoch,
+            )
+            .await?;
+            assert_eq!(envelope.encode_to_vec(), expected[0].encode_to_vec());
+
+            // Duplicate and Independent Selections Preserve Bytes and Request Order in the Shared Batch Path.
+            let mut duplicate = captured_plot.clone();
+            duplicate.plot_id = Some("duplicate".into());
+            let mut histogram = captured_plot.clone();
+            histogram.plot_id = Some("histogram".into());
+            histogram.plot_type = PlotKind::Histogram as i32;
+            histogram.histogram = Some(PlotHistogramOptions { bins: 3, ..Default::default() });
+            let requests = vec![histogram, captured_plot.clone(), duplicate];
+            let mut expected = Vec::new();
+            for request in &requests {
+                let reader = reader.independent_projection();
+                expected.extend(
+                    list::snapshots_at(
+                        &reader,
+                        &fixed,
+                        vec![request.clone()],
+                        super::support::service_settings().page_items,
+                        0,
+                        &envelope.epoch,
+                    )
+                    .await?,
+                );
+            }
+            let batch = plots.list(SnapshotsListRequest { requests, ..Default::default() }).await?.into_inner();
+            assert_eq!(
+                batch.envelopes.iter().map(Message::encode_to_vec).collect::<Vec<_>>(),
+                expected.iter().map(Message::encode_to_vec).collect::<Vec<_>>()
             );
 
             // Publication Retains the Same Inputs and File Across Restart.

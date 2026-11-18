@@ -58,6 +58,7 @@ impl Store {
     }
     pub fn document_value_filtered(&self, cut: &ExecutionCut, expression: &DataExpression, filters: &[PlotFilter]) -> Result<Value> {
         if let Some(data_expression::Kind::Aggregate(aggregate)) = &expression.kind {
+            let _span = tracing::debug_span!("document.reduce").entered();
             let value = self.reduce_expression(
                 cut,
                 aggregate.input.as_deref().ok_or(Error::Data("supply the aggregate input"))?,

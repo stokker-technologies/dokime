@@ -16,19 +16,25 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::{
+    collections::BTreeMap,
+    num::NonZeroUsize,
+    path::Path,
+    result,
+    sync::{Arc, Mutex, atomic::Ordering},
+};
 
 // Third Party Imports
-use arrow_array::{BooleanArray, Int64Array, RecordBatch, StructArray, UInt64Array};
-use arrow_schema::DataType;
+use arrow_array::{BinaryArray, BooleanArray, Int64Array, RecordBatch, StructArray, UInt64Array};
+use arrow_schema::{DataType, Field, Schema};
 use arrow_select::filter::filter_record_batch;
+use harmos_query::{Table, TableWriter};
 use rusqlite::params;
 
 // Local Imports
 use super::catalog;
+use crate::ipc::BatchIndex;
 use crate::{Error, Result, Sample, SampleWindow, Store, ipc};
-
-use std::sync::atomic::Ordering;
 
 /* === Constants === */
 
@@ -48,13 +54,84 @@ pub struct BatchSelection<'a> {
     pub end_ns: i64,
 }
 
+/// Immutable Source Blocks Belong to One Finite Read, Including Its Nested Plot Readers.
+#[derive(Default)]
+pub(crate) struct SampleReads {
+    blocks: Mutex<BTreeMap<(String, u64), Arc<SampleBlock>>>,
+}
+
+#[derive(Default)]
+struct SampleBlock {
+    value: Mutex<Option<Table>>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 
+impl SampleReads {
+    fn batch(&self, store: &Store, path: &Path, index: &BatchIndex, projection: &ipc::Projection, maximum: usize) -> Result<RecordBatch> {
+        store.check_read()?;
+        let key = (path.to_string_lossy().into_owned(), index.offset);
+        let block = {
+            let mut blocks = self.blocks.lock().map_err(|_| Error::Data("start a new read after its source block lock failed"))?;
+            blocks.entry(key).or_insert_with(|| Arc::new(SampleBlock::default())).clone()
+        };
+        let table = {
+            let mut value = block.value.lock().map_err(|_| Error::Data("start a new read after its source block load failed"))?;
+            store.check_read()?;
+            if value.is_none() {
+                let _span = tracing::debug_span!("source.block", samples = index.rows).entered();
+                let buffer = ipc::read_query_buffer(path, index, maximum)?;
+                // Spill Retained Blocks So Earlier Blocks Do Not Accumulate Beyond the Query Working Budget.
+                let schema = Arc::new(Schema::new(vec![Field::new("block", DataType::Binary, false)]));
+                let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(BinaryArray::from_iter_values([buffer.as_slice()]))])?;
+                let mut writer = TableWriter::new(schema)?;
+                writer.push(&batch, &mut || {
+                    store.check_read().map_err(|_| harmos_query::Error::InvalidInput {
+                        field: "query",
+                        reason: "start a new read after cancellation",
+                    })
+                })?;
+                *value = Some(writer.finish()?);
+            }
+            value.as_ref().unwrap().clone()
+        };
+        let mut reader = table.reader()?;
+        let batch = reader
+            .next(&mut || {
+                store.check_read().map_err(|_| harmos_query::Error::InvalidInput {
+                    field: "query",
+                    reason: "start a new read after cancellation",
+                })
+            })?
+            .ok_or(Error::Corrupt("retained source block is absent"))?;
+        let bytes = batch.column(0).as_any().downcast_ref::<BinaryArray>().ok_or(Error::Corrupt("retained source block layout differs"))?;
+        let offsets = bytes.value_offsets();
+        let buffer = bytes.values().slice_with_length(offsets[0] as usize, (offsets[1] - offsets[0]) as usize);
+        ipc::decode_query_buffer(&buffer, index, projection, maximum)
+    }
+}
+
 impl Store {
+    /// Retain Original Source Blocks Through the Library's Bounded Spill Tables for This Request Only.
+    pub fn reuse_sample_reads(&mut self) -> Result<()> {
+        if self.cancelled.is_none() {
+            return Err(Error::Data("start a finite read before retaining its sample blocks"));
+        }
+        self.sample_reads.get_or_insert_with(|| Arc::new(SampleReads::default()));
+        Ok(())
+    }
+
+    /// Isolate Mutable Expression Bindings While Sharing This Request's Cut, Cancellation and Results.
+    pub fn independent_projection(&self) -> Self {
+        let mut reader = self.clone();
+        reader.projection = Arc::new(Mutex::new(None));
+        reader
+    }
+
     pub fn sample_frontier(&self, execution: &str, stream: &str, after: u64, through: u64) -> Result<u64> {
         let connection = self.lock()?;
         let (saved,partial):(u64,Option<u64>)=connection.query_row("SELECT COALESCE(MAX(CASE WHEN b.last_position<=?4 THEN b.last_position END),0),MIN(CASE WHEN b.last_position>?4 THEN b.first_position END) FROM telemetry_batches b JOIN telemetry_files f ON f.id=b.file WHERE f.execution=?1 AND f.stream=?2 AND b.last_position>?3 AND b.first_position<=?4",params![execution,stream,after as i64,through.min(i64::MAX as u64) as i64],|row|Ok((row.get::<_,i64>(0)? as u64,row.get::<_,Option<i64>>(1)?.map(|v|v as u64))))?;
@@ -103,7 +180,15 @@ impl Store {
     pub fn read_batches(
         &self, selection: BatchSelection<'_>, columns: &[String], mut read: impl FnMut(RecordBatch) -> Result<bool>,
     ) -> Result<()> {
-        self.ordered_batches(selection, columns, false, |batch, _| read(batch))
+        let span = tracing::debug_span!("source.read", stream = selection.stream, samples = tracing::field::Empty);
+        let _entered = span.enter();
+        let mut samples = 0;
+        self.ordered_batches(selection, columns, false, |batch, _| {
+            samples += batch.num_rows() as u64;
+            read(batch)
+        })?;
+        span.record("samples", samples);
+        Ok(())
     }
     pub(crate) fn ordered_batches(
         &self, selection: BatchSelection<'_>, columns: &[String], latest: bool, mut read: impl FnMut(RecordBatch, i64) -> Result<bool>,
@@ -126,7 +211,7 @@ impl Store {
                 ],
                 |row| Ok((catalog::index(row)?, row.get::<_, i64>(5)?)),
             )?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .collect::<result::Result<Vec<_>, _>>()?;
         drop(query);
         let tail = if self.cancelled.is_none() {
             self.intake()?
@@ -185,8 +270,7 @@ impl Store {
                 .collect::<Vec<_>>();
             let values =
                 if selected.is_empty() { StructArray::new_empty_fields(batch.num_rows(), None) } else { StructArray::from(selected) };
-            let batch =
-                RecordBatch::try_from_iter(vec![("_storage", batch.column(0).clone()), ("values", std::sync::Arc::new(values) as _)])?;
+            let batch = RecordBatch::try_from_iter(vec![("_storage", batch.column(0).clone()), ("values", Arc::new(values) as _)])?;
             pending.push((batch, end_ns));
         }
         if latest {
@@ -199,7 +283,10 @@ impl Store {
         }
         for (index, end_ns) in indices {
             self.check_read()?;
-            let batch = ipc::read_query_batch(&path, &index, &projection, maximum)?;
+            let batch = match &self.sample_reads {
+                Some(reads) => reads.batch(self, &path, &index, &projection, maximum)?,
+                None => ipc::read_query_batch(&path, &index, &projection, maximum)?,
+            };
             let storage = batch.column(0).as_any().downcast_ref::<StructArray>().ok_or(Error::Corrupt("metadata layout differs"))?;
             let positions = storage.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();
             let times = storage.column_by_name("source_ns").unwrap().as_any().downcast_ref::<Int64Array>().unwrap();

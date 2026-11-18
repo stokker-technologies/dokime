@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 // Third Party Imports
 use arrow_array::{Array, Float64Array, Int64Array, RecordBatch, StructArray, UInt64Array};
@@ -41,6 +42,8 @@ use crate::{Error, NumericWindow, Result, Store};
 
 /* === Type Aliases === */
 
+pub(crate) type SummaryReads = BTreeMap<SummarySelection, Arc<NumericRead>>;
+
 /* === Structs === */
 
 /// Product Projection of Library Aggregate Results; No Persisted Running Moments.
@@ -55,6 +58,11 @@ pub(crate) struct NumericSummary {
     pub average: ScalarValue,
     pub standard_deviation: f64,
     pub rms: f64,
+}
+
+#[derive(Default)]
+pub(crate) struct NumericRead {
+    value: Mutex<Option<NumericSummary>>,
 }
 
 /// An Unprojected Numeric Selection at One Saved Cut; Display Resolution Is Not Part of Its Statistics.
@@ -150,10 +158,18 @@ impl Store {
         // Only Finite Read Sessions Share Results; Live Tails and Projected Selections Are Recomputed.
         let summaries = if self.has_projection(window)? { None } else { self.summaries.as_ref() };
         let selection = SummarySelection::from(window);
-        if let Some(summaries) = summaries
-            && let Some(summary) =
-                summaries.lock().map_err(|_| Error::Data("start a new read after the numeric summary lock failed"))?.get(&selection)
-        {
+        let read = summaries
+            .map(|summaries| -> Result<_> {
+                let mut summaries = summaries.lock().map_err(|_| Error::Data("start a new read after the numeric summary lock failed"))?;
+                Ok(summaries.entry(selection).or_insert_with(|| Arc::new(NumericRead::default())).clone())
+            })
+            .transpose()?;
+        let mut saved = read
+            .as_ref()
+            .map(|read| read.value.lock().map_err(|_| Error::Data("start a new read after its numeric calculation failed")))
+            .transpose()?;
+        self.check_read()?;
+        if let Some(summary) = saved.as_ref().and_then(|saved| saved.as_ref()) {
             return Ok(summary.clone());
         }
         let kinds = [
@@ -212,11 +228,8 @@ impl Store {
             standard_deviation,
             rms,
         };
-        if let Some(summaries) = summaries {
-            summaries
-                .lock()
-                .map_err(|_| Error::Data("start a new read after the numeric summary lock failed"))?
-                .insert(selection, summary.clone());
+        if let Some(saved) = saved.as_mut() {
+            **saved = Some(summary.clone());
         }
         Ok(summary)
     }

@@ -12,6 +12,7 @@
 /* === Modules === */
 
 mod publication;
+mod reports;
 mod windows;
 
 /* === Re-Exports === */
@@ -42,7 +43,7 @@ use prost_types::Timestamp;
 use prost_types::field_descriptor_proto::Label;
 use prost_types::field_descriptor_proto::Type;
 use tempfile::TempDir;
-use tokio::runtime::Builder;
+use tokio::runtime::{Builder, Runtime};
 use tracing::{Id, Subscriber, span::Attributes};
 use tracing_subscriber::{Layer, layer::Context, layer::SubscriberExt, registry::LookupSpan};
 
@@ -269,9 +270,8 @@ impl DocumentFixture {
         };
         Self { document, _fixture: fixture, rows, plots }
     }
-    fn query(&self, store: &Store) {
-        // The Old Cards-And-Plots Workload Captured Values And Plot Payloads,
-        // Without HTML Rendering Or File Output.
+    fn query(&self, store: &Store, executor: &Runtime) {
+        // Query Document Values and Batched Plot Payloads Without Rendering or File Output.
         let cut = store.cut("document").unwrap();
         let (reader, _cancellation) = store.read_session().unwrap();
         let expansion = expansion::expand(&reader, &cut, &self.document, 0, 256).unwrap();
@@ -281,7 +281,7 @@ impl DocumentFixture {
             cycle_id: Some("cycle".into()),
             ..Default::default()
         };
-        let mut plots = 0;
+        let mut requests = Vec::new();
         for section in &expansion.document.sections {
             for card in &section.cards {
                 match card.body.as_ref().unwrap() {
@@ -293,17 +293,19 @@ impl DocumentFixture {
                     Body::Plot(plot) => {
                         let mut request = plot::request(plot, scope.clone()).unwrap();
                         request.max_points = Some(1500);
-                        let envelope = list::snapshot_at(&reader, &cut, &request, 1500, 0, "v1").unwrap();
-                        assert_eq!(envelope.payload.as_ref().unwrap().series[0].raw_points, (self.rows / self.plots) as u64);
-                        black_box(envelope);
+                        requests.push(request);
                         black_box(plot::presentation(&reader, &cut, plot).unwrap());
-                        plots += 1;
                     }
                     _ => unreachable!("declared benchmark cards"),
                 }
             }
         }
-        assert_eq!(plots, self.plots);
+        let envelopes = executor.block_on(list::snapshots_at(&reader, &cut, requests, 1500, 0, "v1")).unwrap();
+        assert_eq!(envelopes.len(), self.plots);
+        for envelope in envelopes {
+            assert_eq!(envelope.payload.as_ref().unwrap().series[0].raw_points, (self.rows / self.plots) as u64);
+            black_box(envelope);
+        }
         black_box(expansion.document);
     }
 }
@@ -428,6 +430,8 @@ fn main() {
     // The In-Process Hosts Run on the Product Host's Multi-Thread Runtime Flavor.
     let executor = Builder::new_multi_thread().enable_all().build().unwrap();
     let _entered = executor.enter();
+    let report_times = reports::Times::default();
+    tracing::subscriber::set_global_default(tracing_subscriber::registry().with(report_times.clone())).unwrap();
     let mut criterion = Criterion::default().configure_from_args();
     let mut group = criterion.benchmark_group("storage");
     group.sample_size(10);
@@ -659,7 +663,7 @@ fn main() {
             );
             group.bench_function(BenchmarkId::new(format!("{name}_{temperature}"), rows), |b| {
                 let document = document.get_or_insert_with(|| DocumentFixture::new(rows, plots, median));
-                document.query(&document._fixture.store);
+                document.query(&document._fixture.store, &executor);
                 b.iter_custom(|iterations| {
                     let mut elapsed = Duration::ZERO;
                     for _ in 0..iterations {
@@ -670,7 +674,7 @@ fn main() {
                             let opened = opening.elapsed();
                             let stages = StageTimes::default();
                             let subscriber = tracing_subscriber::registry().with(stages.clone());
-                            tracing::subscriber::with_default(subscriber, || document.query(&store));
+                            tracing::subscriber::with_default(subscriber, || document.query(&store, &executor));
                             if env::var_os("DOKIME_BENCH_ONCE").is_some() {
                                 println!("Stage | store.open | {:.6} s | 1 call", opened.as_secs_f64());
                                 for (name, (duration, calls)) in stages.0.lock().unwrap().iter() {
@@ -678,7 +682,7 @@ fn main() {
                                 }
                             }
                         } else {
-                            document.query(&document._fixture.store);
+                            document.query(&document._fixture.store, &executor);
                         }
                         elapsed += started.elapsed();
                     }
@@ -706,6 +710,7 @@ fn main() {
         }
     }
     group.finish();
+    reports::benchmark(&mut criterion, &executor, &report_times);
     publication::benchmark(&mut criterion, &executor);
     windows::benchmark(&mut criterion, &executor);
     criterion.final_summary();

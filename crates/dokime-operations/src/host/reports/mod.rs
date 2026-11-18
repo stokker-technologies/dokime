@@ -23,10 +23,10 @@ pub mod publish;
 // Standard Library Imports
 
 // Third Party Imports
-use harmos_protocol::model::FileReference;
 use prost::Message;
 
 // Local Imports
+use dokime_protocol::host::ReportsCreateResponse;
 use dokime_protocol::model::Document;
 
 /* === Constants === */
@@ -48,8 +48,8 @@ struct PreparedReport {
     #[prost(bytes = "vec", tag = "3")]
     execution_seal: Vec<u8>,
 
-    #[prost(message, optional, tag = "4")]
-    file: Option<FileReference>,
+    #[prost(message, optional, tag = "5")]
+    response: Option<ReportsCreateResponse>,
 }
 
 /* === Enums === */
