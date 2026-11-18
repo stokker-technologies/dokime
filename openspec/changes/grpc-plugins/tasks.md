@@ -78,10 +78,11 @@
 - [x] Integration: Migrate Thermal and OBC Evidence Selectors and the Python Plugin Fixture Entrypoint.
 - [x] Integration: Add a Shared Four-Language Capture Description and Record Contract Story Under `sdk/tests`.
 - [ ] Integration: Prove Generation, Ordered Host Fixtures, Four SDKs, Shared Stories, Command-Line Development Stories and Migrated Runtime Stories on the Combined Tree.
-  - [x] Windows: Complete the Ordered Native Proof on the Combined Authoring Candidate.
+  - [ ] Windows: Complete the Ordered Native Proof on the Combined Authoring Candidate; the Two-Desktop Report-Delivery Contract Remains Unresolved.
   - [ ] Linux: Complete the Same Ordered Native Proof After Authorized Delivery.
 - [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
 - [x] Integration: Remove Plaintext Execution-ID Report Assertions Superseded by the Shared Protobuf Capture Renderer.
+- [x] Integration: Align Short Text Prompt Choice Archetypes Across Python, C# and C++ With the Rust SDK and Prove Native Evidence Parity.
 - [ ] Integration: Resolve Fresh Report Publication Versus Retained-Report Delivery in the Two-Desktop Story; Unchanged Report Data Currently Carries Different Notes Read Cuts.
 - [x] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
 

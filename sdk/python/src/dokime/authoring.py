@@ -317,6 +317,7 @@ def prompt(
         if identifier is None and value.metadata.identifier:
             identifier = value.metadata.identifier
     else:
+        value.archetype = shared.PROMPT_ARCHETYPE_CHOICE
         value.message = text
         value.metadata.label = label or text
         for index, choice in enumerate(choices or ("OK",)):
