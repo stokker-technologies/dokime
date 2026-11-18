@@ -39,6 +39,7 @@ use dokime::client::ExecutionsStopOptions;
 use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
+use dokime::client::PromptKind;
 use dokime::client::PromptsAnswersCreateOptions;
 use dokime::client::PromptsListOptions;
 use dokime_protocol::host::prompts::AnswersCreateRequest;
@@ -117,6 +118,7 @@ fn client_answers_operator_prompts() -> Result<(), Box<dyn Error>> {
                 )
                 .await?;
             assert_eq!(pending.prompts.len(), 1);
+            assert_eq!(pending.prompts[0].prompt.as_ref().unwrap().kind, PromptKind::Choice as i32);
             let prompt_id = pending.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
             assert!(
                 prompts

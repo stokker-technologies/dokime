@@ -491,7 +491,7 @@ execution-owned retention proof must run against this repaired pin.
 
 ## Report Capture Receipt Windows
 
-The pinned Harmos revision `ba03ec97c16ac05b249efe83c570b7bc83f4e211`
+The pinned Harmos revision `e8df78630c1cb401e8fdadf7f50fc578b8f0509e`
 resolves evicted mutation receipts through the backend. Product view retention
 continues to use the issued storage mutation window with a fresh request identity;
 no product retries, serialization or increased receipt limits are introduced.
