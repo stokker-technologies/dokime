@@ -191,6 +191,7 @@ pub(super) async fn collect(
             });
         }
         let phase = Instant::now();
+        let sections = document.sections.len();
         let document = documents::get::response_at_with_reader(
             context,
             &host::DocumentsGetRequest {
@@ -203,7 +204,7 @@ pub(super) async fn collect(
             &reader,
         )
         .await?;
-        tracing::debug!(phase = "documents", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "documents", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, sections, "Report Stage");
         let phase = Instant::now();
         let mut requests = Vec::new();
         for frame in &document.frames {
@@ -227,7 +228,7 @@ pub(super) async fn collect(
             &context.host.identity().epoch,
         )
         .await?;
-        tracing::debug!(phase = "plots", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::debug!(phase = "plots", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, plots = envelopes.len(), "Report Stage");
         let phase = Instant::now();
         let mut captured = host::ReportExecution {
             detail: Some(
@@ -442,7 +443,12 @@ pub(super) async fn collect(
             break;
         }
     }
-    tracing::debug!(phase = "records", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+    tracing::debug!(
+        phase = "records",
+        elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0,
+        records = capture.records.iter().map(|page| page.records.len()).sum::<usize>(),
+        "Report Stage"
+    );
     let phase = Instant::now();
     let mut at = None;
     let mut token = String::new();

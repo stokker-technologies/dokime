@@ -7,7 +7,7 @@
  * ***
  */
 
-// Report Creation Measurements
+// Native Report Save Measurements
 
 /* === Modules === */
 
@@ -17,13 +17,11 @@
 
 // Standard Library Imports
 use std::{
-    collections::{BTreeMap, HashMap},
-    env::{self, consts::EXE_SUFFIX},
+    collections::BTreeMap,
+    env,
     fmt::Debug,
     fs,
-    hint::black_box,
-    io::Write,
-    path::{Path, PathBuf},
+    io::{self, Error, ErrorKind},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -31,8 +29,13 @@ use std::{
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion};
 use harmos_protocol::model::{self, Declarations};
+use harmos_runtime::filesystem;
 use prost::Message;
 use prost_types::Timestamp;
+use sha2::{Digest, Sha256};
+use tempfile::NamedTempFile;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 use tokio::runtime::Runtime;
 use tracing::{
     Event, Id, Subscriber,
@@ -42,18 +45,25 @@ use tracing::{
 use tracing_subscriber::{Layer, layer::Context, registry::LookupSpan};
 
 // Local Imports
-use super::{EXPORT_ROWS, WRITE_ROWS, aggregate, boundary, definition, publication, report, samples};
+use super::{WRITE_ROWS, aggregate, boundary, definition, publication, report, samples};
 use dokime::client::ExecutionOutcome;
 use dokime_protocol::builders::Plot;
+use dokime_protocol::host::documents_client::DocumentsClient;
+use dokime_protocol::host::evidence::RecordsAppendRequest;
 use dokime_protocol::host::files_client::FilesClient;
+use dokime_protocol::host::plots::SnapshotsListRequest;
+use dokime_protocol::host::plots::snapshots_client::SnapshotsClient;
 use dokime_protocol::host::reports_client::ReportsClient;
-use dokime_protocol::host::{FilesReadRequest, PromptsCreateResponse, ReportSubject, ReportsCreateRequest, report_subject};
-use dokime_protocol::model::{
-    Aggregate, Card, Document, FieldReference, Metadata, Origin, PluginRun, Section, Suite, Suites, Summary, SummaryTile, Termination,
-    TestCase, TestCaseTemplate, card::Body, origin, parameter_expression, value,
+use dokime_protocol::host::{
+    DocumentScope, DocumentsGetRequest, FilesGetRequest, FilesReadRequest, ReportSubject, ReportsCreateRequest, ReportsGetRequest,
+    ReportsPublishRequest, document_binding_result, document_frame_frame, report_subject,
 };
-use dokime_runtime::{Host, services};
-use dokime_storage::Store;
+use dokime_protocol::model::{
+    Aggregate, Card, Document, FieldReference, Metadata, Origin, PluginRun, RecordContract, RecordContracts, Section, Suite, Suites,
+    Summary, SummaryTile, Termination, TestCase, TestCaseTemplate, card::Body, origin,
+};
+use dokime_runtime::services;
+use dokime_storage::{Evidence, Sample, Store};
 
 /* === Constants === */
 
@@ -156,338 +166,358 @@ impl<S: Subscriber + for<'a> LookupSpan<'a>> Layer<S> for Times {
 /* === Public Functions === */
 
 pub(super) fn benchmark(criterion: &mut Criterion, executor: &Runtime, times: &Times) {
-    let mut group = criterion.benchmark_group("reports");
-    for plots in [1, 116] {
-        boundary(
-            &format!("Report Create, {plots} Plots, 16,384 Unique Samples"),
-            "fixed synthetic sealed stream; shared-window plots, summary values, complete native capture, serialization, template and durable upload; excludes fixture preparation; not the OBC or thermal workstation recording",
-        );
-        group.bench_function(BenchmarkId::new("shared_window", plots), |b| {
-            let (root, server, mut reports) = executor.block_on(async {
-                let root = tempfile::tempdir().unwrap();
-                let store = Store::open(root.path()).unwrap();
-                let mut cards = (0..plots)
-                    .map(|index| {
-                        let metadata = Metadata {
-                            identifier: format!("plot-{index}"),
-                            ..Default::default()
-                        };
-                        let mut plot = Plot::time_series(FieldReference::new("readings").field("value")).message;
-                        plot.metadata = Some(metadata.clone());
-                        Card {
-                            metadata: Some(metadata),
-                            body: Some(Body::Plot(plot)),
-                            ..Default::default()
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                cards.insert(
-                    0,
+    let mut group = criterion.benchmark_group("reports/save");
+    let plots = 116;
+    boundary(
+        &format!("Report Save, {plots} Distinct Streams, Eight Sections and Three Records"),
+        "fixed 1,024 samples per stream; native document/plot browsing prepared first; Create, Publish, Get, Files.Get, bounded Read, SHA-256 verification, adjacent staging, sync and two atomic publications; excludes interactive picker and WebDriver; not the current OBC recording",
+    );
+    group.bench_function(BenchmarkId::new("distinct_streams", plots), |b| {
+        let (root, server, mut reports, mut files, frame_bytes) = executor.block_on(async {
+            let root = tempfile::tempdir().unwrap();
+            let store = Store::open(root.path()).unwrap();
+            let mut cards = (0..plots)
+                .map(|index| {
+                    let metadata = Metadata {
+                        identifier: format!("plot-{index}"),
+                        ..Default::default()
+                    };
+                    let mut plot = Plot::time_series(FieldReference::new(format!("readings-{index}")).field("value")).message;
+                    plot.metadata = Some(metadata.clone());
                     Card {
+                        metadata: Some(metadata),
+                        body: Some(Body::Plot(plot)),
+                        ..Default::default()
+                    }
+                })
+                .collect::<Vec<_>>();
+            cards.insert(
+                0,
+                Card {
+                    metadata: Some(Metadata {
+                        identifier: "statistics".into(),
+                        ..Default::default()
+                    }),
+                    body: Some(Body::Summary(Summary {
+                        tiles: [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Rms]
+                            .into_iter()
+                            .map(|kind| SummaryTile {
+                                value: Some(aggregate("readings-0", kind)),
+                                ..Default::default()
+                            })
+                            .collect(),
+                    })),
+                    ..Default::default()
+                },
+            );
+            let document = Document {
+                metadata: Some(Metadata {
+                    identifier: "report".into(),
+                    ..Default::default()
+                }),
+                sections: cards
+                    .chunks(15)
+                    .enumerate()
+                    .map(|(index, cards)| Section {
                         metadata: Some(Metadata {
-                            identifier: "statistics".into(),
+                            identifier: format!("section-{index}"),
                             ..Default::default()
                         }),
-                        body: Some(Body::Summary(Summary {
-                            tiles: [Aggregate::Count, Aggregate::Min, Aggregate::Max, Aggregate::Mean, Aggregate::Rms]
-                                .into_iter()
-                                .map(|kind| SummaryTile {
-                                    value: Some(aggregate("readings", kind)),
-                                    ..Default::default()
-                                })
-                                .collect(),
-                        })),
+                        cards: cards.to_vec(),
                         ..Default::default()
-                    },
-                );
-                let document = Document {
+                    })
+                    .collect(),
+            };
+            let suites = Suites {
+                suites: vec![Suite {
                     metadata: Some(Metadata {
                         identifier: "report".into(),
                         ..Default::default()
                     }),
-                    sections: cards
-                        .chunks(15)
-                        .enumerate()
-                        .map(|(index, cards)| Section {
-                            metadata: Some(Metadata {
-                                identifier: format!("section-{index}"),
-                                ..Default::default()
-                            }),
-                            cards: cards.to_vec(),
-                            ..Default::default()
-                        })
-                        .collect(),
-                };
-                let suites = Suites {
-                    suites: vec![Suite {
+                    templates: vec![TestCaseTemplate {
                         metadata: Some(Metadata {
-                            identifier: "report".into(),
+                            identifier: "report.capture".into(),
                             ..Default::default()
                         }),
-                        templates: vec![TestCaseTemplate {
-                            metadata: Some(Metadata {
-                                identifier: "report.capture".into(),
-                                ..Default::default()
-                            }),
-                            documents: vec![document],
-                            ..Default::default()
-                        }],
+                        documents: vec![document],
                         ..Default::default()
                     }],
-                };
-                let mut execution = definition();
-                let mut catalog = Declarations::decode(execution.catalog.as_slice()).unwrap();
-                catalog.sections.push(model::Section {
-                    r#type: "dokime.model.v1.Suites".into(),
-                    payload: suites.encode_to_vec(),
-                });
-                execution.catalog = catalog.encode_to_vec();
-                execution.origin = Some(Origin {
-                    kind: Some(origin::Kind::PluginRun(PluginRun {
-                        plugin: "report".into(),
-                        template: "report.capture".into(),
-                        digest: vec![1],
-                        started_at: Some(Timestamp::default()),
-                        test_case: Some(TestCase {
-                            streams: vec!["readings".into()],
-                            ..Default::default()
-                        }),
-                    })),
-                });
-                store.create(&execution).unwrap();
-                store.open_stream("execution", "readings").unwrap();
-                for first in (0..EXPORT_ROWS).step_by(WRITE_ROWS) {
-                    store.sample_batch("execution", &samples(first, WRITE_ROWS)).unwrap();
-                }
-                store.close_streams("execution").unwrap();
-                store.close("execution", Termination::Completed, ExecutionOutcome::default()).unwrap();
-                store.seal("execution").unwrap();
-                store.shutdown_samples().await.unwrap();
-                drop(store);
-                let settings = publication::settings();
-                let operations = services::ClientSettings {
-                    read_timeout: Duration::from_secs(30),
-                    mutation_timeout: Duration::from_secs(30),
-                    watch_timeout: Duration::from_secs(30),
-                    max_cases: 1000,
-                    page_items: 1000,
-                    message_bytes: settings.placement.message_bytes.get(),
-                    stream_buffer: settings.placement.stream_window.get(),
-                };
-                let server = services::serve(([127, 0, 0, 1], 0).into(), root.path(), settings, operations).await.unwrap();
-                let reports = ReportsClient::connect(format!("http://{}", server.endpoint())).await.unwrap();
-                (root, server, reports)
-            });
-            let mut sequence = 0;
-            b.iter_custom(|iterations| {
-                executor.block_on(async {
-                    let mut elapsed = Duration::ZERO;
-                    for _ in 0..iterations {
-                        times.0.lock().unwrap().clear();
-                        let request = ReportsCreateRequest {
-                            subject: Some(ReportSubject {
-                                kind: Some(report_subject::Kind::Execution("execution".into())),
-                            }),
-                            document_id: "report".into(),
-                            request_id: format!("report-{sequence}"),
-                        };
-                        sequence += 1;
-                        let started = Instant::now();
-                        black_box(reports.create(request).await.unwrap());
-                        elapsed += started.elapsed();
-                        if env::var_os("DOKIME_BENCH_ONCE").is_some() {
-                            for (phase, values) in times.0.lock().unwrap().iter_mut() {
-                                values.sort_by(f64::total_cmp);
-                                let middle = values.len() / 2;
-                                let median =
-                                    if values.len() % 2 == 0 { (values[middle - 1] + values[middle]) / 2.0 } else { values[middle] };
-                                println!(
-                                    "Report Stage | {phase} | total={:.6} min={:.6} median={:.6} max={:.6} | {} calls",
-                                    values.iter().sum::<f64>(),
-                                    values[0],
-                                    median,
-                                    values[values.len() - 1],
-                                    values.len()
-                                );
-                            }
-                        }
-                    }
-                    report(elapsed, iterations)
+                    ..Default::default()
+                }],
+            };
+            let mut execution = definition();
+            let mut catalog = Declarations::decode(execution.catalog.as_slice()).unwrap();
+            let declaration = catalog.streams.remove(0);
+            catalog.streams = (0..plots)
+                .map(|index| model::StreamDeclaration {
+                    id: format!("readings-{index}"),
+                    ..declaration.clone()
                 })
-            });
-            executor.block_on(async {
-                server.close().await.unwrap();
-                services::remove_credentials(root.path(), &publication::credentials()).unwrap();
-            });
-        });
-    }
-    for (name, executable, template, action) in
-        [("thermal", "dokime-rust-thermal", "thermal.cycle", "0"), ("obc", "plugin-obc", "obc.benchmark.plots", "yes")]
-    {
-        group.bench_function(format!("examples/{name}"), |b| {
-            let (root, execution) = executor.block_on(async {
-                let root = PathBuf::from(
-                    env::var_os("DOKIME_REPORT_EXAMPLE_ROOT")
-                        .expect("Measure Example Reports: Select a Fresh Benchmark Root with DOKIME_REPORT_EXAMPLE_ROOT"),
-                )
-                .join(name);
-                fs::create_dir_all(&root).unwrap();
-                if root.join("execution.sqlite3").exists() {
-                    let store = Store::open(&root).unwrap();
-                    let execution = store.identifiers().unwrap().remove(0);
-                    return (root, execution);
-                }
-                let settings = publication::settings();
-                let operations = services::ClientSettings {
-                    read_timeout: Duration::from_secs(30),
-                    mutation_timeout: Duration::from_secs(30),
-                    watch_timeout: Duration::from_secs(30),
-                    max_cases: 1000,
-                    page_items: 1000,
-                    message_bytes: settings.placement.message_bytes.get(),
-                    stream_buffer: settings.placement.stream_window.get(),
-                };
-                let host = Host::open(&root, settings, operations).await.unwrap();
-                let executable = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../target/debug/{executable}{EXE_SUFFIX}"));
-                let entry = host.add_managed(name, &executable, &[]).await.unwrap();
-                let catalog = host.catalog(&entry).unwrap();
-                let definition = catalog
-                    .suites
-                    .iter()
-                    .flat_map(|suite| &suite.templates)
-                    .find(|definition| definition.metadata.as_ref().unwrap().identifier == template)
-                    .unwrap();
-                let mut parameters = definition
-                    .parameters
-                    .iter()
-                    .map(|parameter| {
-                        let Some(parameter_expression::Kind::Literal(value)) =
-                            parameter.expression.as_ref().and_then(|expression| expression.kind.as_ref())
-                        else {
-                            panic!("Measure Example Reports: Resolve the Template's Nonliteral Parameter");
-                        };
-                        (parameter.metadata.as_ref().unwrap().identifier.clone(), value.clone())
-                    })
-                    .collect::<HashMap<_, _>>();
-                if name == "obc" {
-                    parameters.get_mut("duration_s").unwrap().kind = Some(value::Kind::Number(1.0));
-                    parameters.get_mut("sample_interval_s").unwrap().kind = Some(value::Kind::Number(0.001));
-                }
-                let origin = host.materialize(&entry, template, parameters).await.unwrap();
-                let cycle = host.start_cycle(vec![origin]).await.unwrap();
-                let execution = cycle.executions[0].clone();
-                let prompt = host.next_prompt(&execution).await.unwrap();
-                host.answer(
-                    &execution,
-                    PromptsCreateResponse {
-                        prompt: prompt.prompt,
-                        action: action.into(),
-                        accepted: true,
+                .collect();
+            let records = RecordContracts {
+                records: vec![RecordContract {
+                    metadata: Some(Metadata {
+                        identifier: "reading".into(),
                         ..Default::default()
-                    },
-                )
-                .unwrap();
-                let snapshot = cycle.wait().await.unwrap();
-                println!(
-                    "Example Source | {name} | {} samples | {} records",
-                    snapshot.executions[0].samples.len(),
-                    snapshot.executions[0].evidence.iter().filter(|entry| entry.kind.starts_with("record:")).count()
-                );
-                host.shutdown().await.unwrap();
-                services::remove_credentials(&root, &publication::credentials()).unwrap();
-                (root, execution)
+                    }),
+                    message: "benchmark.Row".into(),
+                }],
+            };
+            catalog.sections.push(model::Section {
+                r#type: "dokime.model.v1.RecordContracts".into(),
+                payload: records.encode_to_vec(),
             });
-            let (server, mut reports, mut files) = executor.block_on(async {
-                let settings = publication::settings();
-                let operations = services::ClientSettings {
-                    read_timeout: Duration::from_secs(30),
-                    mutation_timeout: Duration::from_secs(30),
-                    watch_timeout: Duration::from_secs(30),
-                    max_cases: 1000,
-                    page_items: 1000,
-                    message_bytes: settings.placement.message_bytes.get(),
-                    stream_buffer: settings.placement.stream_window.get(),
+            catalog.sections.push(model::Section {
+                r#type: "dokime.model.v1.Suites".into(),
+                payload: suites.encode_to_vec(),
+            });
+            execution.catalog = catalog.encode_to_vec();
+            execution.origin = Some(Origin {
+                kind: Some(origin::Kind::PluginRun(PluginRun {
+                    plugin: "report".into(),
+                    template: "report.capture".into(),
+                    digest: vec![1],
+                    started_at: Some(Timestamp::default()),
+                    test_case: Some(TestCase {
+                        streams: (0..plots).map(|index| format!("readings-{index}")).collect(),
+                        ..Default::default()
+                    }),
+                })),
+            });
+            store.create(&execution).unwrap();
+            for index in 0..plots {
+                let stream = format!("readings-{index}");
+                store.open_stream("execution", &stream).unwrap();
+                let rows = samples(0, WRITE_ROWS).into_iter().map(|row| Sample { stream: stream.clone(), ..row }).collect::<Vec<_>>();
+                store.sample_batch("execution", &rows).unwrap();
+            }
+            for index in 0..3 {
+                let record = RecordsAppendRequest {
+                    execution: "execution".into(),
+                    kind: "reading".into(),
+                    payload: samples(index, 1).remove(0).row,
+                    source_at: Some(Timestamp::default()),
+                    request_id: format!("record-{index}"),
                 };
-                let server = services::serve(([127, 0, 0, 1], 0).into(), &root, settings, operations).await.unwrap();
-                let endpoint = format!("http://{}", server.endpoint());
-                let reports = ReportsClient::connect(endpoint.clone()).await.unwrap();
-                let files = FilesClient::connect(endpoint).await.unwrap();
-                (server, reports, files)
-            });
-            b.iter_custom(|iterations| {
-                executor.block_on(async {
-                    let mut elapsed = Duration::ZERO;
-                    for _ in 0..iterations {
-                        times.0.lock().unwrap().clear();
-                        let request = ReportsCreateRequest {
-                            subject: Some(ReportSubject {
-                                kind: Some(report_subject::Kind::Execution(execution.clone())),
-                            }),
-                            request_id: uuid::Uuid::now_v7().to_string(),
+                store
+                    .append(
+                        "execution",
+                        Evidence {
+                            kind: "record:reading".into(),
+                            payload: record.encode_to_vec(),
                             ..Default::default()
-                        };
-                        let started = Instant::now();
-                        let response = reports.create(request).await.unwrap().into_inner();
-                        let creation = started.elapsed();
-                        elapsed += creation;
-                        let reference = response.file.unwrap();
-                        let started = Instant::now();
-                        let mut bytes = Vec::new();
-                        let mut at = None;
-                        while (bytes.len() as u64) < reference.length {
-                            let reply = files
-                                .read(FilesReadRequest {
-                                    file: Some(reference.clone()),
-                                    offset: bytes.len() as u64,
-                                    max_bytes: 0,
-                                    at,
-                                })
-                                .await
-                                .unwrap()
-                                .into_inner();
-                            assert!(!reply.data.is_empty());
-                            bytes.extend(reply.data);
-                            at = reply.resolved_at;
+                        },
+                    )
+                    .unwrap();
+            }
+            println!("Report Source | 8 sections | {plots} distinct-stream plots | {} samples | 3 records", plots * WRITE_ROWS);
+            store.close_streams("execution").unwrap();
+            store.close("execution", Termination::Completed, ExecutionOutcome::default()).unwrap();
+            store.seal("execution").unwrap();
+            store.shutdown_samples().await.unwrap();
+            drop(store);
+            let settings = publication::settings();
+            let operations = services::ClientSettings {
+                read_timeout: Duration::from_secs(30),
+                mutation_timeout: Duration::from_secs(30),
+                watch_timeout: Duration::from_secs(30),
+                max_cases: 1000,
+                page_items: 1000,
+                message_bytes: settings.placement.message_bytes.get(),
+                stream_buffer: settings.placement.stream_window.get(),
+            };
+            let frame_bytes = operations.message_bytes as u64;
+            let server = services::serve(([127, 0, 0, 1], 0).into(), root.path(), settings, operations).await.unwrap();
+            let endpoint = format!("http://{}", server.endpoint());
+            let reports = ReportsClient::connect(endpoint.clone()).await.unwrap();
+            let files = FilesClient::connect(endpoint.clone()).await.unwrap();
+            let mut documents = DocumentsClient::connect(endpoint.clone()).await.unwrap();
+            let mut snapshots = SnapshotsClient::connect(endpoint).await.unwrap();
+            // Prepare Native Browsing Views Before the Save, Like the Desktop
+            let mut at = None;
+            let mut page_token = String::new();
+            loop {
+                let document = documents
+                    .get(DocumentsGetRequest {
+                        scope: Some(DocumentScope {
+                            cycle_id: "cycle".into(),
+                            execution_id: "execution".into(),
+                        }),
+                        document_id: "report".into(),
+                        at,
+                        page_token,
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap()
+                    .into_inner();
+                for frame in document.frames {
+                    let Some(document_frame_frame::Kind::Binding(binding)) = frame.frame.and_then(|frame| frame.kind) else { continue };
+                    let Some(document_binding_result::Kind::Plot(plot)) = binding.result.and_then(|result| result.kind) else {
+                        continue;
+                    };
+                    snapshots
+                        .list(SnapshotsListRequest {
+                            requests: vec![plot.request.unwrap()],
+                            ..Default::default()
+                        })
+                        .await
+                        .unwrap();
+                }
+                at = document.resolved_at;
+                page_token = document.next_page_token;
+                if page_token.is_empty() {
+                    break;
+                }
+            }
+            (root, server, reports, files, frame_bytes)
+        });
+        let mut sequence = 0;
+        b.iter_custom(|iterations| {
+            let result: io::Result<Duration> = executor.block_on(async {
+                let mut elapsed = Duration::ZERO;
+                for _ in 0..iterations {
+                    times.0.lock().unwrap().clear();
+                    let subject = ReportSubject {
+                        kind: Some(report_subject::Kind::Execution("execution".into())),
+                    };
+                    let request = ReportsCreateRequest {
+                        subject: Some(subject.clone()),
+                        document_id: "report".into(),
+                        request_id: format!("report-{sequence}"),
+                    };
+                    sequence += 1;
+                    let started = Instant::now();
+
+                    // Create and Publish the Frozen Execution Report
+                    let prepared = reports.create(request).await.unwrap().into_inner();
+                    let creation = started.elapsed();
+                    let reference = prepared.file.unwrap();
+                    let publishing = Instant::now();
+                    let published = reports
+                        .publish(ReportsPublishRequest {
+                            subject: Some(subject.clone()),
+                            name: reference.metadata.as_ref().unwrap().id.clone(),
+                            expected_revision: reference.sha256,
+                            request_id: format!("publish-{sequence}"),
+                        })
+                        .await
+                        .unwrap()
+                        .into_inner();
+                    let publication = publishing.elapsed();
+
+                    // Resolve the Published File and Its Transfer Cut
+                    let selecting = Instant::now();
+                    let selected = reports
+                        .get(ReportsGetRequest {
+                            subject: Some(subject),
+                            name: published.report.unwrap().identifier,
+                            at: None,
+                        })
+                        .await
+                        .unwrap()
+                        .into_inner();
+                    let reference = selected.file.unwrap();
+                    let selected = files.get(FilesGetRequest { file: Some(reference.clone()), at: None }).await.unwrap().into_inner();
+                    let selected_file = selected.file.as_ref().unwrap();
+                    if selected_file.length != reference.length || selected_file.sha256 != reference.sha256 {
+                        return Err(Error::new(ErrorKind::InvalidData, "Measure Report Save: Restore Its Unchanged Selected File"));
+                    }
+                    let maximum =
+                        frame_bytes.saturating_sub(1024).min(selected.chunk_bytes).min(selected.message_bytes.saturating_sub(1024));
+                    if maximum == 0 {
+                        return Err(Error::new(ErrorKind::InvalidData, "Measure Report Save: Restore Its Positive Transfer Limits"));
+                    }
+                    let selection = selecting.elapsed();
+
+                    // Stream, Verify and Durably Publish Beside the Destination
+                    let staged = tempfile::Builder::new().prefix(".report-").tempfile_in(root.path())?.into_temp_path();
+                    fs::remove_file(&staged)?;
+                    let output = NamedTempFile::new_in(root.path())?;
+                    let mut file = File::from_std(output.reopen()?);
+                    let mut digest = Sha256::new();
+                    let mut offset = 0;
+                    let mut at = selected.resolved_at;
+                    let mut transfer = Duration::ZERO;
+                    while offset < reference.length {
+                        let reading = Instant::now();
+                        let reply = files
+                            .read(FilesReadRequest {
+                                file: Some(reference.clone()),
+                                offset,
+                                max_bytes: maximum,
+                                at: at.clone(),
+                            })
+                            .await
+                            .unwrap()
+                            .into_inner();
+                        transfer += reading.elapsed();
+                        if reply.total_length != reference.length
+                            || reply.sha256 != reference.sha256
+                            || reply.data.is_empty()
+                            || reply.data.len() as u64 > maximum
+                            || offset.saturating_add(reply.data.len() as u64) > reference.length
+                            || reply.resolved_at.is_none()
+                            || at.is_some() && at != reply.resolved_at
+                        {
+                            return Err(Error::new(
+                                ErrorKind::InvalidData,
+                                "Measure Report Save: Restore Its Complete File at the Returned Cut",
+                            ));
                         }
-                        let transfer = started.elapsed();
-                        let started = Instant::now();
-                        let mut output = tempfile::tempfile().unwrap();
-                        output.write_all(&bytes).unwrap();
-                        output.sync_all().unwrap();
-                        let write = started.elapsed();
-                        if env::var_os("DOKIME_BENCH_ONCE").is_some() {
+                        at = reply.resolved_at;
+                        offset += reply.data.len() as u64;
+                        digest.update(&reply.data);
+                        file.write_all(&reply.data).await?;
+                    }
+                    if digest.finalize().as_slice() != reference.sha256.as_slice() {
+                        return Err(Error::new(ErrorKind::InvalidData, "Measure Report Save: Restore Bytes Matching Its File Digest"));
+                    }
+                    file.flush().await?;
+                    file.sync_all().await?;
+                    drop(file);
+                    output.persist_noclobber(&staged).map_err(|source| source.error)?;
+                    let input = fs::OpenOptions::new().read(true).write(true).open(&staged)?;
+                    input.sync_all()?;
+                    drop(input);
+                    filesystem::publication::install(&staged, &root.path().join(format!("report-{sequence}.html")))
+                        .map_err(|source| Error::other(format!("Measure Report Save: Publish Its New Destination: {source}")))?;
+                    let total = started.elapsed();
+                    elapsed += total;
+                    if env::var_os("DOKIME_BENCH_ONCE").is_some() {
+                        println!(
+                            "Report Save | create={:.6} publish={:.6} select={:.6} transfer={:.6} write={:.6} total={:.6} ms",
+                            creation.as_secs_f64() * 1000.0,
+                            publication.as_secs_f64() * 1000.0,
+                            selection.as_secs_f64() * 1000.0,
+                            transfer.as_secs_f64() * 1000.0,
+                            total.saturating_sub(creation + publication + selection + transfer).as_secs_f64() * 1000.0,
+                            total.as_secs_f64() * 1000.0
+                        );
+                        for (phase, values) in times.0.lock().unwrap().iter_mut() {
+                            values.sort_by(f64::total_cmp);
+                            let middle = values.len() / 2;
+                            let median = if values.len() % 2 == 0 { (values[middle - 1] + values[middle]) / 2.0 } else { values[middle] };
                             println!(
-                                "Example | {name} | create={:.6} transfer={:.6} write={:.6} total={:.6} ms",
-                                creation.as_secs_f64() * 1000.0,
-                                transfer.as_secs_f64() * 1000.0,
-                                write.as_secs_f64() * 1000.0,
-                                (creation + transfer + write).as_secs_f64() * 1000.0
+                                "Report Stage | {phase} | total={:.6} min={:.6} median={:.6} max={:.6} | {} calls",
+                                values.iter().sum::<f64>(),
+                                values[0],
+                                median,
+                                values[values.len() - 1],
+                                values.len()
                             );
-                            for (phase, values) in times.0.lock().unwrap().iter_mut() {
-                                values.sort_by(f64::total_cmp);
-                                let middle = values.len() / 2;
-                                let median =
-                                    if values.len() % 2 == 0 { (values[middle - 1] + values[middle]) / 2.0 } else { values[middle] };
-                                println!(
-                                    "Report Stage | {phase} | total={:.6} min={:.6} median={:.6} max={:.6} | {} calls",
-                                    values.iter().sum::<f64>(),
-                                    values[0],
-                                    median,
-                                    values[values.len() - 1],
-                                    values.len()
-                                );
-                            }
                         }
                     }
-                    report(elapsed, iterations)
-                })
+                }
+                Ok(report(elapsed, iterations))
             });
-            executor.block_on(async {
-                server.close().await.unwrap();
-                services::remove_credentials(&root, &publication::credentials()).unwrap();
-            });
+            result.expect("Measure Report Save: Restore Its Verified Native Delivery")
         });
-    }
+        executor.block_on(async {
+            server.close().await.unwrap();
+            services::remove_credentials(root.path(), &publication::credentials()).unwrap();
+        });
+    });
     group.finish();
 }
 

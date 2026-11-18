@@ -45,7 +45,7 @@ import { printReportSaveTimings, saveReport } from "./report-save.mjs";
 
 /* === Constants === */
 
-const { values: options } = parseArgs({ options: { scene: { type: "string" } } });
+const { values: options } = parseArgs({ options: { scene: { type: "string" }, profile: { type: "string", default: "dev" } } });
 const scenes = ["cycle", "plots", "report", "history", "library", "cycles", "touch"];
 assert.ok(!options.scene || scenes.includes(options.scene), "Unknown screenshot scene");
 const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -64,7 +64,7 @@ const environment = {
   GIT_CONFIG_GLOBAL: join(work, "empty-gitconfig"),
   GIT_CONFIG_COUNT: "0",
   DOKIME_TEST_HUB_OPERATOR: "Bench Operator",
-  RUST_LOG: "info,dokime_runtime=debug,dokime_operations::host::files::transfer=debug",
+  RUST_LOG: process.env.RUST_LOG ?? "info,dokime_runtime=debug,dokime_operations::host::files::transfer=debug",
 };
 let session;
 let backend;
@@ -470,7 +470,7 @@ try {
 
       // Generate The Saved Report And Open Its Actual HTML In The Webview.
       const reportPath = join(work, "report.html");
-      const saved = await saveReport(session, reportPath, { label: "OBC" });
+      const saved = await saveReport(session, reportPath, { label: "OBC", executionId });
       const html = await readFile(saved.path, "utf8");
       await writeFile(join(evidence, "report.html"), html);
       assert.ok(html.includes('id="hub-report-data"'), "The real saved report contains its captured document");

@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::time::Instant;
 
 // Third Party Imports
 use harmos_operations::storage::{GetFileBytes, GetFileBytesRequest};
@@ -54,6 +55,7 @@ pub const ID: &str = "dokime.host.v1.Reports/Publish";
 
 pub async fn handle(context: &Context, request: ReportsPublishRequest) -> Result<ReportsPublishResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
+        let started = Instant::now();
         let (prepared, revision) = administration::message::<PreparedReport>(context, &request.name).await?;
         if revision.is_empty() {
             return Err(Error::NotFound("Publish Report: Create Its Prepared Report First".into()));
@@ -105,6 +107,7 @@ pub async fn handle(context: &Context, request: ReportsPublishRequest) -> Result
         let scope = Scope::Execution(&report.execution).identifier()?;
         administration::retain(context, &key, scope, &retained).await?;
         let cut = context.host.store().metadata(&report.execution)?;
+        tracing::info!(publication_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Published");
         Ok(ReportsPublishResponse {
             report: Some(ReportMetadata {
                 test_cycle_id: cut.execution.cycle,

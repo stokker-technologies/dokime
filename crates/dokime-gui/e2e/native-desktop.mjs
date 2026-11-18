@@ -249,7 +249,7 @@ async function reportsAndHistory() {
   assert.equal(before.report.state, "REPORT_STATE_PENDING");
   await desktop.goto(`/cycles/${cycle.cycleId}?executionId=${executionId}`, { reload: true });
   const path = join(work, "thermal-execution.html");
-  const saved = await saveReport(desktop, path, { label: "Thermal", hostLog: join(evidence, "backend.log") });
+  const saved = await saveReport(desktop, path, { label: "Thermal", executionId });
   const after = await call(desktop, "Executions", "Get", { name: executionId }).then((reply) => reply.execution);
   assert.equal(after.report.state, "REPORT_STATE_READY");
   const html = await readFile(saved.path, "utf8");
