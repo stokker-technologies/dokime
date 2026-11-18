@@ -13,6 +13,7 @@
 # Standard Library Imports
 import json
 import math
+import re
 import shutil
 from pathlib import Path
 from statistics import median
@@ -43,6 +44,25 @@ from ..release import reports
 
 def collect(directory: Path, home: Path, identity: dict, threshold: float, *, refresh: bool, success: bool) -> None:
     """Publish Explicit Missing Stages and Refusals Alongside Numeric Observations."""
+    # Match the Positional Criterion Filter Passed by --select.
+    selection = next((argument for argument in identity.get("arguments", []) if not argument.startswith("-")), "")
+    try:
+        expression = re.compile(selection)
+    except re.PatternError as error:
+        raise ValueError("Run Desktop Bench Tests: provide a valid --select expression") from error
+    expected = []
+    for history_rows in (2_073_600, 307_200, 1_536_000, 3_072_000):
+        conditions = (
+            ("cold", "warm", "live", "late", "zoom", "resize", "navigation", "stalled")
+            if history_rows == 2_073_600
+            else ("cold", "warm", "live")
+        )
+        group = "desktop_round_trip" if history_rows == 2_073_600 else f"desktop_history_round_trip/{history_rows}"
+        for count in (30, 100):
+            for condition in conditions:
+                if expression.search(f"{group}/{count}/{condition}"):
+                    expected.append((history_rows, count, condition))
+
     source = home / "observations.json"
     if not source.is_file():
         raise ValueError("Run Desktop Bench Tests: desktop benchmark wrote no observations")
@@ -53,6 +73,8 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
     groups = {}
     for result in current["results"]:
         history_rows = result.get("rows", current["fixture"]["rows"])
+        if (history_rows, result["count"], result["condition"]) not in expected:
+            continue
         groups.setdefault((history_rows, result["count"], result["condition"]), []).append(result)
     revision = policy.execute(directory, ["git", "rev-parse", "HEAD"], capture=True).strip()
     rows = []
@@ -155,34 +177,27 @@ def collect(directory: Path, home: Path, identity: dict, threshold: float, *, re
             or "; ".join(completion.get("errors", []))
             or "Native desktop benchmark exited without completing measurements"
         )
-        for history_rows in (2_073_600, 307_200, 1_536_000, 3_072_000):
-            conditions = (
-                ("cold", "warm", "live", "late", "zoom", "resize", "navigation", "stalled")
-                if history_rows == 2_073_600
-                else ("cold", "warm", "live")
+        for history_rows, count, condition in expected:
+            if (history_rows, count, condition) in groups and completion.get("measuring") != f"{history_rows}/{count}/{condition}":
+                continue
+            case = f"desktop/{history_rows}/{count}/{condition}"
+            rows.append(
+                {
+                    "name": case,
+                    **reports.identity(
+                        "rust/desktop",
+                        paths.target(),
+                        case,
+                        "Document request or prepared-view action through visible draw",
+                        state=condition,
+                    ),
+                    "status": "not_measured",
+                    "reason": reason,
+                    "value": None,
+                    "baseline_value": None,
+                    "revision": revision,
+                }
             )
-            for count in (30, 100):
-                for condition in conditions:
-                    if (history_rows, count, condition) in groups and completion.get("measuring") != f"{history_rows}/{count}/{condition}":
-                        continue
-                    case = f"desktop/{history_rows}/{count}/{condition}"
-                    rows.append(
-                        {
-                            "name": case,
-                            **reports.identity(
-                                "rust/desktop",
-                                paths.target(),
-                                case,
-                                "Document request or prepared-view action through visible draw",
-                                state=condition,
-                            ),
-                            "status": "not_measured",
-                            "reason": reason,
-                            "value": None,
-                            "baseline_value": None,
-                            "revision": revision,
-                        }
-                    )
     summary = {
         "benchmarks": rows,
         "identity": identity,
