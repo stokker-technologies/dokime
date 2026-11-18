@@ -1073,3 +1073,1590 @@ async def main() -> None:
 Most handle methods compose several operations, so the Python handles are
 written by hand first; generating them from operation definitions is deferred
 until the other languages follow.
+
+## SDK Surface Specification
+
+This section specifies the implementation target, not landed functionality. The
+preceding locked section and `seal-finality` retain precedence. NEW means an
+addition to the checked-in SDK, including a new author-facing projection of an
+existing transport facility. Source references below describe this checkout
+before implementation. The reference is every project file in
+`D:/scratch/dokime-python`, including its source tree, configuration, icon and
+locally resolved lock; its `.venv/` is an installed environment, not starter
+source. Its lock is read for context and is not shipped.
+
+### Python Public Homes
+
+The distribution remains `dokime-sdk`; its only import package is `dokime_sdk`.
+These are the complete deliberately exported names at the three author entry
+points. Implementation modules begin with `_`; no `__all__`, dynamic attribute
+exports, import aliases, public wire modules or alternate import homes are added.
+The two names `Context` denote different classes, each owned by its submodule.
+
+```python
+# dokime_sdk
+from dokime_sdk import (
+    Artifact, Case, Cases, Client, Cycle, Cycles, Execution, Executions,
+    Failure, Note, Outcome, Plugin, Plugins, Progress, PromptAnswer,
+    PromptQuestion, RegisteredPlugin, ResultStatus, Scalar, SdkError,
+    Suite, connect,
+)
+
+# dokime_sdk.operations
+from dokime_sdk.operations import (
+    BoundOperation, Context, FailureError, Operation, OperationPolicy, Payload,
+    RetryPolicy, SecretDeclaration, SettingDeclaration, SettingGroup,
+    SettingValue, StreamSubscription, Visibility, operation,
+)
+
+# dokime_sdk.templates
+from dokime_sdk.templates import (
+    Aggregate, AxisScale, BarArrangement, CaptureGap, CaptureMode,
+    CaptureResult, CapturedArtifact, Card, Context, ContourRender, DataExpression, Document,
+    Environment, Expression, FileLocation, FileParameter, FileRule, FileRuleAction,
+    FileSelection, FileSource, FtpLocation, GridAxisEntry, GridHighlight, LineField, LineMarker, LineMatcher,
+    Materialization, MirrorCapture, Parameter,
+    ParameterDefinition, Plot, PlotStyle, Prompt, PromptDeclaration,
+    Record, RecordRow, RecordsQuery, Reduction, ReferenceBand, ReferenceLine, SampleRow, SamplesQuery,
+    Section, Severity, Statistics, Stream, StreamCapture, Summary, Termination,
+    TestTemplate, Window, XyInterval, bar, box_plot, contour, criterion, field,
+    frequency_series, grid_chart, histogram, materialize, observer, pie,
+    plot_card, prompt, record, records_card, step, stream, time_series,
+    trajectory, window_observer, xy,
+)
+```
+
+`Cases`, `Cycles`, `Executions` and `Plugins` are typed resource objects returned
+by `Client`; consumers do not construct them or the bound handles themselves.
+`Scalar` retains the lossless recursive value domain in today's `values.py:35`:
+None, bool, int, float, str, bytes, Fraction, timezone-aware datetime, lists and
+tuples of scalars. `Payload` is bool, str, int, float or a protobuf message.
+Transport imports used privately by the SDK are not consumer requirements.
+Generated operation/resource clients remain internal implementation inputs;
+each client-callable operation must still have a generated typed binding. The
+public handle compositions below do not create automatic streaming RPC twins.
+
+| Current Name or Inventory | New Home or Removal |
+|---|---|
+| `dokime._plugin.Plugin`, root `Plugin` | Root `dokime_sdk.Plugin`; replace constructor composition with the class below. |
+| `dokime.authoring.Suite`, root generated `Suite` | Root `dokime_sdk.Suite`; one author class, protocol suite internal. |
+| `dokime.authoring.Template`, root `Template`, `TestCaseTemplate` | `dokime_sdk.templates.TestTemplate`; protocol messages internal. |
+| `dokime.authoring.Case`, root `Case` | `templates.Materialization`; root `Case` becomes the bound client case. |
+| `dokime.authoring.suite`, `_SUITES`, single-template suite shortcut | Removed; explicit suite class owns template classes. |
+| Root `Context`, `_context.Context` | Separate `operations.Context` and `templates.Context`; remove root export and old unified context. |
+| `dokime.operations.{Operation,Visibility,operation}` | Same names in `dokime_sdk.operations`; operation annotations replace request/response decorator arguments. |
+| `Step`, `Criterion`, `Sampling` implementation values | Internal; decorators are the public declaration syntax. |
+| `authoring.{record,prompt,step,criterion,materialize,stream,observer,window_observer,Record,Stream,PromptDeclaration}` | Same names in `dokime_sdk.templates`. |
+| `dokime.parameters.Parameter` builder; root generated `Parameter` | `templates.Parameter` builder and `templates.ParameterDefinition` data, respectively; no name collision. |
+| `dokime.documents` and `dokime.plot` public names | Same builder/function/enum names in `dokime_sdk.templates`; generated document/plot messages internal. |
+| `dokime.connection.connect` | Root `connect`; connection implementation private. |
+| `dokime.client.ClientRoot` | Root `Client`; generated ClientRoot private, no public channel constructor. |
+| `dokime.evidence.{Cycle,Execution,Telemetry,TelemetryRow,cycle,execution,executions}` | Bound root `Cycle`/`Execution`, `templates.SamplesQuery`/`SampleRow`, and client resource lookups; delete free selectors and old handles. |
+| `dokime.schemas.FrozenSchemaCache` | Internal verified descriptor cache used by all readback handles. |
+| `dokime.transfers.{upload_bytes,upload_file,download_report}` | Internal transfers used by plugin upload, artifacts, evidence and generated report bindings. |
+| `dokime.values.{encode,decode}` | Internal scalar conversion; `Scalar` has the root home above. |
+| Root `FailureError`, `FailureValue` | `operations.FailureError`, root `Failure` data and `SdkError`; no carrier exception escapes. |
+| Root `Window` | `templates.Window`, product sampling window. |
+| Root generated `ResultStatus` and `RESULT_STATUS_*` | Root `ResultStatus` enum with prefix-free members; remove constants. |
+| Root generated policy/settings/secret declarations | `operations` names above; raw protocol representations internal. |
+| Root generated `FileSource`, `FileParameter`, `CaptureMode`, `Severity`, `Termination`, `Prompt`, `Card` | Same names in `templates`, product values over the existing contracts. |
+| Root generated `DataExpression`, `GridAxisEntry`, `GridHighlight`, `ReferenceLine`, `ReferenceBand` and capture constituent values | Same names in `templates`; these model values supply public builder arguments without a wire package path. |
+| All other exports in today's root, `client.py`, `plugin/__init__.py`, `model`, `harmos`, `_generated/_exports/**` | Internal generated inventory; none is an additional public barrel. |
+| `Plugin.start`, `Endpoint`, `plugins.create`, raw `records=`/`sections=`/`requires=` author arguments | Removed; `serve`, registered-plugin lifetime, typed class declarations and inferred requirements replace them. |
+
+The last inventory row covering generated exports is exhaustive by exclusion:
+every current export not in the three closed lists becomes internal, including
+all response wrappers and versioned message namespaces. Rename wire *Python
+imports* to `dokime_sdk._wire`; protobuf package names, message full names and RPC
+identities remain unchanged. Regenerate `.py`, `.pyi`, gRPC stubs, descriptors and
+export projections through tasks; keep their current tracking policy. Update
+`hatch_build.py:26` license/notice destinations, wheel package paths, sdist inputs,
+type-check/coverage paths, resource lookups, stub inventories and the public
+surface guard. A wheel must contain no installable `dokime` import package.
+
+### Python Classes and Declarations
+
+The following signatures are public contracts; comments supply one-line
+semantics. `Sequence` inputs are copied to immutable declaration inventories at
+binding. Class attributes have the stated empty defaults, never shared mutable
+runtime state. SDK-provided constructors take no arguments. Authors may add
+their own constructor arguments for devices or other plugin state.
+
+```python
+class Plugin:
+    identifier: ClassVar[str | None] = None  # Override the class-derived identity.
+    label: ClassVar[str | None] = None       # Override the class-derived display label.
+    version: ClassVar[str | None] = None     # Override owning distribution metadata.
+    suites: ClassVar[Sequence[type[Suite]]] = ()  # Explicit suite classes.
+    operations: ClassVar[Sequence[Callable[..., object]]] = ()  # Decorated plain functions.
+    settings: ClassVar[Sequence[SettingDeclaration | SettingGroup]] = ()  # Typed saved defaults.
+    secrets: ClassVar[Sequence[SecretDeclaration]] = ()  # Declared Secret Storage slots.
+    def __init__(self) -> None: ...  # Bind/validate declarations without I/O or author hooks.
+    async def start(self, ctx: operations.Context) -> None: ...  # Once per activation, before Ready.
+    async def stop(self, ctx: operations.Context) -> None: ...  # Release plugin state on every attempted start.
+    async def serve(self, address: str | None = None) -> None: ...  # Start, serve until stopped, settle and release owned resources.
+
+class Suite:
+    identifier: ClassVar[str | None] = None  # Local suite identity override.
+    label: ClassVar[str | None] = None       # Display label override.
+    templates: ClassVar[Sequence[type[TestTemplate]]] = ()  # Explicit template classes in order.
+    def __init__(self) -> None: ...  # Inert declaration construction.
+
+class TestTemplate:
+    identifier: ClassVar[str | None] = None  # Local template identity override.
+    label: ClassVar[str | None] = None       # Display label override.
+    parameters: ClassVar[Sequence[ParameterDefinition]] = ()  # Pure materialization inputs.
+    files: ClassVar[Sequence[FileParameter]] = ()  # Declared file inputs.
+    documents: ClassVar[Sequence[Document]] = ()  # Frozen document definitions.
+    def __init__(self) -> None: ...  # One instance per execution, shared by its handlers.
+    async def initialize(self, ctx: templates.Context) -> None: ...  # Acquire execution state before steps.
+    async def cleanup(self, ctx: templates.Context) -> None: ...  # Release partial or complete state after every attempted initialize.
+```
+
+`Plugin.start` is an author hook, never the removed endpoint-producing method.
+`serve()` and `plugins.register()` share one private activation owner, not two
+server implementations. Stop drains admitted calls, releases execution instances,
+then invokes the plugin hook; repeated shutdown does not invoke it again. A failed
+or cancelled start still invokes stop for partial acquisition. No hook runs during
+description or bundling inspection. A register call binds the *same* plugin object
+as `ctx.plugin`; execution handlers and observers additionally share the same
+execution template instance as `self`. No Python `ctx.set`/`ctx.get` store exists.
+
+Identity follows the preceding locked rule, using the longest matching suffix
+first (`TestTemplate`, `Plugin`, `Suite`). Overrides must be nonempty valid local
+identity segments; member overrides stay local and are qualified once. Split
+acronym-to-word and lowercase/digit-to-uppercase boundaries, preserve underscores,
+then lowercase: `HTTPAccuracySuite` → `http_accuracy`, `ExamplePlugin` → `example`,
+`ConfirmationTestTemplate` → `confirmation`, `ReadVoltage` → `read_voltage`.
+The display label is the suffix-stripped code name split at the same boundaries
+and underscores, joined with spaces in style-guide Title Case: `HTTP Accuracy`,
+`Example`, `Confirmation`, `Voltage Accuracy`. Explicit label text is retained;
+changing it never changes identity. A `CaptureSuite` binding the confirmation
+class yields `capture.confirmation` and `capture.confirmation.confirmation` for
+its record. Duplicate bound identities fail before serving. Reusing a template
+in another suite creates another binding without mutating the class.
+
+Client materialization from a class resolves that class against registrations
+owned by the connected client. If it has zero or multiple bound homes, refuse
+with an action to register its plugin or supply `plugin=`, `suite=` and the local
+template identifier. Never select an arbitrary registry entry. Class discovery
+does not run imports recursively or maintain a second global suite registry.
+
+```python
+# Decorators Preserve the Annotated Handler Type.
+def operation[F: Callable[..., object]](
+    identifier: str | None = None, *, visibility: Visibility,
+    policy: OperationPolicy | None = None, description: str = "", replay_safe: bool = False,
+) -> Callable[[F], F]: ...  # Infer one request and result annotation; identity defaults to function code name.
+
+def step[F: Callable[..., object]](
+    label: str, *, identifier: str | None = None, retries: int = 0,
+    repeatable: bool = False, policy: OperationPolicy | None = None,
+) -> Callable[[F], F]: ...  # Declare an async (self, ctx) -> None execution step.
+def criterion[F: Callable[..., object]](
+    label: str, *, identifier: str | None = None, policy: OperationPolicy | None = None,
+) -> Callable[[F], F]: ...  # Declare an async (self, ctx) -> bool criterion.
+def materialize[F: Callable[..., object]](handler: F) -> F: ...  # Mark a synchronous pure materializer.
+def record[T: Payload](row_type: type[T], *, label: str = "", identifier: str | None = None) -> Record[T]: ...  # Declare a local record.
+def prompt(text: str | Prompt, *, choices: Sequence[str] = (), label: str = "", identifier: str | None = None) -> PromptDeclaration: ...  # Declare a local prompt.
+def stream[F: Callable[..., object]](label: str, *, identifier: str | None = None, row: type[Payload] = float) -> Callable[[F], F]: ...  # Declare a row source on a template or plugin.
+def observer[F: Callable[..., object]](*, interval_ms: float = 1000, interval_setting: str = "", window_setting: str = "") -> Callable[[F], F]: ...  # Answer host sampling ticks.
+def window_observer[F: Callable[..., object]](*, columns: type[Message], interval_ms: float = 1000, interval_setting: str = "", window_setting: str = "") -> Callable[[F], F]: ...  # Answer one host window with typed columns.
+
+class Materialization:
+    parameters: Mapping[str, Scalar]  # Resolved immutable input values.
+    def step(self, label: str, handler: Callable[..., object], *, identifier: str | None = None, **arguments: object) -> Materialization: ...  # Append a declared step instance.
+    def criterion(self, label: str, handler: Callable[..., object], *, identifier: str | None = None, **arguments: object) -> Materialization: ...  # Append a declared criterion instance.
+```
+
+Materializers use `def materialize(self, case: Materialization,
+parameters: Mapping[str, Scalar]) -> None`; the instance used for this pure call
+does not become execution state. Bound and unbound handler references resolve
+identically. Default materialization appends declared steps/criteria in definition
+order; custom materialization replaces that default. Added instances must use
+unique local identifiers while retaining the declared handler identity.
+Operations are plain `async def name(ctx: operations.Context, request: Q) -> R`
+functions. Resolve postponed annotations with their defining module; reject
+missing, ambiguous or unsupported payload annotations before serving. bool,
+str, int and float map to BoolValue, StringValue, Int64Value and DoubleValue;
+bool is never accepted as int. Primitive records and operation payloads share
+one conversion owner. Structured payloads retain their protobuf schema.
+
+```python
+class Visibility(IntEnum):
+    PRIVATE = 1
+    PROTECTED = 3
+    PUBLIC = 2
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    total_attempts: int               # Positive; includes the first attempt.
+    initial: timedelta               # Nonnegative host-clock backoff.
+    maximum: timedelta | None = None # If supplied, bounded exponential backoff.
+    deterministic_jitter: bool = False
+
+@dataclass(frozen=True)
+class OperationPolicy:
+    timeout: timedelta | None = None
+    attempt_timeout: timedelta | None = None
+    cancellation_timeout: timedelta | None = None
+    retries: RetryPolicy | None = None
+
+@dataclass(frozen=True)
+class Operation[Q: Payload, R: Payload]:
+    identifier: str
+    request: type[Q]
+    response: type[R]
+    visibility: Visibility
+    policy: OperationPolicy | None = None
+    description: str = ""
+    replay_safe: bool = False
+
+@dataclass(frozen=True)
+class SettingValue:
+    flag: bool | None = None
+    integer: int | None = None
+    number: float | None = None
+    text: str | None = None
+    duration: timedelta | None = None # Exactly one non-None variant, including false/zero/empty text.
+
+@dataclass(frozen=True)
+class SettingDeclaration:
+    name: str
+    title: str
+    description: str
+    default: SettingValue
+
+@dataclass(frozen=True)
+class SettingGroup:
+    identifier: str
+    label: str
+    settings: tuple[SettingDeclaration, ...] # Presentation grouping only; see S3.
+
+@dataclass(frozen=True)
+class SecretDeclaration:
+    identifier: str
+    label: str
+    required: bool = True
+```
+
+The NEW product policy/settings values use the existing canonical fields and
+translate once at the SDK boundary; they do not duplicate policy execution or
+setting storage. Validate positive finite policy durations and nonnegative
+backoff; None means inheritance. S1's serial admission field is intentionally
+absent until the owner defines its scope; no implementer should infer its shape.
+
+```python
+@dataclass(frozen=True)
+class Record[T: Payload]:
+    row: type[T]
+    label: str = ""
+    identifier: str | None = None
+
+@dataclass(frozen=True)
+class Stream[T: Payload]:
+    identifier: str | None = None
+    row: type[T] = float
+    label: str = ""
+    def field(self, name: str = "value") -> Expression: ...  # Select a typed field before binding its qualified identity.
+
+@dataclass(frozen=True)
+class PromptDeclaration:
+    value: Prompt
+    identifier: str | None = None
+```
+
+### Python Capability Inventory
+
+| Capability | Current Python Evidence | Expression in the Class Shape / Smallest Addition |
+|---|---|---|
+| Plugin lifecycle | NEW; `_plugin.py:330` only clears SDK sessions in a private stop callback. | `Plugin.start(ctx)` / `Plugin.stop(ctx)` above; no new public endpoint owner. |
+| Deadline and retries | Exists: `operations.py:61` policy, `:91` decorator; `_plugin.py:260` translates step retries. | `policy=` on operation/step/criterion; retain one policy owner, no hard-coded retry delay in the adapter. |
+| Serial admission | NEW; `operations.py:61` and `proto/harmos/model/v1/policy.proto:24` have no serial field. | Policy needs shared admission support; no product semaphore copied beside library admission. Owner decision S1 below blocks this extension alone. |
+| Operation requirements | Exists: `_plugin.py:78` accepts explicit requirements and `:88` infers all host operations. | Remove author `requires`; infer product host requirements and literal `ctx.operation(Operation(...))` declarations from decorated functions/template hooks. Runtime-selected declarations need S2 below. Preserve the host requirement check. |
+| Effects/restoration | Exists: `_context.py:226` / `:231`; host `Effects/Create`, `Get`, `Set`. | Template context keeps `prepare_effect` / `confirm_effect`, preserving durable host restoration and revision checks. |
+| Execution observers and streams | Exists: `authoring.py:360`, `:371`, `:382`; `_plugin.py:270`. | Decorated methods on `TestTemplate`, per-execution instance, host-owned windows and stream backpressure. |
+| Plugin-scoped observers | NEW at the product surface; `_plugin.py:124` discovers streams only in templates. | Permit the same `stream` + observer decorators on `Plugin` methods; context has `plugin`, no execution. Bind at activation, close at stop; no second scheduler. |
+| Stream subscriptions | NEW at the product context; no subscribe/watch method in `_context.py:68`. | `operations.Context.subscribe` below delegates admitted library stream demand; no incoming samples injected into a running template. |
+| Template setup/cleanup | Exists: `authoring.py:197`, `_plugin.py:194`, `:255`. | Override `initialize` / `cleanup`; cleanup follows failed/cancelled initialization as well as later failures, receives termination, and tolerates partially initialized fields. |
+| Parameter kinds/defaults/bounds/units | Exists: `parameters.py:36`, `authoring.py:126`; canonical `model/v1/parameters.proto:25`. | `TestTemplate.parameters`, builder `Parameter`, data `ParameterDefinition`; extend only missing builder factories, retain canonical validation. |
+| Settings | Exists: `_plugin.py:82`, `_context.py:166`. | `Plugin.settings` typed declarations; read saved values on demand, no injection or applied/saved duplicate state. |
+| Settings groups | NEW; `proto/harmos/model/v1/setting.proto:29` is flat. | Presentation-only `SettingGroup(identifier, label, settings)`; flatten storage keys unchanged, group metadata needs S3 below. |
+| Secrets | Exists: `_plugin.py:81`, `_context.py:161`. | `Plugin.secrets`; only declared identifiers are readable through `ctx.secret`, never `.env` values. |
+| Capture options | Exists: `_context.py:217` / `:220`, generated `Files.Capture` binding. | Template context `capture`, `start_capture`, `stop_capture`; expose product `FileSource`/`CaptureMode` including stream matchers/markers and mirror interval. |
+| Documents and plots | Exists: `documents.py:36`, `plot.py:120`, `authoring.py:127`, `_context.py:188`. | `TestTemplate.documents`, builders in `templates`, `ctx.document` appends parts; canonical models remain internal. |
+| Records and streams on template | Exists: `authoring.py:104`, `:144`, `:146`; `_plugin.py:87`. | Preserve local class record values and decorated streams; bind qualified copies, remove raw plugin records. |
+
+`OperationPolicy` retains total invocation timeout, attempt timeout, cancellation
+timeout and `RetryPolicy(total_attempts, initial, maximum,
+deterministic_jitter)` as typed duration values. No retries without explicit
+replay safety. A nonzero `step(retries=n)` means `n+1` total attempts; if `policy`
+already supplies retries, refuse the two sources rather than silently combine
+them. Absent policy inherits the operation owner's configured policy, never a
+caller-created timeout. Private execution remains local and still uses the same
+policy and cancellation machinery. Visibility must be explicitly PRIVATE,
+PROTECTED or PUBLIC; no default or integer/module-constant substitute.
+
+`SettingDeclaration(name, title, description, default)` uses typed
+`SettingValue` variants flag, integer, number, text or duration. Groups contain
+declarations, not additional stores; duplicate names across groups fail.
+`SecretDeclaration(identifier, label, required=True)` describes a slot only.
+Parameters accept BOOLEAN, INTEGER, UNSIGNED_INTEGER, NUMBER, TEXT, BYTES,
+DATETIME and LIST as the canonical ValueType permits them;
+the wire enum is authoritative rather than an SDK-invented type hierarchy.
+Defaults are expressions (literal, array, range, arange, linspace, reference,
+dynamic default, unary, binary); choices and inclusive min/max must match the
+kind, list element kind and min/max items must agree. Invalid ranges, zero range
+steps, wrong default kinds and missing required values fail materialization
+without acquiring devices. Units are retained strings, never inferred from labels.
+
+### Python Contexts
+
+Constructors are SDK-private. These are the complete convenience method lists;
+no transport, channel, library context or untyped `host` escape hatch is public.
+`operations.Context` is also used by plugin hooks and plugin-wide observers.
+`templates.Context` extends it with execution-only methods. Each is importable
+only at its stated public home, even though inheritance shares implementation.
+`datetime` values below are timezone-aware UTC; duration floats are seconds.
+
+```python
+class Context:  # dokime_sdk.operations
+    plugin: Plugin                     # The actual author plugin object.
+    attempt: int                       # Admitted attempt number.
+    def operation[Q: Payload, R: Payload](self, operation: Operation[Q, R]) -> BoundOperation[Q, R]: ...  # Bind typed local/host/peer dispatch.
+    async def sleep(self, duration: float | timedelta) -> None: ...  # Wait on the authoritative host clock.
+    async def now(self) -> datetime: ...  # Read the host clock.
+    async def cancelled(self) -> str: ...  # Wait for cancellation and return its reason.
+    async def secret(self, identifier: str) -> bytes: ...  # Read a declared secret slot.
+    async def settings(self) -> dict[str, SettingValue]: ...  # Read the saved plugin settings.
+    async def subscribe[T: Payload](self, stream: Stream[T]) -> StreamSubscription[T]: ...  # Open admitted typed stream demand in inherited scope.
+
+class BoundOperation[Q: Payload, R: Payload]:
+    async def __call__(self, request: Q, *, policy: OperationPolicy | None = None) -> R: ...  # Apply one-call override and return the decoded result.
+
+class StreamSubscription[T: Payload]:
+    def __aiter__(self) -> AsyncIterator[SampleRow[T]]: ...  # Read demand-controlled samples until close/disconnect.
+    async def close(self) -> None: ...  # Release this subscription without stopping its provider.
+
+class Context(operations.Context):  # dokime_sdk.templates
+    parameters: Mapping[str, Scalar]   # Frozen case inputs.
+    execution: str                     # Trusted execution identity; never author-settable.
+    termination: Termination | None    # Present during cleanup, including failed initialization.
+    async def prompt(self, text: str | PromptDeclaration | Prompt, *, choices: Sequence[str] = ()) -> str: ...  # Return the accepted action label.
+    async def record[T: Payload](self, declaration: Record[T], payload: T, *, request_id: str | None = None) -> int: ...  # Append and return the acknowledged ordinal.
+    def records[T: Payload](self, declaration: Record[T], *, step: Callable[..., object] | None = None) -> RecordsQuery[T]: ...  # Select records in this execution.
+    async def statistics(self, stream: Stream[Payload] | Callable[..., object], field: str = "", *, step: Callable[..., object] | None = None) -> Statistics: ...  # Read typed statistics for the selected stream/step window.
+    async def progress(self, completed: int, total: int, *, label: str = "", request_id: str | None = None) -> None: ...  # Revision-checked replacement of execution progress.
+    async def log(self, text: str, *, severity: Severity = Severity.INFO, request_id: str | None = None) -> None: ...  # Append attributed execution log evidence.
+    async def traceability(self, identifier: str, value: Scalar, *, label: str = "", source: str = "", unit: str = "", request_id: str | None = None) -> None: ...  # Replace one revisioned traceability entry.
+    async def document(self, document: str, part: Section | Card, *, section: str = "", request_id: str | None = None) -> None: ...  # Append one document part.
+    async def note(self, text: str, *, request_id: str | None = None) -> Note: ...  # Attach an execution note before sealing.
+    async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream", request_id: str | None = None) -> Artifact: ...  # Upload and attach bytes before sealing.
+    async def capture(self, source: FileSource, output: str) -> CaptureResult: ...  # Capture a host-allowlisted source once.
+    async def start_capture(self, source: FileSource, output: str, mode: CaptureMode) -> int: ...  # Start execution-owned continuous capture.
+    async def stop_capture(self, capture_id: int) -> CaptureResult: ...  # Settle capture and return artifacts and gaps.
+    async def environment(self) -> Environment: ...  # Read host process identity and whether this call is in a step.
+    async def prepare_effect(self, resource: str, inverse_operation: str, inverse: Message, *, description: str = "", request_id: str | None = None) -> str: ...  # Persist inverse intent and return its ticket before applying the effect.
+    async def confirm_effect(self, ticket: str, *, at: datetime | None = None, restored: bool = False, request_id: str | None = None) -> None: ...  # Revision-check and confirm application/restoration of a ticket.
+```
+
+The template context has all seven base methods plus the execution methods
+declared in its block; the operation context has none of the execution-only
+methods or fields. In a scoped peer call the operation context inherits the
+opaque scope privately; it cannot manufacture an execution context or choose
+another execution. Unknown declarations fail locally. Host admission remains
+authoritative; SDK declaration validation is not an authorization boundary.
+`secret` refuses undeclared names before sending a request. Subscriptions close
+with their owning call/activation and forward cancellation/backpressure through
+the shared carrier; no local poll/sleep loop is introduced.
+
+Short prompt identity is `<template>.question`. Declared prompts use their bound
+identity; full `Prompt` input is copied and bound rather than mutated. Zero
+choices implies `OK`; duplicate choices and unrecognized/declined action results
+fail with an actionable error. Records, statistics and capture results unwrap
+payloads; no response messages escape. `records.last()` refuses an empty result.
+An effect inverse remains host-owned recovery intent, not an SDK finally block
+that could be lost with the plugin process. Capture stop and template cleanup
+still settle on cancellation under their operation policies.
+
+### Python Client and Bound Handles
+
+```python
+async def connect(
+    target: str | Path | None = None, *, connect_timeout: float = 30.0,
+    certificate_pem: str | None = None, access_key: str | None = None,
+    expected_backend_id: str | None = None,
+) -> Client: ...  # Resolve configuration and connect without starting a host.
+
+class Client:
+    plugins: Plugins       # Plugin registration/installation owner.
+    cases: Cases           # Materialization resource.
+    cycles: Cycles         # Cycle lookup/list resource.
+    executions: Executions # Execution lookup/list resource.
+    async def cycle(self, *, label: str, request_id: str | None = None) -> Cycle: ...  # Create an empty manually advanced cycle.
+    def operation[Q: Payload, R: Payload](self, operation: Operation[Q, R]) -> BoundOperation[Q, R]: ...  # Bind one public operation call through the host.
+    def on_prompt(self, handler: Callable[[PromptQuestion], Awaitable[PromptAnswer]] | None) -> None: ...  # Replace the single optional unattended answer handler.
+    async def close(self) -> None: ...  # Unregister owned registrations, stop their sidecars, then close the channel.
+
+class Plugins:
+    async def register(self, plugin: Plugin, *, address: str | None = None, request_id: str | None = None) -> RegisteredPlugin: ...  # Serve/add the object and wait for host-owned Ready admission.
+    async def upload(self, bundle: str | Path | bytes, *, request_id: str | None = None) -> RegisteredPlugin: ...  # Install a managed bundle and return its bound entry.
+    async def get(self, identifier: str) -> RegisteredPlugin: ...  # Read an existing entry without taking lifetime ownership.
+
+class RegisteredPlugin:
+    identifier: str        # Installed-entry identity, not a transport handle.
+    label: str             # Last observed display label.
+    version: str           # Frozen declared bundle/plugin version.
+    state: str             # Host entry state: Connecting, Ready, Stopping, Stopped, Unavailable.
+    async def refresh(self) -> RegisteredPlugin: ...  # Refresh this entry's snapshot.
+    async def unregister(self) -> None: ...  # Delete this entry with its current revision and stop only an SDK-owned sidecar.
+
+class Cases:
+    async def materialize(
+        self, template: type[TestTemplate] | str, *, plugin: str | None = None,
+        suite: str | None = None, parameters: Mapping[str, Sequence[Scalar]] | None = None,
+        files: Mapping[str, str | None] | None = None, request_id: str | None = None,
+    ) -> list[Case]: ...  # Register all host-expanded cases for one explicit template binding.
+    async def get(self, identifier: str, *, cycle: str = "") -> Case: ...  # Read a retained case by identity.
+
+class Case:
+    identifier: str        # Host-assigned case identity.
+    label: str             # Frozen case display label.
+    suite: str             # Bound suite identity.
+    template: str          # Qualified template identity.
+    async def parameters(self) -> dict[str, Scalar]: ...  # Read the case's resolved inputs.
+    async def refresh(self) -> Case: ...  # Refresh this bound case snapshot.
+
+class Cycles:
+    async def get(self, identifier: str) -> Cycle: ...  # Look up an existing cycle without creating it.
+    def list(self, *, text: str = "", page_size: int = 0) -> AsyncIterator[Cycle]: ...  # Iterate every page at one retained cut.
+
+class Executions:
+    async def get(self, identifier: str) -> Execution: ...  # Read an existing execution without starting it.
+    def list(self, *, cycle: str | None = None, template: str | None = None, state: str | None = None, page_size: int = 0) -> AsyncIterator[Execution]: ...  # Iterate executions at one retained cut.
+
+class Cycle:
+    identifier: str        # Bound host identity.
+    label: str             # Last observed display label.
+    phase: str             # Active, Sealing, Sealed or Seal Failed.
+    async def execution(self, case: Case, *, request_id: str | None = None) -> Execution: ...  # Bind exactly one existing case to this cycle.
+    async def refresh(self) -> Cycle: ...  # Refresh this cycle's snapshot.
+    async def seal(self, *, request_id: str | None = None) -> None: ...  # Seal content, report and archive; refuse running executions.
+    async def evidence(self) -> bytes: ...  # Download and verify this sealed cycle's retained archive.
+    async def note(self, text: str, *, request_id: str | None = None) -> Note: ...  # Attach a cycle note before sealing.
+    async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream", request_id: str | None = None) -> Artifact: ...  # Upload and attach cycle bytes before sealing.
+
+class Execution:
+    identifier: str        # Bound host identity.
+    cycle: Cycle           # Bound parent, including after a lookup.
+    case: Case             # Bound frozen case, including after a lookup.
+    async def refresh(self) -> Execution: ...  # Refresh this execution's snapshot.
+    async def start(self, *, request_id: str | None = None) -> None: ...  # Admit one automatic run without waiting for its progress.
+    def watch(self) -> AsyncIterator[Progress]: ...  # Reattach to current progress through seal without starting work.
+    def run(self, *, request_id: str | None = None) -> AsyncIterator[Progress]: ...  # On iteration, start once and then watch.
+    async def stop(self, *, request_id: str | None = None) -> None: ...  # Request a stop at the next scheduling boundary.
+    async def cancel(self, *, request_id: str | None = None) -> None: ...  # Interrupt active work while preserving cleanup; refuse queued work.
+    async def seal(self, *, request_id: str | None = None) -> Outcome: ...  # Return the stable outcome, refusing a running execution.
+    async def evidence(self) -> bytes: ...  # Download and verify retained execution evidence.
+    async def note(self, text: str, *, request_id: str | None = None) -> Note: ...  # Attach a note while this execution is unsealed.
+    async def artifact(self, name: str, data: bytes, *, mime: str = "application/octet-stream", request_id: str | None = None) -> Artifact: ...  # Upload/attach bytes while unsealed.
+    def records[T: Payload](self, declaration: Record[T] | str, *, step: str = "", row_type: type[T] | None = None) -> RecordsQuery[T]: ...  # Build a finite decoded records query.
+    def samples[T: Payload](self, stream: Stream[T] | str, *, fields: Sequence[str] = (), between: tuple[datetime | None, datetime | None] | None = None, row_type: type[T] | None = None) -> SamplesQuery[T]: ...  # Build a finite decoded sample query.
+```
+
+Lookup handles retain their client and host identity, never create a second
+channel or start a plugin. Never accept a case/handle from another client/host.
+`run()` is an async iterator, not a coroutine returning an iterator: no RPC occurs
+until iteration starts. Breaking or cancelling observation releases that Watch
+only; it does not call Stop or Cancel. A second `run()` is another start request,
+subject to host admission, not an implicit rerun. Reattach with `watch()`.
+Execution Start always selects automatic mode; interactive command controls
+remain generated host operations rather than another starter flow.
+
+Register takes ownership only of the sidecar and entry it creates. Failed
+registration unwinds both. Uploaded bundles and pre-existing entries persist
+after `Client.close`; explicit unregister removes their entry. Close is
+idempotent, attempts all owned cleanup even if one step fails, closes the
+channel last and reports collected structured failures. It does not stop a host,
+cancel admitted executions or terminate an unowned process. A running execution
+may prevent unregister; report the refusal rather than silently cancelling it.
+The answer handler is installed before Start; it observes pending prompts,
+answers each identity once and is removed on close. The desktop remains the
+normal starter prompt UI.
+
+Execution seal does not start, cancel or wait for active work. Repetition returns
+the same outcome. A normal run or cancellation already seals the execution;
+notes/artifacts after it go to the cycle until cycle seal. Cycle seal seals
+never-started executions as not run and excludes them from pass/fail counts.
+Seal Failed retains its cause and permits another seal attempt. Archive and
+report bytes are retained at seal, including the report inside the cycle archive;
+downloads never regenerate them. All of these are required `seal-finality` host
+work, not client-side simulations of finality.
+
+### Host Composition and Mutation Identity
+
+RPC identities here use `package.Service/Method`. Every `dokime.host.v1` name
+exists under `proto/dokime/host/v1` unless marked NEW. The current generated
+plugin/invocation/clock calls use library host services; they are explicitly
+identified as current dependencies, not fictitious product protos. Product
+wrappers belong to the `plugin-boundary` / `operation-boundary` owners and must
+land before final client proof. There is no SDK bypass to the carrier.
+
+| Public Method | Ordered Operations and Projection |
+|---|---|
+| `connect` | Open channel; existing `harmos.host.v1.Status/Get` verifies paired host identity; await readiness within the connection budget. Product Status wrapper remains an operation-boundary dependency. |
+| `plugins.register` | Start owned listener; current `harmos.host.v1.Plugins/Create` with remote placement; current `harmos.host.v1.Plugins/Watch` until Ready. Target NEW `dokime.host.v1.Plugins/Create` returns only after host-owned Ready; no SDK polling loop. Preserve entry identity/revision and class bindings. |
+| `plugins.upload` | Upload bytes using `dokime.host.v1.files.Uploads/Create`, `Append` in offset order, `Publish`; NEW `dokime.host.v1.Plugins/Create` with managed bundle reference, host-owned inspection/install/Ready; return one entry. |
+| `plugins.get`, registered `refresh` | Current `harmos.host.v1.Plugins/Get`; target NEW `dokime.host.v1.Plugins/Get`; unwrap entry. |
+| Registered `unregister`, `Client.close` | Get entry/revision, then current `harmos.host.v1.Plugins/Delete`; target NEW `dokime.host.v1.Plugins/Delete`; stop SDK-owned sidecar after detach, then close channel for Client.close. Missing previously removed owned entry is already detached. |
+| `client.cycle` | `dokime.host.v1.Cycles/Create`, no origins, `continue_automatically=false`, metadata label; unwrap `cycle`. |
+| `cycles.get`, cycle `refresh` | `dokime.host.v1.Cycles/Get`; unwrap `cycle` and retain revision. |
+| `cycles.list` | `dokime.host.v1.Cycles/List` first page, then remaining pages at the first `resolved_at`, retaining selection/filter/order. |
+| `cases.materialize` | Resolve registered class binding (or explicit identifiers); `dokime.host.v1.Cases/Create`, one SelectionPlan selection, `validate_only=false`; bind each returned PlannedCase. |
+| `cases.get`, case `refresh`, `parameters` | `dokime.host.v1.Cases/Get` (with parent when known); `dokime.host.v1.Cases/Parameters` at the case's retained cut for parameters. |
+| `cycle.execution` | `dokime.host.v1.Executions/Create`, parent=cycle identifier, one ExecutionBinding with case identifier; unwrap the one returned execution. |
+| `executions.get`, execution `refresh` | `dokime.host.v1.Executions/Get`; bind the returned cycle/case identities without extra creation calls. |
+| `executions.list` | `dokime.host.v1.Executions/List`; follow tokens at the initial retained cut, parent/selection identify the optional cycle/template/state. |
+| `execution.start` | `dokime.host.v1.Executions/Start`, automatic mode; retain admitted execution identity, not a local running flag. |
+| `execution.watch` | `dokime.host.v1.executions.Progress/Watch`; opening update includes current state. Terminal update becomes `Progress(sealed=True)`; an early end without terminal state fails. |
+| `execution.run` | Start once, then Watch as above; the opening snapshot prevents losing a run that seals before Watch subscribes. |
+| `execution.stop`, `cancel` | `dokime.host.v1.Executions/Stop` or `dokime.host.v1.Executions/Cancel`; acknowledgement is admission, not a synthesized sealed outcome. |
+| `execution.seal` | NEW `dokime.host.v1.Executions/Seal` required by `seal-finality`; returns stable ExecutionOutcome. Today's `Executions/Get` is readback only and cannot substitute for this host action. |
+| `cycle.seal` | `dokime.host.v1.Cycles/Seal`; host performs finalization. If acknowledgement precedes settlement, `dokime.host.v1.Cycles/Watch` observes Sealed or Seal Failed before returning. |
+| Execution/cycle `evidence` | `dokime.host.v1.Evidence/Archive` for bound subject; `dokime.host.v1.Files/Get` for transfer bounds; `dokime.host.v1.Files/Read` in offset order at returned file identity. Verify length and SHA-256 before returning bytes. |
+| Execution/cycle/context `note` | `dokime.host.v1.evidence.Notes/Create` with bound AnnotationOwner; return note. NEW plugin caller admission resolves trusted execution for the context form; current proto allows CLIENTS only. |
+| Execution/cycle/context `artifact` | `dokime.host.v1.files.Uploads/Create`, `Append` in offset order, `Publish`, then `dokime.host.v1.content.Artifacts/Create` with bound ArtifactScope. Context omits arbitrary selectors. Return artifact. |
+| `execution.records`, query reads | `dokime.host.v1.Executions/Get` for frozen schema binding if uncached, `dokime.host.v1.executions.Schemas/Get` pages at that cut/digest; `dokime.host.v1.evidence.Records/List` pages at their first evidence cut. Unwrap and decode by frozen message name. |
+| `execution.samples`, query reads | Same frozen-schema resolution, then `dokime.host.v1.evidence.Samples/List` with raw samples, no bucket; follow retained cuts and unwrap/decode rows, keeping exact timestamps. |
+| `Client.operation(op)(value)` | Current `harmos.host.v1.Operations/Get` validates public contract/fingerprint; current `harmos.host.v1.Invocations/Create` routes the encoded unary request and returns decoded response. NEW product wrappers preserve this ordering. No automatic retry of arbitrary mutating operation calls. |
+| `Client.on_prompt` | Local handler replacement; while active, `dokime.host.v1.Prompts/Watch`, then `dokime.host.v1.prompts.Answers/Create` for the selected pending prompt; retain answer identity. |
+
+Context clock/settings/discovery/subscription conveniences use admitted carrier
+facilities internally; execution methods use their existing product host bindings.
+`record`: `dokime.host.v1.evidence.Records/Append`; `statistics`:
+`dokime.host.v1.Evidence/Statistics`; `progress`: `executions.Progress/Get` then
+`Set`; `traceability`: `evidence.Traceability/Get` then `Set`; `log`:
+`evidence.Logs/Append`; `document`: `Documents/AppendParts`; `capture`:
+`Files/Capture`; continuous capture: `files.Captures/Start` then `Stop`;
+effects: `Effects/Create`, then on confirmation `Effects/Get` then `Set`;
+environment: `Backend/Environment`. Each abbreviated name in this paragraph has
+the prefix `dokime.host.v1.`. `Documents/AppendParts`, capture, effects, records,
+prompt creation and environment are plugin projections, never client admin
+escape hatches. Follow caller filtering in generation.
+
+Generate a UUID request identity once per logical mutation when the caller does
+not supply one. Keep it and the normalized input stable across retries and surface
+it in failure details; a fresh retry with a new identity is a new mutation.
+Create cycle/cases/execution, Start/Stop/Cancel/Seal, note, artifact attachment,
+progress/traceability/document/record/log/effect mutations and prompt answers use
+their request_id fields. File composition derives stable child IDs
+`<id>/create`, `<id>/append/<offset>`, `<id>/publish`, `<id>/attach` and
+`<id>/abandon`; preserve acknowledged Upload handles/fences while retrying.
+On upload failure abandon unpublished bytes through Uploads/Delete; do not delete
+a published file that already became evidence. Read calls and Watch use retained
+positions/tokens, not mutation identities. Reject mismatched payload replay;
+never retry by silently changing a revision. Current plugin Set/Delete lack
+request_id; the target product wrapper must carry it plus expected_revision.
+Unregister retains its internally generated identity across Client.close retries.
+Invocations/Create has no request_id today: replay safety of a direct operation
+belongs to its own request contract and policy, not a fake SDK cache.
+
+### Result, Progress, Query and Error Values
+
+All returned values below are product-owned immutable data. Identity strings are
+opaque; positions and continuations are SDK-private. Times retain UTC and exact
+nanoseconds where Python datetime would round them. Generic `T` is the decoded
+payload type. A string query selector without `row_type` decodes through frozen
+descriptors and returns a protobuf message; it never guesses the currently
+installed plugin's schema. A declaration selector uses its declared primitive or
+message type and validates it against the frozen binding.
+
+```python
+class ResultStatus(IntEnum):
+    UNSPECIFIED = 0
+    PENDING = 1
+    PASSED = 2
+    FAILED = 3
+    BLOCKED = 4
+    CANCELLED = 5
+
+@dataclass(frozen=True)
+class Outcome:
+    status: ResultStatus             # Evaluated/declared status, PENDING if unevaluated.
+    attribution: str                 # evaluated, declared or not_evaluated.
+    reason: str                      # Host-provided explanation.
+    termination: Termination | None  # Present for an unevaluated run.
+    importer: str | None             # Present only for declared imported outcomes.
+
+@dataclass(frozen=True)
+class Progress:
+    phase: str                       # Queued, Initializing, Stepping, Evaluating, Cleaning Up, Sealed.
+    completed: int                   # Host progress value.
+    total: int                       # Zero means no denominator was supplied.
+    label: str                       # Host progress label.
+    sealed: bool                     # Terminal observation, never called finished/ended.
+
+@dataclass(frozen=True)
+class Note:
+    identifier: str
+    text: str
+    author: str | None
+    created_at: datetime
+    cycle: str
+    execution: str | None
+
+@dataclass(frozen=True)
+class Artifact:
+    identifier: str
+    name: str
+    mime: str
+    size_bytes: int
+    sha256: bytes
+    cycle: str | None
+    execution: str | None
+
+@dataclass(frozen=True)
+class PromptQuestion:
+    identifier: str                  # Pending prompt instance identity, not declaration identity.
+    text: str
+    choices: tuple[str, ...]
+    execution: str
+
+@dataclass(frozen=True)
+class PromptAnswer:
+    choice: str                      # One supplied choice label.
+
+@dataclass(frozen=True)
+class RecordRow[T: Payload]:
+    identifier: str
+    sequence: int
+    timestamp_ns: int
+    received_at_ns: int
+    record_type: str
+    schema_version: int
+    source: str
+    value: T
+
+@dataclass(frozen=True)
+class SampleRow[T: Payload]:
+    identifier: str
+    sequence: int
+    timestamp_ns: int
+    received_at_ns: int
+    stream: str
+    schema_version: int
+    source: str
+    value: T
+    values: Mapping[str, Scalar]     # Selected typed scalar columns, preserving exact integers.
+
+class RecordsQuery[T: Payload]:
+    def pages(self, *, page_size: int = 0) -> AsyncIterator[list[RecordRow[T]]]: ...  # Iterate a finite selection at one evidence cut.
+    async def read(self, *, limit: int = 0) -> list[RecordRow[T]]: ...  # Collect up to limit rows; zero uses the host page bound.
+    async def count(self) -> int: ...  # Return the selected count, independent of page length.
+    async def last(self) -> T: ...  # Return the selected last value, refusing an empty selection.
+
+class SamplesQuery[T: Payload]:
+    def pages(self, *, page_size: int = 0) -> AsyncIterator[list[SampleRow[T]]]: ...  # Iterate raw rows at one fixed evidence cut.
+    async def collect(self, *, max_rows: int = 100_000) -> list[SampleRow[T]]: ...  # Refuse rather than silently truncate at max_rows.
+    async def to_polars(self, *, max_rows: int = 100_000) -> polars.DataFrame: ...  # Optional extra; preserve typed columns and nanosecond time.
+    async def to_pandas(self, *, max_rows: int = 100_000) -> pandas.DataFrame: ...  # Optional extra; preserve integer/exact values.
+
+@dataclass(frozen=True)
+class Statistics:
+    count: int
+    min: Scalar
+    max: Scalar
+    mean: Scalar
+    stddev: float
+    median: Scalar
+    p05: Scalar
+    p95: Scalar
+    p99: Scalar
+    first: Scalar
+    last: Scalar
+    sum: Scalar
+
+@dataclass(frozen=True)
+class CaptureResult:
+    artifacts: tuple[CapturedArtifact, ...]
+    gaps: tuple[CaptureGap, ...]
+
+@dataclass(frozen=True)
+class CapturedArtifact:
+    artifact: str
+    size_bytes: int
+
+@dataclass(frozen=True)
+class CaptureGap:
+    path: str
+    offset: int
+    reason: str                      # Truncated, Replaced, Vanished or Resume Unsupported.
+
+@dataclass(frozen=True)
+class Environment:
+    backend_pid: int
+    in_step: bool
+
+@dataclass(frozen=True)
+class Failure:
+    classification: str              # Permanent, Transient, Cancelled, Timed Out or Refused.
+    code: str
+    message: str
+    action: str
+    operation: str
+    plugin: str
+    cause: Failure | None
+    details: Mapping[str, str]
+    diagnostics: str
+
+class SdkError(Exception):
+    failure: Failure                 # Original classification, causal chain and next action.
+    request_id: str | None           # Retain this identity when retrying an unchanged mutation.
+    def __init__(self, failure: Failure, *, request_id: str | None = None) -> None: ...  # Represent an SDK/client failure without leaking transport types.
+
+class FailureError(SdkError):
+    pass                             # The product exception author handlers raise for structured failure.
+```
+
+Invalid local declarations/configuration raise ValueError or TypeError before
+I/O; local file operations retain OSError subclasses. Host/transport/connection,
+integrity, resynchronization and missing-schema failures become SdkError with an
+action, preserving remote details and causes. asyncio task cancellation retains
+CancelledError and still releases owned observers/resources. SDK errors never
+turn an unevaluated or declared result into an evaluated pass. Not run is an
+unevaluated attribution with host termination/reason, not a new pass/fail enum.
+Progress uses only seal vocabulary. The `seal-finality` owner renames
+ProgressWatchResponse.finished to sealed at field 5 and regenerates the bindings;
+there is no dual-field adapter or public finished/ended spelling.
+
+Builder names moved from `documents.py` and `plot.py` keep their existing full
+method signatures and value semantics, including Document(label), Section(label),
+Summary(), Expression(value), Plot(value), enum-only plot options and owned
+`message` values for canonical document definitions. No second document AST or
+plot evaluator is introduced. `ParameterDefinition` exposes exactly the fields
+of the canonical Parameter message (metadata, type, unit, required, group,
+expression, choices, min, max, expansion, element_type, min_items, max_items,
+runtime_writable); the protocol representation stays internal.
+
+```python
+class Parameter:
+    def __init__(self, identifier: str, label: str, kind: str) -> None: ...  # Start a typed definition with an explicit kind.
+    @classmethod
+    def number(cls, identifier: str, label: str) -> Parameter: ...  # Floating numeric input.
+    @classmethod
+    def count(cls, identifier: str, label: str) -> Parameter: ...  # Unsigned integer input.
+    @classmethod
+    def flag(cls, identifier: str, label: str) -> Parameter: ...  # Boolean input.
+    @classmethod
+    def sweep(cls, identifier: str, label: str, values: Iterable[float]) -> Parameter: ...  # Cartesian expansion of numeric inputs.
+    @classmethod
+    def numbers(cls, identifier: str, label: str, values: Iterable[float]) -> Parameter: ...  # One list-valued numeric input.
+    def unit(self, unit: str) -> Parameter: ...  # Retain a unit string.
+    def default(self, value: Scalar) -> Parameter: ...  # Set a typed literal expression.
+    def range(self, minimum: float | None = None, maximum: float | None = None) -> Parameter: ...  # Set inclusive numeric bounds.
+    def items(self, minimum: int | None = None, maximum: int | None = None) -> Parameter: ...  # Set list-length bounds.
+    def build(self) -> ParameterDefinition: ...  # Return an independent validated definition.
+```
+
+Other canonical kinds are available through the explicit-kind constructor and
+ParameterDefinition fields; no factory per wire variant is required. Record
+values expose `row`, `label`, `identifier`; stream values expose the same fields
+and `field(name: str = "value") -> Expression`. `Window` is the sampling grant
+with start, period and count; read queries use `between`, avoiding two public
+Window type families under one name. Documents keep local declaration references
+until binding; final frozen stream/record selectors use qualified identifiers.
+
+Capture input values retain the current product schema with keyword constructors:
+`FileSource(file=None, tree=None, newest=None)` selects exactly one FileLocation
+or FileSelection; `FileLocation(local=None, ftp=None)` selects exactly one local
+path or FtpLocation; `FtpLocation(url, secret_id=None)`; `FileSelection(root,
+rules=())`; `FileRule(glob, action)` uses FileRuleAction.INCLUDE/EXCLUDE.
+`CaptureMode(stream=None, mirror=None)` selects exactly one `StreamCapture(
+matchers=(), markers=())` or `MirrorCapture(interval_s=None)`.
+`LineMatcher(pattern, stream, fields=())`, `LineField(name, type)` and
+`LineMarker(pattern, record_type)` retain their declared typed extraction.
+Here LineField.type is one of the same canonical parameter-kind strings, not a
+second kind enum. These constructor parameters and fields are complete;
+the SDK rejects multiple/absent oneof alternatives and invalid modes before I/O.
+Host allowlists, source validation and execution-owned settlement remain host
+policy. No local SDK file-watcher or polling capture implementation is added.
+
+### Configuration Loading
+
+`connect` resolves DOKIME_REMOTE. `Plugin.serve` and `Plugins.register` resolve
+DOKIME_PLUGIN_ADDRESS. Each entry call reads only `.env` directly in the current
+working directory at that call, once; there is no parent-directory search, import
+side effect, process-environment mutation or starter loader. Apply precedence
+separately per variable: explicit non-None argument, process environment key,
+parsed file key, default. An explicit empty remote or an empty process/file remote
+refuses with guidance to set DOKIME_REMOTE; it never silently falls through to a
+different host. With no remote anywhere, refuse because no default host exists.
+The plugin default is `127.0.0.1:0`; an explicitly empty address refuses. The
+reference `.env.example` intentionally contains an empty remote placeholder.
+
+Accepted `.env` grammar is deliberately small and identical across languages:
+
+```text
+file        = UTF-8 [BOM] lines, LF or CRLF
+line        = horizontal-space* [assignment | comment] horizontal-space*
+comment     = '#' any-characters-to-end-of-line
+assignment  = key horizontal-space* '=' horizontal-space* value [inline-comment]
+key         = [A-Za-z_][A-Za-z0-9_]*
+value       = unquoted | single-quoted | double-quoted
+unquoted    = characters through line end, trimmed at both horizontal-space edges
+inline-comment = horizontal-space+ '#' any-characters-to-end-of-line
+single-quoted = "'" literal-characters-except-quote-or-newline "'"
+double-quoted = '"' characters-or-escapes '"'
+escape      = '\\' | '\"' | '\n' | '\r' | '\t'  # Double Quotes Only
+```
+
+In unquoted input, `#` starts a comment only at the beginning of the value or
+after horizontal whitespace; a literal `#` in an address/file name otherwise
+remains literal. Quoted values preserve internal whitespace and `#`; after their
+closing quote allow only horizontal space and an optional comment. Empty quoted
+and unquoted values are accepted by the parser, then validated by the selected
+configuration field. Reject duplicate keys, unmatched quotes, unsupported escape
+sequences, NUL, multiline values, shell `export` prefixes and lines without `=`.
+No interpolation, shell execution, backticks or `$VAR` expansion occurs. Parse
+unknown well-formed keys but ignore them; only the two well-known address keys
+configure the SDK. A missing default file is fine; malformed UTF-8, unreadable
+existing files and malformed lines fail with path, line number and correction.
+There is no secret-setting API in this parser and no `.env` secret import.
+
+`connect_timeout` is a positive finite float in seconds, default 30.0, owned by
+connect, with no new environment variable. Preserve current ordered `.pair`
+endpoint attempts and certificate/identity checks; this section does not invent
+the read policy still open in `remote-access-simplification`. Direct remote
+origins use http with an explicit host/port and no path, credentials, query or
+fragment; paired endpoints may use pinned HTTPS. Explicit certificate/key/host
+identity inputs are for direct endpoints; a `.pair` file supplies them together
+as one trusted tuple (do not mix sources). Relative pair paths resolve from the
+working directory. Managed listener coordinates delivered by the host's private
+launch protocol override interactive address discovery internally; they are not
+another user-visible environment variable.
+
+### Exact Project Manifest
+
+The top-level TOML keys are exactly `plugin`, `compatibility`, `scripts`.
+Reject unknown tables/keys at every level, duplicate TOML keys and wrong types.
+`plugin` and `scripts` are required tables; `compatibility` is optional. There
+is no schema-version key, language key, identifier key or assets key.
+
+| Key | Type / Presence | Validation and Meaning |
+|---|---|---|
+| `plugin.label` | Optional string | Nonblank if supplied; otherwise class-derived label. |
+| `plugin.version` | Optional string, required after resolution | Valid semantic version; overrides described project version for the bundle. |
+| `plugin.description` | Optional string | Nonblank if supplied; required for publication. |
+| `plugin.authors` | Optional array of tables `{name: string, email?: string}` | At least one author if present, nonblank name, nonblank email if supplied; required for publication. |
+| `plugin.license` | Optional string | Nonblank SPDX expression; required for publication. |
+| `plugin.repository` | Optional string | Absolute HTTP(S) URL if supplied. |
+| `plugin.dynamic` | Optional array of distinct strings, default `[]` | Only version, description, authors, license, repository; resolve each requested missing key from the native project file. |
+| `plugin.tags` | Optional array of distinct nonblank strings, default `[]` | Preserve declared order. |
+| `plugin.publisher` | Optional string | Nonblank publisher identity, independent of class identity. |
+| `plugin.icon` | Optional relative file path string | Confined existing regular file, included in bundle; assets/icon.svg in starters. |
+| `plugin.readme` | Optional relative file path string | Confined existing UTF-8 regular file, included in bundle. Omit until a README exists. |
+| `compatibility.dokime` | Optional string | Valid nonempty version requirement; absent means no declared minimum. |
+| `scripts.build` | Optional nonempty array of strings | Program plus argv, no shell interpolation; first element nonblank, no NUL. Run once before inspection/dev/bundle from project root. |
+| `scripts.executable` | Optional relative file path string | Exactly one executable/launch; resolve platform suffix as today; require built regular file. |
+| `scripts.launch` | Optional nonempty array of strings | Exactly one executable/launch; program plus argv, validated like build. |
+
+Static fields take precedence even if also named in dynamic; listing such a key
+is permitted so users can override one value without editing the list. An absent
+requested project field fails with its native file/key and an action to set that
+field or a static plugin value. Values not requested are not implicitly imported.
+No code execution, MSBuild evaluation or package installation is used to read
+metadata. Choose the native file associated with the configured plugin executable
+or launch project; ambiguity is an error, never directory iteration order.
+
+For Python choose root pyproject.toml for a uv Python launch; for Rust choose
+root Cargo.toml and its selected bin's owning package. For C# match the launched
+DLL filename or native executable stem to one project's literal AssemblyName
+(defaulting to its csproj stem); read only that project. The prescribed C#
+starter sets AssemblyName explicitly. This resolves the two executable projects
+without an extra manifest selector key. Refuse zero/multiple matches and ask for
+static metadata if the source cannot be identified. C++ starters resolve all
+metadata statically and never acquire dynamic fields from SDK tooling projects.
+
+| Dynamic Key | Python `pyproject.toml` | Rust `Cargo.toml` | C# Plugin `.csproj` |
+|---|---|---|---|
+| version | `project.version` | `package.version` | `Project/PropertyGroup/Version` |
+| description | `project.description` | `package.description` | `Project/PropertyGroup/Description` |
+| authors | `project.authors` tables | `package.authors` strings, split terminal `Name <email>` into the canonical author table | `Project/PropertyGroup/Authors`, semicolon-separated nonblank names |
+| license | `project.license` SPDX string | `package.license` | `Project/PropertyGroup/PackageLicenseExpression` |
+| repository | `project.urls.Repository` (case-sensitive) | `package.repository` | `Project/PropertyGroup/RepositoryUrl` |
+
+Rust `{workspace=true}` reads the corresponding `workspace.package` key from the
+owning Cargo workspace; do not mistake the SDK workspace's version for a standalone
+starter's version. Python dynamic build-backend metadata and legacy license tables
+are refused for these fields: supply a static manifest value. C# reads only one
+unconditional literal value for each key in the configured plugin project; repeated
+conflicting values, conditions, imports or `$(...)` expressions require static
+manifest values. Native starter layouts below make that file unambiguous. C++ has
+no dynamic source mapping: write these fields statically; reject dynamic requests
+without one of the three supported native metadata sources. Do not parse CMake as
+a second metadata language.
+
+Bundle identity is the described class-derived plugin identifier (respecting its
+explicit class override), never package/project name, manifest label or publisher.
+Build, inspect without initialize, resolve manifest metadata, then freeze the
+description/catalog and manifest into one bundle. Version resolution order is
+static plugin.version, requested native project.version, described plugin version;
+refuse if none exists or is invalid. An explicit manifest version legitimately
+overrides the description for the frozen bundle; installed identity/version must
+reflect that resolved value consistently, not two competing version fields.
+Python's described version comes from the distribution owning the plugin class
+using package metadata, or an explicit class version; source-only plugins without
+either require a manifest version for bundling and an explicit class version for
+direct registration. Rust supplies its package version, C# its literal package
+version, and C++ its statically configured project version to the plugin value.
+
+After build, revalidate path confinement and symlinks. Include the entire
+`assets/` tree, including entries ignored by `.gitignore`; a missing assets
+directory is fine. Include an icon/readme outside assets explicitly if referenced.
+Native bundles contain the resolved executable plus assets and referenced metadata
+files. Put runtime companions (for example C# assemblies/runtime files) inside
+assets during build, with the executable launch arrangement referring to those
+bundled paths; do not retain arbitrary asset-root lists. Launch bundles contain
+the source inventory filtered by project `.gitignore`, plus mandatory manifest,
+native project metadata and assets. A required launch input ignored by the project
+is an actionable error, not silently omitted. Never include `.git/`, `.venv/`,
+local `.env`, credentials, `_input/` or `_output/`. Preserve the user's source
+uv.lock after first sync and include it when present in a launch bundle; the
+*starter archive* ships none. Packaging never silently deletes the user's lock
+or data. Files escaping the project via traversal/symlinks are refused.
+
+### Starter Manifest Migration
+
+Keep both existing embedded example roots per language; each is one independent
+project containing plugin and client entries. This does not multiply SDK packages.
+Every listed `dokime.toml` replaces its whole old top-level schema with these
+three tables. Common metadata below is shown once and applied to each named file;
+the table fixes every per-file script value. Assets are implicit in every row.
+
+```toml
+[plugin]
+label = "Example" # Use "Capture" for test/Test projects.
+tags = ["example"]
+dynamic = ["version", "description", "authors", "license", "repository"]
+icon = "assets/icon.svg"
+
+[compatibility]
+dokime = ">=0.1.5"
+
+[scripts]
+# The Exact Per-File Values Are Listed Below.
+```
+
+| File | New `[scripts]` Content |
+|---|---|
+| `sdk/python/examples/plugin/dokime.toml` | `build = ["uv", "sync"]`; `launch = ["uv", "run", "python", "-m", "dokime_example_plugin.plugin"]` |
+| `sdk/python/examples/test/dokime.toml` | `build = ["uv", "sync"]`; `launch = ["uv", "run", "python", "-m", "dokime_example_test.plugin"]` |
+| `sdk/rust/examples/plugin/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "target/debug/dokime-example-plugin"` |
+| `sdk/rust/examples/test/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "target/debug/dokime-example-test"` |
+| `sdk/csharp/examples/Plugin/dokime.toml` | `build = ["mise", "run", "build"]`; `launch = ["dotnet", "assets/plugin/dokime-example-plugin.dll"]` |
+| `sdk/csharp/examples/Test/dokime.toml` | `build = ["mise", "run", "build"]`; `launch = ["dotnet", "assets/plugin/dokime-example-test.dll"]` |
+| `sdk/cpp/examples/plugin/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "build/dokime-plugin"` |
+| `sdk/cpp/examples/test/dokime.toml` | `build = ["mise", "run", "build"]`; `executable = "build/dokime-plugin"` |
+
+C++ replaces `dynamic` with explicit version="0.1.0", description, authors,
+license="Apache-2.0" and repository fields; publisher/readme remain optional
+everywhere. All project metadata inputs acquire the five actual fields used by
+dynamic; placeholder identities use `Your Name` and `your-organization` only.
+C# uses the explicit plugin csproj named below as its native metadata source,
+stages its DLL/deps/runtimeconfig and dependencies together in assets/plugin and
+keeps the client output separate. This removes the previous Release-path asset
+list; implementation proof uses Debug builds. C++ companions likewise belong in
+assets with an executable-relative runtime lookup. Python starter files retain
+the reference banners, section markers, rich output, .env.example, ignore rules,
+py.typed and uv_build source package. Move the reference class/function bodies
+unchanged apart from project package names; add no argument parsing or loader.
+
+### Rust Project and Surface
+
+Existing `sdk/rust/src/plugin/mod.rs:95` is an inert value builder; `suite.rs:46`
+and `template.rs:196` compose declarations by value. `operation.rs:59` already
+supports typed primitive operations and `:80` policies; `context.rs:358` and
+`:373` support typed records. `client.rs:53` and generated `client/resources.rs`
+provide low-level typed calls, not the locked bound handles. NEW: class-name
+marker construction, complete suffix derivation, separate context homes,
+connect/configuration, registration lifetime and all bound handle compositions.
+The runtime-named operation call still needs the upstream typed call capability
+recorded above; do not hide it with a product transport implementation.
+
+```text
+Cargo.toml  dokime.toml  mise.toml  .env.example  .gitignore  .gitattributes
+assets/
+src/lib.rs                         # Exposes the project's plugin declaration.
+src/main.rs                        # Plugin binary, no arguments.
+src/bin/client.rs                  # Second binary in the same Cargo package.
+src/plugin/mod.rs                  # ExamplePlugin marker and plugin() composition.
+src/plugin/operations/mod.rs       # Explicit catalog composition.
+src/plugin/operations/echo.rs      # One operation family.
+src/plugin/suites/mod.rs           # Explicit suite catalog.
+src/plugin/suites/capture/mod.rs   # CaptureSuite marker and suite value.
+src/plugin/suites/capture/confirmation.rs  # Template and its records/handlers.
+```
+
+Keep the native product-owned Registrar/Registration boundary; module catalog
+values register through it privately or explicitly. No auto-registration on
+import. `Plugin::of::<T>(version)`, `Suite::of::<T>()` and `Template::of::<T>()`
+use the marker type's code name for identity and display label. `.identifier(...)`
+and `.label(...)` override explicitly. Add these constructors rather than a
+Plugin/Suite/TestTemplate derive or an attribute macro. Existing lower-level
+explicit identity overrides use `.identifier(...)` rather than a parallel
+constructor family. A template marker is stateless; execution state stays in the one
+context store via `set(value)` and `get::<T>()`. Plugin-lived state uses its owned
+state value and a typed `ctx.plugin::<T>()` borrow. Data alone uses derives such
+as `Message`, `Parameters`, `Settings`, `Record` and `Row`; ordinary value
+builders are consumed by value. Runtime validation of duplicate declarations and
+unsupported values is acceptable. Operation handlers implement the existing
+typed Payload/handler bounds; no catalog proof trait is introduced.
+
+```rust
+// Project Declaration in plugin/mod.rs
+use dokime::{Plugin, Result, Visibility};
+use dokime::operations::{Context, Operation};
+use crate::plugin::suites::capture::suite;
+
+pub struct ExamplePlugin;
+
+pub fn plugin() -> Result<Plugin> {
+    let echo = Operation::new("example.echo", Visibility::Public, echo);
+    let plugin = Plugin::of::<ExamplePlugin>(env!("CARGO_PKG_VERSION"))
+        .suite(suite()?)
+        .operation(echo);
+    Ok(plugin)
+}
+
+async fn echo(_ctx: &Context, request: String) -> Result<String> {
+    Ok(request)
+}
+```
+
+```rust
+// Capture Suite and Template (Bodies Live in Their Respective Modules).
+use dokime::{Result, Suite};
+use dokime::templates::{Context, Criterion, Record, Step, Template};
+
+pub struct CaptureSuite;
+pub struct ConfirmationTestTemplate;
+
+pub fn suite() -> Result<Suite> {
+    let confirmation = Record::<bool>::of(ConfirmationTestTemplate::confirmation, "Confirmation");
+    let template = Template::of::<ConfirmationTestTemplate>()
+        .record(confirmation)
+        .step(Step::new("Confirm", ConfirmationTestTemplate::confirm))
+        .criterion(Criterion::new("Confirmed", ConfirmationTestTemplate::confirmed));
+    Ok(Suite::of::<CaptureSuite>().template(template))
+}
+
+impl ConfirmationTestTemplate {
+    pub fn confirmation() -> Record<bool> {
+        Record::of(Self::confirmation, "Confirmation")
+    }
+
+    async fn confirm(ctx: &Context) -> Result<()> {
+        let answer = ctx.prompt("Continue?", &["Yes", "No"]).await?;
+        ctx.record(&Self::confirmation(), answer == "Yes").await?;
+        Ok(())
+    }
+
+    async fn confirmed(ctx: &Context) -> Result<bool> {
+        ctx.records(&Self::confirmation()).step(Self::confirm).last().await
+    }
+}
+```
+
+```rust
+// src/bin/client.rs
+use std::fs;
+use dokime::{Result, ResultStatus, connect};
+use dokime_example_test::plugin::plugin;
+use dokime_example_test::plugin::suites::capture::confirmation::ConfirmationTestTemplate;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize Client
+    let client = connect().await?;
+
+    // Initialize & Register Plugin
+    client.plugins().register(plugin()?).await?;
+
+    // Initialize Test Cycle
+    let cycle = client.cycle("Capture").await?;
+
+    // Initialize Test Cases
+    let cases = client.cases().materialize::<ConfirmationTestTemplate>().await?;
+    for case in cases {
+        // Initialize Test Execution
+        let execution = cycle.execution(&case).await?;
+
+        // Run Test Execution
+        let mut progress = execution.run();
+        while let Some(update) = progress.next().await? {
+            println!("{}", update.phase);
+        }
+
+        // Seal Test Execution & Report Outcome
+        let outcome = execution.seal().await?;
+        println!("Passed: {}", outcome.status == ResultStatus::Passed);
+    }
+
+    // Seal Test Cycle
+    cycle.seal().await?;
+
+    // Save Evidence
+    let evidence = cycle.evidence().await?;
+    fs::create_dir_all("_output")?;
+    fs::write(format!("_output/{}.zip", cycle.identifier()), evidence)?;
+
+    // Close Client
+    client.close().await?;
+    Ok(())
+}
+```
+
+The plugin binary constructs `plugin()?` and calls `run()` with no
+argument parsing; its existing synchronous process boundary may block until
+stop. Native run spelling follows the owning plugin-lifecycle contract.
+`connect()` has `connect_with(ConnectionSettings)` for explicit target, timeout
+and authentication overrides; settings fields mirror Python keyword names with
+Duration for connect_timeout. `Plugin::run_with(address)` overrides one address.
+No library mutates process environment. Methods are snake_case; async I/O returns
+`Result<T>`, ProgressStream.next returns `Result<Option<Progress>>` and owns its
+Watch only. Root Client, Cycle, Execution, Case, RegisteredPlugin, Outcome and
+ResultStatus use the same fields/verbs as Python; borrowed accessors expose
+identifier/label, and `plugins()`, `cases()`, `cycles()`, `executions()` return
+bound resources. Nondefault mutation/query arguments use operation-specific
+values passed by value to `_with` methods; defaults implement only the meaningful
+empty override. No generic Options hierarchy or runtime builder type growth.
+
+### C# Project and Surface
+
+Existing `sdk/csharp/src/Dokime/Authoring.cs:78` has suite/step/criterion
+attributes, `:258` reflection-based templates, `:497` suite values;
+`Plugin.cs:11` still has a sealed constructor-composed plugin. `Context.cs:58`
+has primitive records and `:81` short prompts. Generated `Generated/Client.g.cs`
+owns low-level clients; it is not the target handle layer.
+NEW: inheritable author bases, distinct contexts, annotated plain static operation
+functions, bound handles, connect/configuration and registration lifetime.
+
+```text
+Example.slnx
+src/Example/Example.csproj             # Shared author code library.
+src/Example/Plugin/ExamplePlugin.cs
+src/Example/Plugin/Operations/Echo.cs
+src/Example/Plugin/Suites/Capture/CaptureSuite.cs
+src/Example/Plugin/Suites/Capture/ConfirmationTestTemplate.cs
+src/Example.Plugin/Example.Plugin.csproj  Program.cs  # Plugin executable.
+src/Example.Client/Example.Client.csproj  Program.cs  # Second executable.
+dokime.toml  mise.toml  .env.example  assets/  .gitignore  .gitattributes
+```
+
+For both SDK starter roots use `Example` as the shared namespace and project
+prefix, with distinct AssemblyName values from the manifest table. The plugin
+csproj is the only metadata source; its Version/Description/Authors/
+PackageLicenseExpression/RepositoryUrl are literal properties. Both executable
+projects reference the shared library; neither duplicates its source or uses
+custom include paths. Build tasks stage the plugin output in assets/plugin and
+client output in its ordinary build directory. No source generator is needed
+for the class model; attributes and startup reflection validate it once.
+
+```csharp
+// Plugin/ExamplePlugin.cs
+using Dokime;
+using Example.Plugin.Operations;
+using Example.Plugin.Suites.Capture;
+
+public sealed class ExamplePlugin : Plugin
+{
+    public override IReadOnlyList<Type> Suites => [typeof(CaptureSuite)];
+    public override IReadOnlyList<Delegate> Operations => [(Func<Dokime.Operations.Context, string, Task<string>>)Echo.Call];
+}
+
+// Plugin/Operations/Echo.cs
+using Dokime.Operations;
+
+public static class Echo
+{
+    [Operation("example.echo", Visibility = Visibility.Public)]
+    public static Task<string> Call(Context context, string request)
+    {
+        return Task.FromResult(request);
+    }
+}
+
+// Plugin/Suites/Capture/CaptureSuite.cs
+using Dokime;
+
+public sealed class CaptureSuite : Suite
+{
+    public override IReadOnlyList<Type> Templates => [typeof(ConfirmationTestTemplate)];
+}
+
+// Plugin/Suites/Capture/ConfirmationTestTemplate.cs
+using Dokime.Templates;
+
+public sealed class ConfirmationTestTemplate : TestTemplate
+{
+    public static readonly Record<bool> Confirmation = new("Confirmation");
+
+    [Step("Confirm")]
+    public async Task Confirm(Context ctx)
+    {
+        var answer = await ctx.PromptAsync("Continue?", choices: ["Yes", "No"]);
+        await ctx.RecordAsync(Confirmation, answer == "Yes");
+    }
+
+    [Criterion("Confirmed")]
+    public Task<bool> Confirmed(Context ctx)
+    {
+        return ctx.Records(Confirmation, step: Confirm).LastAsync();
+    }
+}
+```
+
+`Plugin`, `Suite`, `TestTemplate` are root/root/Templates author bases with
+Identifier and Label virtual overrides and class-derived defaults. Plugin
+Settings/Secrets and Suite.Templates are explicit collections. Plugin StartAsync/
+StopAsync and template InitializeAsync/CleanupAsync have the Python lifetimes;
+Ctx.Plugin is the actual ExamplePlugin. Operations are static methods declared
+in the plugin collection, not inherited service methods. All asynchronous
+methods accept a final optional CancellationToken; parent cancellation releases
+observation without implicitly cancelling host executions. Product
+Dokime.Operations.Context and Dokime.Templates.Context have the same method
+split as Python. Attribute suffixes are implicit (`Step` means StepAttribute),
+not extra alias types. Existing typed data attributes remain for payload schemas.
+
+```csharp
+// Example.Client/Program.cs
+using Dokime;
+using Example.Plugin;
+using Example.Plugin.Suites.Capture;
+
+// Initialize Client
+var client = await Client.ConnectAsync();
+
+// Initialize & Register Plugin
+await client.Plugins.RegisterAsync(new ExamplePlugin());
+
+// Initialize Test Cycle
+var cycle = await client.CycleAsync(label: "Capture");
+
+// Initialize Test Cases
+var cases = await client.Cases.MaterializeAsync<ConfirmationTestTemplate>();
+foreach (var testCase in cases)
+{
+    // Initialize Test Execution
+    var execution = await cycle.ExecutionAsync(testCase);
+
+    // Run Test Execution
+    await foreach (var progress in execution.RunAsync())
+    {
+        Console.WriteLine(progress.Phase);
+    }
+
+    // Seal Test Execution & Report Outcome
+    var outcome = await execution.SealAsync();
+    Console.WriteLine($"Passed: {outcome.Status == ResultStatus.Passed}");
+}
+
+// Seal Test Cycle
+await cycle.SealAsync();
+
+// Save Evidence
+var evidence = await cycle.EvidenceAsync();
+Directory.CreateDirectory("_output");
+await File.WriteAllBytesAsync($"_output/{cycle.Identifier}.zip", evidence);
+
+// Close Client
+await client.CloseAsync();
+```
+
+The plugin executable is only construction plus `await plugin.RunAsync()`.
+Client methods use PascalCase with Async for Task-based I/O: RegisterAsync,
+UploadAsync, CycleAsync, MaterializeAsync, ExecutionAsync, StartAsync, WatchAsync,
+RunAsync, StopAsync, CancelAsync, SealAsync, EvidenceAsync, NoteAsync,
+ArtifactAsync, GetAsync, ListAsync and CloseAsync. RunAsync/WatchAsync/ListAsync
+return IAsyncEnumerable of product values directly; unary calls return Task<T>
+or Task for no result, evidence is byte[]. Outcome/Progress/Note/Artifact fields
+match Python with PascalCase properties. Explicit target and timeout live in
+ConnectionSettings passed to ConnectAsync, timeout is TimeSpan; shared grammar
+reads working-directory .env at connect/serve/register and never modifies the
+environment. No `using` block is required for resource lifetime.
+
+### C++ Project and Surface
+
+Existing `sdk/cpp/include/dokime/plugin.hpp:124` has materialization, `:148`
+templates, `:246` single-template suite construction and `:254` plugin values;
+`context.hpp:132` has prompts and `:134` primitive records. Generated
+`include/dokime/_generated/client.hpp` plus `src/client.cpp` provides synchronous
+resource calls, file upload and frozen schemas, not bound handles. NEW: author
+classes with distinct suite/template composition, separate context homes,
+configuration, handle compositions and owned registration. Keep C++20 ordinary
+classes and value composition; no new reflection or coroutine framework.
+
+```text
+CMakeLists.txt  CMakePresets.json  vcpkg.json  dokime.toml  mise.toml
+.env.example  .gitignore  .gitattributes  assets/
+src/plugin.hpp  src/plugin.cpp
+src/plugin/main.cpp                  # Plugin executable, no arguments.
+src/plugin/operations/echo.hpp  echo.cpp
+src/plugin/suites/capture/capture.hpp  capture.cpp
+src/plugin/suites/capture/confirmation.hpp  confirmation.cpp
+src/client/main.cpp                  # Second executable in the same CMake project.
+```
+
+The project declares one author-code library, a dokime-plugin target and a
+dokime-client target, both linking the author library and installed Dokime::Cpp.
+Headers use natural namespace qualification and using declarations only in .cpp
+files; no namespace/type aliases or private SDK/library includes are needed.
+Class-name identity is supplied by `Plugin::from<T>`, `Suite::from<T>` and
+`Template::from<T>` through the existing SDK code-name facility; explicit string
+overrides still validate. The plugin base owns its author object, declarations
+and state. Declaration functions return complete values, rather than exposing
+SDK internals or two registration engines.
+
+```cpp
+// Bodies Are Shown Together; Place Them in the Layout's Owning Headers/Sources.
+#include <dokime/operations.hpp>
+#include <dokime/templates.hpp>
+#include <dokime/plugin.hpp>
+#include <string>
+
+namespace example {
+class ConfirmationTestTemplate : public dokime::templates::TestTemplate {
+public:
+  inline static const dokime::templates::Record<bool> confirmation{"confirmation", "Confirmation"};
+
+  void confirm(dokime::templates::Context &ctx) {
+    const auto answer = ctx.prompt("Continue?", {"Yes", "No"});
+    ctx.record(confirmation, answer == "Yes");
+  }
+
+  bool confirmed(dokime::templates::Context &ctx) {
+    return ctx.records<&ConfirmationTestTemplate::confirm>(confirmation).last();
+  }
+
+  static dokime::templates::Template definition() {
+    auto value = dokime::templates::Template::from<ConfirmationTestTemplate>();
+    value.record(confirmation);
+    value.step(dokime::templates::Step::method<&ConfirmationTestTemplate::confirm>("Confirm"));
+    value.criterion(dokime::templates::Criterion::method<&ConfirmationTestTemplate::confirmed>("Confirmed"));
+    return value;
+  }
+};
+
+class CaptureSuite : public dokime::Suite {
+public:
+  static dokime::Suite definition() {
+    auto value = dokime::Suite::from<CaptureSuite>();
+    value.template_value(ConfirmationTestTemplate::definition());
+    return value;
+  }
+};
+
+std::string echo(dokime::operations::Context &ctx, std::string request) {
+  return request;
+}
+
+class ExamplePlugin : public dokime::Plugin {
+public:
+  ExamplePlugin() : dokime::Plugin(dokime::Plugin::from<ExamplePlugin>("0.1.0")) {
+    suite(CaptureSuite::definition());
+    operation(dokime::operations::operation<std::string, std::string>(
+        "example.echo", dokime::operations::Visibility::Public, echo));
+  }
+};
+}
+```
+
+```cpp
+// src/client/main.cpp
+#include <dokime/client.hpp>
+#include <fstream>
+#include <filesystem>
+#include <iostream>
+#include "../plugin.hpp"
+
+int main() {
+  // Initialize Client
+  auto client = dokime::connect();
+
+  // Initialize & Register Plugin
+  client.plugins().register_plugin(example::ExamplePlugin{});
+
+  // Initialize Test Cycle
+  auto cycle = client.cycle("Capture");
+
+  // Initialize Test Cases
+  const auto cases = client.cases().materialize<example::ConfirmationTestTemplate>();
+  for (const auto &test_case : cases) {
+    // Initialize Test Execution
+    auto execution = cycle.execution(test_case);
+
+    // Run Test Execution
+    auto progress = execution.run();
+    while (const auto update = progress.next()) {
+      std::cout << update->phase << '\n';
+    }
+
+    // Seal Test Execution & Report Outcome
+    const auto outcome = execution.seal();
+    std::cout << "Passed: " << (outcome.status == dokime::ResultStatus::Passed) << '\n';
+  }
+
+  // Seal Test Cycle
+  cycle.seal();
+
+  // Save Evidence
+  const auto evidence = cycle.evidence();
+  std::filesystem::create_directories("_output");
+  std::ofstream output("_output/" + cycle.identifier() + ".zip", std::ios::binary);
+  output.exceptions(std::ios::badbit | std::ios::failbit);
+  output.write(reinterpret_cast<const char *>(evidence.data()), evidence.size());
+  output.close();
+
+  // Close Client
+  client.close();
+}
+```
+
+The plugin executable constructs ExamplePlugin and calls run with no arguments.
+C++ retains its existing blocking I/O idiom: unary methods return product values,
+evidence is vector of bytes, Watch/Run return an owning ProgressStream with
+`std::optional<Progress> next()`. This is observation of asynchronous host work;
+it does not introduce a second SDK executor. Explicit Start plus Watch supports
+fire-and-forget and reattachment. The C++ spelling of register is register_plugin
+because `register` is a reserved keyword; all other verbs retain snake_case:
+upload, cycle, materialize, execution, run, seal, evidence, note, artifact, close.
+Lookup/list/readback/control methods have the same argument defaults and product
+values as Python, with optional/string/vector/chrono equivalents. Product Error
+exceptions preserve Failure data; destructors release observations, and explicit
+close reports cleanup errors. ConnectionSettings values override working-directory
+.env/process configuration under the shared grammar; chrono duration represents
+connect_timeout. No user code owns grpc contexts or library call types.
+
+### Implementation Inventory and Ownership
+
+The order is (a), then parallel Python (b)/(c) and manifest (d), then Python
+consumers (e), then native SDKs (f)/(g)/(h) once the Python compositions are proven.
+Native SDKs may proceed independently of one another. These are source/proof
+items, not a declaration that implementation has happened. The rename is a
+serial filesystem prerequisite: its destination paths are handed off once,
+before any semantic writer starts. It is not concurrent permission for (a) to
+edit files later owned by another item. Subsequent owners below are disjoint;
+generated roots have one owner, never handwritten edits from another worker.
+The owner coordinates coupled host work in its existing changes rather than
+assigning the same protocol/runtime files to SDK workers.
+
+Generation has a concrete upstream prerequisite for (a): the pinned shared
+generator's `harmos_tools/build/resources/configuration.py:36` has only
+`namespace`, and `sdk.py:73`, `:177` uses that same value for both Python package
+paths and protocol selection. Add an independent Python import-package setting
+in that generator and publish/pin it through the generator owner before rename
+proof. Keep the protocol namespace `dokime`; do not set namespace to dokime_sdk,
+copy the renderer into this repository or post-process generated output by hand.
+This is an implementation capability request, not another SDK surface decision.
+
+| Item | Exclusive Paths After Rename / Work and Deletions | Guard and Required Proof |
+|---|---|---|
+| (a) Python Package Rename Alone | Move `sdk/python/src/dokime/**` to `sdk/python/src/dokime_sdk/**` mechanically, update its self-imports only; own `sdk/python/{pyproject.toml,hatch_build.py}` and rename-specific `tools/python/src/dokime_tools/build/{protocol.py,protocol_callers.py}`, `tools/python/src/dokime_tools/build/wheel.py`, `tools/python/src/dokime_tools/test/wheel.py`. No class/handle semantics. Hand off the destination tree before (b)/(c)/(e). | Existing root public-surface guard must scan the new tree and reject the old import path; installed wheel contains LICENSE/NOTICE, py.typed and stubs, imports only the new package. Minimal rename consumer/stub/generation checks pass before semantic cutover. No compatibility package or alternate import path. |
+| (b) Python Authoring Classes and Contexts | Own `sdk/python/src/dokime_sdk/{_plugin.py,_context.py,_payloads.py,_authoring.py,operations.py,templates/}`; move old authoring/documents/plot/parameters implementations into those owned private/template files. Own authoring-focused `sdk/python/tests/unit/test_authoring.py`, `tests/integration/{test_plain_operations.py,test_materialize_parameterized_steps.py,test_documents_survive_wire_roundtrip.py}`. Delete old `authoring.py`, old public plugin barrel, unified root context, `_SUITES`, suite decorator/shortcut, endpoint API, constructor-only composition and explicit decorator request/response arguments. | Typed class/function declarations, separate contexts and ctx.plugin; deterministic identifier/reuse/duplicate/primitive tests; initialize failure/cancellation still runs cleanup. Focused SDK type/build and owned tests, plus public surface and strict installed-wheel stub checks after (e) publishes roots. No duplicate policy or stream scheduler. S1–S3 remain explicit blockers only for their capabilities. |
+| (c) Python Client Handles and Configuration | Own `sdk/python/src/dokime_sdk/{_client.py,_connection.py,_configuration.py,_evidence.py,_transfers.py,_schemas.py,_values.py,_errors.py}` and any private subdirectories below those boundaries; move old connection/evidence/transfers/schemas/values code there. Own `sdk/python/tests/unit/{test_frozen_schemas.py,test_exact_values.py}` and client-focused `tests/integration/{test_connection.py,test_client_controls_remote_plugins.py,test_reports_read_fixed_storage_file.py}`, `tests/system/test_evidence_queries.py`, new client/configuration tests. Delete free selector functions, separate old Cycle/Execution wrappers and public connection module. | Deterministic fake-service composition traces, mutation replay/lost-reply cases, cancellation without execution cancellation, close ownership, fixed-cut paging, frozen decoding and digest verification. Type/stub checks; focused client tests; real host proof waits for named host dependencies, never patched SDK finality. |
+| (d) Command-Line Manifest, Bundles and Embedding | Own `crates/dokime-packaging/src/project.rs`, affected packaging manifest/bundle sources/tests, `crates/dokime-cli/{build.rs,src/commands/new.rs,src/commands/plugin/,src/commands/dev.rs}`, relevant CLI units/system stories, and all eight starter `dokime.toml` paths above. Own shared CLI fixture/tooling manifest consumers outside SDK trees. Delete old top-level manifest keys, `assets` lists, root-script embedding assumptions, argument-based plugin launches and old-schema fixtures. SDK workers do not edit these manifests. | `check:repository`, focused `dokime-packaging`/`dokime-cli` build and units, exact embedded file inventories, all four created starter bundle/inspect/dev command-line stories with `--no-desktop`; static/dynamic precedence and native metadata errors, confinement, asset completeness and stable bundle identity/version. Existing build task remains the command runner. |
+| (e) Python Starter, Examples, Generation and Consumer Tests | Own all `sdk/python/examples/**` except (d)'s manifests; `sdk/python/{README.md,mise.toml,tools/**}`, `sdk/python/tests/generation/**`, new starter consumer stories, `sdk/tests/fixtures/python/**`, Python shared-SDK story callers, and Python fixture launch/selectors in `crates/dokime-runtime/tests/support/` plus the Python-specific system stories named in Authoring Adoption Owners. Own product-generated `sdk/python/src/dokime_sdk/{__init__.py,_generated/**,_wire/**}` and generation of those paths, never generated hand edits. (a) hands off generator files before this starts. Delete old root main.py/plugin.py/suite.py/template.py layouts, old imports, shipped example locks and superseded export assertions. | Public-surface check at the three homes, strict stub check, generated-bindings check, typed installed-wheel consumers, `mise -C sdk/python run example-test`, reshaped SDK example tests and command-line created-starter story. Class reference flow runs against a real host and saves valid retained evidence. Regenerate all tracked artifacts and verify no old package is installed. |
+| (f) Rust SDK and Starters | Own `sdk/rust/**` except (d)'s two manifests; Rust shared SDK fixtures `sdk/tests/fixtures/rust/**` and Rust-specific shared story adapters. Add separate public operation/template contexts and bound client modules while retaining the protocol-only dependency boundary. Update both Cargo starter projects, entries, catalogs, README and tests; delete their argument parsing, old single-template shortcut consumers, library-facing APIs and superseded client selectors. Runtime/CLI production consumers outside this list stay with the integrating owner. | `mise -C sdk/rust run format`, focused root build task for `dokime`/derive and consumer binaries, dependency-tree check and focused SDK integration tests. Generated bindings check and public surface, created Rust starter client/plugin and bundle stories on the native host. No full lane, bench profile or worker clippy. Upstream typed runtime-operation dependency remains visible. |
+| (g) C# SDK and Starters | Own `sdk/csharp/**` except (d)'s manifests; `sdk/tests/fixtures/csharp/**` and C# shared story adapters. Replace sealed constructor authoring with classes/attributes, add contexts/handles/configuration, split shared author library/plugin/client projects and update locks, README, tests and generation inputs/output. Delete old argument parsing, single-template shortcut consumers, public library namespaces and replaced API assertions. | C# format/check, focused Debug build via the SDK task with `--project`, focused authoring/client tests, generation/client checks and installed NuGet consumer. Native created starter flow, shared capture contract, bundle/dev stories. Do not use the task's existing Release default for worker proof. |
+| (h) C++ SDK and Starters | Own `sdk/cpp/**` except (d)'s manifests; `sdk/tests/fixtures/cpp/**` and C++ shared story adapters. Add classes/contexts/handles/configuration and second CMake binary, migrate examples/README/tests/installed package headers. Regenerate tracked binding output through generation tasks. Delete argument parsing, old single-template shortcut consumers, public library aliases/escape hatches and replaced API assertions. | C++ format/check, focused Debug SDK and consumer build/tests via SDK tasks, generated header/binding check, installed CMake consumer. Native created starter plugin/client, shared capture and command-line bundle/dev stories; Windows and Linux proof are independent. |
+
+Paths in braces name files, not new generic modules required merely for symmetry.
+Use the existing cohesive file when it already owns that concern. If a named
+production file differs in the implementation checkout, establish the exact
+equivalent before assigning it; do not create a parallel implementation. Shared
+SDK driver files (for example the common `sdk/tests` runner) stay with the
+integrating owner; each language owns only its fixture subtree/adapter, avoiding
+simultaneous edits to the runner. The same rule applies to root mise tasks and
+the shared generator: (a)'s mechanical configuration update finishes first;
+later SDK owners change only their own generator inputs/output, with a follow-up
+from the generator owner if its capability must change.
+
+All eight items remove superseded code and consumers in their own delivery;
+none leaves aliases or an installable old namespace. Keep tests for preserved
+behavior; delete tests only when the covered behavior is explicitly superseded,
+with that decision named. SdkError projection must preserve all failure causes,
+classification and actions. No tests assert authored prose, timing, sampled
+resources or one configuration constant. The public-surface guard becomes an
+AST/import inventory of the three intentional homes rather than disappearing
+when `__all__` is removed. It explicitly permits the two distinct Context names,
+refuses a root Context and checks internal generation never becomes a fourth
+author barrel. Strict stubtest covers authored public classes/functions as well
+as generated resource bindings. Generation checks retain descriptor shapes,
+fingerprints, caller filters and Watch metadata.
+
+Every implementation owner runs formatting, an owned-language check without
+clippy, focused compilation and changed-behavior tests through existing mise
+tasks. `check:rust` currently includes lint, so workers use the focused build task
+and formatting/dependency checks instead; the orchestrator owns lint. Final
+installed starter/real-host and cross-language proofs happen after all required
+source dependencies land. Hosted CI/Nightly owns full validation after authorized
+delivery. A specification-only edit runs OpenSpec strict validation and the
+explicitly requested `check:repository`, with no builds or implementation tests.
+
+### Decisions Still Requiring the Owner
+
+These are not permission to implement competing designs. Everything independent
+of them can proceed from the signatures and ownership above.
+
+| ID | Unsettled Contract / Recommended Smallest Resolution |
+|---|---|
+| S1 | Serial admission has no current policy field or agreed scope (per operation, plugin or device resource). Extend the shared operation policy with per-operation, per-activation serial admission, preserving its timeout/cancellation accounting; do not add a second product lock engine. The owner must choose the scope before implementation. |
+| S2 | The lock removes author `requires`, while the host still requires typed peer-operation declarations. Static calls can be inferred, but runtime-selected Operation values cannot be discovered reliably from Python code. Recommend an explicit typed operation-reference class attribute distinct from served operations, collected by the SDK; its name/shape requires owner agreement. Do not scan bytecode or disable the host check. |
+| S3 | SettingGroup has no metadata contract in current flat settings. Recommend product-only group metadata over unchanged saved keys, exposed by the product settings schema. The owner must decide its stored/catalog representation; do not invent nested setting names or a parallel settings registry. |
+| S4 | `plugin-lifecycle/design.md` D1/D2 specify initialize/finalize hooks; this task explicitly asks plugin start/stop and template setup/cleanup. This section follows the task. The owner must reconcile the owning lifecycle change before implementations share those hook names; no alias methods. Native process entries retain that change's run spelling; Python keeps the locked serve spelling. |
+
+Resolutions recorded on 2026-11-18 while the owner was away; each is the
+orchestrator's choice and is reported to the owner for confirmation:
+
+- S2 is settled by the earlier owner decision on `requires` (Option A): authors
+  never declare requirements and the SDK declares every operation the plugin can
+  reference. No new class attribute is added.
+- S4: the plugin class uses the hook names the `plugin-lifecycle` change already
+  agreed, `initialize` and `finalize`; templates keep `setup` and `cleanup`. The
+  signatures in this section apply under those names.
+- S1 and S3 are not needed by the starter and stay open. Nothing in items
+  (a)-(h) may implement serial admission or settings groups until the owner
+  chooses.
+
+Host-owned Ready registration, product plugin administration/invocation wrappers,
+plugin Notes/Create admission, Executions/Seal and retained cycle report/archive
+materialization are implementation dependencies, not unanswered SDK naming
+questions. Their owners must publish the exact request/response contracts before
+bindings are generated; SDK workers must not create lookalike protos or mark a
+mock-only client proof as real-host proof. Ordered pairing attempt read policy
+remains with `remote-access-simplification`; this section adds no retry budget.
+
+### Overlaps and Documentation Impact
+
+| Both Locations | Current Callers and Responsibility | Recommendation for the Owner |
+|---|---|---|
+| `sdk/python/src/dokime/evidence.py:_download` and `transfers.py:download_report` | Evidence export calls the former; report download consumers call the latter. Both read bounded file ranges and verify identity/length/digest, with different outer publication behavior. | Share the internal verified byte-reader under (c), retaining distinct archive/report selection and file publication; delete the duplicate range/digest loop after the owner agrees. |
+| `sdk/python/src/dokime/authoring.py:_SUITES` and explicit Plugin suite inventories | The suite decorator fills the weak registry; Plugin resolves type input through it. Both determine suite membership/binding. | Delete the weak registry under the locked class decision, use explicit Plugin.suites only; no second registry for client lookup, only client-owned registration bindings. |
+| `sdk/python/tools/generate.py` and `tools/python/src/dokime_tools/build/protocol.py` | SDK generation owns author barrels; shared generation excludes them while producing descriptor projections. Both touch SDK publication inventories. | Preserve the intentional disjoint generation ownership, with one root inventory owner; do not merge or duplicate root generation. No deletion is recommended for the separate descriptor generator. |
+
+The owner writes `docs/`; no documentation file changes belong to SDK workers.
+When implementation lands, these current statements need reconciliation:
+
+| File / Line | What Becomes True |
+|---|---|
+| `docs/architecture.md:15`, `:37`, `:1133`, `:1217` | Product-only contexts/handles and class composition replace exposed carrier types and old entry/lifecycle descriptions; retained evidence follows seal-finality. |
+| `docs/product-guide.md:144` | SDK/CLI workflows use bound cycle/case/execution handles, product plugin operations and explicit seal finality. |
+| `docs/plugins.md:21` | Python execution state belongs to the TestTemplate instance, with plugin state separately reachable through ctx.plugin. |
+| `docs/rust-sdk.md:7`, `:37`, `:52`, `:96` | Separate operation/template contexts, one project with two binaries and bound client flow replace the old snippets. |
+| `docs/sdk-csharp.md:65`, `:115`, `:139` | Author bases/attributes and Task/IAsyncEnumerable bound handles use product-only namespaces and the shared configuration grammar. |
+| `docs/sdk-cpp.md:13`, `:26`, `:85` | Author classes and blocking bound handles hide carrier types and require no starter argument parsing. |
+| `docs/execution-host.md:308` | The exact three-table manifest, dynamic metadata and implicit assets replace top-level scripts/assets. |
+
+README impact belongs to implementation owners: root README's Python import,
+connection and starter path claims need the integrating owner's update; each SDK
+owner updates its package README and examples. Do not edit unrelated prose.
