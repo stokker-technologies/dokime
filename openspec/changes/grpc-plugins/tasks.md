@@ -105,6 +105,13 @@
 - [x] Generate the Shared Report Template Before Independent Rust Fixture, Test-Archive and Lint Compilation; Propagate Generation Failures Before Compilation.
 - [x] Preserve Focused Native JUnit Reports Before Scratch Cleanup and Keep Cleanup Failures Visible.
 
+## Desktop Reports and Paired Python
+
+- [ ] Freeze Reports at Creation, Download Retained Bytes Without Reconstruction and Prove Both Desktop Stories.
+- [ ] Share the Journey's Submit-and-Observe Report Save With Screenshots and Measure Thermal/OBC Creation, Transfer and Write.
+- [x] Keep Desktop and Python Remote Access Files at `.pair`; Prove the Python Client Reads the Portable File.
+- [ ] Add and Prove Python Drives a Paired Desktop Through the Real Remote Access Export Control and the Unmodified Starter.
+
 ## Single Plugin Paths
 
 - [x] Share Entry Readiness Between CLI Add/Install and the Host Without Changing Their Failure Messages or Watch Policies.
