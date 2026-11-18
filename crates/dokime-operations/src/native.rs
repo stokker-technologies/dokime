@@ -237,6 +237,7 @@ pub fn registration(settings: &ClientSettings) -> Result<Registration> {
         (factory::<host::executions::progress::get::Operation>, settings.read_timeout),
         (factory::<host::executions::progress::set::Operation>, settings.mutation_timeout),
         (factory::<host::executions::schemas::get::Operation>, settings.read_timeout),
+        (factory::<host::executions::seal::Operation>, settings.mutation_timeout),
         (factory::<host::executions::set::Operation>, settings.mutation_timeout),
         (factory::<host::executions::start::Operation>, settings.mutation_timeout),
         (factory::<host::executions::steps::Operation>, settings.read_timeout),

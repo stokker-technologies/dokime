@@ -36,6 +36,7 @@ use dokime::client::ExecutionsGetOptions;
 use dokime::client::ExecutionsListOptions;
 use dokime::client::ExecutionsProgressGetOptions;
 use dokime::client::ExecutionsProgressWatchOptions;
+use dokime::client::ExecutionsSealOptions;
 use dokime::client::PluginPlacement;
 use dokime::client::PluginRemote;
 use dokime::client::PluginValue;
@@ -99,7 +100,7 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                         label: "Story Cycle".into(),
                         ..Default::default()
                     },
-                    true,
+                    false,
                     String::new(),
                     CyclesCreateOptions {
                         request_id: Some(uuid::Uuid::now_v7().to_string()),
@@ -126,6 +127,11 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 .await?;
             let name = admitted.executions[0].summary.as_ref().unwrap().execution_id.clone();
 
+            // Refuse Seal Before Starting Without Admitting Work
+            assert!(client.executions.seal(name.clone()).await.is_err());
+            assert!(client.executions.get(name.clone()).await?.execution.unwrap().outcome.is_none());
+            client.executions.start(name.clone(), Default::default()).await?;
+
             // Open the Descriptor-Derived Hierarchy and Retain a Durable Read
             let mut watch = client
                 .executions
@@ -138,6 +144,9 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                     break;
                 }
             }
+            // Refuse Seal During the Prompt Without Cancelling or Waiting
+            assert!(client.executions.seal(name.clone()).await.is_err());
+            assert!(client.executions.get(name.clone()).await?.execution.unwrap().outcome.is_none());
             let first = client
                 .executions
                 .progress
@@ -150,11 +159,33 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
             assert_eq!(first.value.as_ref().unwrap().completed, 1);
             let prompt = host.prompts.list(name.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
             host.prompts.answers.create(prompt, "continue", MapValue::default(), true).await?;
-            let mut finished = false;
+            let mut terminal = None;
             while let Some(response) = watch.next().await? {
-                finished |= response.finished;
+                assert!(terminal.is_none());
+                if response.sealed {
+                    assert!(response.finished);
+                    terminal = Some(response);
+                }
             }
-            assert!(finished);
+            let terminal = terminal.ok_or("Watch Progress: Missing Sealed Frame")?;
+
+            // Seal Replays the Stored Outcome and Original Mutation Receipt
+            let options = ExecutionsSealOptions {
+                request_id: Some("seal-progress".into()),
+                ..Default::default()
+            };
+            let sealed = client.executions.seal_with(name.clone(), options.clone()).await?;
+            assert_eq!(sealed.outcome, terminal.outcome);
+            assert_eq!(client.executions.get(name.clone()).await?.execution.unwrap().outcome, sealed.outcome);
+            assert_eq!(client.executions.seal_with(name.clone(), options).await?, sealed);
+            assert_eq!(client.executions.seal(name.clone()).await?.outcome, sealed.outcome);
+
+            // Reattachment Yields Exactly One Sealed Frame and Ends
+            let mut reattached = client.executions.progress.watch(name.clone()).await?;
+            let response = reattached.next().await?.ok_or("Watch Progress: Missing Sealed Opening")?;
+            assert!(response.sealed && response.finished);
+            assert_eq!(response.outcome, sealed.outcome);
+            assert!(reattached.next().await?.is_none());
 
             // Whole-Value Replacement Clears Fields and Execution Detail Agrees
             let current = client

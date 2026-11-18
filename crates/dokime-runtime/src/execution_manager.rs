@@ -294,7 +294,7 @@ impl ExecutionManager {
                     let pending =
                         manager.inner.prompts.pending_prompts().is_ok_and(|prompts| prompts.iter().any(|(id, _)| id == execution));
                     let phase = if finished {
-                        "finished".into()
+                        "sealed".into()
                     } else if pending {
                         "prompt".into()
                     } else {
@@ -335,7 +335,7 @@ impl ExecutionManager {
         if let Some(sender) = lock(&self.inner.progress)?.remove(execution) {
             sender.send_modify(|progress| {
                 progress.revision += 1;
-                progress.phase = "finished".into();
+                progress.phase = "sealed".into();
                 progress.finished = true;
                 progress.failure = failure;
             });
@@ -352,7 +352,7 @@ impl ExecutionManager {
         }
         Ok(watch::channel(Progress {
             revision: 1,
-            phase: "finished".into(),
+            phase: "sealed".into(),
             finished: true,
             failure: None,
         })
@@ -386,3 +386,100 @@ impl ExecutionManager {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::{error::Error, num::NonZeroUsize, sync::Arc, sync::Mutex, time::Duration};
+
+    use tokio::sync::watch;
+
+    use super::ExecutionManager;
+    use crate::prompts::PromptManager;
+    use crate::{CaptureSettings, ControlledClock, HostSettings, PlacementSettings};
+    use dokime_operations::host::credentials::CredentialNamespace;
+    use dokime_protocol::host::execution_outcome::Attribution;
+    use dokime_protocol::host::{ExecutionOutcome, UnevaluatedOutcome};
+    use dokime_protocol::model::Termination;
+    use dokime_storage::{Execution, Store, storage_defaults};
+    use tempfile::TempDir;
+
+    fn manager() -> Result<(TempDir, ExecutionManager), Box<dyn Error>> {
+        let root = tempfile::tempdir()?;
+        let store = Store::open(root.path())?;
+        let settings = HostSettings {
+            credentials: CredentialNamespace::new("dokime-seal-unit")?,
+            storage: storage_defaults(),
+            placement: PlacementSettings {
+                reconnect_delay: Duration::from_secs(1),
+                stream_window: NonZeroUsize::new(8).unwrap(),
+                interval_window: crate::INTERVAL_WINDOW,
+                interval_lag: crate::INTERVAL_LAG,
+                message_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+            },
+            clock: Arc::new(ControlledClock::new(0)),
+            capture: CaptureSettings::default(),
+        };
+        let changed = watch::channel(0).0;
+        let prompts = Arc::new(PromptManager::new(store.clone(), settings.clock.clone(), changed.clone()));
+        let manager = ExecutionManager::new(store, settings, prompts, changed, Arc::new(Mutex::new(None)))?;
+        Ok((root, manager))
+    }
+
+    #[tokio::test]
+    async fn execution_progress_settles_after_the_outcome_is_sealed() -> Result<(), Box<dyn Error>> {
+        // Track an Admitted Execution Before Completion
+        let (_root, manager) = manager()?;
+        manager.inner.store.create(&Execution {
+            identifier: "execution".into(),
+            cycle: "cycle".into(),
+            ..Default::default()
+        })?;
+        manager.track(&["execution".into()])?;
+        let mut progress = manager.progress("execution")?;
+        assert!(!progress.borrow_and_update().finished);
+
+        // Seal an Interrupted Outcome Before Publishing Terminal Progress
+        let outcome = ExecutionOutcome {
+            attribution: Some(Attribution::NotEvaluated(UnevaluatedOutcome {
+                termination: Termination::Interrupted as i32,
+                reason: String::new(),
+            })),
+        };
+        manager.inner.store.close("execution", Termination::Interrupted, outcome.clone())?;
+        manager.inner.store.seal("execution")?;
+        manager.finish_progress("execution", None)?;
+        progress.changed().await?;
+        assert!(progress.borrow_and_update().finished);
+        assert_eq!(manager.inner.store.cut("execution")?.execution.outcome, Some(outcome));
+        manager.shutdown().await?;
+        assert!(progress.changed().await.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn execution_progress_reattaches_to_a_sealed_outcome() -> Result<(), Box<dyn Error>> {
+        // Seal an Execution With No Live Progress Owner
+        let (_root, manager) = manager()?;
+        manager.inner.store.create(&Execution {
+            identifier: "execution".into(),
+            cycle: "cycle".into(),
+            ..Default::default()
+        })?;
+        let outcome = ExecutionOutcome {
+            attribution: Some(Attribution::NotEvaluated(UnevaluatedOutcome {
+                termination: Termination::Completed as i32,
+                reason: String::new(),
+            })),
+        };
+        manager.inner.store.close("execution", Termination::Completed, outcome.clone())?;
+        manager.inner.store.seal("execution")?;
+
+        // Return a Terminal Snapshot Without Waiting for a Runtime Update
+        let mut progress = manager.progress("execution")?;
+        assert!(progress.borrow_and_update().finished);
+        assert_eq!(manager.inner.store.cut("execution")?.execution.outcome, Some(outcome));
+        assert!(progress.changed().await.is_err());
+        manager.shutdown().await?;
+        Ok(())
+    }
+}
