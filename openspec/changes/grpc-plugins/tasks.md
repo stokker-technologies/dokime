@@ -58,6 +58,8 @@
 - [x] Python: Qualify Materialized Step and Criterion Instances With the Shared Identifier Function and Support Bound Methods.
 - [ ] Rust: Follow the Locked Authoring Surface.
 - [ ] C#: Follow the Locked Authoring Surface.
-- [ ] C++: Follow the Locked Authoring Surface.
+- [x] C++: Follow the Locked Authoring Surface.
+- [x] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
+- [ ] C++: Complete the Prescribed Host-Fixture Producer Proof After Resolving Its Release-Only Build Against the Worker Debug-Only Rule.
 - [ ] Command Line: Implement Locked Point 11.
 
