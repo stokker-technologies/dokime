@@ -69,7 +69,6 @@
 - [x] C++: Complete the Prescribed Host-Fixture Producer Proof With This Task's Authorized Release Build.
 - [ ] Command Line: Implement Locked Point 11.
 
-
 - [x] Integration: Normalize Member Code Names and Qualify Short Prompts Across All Four SDKs.
 - [x] Integration: Give the Python SDK Sole Ownership of Its Authoring Root Exports.
 - [x] Integration: Migrate Thermal and OBC Evidence Selectors and the Python Plugin Fixture Entrypoint.
@@ -77,3 +76,14 @@
 - [ ] Integration: Prove Generation, Ordered Host Fixtures, Four SDKs, Shared Stories, Command-Line Development Stories and Migrated Runtime Stories on the Combined Tree.
 - [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
 - [ ] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
+
+## Plugin Project Manifests
+
+- [x] Pin the Launch-Capable Library Revision in the Workspace and Rust Consumer Manifests and Locks.
+- [x] Read Strict `dokime.toml` Plugin Manifests With One Native Executable or Launch Command and Confined Relative Paths.
+- [x] Build Manifest Projects Before Development or Bundling; Require Python Project and Lock Inputs Before Use.
+- [x] Bundle Native Executables With File or Folder Assets and Launch Projects With Their Git-Ignored File Inventory.
+- [x] Replace Executable Flags and Python-Folder Detection With Bundle or Manifest-Project Development Inputs.
+- [x] Attach the Sibling Packaged Desktop When Present and Close It With the Disposable Host.
+- [x] Embed Manifest Files in the Four Test Starters and Update README Command Examples.
+- [ ] Complete Focused CLI, Packaging and Runtime Unit Proof, Formatting, Locked Metadata and Three-Package Compilation With Tests.

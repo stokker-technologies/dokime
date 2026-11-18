@@ -7,7 +7,7 @@
  * ***
  */
 
-// Bundle Any Native Plugin Executable Without Compiling
+// Build and Bundle a Plugin Project
 
 /* === Modules === */
 
@@ -41,14 +41,10 @@ use dokime_runtime::PluginProcess;
 
 #[derive(clap::Args)]
 pub(crate) struct Args {
-    #[arg(long)]
-    executable: PathBuf,
+    folder: PathBuf,
 
     #[arg(long)]
     out: PathBuf,
-
-    #[arg(long = "asset")]
-    assets: Vec<PathBuf>,
 }
 
 /* === Enums === */
@@ -60,15 +56,15 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: Settings) -> Result<()> {
-    // Freeze the Declared Identity and Declarations From the Native Executable
-    let executable = std::fs::canonicalize(&args.executable)?;
-    let mut process = PluginProcess::start(&executable, false, &settings.placement()).await?;
+    // Build the Project and Freeze Its Own Description
+    let project = super::project::prepare(&args.folder).await?;
+    let mut process = PluginProcess::start(&project.root, false, &settings.placement()).await?;
     let description = process.describe().await;
     let closed = process.close().await;
     let description = description?;
     closed?;
     if description.id.is_empty() || description.declarations.is_none() {
-        return Err("Bundle Plugin: Executable Must Describe Its Identity and Declarations".into());
+        return Err("Bundle Plugin: Make the Plugin Describe Its Identity and Declarations".into());
     }
     let identity = Identity {
         name: description.id.clone(),
@@ -77,7 +73,7 @@ pub(crate) async fn run(args: Args, _endpoint: Option<String>, settings: Setting
         package: Default::default(),
     };
     let declarations = description.encode_to_vec();
-    let bytes = dokime_packaging::bundle::create(&executable, &args.assets, identity, Some(&declarations))?;
+    let bytes = dokime_packaging::bundle::create_project(&project, identity, Some(&declarations))?;
     let parent = args.out.parent().filter(|path| !path.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let mut output = NamedTempFile::new_in(parent)?;
     output.write_all(&bytes)?;
