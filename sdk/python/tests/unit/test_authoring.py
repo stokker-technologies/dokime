@@ -1,0 +1,160 @@
+# ***
+#
+# dokime-rust-workspace
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+
+"""TODO: Describe this module's responsibility."""
+
+# === Imports === #
+
+# Standard Library Imports
+import ast
+import unittest
+from pathlib import Path
+
+# Third Party Imports
+from google.protobuf.wrappers_pb2 import BoolValue
+
+from dokime import Context, Plugin, PromptDefinitions, Template, criterion, observer, prompt, record, step, stream, suite
+from dokime.authoring import Suite
+from dokime.payloads import message_type, pack, unpack
+
+# Local Imports
+
+# Type Checking Imports
+
+
+# === Public Exports === #
+
+# === Constants === #
+
+# === Types === #
+
+# === Classes === #
+
+
+class AuthoringStory(unittest.TestCase):
+    def test_code_names_generate_qualified_identifiers_independently_of_labels(self) -> None:
+        @suite(label="A Label That Is Not an Identifier")
+        class HTTPAccuracySuite:
+            accepted_reading = record(bool, label="Unrelated Record Label")
+            operator_choice = prompt("Proceed?", choices=["Yes", "No"])
+
+            @step("Completely Different Label")
+            async def read_voltage(self, ctx: Context) -> None:
+                pass
+
+            @criterion("Another Label")
+            def readingOK(self, ctx: Context) -> bool:
+                return True
+
+            @stream("Unrelated Stream Label")
+            @observer()
+            def outlet_temperature(self, ctx: Context) -> float:
+                return 20.0
+
+        plugin = Plugin("naming", "1.0.0", suites=[HTTPAccuracySuite])
+        template = plugin.suites[0].templates[0]
+        case = template.build({}).message
+        self.assertEqual(template.identifier, "http-accuracy")
+        self.assertEqual(case.steps[0].metadata.identifier, "http-accuracy.read-voltage")
+        self.assertEqual(case.criteria[0].metadata.identifier, "http-accuracy.reading-ok")
+        self.assertEqual(list(case.streams), ["http-accuracy.outlet-temperature"])
+        self.assertEqual(template.resolve(HTTPAccuracySuite.accepted_reading), "http-accuracy.accepted-reading")
+        self.assertEqual(template.resolve(HTTPAccuracySuite().read_voltage), case.steps[0].metadata.identifier)
+        sections = plugin.declarations().sections
+        prompts = next(section for section in sections if section.type.endswith("PromptDefinitions"))
+        value = PromptDefinitions.FromString(prompts.payload)
+        self.assertEqual(value.prompts[0].metadata.identifier, "http-accuracy.operator-choice")
+
+    def test_grouped_templates_bind_once_without_mutating_shared_declarations(self) -> None:
+        class VoltageTemplate:
+            reading = record(int, identifier="exact", label="Reading")
+
+            @step("Measure", identifier="take")
+            def measure(self, ctx: Context) -> None:
+                pass
+
+        local = Template(VoltageTemplate, identifier="voltage")
+        first = Plugin("one", "1.0.0", suites=[Suite("accuracy", [local])]).suites[0].templates[0]
+        second = Plugin("two", "1.0.0", suites=[Suite("production", [local])]).suites[0].templates[0]
+        self.assertEqual(first.identifier, "accuracy.voltage")
+        self.assertEqual(first.resolve(VoltageTemplate.reading), "accuracy.voltage.exact")
+        self.assertEqual(first.definition().steps[0].operation, "accuracy.voltage.take")
+        self.assertEqual(second.resolve(VoltageTemplate.reading), "production.voltage.exact")
+        self.assertEqual(local.identifier, "voltage")
+        self.assertRaises(ValueError, first.resolve, "accuracy.voltage.exact")
+
+    def test_explicit_suite_and_generated_template_names(self) -> None:
+        @suite(identifier="chosen", label="Ignored for Naming")
+        class RenamedSuite:
+            @step("Ignored")
+            def read_value(self, ctx: Context) -> None:
+                pass
+
+        single = Plugin("one", "1.0.0", suites=[RenamedSuite]).suites[0].templates[0]
+        grouped = Plugin("two", "1.0.0", suites=[Suite("accuracy", [Template(RenamedSuite)])]).suites[0].templates[0]
+        self.assertEqual(single.identifier, "chosen")
+        self.assertEqual(single.resolve(RenamedSuite.read_value), "chosen.read-value")
+        self.assertEqual(grouped.identifier, "accuracy.renamed")
+
+    def test_duplicate_and_empty_declarations_fail_at_construction(self) -> None:
+        @suite()
+        class Repeated:
+            first = record(bool, identifier="same")
+            second = record(str, identifier="same")
+
+        @suite()
+        class Empty:
+            reading = record(int, identifier="")
+
+        @suite()
+        class CrossKind:
+            reading = record(int, identifier="measure")
+
+            @step("Measure")
+            def measure(self, ctx: Context) -> None:
+                pass
+
+        @suite(identifier="")
+        class EmptySuite:
+            pass
+
+        for declaration in (Repeated, Empty, CrossKind, EmptySuite):
+            self.assertRaises(ValueError, Plugin, "invalid", "1.0.0", suites=[declaration])
+        self.assertRaises(ValueError, Plugin, "invalid", "1.0.0", suites=[Repeated, Repeated])
+
+    def test_primitive_and_structured_payloads_roundtrip(self) -> None:
+        values = [False, True, "a value", -(2**63), 2**63 - 1, 2.125, BoolValue(value=True)]
+        for value in values:
+            row = type(value)
+            encoded = pack(row, value).SerializeToString()
+            decoded = message_type(row).FromString(encoded)
+            self.assertEqual(unpack(row, decoded), value)
+            self.assertIs(type(unpack(row, decoded)), row)
+        self.assertRaises(TypeError, pack, int, True)
+        self.assertRaises(TypeError, record, bytes)
+
+    def test_examples_import_the_product_surface(self) -> None:
+        examples = Path(__file__).resolve().parents[2] / "examples"
+        imported = []
+        for source in examples.rglob("*.py"):
+            tree = ast.parse(source.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported.extend((source, item.name) for item in node.names)
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    imported.append((source, node.module))
+        self.assertTrue(any(name == "dokime" for _, name in imported))
+        self.assertEqual([(path, name) for path, name in imported if name.split(".")[0] == "harmos"], [])
+
+
+# === Public Functions === #
+
+# === Private Functions === #
+
+# === Entry Point === #

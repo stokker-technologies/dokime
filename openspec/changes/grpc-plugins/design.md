@@ -778,3 +778,49 @@ both WebView lanes, fixtures, format/lint/language checks and locked dependency
 metadata. Hosted CI/Nightly provide full proof only after authorized delivery.
 Nightly publication gates on packaging, not suite results. No source checkbox or
 historical Windows result establishes passing final native proof or push authority.
+
+## Authoring Surface (Locked by the Owner, 2026-11-18)
+
+Applies to every SDK language; Python is the reference implementation, the others follow its shape.
+
+1. **Only the product package.** Every example, starter and consumer-facing snippet imports only from `dokime`. Nothing an author writes imports or names the underlying library. The SDK re-exports what authors need (operation decorator, context, visibility).
+2. **Short prompt.** Examples and starters ask the operator with `ctx.prompt(text, choices=[...])`, which returns the chosen label. The long host-operation form is not used in examples.
+3. **Qualified identifiers.** A template is `<suite>.<template>` (`accuracy.voltage`). Everything declared inside a template (records, streams, prompts, steps, criteria) is `<suite>.<template>.<name>` on the wire and in evidence. Authors write and pass only the local declaration; the SDK qualifies it.
+4. **Generated identifiers.** An identifier the author does not give is generated from the code name, never from the label: class name minus a trailing `Template` or `Suite`, method or attribute name for members; lowercased, word boundaries and underscores become `-`. An explicit `identifier=` wins. The existing label-derived fallback for steps and criteria is replaced by this rule.
+5. **Declarations live on the template.** Records are declared on the template class (as streams already are with the stream decorator) and on observers. The plugin-level `records=` argument is removed.
+6. **Plain values.** Records and simple operations accept `str`, `bool`, `int`, `float` (and the language's equivalents); the SDK wraps them in the well-known wrapper messages. Structured rows stay protobuf messages.
+7. **No `sections`.** The raw declaration-section list is removed from the author-facing plugin value; the SDK builds every section from typed declarations.
+8. **Visibility is a type.** `Visibility.PUBLIC` (an enum) replaces module constants.
+9. **`requires` leaves the author surface.** Starters and examples never pass it. (Deleting the host-side requirement check is a separate decision pending an inventory; do not touch the host check.)
+10. **Python project layout.** `plugin.py` is the plugin entry point: it starts the sidecar and nothing else. `main.py` is the client-plus-plugin flow: it starts the plugin and drives it through the client. Suites live in their own module(s). A Python plugin project is a folder with `pyproject.toml` and `plugin.py`.
+11. **Running and bundling.**
+    - `dokime dev --plugin <path>` starts the application with console logging and a temporary data root and attaches one plugin. `<path>` is a bundle file, or a Python project folder (the host starts `plugin.py` with `uv run --project <folder>`). Python is the only path plugin; every other language is compiled and bundled first.
+    - `dokime plugin dev --executable` is deleted.
+    - `dokime plugin bundle` accepts an executable (as today) or a Python project folder, which is packed as it is (sources, `pyproject.toml`, `uv.lock`). The host runs a Python bundle with `uv`; Python and `uv` on the host are an accepted requirement.
+    - Installing a plugin asks the user once whether they trust it: a confirmation in the desktop, an explicit `--trust` flag on the command line (which never prompts).
+
+Target starter (Python):
+
+```python
+from dokime import Plugin, Context, suite, step, criterion, record
+
+@suite(label="Capture")
+class Capture:
+    confirmation = record(bool, label="Confirmation")
+
+    @step("Confirm")
+    async def confirm(self, ctx: Context) -> None:
+        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
+        await ctx.record(self.confirmation, answer == "Yes")
+
+    @criterion("Confirmed")
+    async def confirmed(self, ctx: Context) -> bool:
+        return await ctx.records(self.confirmation, step=self.confirm).last()
+
+plugin = Plugin("example", "0.1.0", suites=[Capture])
+```
+
+Qualified identifiers change the identifiers stored in evidence; existing roots need a fresh root (development storage policy).
+
+Single-class suites use the suite identifier for their sole template, and <suite>.<name> for members. Grouped templates use <suite>.<template> and <suite>.<template>.<name>.
+

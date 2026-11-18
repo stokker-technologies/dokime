@@ -13,9 +13,12 @@
 # Standard Library Imports
 
 import argparse
+import ast
 import hashlib
 import json
 import shutil
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -109,6 +112,57 @@ def main(*, check: bool = False) -> None:
                 raise ValueError("Check Python Generation: Regenerate With mise run generate -- --protocol: " + ", ".join(drift))
         else:
             (source / "_wire/sources.json").write_text(text, encoding="utf-8", newline="\n")
+        # Compose the Product Authoring Barrel From the Generated Model Export Inventory.
+        shared = ast.parse((source / "_generated/shared.py").read_text(encoding="utf-8"))
+        names = sorted(
+            {
+                item.name
+                for node in shared.body
+                if isinstance(node, ast.ImportFrom)
+                for item in node.names
+                if item.name != "Visibility" and not item.name.startswith("VISIBILITY_")
+            }
+        )
+        additions = {
+            "._context": ["Context"],
+            "._plugin": ["Plugin"],
+            ".authoring": [
+                "Case",
+                "Template",
+                "criterion",
+                "materialize",
+                "observer",
+                "prompt",
+                "record",
+                "step",
+                "stream",
+                "suite",
+                "window_observer",
+            ],
+            ".operations": ["Operation", "Visibility", "operation"],
+            "harmos.plugin": ["Window"],
+            "harmos": ["FailureValue"],
+        }
+        lines = [
+            "# @generated from protocol descriptors and product authoring exports; do not edit.",
+            "from harmos._invocation import FailureError",
+        ]
+        lines.extend(f"from ._generated.shared import {name}" for name in names)
+        for module, exports in additions.items():
+            lines.extend(f"from {module} import {name}" for name in exports)
+        exports = sorted({"FailureError", *names, *(name for values in additions.values() for name in values)})
+        lines.extend(["", "__all__ = " + repr(exports), ""])
+        barrel = output / "__init__.py"
+        barrel.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+        subprocess.run([sys.executable, "-m", "ruff", "check", "--select", "I,RUF022", "--fix", str(barrel)], check=True)
+        subprocess.run([sys.executable, "-m", "ruff", "format", str(barrel)], check=True)
+        text = barrel.read_text(encoding="utf-8")
+        target = source / "__init__.py"
+        if check:
+            if target.read_text(encoding="utf-8") != text:
+                raise ValueError("Check Python Exports: Run mise -C sdk/python run generate")
+        else:
+            target.write_text(text, encoding="utf-8", newline="\n")
     finally:
         shutil.rmtree(output)
 

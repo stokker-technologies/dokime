@@ -1,6 +1,9 @@
-# @generated from protocol descriptors; do not edit.
+# @generated from protocol descriptors and product authoring exports; do not edit.
+from harmos import FailureValue
 from harmos._invocation import FailureError
+from harmos.plugin import Window
 
+from ._context import Context
 from ._generated.shared import (
     AGGREGATE_COUNT,
     AGGREGATE_FIRST,
@@ -187,10 +190,6 @@ from ._generated.shared import (
     VALUE_TYPE_TEXT,
     VALUE_TYPE_UNSIGNED_INTEGER,
     VALUE_TYPE_UNSPECIFIED,
-    VISIBILITY_PRIVATE,
-    VISIBILITY_PROTECTED,
-    VISIBILITY_PUBLIC,
-    VISIBILITY_UNSPECIFIED,
     XY_INTERVAL_SIGMA,
     XY_INTERVAL_UNSPECIFIED,
     Aggregate,
@@ -376,11 +375,13 @@ from ._generated.shared import (
     Value,
     ValueList,
     ValueType,
-    Visibility,
     XyInterval,
     harmos,
     model,
 )
+from ._plugin import Plugin
+from .authoring import Case, Template, criterion, materialize, observer, prompt, record, step, stream, suite, window_observer
+from .operations import Operation, Visibility, operation
 
 __all__ = [
     "AGGREGATE_COUNT",
@@ -568,10 +569,6 @@ __all__ = [
     "VALUE_TYPE_TEXT",
     "VALUE_TYPE_UNSIGNED_INTEGER",
     "VALUE_TYPE_UNSPECIFIED",
-    "VISIBILITY_PRIVATE",
-    "VISIBILITY_PROTECTED",
-    "VISIBILITY_PUBLIC",
-    "VISIBILITY_UNSPECIFIED",
     "XY_INTERVAL_SIGMA",
     "XY_INTERVAL_UNSPECIFIED",
     "Aggregate",
@@ -596,7 +593,9 @@ __all__ = [
     "CapturedRecordSelection",
     "Card",
     "CardLayout",
+    "Case",
     "Classification",
+    "Context",
     "ContourRender",
     "Criterion",
     "CycleScope",
@@ -619,6 +618,7 @@ __all__ = [
     "ExactNumber",
     "ExecutionProgressValue",
     "FailureError",
+    "FailureValue",
     "FftDetrend",
     "FftWindow",
     "Field",
@@ -664,6 +664,7 @@ __all__ = [
     "Metadata",
     "Null",
     "NumberRange",
+    "Operation",
     "OperationContract",
     "OperationPolicy",
     "OperationsGetResponse",
@@ -686,6 +687,7 @@ __all__ = [
     "PlotIntervalOptions",
     "PlotKind",
     "PlotStyle",
+    "Plugin",
     "PluginRun",
     "Position",
     "ProgressGetResponse",
@@ -737,6 +739,7 @@ __all__ = [
     "SummaryTile",
     "Table",
     "TableRow",
+    "Template",
     "Termination",
     "TestCase",
     "TestCaseTemplate",
@@ -759,7 +762,18 @@ __all__ = [
     "ValueList",
     "ValueType",
     "Visibility",
+    "Window",
     "XyInterval",
+    "criterion",
     "harmos",
+    "materialize",
     "model",
+    "observer",
+    "operation",
+    "prompt",
+    "record",
+    "step",
+    "stream",
+    "suite",
+    "window_observer",
 ]

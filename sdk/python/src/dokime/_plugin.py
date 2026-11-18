@@ -20,14 +20,14 @@ from typing import Any, cast
 
 # Third Party Imports
 import harmos
+import harmos.plugin
 from google.protobuf.duration_pb2 import Duration
 from google.protobuf.message import Message
 from harmos import VISIBILITY_PROTECTED, Declarations, OperationPolicy, RetryPolicy, SettingDeclaration
-from harmos.plugin import Context as InvocationContext
-from harmos.plugin import Endpoint as LibraryEndpoint
 from harmos.plugin import Operation, Publisher, Window, observer, on_stop, operation, publisher, window_observer
-from harmos.plugin import Plugin as LibraryPlugin
 
+import dokime.operations
+from dokime._wire.model.v1.prompts_pb2 import PromptDefinitions
 from dokime._wire.model.v1.record_contracts_pb2 import RecordContract, RecordContracts
 from dokime._wire.model.v1.suites_pb2 import Suites
 
@@ -45,7 +45,8 @@ from ._wire.plugin.v1.steps_pb2 import StepsExecuteRequest, StepsExecuteResponse
 from ._wire.plugin.v1.test_cases_pb2 import TestCasesMaterializeRequest, TestCasesMaterializeResponse
 
 # Local Imports
-from .authoring import _SUITES, Case, Record, Sampling, Stream, Suite, Template
+from .authoring import _SUITES, Case, Sampling, Stream, Suite, Template, build_identifier
+from .payloads import message_type
 from .values import decode
 
 # Type Checking Imports
@@ -75,9 +76,7 @@ class Plugin:
         version: str,
         *,
         suites: Sequence[Suite | type] = (),
-        records: Sequence[Record] = (),
-        requires: Sequence[Operation[Any, Any] | HostOperation] | None = None,
-        sections: Sequence[Message] = (),
+        requires: Sequence[Operation[Any, Any] | dokime.operations.Operation[Any, Any] | HostOperation] | None = None,
         messages: Sequence[type[Message]] = (),
         operations: object | None = None,
         secrets: Sequence[SecretDeclaration] = (),
@@ -86,11 +85,18 @@ class Plugin:
         self.identifier = identifier
         self.version = version
         self.suites = tuple(_suite(item) for item in suites)
-        self.records = tuple(records)
+        self.records = tuple((template, record) for suite in self.suites for template in suite.templates for record in template.records)
         self.requires = (
             tuple(host_requirement(item) for item in HostOperation)
             if requires is None
-            else tuple(host_requirement(item) if isinstance(item, HostOperation) else item for item in requires)
+            else tuple(
+                host_requirement(item)
+                if isinstance(item, HostOperation)
+                else item.wire()
+                if isinstance(item, dokime.operations.Operation)
+                else item
+                for item in requires
+            )
         )
         self.secrets = tuple(secrets)
         self._sessions: dict[tuple[str, str], _Session] = {}
@@ -99,7 +105,7 @@ class Plugin:
         for name, identifiers in (
             ("suite", [item.identifier for item in self.suites]),
             ("template", [item.identifier for item in templates]),
-            ("record", [item.identifier for item in self.records]),
+            ("record", [template.resolve(item) for template, item in self.records]),
             ("secret", [item.metadata.identifier for item in self.secrets]),
         ):
             if any(not item for item in identifiers) or len(identifiers) != len(set(identifiers)):
@@ -108,6 +114,9 @@ class Plugin:
         if operations is not None:
             for cls in reversed(type(operations).__mro__):
                 for name, method in vars(cls).items():
+                    if hasattr(method, "__dokime_operation__"):
+                        methods[f"external_{name}"] = dokime.operations.bind_operation(getattr(operations, name))
+                        continue
                     if any(
                         hasattr(method, attribute)
                         for attribute in ("__harmos_operation__", "__harmos_observer__", "__harmos_publisher__", "__harmos_stop__")
@@ -130,29 +139,34 @@ class Plugin:
         methods["release"] = self._stop()
         adapter = type("DokimeOperations", (), methods)()
         contributions: list[Message] = [Suites(suites=[item.definition() for item in self.suites])] if self.suites else []
-        if records:
+        if self.records:
             contributions.append(
                 RecordContracts(
                     records=[
                         RecordContract(
-                            metadata={"identifier": item.identifier, "label": item.label or item.identifier},
-                            message=item.row.DESCRIPTOR.full_name,
+                            metadata={"identifier": template.resolve(item), "label": item.label or template.resolve(item)},
+                            message=message_type(item.row).DESCRIPTOR.full_name,
                         )
-                        for item in records
+                        for template, item in self.records
                     ],
                 )
             )
+        prompts = [value for template in templates for value in template._prompts.values()]
+        if prompts:
+            contributions.append(PromptDefinitions(prompts=prompts))
         if self.secrets:
             contributions.append(SecretsDeclarations(secrets=self.secrets))
-        self._plugin = LibraryPlugin(
+        self._plugin = harmos.plugin.Plugin(
             adapter,
             id=identifier,
             version=version,
             requires=self.requires,
-            sections=[*sections, *contributions],
+            sections=contributions,
             settings=settings,
-            messages=[*messages, *(record.row for record in self.records)],
+            messages=[*messages, *(message_type(record.row) for _, record in self.records)],
         )
+
+        self._plugin.declarations()
 
     def declarations(self) -> Declarations:
         return self._plugin.declarations()
@@ -163,7 +177,7 @@ class Plugin:
         return Endpoint(endpoint, self)
 
     def _materialize(self, template: Template) -> Callable[..., Awaitable[Message]]:
-        async def execute(adapter: object, transport: InvocationContext, request: TestCasesMaterializeRequest) -> Message:
+        async def execute(adapter: object, transport: harmos.plugin.Context, request: TestCasesMaterializeRequest) -> Message:
             try:
                 transport.scope()
             except harmos.Failure as error:
@@ -178,7 +192,7 @@ class Plugin:
             )
 
         return operation(
-            f"{template.identifier}.materialize",
+            template._lifecycle["materialize"],
             request=TestCasesMaterializeRequest,
             response=TestCasesMaterializeResponse,
             visibility=VISIBILITY_PROTECTED,
@@ -196,7 +210,7 @@ class Plugin:
 
         async def execute(
             adapter: object,
-            transport: InvocationContext,
+            transport: harmos.plugin.Context,
             request: StepsExecuteRequest | CriteriaEvaluateRequest | ExecutionsInitializeRequest | ExecutionsCleanupRequest,
         ) -> Message:
             if not request.execution or transport.scope() != request.execution:
@@ -224,8 +238,7 @@ class Plugin:
             context = Context(
                 transport,
                 {name: decode(value) for name, value in request.test_case.parameters.items()},
-                self.requires,
-                self.records,
+                template,
                 termination=request.termination if isinstance(request, ExecutionsCleanupRequest) else None,
                 secrets=[item.metadata.identifier for item in self.secrets],
             )
@@ -250,7 +263,7 @@ class Plugin:
                     self._sessions.pop(key, None)
                     self._ready.pop(key, None)
 
-        identity = template.operation(handler, kind) if handler is not None else f"{template.identifier}.{kind}"
+        identity = template.resolve(handler) if handler is not None else template._lifecycle[kind]
         policy = OperationPolicy(retries=RetryPolicy(total_attempts=retries + 1, initial={"nanos": 100_000_000})) if retries else None
         return operation(
             identity,
@@ -265,40 +278,35 @@ class Plugin:
         self, template: Template, name: str, method: FunctionType
     ) -> Callable[..., Awaitable[Message]] | Callable[..., Awaitable[None]]:
         definition = cast(Stream, vars(method)["__dokime_stream__"])
+        identity = template.resolve(method)
         sampling = cast(Sampling | None, getattr(method, "__dokime_observer__", None))
 
-        async def observe(adapter: object, transport: InvocationContext) -> Message:
-            key = (template.identifier, transport.scope())
+        async def observe(adapter: object, transport: harmos.plugin.Context) -> Message:
+            key = (cast(str, template.identifier), transport.scope())
             await self._ready.setdefault(key, asyncio.Event()).wait()
             session = self._sessions[key]
-            context = Context(
-                transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, self.requires, self.records
-            )
+            context = Context(transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
             result = getattr(session.instance, name)(context)
             if inspect.isawaitable(result):
                 result = await result
             return result if isinstance(result, definition.row) else definition.row(value=result)
 
-        async def observe_window(adapter: object, transport: InvocationContext, window: Window) -> Message:
-            key = (template.identifier, transport.scope())
+        async def observe_window(adapter: object, transport: harmos.plugin.Context, window: Window) -> Message:
+            key = (cast(str, template.identifier), transport.scope())
             await self._ready.setdefault(key, asyncio.Event()).wait()
             session = self._sessions[key]
-            context = Context(
-                transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, self.requires, self.records
-            )
+            context = Context(transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
             result = getattr(session.instance, name)(context, window)
             if inspect.isawaitable(result):
                 result = await result
             columns = cast(type[Message], sampling.columns if sampling else None)
             return result if isinstance(result, columns) else columns(value=result)
 
-        async def publish(adapter: object, transport: InvocationContext, publisher: Publisher) -> None:
-            key = (template.identifier, transport.scope())
+        async def publish(adapter: object, transport: harmos.plugin.Context, publisher: Publisher) -> None:
+            key = (cast(str, template.identifier), transport.scope())
             await self._ready.setdefault(key, asyncio.Event()).wait()
             session = self._sessions[key]
-            context = Context(
-                transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, self.requires, self.records
-            )
+            context = Context(transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
             async for result in getattr(session.instance, name)(context):
                 row = result if isinstance(result, definition.row) else definition.row(value=result)
                 await publisher.publish(row)
@@ -308,7 +316,7 @@ class Plugin:
             duration = Duration(seconds=nanoseconds // 1_000_000_000, nanos=nanoseconds % 1_000_000_000)
             if sampling.columns is None:
                 return observer(
-                    definition.identifier,
+                    identity,
                     row=definition.row,
                     interval=duration,
                     interval_setting=sampling.interval_setting,
@@ -316,7 +324,7 @@ class Plugin:
                     description=definition.label,
                 )(observe)
             return window_observer(
-                definition.identifier,
+                identity,
                 row=definition.row,
                 columns=sampling.columns,
                 interval=duration,
@@ -324,7 +332,7 @@ class Plugin:
                 window_setting=sampling.window_setting,
                 description=definition.label,
             )(observe_window)
-        return publisher(definition.identifier, row=definition.row, description=definition.label)(publish)
+        return publisher(identity, row=definition.row, description=definition.label)(publish)
 
     def _stop(self) -> Callable[..., Awaitable[None]]:
         async def release(adapter: object) -> None:
@@ -335,7 +343,7 @@ class Plugin:
 
 
 class Endpoint:
-    def __init__(self, transport: LibraryEndpoint, plugin: Plugin) -> None:
+    def __init__(self, transport: harmos.plugin.Endpoint, plugin: Plugin) -> None:
         self._transport = transport
         self.plugin = plugin
         self.url = f"http://{transport.address}"
@@ -354,12 +362,13 @@ class Endpoint:
 
 
 def _suite(value: Suite | type) -> Suite:
-    if isinstance(value, Suite):
-        return value
-    registered = _SUITES.get(value) if isinstance(value, type) else None
+    registered = value if isinstance(value, Suite) else _SUITES.get(value) if isinstance(value, type) else None
     if not isinstance(registered, Suite):
         raise TypeError("Build Plugin: Supply a Suite or a Class Decorated with suite")
-    return registered
+    name = registered.templates[0].instance.__name__ if registered._single else ""
+    identity = build_identifier(name, registered.identifier, class_name=True)
+    templates = tuple(template.bind(identity, single=registered._single) for template in registered.templates)
+    return Suite(identity, templates, registered.label, registered._single)
 
 
 # === Entry Point === #

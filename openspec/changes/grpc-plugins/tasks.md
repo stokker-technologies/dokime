@@ -49,3 +49,12 @@
 - [ ] 6.1 Run final focused host, CLI, installed four-language SDK and generated-consumer proof on the combined published dependency candidate; include frozen-origin/schema evolution and plugin absence, bounded retained queries/watch gaps, authorization, Public peer calls/cancellation and execution-file live producer/follow behavior.
 - [ ] 6.2 Run final managed/remote plugin and self-driving script stories, both native WebView lanes and packaged desktop/installer organization, licensing, signing and update journeys on native Windows and Linux. Source inspection and historical Windows results do not close this proof.
 - [ ] 6.3 After all source owners hand off, complete configured format/lint/language checks, Tests producer, locked dependency metadata and authorized hosted CI/Nightly; repair failures without weakening checks and obtain delivery authorization before pushing.
+
+## Locked Authoring Surface
+
+- [ ] Python: Implement Locked Points 1–10 and Focused Proof.
+- [ ] Rust: Follow the Locked Authoring Surface.
+- [ ] C#: Follow the Locked Authoring Surface.
+- [ ] C++: Follow the Locked Authoring Surface.
+- [ ] Command Line: Implement Locked Point 11.
+

@@ -17,8 +17,17 @@ from typing import Self, cast
 
 # Third Party Imports
 # Local Imports
-import dokime
-from dokime import DataExpression, FieldReference, GridAxisEntry, GridHighlight, PlotKind, ReferenceBand, ReferenceLine, TransformExpression
+from ._generated import shared
+from ._generated.shared import (
+    DataExpression,
+    FieldReference,
+    GridAxisEntry,
+    GridHighlight,
+    PlotKind,
+    ReferenceBand,
+    ReferenceLine,
+    TransformExpression,
+)
 
 # Type Checking Imports
 
@@ -55,47 +64,47 @@ __all__ = [
 
 
 class Reduction(IntEnum):
-    MEAN = dokime.Reduction.Value("REDUCTION_MEAN")
-    MIN = dokime.Reduction.Value("REDUCTION_MIN")
-    MAX = dokime.Reduction.Value("REDUCTION_MAX")
+    MEAN = shared.Reduction.Value("REDUCTION_MEAN")
+    MIN = shared.Reduction.Value("REDUCTION_MIN")
+    MAX = shared.Reduction.Value("REDUCTION_MAX")
 
 
 class ContourRender(IntEnum):
-    CELLS = dokime.ContourRender.Value("CONTOUR_RENDER_CELLS")
-    BANDS = dokime.ContourRender.Value("CONTOUR_RENDER_BANDS")
+    CELLS = shared.ContourRender.Value("CONTOUR_RENDER_CELLS")
+    BANDS = shared.ContourRender.Value("CONTOUR_RENDER_BANDS")
 
 
 class BarArrangement(IntEnum):
-    GROUPED = dokime.BarArrangement.Value("BAR_ARRANGEMENT_GROUPED")
-    STACKED = dokime.BarArrangement.Value("BAR_ARRANGEMENT_STACKED")
+    GROUPED = shared.BarArrangement.Value("BAR_ARRANGEMENT_GROUPED")
+    STACKED = shared.BarArrangement.Value("BAR_ARRANGEMENT_STACKED")
 
 
 class XyInterval(IntEnum):
-    SIGMA = dokime.XyInterval.Value("XY_INTERVAL_SIGMA")
+    SIGMA = shared.XyInterval.Value("XY_INTERVAL_SIGMA")
 
 
 class PlotStyle(IntEnum):
-    LINE = dokime.PlotStyle.Value("PLOT_STYLE_LINE")
-    POINTS = dokime.PlotStyle.Value("PLOT_STYLE_POINTS")
-    LINE_POINTS = dokime.PlotStyle.Value("PLOT_STYLE_LINE_POINTS")
-    STEP = dokime.PlotStyle.Value("PLOT_STYLE_STEP")
+    LINE = shared.PlotStyle.Value("PLOT_STYLE_LINE")
+    POINTS = shared.PlotStyle.Value("PLOT_STYLE_POINTS")
+    LINE_POINTS = shared.PlotStyle.Value("PLOT_STYLE_LINE_POINTS")
+    STEP = shared.PlotStyle.Value("PLOT_STYLE_STEP")
 
 
 class AxisScale(IntEnum):
-    LINEAR = dokime.AxisScale.Value("AXIS_SCALE_LINEAR")
-    LOG = dokime.AxisScale.Value("AXIS_SCALE_LOG")
+    LINEAR = shared.AxisScale.Value("AXIS_SCALE_LINEAR")
+    LOG = shared.AxisScale.Value("AXIS_SCALE_LOG")
 
 
 class Aggregate(IntEnum):
-    COUNT = dokime.Aggregate.Value("AGGREGATE_COUNT")
-    SUM = dokime.Aggregate.Value("AGGREGATE_SUM")
-    MIN = dokime.Aggregate.Value("AGGREGATE_MIN")
-    MAX = dokime.Aggregate.Value("AGGREGATE_MAX")
-    MEAN = dokime.Aggregate.Value("AGGREGATE_MEAN")
-    STDDEV = dokime.Aggregate.Value("AGGREGATE_STDDEV")
-    MEDIAN = dokime.Aggregate.Value("AGGREGATE_MEDIAN")
-    PERCENTILE = dokime.Aggregate.Value("AGGREGATE_PERCENTILE")
-    RMS = dokime.Aggregate.Value("AGGREGATE_RMS")
+    COUNT = shared.Aggregate.Value("AGGREGATE_COUNT")
+    SUM = shared.Aggregate.Value("AGGREGATE_SUM")
+    MIN = shared.Aggregate.Value("AGGREGATE_MIN")
+    MAX = shared.Aggregate.Value("AGGREGATE_MAX")
+    MEAN = shared.Aggregate.Value("AGGREGATE_MEAN")
+    STDDEV = shared.Aggregate.Value("AGGREGATE_STDDEV")
+    MEDIAN = shared.Aggregate.Value("AGGREGATE_MEDIAN")
+    PERCENTILE = shared.Aggregate.Value("AGGREGATE_PERCENTILE")
+    RMS = shared.Aggregate.Value("AGGREGATE_RMS")
 
 
 class Expression:
@@ -128,7 +137,7 @@ class Expression:
     def aggregate(self, kind: Aggregate, *, percentile: float = 0.0) -> Self:
         value = DataExpression(label=self.message.label)
         value.aggregate.input.CopyFrom(self.message)
-        value.aggregate.kind = cast(dokime.Aggregate, _enum(kind, Aggregate))
+        value.aggregate.kind = cast(shared.Aggregate, _enum(kind, Aggregate))
         value.aggregate.percentile = percentile
         return type(self)(value)
 
@@ -169,10 +178,10 @@ class Expression:
 class Plot:
     @classmethod
     def line(cls, identifier: str, label: str) -> "Plot":
-        return cls(dokime.Plot(metadata=dokime.Metadata(identifier=identifier, label=label), kind=dokime.PLOT_KIND_TIME_SERIES))
+        return cls(shared.Plot(metadata=shared.Metadata(identifier=identifier, label=label), kind=shared.PLOT_KIND_TIME_SERIES))
 
-    def __init__(self, value: dokime.Plot) -> None:
-        if not isinstance(value, dokime.Plot):
+    def __init__(self, value: shared.Plot) -> None:
+        if not isinstance(value, shared.Plot):
             raise TypeError("Expected a Plot")
         self.message = value
 
@@ -206,31 +215,31 @@ class Plot:
         return self
 
     def reduce(self, reduction: Reduction) -> Self:
-        self.message.reduction = cast(dokime.Reduction, _enum(reduction, Reduction))
+        self.message.reduction = cast(shared.Reduction, _enum(reduction, Reduction))
         return self
 
     def render(self, render: ContourRender) -> Self:
-        self.message.render = cast(dokime.ContourRender, _enum(render, ContourRender))
+        self.message.render = cast(shared.ContourRender, _enum(render, ContourRender))
         return self
 
     def arrangement(self, arrangement: BarArrangement) -> Self:
-        self.message.arrangement = cast(dokime.BarArrangement, _enum(arrangement, BarArrangement))
+        self.message.arrangement = cast(shared.BarArrangement, _enum(arrangement, BarArrangement))
         return self
 
     def interval(self, interval: XyInterval) -> Self:
-        self.message.interval = cast(dokime.XyInterval, _enum(interval, XyInterval))
+        self.message.interval = cast(shared.XyInterval, _enum(interval, XyInterval))
         return self
 
     def style(self, style: PlotStyle) -> Self:
-        self.message.style = cast(dokime.PlotStyle, _enum(style, PlotStyle))
+        self.message.style = cast(shared.PlotStyle, _enum(style, PlotStyle))
         return self
 
     def x_scale(self, scale: AxisScale) -> Self:
-        self.message.x_scale = cast(dokime.AxisScale, _enum(scale, AxisScale))
+        self.message.x_scale = cast(shared.AxisScale, _enum(scale, AxisScale))
         return self
 
     def y_scale(self, scale: AxisScale) -> Self:
-        self.message.y_scale = cast(dokime.AxisScale, _enum(scale, AxisScale))
+        self.message.y_scale = cast(shared.AxisScale, _enum(scale, AxisScale))
         return self
 
     def pareto(self, enabled: bool) -> Self:
@@ -365,7 +374,7 @@ def box_plot(value: Expression, *, label: str | None = None) -> Plot:
 
 
 def _new_plot(kind: str, value: Expression) -> Plot:
-    result = dokime.Plot(kind=cast(PlotKind, PlotKind.Value(f"PLOT_KIND_{kind}")))
+    result = shared.Plot(kind=cast(PlotKind, PlotKind.Value(f"PLOT_KIND_{kind}")))
     if kind == "CONTOUR":
         result.z.CopyFrom(_expression(value))
     elif kind == "HISTOGRAM":

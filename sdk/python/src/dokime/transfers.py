@@ -22,8 +22,7 @@ from uuid import uuid4
 # Third Party Imports
 from harmos import FileMetadata, FileReference, Upload
 
-from dokime import UploadsAppendResponse, UploadsCreateResponse, UploadsDeleteResponse, UploadsPublishResponse
-
+from ._generated.shared import UploadsAppendResponse, UploadsCreateResponse, UploadsDeleteResponse, UploadsPublishResponse
 from .client import ClientRoot, ReportSubject
 
 # Local Imports
