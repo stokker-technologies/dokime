@@ -53,6 +53,9 @@
 ## Locked Authoring Surface
 
 - [x] Python: Implement Product Exports, Typed Declarations, Generated Names, Plain Values and Visibility; Remove Raw Records and Sections.
+- [x] Python: Keep Authoring Exports at the Root, Remove Duplicate Plugin Exports and Pass the Repository Public-Surface Check.
+- [x] Python: Pass Strict Installed-Wheel Stubs and Typed Authoring Consumers, Including Plain Payloads and Decorators.
+- [ ] Python: Resolve the Root Dispatcher's Directory-Derived Unit Lane Against the Declared Integration/System Lane Inventory Before Root Unit Dispatch Can Run.
 - [x] Python: Migrate Every Python Example and README to the Locked Surface and Entrypoint Layout.
 - [x] Python: Complete Native Integration Proof With Underscore Identifiers Against This Worktree's Host.
 - [x] Python: Qualify Materialized Step and Criterion Instances With the Shared Identifier Function and Support Bound Methods.
@@ -76,9 +79,14 @@
 - [x] Integration: Migrate Thermal and OBC Evidence Selectors and the Python Plugin Fixture Entrypoint.
 - [x] Integration: Add a Shared Four-Language Capture Description and Record Contract Story Under `sdk/tests`.
 - [ ] Integration: Prove Generation, Ordered Host Fixtures, Four SDKs, Shared Stories, Command-Line Development Stories and Migrated Runtime Stories on the Combined Tree.
-  - [x] Windows: Complete the Ordered Native Proof on the Combined Authoring Candidate.
+  - [ ] Windows: Complete the Ordered Native Proof on the Combined Authoring Candidate; the Two-Desktop Report-Delivery Contract Remains Unresolved.
   - [ ] Linux: Complete the Same Ordered Native Proof After Authorized Delivery.
 - [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
+- [x] Integration: Remove Plaintext Execution-ID Report Assertions Superseded by the Shared Protobuf Capture Renderer.
+- [x] Integration: Align Short Text Prompt Choice Archetypes Across Python, C# and C++ With the Rust SDK and Prove Native Evidence Parity.
+- [x] Integration: Give Each CLI Development Story an Owned Data Root for Its Auto-Launched Sibling Desktop.
+- [ ] Integration: Repair Manual Prompt Waiting and Answering in the Remote First-Hour CLI Journey Without Changing Operation Policies.
+- [ ] Integration: Resolve Fresh Report Publication Versus Retained-Report Delivery in the Two-Desktop Story; Unchanged Report Data Currently Carries Different Notes Read Cuts.
 - [x] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
 
 ## Plugin Project Manifests
@@ -93,6 +101,9 @@
 - [x] Embed Manifest Files in the Four Test Starters and Update README Command Examples.
 - [x] Complete Focused CLI, Packaging and Runtime Unit Proof, Owned-File Formatting, Locked Metadata and Three-Package Compilation With Tests.
 - [x] Migrate Product and Desktop-Fixture Tooling From Retired `--executable` Calls to Manifest Projects in `tools/python/src/dokime_tools/{build/rust/__main__.py,build/desktop_fixtures.py,dev/desktop.py}`.
+- [x] Update the Compiler-Record Story to Stage Real Executable Fixtures Before Manifest Bundling and Pass Tooling Integration Tests.
+- [x] Generate the Shared Report Template Before Independent Rust Fixture, Test-Archive and Lint Compilation; Propagate Generation Failures Before Compilation.
+- [x] Preserve Focused Native JUnit Reports Before Scratch Cleanup and Keep Cleanup Failures Visible.
 
 ## Single Plugin Paths
 

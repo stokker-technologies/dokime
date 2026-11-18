@@ -1,7 +1,4 @@
 # @generated from protocol descriptors; do not edit.
-from harmos.plugin import Window
-
-from .._context import Context
 from .._generated.host import HostOperation, HostRoot
 from .._generated.plugin_types import (
     BackendEnvironmentResponse,
@@ -35,13 +32,11 @@ from .._generated.plugin_types import (
     TraceabilitySetResponse,
     host,
 )
-from .._plugin import Plugin
 
 __all__ = [
     "BackendEnvironmentResponse",
     "CaptureMode",
     "CapturesStartResponse",
-    "Context",
     "CriteriaEvaluateRequest",
     "CriteriaEvaluateResponse",
     "DocumentsAppendPartsResponse",
@@ -61,7 +56,6 @@ __all__ = [
     "LineMatcher",
     "LogsAppendResponse",
     "MirrorCapture",
-    "Plugin",
     "ProgressSetResponse",
     "PromptsCreateResponse",
     "RecordsAppendResponse",
@@ -71,6 +65,5 @@ __all__ = [
     "TestCasesMaterializeRequest",
     "TestCasesMaterializeResponse",
     "TraceabilitySetResponse",
-    "Window",
     "host",
 ]

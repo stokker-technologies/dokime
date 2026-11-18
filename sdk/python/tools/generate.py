@@ -167,6 +167,32 @@ def main(*, check: bool = False, exports_only: bool = False) -> None:
                 raise ValueError("Check Python Exports: Run mise -C sdk/python run generate")
         else:
             target.write_text(text, encoding="utf-8", newline="\n")
+
+        # Compose the Plugin Barrel Without Duplicating the Root Authoring Exports.
+        plugin_types = ast.parse((source / "_generated/plugin_types.py").read_text(encoding="utf-8"))
+        names = sorted({item.name for node in plugin_types.body if isinstance(node, ast.ImportFrom) for item in node.names})
+        lines = [
+            "# @generated from protocol descriptors; do not edit.",
+            "from .._generated.host import HostOperation, HostRoot",
+            *(f"from .._generated.plugin_types import {name}" for name in names),
+            "",
+            "__all__ = " + repr(["HostOperation", "HostRoot", *names]),
+            "",
+        ]
+        barrel = output / "plugin.py"
+        barrel.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+        subprocess.run(
+            [sys.executable, "-m", "ruff", "check", "--config", str(sdk / "ruff.toml"), "--select", "I,RUF022", "--fix", str(barrel)],
+            check=True,
+        )
+        subprocess.run([sys.executable, "-m", "ruff", "format", "--config", str(sdk / "ruff.toml"), str(barrel)], check=True)
+        text = barrel.read_text(encoding="utf-8")
+        target = source / "plugin/__init__.py"
+        if check:
+            if target.read_text(encoding="utf-8") != text:
+                raise ValueError("Check Python Exports: Run mise -C sdk/python run generate")
+        else:
+            target.write_text(text, encoding="utf-8", newline="\n")
     finally:
         shutil.rmtree(output)
 

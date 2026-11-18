@@ -244,12 +244,14 @@ class BoundOperation[RequestT: Payload, ResponseT: Payload]:
         self._operation = operation
 
     async def __call__(self, request: RequestT, *, policy: OperationPolicy | None = None) -> ResponseT:
-        wire = self._operation._wire()
+        wire = self._operation._definition()
         response = await self._transport.call(wire, pack(self._operation.request, request), policy=policy)
         return unpack(self._operation.response, response)
 
 
 class RecordsQuery[T: Payload]:
+    __type_params__: ClassVar[tuple[TypeVar, ...]]
+
     def __init__(self, context: Context, definition: Record[T], step: str) -> None:
         self._context = context
         self._definition = definition

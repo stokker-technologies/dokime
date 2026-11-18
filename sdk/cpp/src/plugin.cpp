@@ -119,6 +119,7 @@ string build_identifier(string name, optional<string> explicit_identifier, strin
 PromptDeclaration::PromptDeclaration(string name, string text, vector<string> choices, optional<string> identifier)
     : Declaration(move(name), text, move(identifier)) {
   value.set_message(text);
+  value.set_archetype(PROMPT_ARCHETYPE_CHOICE);
   value.mutable_metadata()->set_label(text);
   if (choices.empty())
     choices.push_back("OK");

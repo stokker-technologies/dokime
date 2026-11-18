@@ -31,6 +31,7 @@ import dokime_tools.test.policy
 from dokime_tools.build import cargo, configuration, paths
 from dokime_tools.ci import transport
 from dokime_tools.package.staging import sync_output
+from dokime_tools.prepare import generated
 from dokime_tools.process import spawn_flags
 from dokime_tools.test import archive
 
@@ -61,8 +62,9 @@ def build(profile: str, language: str = "auto") -> None:
         if shutil.which("cmake"):
             languages.add("cpp")
 
-    # Build The Rust Reference And Execution Fixtures.
+    # Build the Rust Reference and Execution Fixtures.
     if "rust" in languages:
+        generated.prepare()
         subprocess.run(
             ["mise", "-C", "sdk/rust", "run", "build"],
             cwd=root,
@@ -100,7 +102,7 @@ def build(profile: str, language: str = "auto") -> None:
         )
         shutil.copy2(root / "target/debug/examples" / f"content_fixture{extension}", output / f"content_fixture{extension}")
         shutil.copy2(root / "target/debug" / f"dokime-host{extension}", output / f"dokime-host{extension}")
-        # Build The OBC Charger Plugin The Desktop Stories And Screenshots Install.
+        # Build the OBC Charger Plugin the Desktop Stories and Screenshots Install.
         subprocess.run(
             ["mise", "run", "build", "--", "--cargo", "build", "--locked", "--package", "plugin-obc", "--bin", "plugin-obc"],
             cwd=root,
@@ -112,9 +114,9 @@ def build(profile: str, language: str = "auto") -> None:
         )
         shutil.copy2(root / "target/debug" / f"plugin-obc{extension}", output / f"plugin-obc{extension}")
 
-        # Build The Reference Host From The Same Library Revision As The Product. Its Library Crates Are Path
-        # Dependencies of the Pinned Checkout, Which Cargo Fingerprints by Their Workspace-Relative Path; Each
-        # Revision Builds in Its Own Target Directory So Another Revision's Artifacts Are Never Reused.
+        # Build the Reference Host From the Same Library Revision as the Product.
+        # Its library crates are path dependencies of the pinned checkout. Cargo fingerprints their workspace-relative paths,
+        # so each revision builds in its own target directory rather than reusing another revision's artifacts.
         manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
         library = manifest["workspace"]["dependencies"]["harmos"]
         subprocess.run(
@@ -168,7 +170,7 @@ def build(profile: str, language: str = "auto") -> None:
         source = Path(package["manifest_path"]).parents[2] / "sdk/python/tests/fixtures/conformance"
         sync_output(source, output / "python/conformance")
 
-    # Publish The C# Fixture With Its Runtime And Local SDK Package.
+    # Publish the C# Fixture With Its Runtime and Local SDK Package.
     if "csharp" in languages:
         subprocess.run(
             ["mise", "-C", "sdk/csharp", "run", "build"],
@@ -198,7 +200,8 @@ def build(profile: str, language: str = "auto") -> None:
             stderr=sys.stderr,
         )
 
-    # Build The C++ Fixture With The Pinned Native Dependency Graph; the Release Preset Keeps It Within the Bundle Bound.
+    # Build the C++ Fixture With the Pinned Native Dependency Graph.
+    # The release preset keeps it within the bundle bound.
     if "cpp" in languages:
         directory = root / "target/cp/release"
         subprocess.run(
@@ -224,7 +227,7 @@ def build(profile: str, language: str = "auto") -> None:
         for library in native.glob("*.dll"):
             shutil.copy2(library, output / library.name)
 
-    # Build The Pure Python Fixture Without A Host Dependency.
+    # Build the Pure Python Fixture Without a Host Dependency.
     if "python" in languages:
         subprocess.run(
             ["mise", "-C", "sdk/python", "run", "build"],
@@ -237,7 +240,7 @@ def build(profile: str, language: str = "auto") -> None:
             env=dict(os.environ, DOKIME_BUILD_PROFILE=profile),
         )
 
-    # Extend The Tests Producer's Existing Fixture Inventory.
+    # Extend the Tests Producer's Existing Fixture Inventory.
     stamp = paths.output(root, "build", profile) / "fixtures/stamp.json"
     if language == "auto" or stamp.is_file():
         record = json.loads(stamp.read_text(encoding="utf-8")) if stamp.is_file() else {"files": {}, "metadata": {}}

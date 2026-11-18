@@ -145,10 +145,12 @@ def run(directory: Path, arguments: Sequence[str], *, plan: bool = False) -> int
                 if credential_store is not None:
                     credential_store.close()
         finally:
-            scratch_root.close()
-        junit = scratch / "store" / nextest.PROFILE / "junit.xml"
-        if junit.is_file():
-            report.write(destination, junit.read_text(encoding="utf-8"))
+            try:
+                junit = scratch / "store" / nextest.PROFILE / "junit.xml"
+                if junit.is_file():
+                    report.write(destination, junit.read_text(encoding="utf-8"))
+            finally:
+                scratch_root.close()
         if result.returncode:
             detail = f"Story Diagnostics: {destination}" if destination.is_file() else "The Runner Produced No JUnit Report"
             print(f"Run Rust Stories: Exit {result.returncode}; {detail}", file=sys.stderr, flush=True)

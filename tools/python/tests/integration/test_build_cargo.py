@@ -11,6 +11,7 @@
 
 # Standard Library Imports
 import io
+import os
 import shlex
 import shutil
 import subprocess
@@ -51,19 +52,28 @@ from .environment import isolate_environment
 
 class ProductCompilerRecordTests(unittest.TestCase):
     def test_publishes_only_successful_compiler_output(self) -> None:
-        directory_directory = tempfile.TemporaryDirectory()
-        directory = directory_directory.name
+        temporary_directory = tempfile.TemporaryDirectory()
+        directory = temporary_directory.name
         try:
             root = Path(directory)
             messages = root / "product/compiler.json"
             messages.parent.mkdir()
             messages.write_text("previous successful build", encoding="utf-8")
-            web = root / "gui"
-            (web / "dist").mkdir(parents=True)
+            compiled = root / "compiled"
+            compiled.mkdir()
+            extension = ".exe" if os.name == "nt" else ""
+            cli = compiled / f"dokime{extension}"
+            plugin = compiled / f"plugin-obc{extension}"
+            cli.write_bytes(b"command-line fixture")
+            plugin.write_bytes(b"plugin fixture")
 
             def compile_product(*args: Any, **kwargs: Any) -> None:
                 # The Plugin Bundle Follows a Successful Compile; It Writes No Compiler Record.
                 if args[0][1:3] == ["plugin", "bundle"]:
+                    project = Path(args[0][3])
+                    self.assertEqual((project / plugin.name).read_bytes(), plugin.read_bytes())
+                    self.assertEqual((project / "dokime.toml").read_text(encoding="utf-8"), 'executable = "plugin-obc"\n')
+                    Path(args[0][5]).write_bytes(b"bundled plugin fixture")
                     return
                 kwargs["stdout"].write("replacement build")
                 self.assertEqual(messages.read_text(encoding="utf-8"), "previous successful build")
@@ -74,13 +84,12 @@ class ProductCompilerRecordTests(unittest.TestCase):
                 patch.object(dokime_tools.build.rust.__main__.paths, "output", return_value=root),
                 patch.object(dokime_tools.build.rust.__main__.configuration, "ROOT", root),
                 patch.object(dokime_tools.build.rust.__main__.subprocess, "run", side_effect=compile_product),
-                patch.object(dokime_tools.build.rust.__main__.outputs, "executables", return_value={}),
+                patch.object(dokime_tools.build.rust.__main__.outputs, "executables", return_value={"dokime": cli, "plugin-obc": plugin}),
                 patch.object(dokime_tools.build.rust.__main__.cargo, "record_target"),
             ):
                 # Retain The Last Successful Record And The Failed Diagnostics
                 fail = True
-                with self.assertRaises(subprocess.CalledProcessError):
-                    dokime_tools.build.rust.__main__.build("dev")
+                self.assertRaises(subprocess.CalledProcessError, dokime_tools.build.rust.__main__.build, "dev")
                 self.assertEqual(messages.read_text(encoding="utf-8"), "previous successful build")
                 pending = messages.with_name("compiler.pending.json")
                 self.assertEqual(pending.read_text(encoding="utf-8"), "replacement build")
@@ -90,9 +99,13 @@ class ProductCompilerRecordTests(unittest.TestCase):
                 exported = dokime_tools.build.rust.__main__.build("dev")
                 self.assertEqual(messages.read_text(encoding="utf-8"), "replacement build")
                 self.assertFalse(pending.exists())
-                self.assertEqual(set(exported), {"bin/plugin-obc.dokime", "product/compiler.json", "product/target.txt"})
+                self.assertEqual(
+                    set(exported),
+                    {f"bin/{cli.name}", f"bin/{plugin.name}", "bin/plugin-obc.dokime", "product/compiler.json", "product/target.txt"},
+                )
+                self.assertEqual((root / "bin/plugin-obc.dokime").read_bytes(), b"bundled plugin fixture")
         finally:
-            directory_directory.cleanup()
+            temporary_directory.cleanup()
 
 
 class CompilerEnvironmentTests(unittest.TestCase):
@@ -189,8 +202,7 @@ class IconInputTests(unittest.TestCase):
                 self.assertEqual((destination / "icon.ico").read_bytes(), outputs["icon.ico"])
                 for invalid in (b"icns", b"icns" + (16).to_bytes(4, "big") + b"ic08" + bytes(4)):
                     outputs["icon.icns"] = invalid
-                    with self.assertRaises(ValueError):
-                        organization.generate_icons()
+                    self.assertRaises(ValueError, organization.generate_icons)
         finally:
             temporary_directory.cleanup()
 
@@ -231,17 +243,17 @@ class FocusedCargoTests(unittest.TestCase):
         directory = Path.cwd()
         operations = ("build", "check", "clippy", "run", "bench", "rustc")
         for operation in operations:
-            with self.subTest(operation=operation):
-                arguments = ["--locked", "-p", "example"]
-                events = []
-                with (
-                    patch.object(
-                        cargo.subprocess,
-                        "run",
-                        side_effect=lambda *args, events=events, **kwargs: events.append((args, kwargs)) or SimpleNamespace(returncode=7),
-                    ),
-                ):
-                    status = cargo.focused(directory, operation, arguments)
+            arguments = ["--locked", "-p", "example"]
+            events = []
+            with (
+                self.subTest(operation=operation),
+                patch.object(
+                    cargo.subprocess,
+                    "run",
+                    side_effect=lambda *args, events=events, **kwargs: events.append((args, kwargs)) or SimpleNamespace(returncode=7),
+                ),
+            ):
+                status = cargo.focused(directory, operation, arguments)
                 self.assertEqual(status, 7)
                 self.assertEqual(len(events), 1)
                 command, options = events[0]
@@ -304,8 +316,7 @@ class TaskSelectionTests(unittest.TestCase):
     def test_native_compiler_selection_requires_a_package_and_excludes_lint(self) -> None:
         for arguments in (["clippy", "-p", "example"], ["build", "--workspace"], ["rustc"]):
             with self.subTest(arguments=arguments), patch.object(tasks.cargo, "focused") as focused, redirect_stderr(io.StringIO()):
-                with self.assertRaises(SystemExit):
-                    tasks.main(["build", "--cargo", *arguments])
+                self.assertRaises(SystemExit, tasks.main, ["build", "--cargo", *arguments])
                 focused.assert_not_called()
 
     def test_timings_precede_test_harness_arguments(self) -> None:

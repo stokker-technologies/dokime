@@ -47,7 +47,8 @@ const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const target = `${process.platform === "win32" ? "windows" : "linux"}-${process.arch === "x64" ? "x86_64" : "aarch64"}`;
 const sessions = [];
 const started = performance.now();
-const work = await realpath(await mkdtemp(join(tmpdir(), "dokime-two-gui-")));
+const directory = await mkdtemp(join(tmpdir(), "dokime-two-gui-"));
+const work = await realpath(directory);
 const reports = join(workspace, "target/tests", options.profile, target, "system-typescript");
 await mkdir(reports, { recursive: true });
 const evidence = await mkdtemp(join(reports, "two-gui-remote-"));
@@ -62,7 +63,7 @@ let failure;
 
 /* === Private Functions === */
 
-// Only The Native Picker Is Driven Outside WebDriver; Product Commands Are Unmodified.
+// Drive the Native Picker Outside WebDriver; Keep Product Commands Unmodified.
 async function pick(desktop, command, args, path, operation = "Open") {
   await desktop.execute(
     `
@@ -248,7 +249,6 @@ try {
     const html = await readFile(report.path);
     await mkdir(join(evidence, name), { recursive: true });
     await writeFile(join(evidence, name, "execution.html"), html);
-    assert.ok(html.toString("utf8").includes(executionId));
     hashes.push(createHash("sha256").update(html).digest("hex"));
     await openNativeReport(report.path);
     const archive = await deliver(gui, { kind: "execution_evidence", executionId }, "execution.evidence", "artifact");

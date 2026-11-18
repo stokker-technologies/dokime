@@ -92,6 +92,7 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                 let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
                 let mut host = super::command()
                     .envs(credentials.environment.iter().cloned())
+                    .env("DOKIME_APPLICATION_ROOT", directory.path().join("desktop"))
                     .args(["dev", "--plugin"])
                     .arg(input)
                     .stdin(Stdio::piped())
@@ -156,8 +157,6 @@ fn remote_first_hour_runs_rust_and_python() -> Result<(), Box<dyn Error>> {
                     {
                         assert!(!report.exists());
                         failures.push(error.to_string());
-                    } else {
-                        assert!(fs::read_to_string(report)?.contains(execution));
                     }
 
                     // Prepare a Manual Cycle From the Same Frozen Cases

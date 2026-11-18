@@ -27,7 +27,9 @@ from unittest.mock import patch
 # isort: split
 
 # Local Imports
-from dokime_tools.build import desktop_fixtures, host_fixtures, paths
+import dokime_tools.build.rust.tests
+from dokime_tools.build import cargo, desktop_fixtures, host_fixtures, lint, paths
+from dokime_tools.prepare import generated
 
 # Type Checking Imports
 
@@ -39,13 +41,33 @@ from dokime_tools.build import desktop_fixtures, host_fixtures, paths
 
 # === Types === #
 
-if __name__ == "__main__":
-    unittest.main()
-
 # === Classes === #
 
 
 class HostFixtureTests(unittest.TestCase):
+    def test_report_generation_failure_stops_native_consumers(self) -> None:
+        temporary_directory = tempfile.TemporaryDirectory()
+        try:
+            for consume in (
+                lambda: host_fixtures.build("dev", "rust"),
+                lambda: dokime_tools.build.rust.tests.build("dev"),
+                lambda: lint.desktop([]),
+            ):
+                with (
+                    self.subTest(consumer=consume),
+                    patch.object(host_fixtures.configuration, "ROOT", Path(temporary_directory.name)),
+                    patch.object(generated, "prepare", side_effect=ValueError("generation failed")),
+                    patch.object(host_fixtures.subprocess, "run") as run,
+                    patch.object(cargo, "clippy") as clippy,
+                    patch.object(cargo, "archive") as archive,
+                ):
+                    self.assertRaises(ValueError, consume)
+                    run.assert_not_called()
+                    clippy.assert_not_called()
+                    archive.assert_not_called()
+        finally:
+            temporary_directory.cleanup()
+
     def test_desktop_bundle_failure_keeps_tool_diagnostics(self) -> None:
         diagnostic = "fixture stderr\n"
         refusal = subprocess.CompletedProcess(["dokime"], 3, stderr=diagnostic)
@@ -70,50 +92,55 @@ class HostFixtureTests(unittest.TestCase):
             temporary_directory = tempfile.TemporaryDirectory()
             temporary = temporary_directory.name
             try:
-                with self.subTest(language=language):
-                    root = Path(temporary)
-                    (root / "Cargo.toml").write_text(
-                        '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n',
-                        encoding="utf-8",
+                root = Path(temporary)
+                (root / "Cargo.toml").write_text(
+                    '[workspace.dependencies.harmos]\ngit = "https://example.test/library"\nrev = "fixture-revision"\n',
+                    encoding="utf-8",
+                )
+                fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
+                fixture.parent.mkdir(parents=True)
+                fixture.write_bytes(b"fixture source")
+                with (
+                    self.subTest(language=language),
+                    patch.object(host_fixtures.configuration, "ROOT", root),
+                    patch.object(host_fixtures.generated, "prepare") as prepare,
+                    patch.object(host_fixtures.subprocess, "run") as run,
+                    patch.object(host_fixtures.shutil, "copy2"),
+                    patch.object(host_fixtures.archive, "stamp") as stamp,
+                ):
+                    run.return_value.stdout = json.dumps(
+                        {
+                            "packages": [
+                                {
+                                    "name": "harmos",
+                                    "source": "git+https://example.test/library#fixture-revision",
+                                    "manifest_path": str(root / "library/sdk/rust/Cargo.toml"),
+                                }
+                            ]
+                        }
                     )
-                    fixture = root / "library/sdk/python/tests/fixtures/conformance/__init__.py"
-                    fixture.parent.mkdir(parents=True)
-                    fixture.write_bytes(b"fixture source")
-                    with (
-                        patch.object(host_fixtures.configuration, "ROOT", root),
-                        patch.object(host_fixtures.subprocess, "run") as run,
-                        patch.object(host_fixtures.shutil, "copy2"),
-                        patch.object(host_fixtures.archive, "stamp") as stamp,
-                    ):
-                        run.return_value.stdout = json.dumps(
-                            {
-                                "packages": [
-                                    {
-                                        "name": "harmos",
-                                        "source": "git+https://example.test/library#fixture-revision",
-                                        "manifest_path": str(root / "library/sdk/rust/Cargo.toml"),
-                                    }
-                                ]
-                            }
-                        )
-                        host_fixtures.build("release", language)
-                        commands = [call.args[0] for call in run.call_args_list]
-                        self.assertEqual(
-                            {command[2] for command in commands if command[1] == "-C"},
-                            set() if language == "none" else {f"sdk/{language}"},
-                        )
-                        stamp.assert_not_called()
-                        if language == "cpp":
-                            self.assertEqual(commands[0][-1], "prepare")
-                            self.assertIn("dokime-system-suite", commands[1])
-                        if language == "csharp":
-                            self.assertEqual([command[4] for command in commands], ["build", "package", "publish:system"])
-                        if language == "rust":
-                            staged = paths.output(root, "build", "release") / "fixtures/host/python/conformance/__init__.py"
-                            self.assertEqual(staged.read_bytes(), fixture.read_bytes())
-                            reference = next(command for command in commands if command[:2] == ["cargo", "install"])
-                            self.assertEqual(reference[reference.index("--git") + 1], "https://example.test/library")
-                            self.assertEqual(reference[reference.index("--rev") + 1], "fixture-revision")
+                    host_fixtures.build("release", language)
+                    if language == "rust":
+                        prepare.assert_called_once_with()
+                    else:
+                        prepare.assert_not_called()
+                    commands = [call.args[0] for call in run.call_args_list]
+                    self.assertEqual(
+                        {command[2] for command in commands if command[1] == "-C"},
+                        set() if language == "none" else {f"sdk/{language}"},
+                    )
+                    stamp.assert_not_called()
+                    if language == "cpp":
+                        self.assertEqual(commands[0][-1], "prepare")
+                        self.assertIn("dokime-system-suite", commands[1])
+                    if language == "csharp":
+                        self.assertEqual([command[4] for command in commands], ["build", "package", "publish:system"])
+                    if language == "rust":
+                        staged = paths.output(root, "build", "release") / "fixtures/host/python/conformance/__init__.py"
+                        self.assertEqual(staged.read_bytes(), fixture.read_bytes())
+                        reference = next(command for command in commands if command[:2] == ["cargo", "install"])
+                        self.assertEqual(reference[reference.index("--git") + 1], "https://example.test/library")
+                        self.assertEqual(reference[reference.index("--rev") + 1], "fixture-revision")
             finally:
                 temporary_directory.cleanup()
 
@@ -135,6 +162,7 @@ class HostFixtureTests(unittest.TestCase):
             stamp.write_text('{"files":{"existing":"digest"},"metadata":{"owner":"tests"}}')
             with (
                 patch.object(host_fixtures.configuration, "ROOT", root),
+                patch.object(host_fixtures.generated, "prepare"),
                 patch.object(host_fixtures.subprocess, "run") as run,
                 patch.object(host_fixtures.shutil, "copy2"),
                 patch.object(host_fixtures.shutil, "which", side_effect=lambda name: name if name == "dotnet" else None),
@@ -190,3 +218,6 @@ class HostFixtureTests(unittest.TestCase):
 
 
 # === Entry Point === #
+
+if __name__ == "__main__":
+    unittest.main()

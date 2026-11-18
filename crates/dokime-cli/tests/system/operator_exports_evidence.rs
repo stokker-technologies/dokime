@@ -70,6 +70,7 @@ fn operator_exports_evidence() -> Result<(), Box<dyn Error>> {
             let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
             let mut plugin = super::command()
                 .envs(credentials.environment.iter().cloned())
+                .env("DOKIME_APPLICATION_ROOT", directory.path().join("desktop"))
                 .args(["dev", "--plugin"])
                 .arg(bundle)
                 .stdin(Stdio::piped())
