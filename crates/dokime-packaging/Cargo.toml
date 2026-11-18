@@ -55,6 +55,10 @@ tar = { workspace = true }
 
 # === Dev Dependencies === #
 
+[dev-dependencies]
+# Filesystem
+tempfile = { workspace = true }
+
 # === Target Dependencies === #
 
 # === Test Targets === #

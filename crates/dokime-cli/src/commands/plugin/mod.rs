@@ -11,11 +11,10 @@
 
 /* === Modules === */
 
-mod add;
+pub(super) mod add;
 mod bundle;
-mod dev;
 mod inspect;
-mod install;
+pub(super) mod install;
 mod list;
 mod remove;
 mod secrets;
@@ -29,6 +28,8 @@ mod secrets;
 // Third Party Imports
 
 // Local Imports
+
+use crate::{Result, error::Error, settings::Settings};
 
 /* === Constants === */
 
@@ -46,7 +47,6 @@ pub(crate) enum Command {
     Secrets(secrets::Args),
     List(list::Args),
     Bundle(bundle::Args),
-    Dev(dev::Args),
     Inspect(inspect::Args),
     Add(add::Args),
     Install(install::Args),
@@ -57,10 +57,17 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 impl Command {
+    pub(super) fn require_trust(&self) -> Result<()> {
+        match self {
+            Self::Add(args) => require_trust(args.trust),
+            Self::Install(args) => require_trust(args.trust),
+            _ => Ok(()),
+        }
+    }
+
     pub(crate) fn action(&self) -> &'static str {
         match self {
             Self::Bundle(_) => "Bundle Plugin",
-            Self::Dev(_) => "Develop Plugin",
             Self::Inspect(_) => "Inspect Plugin",
             Self::Add(_) => "Add Plugin",
             Self::Install(_) => "Install Plugin",
@@ -73,19 +80,52 @@ impl Command {
 
 /* === Public Functions === */
 
-pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
+pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Settings) -> Result<()> {
     match command {
         Command::Remove(args) => remove::run(args, endpoint, settings).await,
         Command::Secrets(args) => secrets::run(args, endpoint, settings).await,
         Command::List(args) => list::run(args, endpoint, settings).await,
         Command::Bundle(args) => bundle::run(args, endpoint, settings).await,
-        Command::Dev(args) => Box::pin(dev::run(args, endpoint, settings)).await,
         Command::Inspect(args) => inspect::run(args, endpoint, settings).await,
         Command::Add(args) => add::run(args, endpoint, settings).await,
         Command::Install(args) => install::run(args, endpoint, settings).await,
     }
 }
 
+pub(super) fn require_trust(trust: bool) -> Result<()> {
+    if !trust {
+        return Err(Error::Invalid("Installing Runs the Plugin's Code with the Host's Access; Review It and Pass --trust".into()));
+    }
+    Ok(())
+}
+
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use crate::{cli::Cli, commands, error::Error, settings::Settings};
+
+    #[tokio::test]
+    async fn untrusted_install_and_add_refuse_before_io() {
+        for arguments in [["dokime", "plugin", "install", "missing.dokime"], ["dokime", "plugin", "add", "invalid-url"]] {
+            let cli = Cli::try_parse_from(arguments).unwrap();
+            let settings = Settings {
+                remote: Some("missing.dokime-remote".into()),
+                ..Settings::default()
+            };
+            let result = commands::run(cli.command, None, settings).await;
+            assert!(matches!(result, Err(Error::Invalid(_))));
+        }
+    }
+
+    #[test]
+    fn development_command_replaces_plugin_dev() {
+        assert!(Cli::try_parse_from(["dokime", "dev", "--plugin", "example.dokime"]).is_ok());
+        assert!(Cli::try_parse_from(["dokime", "plugin", "dev", "--executable", "plugin"]).is_err());
+        assert!(Cli::try_parse_from(["dokime", "dev"]).is_err());
+    }
+}
