@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
@@ -47,6 +47,9 @@ pub(crate) struct Args {
 
     #[arg(long)]
     json: bool,
+
+    #[arg(long, help = "Trust the Plugin to Run Code with the Host Access")]
+    pub(super) trust: bool,
 }
 
 /* === Enums === */
@@ -58,10 +61,16 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let manifest = super::bundle::inspect(&args.bundle)?;
+    attach(&args.bundle, endpoint, &settings, Some(args.json)).await
+}
+
+pub(crate) async fn attach(
+    bundle: &Path, endpoint: Option<String>, settings: &crate::settings::Settings, output: Option<bool>,
+) -> crate::Result<()> {
+    let manifest = super::bundle::inspect(bundle)?;
     let name = manifest["identity"]["name"].as_str().ok_or("Install Plugin: Missing Bundle Identity")?;
     let client = settings.sdk(endpoint).await?;
-    let mut file = tokio::fs::File::open(&args.bundle).await?;
+    let mut file = tokio::fs::File::open(bundle).await?;
     let length = file.metadata().await?.len();
     let identity = settings.request_id(None)?;
     let metadata = FileMetadata {
@@ -203,7 +212,10 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     drop(watch);
     value.entry = Some(entry);
-    crate::output::print(&value, args.json)
+    if let Some(json) = output {
+        crate::output::print(&value, json)?;
+    }
+    Ok(())
 }
 
 /* === Private Functions === */

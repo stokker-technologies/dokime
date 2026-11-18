@@ -40,6 +40,9 @@ pub(crate) struct Args {
 
     #[arg(long)]
     json: bool,
+
+    #[arg(long, help = "Trust the Plugin to Run Code with the Host Access")]
+    pub(super) trust: bool,
 }
 
 /* === Enums === */
@@ -51,10 +54,16 @@ pub(crate) struct Args {
 /* === Public Functions === */
 
 pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::settings::Settings) -> crate::Result<()> {
-    let description = dokime_runtime::describe_plugin(&args.url, &settings.placement()).await?;
+    attach(args.url, endpoint, &settings, Some(args.json)).await
+}
+
+pub(crate) async fn attach(
+    url: String, endpoint: Option<String>, settings: &crate::settings::Settings, output: Option<bool>,
+) -> crate::Result<()> {
+    let description = dokime_runtime::describe_plugin(&url, &settings.placement()).await?;
     let client = settings.sdk(endpoint).await?;
     let placement = PluginPlacement {
-        kind: Some(Kind::Remote(PluginRemote { url: args.url })),
+        kind: Some(Kind::Remote(PluginRemote { url })),
     };
     let mut value = client
         .plugins
@@ -102,7 +111,10 @@ pub(crate) async fn run(args: Args, endpoint: Option<String>, settings: crate::s
     }
     drop(watch);
     value.entry = Some(entry);
-    crate::output::print(&value, args.json)
+    if let Some(json) = output {
+        crate::output::print(&value, json)?;
+    }
+    Ok(())
 }
 
 /* === Private Functions === */

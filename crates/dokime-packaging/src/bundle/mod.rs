@@ -21,11 +21,12 @@ use std::{
     env::consts::{ARCH, OS},
     fs::File,
     io::Read,
+    iter,
     path::{Path, PathBuf},
 };
 
 // Third Party Imports
-use harmos_runtime::bundle::{Bundle as PluginBundle, Identity, Limits, Manifest};
+use harmos_runtime::bundle::{Bundle, Identity, Limits, Manifest};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tar::{Builder, EntryType, Header};
@@ -43,11 +44,27 @@ use crate::Result;
 
 /* === Enums === */
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum DevelopmentInput {
+    Bundle,
+    PythonProject,
+}
+
 /* === Traits === */
 
 /* === Implementations === */
 
 /* === Public Functions === */
+
+pub fn development_input(path: &Path) -> Result<DevelopmentInput> {
+    if path.is_dir() && path.join("pyproject.toml").is_file() && path.join("plugin.py").is_file() {
+        return Ok(DevelopmentInput::PythonProject);
+    }
+    if path.is_file() && inspect(path).is_ok() {
+        return Ok(DevelopmentInput::Bundle);
+    }
+    Err("Develop Plugin: Supply a Bundle File or a Python Folder with pyproject.toml and plugin.py; Bundle Other Plugins First".into())
+}
 
 pub fn native_target() -> &'static str {
     match (ARCH, OS) {
@@ -100,7 +117,7 @@ pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, descrip
     let manifest: Manifest = serde_json::from_value(serde_json::json!({"schema":1,"identity":identity,"files":files}))?;
     let mut archive = Builder::new(Vec::new());
     let manifest = serde_json::to_vec(&manifest)?;
-    for (path, bytes) in std::iter::once(("manifest.json".to_owned(), manifest)).chain(contents) {
+    for (path, bytes) in iter::once(("manifest.json".to_owned(), manifest)).chain(contents) {
         let mut header = Header::new_ustar();
         header.set_entry_type(EntryType::Regular);
         header.set_uid(0);
@@ -112,14 +129,14 @@ pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, descrip
         archive.append_data(&mut header, path, bytes.as_slice())?;
     }
     let bytes = archive.into_inner()?;
-    PluginBundle::inspect(&bytes, limits)?;
+    Bundle::inspect(&bytes, limits)?;
     Ok(bytes)
 }
 
 pub fn inspect(path: &Path) -> Result<Value> {
     let limits = Limits::default();
     let bytes = read(path, limits.archive_bytes as u64)?;
-    let bundle = PluginBundle::inspect(&bytes, limits)?;
+    let bundle = Bundle::inspect(&bytes, limits)?;
     Ok(serde_json::to_value(bundle.manifest())?)
 }
 
@@ -147,11 +164,15 @@ mod tests {
     use serde_json::Value;
     use sha2::{Digest, Sha256};
     use std::error::Error;
-    use std::fs::OpenOptions;
     use std::io::ErrorKind;
     use std::io::Write;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::{
+        env,
+        fs::{self, OpenOptions},
+        iter, process,
+    };
     use tar::{Builder, EntryType, Header};
 
     fn digest(bytes: &[u8]) -> String {
@@ -170,14 +191,14 @@ mod tests {
 
     impl Drop for Bundle {
         fn drop(&mut self) {
-            std::fs::remove_file(&self.0).expect("Remove Owned Bundle Fixture");
+            fs::remove_file(&self.0).expect("Remove Owned Bundle Fixture");
         }
     }
 
     fn bundle(files: &[(&str, &[u8])], manifest: &Value) -> Result<Bundle, Box<dyn Error + Send + Sync>> {
         let (fixture, mut file) = loop {
             let next = NEXT.fetch_add(1, Ordering::Relaxed);
-            let path = std::env::temp_dir().join(format!("dokime-bundle-{}-{next}.tar", std::process::id()));
+            let path = env::temp_dir().join(format!("dokime-bundle-{}-{next}.tar", process::id()));
             match OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(file) => break (Bundle(path), file),
                 Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
@@ -187,7 +208,7 @@ mod tests {
         let mut archive = Builder::new(&mut file);
         let manifest: Manifest = serde_json::from_value(manifest.clone())?;
         let bytes = serde_json::to_vec(&manifest)?;
-        for (name, bytes) in std::iter::once(("manifest.json", bytes.as_slice())).chain(files.iter().copied()) {
+        for (name, bytes) in iter::once(("manifest.json", bytes.as_slice())).chain(files.iter().copied()) {
             let mut header = Header::new_ustar();
             header.set_entry_type(EntryType::Regular);
             header.set_uid(0);
@@ -220,9 +241,9 @@ mod tests {
 
         // Refuse an Unlisted File While Preserving the Input Archive
         let file = bundle(&[("bin/plugin", bytes), ("extra", b"unlisted")], &manifest)?;
-        let before = std::fs::read(file.path())?;
+        let before = fs::read(file.path())?;
         assert!(inspect(file.path()).is_err());
-        assert_eq!(std::fs::read(file.path())?, before);
+        assert_eq!(fs::read(file.path())?, before);
         Ok(())
     }
 
@@ -238,6 +259,25 @@ mod tests {
         // Refuse an Inventory That Names Absent Content
         let file = bundle(&[], &manifest)?;
         assert!(inspect(file.path()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn development_paths_require_a_bundle_or_python_project() -> Result<(), Box<dyn Error + Send + Sync>> {
+        let root = tempfile::tempdir()?;
+        let executable = root.path().join("native-plugin");
+        fs::write(&executable, b"native executable")?;
+        assert!(super::development_input(&executable).is_err());
+        assert!(super::development_input(root.path()).is_err());
+        fs::write(root.path().join("pyproject.toml"), "[project]\nname='fixture'\nversion='0.1.0'\n")?;
+        assert!(super::development_input(root.path()).is_err());
+        fs::write(root.path().join("plugin.py"), "print('http://127.0.0.1:1234')\n")?;
+        assert_eq!(super::development_input(root.path())?, super::DevelopmentInput::PythonProject);
+        let bytes = b"native executable";
+        let manifest = serde_json::json!({"schema": 1, "identity": {"name": "example", "version": "1.0.0", "description": ""},
+            "files": [{"path": "bin/plugin", "size": bytes.len(), "sha256": digest(bytes)}]});
+        let file = bundle(&[("bin/plugin", bytes)], &manifest)?;
+        assert_eq!(super::development_input(file.path())?, super::DevelopmentInput::Bundle);
         Ok(())
     }
 }
