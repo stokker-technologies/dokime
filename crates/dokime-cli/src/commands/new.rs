@@ -19,7 +19,7 @@
 use std::{fs, path::PathBuf, time::Duration};
 
 // Third Party Imports
-use reqwest::Client as HttpClient;
+use reqwest::Client;
 use serde_json::Value;
 
 // Local Imports
@@ -84,7 +84,7 @@ pub(crate) async fn run(args: Args, settings: Settings) -> crate::Result<()> {
             Some(digest) => digest,
             None => {
                 let _ = rustls::crypto::ring::default_provider().install_default();
-                HttpClient::builder()
+                Client::builder()
                     .timeout(Duration::from_secs(settings.read_timeout_s))
                     .build()?
                     .get(format!("{url}.sha256"))
@@ -132,3 +132,40 @@ pub(crate) async fn run(args: Args, settings: Settings) -> crate::Result<()> {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::{error::Error, fs};
+
+    use super::{Args, Language, run};
+    use crate::settings::Settings;
+
+    #[tokio::test]
+    async fn python_starters_leave_dependency_locking_to_the_user() -> Result<(), Box<dyn Error>> {
+        let directory = tempfile::tempdir()?;
+        let project = directory.path().join("python");
+        let args = Args {
+            path: project.clone(),
+            lang: Language::Python,
+            sdk_url: None,
+            sdk_sha256: None,
+        };
+        run(args, Settings::default()).await?;
+
+        for folder in ["plugin", "test"] {
+            let root = project.join(folder);
+            assert!(root.join("pyproject.toml").is_file());
+            let mut pending = vec![root];
+            while let Some(directory) = pending.pop() {
+                for entry in fs::read_dir(directory)? {
+                    let entry = entry?;
+                    assert_ne!(entry.file_name(), "uv.lock", "{}", entry.path().display());
+                    if entry.file_type()?.is_dir() {
+                        pending.push(entry.path());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}

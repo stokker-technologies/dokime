@@ -92,6 +92,8 @@
 
 ## Plugin Project Manifests
 
+- [x] Leave Python Starter Locks to the User's First `uv sync`, Remove Unused Repository Example Locks and Assert Both Created Inventories Contain No Lock.
+
 - [x] Pin the Launch-Capable Library Revision in the Workspace and Rust Consumer Manifests and Locks.
 - [x] Read Strict `dokime.toml` Plugin Manifests With One Native Executable or Launch Command and Confined Relative Paths.
 - [x] Build Manifest Projects Before Development or Bundling; Require Python Project and Lock Inputs Before Use.

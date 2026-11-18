@@ -150,6 +150,8 @@ dokime dev --plugin .
 
 `dokime new` writes the `plugin` and `test` examples; `my-project/test` holds the suite,
 its `plugin.py` entry point, the `main.py` client flow and `dokime.toml`.
+Neither Python starter embeds `uv.lock`. The first `uv sync` resolves the SDK
+dependency named in `pyproject.toml` and creates a lock file to commit with your project.
 `dokime dev` starts a disposable host
 with the plugin attached and prints its endpoint. Bundle the plugin for installation
 with `dokime plugin bundle . --out ../my-project.dokime`.
@@ -167,7 +169,7 @@ on exit.
 
 Pass `--no-desktop` to start only the host and plugin without looking for a
 desktop; automated callers always pass this flag. Python projects require `uv` on
-PATH, `pyproject.toml` and `uv.lock`.
+PATH and `pyproject.toml`; the configured `uv sync` build creates `uv.lock` before launch or bundling.
 The [Execution Host Guide](docs/execution-host.md) lists the exact commands and
 configuration; the [Product Guide](docs/product-guide.md) explains the model.
 

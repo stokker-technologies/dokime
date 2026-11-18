@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{error::Error, fs};
 
 // Third Party Imports
 
@@ -40,7 +41,7 @@
 /* === Private Functions === */
 
 #[test]
-fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn std::error::Error>> {
+fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn Error>> {
     super::credentials::run(Box::pin(async {
         tokio::time::timeout(super::HANG_GUARD, async {
             let directory = super::credentials::tempdir()?;
@@ -66,7 +67,7 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                     let root = super::root().join(examples).join(folder);
                     let mut pending = vec![root.clone()];
                     while let Some(directory) = pending.pop() {
-                        for entry in std::fs::read_dir(directory)? {
+                        for entry in fs::read_dir(directory)? {
                             let entry = entry?;
                             let path = entry.path();
                             if entry.file_type()?.is_dir() {
@@ -79,29 +80,33 @@ fn scaffold_languages_and_export_protocol_without_a_host() -> Result<(), Box<dyn
                                 continue;
                             }
                             let destination = project.join(folder).join(path.strip_prefix(&root)?);
+                            if language == "python" && entry.file_name() == "uv.lock" {
+                                assert!(!destination.exists());
+                                continue;
+                            }
                             if path.file_name().is_some_and(|name| name == "CMakePresets.json") {
-                                let presets: serde_json::Value = serde_json::from_slice(&std::fs::read(destination)?)?;
+                                let presets: serde_json::Value = serde_json::from_slice(&fs::read(destination)?)?;
                                 let coordinates = &presets["configurePresets"][0]["cacheVariables"];
                                 assert_eq!(coordinates["DOKIME_SDK_URL"], arguments[5]);
                                 assert_eq!(coordinates["DOKIME_SDK_SHA256"], arguments[7]);
                             } else {
-                                assert_eq!(std::fs::read(destination)?, std::fs::read(path)?);
+                                assert_eq!(fs::read(destination)?, fs::read(path)?);
                             }
                         }
                     }
                 }
 
                 // Preserve the Existing Project on a Repeated Invocation
-                std::fs::write(project.join("owned.txt"), b"retained work")?;
+                fs::write(project.join("owned.txt"), b"retained work")?;
                 let output = super::command().args(&arguments).output().await?;
                 assert!(!output.status.success());
-                assert_eq!(std::fs::read(project.join("owned.txt"))?, b"retained work");
+                assert_eq!(fs::read(project.join("owned.txt"))?, b"retained work");
             }
             // Export the Embedded Protocol Without Configuration or a Backend
             let protos = directory.path().join("proto");
             super::run(&["proto", "export", "--out", protos.to_str().unwrap()]).await?;
             for (relative, source) in dokime_protocol::SOURCES {
-                assert_eq!(std::fs::read(protos.join(relative))?, source.as_bytes());
+                assert_eq!(fs::read(protos.join(relative))?, source.as_bytes());
             }
             Ok(())
         })
