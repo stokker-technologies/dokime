@@ -104,3 +104,10 @@
 - [x] Update the Compiler-Record Story to Stage Real Executable Fixtures Before Manifest Bundling and Pass Tooling Integration Tests.
 - [x] Generate the Shared Report Template Before Independent Rust Fixture, Test-Archive and Lint Compilation; Propagate Generation Failures Before Compilation.
 - [x] Preserve Focused Native JUnit Reports Before Scratch Cleanup and Keep Cleanup Failures Visible.
+
+## Single Plugin Paths
+
+- [x] Share Entry Readiness Between CLI Add/Install and the Host Without Changing Their Failure Messages or Watch Policies.
+- [x] Replace the Native Bundle Encoder With the Pinned Library Builder After Native Manifest and Install/Start Equivalence Proof; Remove Encoder-Only Dependencies.
+- [x] Audit Standalone Product and Library Managed Process Supervision and Report the Required Library Surface Without Replacing Either Supervisor.
+- [x] Prove the Three Crates' Units, All CLI Stories, Plugin Runtime Stories, Rust/Python Starter Bundles, Formatting, Focused Compilation and Rust Lint on Native Windows.

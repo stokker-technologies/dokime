@@ -24,9 +24,12 @@ use std::path::PathBuf;
 use std::process::Stdio;
 
 // Third Party Imports
-use serde_json::{Deserializer, Value};
+use harmos_runtime::bundle::{Bundle, Facility, Limits};
+use prost_reflect::{DynamicMessage, SerializeOptions};
+use serde_json::{Deserializer, Serializer, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::time;
 
 // Local Imports
 use dokime_runtime::process;
@@ -52,7 +55,7 @@ use dokime_runtime::process;
 #[test]
 fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> {
     super::credentials::run(Box::pin(async {
-        tokio::time::timeout(super::HANG_GUARD, async {
+        time::timeout(super::HANG_GUARD, async {
             // Create a Rust Project From the Embedded SDK Starter
             let directory = super::credentials::tempdir()?;
             let project = directory.path().join("first-rust");
@@ -69,6 +72,24 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
             let bundle = directory.path().join("first.dokime");
             super::run(&["plugin", "bundle", prepared.to_str().unwrap(), "--out", bundle.to_str().unwrap()]).await?;
             super::run(&["plugin", "inspect", "--bundle", bundle.to_str().unwrap(), "--json"]).await?;
+
+            // Preserve the Plugin Identity and Frozen Declarations in the Native Bundle
+            let bytes = fs::read(&bundle)?;
+            let packed = Bundle::inspect(&bytes, Limits::default())?;
+            let descriptor = dokime_protocol::descriptor_pool().get_message_by_name("harmos.plugin.v1.InstanceGetResponse").unwrap();
+            let description =
+                DynamicMessage::decode(descriptor, packed.file("description.pb").ok_or("Bundle Plugin: Missing Declarations")?)?;
+            let mut json = Vec::new();
+            let mut serializer = Serializer::new(&mut json);
+            description.serialize_with_options(&mut serializer, &SerializeOptions::new().use_proto_field_name(true))?;
+            let description: Value = serde_json::from_slice(&json)?;
+            assert_eq!(packed.manifest().identity.name, description["id"]);
+            assert_eq!(packed.manifest().identity.version.to_string(), description["version"]);
+            assert!(description["declarations"].is_object());
+            assert!(packed.manifest().launch.is_none());
+            let entrypoint = packed.manifest().files.iter().find(|file| file.executable.is_some()).unwrap();
+            assert_eq!(entrypoint.executable.as_ref().unwrap().facility, Facility::Sidecar);
+            assert_eq!(packed.file(&entrypoint.path), Some(fs::read(&executable)?.as_slice()));
 
             // Start a Host With an Explicit Endpoint and Controlled Clock
             let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
@@ -91,6 +112,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
                 let installation: Value = serde_json::from_str(
                     &super::run(&["--endpoint", &endpoint, "plugin", "install", bundle.to_str().unwrap(), "--json"]).await?,
                 )?;
+                assert_eq!(installation["entry"]["description"]["declarations"], description["declarations"]);
                 let entry = installation["entry"]["name"].as_str().ok_or("Install Plugin: Missing Managed Entry")?;
                 let suites: Value = serde_json::from_str(&super::run(&["--endpoint", &endpoint, "catalog", "list", "--json"]).await?)?;
                 let suite = suites["values"][0]["metadata"]["identifier"].as_str().ok_or("List Suites: Missing Suite Identity")?;
