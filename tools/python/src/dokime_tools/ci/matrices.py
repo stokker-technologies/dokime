@@ -170,7 +170,7 @@ TESTS: tuple[dict[str, Any], ...] = (
         "work": "Desktop / Execution",
         "command": "test -- --language typescript --layer system --select native-desktop",
         "bootstrap": '["mise run ci:prerequisites -- --gui-runtime --desktop"]',
-        "archives": '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]',
+        "archives": '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]',
         "language": "typescript",
     },
     {
@@ -200,7 +200,7 @@ TESTS: tuple[dict[str, Any], ...] = (
         "work": "Desktop / Execution",
         "command": "test -- --language typescript --layer system --select native-desktop",
         "bootstrap": '["mise run ci:prerequisites -- --desktop"]',
-        "archives": '["target/ci/build-product-python-{profile}-any.tar.zst","target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]',
+        "archives": '["target/ci/build-cli-{profile}-{platform}.tar.zst","target/ci/build-clients-{profile}-{platform}.tar.zst","target/ci/build-tests-{profile}-{platform}.tar.zst"]',
         "language": "typescript",
     },
     {

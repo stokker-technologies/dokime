@@ -94,11 +94,7 @@ function RecordRow({ live, ordinal, record }: { live: boolean; ordinal: string; 
     record.record_type === "criterion" && typeof record.result.details.message === "string" ? record.result.details.message : null;
 
   return (
-    <li
-      className="col-span-4 grid min-w-0 grid-cols-subgrid items-baseline py-1 text-sm leading-5"
-      data-record-id={record.step_id}
-      data-record-status={record.status}
-    >
+    <li className="col-span-4 grid min-w-0 grid-cols-subgrid items-baseline py-1 text-sm leading-5">
       <span className="text-xs text-muted-foreground tabular-nums">{ordinal}</span>
       <div className="min-w-0">
         <span className="block font-medium [overflow-wrap:break-word]">{stepRecordLabel(record, false)}</span>

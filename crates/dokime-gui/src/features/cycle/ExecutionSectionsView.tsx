@@ -127,9 +127,7 @@ export function ExecutionSectionsView({
   const { shared, view } = surface;
   const mainCards = view.sections.flatMap((section) => section.cards).filter(isDocumentSurfaceCard);
   const present = new Set(executionDocumentSections(mainCards));
-  if (view.sections.some((section) => section.loading || section.unavailable)) {
-    present.add("report");
-  }
+  if (view.sections.some((section) => section.loading || section.unavailable)) present.add("report");
   const reportSections = view.sections.map((section) => ({
     ...section,
     cards: section.cards.filter(isReportCard),
@@ -170,7 +168,7 @@ export function ExecutionSectionsView({
         ) : (
           <>
             {pane.failure ? <ErrorCard failure={pane.failure} onRetry={onRetry} /> : null}
-            {present.has("steps-criteria") || view.stepRecords.length > 0 || view.criterionRecords.length > 0 ? (
+            {present.has("steps-criteria") ? (
               <ExecutionSectionCard
                 empty={view.stepRecords.length || view.criterionRecords.length ? null : "No steps or criteria recorded yet."}
                 title="Steps & Criteria"
@@ -270,9 +268,7 @@ function measuredSeconds(execution: Pick<TestExecution, "started_at" | "finished
 
 /** The header's progress text: how many of the execution's steps have settled. */
 function stepProgress(steps: readonly { status: string }[]): string | null {
-  if (!steps.length) {
-    return null;
-  }
+  if (!steps.length) return null;
   const settled = steps.filter((step) => step.status !== "pending" && step.status !== "running").length;
   return `${settled} of ${steps.length} steps finished`;
 }

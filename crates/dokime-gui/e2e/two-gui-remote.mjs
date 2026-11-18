@@ -86,9 +86,7 @@ async function pick(desktop, command, args, path, operation = "Open") {
     return current.done ? current : null;
   });
   await desktop.execute("delete window.__storyPicker;");
-  if (result.failure) {
-    throw Object.assign(new Error(JSON.stringify(result.failure)), { detail: result.failure });
-  }
+  if (result.failure) throw Object.assign(new Error(JSON.stringify(result.failure)), { detail: result.failure });
   return result.value;
 }
 
