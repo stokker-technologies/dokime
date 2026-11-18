@@ -551,27 +551,33 @@ await plugin.close()
 | Language | Folder | Plugin Placement | Distribution |
 | --- | --- | --- | --- |
 | Rust | `sdk/rust` | Managed and remote | `dokime` crate with plugin and client halves |
-| Python | `sdk/python` | Remote | One pure wheel |
+| Python | `sdk/python` | Managed and remote | One pure wheel |
 | C# | `sdk/csharp` | Managed and remote | NuGet package |
 | C++ | `sdk/cpp` | Managed and remote | Source archive with CMake |
 
 Each has both halves and builds on the Harmos SDK for the same language. Go
 is outside the pilot.
 
-A managed plugin is any executable that serves `harmos.v1` on the endpoint
-the host passes at start. `dokime plugin bundle` packages the output of any
-language's build the same way, so Rust, C# and C++ plugins can all be
-managed. Python has no executable to bundle and stays remote.
+A plugin project has a strict `dokime.toml` manifest with exactly one native
+`executable` or `launch` command, an optional `build` command and relative `assets`.
+Paths stay inside the project root. Native executable paths may omit the platform
+suffix; Windows resolves the corresponding `.exe` when the unsuffixed file is absent.
+`dokime plugin bundle` builds the project and freezes its description, then packages
+the executable and assets or the launch project's Git-ignored file inventory.
+Python launch projects include `pyproject.toml`, `uv.lock` and `plugin.py`; the host
+runs their configured `uv` launch command. All four languages support managed bundles.
 
 ```sh
-dokime plugin bundle --executable build/thermal.exe --out thermal.dokime
+dokime plugin bundle ./thermal --out thermal.dokime
 ```
 
 ## One Command-Line Tool and Starters
 
 ```sh
 dokime new my-plugin --lang rust|python|csharp|cpp
-dokime plugin bundle | dev | inspect            # managed bundles
+dokime plugin bundle <folder> --out plugin.dokime
+dokime plugin inspect --bundle plugin.dokime
+dokime dev --plugin <bundle-or-manifest-folder>
 dokime installer package
 dokime proto export
 ```
@@ -794,9 +800,9 @@ Applies to every SDK language; Python is the reference implementation, the other
 9. **`requires` Leaves the Author Surface.** Starters and examples never pass it. (Deleting the host-side requirement check is a separate decision pending an inventory; do not touch the host check.)
 10. **Python Project Layout.** `plugin.py` is the plugin entry point: it starts the sidecar and nothing else. `main.py` is the client-plus-plugin flow: it starts the plugin and drives it through the client. Suites live in their own module(s). A Python plugin project is a folder with `pyproject.toml` and `plugin.py`.
 11. **Running and Bundling.**
-    - `dokime dev --plugin <path>` starts the application with console logging and a temporary data root and attaches one plugin. `<path>` is a bundle file, or a Python project folder (the host starts `plugin.py` with `uv run --project <folder>`). Python is the only path plugin; every other language is compiled and bundled first.
+    - `dokime dev --plugin <path>` starts the application with console logging and a temporary data root and attaches one plugin. `<path>` is a bundle file or a project folder containing `dokime.toml`, for every language. A project runs its configured build before starting its executable or launch command. An installed sibling desktop attaches when present and closes with the disposable host.
     - `dokime plugin dev --executable` is deleted.
-    - `dokime plugin bundle` accepts an executable (as today) or a Python project folder, which is packed as it is (sources, `pyproject.toml`, `uv.lock`). The host runs a Python bundle with `uv`; Python and `uv` on the host are an accepted requirement.
+    - `dokime plugin bundle <folder> --out <bundle>` accepts a manifest project folder. The manifest's optional `build` command runs before description and packaging. Exactly one `executable` or `launch` is required; native `assets` may name files or folders. Launch projects use their Git-ignored inventory. Python projects require `pyproject.toml` and `uv.lock` after their build, and launch `plugin.py` with `uv`; Python and `uv` on the host are an accepted requirement.
     - Installing a plugin asks the user once whether they trust it: a confirmation in the desktop, an explicit `--trust` flag on the command line (which never prompts).
 
 Target starter (Python):
