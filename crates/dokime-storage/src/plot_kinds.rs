@@ -16,15 +16,21 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
+use std::f64::consts::{E, SQRT_2, TAU};
+use std::iter;
 
 // Third Party Imports
+use arrow_array::{Int64Array, StructArray, UInt64Array};
+use harmos_query::Accumulator;
 use harmos_query::transform::{FieldPath, FieldPathExecution};
+use prost_types::Timestamp;
 
 // Local Imports
 use crate::scalar::{self, ScalarValue};
 use crate::{BatchSelection, expressions};
 use crate::{Error, NumericWindow, Result, Store};
-use arrow_array::{Int64Array, StructArray, UInt64Array};
 use dokime_protocol::host::plots::PlotWindow;
 use dokime_protocol::model::Aggregate;
 use dokime_protocol::model::DataExpression;
@@ -37,9 +43,6 @@ use dokime_protocol::model::PlotFftOptions;
 use dokime_protocol::model::PlotIntervalOptions;
 use dokime_protocol::model::Reduction;
 use dokime_protocol::model::Value;
-use harmos_query::Accumulator;
-use std::cmp::Reverse;
-use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 
 use dokime_protocol::host::plots::ContourGrid;
 use dokime_protocol::host::plots::GridCell;
@@ -53,8 +56,6 @@ use dokime_protocol::host::plots::PlotSigmaBin;
 use dokime_protocol::host::plots::PlotSigmaIntervalAnalysis;
 use dokime_protocol::host::plots::PlotSigmaSeries;
 
-use prost_types::Timestamp;
-
 use dokime_protocol::model::data_expression;
 
 /* === Constants === */
@@ -67,6 +68,14 @@ pub type CartesianRead = (PlotFrame, u64, Vec<(String, u64)>);
 type GridReduction = BTreeMap<(String, String), (ScalarValue, ScalarValue, f64, u64)>;
 
 /* === Structs === */
+
+#[derive(Default)]
+struct CartesianGroup {
+    count: u64,
+    limit: u64,
+    index: u64,
+    selected: u64,
+}
 
 pub struct KindWindow<'a> {
     pub window: NumericWindow<'a>,
@@ -99,46 +108,67 @@ impl FrameKey {
 
 impl Store {
     pub fn cartesian_window(&self, request: KindWindow<'_>) -> Result<CartesianRead> {
-        let window = &request.window;
-        let width = ((i128::from(window.end_ns) - i128::from(window.start_ns) + 1 + window.bins.get() as i128 - 1)
-            / window.bins.get() as i128)
-            .max(1);
-        let mut kept = BTreeMap::new();
-        let mut raw_counts = BTreeMap::<String, u64>::new();
+        if request.limit == 0 {
+            return Err(Error::Invalid("Read Cartesian Plot: Select a Positive Display Resolution".into()));
+        }
+        let mut raw_counts = BTreeMap::<String, CartesianGroup>::new();
         let mut count = 0u64;
         self.kind_values(&request, |row| {
             if missing(&row.x) {
                 return Ok(());
             }
+            let group = text(row.g);
+            if !raw_counts.contains_key(&group) && raw_counts.len() >= request.limit {
+                return Err(Error::Invalid("Read Cartesian Plot: Narrow the Window or Reduce the Number of Groups".into()));
+            }
             count += 1;
-            *raw_counts.entry(text(row.g.clone())).or_default() += 1;
-            let key = ((i128::from(row.time) - i128::from(window.start_ns)) / width, text(row.g.clone()));
-            if !kept.contains_key(&key) && kept.len() >= request.limit {
-                return Err(Error::Data("narrow the cartesian window or reduce groups"));
-            }
-            if kept.get(&key).is_none_or(|old: &Input| old.position < row.position) {
-                kept.insert(key, row);
-            }
+            raw_counts.entry(group).or_default().count += 1;
             Ok(())
         })?;
-        let mut rows = kept.into_values().collect::<Vec<_>>();
+
+        let mut points = (request.limit as u64).min(count);
+        let mut samples = count;
+        let mut groups = raw_counts.len() as u64;
+        for group in raw_counts.values_mut() {
+            groups -= 1;
+            let share = (u128::from(points) * u128::from(group.count) / u128::from(samples)) as u64;
+            group.limit = share.max(1).min(points - groups).min(group.count);
+            points -= group.limit;
+            samples -= group.count;
+        }
+
+        let mut rows = Vec::new();
+        self.kind_values(&request, |row| {
+            if missing(&row.x) {
+                return Ok(());
+            }
+            let group = raw_counts.get_mut(&scalar::text(&row.g)).unwrap();
+            let target =
+                if group.limit <= 1 { 0 } else { u128::from(group.selected) * u128::from(group.count - 1) / u128::from(group.limit - 1) };
+            if group.selected < group.limit && u128::from(group.index) == target {
+                rows.push(row);
+                group.selected += 1;
+            }
+            group.index += 1;
+            Ok(())
+        })?;
         rows.sort_by_key(|row| row.position);
-        let rows = rows.into_iter().map(|r| Ok::<_, Error>((r.time, r.x, r.y, scalar::number(&r.z), r.g)));
         let mut columns: BTreeMap<String, PlotColumn> = BTreeMap::new();
         let mut points = 0;
         for row in rows {
-            let (time, x, y, z, group) = row?;
+            let Input { time, x, y, z, g, .. } = row;
+            let z = scalar::number(&z);
             points += 1;
             if points > request.limit {
                 return Err(Error::Invalid("Read Cartesian Plot: Narrow the Window or Reduce the Number of Groups".into()));
             }
-            let column = columns.entry(text(group)).or_default();
+            let column = columns.entry(text(g)).or_default();
             column.instants.push(instant(time));
             column.x.push(value(x));
             column.y.push(NullableNumber { value: Some(y) });
             column.z.push(NullableNumber { value: z });
         }
-        let keys = columns.keys().map(|key| (key.clone(), raw_counts.get(key).copied().unwrap_or(0))).collect();
+        let keys = columns.keys().map(|key| (key.clone(), raw_counts.get(key).map_or(0, |group| group.count))).collect();
         Ok((
             PlotFrame {
                 mode: Some(PlotCartesianMode::Faceted as i32),
@@ -306,10 +336,10 @@ impl Store {
         let (x_min, mut x_max) = x_view.map_or((x_min, x_max), |view| (view.from, view.to));
         let (y_min, mut y_max) = y_view.map_or((y_min, y_max), |view| (view.from, view.to));
         if x_min == x_max {
-            x_max = if x_log { x_min * std::f64::consts::E } else { x_min + 1.0 };
+            x_max = if x_log { x_min * E } else { x_min + 1.0 };
         }
         if y_min == y_max {
-            y_max = if y_log { y_min * std::f64::consts::E } else { y_min + 1.0 };
+            y_max = if y_log { y_min * E } else { y_min + 1.0 };
         }
         if !x_min.is_finite()
             || !x_max.is_finite()
@@ -638,7 +668,7 @@ impl Store {
                 let weight = if options.window == FftWindow::Rectangular as i32 {
                     1.0
                 } else {
-                    0.5 * (1.0 - (std::f64::consts::TAU * index as f64 / (count - 1) as f64).cos())
+                    0.5 * (1.0 - (TAU * index as f64 / (count - 1) as f64).cos())
                 };
                 ((*value - mean) * weight, weight)
             })
@@ -658,7 +688,7 @@ impl Store {
             }
             let (mut real, mut imag) = (0.0, 0.0);
             for (index, (value, _)) in weighted.iter().enumerate() {
-                let angle = std::f64::consts::TAU * frequency as f64 * index as f64 / count as f64;
+                let angle = TAU * frequency as f64 * index as f64 / count as f64;
                 real += value * angle.cos();
                 imag -= value * angle.sin();
             }
@@ -666,7 +696,7 @@ impl Store {
             let amplitude = real.hypot(imag) * scale / gain;
             let level = match FrequencyLevelUnit::try_from(options.level_unit).unwrap_or(FrequencyLevelUnit::Linear) {
                 FrequencyLevelUnit::Db => 20.0 * amplitude.max(f64::MIN_POSITIVE).log10(),
-                FrequencyLevelUnit::Dbu => 20.0 * (amplitude / std::f64::consts::SQRT_2 / 0.775).max(f64::MIN_POSITIVE).log10(),
+                FrequencyLevelUnit::Dbu => 20.0 * (amplitude / SQRT_2 / 0.775).max(f64::MIN_POSITIVE).log10(),
                 FrequencyLevelUnit::Dbm => 10.0 * (amplitude * amplitude / 100.0 / 0.001).max(f64::MIN_POSITIVE).log10(),
                 _ => amplitude,
             };
@@ -704,13 +734,8 @@ struct Input {
 }
 impl Store {
     fn kind_values(&self, request: &KindWindow<'_>, mut read: impl FnMut(Input) -> Result<()>) -> Result<()> {
-        use arrow_array::{Int64Array, StructArray, UInt64Array};
-        let fields = std::iter::once(request.window.field)
-            .chain(request.x)
-            .chain(request.z)
-            .chain(request.group)
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
+        let fields =
+            iter::once(request.window.field).chain(request.x).chain(request.z).chain(request.group).map(str::to_owned).collect::<Vec<_>>();
         self.evaluated_batches(request.window, &fields, |batch| {
             let metadata = batch.column(0).as_any().downcast_ref::<StructArray>().unwrap();
             let positions = metadata.column_by_name("position").unwrap().as_any().downcast_ref::<UInt64Array>().unwrap();

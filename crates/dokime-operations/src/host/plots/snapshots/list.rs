@@ -66,11 +66,13 @@ use dokime_protocol::model::XyInterval;
 use dokime_protocol::model::data_expression;
 use dokime_protocol::model::value;
 use dokime_storage::persisted::Scope;
-use dokime_storage::{ExecutionCut, NumericWindow, Store};
+use dokime_storage::{ExecutionCut, KindWindow, NumericWindow, Store};
 
 /* === Constants === */
 
 pub const ID: &str = "dokime.host.v1.plots.Snapshots/List";
+
+const DEFAULT_POINTS: u64 = 2000;
 
 /* === Macros === */
 
@@ -259,7 +261,9 @@ async fn batch(
                         },
                         &request,
                     )?;
-                    if message_bytes.is_none_or(|maximum| envelope.encoded_len().saturating_add(32) <= maximum) {
+                    let size = envelope.encoded_len();
+                    let reply_bytes = 1 + prost::length_delimiter_len(size) + size;
+                    if message_bytes.is_none_or(|maximum| reply_bytes <= maximum) {
                         query.record("samples", envelope.diagnostics.as_ref().map_or(0, |value| value.raw_point_count));
                         if capturing {
                             tracing::debug!(
@@ -273,7 +277,7 @@ async fn batch(
                         }
                         return Ok((index, envelope));
                     }
-                    let points = request.max_points.unwrap_or(maximum as u64).min(maximum as u64);
+                    let points = request.max_points.unwrap_or(DEFAULT_POINTS);
                     if points <= 4 || request.technique == Downsample::Raw as i32 {
                         return Err(Error::Invalid(
                             "Query Plot: Narrow the Raw Window or Split the Batch to Fit Its Irreducible Message Budget".into(),
@@ -418,8 +422,13 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if fields.len() != 1 && (matches!(kind, PlotKind::Pie | PlotKind::Contour | PlotKind::GridChart) || request.pareto) {
         return Err(Error::Invalid("Query Plot: Select Exactly One Value Column for This Kind".into()));
     }
-    let requested = request.max_points.unwrap_or(maximum as u64).max(4).min(maximum as u64) as usize;
-    let display = request.panel_width.map(|width| width as usize * 4).unwrap_or(requested).min(requested).max(4);
+    let requested = usize::try_from(request.max_points.unwrap_or(DEFAULT_POINTS))
+        .map_err(|_| Error::Invalid("Query Plot: Select a Display Resolution Within This Host's Address Range".into()))?;
+    let display = if kind == PlotKind::Xy {
+        requested
+    } else {
+        request.panel_width.map(|width| width as usize * 4).unwrap_or(requested).min(requested).max(4)
+    };
     let bins = NonZeroUsize::new((display / 4).max(1)).unwrap();
     let (after, through) = store.step_range(
         execution,
@@ -548,7 +557,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             count
         } else if matches!(kind, PlotKind::Xy | PlotKind::Trajectory | PlotKind::Bar | PlotKind::Pie | PlotKind::Contour) {
             let x = x.as_deref().ok_or_else(|| Error::Invalid("Query Plot: Select an X Coordinate or Category Column".into()))?;
-            let settings = dokime_storage::KindWindow {
+            let settings = KindWindow {
                 window,
                 x: Some(x),
                 z: z.as_deref(),
@@ -617,7 +626,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 .and_then(|value| Reduction::try_from(value).ok())
                 .ok_or_else(|| Error::Invalid("Query Grid Chart: Select an Explicit Reducer".into()))?;
             let (frames, count) = store.grid_window(
-                dokime_storage::KindWindow {
+                KindWindow {
                     window,
                     x: row.as_deref(),
                     z: column.as_deref(),
@@ -636,7 +645,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         } else if kind == PlotKind::FrequencySeries {
             let options = request.fft.unwrap_or_default();
             let (column, count) = store.spectrum_window(
-                dokime_storage::KindWindow {
+                KindWindow {
                     window,
                     x: None,
                     z: None,
@@ -948,15 +957,16 @@ fn ns(seconds: f64) -> Result<i64> {
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::TAU;
     use std::thread;
 
     use harmos_protocol::model::{Declarations, StreamDeclaration};
     use prost::Message;
     use prost_types::{DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet, field_descriptor_proto::Type};
 
-    use super::{PlotColumn, Value, order_categories, snapshots_at, value};
+    use super::{PlotColumn, Value, batch, order_categories, snapshots_at, value};
     use dokime_protocol::host::plots::NullableNumber;
-    use dokime_protocol::host::plots::PlotRequest;
+    use dokime_protocol::host::plots::{PlotRequest, SnapshotsListResponse};
     use dokime_protocol::model::{Downsample, EvidenceScope, Import, Origin, PlotKind, origin};
     use dokime_storage::{Execution, Sample, Store};
 
@@ -1042,6 +1052,120 @@ mod tests {
             actual.iter().map(|envelope| &envelope.plot_id).collect::<Vec<_>>(),
             requests.iter().map(|request| request.plot_id.as_ref().unwrap()).collect::<Vec<_>>()
         );
+    }
+
+    #[derive(Clone, PartialEq, Message)]
+    struct Waveform {
+        #[prost(double, tag = "1")]
+        value: f64,
+
+        #[prost(double, tag = "2")]
+        elapsed_s: f64,
+    }
+
+    #[tokio::test]
+    async fn xy_display_budget_preserves_samples_and_uses_the_requested_point_count() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::open(root.path()).unwrap();
+        let catalog = Declarations {
+            types: Some(FileDescriptorSet {
+                file: vec![FileDescriptorProto {
+                    name: Some("plots.proto".into()),
+                    package: Some("plots".into()),
+                    syntax: Some("proto3".into()),
+                    message_type: vec![DescriptorProto {
+                        name: Some("Row".into()),
+                        field: [("value", Type::Double), ("elapsed_s", Type::Double)]
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, (name, kind))| FieldDescriptorProto {
+                                name: Some(name.into()),
+                                number: Some(index as i32 + 1),
+                                r#type: Some(kind as i32),
+                                ..Default::default()
+                            })
+                            .collect(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+            }),
+            streams: vec![StreamDeclaration {
+                id: "readings".into(),
+                row: "plots.Row".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        store
+            .create(&Execution {
+                identifier: "execution".into(),
+                cycle: "cycle".into(),
+                origin: Some(Origin {
+                    kind: Some(origin::Kind::Import(Import::default())),
+                }),
+                catalog: catalog.encode_to_vec(),
+                ..Default::default()
+            })
+            .unwrap();
+        store.open_stream("execution", "readings").unwrap();
+        let samples = (0..11801)
+            .map(|index| Sample {
+                stream: "readings".into(),
+                source_ns: index * 1_000_000,
+                row: Waveform {
+                    value: (index as f64 * TAU / 20.0).sin(),
+                    elapsed_s: index as f64 / 1000.0,
+                }
+                .encode_to_vec(),
+                sequence: index as u64,
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        store.sample_batch("execution", &samples).unwrap();
+        store.flush_samples().unwrap();
+        let cut = store.cut("execution").unwrap();
+        let (reader, _cancellation) = store.read_session().unwrap();
+        for technique in [Downsample::Auto, Downsample::Raw, Downsample::MinMax, Downsample::Lttb] {
+            for budget in [1, 2, 3, 2000, 11801, 20000] {
+                let request = PlotRequest {
+                    plot_id: Some("voltage".into()),
+                    scope: Some(EvidenceScope {
+                        execution_id: Some("execution".into()),
+                        ..Default::default()
+                    }),
+                    stream: "readings".into(),
+                    x_key: Some("elapsed_s".into()),
+                    y_keys: vec!["value".into()],
+                    plot_type: PlotKind::Xy as i32,
+                    technique: technique as i32,
+                    max_points: Some(budget),
+                    ..Default::default()
+                };
+                let envelopes = batch(&reader, vec![request.clone()], None, 1000, 0, "epoch", Some(4 * 1024 * 1024)).await.unwrap();
+                let payload = envelopes[0].payload.as_ref().unwrap();
+                let columns = &payload.frame.as_ref().unwrap().series;
+                assert_eq!(columns[0].y.len(), budget.min(samples.len() as u64) as usize);
+                assert_eq!(envelopes[0].diagnostics.as_ref().unwrap().raw_point_count, samples.len() as u64);
+                if budget >= samples.len() as u64 {
+                    assert!(payload.series.iter().all(|series| !series.downsampled));
+                    for (index, (x, y)) in columns[0].x.iter().zip(&columns[0].y).enumerate() {
+                        assert_eq!(x.kind, Some(value::Kind::Number(index as f64 / 1000.0)));
+                        assert_eq!(y.value, Some((index as f64 * TAU / 20.0).sin()));
+                    }
+                }
+                let response = SnapshotsListResponse { envelopes, ..Default::default() };
+                eprintln!(
+                    "XY {technique:?}: {budget} Budget, {} Points, {} Encoded Bytes",
+                    response.envelopes[0].diagnostics.as_ref().unwrap().point_count,
+                    response.encoded_len()
+                );
+                if budget == 2000 && technique == Downsample::Auto {
+                    let exact = batch(&reader, vec![request], None, 1000, 0, "epoch", Some(response.encoded_len())).await.unwrap();
+                    assert_eq!(exact, response.envelopes);
+                }
+            }
+        }
     }
 
     #[test]
