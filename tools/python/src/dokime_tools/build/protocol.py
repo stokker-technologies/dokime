@@ -66,13 +66,13 @@ def configuration(root: Path) -> Configuration:
 
 
 def generate(*, check: bool = False, root: Path, descriptors: Path, configuration: Configuration) -> None:
-    """Publish Shared Projections Except the SDK-Owned Python Authoring Barrel."""
+    """Publish Shared Projections Except the SDK-Owned Python Barrels."""
     output = Path(tempfile.mkdtemp(prefix="dokime-sdk-"))
     try:
         sdk.generate(root=output, descriptors=descriptors, configuration=configuration)
-        barrel = Path("sdk/python/src/dokime/__init__.py")
-        expected = sdk.inventory(output, configuration) - {barrel}
-        existing = sdk.inventory(root, configuration) - {barrel}
+        barrels = {Path("sdk/python/src/dokime/__init__.py"), Path("sdk/python/src/dokime/plugin/__init__.py")}
+        expected = sdk.inventory(output, configuration) - barrels
+        existing = sdk.inventory(root, configuration) - barrels
         if check:
             differences = [str(path) for path in sorted(expected ^ existing)]
             differences.extend(

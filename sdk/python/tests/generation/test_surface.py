@@ -16,9 +16,8 @@
 # Third Party Imports
 
 # Local Imports
-from dokime import FileReference, FileSource, Output, model
+from dokime import Context, FileReference, FileSource, Output, model
 from dokime.client import ClientRoot
-from dokime.plugin import Context
 
 # Type Checking Imports
 

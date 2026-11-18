@@ -91,7 +91,7 @@ class Plugin:
             else tuple(
                 host_requirement(item)
                 if isinstance(item, HostOperation)
-                else item._wire()
+                else item._definition()
                 if isinstance(item, dokime.operations.Operation)
                 else item
                 for item in requires

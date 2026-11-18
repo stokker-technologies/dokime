@@ -65,7 +65,7 @@ class Operation[Q: Payload, R: Payload]:
         message_type(self.request)
         message_type(self.response)
 
-    def _wire(self) -> plugin.Operation[Message, Message]:
+    def _definition(self) -> plugin.Operation[Message, Message]:
         return plugin.Operation(
             build_identifier(self.identifier, self.identifier),
             message_type(self.request),
@@ -101,7 +101,7 @@ def operation[Q: Payload, R: Payload, F: Callable](
 
 def _bind_operation(handler: Callable[..., object]) -> Callable[..., Awaitable[Message]]:
     definition = cast(Operation[Any, Any], vars(handler)["__dokime_operation__"])
-    wire = definition._wire()
+    transport = definition._definition()
 
     async def execute(adapter: object, transport: plugin.Context, request: Message) -> Message:
         context = Context(transport)
@@ -111,13 +111,13 @@ def _bind_operation(handler: Callable[..., object]) -> Callable[..., Awaitable[M
         return pack(definition.response, cast(Payload, result))
 
     return plugin.operation(
-        wire.id,
-        request=wire.request,
-        response=wire.response,
-        visibility=wire.visibility,
-        policy=wire.policy,
-        description=wire.description,
-        replay_safe=wire.replay_safe,
+        transport.id,
+        request=transport.request,
+        response=transport.response,
+        visibility=transport.visibility,
+        policy=transport.policy,
+        description=transport.description,
+        replay_safe=transport.replay_safe,
     )(execute)
 
 
