@@ -246,7 +246,7 @@ async function startBackendMeasured(
     lines.on("line", () => {});
     await executeFile(
       cliBinary,
-      ["--endpoint", backend.endpoint, "plugin", "add", `http://${announced.slice("harmos listening ".length)}`, "--trust"],
+      ["--endpoint", backend.endpoint, "plugin", "add", `http://${announced.slice("harmos listening ".length)}`],
       { windowsHide: true, timeout: WAIT_MS },
     );
   }
