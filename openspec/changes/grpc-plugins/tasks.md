@@ -76,4 +76,4 @@
 - [x] Integration: Add a Shared Four-Language Capture Description and Record Contract Story Under `sdk/tests`.
 - [ ] Integration: Prove Generation, Ordered Host Fixtures, Four SDKs, Shared Stories, Command-Line Development Stories and Migrated Runtime Stories on the Combined Tree.
 - [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
-- [ ] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
+- [x] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.

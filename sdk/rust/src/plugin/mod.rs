@@ -45,9 +45,15 @@ use crate::SecretDeclaration;
 use crate::SecretsDeclarations;
 use crate::SettingDeclaration;
 use crate::SettingsDeclarations;
-use crate::{Error, Message, OperationRequest, Result, context::Executions, message::Wire, stream::Registration, template::validate_names};
+use crate::context::{self, Executions};
+use crate::data;
+use crate::host::Request;
+use crate::message::Wire;
+use crate::stream::{Registration, Sampler};
+use crate::template::validate_names;
+use crate::testing::Selected;
+use crate::{Declarations, Error, Message, OperationRequest, Result};
 use crate::{PromptDefinitions, RecordContracts, Suites};
-use harmos;
 
 use harmos::plugin;
 
@@ -67,7 +73,7 @@ pub struct Plugin {
 struct Assembly {
     identifier: String,
     requirements: Vec<&'static str>,
-    samplers: Vec<crate::stream::Sampler>,
+    samplers: Vec<Sampler>,
     inner: plugin::Plugin,
     suites: Vec<Suite>,
     settings: Vec<SettingDeclaration>,
@@ -108,47 +114,7 @@ impl Plugin {
         if !self.assembly.requirements.is_empty() {
             return self;
         }
-        [
-            HostOperation::BackendEnvironment,
-            HostOperation::ContentArtifactsCreate,
-            HostOperation::DocumentsAppendParts,
-            HostOperation::EffectsCreate,
-            HostOperation::EffectsGet,
-            HostOperation::EffectsSet,
-            HostOperation::EvidenceLogsAppend,
-            HostOperation::EvidenceRecordsList,
-            HostOperation::EvidenceRecordsAppend,
-            HostOperation::EvidenceTraceabilityGet,
-            HostOperation::EvidenceTraceabilitySet,
-            HostOperation::EvidenceStatistics,
-            HostOperation::ExecutionsProgressGet,
-            HostOperation::ExecutionsProgressSet,
-            HostOperation::FilesCapturesStart,
-            HostOperation::FilesCapturesStop,
-            HostOperation::FilesUploadsCreate,
-            HostOperation::FilesUploadsGet,
-            HostOperation::FilesUploadsResume,
-            HostOperation::FilesUploadsAppend,
-            HostOperation::FilesUploadsPublish,
-            HostOperation::FilesUploadsDelete,
-            HostOperation::FilesGet,
-            HostOperation::FilesRead,
-            HostOperation::FilesWatch,
-            HostOperation::FilesDelete,
-            HostOperation::FilesCapture,
-            HostOperation::PromptsCreate,
-            HostOperation::SecretsGet,
-            HostOperation::InvocationsGet,
-            HostOperation::InvocationsCancel,
-            HostOperation::InvocationsWatch,
-            HostOperation::OperationsList,
-            HostOperation::OperationsGet,
-            HostOperation::PluginsSettingsList,
-            HostOperation::TimeGet,
-            HostOperation::TimeSleep,
-        ]
-        .into_iter()
-        .fold(self, |plugin, operation| plugin.requires_host(operation))
+        HostOperation::ALL.into_iter().fold(self, |plugin, operation| plugin.requires_host(operation))
     }
 
     pub fn suite(mut self, suite: Suite) -> Self {
@@ -167,7 +133,7 @@ impl Plugin {
         self.assembly.inner = self.assembly.inner.requires::<Q>();
         self
     }
-    pub(crate) fn requires<Q: crate::host::Request>(self) -> Self {
+    pub(crate) fn requires<Q: Request>(self) -> Self {
         self.requires_operation::<Wire<Q>>()
     }
     pub fn setting(mut self, setting: SettingDeclaration) -> Self {
@@ -175,7 +141,7 @@ impl Plugin {
         self
     }
     pub fn settings<T: Message>(mut self, defaults: T) -> Self {
-        match crate::data::settings(defaults) {
+        match data::settings(defaults) {
             Ok(settings) => self.assembly.settings.extend(settings),
             Err(error) => self.assembly.errors.push(error.to_string()),
         }
@@ -205,12 +171,12 @@ impl Plugin {
     }
 
     // Select One Template and What an In-Process Host Needs to Run It.
-    pub(crate) fn into_testing(self, template: &str) -> Result<crate::testing::Selected> {
+    pub(crate) fn into_testing(self, template: &str) -> Result<Selected> {
         let this = self.with_requirements();
         this.select_testing(template)
     }
 
-    fn select_testing(self, template: &str) -> Result<crate::testing::Selected> {
+    fn select_testing(self, template: &str) -> Result<Selected> {
         if !self.assembly.errors.is_empty() {
             return Err(Error::Invalid(self.assembly.errors.join("; ")));
         }
@@ -223,7 +189,7 @@ impl Plugin {
         }
         let template = selected.remove(0);
         let prompts = template.prompts.clone();
-        Ok(crate::testing::Selected {
+        Ok(Selected {
             plugin: self.assembly.identifier,
             template: template.parts()?,
             prompts,
@@ -314,14 +280,14 @@ impl Plugin {
         for register in registrations {
             inner = register(inner, executions.clone(), "");
         }
-        inner = inner.on_stop(move || crate::context::clear(&executions).map_err(harmos::Error::from));
+        inner = inner.on_stop(move || context::clear(&executions).map_err(harmos::Error::from));
         for cleanup in stop {
             inner = inner.on_stop(move || cleanup().map_err(harmos::Error::from));
         }
         inner.declarations()?;
         Ok(inner)
     }
-    pub fn declarations(self) -> Result<crate::Declarations> {
+    pub fn declarations(self) -> Result<Declarations> {
         self.into_harmos()?.declarations().map_err(Error::from)
     }
     pub fn serve(self) -> Result<()> {
