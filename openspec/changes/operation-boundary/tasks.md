@@ -124,6 +124,8 @@ with `plugin-boundary` and `plugin-lifecycle`.
 
 - [x] 6.5c Remove duplicate generated-host compilation from the C++ generation test target and prove its focused Windows SDK test build without changing tracked generated output.
 
+- [x] 6.5d Share benchmark card classification between animation and inspection, rejecting explicit errors and placeholders from readiness while retaining separate drawing freshness and traversal. Prove the benchmark surface TypeScript configuration without running benchmarks.
+
 ## Workflow Follow-Up
 
 - Delivery authorization governs push/review/merge; these slices do not grant it.
