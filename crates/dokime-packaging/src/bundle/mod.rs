@@ -21,17 +21,14 @@ use std::{
     env::consts::{ARCH, OS},
     fs,
     io::Read,
-    iter,
     path::{Path, PathBuf},
 };
 
 // Third Party Imports
 use harmos_packaging::bundle::{self, Source};
-use harmos_runtime::bundle::{Bundle, Executable, Facility, File, Identity, Limits, Manifest};
+use harmos_runtime::bundle::{Bundle, Executable, Facility, Identity, Limits};
 use ignore::WalkBuilder;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
-use tar::{Builder, EntryType, Header};
 
 // Local Imports
 use crate::{Result, project::PluginProject};
@@ -148,39 +145,20 @@ pub fn create(executable: &Path, assets: &[PathBuf], identity: Identity, descrip
         }
     }
     metadata(&mut contents, description)?;
-    if contents.len() > limits.files || contents.values().map(Vec::len).sum::<usize>() > limits.total_file_bytes {
-        return Err("Create Plugin Bundle: Reduce Its Files to the Bundle Bounds".into());
-    }
-    let files = contents
+    let sources = contents
         .iter()
-        .map(|(path, bytes)| File {
-            path: path.clone(),
-            size: bytes.len() as u64,
-            sha256: Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect(),
+        .map(|(path, bytes)| Source {
+            path,
+            bytes,
             executable: (path == &entrypoint).then(|| Executable {
                 facility: Facility::Sidecar,
                 target: native_target().into(),
                 registrations: Vec::new(),
             }),
         })
-        .collect();
-    let manifest = Manifest { schema: 1, identity, files, launch: None };
-    let mut archive = Builder::new(Vec::new());
-    let manifest = serde_json::to_vec(&manifest)?;
-    for (path, bytes) in iter::once(("manifest.json".to_owned(), manifest)).chain(contents) {
-        let mut header = Header::new_ustar();
-        header.set_entry_type(EntryType::Regular);
-        header.set_uid(0);
-        header.set_gid(0);
-        header.set_mtime(0);
-        header.set_size(bytes.len() as u64);
-        header.set_mode(if path == entrypoint { 0o755 } else { 0o644 });
-        header.set_cksum();
-        archive.append_data(&mut header, path, bytes.as_slice())?;
-    }
-    let bytes = archive.into_inner()?;
-    Bundle::inspect(&bytes, limits)?;
-    Ok(bytes)
+        .collect::<Vec<_>>();
+    let bundle = bundle::build(identity, &sources, None, limits)?;
+    Ok(bundle.bytes().to_vec())
 }
 
 pub fn inspect(path: &Path) -> Result<Value> {
@@ -236,8 +214,8 @@ fn read(path: &Path, limit: u64) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use super::inspect;
-    use harmos_runtime::bundle::{self, Identity, Limits, Manifest};
+    use super::{DevelopmentInput, inspect};
+    use harmos_runtime::bundle::{self, Facility, Identity, Limits, Manifest};
     use serde_json::Value;
     use sha2::{Digest, Sha256};
     use std::error::Error;
@@ -350,69 +328,14 @@ mod tests {
         assert!(super::development_input(root.path()).is_err());
         fs::write(root.path().join("dokime.toml"), "executable = 'target/debug/plugin'\n")?;
         fs::remove_file(root.path().join("pyproject.toml"))?;
-        assert_eq!(super::development_input(root.path())?, super::DevelopmentInput::Project);
+        assert_eq!(super::development_input(root.path())?, DevelopmentInput::Project);
         fs::write(root.path().join("dokime.toml"), "launch = ['fixture', 'entry']\n")?;
-        assert_eq!(super::development_input(root.path())?, super::DevelopmentInput::Project);
+        assert_eq!(super::development_input(root.path())?, DevelopmentInput::Project);
         let bytes = b"native executable";
         let manifest = serde_json::json!({"schema": 1, "identity": {"name": "example", "version": "1.0.0", "description": ""},
             "files": [{"path": "bin/plugin", "size": bytes.len(), "sha256": digest(bytes)}]});
         let file = bundle(&[("bin/plugin", bytes)], &manifest)?;
-        assert_eq!(super::development_input(file.path())?, super::DevelopmentInput::Bundle);
-        Ok(())
-    }
-
-    #[test]
-    fn launch_folder_round_trip_runs_the_native_interpreter_in_its_root() -> crate::Result<()> {
-        // The Reexecuted Native Test Program Interprets the Packaged Payload
-        if env::var_os("DOKIME_LAUNCH_FIXTURE").is_some() {
-            assert_eq!(fs::read("payload.bin")?, [2, 3, 5, 7]);
-            assert!(Path::new("dokime.toml").is_file());
-            assert!(!Path::new("ignored.bin").exists());
-            return Ok(());
-        }
-
-        // Pack a Project Without Network or an Installed Interpreter
-        let root = tempfile::tempdir()?;
-        let program = format!("interpreter{}", env::consts::EXE_SUFFIX);
-        fs::copy(env::current_exe()?, root.path().join(&program))?;
-        let test = "bundle::tests::launch_folder_round_trip_runs_the_native_interpreter_in_its_root";
-        fs::write(root.path().join("dokime.toml"), format!("launch = ['./{program}', '--exact', '{test}', '--nocapture']\n"))?;
-        fs::write(root.path().join("payload.bin"), [2, 3, 5, 7])?;
-        fs::write(root.path().join(".gitignore"), "ignored.bin\n")?;
-        fs::write(root.path().join("ignored.bin"), [11])?;
-        fs::create_dir(root.path().join(".git"))?;
-        fs::write(root.path().join(".git/config"), b"private repository data")?;
-        let project = crate::project::PluginProject::read(root.path())?;
-        let identity = Identity {
-            name: "launch-fixture".into(),
-            version: "1.0.0".parse()?,
-            description: String::new(),
-            package: Default::default(),
-        };
-        let bytes = super::create_project(&project, identity, Some(b"description"))?;
-        let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
-        assert_eq!(bundle.manifest().launch, project.manifest.launch);
-        assert!(bundle.manifest().files.iter().all(|file| file.executable.is_none()));
-        assert!(bundle.file("ignored.bin").is_none());
-        assert!(bundle.file(".git/config").is_none());
-        assert_eq!(bundle.file("description.pb"), Some(b"description".as_slice()));
-
-        // Extract and Run the Declared Command Exactly From the Bundle Root
-        let parent = tempfile::tempdir()?;
-        let extracted = bundle.extract(parent.path())?;
-        let launch = bundle.manifest().launch.as_ref().unwrap();
-        #[allow(clippy::disallowed_methods, reason = "the packaging test cannot depend on its runtime consumer's process constructor")]
-        let output = process::Command::new(extracted.path().join(&launch[0]))
-            .args(&launch[1..])
-            .current_dir(extracted.path())
-            .env("DOKIME_LAUNCH_FIXTURE", "1")
-            .output()?;
-        assert!(
-            output.status.success(),
-            "stdout: {}; stderr: {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
+        assert_eq!(super::development_input(file.path())?, DevelopmentInput::Bundle);
         Ok(())
     }
 
@@ -430,11 +353,20 @@ mod tests {
             description: String::new(),
             package: Default::default(),
         };
-        let bytes = super::create(&executable, &[root.path().to_path_buf()], identity, None)?;
+        let bytes = super::create(&executable, &[root.path().to_path_buf()], identity.clone(), Some(b"declarations"))?;
         let bundle = bundle::Bundle::inspect(&bytes, Limits::default())?;
         assert_eq!(bundle.file("bin/plugin"), Some([2, 3].as_slice()));
         assert_eq!(bundle.file("bin/runtime.dll"), Some([5, 7].as_slice()));
         assert_eq!(bundle.file("bin/assets/data.bin"), Some([11, 13].as_slice()));
+        assert_eq!(bundle.manifest().identity, identity);
+        assert!(bundle.manifest().launch.is_none());
+        assert_eq!(bundle.file("description.pb"), Some(b"declarations".as_slice()));
+        let entrypoint = bundle.manifest().files.iter().find(|file| file.executable.is_some()).unwrap();
+        assert_eq!(entrypoint.path, "bin/plugin");
+        let executable = entrypoint.executable.as_ref().unwrap();
+        assert_eq!(executable.facility, Facility::Sidecar);
+        assert_eq!(executable.target, super::native_target());
+        assert!(executable.registrations.is_empty());
         Ok(())
     }
 }

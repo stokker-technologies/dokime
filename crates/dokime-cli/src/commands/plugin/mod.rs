@@ -141,8 +141,12 @@ async fn await_ready(client: &Client, entry: PluginEntry, settings: &Settings, a
 
 #[cfg(test)]
 mod tests {
+    use std::{env, fs, path::Path};
+
     use clap::Parser;
     use dokime_packaging::project::PluginProject;
+    use dokime_runtime::process;
+    use harmos_runtime::bundle::{Bundle, Identity, Limits};
 
     use crate::{Result, cli::Cli, commands, settings::Settings};
 
@@ -177,6 +181,60 @@ mod tests {
             assert_eq!(project.manifest.launch.is_some(), language == "python");
             assert_eq!(project.manifest.executable.is_some(), language != "python");
         }
+        Ok(())
+    }
+
+    #[test]
+    fn launch_folder_round_trip_runs_the_native_interpreter_in_its_root() -> dokime_packaging::Result<()> {
+        // The Reexecuted Native Test Program Interprets the Packaged Payload
+        if env::var_os("DOKIME_LAUNCH_FIXTURE").is_some() {
+            assert_eq!(fs::read("payload.bin")?, [2, 3, 5, 7]);
+            assert!(Path::new("dokime.toml").is_file());
+            assert!(!Path::new("ignored.bin").exists());
+            return Ok(());
+        }
+
+        // Pack a Project Without Network or an Installed Interpreter
+        let root = tempfile::tempdir()?;
+        let program = format!("interpreter{}", env::consts::EXE_SUFFIX);
+        fs::copy(env::current_exe()?, root.path().join(&program))?;
+        let test = "commands::plugin::tests::launch_folder_round_trip_runs_the_native_interpreter_in_its_root";
+        fs::write(root.path().join("dokime.toml"), format!("launch = ['./{program}', '--exact', '{test}', '--nocapture']\n"))?;
+        fs::write(root.path().join("payload.bin"), [2, 3, 5, 7])?;
+        fs::write(root.path().join(".gitignore"), "ignored.bin\n")?;
+        fs::write(root.path().join("ignored.bin"), [11])?;
+        fs::create_dir(root.path().join(".git"))?;
+        fs::write(root.path().join(".git/config"), b"private repository data")?;
+        let project = PluginProject::read(root.path())?;
+        let identity = Identity {
+            name: "launch-fixture".into(),
+            version: "1.0.0".parse()?,
+            description: String::new(),
+            package: Default::default(),
+        };
+        let bytes = dokime_packaging::bundle::create_project(&project, identity, Some(b"description"))?;
+        let bundle = Bundle::inspect(&bytes, Limits::default())?;
+        assert_eq!(bundle.manifest().launch, project.manifest.launch);
+        assert!(bundle.manifest().files.iter().all(|file| file.executable.is_none()));
+        assert!(bundle.file("ignored.bin").is_none());
+        assert!(bundle.file(".git/config").is_none());
+        assert_eq!(bundle.file("description.pb"), Some(b"description".as_slice()));
+
+        // Extract and Run the Declared Command Exactly From the Bundle Root
+        let parent = tempfile::tempdir()?;
+        let extracted = bundle.extract(parent.path())?;
+        let launch = bundle.manifest().launch.as_ref().unwrap();
+        let output = process::command(extracted.path().join(&launch[0]))
+            .args(&launch[1..])
+            .current_dir(extracted.path())
+            .env("DOKIME_LAUNCH_FIXTURE", "1")
+            .output()?;
+        assert!(
+            output.status.success(),
+            "stdout: {}; stderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
         Ok(())
     }
 }

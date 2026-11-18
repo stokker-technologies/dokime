@@ -28,7 +28,6 @@ harmos-runtime = { workspace = true }
 # Logging
 
 # Utilities
-sha2 = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -39,7 +38,6 @@ toml = { workspace = true }
 
 # Filesystem
 ignore = { workspace = true }
-tar = { workspace = true }
 
 # Parsing
 
@@ -60,7 +58,11 @@ tar = { workspace = true }
 # === Dev Dependencies === #
 
 [dev-dependencies]
+# Utilities
+sha2 = { workspace = true }
+
 # Filesystem
+tar = { workspace = true }
 tempfile = { workspace = true }
 
 # === Target Dependencies === #
