@@ -11,7 +11,11 @@ A connected client SHALL be able to call every operation the backend serves to c
 
 ### Requirement: Environment Configuration
 
-A client SHALL take its connection from a pairing file, named explicitly or through the environment.
+The SDK SHALL read `DOKIME_REMOTE` (an `http://host:port` origin or a `.pair` file)
+and `DOKIME_PLUGIN_ADDRESS` (default `127.0.0.1:0`). It SHALL load `.env` from the
+working directory itself. Configuration precedence SHALL be keyword argument,
+process environment, `.env`, default. `.env` SHALL contain addresses only;
+secrets SHALL remain in Secret Storage.
 
 #### Scenario: Environment
 
@@ -20,25 +24,32 @@ A client SHALL take its connection from a pairing file, named explicitly or thro
 
 #### Scenario: Nothing Configured
 
-- **WHEN** no variable and no pairing file names a backend
+- **WHEN** no keyword argument, process environment, `.env` or default names a backend
 - **THEN** the client fails with a message naming the variable to set
+
+#### Scenario: Keyword Argument Overrides Configuration
+
+- **WHEN** the keyword argument, process environment and `.env` provide different connection targets
+- **THEN** the SDK uses the keyword argument
+
+#### Scenario: Process Environment Overrides the File
+
+- **WHEN** no keyword argument is supplied and the process environment and `.env` provide different values
+- **THEN** the SDK uses the process environment
+
+#### Scenario: Working-Directory File and Defaults
+
+- **WHEN** no keyword argument or process environment supplies a value
+- **THEN** the SDK loads that value from the working-directory `.env` or uses its default when the file supplies none
 
 ### Requirement: Ordered Pairing Endpoints
 
-A `.pair` file SHALL contain between 1 and 32 endpoints. Every client reading the
-file SHALL try them sequentially in file order, using the first endpoint that
-connects and proves the paired host identity. Each attempt SHALL use the existing
-client connection/read policy and close a failed channel before the next attempt.
-Identity mismatch SHALL fail that endpoint and continue to the next endpoint.
-After all endpoints fail, one actionable error SHALL name every endpoint and its
-failure, with guidance to check the host listener or export a new pairing.
-
-Python `connect(target=None, *, connect_timeout=30.0, ...)` SHALL accept a positive
-finite timeout in seconds. Each endpoint attempt SHALL share that budget across
-channel readiness and host identity verification, including a plain URL target.
-The command line SHALL accept a global `--connect-timeout <seconds>` option in
-positive whole seconds that overrides `connect_timeout_s` for that invocation;
-the stored setting and its 30-second default SHALL remain unchanged.
+A `.pair` file SHALL contain 1 to 32 endpoints. Clients SHALL try them sequentially
+in file order with the existing connection/read policy, accepting the first
+endpoint that connects and proves the paired identity. Failed channels SHALL
+close before the next attempt; identity mismatch SHALL continue. Total failure
+SHALL name every endpoint and its failure, with guidance to check the host
+listener or export a new pairing.
 
 #### Scenario: First Endpoint Refused
 
@@ -54,6 +65,28 @@ the stored setting and its 30-second default SHALL remain unchanged.
 
 - **WHEN** the first endpoint answers with a different identity and the second proves the paired host identity
 - **THEN** the client closes the first channel and connects to the second endpoint
+
+### Requirement: Python Connection Timeout
+
+Python `connect(target=None, *, connect_timeout=30.0, ...)` SHALL accept a positive
+finite timeout in seconds. Each endpoint attempt SHALL share that budget across
+channel readiness and host identity verification, including a plain URL target.
+
+#### Scenario: Readiness and Identity Share One Budget
+
+- **WHEN** channel readiness consumes part of the configured endpoint budget
+- **THEN** identity verification receives only the remaining budget
+
+### Requirement: Command-Line Connection Timeout
+
+The command line SHALL accept a global `--connect-timeout <seconds>` option in
+positive whole seconds that overrides `connect_timeout_s` for that invocation;
+the stored setting and its 30-second default SHALL remain unchanged.
+
+#### Scenario: Per-Invocation Override
+
+- **WHEN** the caller supplies `--connect-timeout`
+- **THEN** that invocation uses the supplied seconds without changing the stored timeout or its default
 
 ### Requirement: Complete Pairing Export
 

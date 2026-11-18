@@ -2,7 +2,7 @@
 
 ### Requirement: Pure Remote Interface
 
-The Python package SHALL be pure Python over generated gRPC clients and the Harmos SDK,
+The `dokime_sdk` import package SHALL be pure Python over generated gRPC clients and the Harmos SDK,
 with plugin and client halves and no embedded backend or native extension.
 
 #### Scenario: Behaviour Lives in the Host
@@ -41,5 +41,5 @@ The Python system story SHALL run in Nightly on required platforms, outside pull
 
 #### Scenario: End to End Story
 
-- **WHEN** a script serves a remote plugin, adds its URL, connects through pairing and runs a prompt/stream execution
+- **WHEN** a script connects through pairing, registers its plugin through `client.plugins.register(plugin)` and runs a prompt/stream execution
 - **THEN** a later host reads the sealed report without the plugin

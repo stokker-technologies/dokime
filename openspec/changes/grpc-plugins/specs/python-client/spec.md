@@ -2,13 +2,16 @@
 
 ### Requirement: Explicit Cycle Lifecycle
 
-The Python client SHALL offer flat cycle creation, finish, stop and close operations.
-Callers SHALL be able to await completion and drain saved outcomes without a context manager.
+The Python client SHALL offer bound handles created through `client.cycle(...)`
+and `cycle.execution(case)`, explicit execution and cycle `seal()` and client
+`close()`. `execution.run()` SHALL compose `start()` and `watch()` as an async
+iterator; both primitives SHALL remain available. Callers SHALL be able to await
+completion and read saved outcomes without a context manager.
 Cleanup failures SHALL retain their original causes alongside execution failures.
 
 #### Scenario: Explicit Completion
 
-- **WHEN** a script creates a cycle, starts its cases, finishes it and closes the client
+- **WHEN** a script creates a cycle and its executions, drains their runs, seals the executions and cycle and closes the client
 - **THEN** work settles, the cycle seals and final outcomes remain readable
 
 #### Scenario: Explicit Stop

@@ -124,16 +124,19 @@ terminating an unowned process. Dokime interprets the returned product sections.
 
 ### D4. Only Dokime Is Author-Facing
 
-Rust, Python, C# and C++ expose Dokime plugin/registrar/registration, operations,
-policies, visibility, failures, contexts, windows, lifecycle hooks and generated
-product host calls. Harmos carrier helpers remain internal implementation
+Rust, Python, C# and C++ expose Dokime plugin declarations, operations, policies,
+visibility, failures, contexts, windows, lifecycle hooks and generated product
+host calls. Rust, C# and C++ expose the product registrar/registration API; Python
+authors use the locked `dokime_sdk` class composition and plain function operations.
+Its `operations` and `templates` submodules own separate contexts; the root exports none. Harmos carrier helpers remain internal implementation
 dependencies, with automatic package/native dependency resolution. Authors need
 no Harmos imports, attributes, namespaces, exception types, transport escape
 hatches, package-install instructions or compiler paths.
 
 The earlier proposal to re-export Harmos `Registrar`/`Registration` is superseded:
-Dokime owns the public registrar and typed registration contract and translates
-to generic helpers internally. Qualification of clashing Harmos names is internal;
+Dokime owns the native SDK public registrar and typed registration contract;
+Python class declarations are aggregated by the SDK. Both translate to generic
+helpers internally. Qualification of clashing Harmos names is internal;
 no renaming import/type aliases conceal ownership. Provide real product wrappers
 where a language cannot hide helper types through an ordinary same-name public
 export. Migrate derives, errors, return types, examples, starters, docs and every

@@ -63,7 +63,8 @@ Touched invariants in docs/architecture.md:
 **Goals:**
 
 - Template finalize after every attempted initialize, with termination in every SDK.
-- One registration shape and module catalog convention in all four SDKs and in OBC.
+- One product-owned declaration model: native SDK module catalogs and the locked
+  Python class composition, with the same frozen host-facing declarations.
 - Template-local prompts and records without builder type growth.
 - One documented plugin layout per language in the authoring skill.
 
@@ -102,8 +103,8 @@ Dokime adopts the Harmos plugin phases: the SDK's finalize disposes execution re
 Author resources move from `on_stop` and registration into initialize and finalize. Dokime's
 runtime adopts Harmos's `start`, `stop` and `run`: `Host::shutdown` → `stop`,
 `services::serve` → `run` where it starts, waits and stops; desktop and CLI owners follow
-where their verbs denote the same phases. SDK serving entry points become `run`
-(`RunAsync` in C#). `Application` adopts the Harmos hook renames (`cleanup` → `finalize`).
+where their verbs denote the same phases. Rust and C++ SDK serving entry points
+become `run` (`RunAsync` in C#); Python uses `plugin.serve()`. `Application` adopts the Harmos hook renames (`cleanup` → `finalize`).
 
 ### D3. Registration of Dokime Kinds (Proposed)
 
@@ -126,11 +127,13 @@ fn register(ctx: &mut dokime::Registrar) -> Result<()> {
 ```
 
 `dokime::Registrar` and `dokime::Registration` are product-owned public contracts,
-not re-exported Harmos types (owner amendment, 2026-11-16, `plugin-boundary`). Suite,
+not re-exported Harmos types (owner amendment, 2026-11-16, `plugin-boundary`). Native SDK suite,
 template, prompt and record values implement the product contract; internal
 translation uses Harmos accumulation helpers and opaque declaration sections.
-Python `ctx.register(settings.catalog())`, C# `ctx.Register(Settings.Catalog())`,
-C++ `ctx.add(settings::catalog())`. Helpers stay private, with qualified internal
+C# uses `ctx.Register(Settings.Catalog())`; C++ uses `ctx.add(settings::catalog())`.
+Python authors compose `Plugin`, `Suite` and `TestTemplate` classes listing their
+contents, with plain function operations; internal SDK registration aggregates
+those declarations. Helpers stay private, with qualified internal
 paths and no import aliases; no public signature, attribute, error or escape hatch
 exposes Harmos. The plugin value retains one type however many records register.
 
@@ -141,8 +144,8 @@ activation and lifecycle guarantees. There is no `PluginBackend` trait.
 
 ### D4. Template-Owned Prompts and Records (Proposed)
 
-`Template::prompt()` and `Template::record()` (all four SDKs) declare prompts and record
-contracts beside the steps that use them; registering the template aggregates them into the
+Native SDK template declarations and Python `TestTemplate` class declarations
+define prompts and record contracts beside the steps that use them; registering the template aggregates them into the
 plugin's frozen declarations once, refusing duplicate identities as today. The host does not
 scope their use to the template. Declarations are immutable in the catalog; observer
 instances, demands, resources and bench state are per execution and die with it.
@@ -152,7 +155,8 @@ without an owner requirement.
 
 ### D5. Module Catalogs and Plugin Layout (Proposed)
 
-Every global module exposes `catalog()`: `settings::catalog()`, `operations::catalog()`,
+In Rust, C# and C++, every global module exposes a catalog (using the language’s
+naming convention); the Rust entry points are `settings::catalog()`, `operations::catalog()`,
 `observers::catalog()`, `streams::catalog()`, `prompts::catalog()`, `records::catalog()`,
 `suites::catalog()`. A suite folder's `mod.rs` exposes that suite's catalog including its
 templates' prompts, records, observers and streams. `declarations()` stays the frozen
@@ -171,8 +175,9 @@ src/
 ```
 
 The authoring skill documents this layout once with per-language sections: Rust as above;
-Python as a package with the same module names (`__init__.py` for `lib.rs`, `__main__.py` for
-`main.rs`); C# as folders and namespaces of the same names with `Program.cs` and `Plugin.cs`;
+Python as the locked single project in `grpc-plugins/design.md`, with client
+`src/<package>/__main__.py`, sidecar `src/<package>/plugin/__main__.py`, plugin and suite
+classes in their `__init__.py`, operation-family modules and one module per template; C# as folders and namespaces of the same names with `Program.cs` and `Plugin.cs`;
 C++ as `src/` and `include/` trees with the same folder names and `main.cpp`. OBC is
 restructured now on today's SDK in a separate batch (not tracked here) and switches to
 `register()`, `catalog()` and finalize when this change lands.

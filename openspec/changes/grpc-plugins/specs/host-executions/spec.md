@@ -101,7 +101,7 @@ Each language SDK SHALL let an author serve a plugin and drive Dokime through `d
 
 #### Scenario: Script Runs Its Own Suite
 
-- **WHEN** a Python script serves a suite, adds its URL to a running Dokime, materializes cases and starts a cycle
+- **WHEN** a Python script registers a plugin instance with a running Dokime, materializes its template cases, creates a cycle and runs its executions
 - **THEN** the cycle executes the suite's steps and the script observes its progress
 
 #### Scenario: Definitions Exported
