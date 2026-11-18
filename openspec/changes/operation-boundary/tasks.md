@@ -127,6 +127,8 @@ with `plugin-boundary` and `plugin-lifecycle`.
 
 - [x] 6.5d Share benchmark card classification between animation and inspection, rejecting explicit errors and placeholders from readiness while retaining separate drawing freshness and traversal. Prove the benchmark surface TypeScript configuration without running benchmarks.
 
+- [x] 6.5e Limit desktop benchmark observations and missing-case reports to the job's recorded Criterion selection. Retain the reporter inventory because native listing starts the desktop driver; prove two failed split jobs report disjoint sets covering all 34 cases and merge without duplicate identities, plus focused tooling tests and Python formatting/checks.
+
 ## Workflow Follow-Up
 
 - Delivery authorization governs push/review/merge; these slices do not grant it.
