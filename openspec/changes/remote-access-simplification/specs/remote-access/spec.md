@@ -36,6 +36,9 @@ failure, with guidance to check the host listener or export a new pairing.
 Python `connect(target=None, *, connect_timeout=30.0, ...)` SHALL accept a positive
 finite timeout in seconds. Each endpoint attempt SHALL share that budget across
 channel readiness and host identity verification, including a plain URL target.
+The command line SHALL accept a global `--connect-timeout <seconds>` option in
+positive whole seconds that overrides `connect_timeout_s` for that invocation;
+the stored setting and its 30-second default SHALL remain unchanged.
 
 #### Scenario: First Endpoint Refused
 

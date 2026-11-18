@@ -61,7 +61,7 @@ mise run build -- --package dokime-cli
 ./target/debug/dokime plugin bundle ./bench/test --out ./bench.dokime
 ./target/debug/dokime server --endpoint 127.0.0.1:7000 --storage ./bench-data
 ./target/debug/dokime --endpoint http://127.0.0.1:7000 access pairing export --label Operator --out operator.pair
-./target/debug/dokime --remote operator.pair status --json
+./target/debug/dokime --remote operator.pair --connect-timeout 10 status --json
 ```
 
 ### Python
@@ -70,7 +70,8 @@ The pure Python `dokime-sdk` package (import `dokime`) composes remote plugins a
 Resources close explicitly. See the [Python SDK](sdk/python/README.md).
 
 `await connect("operator.pair", connect_timeout=10.0)` (from `dokime.connection`) overrides the
-30-second connection budget for each endpoint attempt.
+30-second connection budget for each endpoint attempt. The CLI's
+`--connect-timeout <seconds>` overrides `connect_timeout_s` for one invocation.
 
 #### Examples
 

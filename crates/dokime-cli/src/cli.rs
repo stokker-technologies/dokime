@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::path::PathBuf;
+use std::{num::NonZeroU64, path::PathBuf};
 
 // Third Party Imports
 use clap::Parser;
@@ -43,6 +43,9 @@ pub(crate) struct Cli {
 
     #[arg(long, global = true, help = "TOML Configuration File")]
     pub config: Option<PathBuf>,
+
+    #[arg(long, global = true, value_name = "seconds", help = "Connection Timeout in Seconds, Overriding connect_timeout_s")]
+    pub connect_timeout: Option<NonZeroU64>,
 
     #[arg(long, global = true, help = "Native Credential Namespace, Overriding credential_namespace")]
     pub credential_namespace: Option<String>,

@@ -231,3 +231,34 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Se
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use tokio::net::TcpSocket;
+
+    use super::File;
+    use crate::settings::Settings;
+
+    #[tokio::test]
+    async fn all_endpoint_failures_are_reported_in_file_order() -> crate::Result<()> {
+        let first = TcpSocket::new_v4()?;
+        first.bind("127.0.0.1:0".parse()?)?;
+        let second = TcpSocket::new_v4()?;
+        second.bind("127.0.0.1:0".parse()?)?;
+        let endpoints = vec![format!("https://{}", first.local_addr()?), format!("https://{}", second.local_addr()?)];
+        let pairing = File {
+            version: 1,
+            endpoints: endpoints.clone(),
+            backend_identifier: "intended-host".into(),
+            label: "Operator".into(),
+            ca_certificate_pem: String::new(),
+            access_key: "test-key".into(),
+        };
+
+        let error = pairing.channel(&Settings::default()).await.unwrap_err();
+        let message = error.to_string();
+        assert!(message.find(&format!("{}:", endpoints[0])).unwrap() < message.find(&format!("{}:", endpoints[1])).unwrap());
+        assert!(!message.contains(&pairing.access_key));
+        Ok(())
+    }
+}

@@ -17,6 +17,7 @@
 
 // Standard Library Imports
 use std::{
+    fs,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::{Path, PathBuf},
     sync::Arc,
@@ -26,11 +27,11 @@ use std::{
 // Third Party Imports
 use serde::Deserialize;
 use tonic::Request;
-use tonic::transport::Channel;
+use tonic::transport::{Channel, Endpoint};
 
 // Local Imports
-use crate::Result;
-use dokime::client::{CallOptions, ClientSettings as RpcClientSettings};
+use crate::{Result, commands::pairing, error::Error};
+use dokime::client::{self, CallOptions};
 use dokime::{Client, StorageTransferSettings};
 use dokime_runtime::{
     CaptureSettings, ControlledClock, CredentialNamespace, HostSettings, INTERVAL_LAG, INTERVAL_WINDOW, PlacementSettings, SchedulerClock,
@@ -56,7 +57,7 @@ pub(crate) struct Settings {
     pub remote: Option<PathBuf>,
 
     #[serde(skip)]
-    pub pairing: Option<crate::commands::pairing::File>,
+    pub pairing: Option<pairing::File>,
     pub storage: Option<PathBuf>,
     pub telemetry_rows: NonZeroUsize,
     pub telemetry_interval_ms: u64,
@@ -121,11 +122,14 @@ impl Default for Settings {
 }
 
 impl Settings {
-    pub fn load(path: Option<&Path>) -> Result<Self> {
-        let settings: Self = match path {
-            Some(path) => toml::from_str(&std::fs::read_to_string(path)?)?,
+    pub fn load(path: Option<&Path>, connect_timeout: Option<NonZeroU64>) -> Result<Self> {
+        let mut settings: Self = match path {
+            Some(path) => toml::from_str(&fs::read_to_string(path)?)?,
             None => Self::default(),
         };
+        if let Some(connect_timeout) = connect_timeout {
+            settings.connect_timeout_s = connect_timeout.get();
+        }
         if [
             settings.connect_timeout_s,
             settings.read_timeout_s,
@@ -188,8 +192,8 @@ impl Settings {
             stream_buffer: self.stream_buffer.get(),
         }
     }
-    pub fn client(&self) -> RpcClientSettings {
-        RpcClientSettings {
+    pub fn client(&self) -> client::ClientSettings {
+        client::ClientSettings {
             transfer: StorageTransferSettings::default(),
             retained_bytes: self.retained_bytes,
             message_bytes: self.message_bytes,
@@ -198,7 +202,7 @@ impl Settings {
         }
     }
     pub fn request<T>(&self, value: T) -> Request<T> {
-        let mut request = tonic::Request::new(value);
+        let mut request = Request::new(value);
         if let Some(pairing) = &self.pairing {
             request.metadata_mut().insert("authorization", pairing.authorization().expect("Validated Pairing Key"));
         }
@@ -219,7 +223,7 @@ impl Settings {
     pub fn request_id(&self, supplied: Option<String>) -> Result<String> {
         if let Some(value) = supplied {
             if value.is_empty() {
-                return Err(crate::error::Error::Invalid("Mutate Resource: Supply a Nonempty Request ID".into()));
+                return Err(Error::Invalid("Mutate Resource: Supply a Nonempty Request ID".into()));
             }
             return Ok(value);
         }
@@ -230,13 +234,9 @@ impl Settings {
         if let Some(pairing) = &self.pairing {
             return pairing.channel(self).await;
         }
-        let endpoint = endpoint.ok_or_else(|| {
-            crate::error::Error::Invalid("Supply --remote FILE, Set DOKIME_REMOTE, or Supply --endpoint http://HOST:PORT".into())
-        })?;
-        let channel = tonic::transport::Endpoint::from_shared(endpoint)?
-            .connect_timeout(Duration::from_secs(self.connect_timeout_s))
-            .connect()
-            .await?;
+        let endpoint = endpoint
+            .ok_or_else(|| Error::Invalid("Supply --remote FILE, Set DOKIME_REMOTE, or Supply --endpoint http://HOST:PORT".into()))?;
+        let channel = Endpoint::from_shared(endpoint)?.connect_timeout(Duration::from_secs(self.connect_timeout_s)).connect().await?;
         Ok(channel)
     }
 }
@@ -246,3 +246,39 @@ impl Settings {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use clap::Parser;
+    use tempfile::tempdir;
+
+    use super::Settings;
+    use crate::cli::Cli;
+
+    #[test]
+    fn connection_option_overrides_only_this_invocation() -> crate::Result<()> {
+        let directory = tempdir()?;
+        let path = directory.path().join("client.toml");
+        let source = "connect_timeout_s = 11\n";
+        fs::write(&path, source)?;
+
+        let cli = Cli::try_parse_from(["dokime", "--config", path.to_str().unwrap(), "status", "--connect-timeout", "7"]).unwrap();
+        let settings = Settings::load(cli.config.as_deref(), cli.connect_timeout)?;
+        assert_eq!(settings.connect_timeout_s, 7);
+        assert_eq!(fs::read_to_string(&path)?, source);
+
+        let cli = Cli::try_parse_from(["dokime", "--config", path.to_str().unwrap(), "status"]).unwrap();
+        let settings = Settings::load(cli.config.as_deref(), cli.connect_timeout)?;
+        assert_eq!(settings.connect_timeout_s, 11);
+        Ok(())
+    }
+
+    #[test]
+    fn connection_option_requires_positive_whole_seconds() {
+        for value in ["0", "-1", "1.5"] {
+            assert!(Cli::try_parse_from(["dokime", "--connect-timeout", value, "status"]).is_err());
+        }
+    }
+}

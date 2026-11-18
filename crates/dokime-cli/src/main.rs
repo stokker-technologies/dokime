@@ -67,7 +67,7 @@ fn main() -> ExitCode {
 
 async fn run() -> ExitCode {
     let cli = cli::Cli::parse();
-    let mut settings = match settings::Settings::load(cli.config.as_deref()) {
+    let mut settings = match settings::Settings::load(cli.config.as_deref(), cli.connect_timeout) {
         Ok(settings) => settings,
         Err(error) => {
             eprintln!("Read Configuration: {error}");
