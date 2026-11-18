@@ -16,16 +16,18 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::{
+    env::{self, consts::EXE_SUFFIX},
+    error::Error,
+    path::PathBuf,
+};
 
 // Third Party Imports
+use tokio::{process::Command, time};
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
-use dokime_runtime::PluginProcess;
-use std::env::consts::EXE_SUFFIX;
-use std::error::Error;
-use std::path::PathBuf;
-use tokio::process::Command;
+use dokime_runtime::process;
 
 /* === Constants === */
 
@@ -50,13 +52,13 @@ use tokio::process::Command;
 #[test]
 fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Prepare the Installed Pure SDK and Launch the Real Plugin and Host
             let root = super::support::tempdir()?;
             let credential_root = super::support::tempdir()?;
             let credentials = super::support::CredentialStore::start(credential_root.path()).await?;
             let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-            let python = std::env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
+            let python = env::var_os("DOKIME_PYTHON").map(PathBuf::from).unwrap_or_else(|| {
                 let directory = if EXE_SUFFIX.is_empty() { ".venv/bin" } else { ".venv/Scripts" };
                 repository.join(directory).join(format!("python{}", EXE_SUFFIX))
             });
@@ -65,7 +67,7 @@ fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
             let process = HostProcess::start_with_environment(&root.path().join("store"), &credentials.environment).await?;
 
             // Drive the Complete Journey with the Pure Python Package's Generated Clients
-            let output = Command::from(dokime_runtime::process::command(&python))
+            let output = Command::from(process::command(&python))
                 .arg(&script)
                 .args(["run", &process.url])
                 .arg(&expected)
@@ -77,7 +79,7 @@ fn python_client_runs_thermal_suite_over_grpc() -> Result<(), Box<dyn Error>> {
 
             // Reconnect After a Real Process Restart and Compare All Stored Evidence
             let process = HostProcess::start_with_environment(&root.path().join("store"), &credentials.environment).await?;
-            let output = Command::from(dokime_runtime::process::command(&python))
+            let output = Command::from(process::command(&python))
                 .arg(&script)
                 .args(["read", &process.url])
                 .arg(&expected)
