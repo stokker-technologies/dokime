@@ -99,3 +99,4 @@
 - [x] Migrate Product and Desktop-Fixture Tooling From Retired `--executable` Calls to Manifest Projects in `tools/python/src/dokime_tools/{build/rust/__main__.py,build/desktop_fixtures.py,dev/desktop.py}`.
 - [x] Update the Compiler-Record Story to Stage Real Executable Fixtures Before Manifest Bundling and Pass Tooling Integration Tests.
 - [x] Generate the Shared Report Template Before Independent Rust Fixture, Test-Archive and Lint Compilation; Propagate Generation Failures Before Compilation.
+- [x] Preserve Focused Native JUnit Reports Before Scratch Cleanup and Keep Cleanup Failures Visible.
