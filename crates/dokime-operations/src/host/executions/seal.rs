@@ -91,20 +91,33 @@ mod tests {
     use super::sealed_outcome;
     use dokime_protocol::host::execution_outcome::Attribution;
     use dokime_protocol::host::{EvaluatedOutcome, ExecutionOutcome, ResultStatus};
-    use dokime_protocol::model::Termination;
+    use dokime_protocol::model::{Origin, PluginRun, Termination, origin};
     use dokime_storage::{Execution, Store};
     use std::error::Error;
+
+    fn execution(identifier: &str) -> Execution {
+        Execution {
+            identifier: identifier.into(),
+            cycle: "cycle".into(),
+            origin: Some(Origin {
+                kind: Some(origin::Kind::PluginRun(PluginRun {
+                    plugin: "plugin".into(),
+                    template: "template".into(),
+                    digest: vec![1],
+                    started_at: Some(Default::default()),
+                    test_case: Some(Default::default()),
+                })),
+            }),
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn seal_returns_the_stored_outcome_repeatedly_after_completion() -> Result<(), Box<dyn Error>> {
         // Complete and Automatically Seal an Execution
         let root = tempfile::tempdir()?;
         let store = Store::open(root.path())?;
-        store.create(&Execution {
-            identifier: "execution".into(),
-            cycle: "cycle".into(),
-            ..Default::default()
-        })?;
+        store.create(&execution("execution"))?;
         let outcome = ExecutionOutcome {
             attribution: Some(Attribution::Evaluated(EvaluatedOutcome {
                 status: ResultStatus::Passed as i32,
@@ -127,11 +140,7 @@ mod tests {
         // Admit an Execution Before Its First Evidence
         let root = tempfile::tempdir()?;
         let store = Store::open(root.path())?;
-        store.create(&Execution {
-            identifier: "running".into(),
-            cycle: "cycle".into(),
-            ..Default::default()
-        })?;
+        store.create(&execution("running"))?;
         let cut = store.cut("running")?;
 
         // Refuse Without Cancelling or Sealing the Run
@@ -146,11 +155,7 @@ mod tests {
         // Create Evidence Without Admitting a Run
         let root = tempfile::tempdir()?;
         let store = Store::open(root.path())?;
-        store.create(&Execution {
-            identifier: "unstarted".into(),
-            cycle: "cycle".into(),
-            ..Default::default()
-        })?;
+        store.create(&execution("unstarted"))?;
         let cut = store.cut("unstarted")?;
 
         // Leave It Open for a Future Start or Cycle Seal

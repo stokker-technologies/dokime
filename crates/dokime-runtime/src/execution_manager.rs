@@ -405,7 +405,7 @@ mod tests {
     use dokime_operations::host::credentials::CredentialNamespace;
     use dokime_protocol::host::execution_outcome::Attribution;
     use dokime_protocol::host::{ExecutionOutcome, UnevaluatedOutcome};
-    use dokime_protocol::model::Termination;
+    use dokime_protocol::model::{Origin, PluginRun, Termination, origin};
     use dokime_storage::{Execution, Store, storage_defaults};
     use tempfile::TempDir;
 
@@ -428,6 +428,20 @@ mod tests {
         let changed = watch::channel(0).0;
         let prompts = Arc::new(PromptManager::new(store.clone(), settings.clock.clone(), changed.clone()));
         let manager = ExecutionManager::new(store, settings, prompts, changed, Arc::new(Mutex::new(None)))?;
+        manager.inner.store.create(&Execution {
+            identifier: "execution".into(),
+            cycle: "cycle".into(),
+            origin: Some(Origin {
+                kind: Some(origin::Kind::PluginRun(PluginRun {
+                    plugin: "plugin".into(),
+                    template: "template".into(),
+                    digest: vec![1],
+                    started_at: Some(Default::default()),
+                    test_case: Some(Default::default()),
+                })),
+            }),
+            ..Default::default()
+        })?;
         Ok((root, manager))
     }
 
@@ -435,11 +449,6 @@ mod tests {
     async fn execution_progress_settles_after_the_outcome_is_sealed() -> Result<(), Box<dyn Error>> {
         // Track an Admitted Execution Before Completion
         let (_root, manager) = manager()?;
-        manager.inner.store.create(&Execution {
-            identifier: "execution".into(),
-            cycle: "cycle".into(),
-            ..Default::default()
-        })?;
         manager.track(&["execution".into()])?;
         let mut progress = manager.progress("execution")?;
         assert!(!progress.borrow_and_update().finished);
@@ -466,11 +475,6 @@ mod tests {
     async fn execution_progress_reattaches_to_a_sealed_outcome() -> Result<(), Box<dyn Error>> {
         // Seal an Execution With No Live Progress Owner
         let (_root, manager) = manager()?;
-        manager.inner.store.create(&Execution {
-            identifier: "execution".into(),
-            cycle: "cycle".into(),
-            ..Default::default()
-        })?;
         let outcome = ExecutionOutcome {
             attribution: Some(Attribution::NotEvaluated(UnevaluatedOutcome {
                 termination: Termination::Completed as i32,
