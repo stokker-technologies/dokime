@@ -104,6 +104,10 @@ fn embed_examples() {
                     let filename = filename.to_str().expect("Example filename is UTF-8");
                     if (language == "python" && filename == "uv.lock")
                         || filename == ".env"
+                        || (filename.starts_with(".env.") && filename != ".env.example")
+                        || matches!(filename, "credentials.json" | ".netrc" | ".pypirc" | "id_rsa" | "id_ed25519")
+                        || filename.ends_with(".key")
+                        || filename.ends_with(".pem")
                         || filename.ends_with(".pair")
                         || filename.ends_with(".pyc")
                     {

@@ -60,7 +60,8 @@ pub fn development_input(path: &Path) -> Result<DevelopmentInput> {
         PluginProject::read(path)?;
         return Ok(DevelopmentInput::Project);
     }
-    if path.is_file() && inspect(path).is_ok() {
+    if path.is_file() {
+        inspect(path)?;
         return Ok(DevelopmentInput::Bundle);
     }
     Err("Develop Plugin: Supply a Bundle File or a Plugin Folder Containing dokime.toml".into())
@@ -73,6 +74,9 @@ pub fn create_project(project: &PluginProject, identity: Identity, description: 
     let limits = Limits::default();
     let mut contents = BTreeMap::new();
     let executable = if project.manifest.scripts.executable.is_some() { Some(project.executable()?) } else { None };
+    if executable.is_some() && native_target() == "unsupported" {
+        return Err("Create Plugin Bundle: Select a Supported Native Target".into());
+    }
     let entrypoint = executable
         .as_ref()
         .map(|path| {
@@ -106,37 +110,39 @@ pub fn create_project(project: &PluginProject, identity: Identity, description: 
             insert(&mut contents, name, entry.path(), limits)?;
         }
         // Metadata and Lock Inputs Are Required Even When Ignored by Git.
-        for name in ["dokime.toml", "pyproject.toml", "Cargo.toml", "uv.lock"] {
-            let path = project.path(Path::new(name))?;
-            if path.is_file() && !contents.contains_key(name) {
-                insert(&mut contents, name.into(), &path, limits)?;
+        for path in project.source_metadata()? {
+            let name =
+                path.strip_prefix(&project.root)?.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Metadata Paths")?.replace('\\', "/");
+            if !contents.contains_key(&name) {
+                insert(&mut contents, name, &path, limits)?;
             }
         }
         // A Launch Input Must Not Disappear Because of a User's Ignore Rules.
         for argument in project.manifest.scripts.launch.as_deref().unwrap_or_default().iter().skip(1) {
             let path = project.root.join(argument);
+            let local_input = argument.contains(['/', '\\']) || argument.ends_with(".py") || argument.ends_with(".dll");
+            if local_input && !argument.starts_with('-') && !path.is_file() {
+                return Err(format!("Create Plugin Bundle: Build Required scripts.launch Input {argument} or Correct Its Path").into());
+            }
             if path.is_file() {
                 let path = project.path(Path::new(argument))?;
-                let name = argument.replace('\\', "/");
+                let name =
+                    path.strip_prefix(&project.root)?.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Launch Paths")?.replace('\\', "/");
                 if !contents.contains_key(&name) && !name.starts_with("assets/") {
                     return Err(format!("Create Plugin Bundle: Unignore Required scripts.launch Input {}", path.display()).into());
                 }
             }
         }
-        if let Some(launch) = &project.manifest.scripts.launch {
-            if let Some(module) = launch.windows(2).find(|pair| pair[0] == "-m").map(|pair| &pair[1]) {
-                let module = module.replace('.', "/");
-                let candidates = [
-                    format!("src/{module}/__main__.py"),
-                    format!("src/{module}.py"),
-                    format!("{module}/__main__.py"),
-                    format!("{module}.py"),
-                ];
-                if let Some(input) = candidates.iter().find(|input| project.root.join(input).is_file()) {
-                    if !contents.contains_key(input.as_str()) {
-                        return Err(format!("Create Plugin Bundle: Unignore Required scripts.launch Module {input}").into());
-                    }
-                }
+        let module =
+            project.manifest.scripts.launch.as_ref().and_then(|launch| launch.windows(2).find(|pair| pair[0] == "-m").map(|pair| &pair[1]));
+        if let Some(module) = module {
+            let module = module.replace('.', "/");
+            let candidates =
+                [format!("src/{module}/__main__.py"), format!("src/{module}.py"), format!("{module}/__main__.py"), format!("{module}.py")];
+            let ignored =
+                candidates.iter().find(|input| project.root.join(input).is_file()).filter(|input| !contents.contains_key(input.as_str()));
+            if let Some(input) = ignored {
+                return Err(format!("Create Plugin Bundle: Unignore Required scripts.launch Module {input}").into());
             }
         }
     }
@@ -171,9 +177,10 @@ pub fn create_project(project: &PluginProject, identity: Identity, description: 
         if relative.components().any(|part| excluded(part.as_os_str().to_str().unwrap_or(""))) {
             return Err("Create Plugin Bundle: Move Referenced Metadata Outside Private Input Folders".into());
         }
-        let name = relative.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Metadata Paths")?.replace('\\', "/");
+        let path = project.path(relative)?;
+        let name = path.strip_prefix(&project.root)?.to_str().ok_or("Create Plugin Bundle: Use UTF-8 Metadata Paths")?.replace('\\', "/");
         if !contents.contains_key(&name) {
-            insert(&mut contents, name, &project.path(relative)?, limits)?;
+            insert(&mut contents, name, &path, limits)?;
         }
     }
     metadata(&mut contents, description)?;
@@ -275,8 +282,21 @@ pub fn inspect(path: &Path) -> Result<Value> {
 /* === Private Functions === */
 
 fn excluded(name: &str) -> bool {
-    matches!(name, ".git" | ".venv" | ".env" | "_input" | "_output" | "__pycache__" | "credentials")
-        || (name.starts_with(".env.") && name != ".env.example")
+    matches!(
+        name,
+        ".git"
+            | ".venv"
+            | ".env"
+            | "_input"
+            | "_output"
+            | "__pycache__"
+            | "credentials"
+            | "credentials.json"
+            | ".netrc"
+            | ".pypirc"
+            | "id_rsa"
+            | "id_ed25519"
+    ) || (name.starts_with(".env.") && name != ".env.example")
         || name.ends_with(".pair")
         || name.ends_with(".pem")
         || name.ends_with(".key")
@@ -599,6 +619,8 @@ mod tests {
             "files": [{"path":"dokime.json","size":metadata.len(),"sha256":digest(metadata)}]});
         let file = bundle(&[("dokime.json", metadata)], &manifest)?;
         assert!(inspect(file.path()).is_err());
+        let error = super::development_input(file.path()).unwrap_err().to_string();
+        assert!(error.contains(">=999.0.0"), "{error}");
         Ok(())
     }
 }

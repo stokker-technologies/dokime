@@ -180,10 +180,14 @@ mod tests {
             }
             let cli = Cli::try_parse_from(arguments).unwrap();
             commands::run(cli.command, None, Settings::default()).await?;
-            let project = PluginProject::read(&destination.join(folder))?;
-            assert!(project.manifest.scripts.build.is_some());
-            assert_eq!(project.manifest.scripts.launch.is_some(), language == "python");
-            assert_eq!(project.manifest.scripts.executable.is_some(), language != "python");
+            let folders = if folder == "Test" { ["Plugin", "Test"] } else { ["plugin", "test"] };
+            for folder in folders {
+                let project = PluginProject::read(&destination.join(folder))?;
+                assert!(project.manifest.scripts.build.is_some());
+                assert_eq!(project.manifest.scripts.launch.is_some(), language == "python");
+                assert_eq!(project.manifest.scripts.executable.is_some(), language != "python");
+                assert!(project.manifest.plugin.version.is_some() || project.manifest.plugin.dynamic.iter().any(|key| key == "version"));
+            }
         }
         Ok(())
     }

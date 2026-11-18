@@ -32,7 +32,7 @@ use roxmltree::Document;
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use spdx::Expression;
-use toml::Value;
+use toml::{Value, map::Map};
 
 // Local Imports
 use crate::Result;
@@ -118,7 +118,7 @@ impl PluginProject {
             return Err("Read Plugin Project: Set Exactly One of scripts.executable or scripts.launch in dokime.toml".into());
         }
         if let Some(build) = &manifest.scripts.build {
-            validate_launch(build).map_err(|source| format!("Read Plugin Project: Correct build in dokime.toml: {source}"))?;
+            validate_launch(build).map_err(|source| format!("Read Plugin Project: Correct scripts.build in dokime.toml: {source}"))?;
         }
         if let Some(launch) = &manifest.scripts.launch {
             validate_launch(launch).map_err(|source| format!("Read Plugin Project: Correct scripts.launch in dokime.toml: {source}"))?;
@@ -185,7 +185,7 @@ impl PluginProject {
 
     pub fn resolve_metadata(&self, described_version: &str) -> Result<PluginMetadata> {
         let mut metadata = self.manifest.plugin.clone();
-        let mut values = toml::Value::try_from(&metadata)?;
+        let mut values = Value::try_from(&metadata)?;
         for key in &metadata.dynamic {
             if values.get(key).is_some() {
                 continue;
@@ -224,14 +224,32 @@ impl PluginProject {
         Ok((identity, metadata))
     }
 
+    pub fn source_metadata(&self) -> Result<Vec<PathBuf>> {
+        let mut paths = Vec::new();
+        for name in ["dokime.toml", "pyproject.toml", "uv.lock"] {
+            let path = self.path(Path::new(name))?;
+            if path.is_file() {
+                paths.push(path);
+            }
+        }
+        for extension in ["toml", "csproj"] {
+            for path in project_files(&self.root, extension)? {
+                if extension == "csproj" || path.file_name().is_some_and(|name| name == "Cargo.toml") {
+                    paths.push(path);
+                }
+            }
+        }
+        Ok(paths)
+    }
+
     fn native_field(&self, key: &str) -> Result<Value> {
         let launch = self.manifest.scripts.launch.as_deref().unwrap_or_default();
         if launch.first().is_some_and(|program| program == "uv") && launch.iter().any(|value| value == "python" || value == "python3") {
             let path = self.path(Path::new("pyproject.toml"))?;
-            let source: Value = fs::read_to_string(&path)?.parse()?;
+            let source: Value = toml::from_str(&fs::read_to_string(&path)?)?;
             let project =
                 source.get("project").ok_or("Resolve Plugin Metadata: Add [project] to pyproject.toml or Set Static plugin Values")?;
-            let native_key = if key == "repository" { "project.urls.Repository" } else { key };
+            let native_key = if key == "repository" { "project.urls.Repository".to_owned() } else { format!("project.{key}") };
             let value = if key == "repository" { project.get("urls").and_then(|urls| urls.get("Repository")) } else { project.get(key) };
             if project.get("dynamic").and_then(Value::as_array).is_some_and(|fields| fields.iter().any(|value| value.as_str() == Some(key)))
             {
@@ -302,11 +320,11 @@ impl PluginProject {
             .and_then(|path| path.file_stem())
             .and_then(|stem| stem.to_str())
             .ok_or("Resolve Plugin Metadata: Select the Rust Plugin Executable or Set Static plugin Values")?;
-        let root: Value = fs::read_to_string(self.path(Path::new("Cargo.toml"))?)?.parse()?;
+        let root: Value = toml::from_str(&fs::read_to_string(self.path(Path::new("Cargo.toml"))?)?)?;
         let mut matches = Vec::new();
         for path in project_files(&self.root, "toml")?.into_iter().filter(|path| path.file_name().is_some_and(|name| name == "Cargo.toml"))
         {
-            let source: Value = fs::read_to_string(&path)?.parse()?;
+            let source: Value = toml::from_str(&fs::read_to_string(&path)?)?;
             let Some(package) = source.get("package") else {
                 continue;
             };
@@ -314,8 +332,12 @@ impl PluginProject {
                 .get("bin")
                 .and_then(Value::as_array)
                 .is_some_and(|bins| bins.iter().any(|bin| bin.get("name").and_then(Value::as_str) == Some(entry)));
-            let implicit = package.get("name").and_then(Value::as_str) == Some(entry)
-                && path.parent().is_some_and(|parent| parent.join("src/main.rs").is_file());
+            let implicit = package.get("autobins").and_then(Value::as_bool).unwrap_or(true)
+                && path.parent().is_some_and(|parent| {
+                    (package.get("name").and_then(Value::as_str) == Some(entry) && parent.join("src/main.rs").is_file())
+                        || parent.join("src/bin").join(format!("{entry}.rs")).is_file()
+                        || parent.join("src/bin").join(entry).join("main.rs").is_file()
+                });
             if explicit || implicit {
                 matches.push((path, source));
             }
@@ -327,7 +349,7 @@ impl PluginProject {
             .into());
         }
         let (path, source) = &matches[0];
-        let mut value = source.get("package").and_then(|package| package.get(key));
+        let value = source.get("package").and_then(|package| package.get(key));
         if value.and_then(|value| value.get("workspace")).and_then(Value::as_bool) == Some(true) {
             // A Nested Standalone Workspace Does Not Inherit the Repository's Metadata.
             let mut directory = path.parent();
@@ -335,7 +357,7 @@ impl PluginProject {
             while let Some(parent) = directory {
                 let candidate = parent.join("Cargo.toml");
                 if candidate.is_file() {
-                    let candidate: Value = fs::read_to_string(candidate)?.parse()?;
+                    let candidate: Value = toml::from_str(&fs::read_to_string(candidate)?)?;
                     if candidate.get("workspace").is_some() {
                         workspace = Some(candidate);
                         break;
@@ -348,7 +370,7 @@ impl PluginProject {
                 workspace.get("workspace").and_then(|workspace| workspace.get("package")).and_then(|package| package.get(key)).cloned();
             return rust_value(key, inherited, path);
         }
-        rust_value(key, value.take().cloned(), path)
+        rust_value(key, value.cloned(), path)
     }
 
     pub fn executable(&self) -> Result<PathBuf> {
@@ -426,14 +448,15 @@ impl PluginMetadata {
                 return Err("Read Plugin Project: Set plugin.repository to an Absolute HTTP(S) URL".into());
             }
         }
-        if let Some(authors) = &self.authors {
-            if authors.is_empty()
-                || authors
-                    .iter()
-                    .any(|author| author.name.trim().is_empty() || author.email.as_ref().is_some_and(|email| email.trim().is_empty()))
-            {
-                return Err("Read Plugin Project: Set plugin.authors to Nonblank Names and Optional Nonblank Emails".into());
-            }
+        let invalid_authors = self.authors.as_ref().is_some_and(|authors| {
+            let empty = authors.is_empty();
+            let invalid = authors
+                .iter()
+                .any(|author| author.name.trim().is_empty() || author.email.as_ref().is_some_and(|email| email.trim().is_empty()));
+            empty || invalid
+        });
+        if invalid_authors {
+            return Err("Read Plugin Project: Set plugin.authors to Nonblank Names and Optional Nonblank Emails".into());
         }
         for (key, values) in [("dynamic", &self.dynamic), ("tags", &self.tags)] {
             let mut unique = BTreeSet::new();
@@ -511,7 +534,7 @@ fn literal(document: &Document<'_>, key: &str) -> Result<Option<String>> {
 }
 
 fn author_value(name: &str, email: Option<&str>) -> Value {
-    let mut author = toml::map::Map::new();
+    let mut author = Map::new();
     author.insert("name".into(), Value::String(name.into()));
     if let Some(email) = email {
         author.insert("email".into(), Value::String(email.into()));
@@ -710,6 +733,19 @@ build=["x\u0000"]"#,
         fs::create_dir(root.path().join("other"))?;
         fs::copy(root.path().join("Cargo.toml"), root.path().join("other/Cargo.toml"))?;
         assert!(project.resolve_metadata("1.0.0").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn rust_resolves_auto_discovered_binary_and_respects_autobins() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        fs::create_dir_all(root.path().join("src/bin"))?;
+        fs::write(root.path().join("src/bin/plugin.rs"), "fn main() {}")?;
+        fs::write(root.path().join("Cargo.toml"), "[package]\nname='authoring'\nversion='1.2.3'\n")?;
+        let project = write(root.path(), "dynamic=['version']", "executable='target/debug/plugin'")?;
+        assert_eq!(project.resolve_metadata("")?.version.as_deref(), Some("1.2.3"));
+        fs::write(root.path().join("Cargo.toml"), "[package]\nname='authoring'\nversion='1.2.3'\nautobins=false\n")?;
+        assert!(project.resolve_metadata("").is_err());
         Ok(())
     }
 
