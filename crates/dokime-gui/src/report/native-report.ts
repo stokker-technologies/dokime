@@ -13,6 +13,11 @@
 
 /* === Imports === */
 
+// Third Party Imports
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
+
+// Local Imports
 import type { CycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import { mapNativeHealth, mapNativeNote } from "@/lib/api/native-annotation-projection";
 import { mapArtifactMetadata, mapExecutionFile } from "@/lib/api/native-content-projection";
@@ -30,8 +35,6 @@ import { appearanceFrameFromNative, logoVariant } from "@/lib/native-appearance"
 import { cutKey, required, type Wire } from "@/lib/rpc/canonical";
 import type { ArtifactRecord, DocumentViewPayload, PlotPayload } from "@/lib/types";
 import type { RuntimeAppLogo } from "@/lib/types/view-contracts";
-import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { ReportCaptureSchema, type DocumentsGetResponse, type FileReference, type ReportCapture } from "@host/model";
 
 /* === Re-Exports === */
@@ -55,7 +58,7 @@ export async function materializeReport(capture: ReportCapture) {
   const urls = await fileUrls(capture);
   const source = await reportSource(capture, urls);
   const appearance = reportAppearance(capture, urls);
-  return { source, appearance };
+  return { source, appearance, executionId: capture.report?.testExecutionId ?? null };
 }
 
 export function reportOutcome(source: CycleSnapshotSource): { label: string; variant: "success" | "destructive" | "secondary" } {

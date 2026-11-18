@@ -66,11 +66,13 @@ use dokime_protocol::model::XyInterval;
 use dokime_protocol::model::data_expression;
 use dokime_protocol::model::value;
 use dokime_storage::persisted::Scope;
-use dokime_storage::{ExecutionCut, NumericWindow, Store};
+use dokime_storage::{ExecutionCut, KindWindow, NumericWindow, Store};
 
 /* === Constants === */
 
 pub const ID: &str = "dokime.host.v1.plots.Snapshots/List";
+
+const DEFAULT_POINTS: u64 = 2000;
 
 /* === Macros === */
 
@@ -259,7 +261,9 @@ async fn batch(
                         },
                         &request,
                     )?;
-                    if message_bytes.is_none_or(|maximum| envelope.encoded_len().saturating_add(32) <= maximum) {
+                    let size = envelope.encoded_len();
+                    let reply_bytes = 1 + prost::length_delimiter_len(size) + size;
+                    if message_bytes.is_none_or(|maximum| reply_bytes <= maximum) {
                         query.record("samples", envelope.diagnostics.as_ref().map_or(0, |value| value.raw_point_count));
                         if capturing {
                             tracing::debug!(
@@ -273,7 +277,7 @@ async fn batch(
                         }
                         return Ok((index, envelope));
                     }
-                    let points = request.max_points.unwrap_or(maximum as u64).min(maximum as u64);
+                    let points = request.max_points.unwrap_or(DEFAULT_POINTS);
                     if points <= 4 || request.technique == Downsample::Raw as i32 {
                         return Err(Error::Invalid(
                             "Query Plot: Narrow the Raw Window or Split the Batch to Fit Its Irreducible Message Budget".into(),
@@ -385,6 +389,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         return Err(Error::Invalid("Query Plot: Supply Positive Panel Dimensions".into()));
     }
     let kind = PlotKind::try_from(request.plot_type).map_err(|_| Error::Invalid("Query Plot: Select a Declared Plot Kind".into()))?;
+    let temporal = matches!(kind, PlotKind::Unspecified | PlotKind::TimeSeries | PlotKind::Xy | PlotKind::Trajectory);
     if aggregate.is_some()
         && (!matches!(kind, PlotKind::Bar | PlotKind::Pie)
             || request.y_expressions.iter().any(|expression| !matches!(expression.kind, Some(data_expression::Kind::Aggregate(_)))))
@@ -418,9 +423,16 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     if fields.len() != 1 && (matches!(kind, PlotKind::Pie | PlotKind::Contour | PlotKind::GridChart) || request.pareto) {
         return Err(Error::Invalid("Query Plot: Select Exactly One Value Column for This Kind".into()));
     }
-    let requested = request.max_points.unwrap_or(maximum as u64).max(4).min(maximum as u64) as usize;
-    let display = request.panel_width.map(|width| width as usize * 4).unwrap_or(requested).min(requested).max(4);
-    let bins = NonZeroUsize::new((display / 4).max(1)).unwrap();
+    let requested = usize::try_from(request.max_points.unwrap_or(DEFAULT_POINTS))
+        .map_err(|_| Error::Invalid("Query Plot: Select a Display Resolution Within This Host's Address Range".into()))?;
+    let display = if kind == PlotKind::Xy {
+        requested
+    } else if temporal {
+        requested.max(4)
+    } else {
+        request.panel_width.map(|width| width as usize * 4).unwrap_or(requested).min(requested).max(4)
+    };
+    let bins = NonZeroUsize::new(request.panel_width.map(|width| width as usize).unwrap_or(display / 4).min(display / 4).max(1)).unwrap();
     let (after, through) = store.step_range(
         execution,
         request.scope.as_ref().and_then(|scope| scope.step_id.as_deref()).unwrap_or_default(),
@@ -479,6 +491,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         };
 
         let mut column_groups = None;
+        let frame_start = frame.series.len();
         let count = if let Some(group_field) = group
             .as_deref()
             .filter(|_| matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified | PlotKind::Histogram | PlotKind::BoxPlot))
@@ -486,7 +499,9 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             let groups = store.plot_group_values(window, group_field, (display / 4).max(1))?;
             let mut total = 0;
             let mut counts = Vec::new();
-            let group_display = (display / groups.len().max(1)).max(4);
+            let within_budget =
+                matches!(kind, PlotKind::TimeSeries | PlotKind::Unspecified) && store.time_series_window(window)?.2 <= display as u64;
+            let group_display = if within_budget { display } else { (display / groups.len().max(1)).max(4) };
             for group in groups {
                 store.select_plot_group(Some(&group))?;
                 let label = group.label.clone();
@@ -548,7 +563,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             count
         } else if matches!(kind, PlotKind::Xy | PlotKind::Trajectory | PlotKind::Bar | PlotKind::Pie | PlotKind::Contour) {
             let x = x.as_deref().ok_or_else(|| Error::Invalid("Query Plot: Select an X Coordinate or Category Column".into()))?;
-            let settings = dokime_storage::KindWindow {
+            let settings = KindWindow {
                 window,
                 x: Some(x),
                 z: z.as_deref(),
@@ -617,7 +632,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
                 .and_then(|value| Reduction::try_from(value).ok())
                 .ok_or_else(|| Error::Invalid("Query Grid Chart: Select an Explicit Reducer".into()))?;
             let (frames, count) = store.grid_window(
-                dokime_storage::KindWindow {
+                KindWindow {
                     window,
                     x: row.as_deref(),
                     z: column.as_deref(),
@@ -636,7 +651,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         } else if kind == PlotKind::FrequencySeries {
             let options = request.fft.unwrap_or_default();
             let (column, count) = store.spectrum_window(
-                dokime_storage::KindWindow {
+                KindWindow {
                     window,
                     x: None,
                     z: None,
@@ -682,23 +697,33 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
         }
         examined += count;
         if let Some(groups) = column_groups {
-            for (group, raw_points) in groups {
+            for (index, (group, raw_points)) in groups.into_iter().enumerate() {
+                let served = if temporal {
+                    frame.series.get(frame_start + index).map_or(display as u64, |column| column.y.len() as u64)
+                } else {
+                    display as u64
+                };
                 payload.series.push(PlotSeries {
                     key: if group.is_empty() { field.clone() } else { format!("{field}/{group}") },
                     label: if group.is_empty() { field.clone() } else { group },
                     unit: request.unit.clone(),
                     raw_points,
-                    downsampled: raw_points > display as u64,
+                    downsampled: raw_points > served,
                     ..Default::default()
                 });
             }
         } else {
+            let served = if temporal {
+                frame.series.get(frame_start).map_or(display as u64, |column| column.y.len() as u64)
+            } else {
+                display as u64
+            };
             payload.series.push(PlotSeries {
                 key: field.clone(),
                 label: field,
                 unit: request.unit.clone(),
                 raw_points: count,
-                downsampled: count > display as u64,
+                downsampled: count > served,
                 ..Default::default()
             });
         }
@@ -795,8 +820,10 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
     } else {
         frame.point_count
     };
-    let temporal = matches!(kind, PlotKind::Unspecified | PlotKind::TimeSeries | PlotKind::Xy | PlotKind::Trajectory);
-    if !temporal || matches!(technique, Downsample::Raw | Downsample::Lttb) {
+    let bucketed = matches!(kind, PlotKind::Unspecified | PlotKind::TimeSeries)
+        && !matches!(technique, Downsample::Raw | Downsample::Lttb)
+        && point_count < examined;
+    if !bucketed {
         payload.bucket_width_s = None;
     }
     if !temporal {
@@ -865,7 +892,7 @@ fn snapshot_prepared(read: PlotRead<'_>, request: &PlotRequest) -> Result<PlotEn
             max_points: display as u64,
             window_s: request.window_s,
             examined_rows: examined,
-            resolution_nanos: if temporal && !matches!(technique, Downsample::Raw | Downsample::Lttb) { resolution } else { 0 },
+            resolution_nanos: if bucketed { resolution } else { 0 },
         }),
         payload: Some(payload),
         warnings: Vec::new(),
@@ -948,15 +975,16 @@ fn ns(seconds: f64) -> Result<i64> {
 
 #[cfg(test)]
 mod tests {
+    use std::f64::consts::TAU;
     use std::thread;
 
     use harmos_protocol::model::{Declarations, StreamDeclaration};
     use prost::Message;
     use prost_types::{DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet, field_descriptor_proto::Type};
 
-    use super::{PlotColumn, Value, order_categories, snapshots_at, value};
+    use super::{PlotColumn, Value, batch, order_categories, snapshots_at, value};
     use dokime_protocol::host::plots::NullableNumber;
-    use dokime_protocol::host::plots::PlotRequest;
+    use dokime_protocol::host::plots::{PlotRequest, SnapshotsListResponse};
     use dokime_protocol::model::{Downsample, EvidenceScope, Import, Origin, PlotKind, origin};
     use dokime_storage::{Execution, Sample, Store};
 
@@ -1042,6 +1070,156 @@ mod tests {
             actual.iter().map(|envelope| &envelope.plot_id).collect::<Vec<_>>(),
             requests.iter().map(|request| request.plot_id.as_ref().unwrap()).collect::<Vec<_>>()
         );
+    }
+
+    #[derive(Clone, PartialEq, Message)]
+    struct Waveform {
+        #[prost(double, tag = "1")]
+        value: f64,
+
+        #[prost(double, tag = "2")]
+        elapsed_s: f64,
+
+        #[prost(bool, tag = "3")]
+        phase: bool,
+    }
+
+    #[tokio::test]
+    async fn xy_display_budget_preserves_samples_and_uses_the_requested_point_count() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::open(root.path()).unwrap();
+        let catalog = Declarations {
+            types: Some(FileDescriptorSet {
+                file: vec![FileDescriptorProto {
+                    name: Some("plots.proto".into()),
+                    package: Some("plots".into()),
+                    syntax: Some("proto3".into()),
+                    message_type: vec![DescriptorProto {
+                        name: Some("Row".into()),
+                        field: [("value", Type::Double), ("elapsed_s", Type::Double), ("phase", Type::Bool)]
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, (name, kind))| FieldDescriptorProto {
+                                name: Some(name.into()),
+                                number: Some(index as i32 + 1),
+                                r#type: Some(kind as i32),
+                                ..Default::default()
+                            })
+                            .collect(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+            }),
+            streams: vec![StreamDeclaration {
+                id: "readings".into(),
+                row: "plots.Row".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        store
+            .create(&Execution {
+                identifier: "execution".into(),
+                cycle: "cycle".into(),
+                origin: Some(Origin {
+                    kind: Some(origin::Kind::Import(Import::default())),
+                }),
+                catalog: catalog.encode_to_vec(),
+                ..Default::default()
+            })
+            .unwrap();
+        store.open_stream("execution", "readings").unwrap();
+        let samples = (0..11801)
+            .map(|index| Sample {
+                stream: "readings".into(),
+                source_ns: index * 1_000_000,
+                row: Waveform {
+                    value: (index as f64 * TAU / 20.0).sin(),
+                    elapsed_s: index as f64 / 1000.0,
+                    phase: index > 1000,
+                }
+                .encode_to_vec(),
+                sequence: index as u64,
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        store.sample_batch("execution", &samples).unwrap();
+        store.flush_samples().unwrap();
+        let cut = store.cut("execution").unwrap();
+        let (reader, _cancellation) = store.read_session().unwrap();
+        for technique in [Downsample::Auto, Downsample::Raw, Downsample::MinMax, Downsample::Lttb] {
+            for budget in [1, 2, 3, 2000, 11801, 20000] {
+                let request = PlotRequest {
+                    plot_id: Some("voltage".into()),
+                    scope: Some(EvidenceScope {
+                        execution_id: Some("execution".into()),
+                        ..Default::default()
+                    }),
+                    stream: "readings".into(),
+                    x_key: Some("elapsed_s".into()),
+                    y_keys: vec!["value".into()],
+                    plot_type: PlotKind::Xy as i32,
+                    technique: technique as i32,
+                    max_points: Some(budget),
+                    ..Default::default()
+                };
+                let envelopes = batch(&reader, vec![request.clone()], None, 1000, 0, "epoch", Some(4 * 1024 * 1024)).await.unwrap();
+                let payload = envelopes[0].payload.as_ref().unwrap();
+                let columns = &payload.frame.as_ref().unwrap().series;
+                assert_eq!(columns[0].y.len(), budget.min(samples.len() as u64) as usize);
+                assert_eq!(envelopes[0].diagnostics.as_ref().unwrap().raw_point_count, samples.len() as u64);
+                if budget >= samples.len() as u64 {
+                    assert!(payload.series.iter().all(|series| !series.downsampled));
+                    for (index, (x, y)) in columns[0].x.iter().zip(&columns[0].y).enumerate() {
+                        assert_eq!(x.kind, Some(value::Kind::Number(index as f64 / 1000.0)));
+                        assert_eq!(y.value, Some((index as f64 * TAU / 20.0).sin()));
+                    }
+                }
+                if budget == 2000 && technique == Downsample::Auto {
+                    let grouped = PlotRequest {
+                        series_by: Some("phase".into()),
+                        ..request.clone()
+                    };
+                    let grouped = snapshots_at(&reader, &cut, vec![grouped], 1000, 0, "epoch").await.unwrap();
+                    let payload = grouped[0].payload.as_ref().unwrap();
+                    assert_eq!(payload.frame.as_ref().unwrap().point_count, budget);
+                    assert_eq!(payload.series.len(), 2);
+                    assert!(payload.series.iter().all(|series| series.downsampled));
+                }
+                let response = SnapshotsListResponse { envelopes, ..Default::default() };
+                if budget >= samples.len() as u64 {
+                    let temporal = PlotRequest {
+                        plot_type: PlotKind::TimeSeries as i32,
+                        panel_width: Some(1),
+                        ..request.clone()
+                    };
+                    let temporal = snapshots_at(&reader, &cut, vec![temporal], 1000, 0, "epoch").await.unwrap();
+                    let payload = temporal[0].payload.as_ref().unwrap();
+                    assert_eq!(payload.frame.as_ref().unwrap().series[0].y.len(), samples.len());
+                    assert_eq!(payload.bucket_width_s, None);
+                    assert_eq!(temporal[0].diagnostics.as_ref().unwrap().resolution_nanos, 0);
+                    let grouped = PlotRequest {
+                        plot_type: PlotKind::TimeSeries as i32,
+                        series_by: Some("phase".into()),
+                        ..request.clone()
+                    };
+                    let grouped = snapshots_at(&reader, &cut, vec![grouped], 1000, 0, "epoch").await.unwrap();
+                    let frame = grouped[0].payload.as_ref().unwrap().frame.as_ref().unwrap();
+                    assert_eq!(frame.point_count, samples.len() as u64);
+                    assert_eq!(frame.series.len(), 2);
+                }
+                eprintln!(
+                    "XY {technique:?}: {budget} Budget, {} Points, {} Encoded Bytes",
+                    response.envelopes[0].diagnostics.as_ref().unwrap().point_count,
+                    response.encoded_len()
+                );
+                if budget == 2000 && technique == Downsample::Auto {
+                    let exact = batch(&reader, vec![request], None, 1000, 0, "epoch", Some(response.encoded_len())).await.unwrap();
+                    assert_eq!(exact, response.envelopes);
+                }
+            }
+        }
     }
 
     #[test]

@@ -41,7 +41,7 @@ export type FrozenShell = {
   /** ISO timestamp the report was generated at. */
   generatedAt: string | null;
   title: string;
-  onSelect: (selection: { caseId?: string; executionId?: string }) => void;
+  onSelect?: (selection: { caseId?: string; executionId?: string }) => void;
 };
 
 type AppShellLayoutProps = {
@@ -132,7 +132,7 @@ function PageBar({ focused, frozen }: { focused: boolean; frozen: FrozenShell | 
     return (
       <PanelHeader
         title={frozenReportTitle(frozen.generatedAt)}
-        onBack={frozen.selection.caseId || frozen.selection.executionId ? () => frozen.onSelect({}) : undefined}
+        onBack={frozen.onSelect && (frozen.selection.caseId || frozen.selection.executionId) ? () => frozen.onSelect?.({}) : undefined}
       />
     );
   }

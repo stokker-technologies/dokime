@@ -44,7 +44,7 @@ import {
   type NativePlotStreamUpdate,
 } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
-import * as appearance from "@/lib/appearance";
+import type { RuntimeThemeFamily, useAppearance } from "@/lib/appearance";
 import { ApplicationThemeProvider } from "@/lib/application-theme";
 import { formatNumber, formatTime, formatUnitLabel } from "@/lib/format";
 import { jsonToNativeValue } from "@/lib/host/values";
@@ -1181,17 +1181,17 @@ test("Legend Rows Contain Only Traces on Both Surfaces", () => {
   }
 });
 
-test("Application Theme Selects the Plot Palette Without a Browser Theme Provider", () => {
+test("Application Theme Selects the Plot Palette Without a Browser Theme Provider", async () => {
   const light = ["#123456", "#654321"];
   const dark = ["#abcdef", "#fedcba"];
-  const family: appearance.RuntimeThemeFamily = {
+  const family: RuntimeThemeFamily = {
     plugin_id: "organization",
     theme_id: "plot-visibility",
     label: "Plot Visibility",
     light: { variables: {}, plot_palette: light },
     dark: { variables: {}, plot_palette: dark },
   };
-  const frame: ReturnType<typeof appearance.useAppearance> = {
+  const frame: ReturnType<typeof useAppearance> = {
     app_name: "Plot Test",
     logos: [],
     themes: [family],
@@ -1201,7 +1201,7 @@ test("Application Theme Selects the Plot Palette Without a Browser Theme Provide
     mode_locked: false,
     source_plugin_id: null,
   };
-  const readAppearance = vi.spyOn(appearance, "useAppearance").mockReturnValue(frame);
+  const readAppearance = vi.spyOn(await import("@/lib/appearance"), "useAppearance").mockReturnValue(frame);
   onTestFinished(() => readAppearance.mockRestore());
   function Palette() {
     return createElement("output", null, JSON.stringify(usePlotPalette()));
@@ -1265,7 +1265,12 @@ test("Sparse Aligned Point Paths", () => {
   const x = Array.from({ length: 20 }, (_, index) => 1_700_000_000 + index * 11);
   const traces = [0, 1].map((parity) => x.map((_, index) => (index % 2 === parity ? index : null)));
   for (const fitPixels of [false, true]) {
-    const data = drawnData({ source: [x, ...traces], aligned: true, range: null, everySample: true }, null, 640, fitPixels);
+    const data = drawnData(
+      { source: [x, ...traces], aligned: true, preserveSamples: false, range: null, everySample: true },
+      null,
+      640,
+      fitPixels,
+    );
     assert.deepEqual(data, [x, ...traces]);
     for (const style of ["points", "line", "line_points", "step"] as const) {
       const marks = seriesPointMarks(style, false, "currentColor", "transparent");
@@ -1328,7 +1333,7 @@ test("Sparse Faceted Point Paths", () => {
   } as unknown as uPlot;
   const source = plot.data;
   for (const range of [null, { min: 1, max: 4 }]) {
-    const drawn = { source, aligned: false, range: null, everySample: false };
+    const drawn = { source, aligned: false, preserveSamples: false, range: null, everySample: false };
     assert.equal(drawnData(drawn, range, 1, true), source);
     assert.equal(drawn.everySample, true);
   }
@@ -1354,7 +1359,12 @@ test("Window Reduction Retains Gaps", () => {
     for (const fitPixels of [false, true]) {
       const indices = windowIndices(x, [y], range, 1, fitPixels);
       assert.ok(indices?.includes(49));
-      const data = drawnData({ source: [x, y], aligned: true, range: null, everySample: true }, range, 1, fitPixels);
+      const data = drawnData(
+        { source: [x, y], aligned: true, preserveSamples: false, range: null, everySample: true },
+        range,
+        1,
+        fitPixels,
+      );
       const reduced = data[1];
       const middle = data[0].indexOf(49);
       assert.equal(reduced[middle - 1], null);
@@ -2608,5 +2618,18 @@ test("Two Clients Load One Hundred Producing Plots and Fence a Reconnect", async
     cancel.mockRestore();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  }
+});
+
+test("Unreduced Aligned Frames Keep Every Sample at Any Pixel Width", () => {
+  const x = Array.from({ length: 11801 }, (_, index) => index / 1000);
+  const y = x.map((value) => Math.sin(2 * Math.PI * 50 * value));
+  const source: uPlot.AlignedData = [x, y];
+  for (const range of [null, { min: 1, max: 2 }]) {
+    for (const fitPixels of [false, true]) {
+      const drawn: Parameters<typeof drawnData>[0] = { source, aligned: true, preserveSamples: true, range: null, everySample: false };
+      assert.equal(drawnData(drawn, range, 1, fitPixels), source);
+      assert.equal(drawn.everySample, true);
+    }
   }
 });

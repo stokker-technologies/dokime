@@ -32,7 +32,7 @@ use prost_types::Timestamp;
 
 // Local Imports
 use crate::scalar::{self, ScalarValue};
-use crate::telemetry::aggregates;
+use crate::telemetry::aggregates::{self, NumericSummary};
 use crate::{Error, NumericWindow, Result, Store};
 use dokime_protocol::model::Downsample;
 use dokime_protocol::model::Value;
@@ -67,16 +67,21 @@ impl Store {
     pub fn sampled_time_series_window(
         &self, window: NumericWindow<'_>, technique: Downsample, limit: usize,
     ) -> Result<(PlotColumn, PlotSeriesSummary, u64)> {
-        if limit == 0 || technique == Downsample::Lttb && limit < 3 {
+        if limit == 0 {
             return Err(Error::Data("supply a positive raw limit or at least three LTTB vertices"));
         }
-        if !matches!(technique, Downsample::Raw | Downsample::Lttb) {
+        let moments = self.numeric_summary(window)?;
+        let count = moments.count;
+        if count > limit as u64 && technique == Downsample::Lttb && limit < 3 {
+            return Err(Error::Data("supply at least three LTTB vertices or include every selected sample"));
+        }
+        if count > limit as u64 && !matches!(technique, Downsample::Raw | Downsample::Lttb) {
             return self.time_series_window(window);
         }
-        let (_, summary, count) = self.time_series_window(window)?;
         if technique == Downsample::Raw && count > limit as u64 {
             return Err(Error::Data("narrow the raw plot window or select downsampling"));
         }
+        let summary = series_summary(&moments)?;
         let schema = Arc::new(Schema::new(vec![
             Field::new("time", DataType::Int64, false),
             Field::new("x", DataType::Float64, false),
@@ -187,15 +192,7 @@ impl Store {
             y: points.iter().map(|(_, value)| NullableNumber { value: Some(*value) }).collect(),
             ..Default::default()
         };
-        let mean = if count == 0 { None } else { Some(scalar::wire(&moments.average)?) };
-        let summary = PlotSeriesSummary {
-            count,
-            min: (count > 0).then(|| scalar::wire(&moments.min)).transpose()?,
-            max: (count > 0).then(|| scalar::wire(&moments.max)).transpose()?,
-            mean,
-            rms: (count > 0).then_some(moments.rms),
-            ..Default::default()
-        };
+        let summary = series_summary(&moments)?;
         Ok((column, summary, count))
     }
     pub fn histogram_window(&self, window: NumericWindow<'_>, bins: usize) -> Result<PlotHistogramSeries> {
@@ -320,6 +317,19 @@ impl Store {
 /* === Public Functions === */
 
 /* === Private Functions === */
+
+fn series_summary(moments: &NumericSummary) -> Result<PlotSeriesSummary> {
+    let count = moments.count;
+    let mean = if count == 0 { None } else { Some(scalar::wire(&moments.average)?) };
+    Ok(PlotSeriesSummary {
+        count,
+        min: (count > 0).then(|| scalar::wire(&moments.min)).transpose()?,
+        max: (count > 0).then(|| scalar::wire(&moments.max)).transpose()?,
+        mean,
+        rms: (count > 0).then_some(moments.rms),
+        ..Default::default()
+    })
+}
 
 fn number(value: f64) -> Value {
     Value { kind: Some(value::Kind::Number(value)) }
