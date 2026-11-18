@@ -30,7 +30,7 @@ use harmos_storage::{
     StorageCursor, StorageFilesystemSettings, StorageManager, StoragePolicy, StorageRequestSettings, StorageResponseSettings,
     StorageSettings,
 };
-use rusqlite::{Connection, params};
+use rusqlite::Connection;
 use tokio::sync::Mutex;
 
 // Local Imports
@@ -150,129 +150,151 @@ async fn controlled_receipts_survive_reopen_until_their_execution_clock_expires_
 }
 
 #[tokio::test]
-async fn receipt_history_reopens_with_only_the_newest_unexpired_outcomes() -> Result<(), Box<dyn error::Error>> {
-    for indexed_expiry in [true, false] {
-        // Configure a Two-Receipt Replay Cache.
-        let root = tempfile::tempdir()?;
-        let catalog = persisted::catalog();
-        let (clock, _controller) = Execution::virtual_at(SystemTime::UNIX_EPOCH + Duration::from_secs(100));
-        let capacity = NonZeroUsize::new(64).unwrap();
-        let bytes = NonZeroUsize::new(1024 * 1024).unwrap();
-        let settings = StorageSettings {
-            transfer: Default::default(),
-            policy: StoragePolicy::default(),
-            request: StorageRequestSettings {
-                max_file_productions: capacity,
-                max_mutation_receipts: NonZeroUsize::new(2).unwrap(),
-                max_pending_queries: capacity,
-                max_active_queries: capacity,
-                max_pending_write_batches: capacity,
-                max_active_file_operations: capacity,
-                max_pending_write_bytes: bytes,
-            },
-            response: StorageResponseSettings {
-                batch_rows: NonZeroUsize::MIN,
-                batch_bytes: bytes,
-            },
-            filesystem: StorageFilesystemSettings {
-                poll_interval: Duration::from_millis(100),
-                max_entries: capacity,
-                event_capacity: capacity,
-            },
+async fn keyed_replay_recovers_an_outcome_omitted_from_the_cache() -> Result<(), Box<dyn error::Error>> {
+    // Open a Manager With Two Receipt Slots and a Controlled Backend Clock.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let catalog = persisted::catalog();
+    let (clock, _controller) = Execution::virtual_at(SystemTime::UNIX_EPOCH + Duration::from_secs(100));
+    let capacity = NonZeroUsize::new(64).unwrap();
+    let bytes = NonZeroUsize::new(1024 * 1024).unwrap();
+    let settings = StorageSettings {
+        transfer: Default::default(),
+        policy: StoragePolicy::default(),
+        request: StorageRequestSettings {
+            max_file_productions: capacity,
+            max_mutation_receipts: NonZeroUsize::new(2).unwrap(),
+            max_pending_queries: capacity,
+            max_active_queries: capacity,
+            max_pending_write_batches: capacity,
+            max_active_file_operations: capacity,
+            max_pending_write_bytes: bytes,
+        },
+        response: StorageResponseSettings {
+            batch_rows: NonZeroUsize::MIN,
+            batch_bytes: bytes,
+        },
+        filesystem: StorageFilesystemSettings {
+            poll_interval: Duration::from_millis(100),
+            max_entries: capacity,
+            event_capacity: capacity,
+        },
+    };
+    let (backends, _lease) = Backend::open_with_execution(&store, catalog.clone(), clock.clone())?;
+    let primary = backends.primary.clone();
+    let storage = StorageManager::with_catalog_execution(catalog.clone(), backends, settings.clone(), clock.clone())?;
+    storage
+        .start_with(Arc::new(()), |mut worker| {
+            let task = tokio::spawn(async move {
+                worker.run().await?;
+                worker.cleanup().await
+            });
+            Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
+        })
+        .await?;
+
+    // Commit Three Distinct Outcomes Under One Unchanged Window.
+    let window = storage.mutation_window()?;
+    let mut committed = Vec::new();
+    for index in 0..3 {
+        let value = Administration {
+            key: index.to_string(),
+            scope: Scope::Root("receipt-history").identifier()?,
+            payload: vec![index],
         };
-
-        // Save More Receipts Than the Replay Cache Can Hold.
-        let store = Store::open(root.path())?;
-        let (backends, _lease) = Backend::open_with_execution(&store, catalog.clone(), clock.clone())?;
-        let primary = backends.primary.clone();
-        let storage = StorageManager::with_catalog_execution(catalog.clone(), backends, settings.clone(), clock.clone())?;
-        storage
-            .start_with(Arc::new(()), |mut worker| {
-                let task = tokio::spawn(async move {
-                    worker.run().await?;
-                    worker.cleanup().await
-                });
-                Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
-            })
-            .await?;
-        let mut mutations = Vec::new();
-        let mut requests = Vec::new();
-        let mut outcomes = Vec::new();
-        for index in 0..3 {
-            let value = Administration {
-                key: index.to_string(),
-                scope: Scope::Root("receipt-history").identifier()?,
-                payload: vec![index],
-            };
-            let mutation = MutationId {
-                window: storage.mutation_window()?.id,
-                key: Identifier::new(index.to_string())?,
-            };
-            let items = vec![MutationItem::Create(catalog.encode(&value, bytes)?)];
-            outcomes.push(storage.mutate_once(&mutation, items.clone()).await?);
-            mutations.push(mutation);
-            requests.push(items);
-        }
-
-        // Seed an Expired Receipt Without Waiting for Retention to Elapse.
-        let receipts = primary.list_mutation_receipts(ReadLimits { rows: capacity, bytes }).await?;
-        let mut expired = receipts[0].clone();
-        expired.mutation.key = Identifier::new("expired")?;
-        expired.expires_at = clock.date();
-        primary.append_mutation_receipts(StorageBatch::new(vec![expired])).await?;
-        storage.close().await?;
-
-        // Give Each Surviving Receipt a Distinct Expiry in Reverse Identity Order.
-        let connection = Connection::open(root.path().join("storage.sqlite3"))?;
-        for (index, mutation) in mutations.iter().enumerate() {
-            let id = serde_json::to_string(mutation)?;
-            let data: Vec<u8> = connection.query_row("SELECT data FROM storage_mutations WHERE id=?1", [&id], |row| row.get(0))?;
-            let mut receipt: MutationReceipt = serde_json::from_slice(&data)?;
-            receipt.expires_at = SystemTime::UNIX_EPOCH + Duration::from_secs(u64::try_from(200 - index)?);
-            connection.execute(
-                "UPDATE storage_mutations SET data=?2,expires_at_s=?3,expires_at_ns=0 WHERE id=?1",
-                params![id, serde_json::to_vec(&receipt)?, i64::try_from(200 - index)?],
-            )?;
-        }
-
-        let total: i64 = connection.query_row("SELECT count(*) FROM storage_mutations", [], |row| row.get(0))?;
-        assert_eq!(total, 4);
-
-        // Simulate the Existing Root Layout Before Expiry Columns Were Added.
-        if !indexed_expiry {
-            connection.execute_batch(
-                "DROP INDEX storage_mutation_expiry;
-            ALTER TABLE storage_mutations DROP COLUMN expires_at_s;
-            ALTER TABLE storage_mutations DROP COLUMN expires_at_ns;",
-            )?;
-        }
-
-        // Reopen and Replay Only the Two Newest Original Outcomes.
-        let (backends, _reopened_lease) = Backend::open_with_execution(&store, catalog.clone(), clock.clone())?;
-        let primary = backends.primary.clone();
-        let storage = StorageManager::with_catalog_execution(catalog, backends, settings, clock)?;
-        storage
-            .start_with(Arc::new(()), |mut worker| {
-                let task = tokio::spawn(async move {
-                    worker.run().await?;
-                    worker.cleanup().await
-                });
-                Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
-            })
-            .await?;
-        for index in [0, 1] {
-            assert_eq!(storage.mutate_once(&mutations[index], requests[index].clone()).await?, outcomes[index]);
-        }
-        assert!(matches!(
-            storage.mutate_once(&mutations[2], requests[2].clone()).await,
-            Err(Error::InvalidInput { field: "storage mutation", .. })
-        ));
-        let remaining = primary.list_mutation_receipts(ReadLimits { rows: capacity, bytes }).await?;
-        assert_eq!(remaining.len(), 3);
-        let count: i64 = connection.query_row("SELECT count(*) FROM storage_mutations", [], |row| row.get(0))?;
-        assert_eq!(count, 3);
-        storage.close().await?;
+        let mutation = MutationId {
+            window: window.id.clone(),
+            key: Identifier::new(index.to_string())?,
+        };
+        let items = vec![MutationItem::Create(catalog.encode(&value, bytes)?)];
+        let outcome = storage.mutate_once(&mutation, items.clone()).await?;
+        committed.push((mutation, items, outcome));
     }
+    assert_eq!(storage.mutation_window()?, window);
+    let limits = ReadLimits {
+        rows: NonZeroUsize::new(2).unwrap(),
+        bytes,
+    };
+    let recovered = primary.list_mutation_receipts(limits).await?;
+    assert_eq!(recovered.len(), 2);
+    let (mutation, items, original) = committed.iter().find(|(id, _, _)| !recovered.iter().any(|receipt| &receipt.mutation == id)).unwrap();
+    let accepted = storage.get_saved_position();
+    storage.close().await?;
+
+    // Reopen and Replay the Omitted Receipt Without Executing Its Create Again.
+    let (backends, _reopened_lease) = Backend::open_with_execution(&store, catalog.clone(), clock.clone())?;
+    let storage = StorageManager::with_catalog_execution(catalog, backends, settings, clock)?;
+    storage
+        .start_with(Arc::new(()), |mut worker| {
+            let task = tokio::spawn(async move {
+                worker.run().await?;
+                worker.cleanup().await
+            });
+            Ok(Box::new(StorageWorker(Mutex::new(Some(task)))))
+        })
+        .await?;
+    assert_eq!(storage.mutate_once(mutation, items.clone()).await?, *original);
+    assert_eq!(storage.get_saved_position(), accepted);
+    let unknown = MutationId {
+        key: Identifier::new("unknown-old-window")?,
+        ..mutation.clone()
+    };
+    assert!(matches!(storage.mutate_once(&unknown, items.clone()).await, Err(Error::InvalidInput { field: "storage mutation", .. })));
+    storage.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn expiry_index_reconstruction_preserves_keyed_receipts() -> Result<(), Box<dyn error::Error>> {
+    // Seed the Existing Receipt Format With Unexpired and Expired Outcomes.
+    let root = tempfile::tempdir()?;
+    let store = Store::open(root.path())?;
+    let now = SystemTime::UNIX_EPOCH + Duration::from_secs(100);
+    let (clock, _controller) = Execution::virtual_at(now);
+    let (backends, _lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), clock.clone())?;
+    let primary = &backends.primary;
+    primary.create_session().await?;
+    let receipt = MutationReceipt {
+        mutation: MutationId {
+            window: Identifier::new("window")?,
+            key: Identifier::new("retained")?,
+        },
+        fingerprint: [1; 32],
+        expires_at: now + Duration::from_secs(10),
+        value: MutationValue::Cursor(StorageCursor {
+            history: primary.get_history().clone(),
+            sequence: 0,
+        }),
+    };
+    let expired = MutationReceipt {
+        mutation: MutationId {
+            key: Identifier::new("expired")?,
+            ..receipt.mutation.clone()
+        },
+        expires_at: now,
+        ..receipt.clone()
+    };
+    primary.append_mutation_receipts(StorageBatch::new(vec![receipt.clone(), expired.clone()])).await?;
+    primary.delete_session().await?;
+
+    // Reconstruct the Existing Expiry Index When Reopening an Older Root.
+    let connection = Connection::open(root.path().join("storage.sqlite3"))?;
+    connection.execute_batch(
+        "DROP INDEX storage_mutation_expiry;
+        ALTER TABLE storage_mutations DROP COLUMN expires_at_s;
+        ALTER TABLE storage_mutations DROP COLUMN expires_at_ns;",
+    )?;
+    let (reopened, _reopened_lease) = Backend::open_with_execution(&store, ObjectCatalog::new(), clock)?;
+    let primary = &reopened.primary;
+    primary.create_session().await?;
+    assert_eq!(primary.get_mutation_receipt(&receipt.mutation).await?, Some(receipt.clone()));
+    assert!(primary.get_mutation_receipt(&expired.mutation).await?.is_none());
+    let limits = ReadLimits {
+        rows: NonZeroUsize::MIN,
+        bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
+    };
+    assert_eq!(primary.list_mutation_receipts(limits).await?, vec![receipt]);
+    primary.delete_session().await?;
     Ok(())
 }
 
@@ -323,6 +345,12 @@ async fn receipt_recovery_stops_at_memory_bounds_and_prunes_with_retention() -> 
         bytes: NonZeroUsize::new(one_receipt).unwrap(),
     };
     assert_eq!(primary.list_mutation_receipts(limits).await?, vec![newest.clone()]);
+    assert_eq!(primary.get_mutation_receipt(&oldest.mutation).await?, Some(oldest.clone()));
+    let unknown = MutationId {
+        key: Identifier::new("unknown")?,
+        ..newest.mutation.clone()
+    };
+    assert!(primary.get_mutation_receipt(&unknown).await?.is_none());
     let too_small = ReadLimits {
         bytes: NonZeroUsize::new(one_receipt - 1).unwrap(),
         ..limits
@@ -352,6 +380,8 @@ async fn receipt_recovery_stops_at_memory_bounds_and_prunes_with_retention() -> 
     primary.create_session().await?;
     let one_row = ReadLimits { rows: NonZeroUsize::MIN, ..full };
     assert_eq!(primary.list_mutation_receipts(one_row).await?, vec![newest.clone()]);
+    assert_eq!(primary.get_mutation_receipt(&middle.mutation).await?, Some(middle));
+    assert!(primary.get_mutation_receipt(&oldest.mutation).await.is_err());
 
     // Remove Expired Receipts Through the Library's Existing Retention Hook.
     let expired = MutationReceipt {
@@ -363,6 +393,7 @@ async fn receipt_recovery_stops_at_memory_bounds_and_prunes_with_retention() -> 
         ..newest
     };
     primary.append_mutation_receipts(StorageBatch::new(vec![expired.clone()])).await?;
+    assert!(primary.get_mutation_receipt(&expired.mutation).await?.is_none());
     let through = primary.get_saved_position().await?;
     assert!(primary.delete_expired_object_revisions(&through, NonZeroUsize::MIN, &ObjectCatalog::new()).await?);
     let count: i64 =
