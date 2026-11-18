@@ -30,7 +30,7 @@ mod secrets;
 
 // Local Imports
 
-use crate::{Result, error::Error, settings::Settings};
+use crate::{Result, settings::Settings};
 
 /* === Constants === */
 
@@ -58,14 +58,6 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 impl Command {
-    pub(super) fn require_trust(&self) -> Result<()> {
-        match self {
-            Self::Add(args) => require_trust(args.trust),
-            Self::Install(args) => require_trust(args.trust),
-            _ => Ok(()),
-        }
-    }
-
     pub(crate) fn action(&self) -> &'static str {
         match self {
             Self::Bundle(_) => "Bundle Plugin",
@@ -93,13 +85,6 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Se
     }
 }
 
-pub(super) fn require_trust(trust: bool) -> Result<()> {
-    if !trust {
-        return Err(Error::Invalid("Installing Runs the Plugin's Code with the Host's Access; Review It and Pass --trust".into()));
-    }
-    Ok(())
-}
-
 /* === Private Functions === */
 
 /* === Tests === */
@@ -109,20 +94,7 @@ mod tests {
     use clap::Parser;
     use dokime_packaging::project::PluginProject;
 
-    use crate::{cli::Cli, commands, error::Error, settings::Settings};
-
-    #[tokio::test]
-    async fn untrusted_install_and_add_refuse_before_io() {
-        for arguments in [["dokime", "plugin", "install", "missing.dokime"], ["dokime", "plugin", "add", "invalid-url"]] {
-            let cli = Cli::try_parse_from(arguments).unwrap();
-            let settings = Settings {
-                remote: Some("missing.dokime-remote".into()),
-                ..Settings::default()
-            };
-            let result = commands::run(cli.command, None, settings).await;
-            assert!(matches!(result, Err(Error::Invalid(_))));
-        }
-    }
+    use crate::{Result, cli::Cli, commands, settings::Settings};
 
     #[test]
     fn development_command_replaces_plugin_dev() {
@@ -139,7 +111,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn new_embeds_a_buildable_manifest_for_each_starter() -> crate::Result<()> {
+    async fn new_embeds_a_buildable_manifest_for_each_starter() -> Result<()> {
         let root = tempfile::tempdir()?;
         for (language, folder) in [("python", "test"), ("rust", "test"), ("csharp", "Test"), ("cpp", "test")] {
             let destination = root.path().join(language);

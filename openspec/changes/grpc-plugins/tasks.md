@@ -68,6 +68,7 @@
 - [x] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
 - [x] C++: Complete the Prescribed Host-Fixture Producer Proof With This Task's Authorized Release Build.
 - [x] Command Line: Implement Locked Point 11 With the Manifest-Project Amendment.
+- [x] Command Line: Remove Install/Add Trust Flags, Refusal and Callers; Installation Asks Nothing.
 - [x] Command Line: Delete Superseded Python Remote Control and Bootstrap Scripts.
 
 - [x] Integration: Normalize Member Code Names and Qualify Short Prompts Across All Four SDKs.
