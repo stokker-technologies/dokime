@@ -5,7 +5,8 @@ import { createRoot } from "react-dom/client";
 import { Connection } from "@/app/native-session/context";
 import type { ConnectedSession } from "@/app/native-session/session";
 import { NativeSession } from "@/app/native-session/session";
-import { fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
+import { fetchNativeDocument } from "@/lib/api/native-document-session";
+import { mapNativeDocument } from "@/lib/api/native-documents";
 import { commands } from "@/lib/desktop/commands";
 import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
 import type { DocumentViewPlot } from "@/lib/types";
@@ -95,7 +96,7 @@ const frameIdentities = new WeakMap<object, number>();
 let nextFrameIdentity = 0;
 globalThis.__desktopBench = observation;
 
-// Canvas Calls Are Observed At Their Real Owner, Including uPlot And Contour/Grid Drawing.
+// Canvas Calls Are Observed at Their Real Owner, Including uPlot and Contour/Grid Drawing.
 const canvasDraws = new WeakMap<HTMLCanvasElement, number>();
 for (const method of [
   "stroke",
@@ -192,7 +193,7 @@ function presented(now: number) {
   requestAnimationFrame(presented);
 }
 requestAnimationFrame(presented);
-// How Long Ago the Last Animation Frame Ran: a Growing Age Means the WebView Stopped Presenting Frames.
+// How Long Ago the Last Animation Frame Ran: A Growing Age Means the WebView Stopped Presenting Frames.
 globalThis.desktopFrameAge = () => performance.now() - previousFrame;
 
 function Workspace({ plots, scope }: { plots: DocumentViewPlot[]; scope: Wire<EvidenceScope> }) {

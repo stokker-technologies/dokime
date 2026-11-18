@@ -158,6 +158,8 @@ with `plugin-boundary` and `plugin-lifecycle`.
 
 - [x] 6.5e Limit desktop benchmark observations and missing-case reports to the job's recorded Criterion selection. Retain the reporter inventory because native listing starts the desktop driver; prove two failed split jobs report disjoint sets covering all 34 cases and merge without duplicate identities, plus focused tooling tests and Python formatting/checks.
 
+- [x] 6.5f Migrate the desktop benchmark to the application's native document-session API and include benches in the existing TypeScript check configuration. Prove its web build, TypeScript check and frontend lint without running benchmarks.
+
 ## Workflow Follow-Up
 
 - Review the dormant frozen sidebar composition in `crates/dokime-gui/src/shell/Sidebar.tsx` against `crates/dokime-gui/src/report/ReportShell.tsx`. The live AppShell calls Sidebar without frozen props; ReportApp calls ReportShell, which composes SidebarFrame and CycleSidebarCasesView directly. Keep the dormant Sidebar branch pending the owner's decision; recommend deleting it.

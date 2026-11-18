@@ -24,6 +24,6 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "tests", "e2e", "vite.config.ts"],
+  "include": ["src", "tests", "e2e", "benches", "vite.config.ts"],
   "references": []
 }
