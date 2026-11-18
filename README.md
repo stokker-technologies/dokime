@@ -60,6 +60,8 @@ mise run build -- --package dokime-cli
 ./target/debug/dokime dev --no-desktop --plugin ./bench/test
 ./target/debug/dokime plugin bundle ./bench/test --out ./bench.dokime
 ./target/debug/dokime server --endpoint 127.0.0.1:7000 --storage ./bench-data
+./target/debug/dokime --endpoint http://127.0.0.1:7000 access pairing export --label Operator --out operator.pair
+./target/debug/dokime --remote operator.pair status --json
 ```
 
 ### Python

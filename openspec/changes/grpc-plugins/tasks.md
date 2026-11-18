@@ -84,9 +84,9 @@
 - [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
 - [x] Integration: Remove Plaintext Execution-ID Report Assertions Superseded by the Shared Protobuf Capture Renderer.
 - [x] Integration: Align Short Text Prompt Choice Archetypes Across Python, C# and C++ With the Rust SDK and Prove Native Evidence Parity.
-- [x] Integration: Give Each CLI Development Story an Owned Data Root for Its Auto-Launched Sibling Desktop.
-- [ ] Integration: Repair Manual Prompt Waiting and Answering in the Remote First-Hour CLI Journey Without Changing Operation Policies.
-- [ ] Integration: Resolve Fresh Report Publication Versus Retained-Report Delivery in the Two-Desktop Story; Unchanged Report Data Currently Carries Different Notes Read Cuts.
+- [x] Integration: Make CLI Development Stories Headless and Remove Their Unreachable Sibling-Desktop Data-Root Overrides.
+- [x] Integration: Verify Manual Prompt Waiting and Answering in Both SDK Remote First-Hour CLI Journeys After the Dev Merge Without Changing Operation Policies.
+- [ ] Integration: Resolve Fresh Report Publication Versus Retained-Report Delivery in the Two-Desktop Story; Unchanged Report Data Currently Carries Different Notes Read Cuts, and Same-Identity `Reports.Create` Recollects Before Native Upload Replay and Can Conflict (`crates/dokime-operations/src/host/reports/create.rs`).
 - [x] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
 
 ## Plugin Project Manifests
@@ -98,7 +98,9 @@
 - [x] Replace Executable Flags and Python-Folder Detection With Bundle or Manifest-Project Development Inputs.
 - [x] Attach the Sibling Packaged Desktop When Present and Close It With the Disposable Host.
 - [x] Add `dokime dev --no-desktop` to Skip Desktop Lookup and Use It in Every Automated Caller While Preserving Default Desktop Supervision.
-- [ ] Complete Native Windows Proof of the Headless Development Flag With CLI Units, All CLI System Stories, Present-Sibling Reruns, Formatting, Focused Compilation and Rust Lint.
+- [x] Use Only `.pair` for CLI Remote Access Files, Default Exports, Tooling Callers and README Examples.
+- [x] Leave Development Credential Namespace Cleanup With `dokime dev`; Remove Scratch Runner Credential Scanning and Its Superseded Test.
+- [x] Complete Native Windows Proof of the Headless Development Flag With CLI Units, All CLI System Stories, Present Executable-Sibling Bypass, Formatting, Focused Compilation and Rust Lint.
 - [x] Bound Native Catalog Registration Stack Use Without Changing Operation Policies, Thread Placement or Stack Sizes.
 - [x] Embed Manifest Files in the Four Test Starters and Update README Command Examples.
 - [x] Complete Focused CLI, Packaging and Runtime Unit Proof, Owned-File Formatting, Locked Metadata and Three-Package Compilation With Tests.
