@@ -14,24 +14,31 @@
 # Standard Library Imports
 import unittest
 
+from google.protobuf.json_format import MessageToDict
+
 # Third Party Imports
 from google.protobuf.message import Message
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int64Value, StringValue
 from grpc.aio import insecure_channel
+from harmos._columns import columns_type
 from harmos._wire.host.v1.time_pb2 import TimeGetResponse
-from harmos._wire.plugin.v1.instance_pb2 import InstanceInvokeRequest, InstanceInvokeResponse
+from harmos._wire.plugin.v1.instance_pb2 import (
+    InstanceInvokeRequest,
+    InstanceInvokeResponse,
+    InstanceSamplesRequest,
+    InstanceSamplesResponse,
+)
 from harmos._wire.plugin.v1.invocation_pb2 import ChildResponse, Request
 
-from dokime import Context, Operation, Plugin, Visibility, criterion, prompt, record, step, suite
+# Local Imports
+from dokime import Context, Operation, Plugin, Visibility, criterion, observer, prompt, record, step, stream, suite
 from dokime._generated.host import HostOperation, host_requirement
 from dokime._wire.host.v1.evidence.records_pb2 import CapturedRecord, RecordsAppendRequest, RecordsListRequest, RecordsListResponse
 from dokime._wire.host.v1.prompts_pb2 import PromptsCreateRequest, PromptsCreateResponse
 from dokime._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
 from dokime._wire.plugin.v1.steps_pb2 import StepsExecuteRequest
 from dokime.operations import operation
-
-# Local Imports
 
 # Type Checking Imports
 
@@ -104,6 +111,67 @@ class PlainValueStory(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(response.response.HasField("failure"), response.response.failure)
                 actual = type(expected).FromString(response.response.payload)
                 self.assertEqual(actual, expected)
+            finally:
+                call.cancel()
+
+    async def test_scalar_streams_use_declared_payload_types(self) -> None:
+        @suite()
+        class Readings:
+            @step("Start")
+            def start(self, ctx: Context) -> None:
+                pass
+
+            @stream("Voltage")
+            @observer()
+            def voltage(self, ctx: Context) -> float:
+                return 2.5
+
+            @stream("Accepted", row=bool)
+            @observer()
+            def accepted(self, ctx: Context) -> bool:
+                return True
+
+        plugin = Plugin("streams", "1.0.0", suites=[Readings])
+        endpoint = await plugin.start("127.0.0.1:0")
+        self.addAsyncCleanup(endpoint.close)
+        channel = insecure_channel(endpoint.address)
+        self.addAsyncCleanup(channel.close)
+        template = plugin.suites[0].templates[0]
+        case = template.build({}).message
+        origin = {"plugin_run": {"plugin": plugin.identifier, "template": template.identifier, "test_case": case}}
+        invoke = channel.stream_stream(
+            "/harmos.plugin.v1.Instance/Invoke",
+            request_serializer=InstanceInvokeRequest.SerializeToString,
+            response_deserializer=InstanceInvokeResponse.FromString,
+        )
+        call = invoke()
+        try:
+            request = StepsExecuteRequest(execution="execution", step="readings.start", test_case=case, origin=origin)
+            await call.write(
+                InstanceInvokeRequest(
+                    request=Request(operation="readings.start", payload=request.SerializeToString(), scope="execution", attempt=1)
+                )
+            )
+            response = await call.read()
+            assert isinstance(response, InstanceInvokeResponse)
+            self.assertFalse(response.response.HasField("failure"), response.response.failure)
+        finally:
+            call.cancel()
+        samples = channel.stream_stream(
+            "/harmos.plugin.v1.Instance/Samples",
+            request_serializer=InstanceSamplesRequest.SerializeToString,
+            response_deserializer=InstanceSamplesResponse.FromString,
+        )
+        for name, row, expected in (("voltage", DoubleValue, [2.5, 2.5]), ("accepted", BoolValue, [True, True])):
+            call = samples()
+            try:
+                await call.write(InstanceSamplesRequest(open={"stream": f"readings.{name}", "scope": "execution"}))
+                await call.write(InstanceSamplesRequest(window={"count": 2, "period": {"seconds": 1}}))
+                response = await call.read()
+                assert isinstance(response, InstanceSamplesResponse)
+                self.assertEqual(response.batch.count, 2)
+                values = columns_type(row, f"readings.{name}").FromString(response.batch.columns)
+                self.assertEqual(MessageToDict(values)["value"], expected)
             finally:
                 call.cancel()
 

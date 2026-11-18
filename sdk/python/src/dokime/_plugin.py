@@ -26,6 +26,7 @@ from google.protobuf.message import Message
 from harmos import VISIBILITY_PROTECTED, Declarations, OperationPolicy, RetryPolicy, SettingDeclaration
 from harmos.plugin import Operation, Publisher, Window, observer, on_stop, operation, publisher, window_observer
 
+# Local Imports
 import dokime.operations
 from dokime._wire.model.v1.prompts_pb2 import PromptDefinitions
 from dokime._wire.model.v1.record_contracts_pb2 import RecordContract, RecordContracts
@@ -34,7 +35,7 @@ from dokime._wire.model.v1.suites_pb2 import Suites
 from ._context import Context
 from ._generated.host import HostOperation, host_requirement
 from ._generated.shared import SecretDeclaration, SecretsDeclarations
-from ._payloads import message_type
+from ._payloads import message_type, pack
 from ._wire.plugin.v1.criteria_pb2 import CriteriaEvaluateRequest, CriteriaEvaluateResponse
 from ._wire.plugin.v1.executions_pb2 import (
     ExecutionsCleanupRequest,
@@ -44,8 +45,6 @@ from ._wire.plugin.v1.executions_pb2 import (
 )
 from ._wire.plugin.v1.steps_pb2 import StepsExecuteRequest, StepsExecuteResponse
 from ._wire.plugin.v1.test_cases_pb2 import TestCasesMaterializeRequest, TestCasesMaterializeResponse
-
-# Local Imports
 from .authoring import _SUITES, Case, Sampling, Stream, Suite, Template, build_identifier
 from .values import decode
 
@@ -116,12 +115,6 @@ class Plugin:
                 for name, method in vars(cls).items():
                     if hasattr(method, "__dokime_operation__"):
                         methods[f"external_{name}"] = dokime.operations._bind_operation(getattr(operations, name))
-                        continue
-                    if any(
-                        hasattr(method, attribute)
-                        for attribute in ("__harmos_operation__", "__harmos_observer__", "__harmos_publisher__", "__harmos_stop__")
-                    ):
-                        methods[f"external_{name}"] = getattr(operations, name)
         for index, template in enumerate(templates):
             methods[f"materialize_{index}"] = self._materialize(template)
             if "initialize" in template._methods:
@@ -289,7 +282,7 @@ class Plugin:
             result = getattr(session.instance, name)(context)
             if inspect.isawaitable(result):
                 result = await result
-            return result if isinstance(result, definition.row) else definition.row(value=result)
+            return pack(definition.row, result)
 
         async def observe_window(adapter: object, transport: harmos.plugin.Context, window: Window) -> Message:
             key = (cast(str, template.identifier), transport.scope())
@@ -300,7 +293,7 @@ class Plugin:
             if inspect.isawaitable(result):
                 result = await result
             columns = cast(type[Message], sampling.columns if sampling else None)
-            return result if isinstance(result, columns) else columns(value=result)
+            return pack(columns, result)
 
         async def publish(adapter: object, transport: harmos.plugin.Context, publisher: Publisher) -> None:
             key = (cast(str, template.identifier), transport.scope())
@@ -308,7 +301,7 @@ class Plugin:
             session = self._sessions[key]
             context = Context(transport, {key: decode(value) for key, value in session.case.message.parameters.items()}, template)
             async for result in getattr(session.instance, name)(context):
-                row = result if isinstance(result, definition.row) else definition.row(value=result)
+                row = pack(definition.row, result)
                 await publisher.publish(row)
 
         if sampling:
@@ -317,7 +310,7 @@ class Plugin:
             if sampling.columns is None:
                 return observer(
                     identity,
-                    row=definition.row,
+                    row=message_type(definition.row),
                     interval=duration,
                     interval_setting=sampling.interval_setting,
                     window_setting=sampling.window_setting,
@@ -325,14 +318,14 @@ class Plugin:
                 )(observe)
             return window_observer(
                 identity,
-                row=definition.row,
+                row=message_type(definition.row),
                 columns=sampling.columns,
                 interval=duration,
                 interval_setting=sampling.interval_setting,
                 window_setting=sampling.window_setting,
                 description=definition.label,
             )(observe_window)
-        return publisher(identity, row=definition.row, description=definition.label)(publish)
+        return publisher(identity, row=message_type(definition.row), description=definition.label)(publish)
 
     def _stop(self) -> Callable[..., Awaitable[None]]:
         async def release(adapter: object) -> None:

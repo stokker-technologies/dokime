@@ -22,14 +22,12 @@ from weakref import WeakKeyDictionary
 
 # Third Party Imports
 from google.protobuf.message import Message
-from google.protobuf.wrappers_pb2 import DoubleValue
 
+# Local Imports
 from dokime._generated import shared
 from dokime._generated.shared import DataExpression, FileParameter, Parameter, TestCase, TestCaseTemplate
 
 from ._payloads import Payload, message_type
-
-# Local Imports
 from .documents import Document
 from .plot import Expression
 from .values import Scalar, encode
@@ -95,7 +93,7 @@ class Criterion:
 @dataclass(frozen=True)
 class Stream:
     identifier: str | None = None
-    row: type[Message] = DoubleValue
+    row: type[Payload] = float
     label: str = ""
 
     def field(self, name: str = "value") -> Expression:
@@ -260,6 +258,7 @@ class Case:
         return self._add("criterion", label, handler, identifier, arguments)
 
     def _add(self, kind: str, label: str, handler: Callable[..., object], identifier: str | None, arguments: dict[str, object]) -> "Case":
+        handler = getattr(handler, "__func__", handler)
         definitions = self.template.steps if kind == "step" else self.template.criteria
         definition = next((item for item in definitions if item.handler is handler), None)
         if definition is None:
@@ -289,9 +288,9 @@ def build_identifier(name: str, explicit: str | None = None, *, prefix: str | No
     else:
         if class_name:
             name = re.sub(r"(?:Template|Suite)$", "", name)
-        words = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1-\2", name)
-        words = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", words)
-        local = words.replace("_", "-").lower()
+            name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
+            name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+        local = name.lower()
     if not local or not local.strip():
         raise ValueError("Build Plugin: Supply a Nonempty Declaration Identifier")
     return f"{prefix}.{local}" if prefix else local
@@ -376,9 +375,9 @@ def window_observer[**P, R](
     return _sampling(Sampling(interval_ms, interval_setting, window_setting, columns))
 
 
-def stream[**P, R](
-    label: str, *, identifier: str | None = None, row: type[Message] = DoubleValue
-) -> Callable[[Callable[P, R]], Callable[P, R]]:
+def stream[**P, R](label: str, *, identifier: str | None = None, row: type[Payload] = float) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    message_type(row)
+
     def decorate(handler: Callable[P, R]) -> Callable[P, R]:
         if not isinstance(handler, FunctionType):
             raise TypeError("Register Definition: Supply a Function")

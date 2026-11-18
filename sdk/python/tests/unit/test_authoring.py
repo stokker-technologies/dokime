@@ -15,15 +15,16 @@
 import ast
 import unittest
 from pathlib import Path
+from typing import Self
 
 # Third Party Imports
 from google.protobuf.wrappers_pb2 import BoolValue
 
+# Local Imports
 from dokime import Context, Plugin, Prompt, PromptDefinitions, Template, criterion, observer, prompt, record, step, stream, suite
 from dokime._payloads import message_type, pack, unpack
-from dokime.authoring import Suite
-
-# Local Imports
+from dokime.authoring import Case, Suite, materialize
+from dokime.values import Scalar
 
 # Type Checking Imports
 
@@ -60,16 +61,16 @@ class AuthoringStory(unittest.TestCase):
         plugin = Plugin("naming", "1.0.0", suites=[HTTPAccuracySuite])
         template = plugin.suites[0].templates[0]
         case = template.build({}).message
-        self.assertEqual(template.identifier, "http-accuracy")
-        self.assertEqual(case.steps[0].metadata.identifier, "http-accuracy.read-voltage")
-        self.assertEqual(case.criteria[0].metadata.identifier, "http-accuracy.reading-ok")
-        self.assertEqual(list(case.streams), ["http-accuracy.outlet-temperature"])
-        self.assertEqual(template.resolve(HTTPAccuracySuite.accepted_reading), "http-accuracy.accepted-reading")
+        self.assertEqual(template.identifier, "http_accuracy")
+        self.assertEqual(case.steps[0].metadata.identifier, "http_accuracy.read_voltage")
+        self.assertEqual(case.criteria[0].metadata.identifier, "http_accuracy.readingok")
+        self.assertEqual(list(case.streams), ["http_accuracy.outlet_temperature"])
+        self.assertEqual(template.resolve(HTTPAccuracySuite.accepted_reading), "http_accuracy.accepted_reading")
         self.assertEqual(template.resolve(HTTPAccuracySuite().read_voltage), case.steps[0].metadata.identifier)
         sections = plugin.declarations().sections
         prompts = next(section for section in sections if section.type.endswith("PromptDefinitions"))
         value = PromptDefinitions.FromString(prompts.payload)
-        self.assertEqual(value.prompts[0].metadata.identifier, "http-accuracy.operator-choice")
+        self.assertEqual(value.prompts[0].metadata.identifier, "http_accuracy.operator_choice")
 
     def test_grouped_templates_bind_once_without_mutating_shared_declarations(self) -> None:
         class VoltageTemplate:
@@ -99,7 +100,7 @@ class AuthoringStory(unittest.TestCase):
         single = Plugin("one", "1.0.0", suites=[RenamedSuite]).suites[0].templates[0]
         grouped = Plugin("two", "1.0.0", suites=[Suite("accuracy", [Template(RenamedSuite)])]).suites[0].templates[0]
         self.assertEqual(single.identifier, "chosen")
-        self.assertEqual(single.resolve(RenamedSuite.read_value), "chosen.read-value")
+        self.assertEqual(single.resolve(RenamedSuite.read_value), "chosen.read_value")
         self.assertEqual(grouped.identifier, "accuracy.renamed")
 
     def test_duplicate_and_empty_declarations_fail_at_construction(self) -> None:
@@ -127,6 +128,39 @@ class AuthoringStory(unittest.TestCase):
         for declaration in (Repeated, Empty, CrossKind, EmptySuite):
             self.assertRaises(ValueError, Plugin, "invalid", "1.0.0", suites=[declaration])
         self.assertRaises(ValueError, Plugin, "invalid", "1.0.0", suites=[Repeated, Repeated])
+
+    def test_materialized_members_qualify_and_bind_instance_methods(self) -> None:
+        @suite()
+        class VoltageAccuracy:
+            @step("Read")
+            def read_voltage(self, ctx: Context, *, channel: int) -> None:
+                pass
+
+            @criterion("Accept")
+            def accept_voltage(self, ctx: Context, *, channel: int) -> bool:
+                return True
+
+            @materialize
+            def channels(cls: type[Self], case: Case, parameters: dict[str, Scalar]) -> None:
+                channels = parameters["channels"]
+                if not isinstance(channels, list):
+                    raise TypeError("Materialize Voltages: Supply a List of Channels")
+                instance = cls()
+                for channel in channels:
+                    case.step("Read", instance.read_voltage, identifier=f"read_{channel}", channel=channel)
+                    case.criterion("Accept", instance.accept_voltage, identifier=f"accept_{channel}", channel=channel)
+
+        template = Plugin("voltage", "1.0.0", suites=[VoltageAccuracy]).suites[0].templates[0]
+        case = template.build({"channels": [1, 2]})
+        self.assertEqual([item.metadata.identifier for item in case.message.steps], ["voltage_accuracy.read_1", "voltage_accuracy.read_2"])
+        self.assertEqual(
+            [item.metadata.identifier for item in case.message.criteria], ["voltage_accuracy.accept_1", "voltage_accuracy.accept_2"]
+        )
+        self.assertEqual([item.operation for item in case.message.steps], ["voltage_accuracy.read_voltage"] * 2)
+        self.assertEqual([item.operation for item in case.message.criteria], ["voltage_accuracy.accept_voltage"] * 2)
+        self.assertEqual(case.bindings["step", "voltage_accuracy.read_2"], (VoltageAccuracy.read_voltage, {"channel": 2}))
+        self.assertEqual(case.bindings["criterion", "voltage_accuracy.accept_2"], (VoltageAccuracy.accept_voltage, {"channel": 2}))
+        self.assertEqual(template.resolve(VoltageAccuracy().read_voltage), "voltage_accuracy.read_voltage")
 
     def test_structured_prompt_fields_survive_template_binding(self) -> None:
         definition = Prompt(

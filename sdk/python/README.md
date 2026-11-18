@@ -106,8 +106,11 @@ plain value; structured protobuf rows retain their message type. `last()` refuse
 an empty result: append a record before reading its last value.
 
 The SDK generates identifiers from code names, independently of labels: remove a
-trailing `Suite` or `Template` from class names, separate word boundaries and
-underscores with hyphens, and lowercase. An explicit `identifier=` wins.
+trailing `Suite` or `Template` from class names, separate class word boundaries
+with underscores, and lowercase. Method and attribute names retain their underscores.
+For example, `VoltageAccuracy` becomes `voltage_accuracy`, `HTTPAccuracySuite`
+becomes `http_accuracy`, and `read_voltage` stays `read_voltage`. An explicit
+`identifier=` wins.
 A single-class suite uses its suite identifier for its sole template:
 `Capture` gives template `capture` and record `capture.confirmation`.
 A grouped `Suite("accuracy", [Template(VoltageTemplate)])` gives template
@@ -120,7 +123,9 @@ with `question = prompt("Continue?", choices=["Yes", "No"])` and pass it to
 rejects empty or duplicate identifiers before serving. `ctx.record`, `ctx.records`
 and `ctx.statistics` take a local declaration or stream method; step filters take
 the bound step method. Materializers are synchronous and pure. Repeated calls to
-one handler must supply distinct local `identifier=` values when adding case steps.
+one handler must supply distinct local `identifier=` values when adding case steps
+or criteria; the same identifier function qualifies them during materialization.
+Both class methods and bound instance methods may reference their declared handlers.
 
 The runnable examples are:
 
@@ -174,7 +179,10 @@ Import these decorators, `Context` and `Window` from `dokime`.
 
 The host grants a window containing `count` samples from `start`, one `period` apart.
 `interval_ms` may be fractional; `window_setting` selects the plugin duration
-setting that replaces the host's window length. Scalar observers use double rows.
+setting that replaces the host's window length. Streams use the shared payload
+conversion: the default row is `float` (a double wrapper), and `row=bool`, `str`
+or `int` selects the corresponding wrapper. Structured rows and window columns
+return their declared protobuf messages.
 
 ## Call the Host
 

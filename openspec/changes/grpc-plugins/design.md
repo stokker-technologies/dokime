@@ -786,7 +786,7 @@ Applies to every SDK language; Python is the reference implementation, the other
 1. **Only the product package.** Every example, starter and consumer-facing snippet imports only from `dokime`. Nothing an author writes imports or names the underlying library. The SDK re-exports what authors need (operation decorator, context, visibility).
 2. **Short prompt.** Examples and starters ask the operator with `ctx.prompt(text, choices=[...])`, which returns the chosen label. The long host-operation form is not used in examples.
 3. **Qualified identifiers.** A template is `<suite>.<template>` (`accuracy.voltage`). Everything declared inside a template (records, streams, prompts, steps, criteria) is `<suite>.<template>.<name>` on the wire and in evidence. Authors write and pass only the local declaration; the SDK qualifies it.
-4. **Generated identifiers.** An identifier the author does not give is generated from the code name, never from the label: class name minus a trailing `Template` or `Suite`, method or attribute name for members; lowercased, word boundaries and underscores become `-`. An explicit `identifier=` wins. The existing label-derived fallback for steps and criteria is replaced by this rule.
+4. **Generated identifiers.** An identifier the author does not give is generated from the code name, never from the label: class name minus a trailing `Template` or `Suite`, method or attribute name for members; class word boundaries become `_`, and names are lowercased; Python method and attribute names otherwise pass through unchanged. For example, `VoltageAccuracy` becomes `voltage_accuracy`, `HTTPAccuracySuite` becomes `http_accuracy`, and `read_voltage` stays `read_voltage`. An explicit `identifier=` wins. The existing label-derived fallback for steps and criteria is replaced by this rule.
 5. **Declarations live on the template.** Records are declared on the template class (as streams already are with the stream decorator) and on observers. The plugin-level `records=` argument is removed.
 6. **Plain values.** Records and simple operations accept `str`, `bool`, `int`, `float` (and the language's equivalents); the SDK wraps them in the well-known wrapper messages. Structured rows stay protobuf messages.
 7. **No `sections`.** The raw declaration-section list is removed from the author-facing plugin value; the SDK builds every section from typed declarations.
@@ -866,12 +866,12 @@ StringValue and DoubleValue. Records and operations share the same conversion.
 A single-class `Capture` suite has template `capture`, step `capture.confirm` and
 record `capture.confirmation`. Grouped `Suite("accuracy", [Template(VoltageTemplate)])`
 has template `accuracy.voltage`; a `read_voltage` method becomes
-`accuracy.voltage.read-voltage`. Explicit `identifier="rms"` on that method gives
+`accuracy.voltage.read_voltage`. Explicit `identifier="rms"` on that method gives
 `accuracy.voltage.rms`. Qualification is stored on the plugin's bound template;
-reusing a class in another suite never mutates its local declarations. Existing
-parameterized materializers supply distinct explicit local identifiers for repeated
-instances of one method; those deferred instance identifiers are qualified when
-freezing the case, because their parameter values are unavailable at plugin assembly.
+reusing a class in another suite never mutates its local declarations.
+Steps and criteria added during materialization use the same single identifier
+function and underscore rule to qualify distinct local instance identifiers there;
+both unbound and bound methods resolve to their declared handler.
 
 Rust, C#, C++ and command-line starters must follow the same imports/namespaces,
 short prompts, code-name identifiers and single-class versus grouped-template rule,
@@ -880,12 +880,9 @@ references and removal of raw records/sections and example requirement lists.
 Python launchers must start `plugin.py`; `main.py` drives the plugin through a client.
 Command-line running, bundling and trust behavior remains point 11's separate owner.
 
-Native proof currently exposes a contract conflict: the pinned carrier's
-`crates/harmos-protocol/src/schema/identity.rs` accepts only alphanumeric or underscore
-segments for local operation identities. Generated hyphenated names are rejected
-at host admission. The locked Python names are retained; host admission needs an
-owner decision and repair before the native integration proof can pass. No grammar
-shim or alternate identifier family is introduced here.
+Generated underscore identifiers satisfy the pinned carrier
+`crates/harmos-protocol/src/schema/identity.rs` segment grammar without a library
+change or a second identifier family. Explicit identifiers remain author supplied.
 
 ### Authoring Adoption Owners
 
