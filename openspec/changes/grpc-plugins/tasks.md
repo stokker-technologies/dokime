@@ -109,6 +109,7 @@
 - [x] Update the Compiler-Record Story to Stage Real Executable Fixtures Before Manifest Bundling and Pass Tooling Integration Tests.
 - [x] Generate the Shared Report Template Before Independent Rust Fixture, Test-Archive and Lint Compilation; Propagate Generation Failures Before Compilation.
 - [x] Preserve Focused Native JUnit Reports Before Scratch Cleanup and Keep Cleanup Failures Visible.
+- [x] Keep the Launch-Folder Round-Trip Interpreter Outside the Shipped Inventory and Prove Source-Only Bundling and Execution Without Changing Byte Bounds.
 - [x] Generate the Shared Report Template After Restoring Coverage Clients and Before Instrumented Runtime Compilation; Prepare It Before Storage-Only Benchmark Compilation and Audit Every Runtime Compiler Lane Without Committing Generated Reports.
 
 ## Desktop Reports and Paired Python
