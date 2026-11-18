@@ -240,7 +240,7 @@ class NativeAuthoringStory(unittest.IsolatedAsyncioTestCase):
             version = "1.0.0"
             suites: ClassVar[list[type[Suite]]] = [ChannelsSuite]
 
-        mechanical = Path(__file__).resolve().parents[2] / "examples/test/tests/host.py"
+        mechanical = Path(__file__).resolve().parents[2] / "tests/support/host.py"
         host = await runpy.run_path(str(mechanical))["Host"].start(self)
         client = cast(Client, host.client)
         author = ChannelsPlugin()

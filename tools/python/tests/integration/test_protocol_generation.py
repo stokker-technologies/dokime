@@ -69,7 +69,13 @@ class GenerationContracts(unittest.TestCase):
             check_public_surfaces(scratch)
             root = package / "__init__.py"
             original = root.read_text()
-            for source in ("Context = object()", "__all__ = []", "from ._client import Client as OtherClient"):
+            for source in (
+                "Context = object()",
+                "__all__ = []",
+                "from ._client import Client as OtherClient",
+                "def __getattr__(name): return object()",
+                "from ._generated import Other",
+            ):
                 with self.subTest(source=source):
                     root.write_text(original + "\n" + source, encoding="utf-8")
                     self.assertRaises(ValueError, check_public_surfaces, scratch)

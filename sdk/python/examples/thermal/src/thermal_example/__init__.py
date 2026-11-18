@@ -1,6 +1,6 @@
 # ***
 #
-# Starter Project
+# Thermal Example
 #
 # SPDX-License-Identifier: Apache-2.0
 #

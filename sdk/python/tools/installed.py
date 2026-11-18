@@ -53,6 +53,7 @@ def main() -> None:
             sys.executable,
             "--no-deps",
             "--reinstall",
+            str(root / "sdk/python/examples/client"),
             str(root / "sdk/python/examples/starter"),
             str(root / "sdk/python/examples/thermal"),
         ],

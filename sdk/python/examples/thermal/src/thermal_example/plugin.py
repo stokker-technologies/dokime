@@ -1,6 +1,6 @@
 # ***
 #
-# Dokime
+# Thermal Example
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,45 +12,26 @@
 
 # Standard Library Imports
 import asyncio
-from typing import cast
 
-from dokime_sdk import Plugin, Suite
-from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, observer, record, step, stream, window_observer
+# isort: split
 
 # Third Party Imports
-from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
+from dokime_sdk import Plugin, Suite
+from dokime_sdk.templates import Context, Parameter, TestTemplate, Window, criterion, observer, record, step, stream, window_observer
 from google.protobuf.message import Message
 
+# isort: split
+
 # Local Imports
+from thermal_example.models import Counter, CounterColumns, Door, Temperature
 
 # Type Checking Imports
 
-
-# === Public Functions === #
-
-
-# Protobuf Types Belong to the Fixture, Not to the SDK.
-def row_type(name: str, field: str, kind: int, *, repeated: bool = False) -> type[Message]:
-    definition = descriptor_pb2.FileDescriptorProto(name=f"thermal/{name}.proto", package="thermal", syntax="proto3")
-    row = definition.message_type.add(name=name)
-    row.field.add(
-        name=field,
-        number=1,
-        type=cast(descriptor_pb2.FieldDescriptorProto.Type, kind),
-        label=descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED if repeated else descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL,
-    )
-    pool = descriptor_pool.Default()
-    pool.Add(definition)
-    return message_factory.GetMessageClass(pool.FindMessageTypeByName(f"thermal.{name}"))
-
+# === Public Exports === #
 
 # === Constants === #
 
-Temperature = row_type("Temperature", "celsius", descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE)
-Counter = row_type("Counter", "value", descriptor_pb2.FieldDescriptorProto.TYPE_UINT64)
-CounterColumns = row_type("CounterColumns", "value", descriptor_pb2.FieldDescriptorProto.TYPE_UINT64, repeated=True)
-Door = row_type("Door", "closed", descriptor_pb2.FieldDescriptorProto.TYPE_BOOL)
-
+# === Types === #
 
 # === Classes === #
 

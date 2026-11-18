@@ -68,7 +68,7 @@ class HostFactory(Protocol):
 
 class EvidenceQueryStory(unittest.IsolatedAsyncioTestCase):
     async def test_bound_lookup_frozen_records_and_retained_archives(self) -> None:
-        specification = spec_from_file_location("evidence_starter_host", REPOSITORY / "sdk/python/examples/test/tests/host.py")
+        specification = spec_from_file_location("evidence_starter_host", REPOSITORY / "sdk/python/tests/support/host.py")
         assert specification is not None and specification.loader is not None
         module = module_from_spec(specification)
         specification.loader.exec_module(module)

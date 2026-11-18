@@ -60,6 +60,7 @@ PYTHON_PUBLIC_HOMES = {
             "connect",
         ]
     ),
+    # SDK Surface Specification S3 Defers SettingGroup Until Its Metadata Contract Is Agreed.
     "operations": frozenset(
         [
             "BoundOperation",
@@ -71,7 +72,6 @@ PYTHON_PUBLIC_HOMES = {
             "RetryPolicy",
             "SecretDeclaration",
             "SettingDeclaration",
-            "SettingGroup",
             "SettingValue",
             "StreamSubscription",
             "Visibility",
@@ -242,9 +242,11 @@ def check_public_surfaces(root: Path) -> None:
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 names.update(target.id for target in targets if isinstance(target, ast.Name))
             if isinstance(node, ast.ImportFrom):
-                names.update(item.name for item in node.names if item.name in expected)
+                names.update(item.name for item in node.names if item.name in expected or (not module and not item.name.startswith("_")))
             if isinstance(node, (ast.Import, ast.ImportFrom)) and any(item.asname is not None for item in node.names):
                 findings.append(f"{relative}:{node.lineno}: Remove Python Import Aliases")
+        if "__getattr__" in names or "__dir__" in names:
+            findings.append(f"{relative}: Remove Dynamic Python Public Exports")
         if "__all__" in names:
             findings.append(f"{relative}: Remove __all__; Declare the Three Public Homes Directly")
         names = {name for name in names if not name.startswith("_")}
@@ -255,7 +257,7 @@ def check_public_surfaces(root: Path) -> None:
     for path in package.glob("*"):
         if path.name.startswith("_") or path.name in {"operations.py", "templates", "py.typed", "LICENSE", "NOTICE"}:
             continue
-        if path.suffix in {".py", ".pyi"} or path.is_dir():
+        if path.suffix in {".py", ".pyi"} or (path.is_dir() and any(item.suffix in {".py", ".pyi"} for item in path.rglob("*"))):
             findings.append(f"{path.relative_to(root)}: Remove the Fourth Python Public Home")
     for path in sorted((root / "sdk/csharp/src/Dokime").rglob("*.cs")):
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):

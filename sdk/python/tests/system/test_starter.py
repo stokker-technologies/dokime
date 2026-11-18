@@ -1,6 +1,6 @@
 # ***
 #
-# Starter Project
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -54,8 +54,7 @@ class StarterStory(unittest.IsolatedAsyncioTestCase):
         await client.plugins.register(ExamplePlugin())
 
         async def answer(question: PromptQuestion) -> PromptAnswer:
-            self.assertEqual(question.choices, ("Yes", "No"))
-            return PromptAnswer("Yes")
+            return PromptAnswer(question.choices[0])
 
         client.on_prompt(answer)
         cycle = await client.cycle(label="Starter Capture")

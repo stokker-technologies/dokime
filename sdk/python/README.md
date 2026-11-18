@@ -71,7 +71,7 @@ the SDK reports unsupported contracts explicitly.
 
 - [Starter](examples/starter/): confirmation suite, public echo operation and client flow.
 - [Thermal](examples/thermal/): parameterized procedure, records, observers and window sampling.
-- [Client](examples/client/main.py): browse bound cycle handles.
+- [Client](examples/client/src/client_example/__main__.py): browse bound cycle handles.
 
 ```sh
 mise -C sdk/python run prepare

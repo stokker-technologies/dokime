@@ -156,6 +156,10 @@
   - [ ] Prove Installed Resolved Versions After the Library Plugin Manager Retains the Frozen Bundle Version Across Activation and Replacement.
   - [ ] Complete Packaging and CLI Units, Created-Starter Bundle/Inspect/Dev Stories, Focused Compilation, Repository Checks and Package Lint.
 - [ ] (e) Migrate Python Starters, Examples, Generation, Public/Stub Guards, Tests and Stories to the Reference Project Shape; Ship No Lock, Root Entry Scripts, Argument Parsing or Old Imports.
+  - [x] Replace the Owned Python Starter Sources With the Reference-Shaped Single Project, Its Host-Free Description Test and Explicit Project/Package Substitution Markers.
+  - [x] Migrate the Client/Thermal Example Packages, Python Fixture Launchers, Typed Consumer and Three-Home/Strict Stub Inventories; Keep Repository Host Stories Outside the Starter.
+  - [ ] Reconcile the Manifest/Asset and CLI Embedding Owners, Retire the Generated Public Client Facade and Complete Editable-Install Metadata and Listener-Address Readiness Support in the SDK.
+  - [ ] Complete Strict Installed Stubs, All Host-Free Integrations, Repository Checking and the Isolated Starter Test/Listener Proof After Their Owning Source Repairs; Run the Named Host Stories on the Combined Candidate.
 - [ ] (f) Implement the SDK Surface Specification's Rust SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (g) Implement the SDK Surface Specification's C# SDK and Shared-Library/Plugin/Client Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.
 - [ ] (h) Implement the SDK Surface Specification's C++ SDK and Two-Binary Starters With Owned Generation, Focused Proof and No Superseded Client or Authoring Paths.

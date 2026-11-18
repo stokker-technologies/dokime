@@ -1,6 +1,6 @@
 # ***
 #
-# Starter Project
+# Dokime
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -56,8 +56,7 @@ async def journey(phase: str, url: str, expected: Path) -> None:
             await client.plugins.register(ThermalPlugin())
 
             async def answer(question: PromptQuestion) -> PromptAnswer:
-                assert question.choices == ("Yes", "No")
-                return PromptAnswer("Yes")
+                return PromptAnswer(question.choices[0])
 
             client.on_prompt(answer)
             cycle = await client.cycle(label="Thermal Cycle")

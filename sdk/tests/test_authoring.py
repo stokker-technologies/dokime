@@ -48,13 +48,19 @@ class AuthoringEquivalence(unittest.IsolatedAsyncioTestCase):
         extension = ".exe" if os.name == "nt" else ""
         configuration = os.environ.get("DOKIME_CSHARP_CONFIGURATION", "Release").lower()
         locating = await asyncio.create_subprocess_exec(
-            "mise", "-C", str(root / "sdk/csharp"), "which", "dotnet",
+            "mise",
+            "-C",
+            str(root / "sdk/csharp"),
+            "which",
+            "dotnet",
             stdout=asyncio.subprocess.PIPE,
             creationflags=spawn_flags(),
         )
         output, _ = await locating.communicate()
         if locating.returncode:
-            raise RuntimeError("Locate C# Fixture: Install Its Declared dotnet Tool With Mise")
+            raise RuntimeError(
+                "Locate C# Fixture: Install Its Declared dotnet Tool With Mise"
+            )
         dotnet = output.decode().strip()
         commands = {
             "python": [
