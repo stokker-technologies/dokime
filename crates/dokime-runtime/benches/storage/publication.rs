@@ -18,14 +18,17 @@
 // Standard Library Imports
 use std::{
     collections::HashMap,
+    env,
     hint::black_box,
     io::{Read, Seek, Write},
     num::NonZeroUsize,
+    path::PathBuf,
+    process,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicU64, Ordering},
     },
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 // Third Party Imports
@@ -40,7 +43,7 @@ use dokime_protocol::host::files_client::FilesClient;
 use dokime_protocol::host::reports_client::ReportsClient;
 use dokime_protocol::host::{EvidenceArchiveRequest, EvidenceSubject, FilesReadRequest, PromptsCreateResponse, evidence_subject};
 use dokime_protocol::host::{ReportSubject, ReportsCreateRequest, ReportsPublishRequest, report_subject};
-use dokime_runtime::{ControlledClock, Cycle, Host, HostSettings, PlacementSettings, PluginProcess, services};
+use dokime_runtime::{ControlledClock, CredentialNamespace, Cycle, Host, HostSettings, PlacementSettings, PluginProcess, services};
 use dokime_storage::storage_defaults;
 
 use dokime_protocol::model::Value;
@@ -89,7 +92,7 @@ struct Observed {
 
 pub(super) struct Fixture {
     pub host: Host,
-    pub root: std::path::PathBuf,
+    pub root: PathBuf,
     pub cycle: Cycle,
     pub execution: String,
     template: String,
@@ -104,7 +107,7 @@ pub(super) struct Fixture {
 impl Fixture {
     pub(super) async fn new(settings: HostSettings, endpoint: &str, template: &str, rows: usize) -> Self {
         let root = tempfile::tempdir().unwrap().keep();
-        let operations = dokime_runtime::services::ClientSettings {
+        let operations = services::ClientSettings {
             read_timeout: OPERATION_TIMEOUT,
             mutation_timeout: OPERATION_TIMEOUT,
             watch_timeout: OPERATION_TIMEOUT,
@@ -241,7 +244,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
     );
     group.bench_function("observer_publication_and_barrier_durable/1024", |b| {
         let plugin = plugin.get_or_insert_with(|| {
-            executor.block_on(PluginProcess::start(&std::env::current_exe().unwrap(), true, &settings().placement)).unwrap()
+            executor.block_on(PluginProcess::start(&env::current_exe().unwrap(), true, &settings().placement)).unwrap()
         });
         b.iter_custom(|iterations| {
             executor.block_on(async {
@@ -269,7 +272,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
     );
     group.bench_function("execution_end_and_shutdown/65536", |b| {
         let plugin = plugin.get_or_insert_with(|| {
-            executor.block_on(PluginProcess::start(&std::env::current_exe().unwrap(), true, &settings().placement)).unwrap()
+            executor.block_on(PluginProcess::start(&env::current_exe().unwrap(), true, &settings().placement)).unwrap()
         });
         b.iter_custom(|iterations| {
             executor.block_on(async {
@@ -299,7 +302,7 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
         let (server, _, execution, evidence, files) = export.get_or_insert_with(|| {
             executor.block_on(async {
                 if plugin.is_none() {
-                    plugin = Some(PluginProcess::start(&std::env::current_exe().unwrap(), true, &settings().placement).await.unwrap());
+                    plugin = Some(PluginProcess::start(&env::current_exe().unwrap(), true, &settings().placement).await.unwrap());
                 }
                 let plugin = plugin.as_ref().unwrap();
                 let fixture = Fixture::new(settings(), plugin.endpoint(), "storage.benchmark.export", 16384).await;
@@ -411,13 +414,12 @@ pub fn benchmark(criterion: &mut Criterion, executor: &Runtime) {
 /* === Private Functions === */
 
 /// This Bench Process's Own Credential Namespace, So Benches Never Touch the Operator's Credentials.
-pub(super) fn credentials() -> dokime_runtime::CredentialNamespace {
-    static NAMESPACE: std::sync::OnceLock<dokime_runtime::CredentialNamespace> = std::sync::OnceLock::new();
+pub(super) fn credentials() -> CredentialNamespace {
+    static NAMESPACE: OnceLock<CredentialNamespace> = OnceLock::new();
     NAMESPACE
         .get_or_init(|| {
-            let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
-            dokime_runtime::CredentialNamespace::new(format!("dokime-bench-{}-{unique}", std::process::id()))
-                .expect("Name the Bench Credential Namespace")
+            let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+            CredentialNamespace::new(format!("dokime-bench-{}-{unique}", process::id())).expect("Name the Bench Credential Namespace")
         })
         .clone()
 }
