@@ -184,7 +184,7 @@ jobs:
           outputs: '[{"archive":"target/ci/build-bench-windows.tar.zst","paths":["target/build/bench/{target}"]}]'
   build_fixture:
     if: inputs.fixture-language != ''
-    name: Build / Fixture / ${{ inputs.fixture-language }} (${{ matrix.platform }})
+    name: Build / SDK / ${{ inputs.fixture-language == 'csharp' && 'C#' || inputs.fixture-language == 'cpp' && 'C++' || inputs.fixture-language == 'python' && 'Python' || 'Rust' }} / Fixtures (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     strategy:

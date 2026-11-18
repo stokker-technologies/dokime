@@ -17,13 +17,16 @@
 
 // Standard Library Imports
 use std::num::NonZeroUsize;
+use std::result;
 
 // Third Party Imports
 use prost::Message;
 use rusqlite::params;
 
 // Local Imports
-use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, Store, store};
+use crate::execution::StepBoundary;
+use crate::telemetry::catalog;
+use crate::{Error, Evidence, Execution, ExecutionState, Result, Sample, SampleWindow, Store, store};
 
 use dokime_protocol::host::EvidenceStatisticsRequest;
 use dokime_protocol::host::EvidenceStatisticsResponse;
@@ -68,7 +71,19 @@ impl Store {
     ) -> Result<Option<StatisticsRead>> {
         let key = (execution.into(), request.stream.clone(), request.field.clone(), after);
         let cache = self.statistics.lock().map_err(|_| Error::Invalid("Read Statistics: Restart After the Query Cache Failed".into()))?;
-        Ok(cache.get(&key).filter(|(frontier, _)| *frontier == through).map(|(_, read)| read.clone()))
+        Ok(cache
+            .get(&key)
+            .filter(|(frontier, read)| {
+                *frontier == through
+                    && read.request.as_ref().is_some_and(|cached| {
+                        let mut cached = cached.clone();
+                        if cached.field.is_empty() {
+                            cached.field.clone_from(&request.field);
+                        }
+                        cached == *request
+                    })
+            })
+            .map(|(_, read)| read.clone()))
     }
     pub fn cache_statistics(
         &self, execution: &str, request: &EvidenceStatisticsRequest, after: u64, through: u64, read: StatisticsRead,
@@ -102,7 +117,7 @@ impl Store {
                 if store::digest(&connection, execution)? != seal {
                     return Err(Error::Invalid("Inspect Execution: Seal Does Not Match Evidence; Restore a Valid Backup".into()));
                 }
-                crate::telemetry::catalog::verify_files(self.database.parent().unwrap(), &connection, execution)?;
+                catalog::verify_files(self.database.parent().unwrap(), &connection, execution)?;
                 verified.insert(execution.into(), seal.clone());
             }
         }
@@ -115,7 +130,7 @@ impl Store {
         })
     }
     pub fn sample_page(&self, execution: &str, stream: &str, after: u64, through: u64, limit: NonZeroUsize) -> Result<Vec<Sample>> {
-        self.sample_window(crate::SampleWindow {
+        self.sample_window(SampleWindow {
             execution,
             streams: &[stream.into()],
             after: &[(stream.into(), after)],
@@ -134,7 +149,7 @@ impl Store {
             .query_map(params![execution, position(after)?, position(through)?, position(limit.get() as u64)?], |row| {
                 row.get::<_, Vec<u8>>(0)
             })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .collect::<result::Result<Vec<_>, _>>()?;
         bytes.iter().map(|bytes| Evidence::decode(bytes.as_slice()).map_err(Into::into)).collect()
     }
     pub fn step_range(&self, execution: &str, step: &str, frontier: u64, limit: NonZeroUsize) -> Result<(u64, u64)> {
@@ -142,8 +157,7 @@ impl Store {
             return Ok((0, frontier));
         }
         let mut after = 0;
-        let mut start = None;
-        let mut end = None;
+        let mut boundary = StepBoundary::default();
         loop {
             let page = self.evidence_page(execution, after, frontier, limit)?;
             if page.is_empty() {
@@ -151,19 +165,11 @@ impl Store {
             }
             for evidence in page {
                 after = evidence.position;
-                if evidence.step != step {
-                    continue;
-                }
-                if evidence.kind == "step:start" {
-                    start.get_or_insert(evidence.position);
-                }
-                if evidence.kind == "step:end" {
-                    end = Some(evidence.position.saturating_sub(1));
-                }
+                boundary.observe(step, &evidence);
             }
         }
-        let start = start.ok_or_else(|| Error::Invalid(format!("Read Step Statistics: Select a Started Step {step}")))?;
-        Ok((start, end.unwrap_or(frontier)))
+        let start = boundary.start.ok_or_else(|| Error::Invalid(format!("Read Step Statistics: Select a Started Step {step}")))?;
+        Ok((start, boundary.end.map(|end| end.saturating_sub(1)).unwrap_or(frontier)))
     }
 }
 

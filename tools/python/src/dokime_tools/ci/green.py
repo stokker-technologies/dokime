@@ -57,7 +57,7 @@ def green(sha: str, pages: Callable[..., list[dict]]) -> bool:
     checks = pages(f"commits/{sha}/check-runs?filter=latest", "check_runs")
     gates = []
     for gates_check in checks:
-        if gates_check.get("name") != "CI / Required":
+        if gates_check.get("name") != "Check / CI / Required":
             continue
         if gates_check.get("app", {}).get("slug") != "github-actions":
             continue

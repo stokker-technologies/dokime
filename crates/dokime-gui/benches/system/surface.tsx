@@ -77,11 +77,15 @@ const observation: Observation = {
     this.queueDepth = Math.max(this.queueDepth, depth);
   },
   frame(payload) {
-    if (!payload) return 0;
+    if (!payload) {
+      return 0;
+    }
     const data = payload as { cartesian?: object; analysis?: object; series?: object };
     const source = data.cartesian ?? data.analysis ?? data.series ?? payload;
     const held = frameIdentities.get(source);
-    if (held) return held;
+    if (held) {
+      return held;
+    }
     const identity = ++nextFrameIdentity;
     frameIdentities.set(source, identity);
     return identity;
@@ -120,51 +124,69 @@ for (const method of [
 
 let previousFrame = performance.now();
 let nextScene = 0;
+
+function classify(card: HTMLElement) {
+  const payload = card.querySelector('[data-bench-has-payload="true"]');
+  const placeholder = card.querySelector('[role="alert"], .plot-empty');
+  const error = card.dataset.benchError === "true" || (Boolean(payload) && Boolean(placeholder));
+  const ready = Boolean(payload?.querySelector(".plot-card")) && !error && !placeholder;
+  return {
+    ready,
+    error,
+    message: error ? `${card.dataset.benchPlot}: ${placeholder?.textContent ?? "Plot Data Failed"}` : undefined,
+  };
+}
+
 function presented(now: number) {
-  if (now - previousFrame > 25) observation.frameMisses += Math.max(1, Math.round((now - previousFrame) / (1000 / 60)) - 1);
+  if (now - previousFrame > 25) {
+    observation.frameMisses += Math.max(1, Math.round((now - previousFrame) / (1000 / 60)) - 1);
+  }
   previousFrame = now;
   if (document.querySelector<HTMLElement>("main")?.dataset.benchScene !== String(observation.scene)) {
     requestAnimationFrame(presented);
     return;
   }
   const cards = [...document.querySelectorAll<HTMLElement>("[data-bench-plot]")].filter((card) => {
-    if (observation.target && card.dataset.benchPlot !== observation.target) return false;
+    if (observation.target && card.dataset.benchPlot !== observation.target) {
+      return false;
+    }
     const bounds = card.getBoundingClientRect();
     return bounds.bottom > 0 && bounds.top < innerHeight && bounds.right > 0 && bounds.left < innerWidth;
   });
-  const failures = cards.filter(
-    (card) =>
-      card.dataset.benchError === "true" ||
-      (card.querySelector('[data-bench-has-payload="true"]') && card.querySelector('[role="alert"], .plot-empty')),
-  );
+  const classified = cards.map((card) => ({ card, state: classify(card) }));
+  const failures = classified.filter(({ state }) => state.error);
   observation.visibleFailures = failures.length;
-  for (const card of failures) {
-    const message = `${card.dataset.benchPlot}: ${card.querySelector('[role="alert"], .plot-empty')?.textContent ?? "Plot Data Failed"}`;
-    if (!observation.errors.includes(message)) observation.errors.push(message);
+  for (const { state } of failures) {
+    const message = state.message;
+    if (message && !observation.errors.includes(message)) {
+      observation.errors.push(message);
+    }
   }
-  observation.visibleReady = cards.filter(
-    (card) => card.querySelector('[data-bench-has-payload="true"] .plot-card') && card.dataset.benchError !== "true",
-  ).length;
-  for (const card of cards) {
-    if (
-      !card.querySelector('[data-bench-has-payload="true"] .plot-card') ||
-      card.dataset.benchError === "true" ||
-      card.querySelector('[role="alert"], .plot-empty')
-    )
+  observation.visibleReady = classified.filter(({ state }) => state.ready).length;
+  for (const { card, state } of classified) {
+    if (!state.ready) {
       continue;
+    }
     const canvases = [...card.querySelectorAll("canvas")];
-    if (canvases.length > 0 && !canvases.some((canvas) => (canvasDraws.get(canvas) ?? 0) >= observation.started)) continue;
+    if (canvases.length > 0 && !canvases.some((canvas) => (canvasDraws.get(canvas) ?? 0) >= observation.started)) {
+      continue;
+    }
     const key = card.dataset.benchPlot ?? "";
-    if (observation.previous.get(key) === card.dataset.benchRevision) continue;
+    if (observation.previous.get(key) === card.dataset.benchRevision) {
+      continue;
+    }
     const opportunities = (observation.opportunities.get(key) ?? 0) + 1;
     observation.opportunities.set(key, opportunities);
-    if (opportunities < 2) continue;
+    if (opportunities < 2) {
+      continue;
+    }
     if (!observation.painted.has(key)) {
       observation.painted.add(key);
       const elapsed = now - observation.started;
       observation.firstVisibleMs ??= elapsed;
-      if (cards.length > 0 && cards.every((card) => observation.painted.has(card.dataset.benchPlot ?? "")))
+      if (cards.length > 0 && cards.every((card) => observation.painted.has(card.dataset.benchPlot ?? ""))) {
         observation.allVisibleMs = elapsed;
+      }
     }
   }
   requestAnimationFrame(presented);
@@ -203,7 +225,9 @@ function Surface({ session }: { session: ConnectedSession }) {
     );
     observation.stages = {};
     observation.target = condition === "zoom" ? "desktop.plot.0" : null;
-    if (condition === "resize") observation.previous.clear();
+    if (condition === "resize") {
+      observation.previous.clear();
+    }
     observation.bytes = 0;
     observation.queueDepth = 0;
     observation.frameMisses = 0;
@@ -226,7 +250,9 @@ function Surface({ session }: { session: ConnectedSession }) {
     observation.scene = ++nextScene;
     observation.previous.clear();
     const backend = session.snapshot.connection.backend;
-    if (!backend) throw new Error("Read Benchmark Document: Connect Its Native Host");
+    if (!backend) {
+      throw new Error("Read Benchmark Document: Connect Its Native Host");
+    }
     const document = await fetchNativeDocument(
       { ...session.identity, own: session.own },
       {
@@ -248,7 +274,9 @@ function Surface({ session }: { session: ConnectedSession }) {
   };
   globalThis.desktopAction = (condition, from, to) => {
     globalThis.desktopBegin(condition);
-    if (condition === "zoom") useSummaryWindowStore.getState().setSummaryWindow("desktop.plot.0", { from, to });
+    if (condition === "zoom") {
+      useSummaryWindowStore.getState().setSummaryWindow("desktop.plot.0", { from, to });
+    }
     if (condition === "navigation") {
       const retained = selection;
       const scene = ++nextScene;
@@ -284,16 +312,14 @@ function Surface({ session }: { session: ConnectedSession }) {
   });
   globalThis.desktopInspect = (plotId) => {
     const card = [...document.querySelectorAll<HTMLElement>("[data-bench-plot]")].find((card) => card.dataset.benchPlot === plotId);
-    if (!card) return { ready: false, error: false, drawn: false };
+    if (!card) {
+      return { ready: false, error: false, drawn: false };
+    }
     card.scrollIntoView({ block: "center" });
     const canvases = [...card.querySelectorAll("canvas")];
-    const placeholder = card.querySelector('[role="alert"], .plot-empty');
-    const rendered = card.querySelector('[data-bench-has-payload="true"]');
-    const error = card.dataset.benchError === "true" || (Boolean(rendered) && Boolean(placeholder));
+    const state = classify(card);
     return {
-      ready: Boolean(rendered?.querySelector(".plot-card")) && !placeholder,
-      error,
-      message: error ? `${plotId}: ${placeholder?.textContent ?? "Plot Data Failed"}` : undefined,
+      ...state,
       drawn: canvases.length === 0 || canvases.some((canvas) => canvasDraws.has(canvas)),
     };
   };
@@ -306,12 +332,21 @@ function Surface({ session }: { session: ConnectedSession }) {
       const cardStarted = performance.now();
       let opportunities = 0;
       while (true) {
-        if (performance.now() - cardStarted > deadlineMs) throw new Error(`Draw Document ${plotId}: No Completed Drawing`);
+        if (performance.now() - cardStarted > deadlineMs) {
+          throw new Error(`Draw Document ${plotId}: No Completed Drawing`);
+        }
         const state = globalThis.desktopInspect(plotId);
-        if (state.error) throw new Error(`Draw Document: ${state.message}`);
-        if (state.ready && state.drawn) opportunities++;
-        else opportunities = 0;
-        if (opportunities >= 2) break;
+        if (state.error) {
+          throw new Error(`Draw Document: ${state.message}`);
+        }
+        if (state.ready && state.drawn) {
+          opportunities++;
+        } else {
+          opportunities = 0;
+        }
+        if (opportunities >= 2) {
+          break;
+        }
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       }
       cards.push({ plotId, waitMs: performance.now() - cardStarted });
@@ -338,10 +373,16 @@ function Surface({ session }: { session: ConnectedSession }) {
 
 const owner = new NativeSession();
 const launch = await commands.desktopSessionLaunch();
-if (!launch.target) throw new Error("The benchmark requires its owned fixture endpoint");
+if (!launch.target) {
+  throw new Error("The benchmark requires its owned fixture endpoint");
+}
 await owner.select({ kind: "attach", request: { target: launch.target, expectedBackendId: launch.expectedBackendId } });
 const connected = owner.snapshot();
-if (connected.phase !== "connected") throw new Error(`Native fixture connection failed: ${JSON.stringify(connected)}`);
+if (connected.phase !== "connected") {
+  throw new Error(`Native fixture connection failed: ${JSON.stringify(connected)}`);
+}
 const container = document.getElementById("root");
-if (!container) throw new Error("The benchmark entry point is missing its root");
+if (!container) {
+  throw new Error("The benchmark entry point is missing its root");
+}
 createRoot(container).render(<Surface session={connected.session} />);

@@ -79,14 +79,14 @@ jobs:
         - platform: unix
           runner: ubuntu-22.04
           minutes: 120
-          work: Python / Generated
+          work: Generated / Python
           command: ci:bindings --
           bootstrap: '[]'
           inputs: '0'
         - platform: windows
           runner: windows-latest
           minutes: 120
-          work: Python / Generated
+          work: Generated / Python
           command: ci:bindings --
           bootstrap: '[]'
           inputs: '0'
