@@ -517,7 +517,9 @@ pub async fn save_verified(
 ) -> Result<Option<Delivered>, DeliveryError> {
     let prepare = |message: String| DeliveryError::local(DeliveryStage::Prepare, message);
     let lease = session.lease(&generation).map_err(|error| prepare(format!("{error:?}")))?;
+    let picking = Instant::now();
     let Some((destination, overwrite)) = picked.await.map_err(prepare)? else { return Ok(None) };
+    tracing::info!(picker_ms = picking.elapsed().as_secs_f64() * 1000.0, "Save Destination Selected");
     ensure_document_session(&session, &generation).map_err(prepare)?;
     let directory = destination.parent().ok_or_else(|| prepare("Destination has no parent".into()))?;
     let staged = tempfile::Builder::new()

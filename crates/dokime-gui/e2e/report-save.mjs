@@ -35,19 +35,28 @@ const saves = [];
 
 /* === Public Functions === */
 
-export async function saveReport(desktop, path, { label }) {
+export async function saveReport(desktop, path, { label, executionId }) {
   const started = performance.now();
   // Submit the Same Save Action an Operator Uses.
   await desktop.clickNamed("button", "Execution Actions");
+  const menuOpened = performance.now();
   await desktop.clickNamed("menuitem", "Download Report");
+  const submitted = performance.now();
 
   // Observe the Native Picker Without Holding a WebDriver Script Open.
   const picker = { window: null };
   await until("Report Save Picker", () => chooseNativeFile(picker, path, "Save", desktop.process));
+  const pickerCompleted = performance.now();
 
   // The Native Adapter Publishes the Complete Verified File Atomically.
   await until("Saved Report File", async () => (await stat(path)).size > 0);
   const milliseconds = performance.now() - started;
+  const observation = {
+    menu_ms: menuOpened - started,
+    submit_ms: submitted - menuOpened,
+    picker_ms: pickerCompleted - submitted,
+    file_observation_ms: milliseconds - (pickerCompleted - started),
+  };
   let creationMs = null;
   const events = [];
   try {
@@ -63,15 +72,45 @@ export async function saveReport(desktop, path, { label }) {
       for (const event of logs.events) {
         if (event.message === "Report Created") {
           creationMs = Number(event.fields.creation_ms);
+        }
+        if (["Report Created", "Report Published", "Report Stage", "Report Plot"].includes(event.message)) {
           events.push(event);
         }
       }
     } while (pageToken);
+    const firstStage = events.findLastIndex((event) => event.message === "Report Stage" && event.fields.phase === "resolve_cut");
+    if (firstStage > 0) events.splice(0, firstStage);
     await desktop.dump("report-save-host-timings", events);
   } catch (error) {
     process.stdout.write(`Report Creation Timing Unavailable: ${error.message}\n`);
   }
-  saves.push({ label, creationMs, applicationRoot: desktop.applicationRoot, milliseconds, dump: desktop.dump });
+
+  // Inventory the Complete Source After the Timed Save, Without Warming Its Reads.
+  const streams = {};
+  let at;
+  let pageToken = "";
+  do {
+    const page = await call(desktop, "dokime.host.v1.evidence.Samples", "List", {
+      scope: { executionId },
+      ...(at ? { at } : {}),
+      page: { pageSize: 4096, maxBytes: "3145728", pageToken },
+    });
+    for (const sample of page.samples) streams[sample.raw.stream] = (streams[sample.raw.stream] ?? 0) + 1;
+    at = page.resolvedAt;
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  const records = await call(desktop, "dokime.host.v1.evidence.Records", "List", { selection: { scope: { executionId } } });
+  const inventory = { streams, samples: Object.values(streams).reduce((sum, count) => sum + count, 0), records: records.count };
+  saves.push({
+    label,
+    creationMs,
+    observation,
+    inventory,
+    events,
+    applicationRoot: desktop.applicationRoot,
+    milliseconds,
+    dump: desktop.dump,
+  });
   return { path };
 }
 
@@ -92,16 +131,36 @@ export async function printReportSaveTimings() {
           .split("\n")
           .filter((line) => line.includes("Verified File Saved"))
           .at(-1) ?? "";
+      const picker =
+        logs
+          .split("\n")
+          .filter((line) => line.includes("Save Destination Selected"))
+          .at(-1) ?? "";
       const milliseconds = (line, key) => Number(line.match(new RegExp(`\\b${key}=([0-9.]+)`))?.[1] ?? NaN);
       const timing = {
         label: save.label,
         total_ms: save.milliseconds,
         host_creation_ms: save.creationMs,
+        host_publication_ms: Number(save.events.findLast((event) => event.message === "Report Published")?.fields.publication_ms ?? 0),
+        native_picker_ms: milliseconds(picker, "picker_ms"),
         transfer_ms: milliseconds(delivery, "request_ms") + milliseconds(delivery, "transfer_ms"),
         write_ms: milliseconds(delivery, "write_ms") + milliseconds(published, "write_publish_ms"),
       };
+      timing.remainder_ms = timing.total_ms - timing.host_creation_ms - timing.transfer_ms - timing.write_ms;
+      timing.observation_ms = timing.remainder_ms - timing.host_publication_ms - timing.native_picker_ms;
       process.stdout.write(`Report Save Timing: ${JSON.stringify(timing)}\n`);
-      await save.dump("report-save-timings", { timing, delivery, published });
+      process.stdout.write(`Report Save Observation: ${JSON.stringify({ label: save.label, ...save.observation })}\n`);
+      process.stdout.write(`Report Source Inventory: ${JSON.stringify({ label: save.label, ...save.inventory })}\n`);
+      for (const event of save.events) process.stdout.write(`Report Host Timing: ${JSON.stringify(event)}\n`);
+      await save.dump("report-save-timings", {
+        timing,
+        observation: save.observation,
+        inventory: save.inventory,
+        events: save.events,
+        picker,
+        delivery,
+        published,
+      });
     } catch (error) {
       process.stdout.write(
         `Report Save Timing: ${save.label} total_ms=${save.milliseconds.toFixed(3)}; phase logs unavailable: ${error.message}\n`,

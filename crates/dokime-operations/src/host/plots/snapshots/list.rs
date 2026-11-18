@@ -21,6 +21,7 @@ use std::num::NonZeroU128;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::thread;
+use std::time::Instant;
 
 // Third Party Imports
 use harmos_protocol::model::Declarations;
@@ -223,6 +224,7 @@ async fn batch(
         placements.push(index);
     }
     let capacity = thread::available_parallelism().map_or(1, |threads| threads.get()).min(work.len());
+    let capturing = fixed.is_some();
     let mut output = vec![None; work.len()];
     let mut pending = work.into_iter().enumerate();
     let mut workers = JoinSet::new();
@@ -236,6 +238,7 @@ async fn batch(
             workers.spawn_blocking(move || -> Result<_> {
                 let _dispatch = dispatcher::set_default(&dispatch);
                 let _entered = span.enter();
+                let started = Instant::now();
                 let query =
                     tracing::debug_span!("plot.query", kind = request.plot_type, plot = ?request.plot_id, samples = tracing::field::Empty);
                 let _query = query.enter();
@@ -258,6 +261,16 @@ async fn batch(
                     )?;
                     if message_bytes.is_none_or(|maximum| envelope.encoded_len().saturating_add(32) <= maximum) {
                         query.record("samples", envelope.diagnostics.as_ref().map_or(0, |value| value.raw_point_count));
+                        if capturing {
+                            tracing::debug!(
+                                elapsed_ms = started.elapsed().as_secs_f64() * 1000.0,
+                                samples = envelope.diagnostics.as_ref().map_or(0, |value| value.raw_point_count),
+                                stream = request.stream,
+                                kind = request.plot_type,
+                                plot = ?request.plot_id,
+                                "Report Plot"
+                            );
+                        }
                         return Ok((index, envelope));
                     }
                     let points = request.max_points.unwrap_or(maximum as u64).min(maximum as u64);
