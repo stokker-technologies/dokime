@@ -83,6 +83,8 @@
 - [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
 - [x] Integration: Remove Plaintext Execution-ID Report Assertions Superseded by the Shared Protobuf Capture Renderer.
 - [x] Integration: Align Short Text Prompt Choice Archetypes Across Python, C# and C++ With the Rust SDK and Prove Native Evidence Parity.
+- [x] Integration: Give Each CLI Development Story an Owned Data Root for Its Auto-Launched Sibling Desktop.
+- [ ] Integration: Repair Manual Prompt Waiting and Answering in the Remote First-Hour CLI Journey Without Changing Operation Policies.
 - [ ] Integration: Resolve Fresh Report Publication Versus Retained-Report Delivery in the Two-Desktop Story; Unchanged Report Data Currently Carries Different Notes Read Cuts.
 - [x] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
 
