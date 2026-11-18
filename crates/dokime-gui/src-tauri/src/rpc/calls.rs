@@ -13,11 +13,13 @@
 
 /* === Imports === */
 
-use crate::rpc::protocol::FRAME_BYTES as DESKTOP_FRAME_BYTES;
-use crate::rpc::protocol::STREAM_CREDIT as DESKTOP_STREAM_CREDIT;
+use crate::rpc::protocol;
 
 // Standard Library Imports
-use std::{str::FromStr, time::Duration};
+use std::{
+    str::FromStr,
+    time::{Duration, Instant},
+};
 
 // Third Party Imports
 use tauri::ipc::{Channel, JavaScriptChannelId, Response};
@@ -110,7 +112,7 @@ impl Streams {
     fn open(&self, context: Context, channel: Channel<Response>, mut opening: Opening) -> Result<Response, RpcError> {
         context.check()?;
         let client = context.client();
-        let max_request_bytes = DESKTOP_FRAME_BYTES as usize;
+        let max_request_bytes = protocol::FRAME_BYTES as usize;
         if opening.payload.len() > max_request_bytes {
             return Err(RpcError::LimitExceeded);
         }
@@ -122,7 +124,7 @@ impl Streams {
             cancel: CancellationToken::new(),
             input: tokio::sync::Mutex::new(opening.keep_input.then_some(sender)),
             max_request_bytes,
-            credit: Arc::new(Semaphore::new(DESKTOP_STREAM_CREDIT as usize)),
+            credit: Arc::new(Semaphore::new(protocol::STREAM_CREDIT as usize)),
             delivery: Mutex::default(),
         });
         let id = {
@@ -228,17 +230,23 @@ pub async fn rpc<R: tauri::Runtime>(
 ) -> Result<Response, RpcError> {
     // Keep The Nested Client Future Off Tauri's Main-Thread Response Stack.
     Box::pin(async move {
-        let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+        let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
         let path = path(request.headers())?;
+        let started = Instant::now();
         // Unary calls wait for their budget: they are short, and a burst of
         // queries must not fail because a few others are still in flight.
         let permit = Arc::clone(&bridge.calls).acquire_owned().await.map_err(|_| RpcError::Cancelled)?;
+        let admission_ms = started.elapsed().as_secs_f64() * 1000.0;
         let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
         let client = context.client();
         let deadline = deadline(request.headers(), client.read_timeout(), client.watch_timeout())?;
         let client = if header(request.headers(), DEADLINE_HEADER)?.is_some() { client.with_timeout(deadline) } else { client };
         let response = context.execute(client.call_raw(path, payload)).await?;
-        context.reply_bytes(&response)
+        let reply = context.reply_bytes(&response)?;
+        if path.starts_with("/dokime.host.v1.Reports/") {
+            tracing::info!(operation = path, admission_ms, request_ms = started.elapsed().as_secs_f64() * 1000.0, "Report RPC Completed");
+        }
+        Ok(reply)
     })
     .await
 }
@@ -248,7 +256,7 @@ pub async fn rpc_stream_open<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<Response, RpcError> {
-    let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+    let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     let headers = request.headers();
     let permit = bridge.admit(bridge.streams.budget())?;
     let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
@@ -276,7 +284,7 @@ pub async fn rpc_stream_send<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
-    let (generation, payload) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+    let (generation, payload) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     let entry = bridge.streams.get(webview.label(), generation, stream(request.headers())?)?;
     entry.send(payload.to_vec()).await
@@ -287,7 +295,7 @@ pub async fn rpc_stream_finish<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
-    let (generation, _) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+    let (generation, _) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     let entry = bridge.streams.get(webview.label(), generation, stream(request.headers())?)?;
     entry.input.lock().await.take().map(drop).ok_or(RpcError::UnknownStream)
@@ -298,7 +306,7 @@ pub async fn rpc_stream_cancel<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
-    let (generation, _) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+    let (generation, _) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     bridge.streams.remove(webview.label(), generation, stream(request.headers())?)?.cancel.cancel();
     Ok(())
@@ -309,12 +317,12 @@ pub async fn rpc_stream_ack<R: tauri::Runtime>(
     session: tauri::State<'_, ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), RpcError> {
-    let (generation, _) = super::request(request.body(), DESKTOP_FRAME_BYTES as usize)?;
+    let (generation, _) = super::request(request.body(), protocol::FRAME_BYTES as usize)?;
     session.lease(&generation.to_string())?;
     let headers = request.headers();
     let count = header(headers, CREDIT_HEADER)?
         .and_then(|value| value.parse::<u64>().ok())
-        .filter(|count| (1..=DESKTOP_STREAM_CREDIT).contains(count))
+        .filter(|count| (1..=protocol::STREAM_CREDIT).contains(count))
         .ok_or(RpcError::InvalidAck)?;
     bridge.streams.get(webview.label(), generation, stream(headers)?)?.acknowledge(count)
 }

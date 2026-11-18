@@ -43,19 +43,19 @@ export async function saveReport(desktop, path, { label, executionId }) {
   await desktop.clickNamed("menuitem", "Download Report");
   const submitted = performance.now();
 
-  // Observe the Native Picker Without Holding a WebDriver Script Open.
+  // Observe the Picker and Published File Concurrently.
   const picker = { window: null };
-  await until("Report Save Picker", () => chooseNativeFile(picker, path, "Save", desktop.process));
-  const pickerCompleted = performance.now();
-
-  // The Native Adapter Publishes the Complete Verified File Atomically.
-  await until("Saved Report File", async () => (await stat(path)).size > 0);
-  const milliseconds = performance.now() - started;
+  const [pickerCompleted, fileCompleted] = await Promise.all([
+    until("Report Save Picker", () => chooseNativeFile(picker, path, "Save", desktop.process)).then(() => performance.now()),
+    until("Saved Report File", async () => (await stat(path)).size > 0).then(() => performance.now()),
+  ]);
+  const milliseconds = fileCompleted - started;
   const observation = {
     menu_ms: menuOpened - started,
     submit_ms: submitted - menuOpened,
-    picker_ms: pickerCompleted - submitted,
-    file_observation_ms: milliseconds - (pickerCompleted - started),
+    save_wait_ms: fileCompleted - submitted,
+    picker_observation_ms: pickerCompleted - submitted,
+    picker_observation_tail_ms: Math.max(0, pickerCompleted - fileCompleted),
   };
   let creationMs = null;
   const events = [];
@@ -137,6 +137,14 @@ export async function printReportSaveTimings() {
           .filter((line) => line.includes("Save Destination Selected"))
           .at(-1) ?? "";
       const milliseconds = (line, key) => Number(line.match(new RegExp(`\\b${key}=([0-9.]+)`))?.[1] ?? NaN);
+      const calls = logs
+        .split("\n")
+        .filter((line) => line.includes("Report RPC Completed"))
+        .map((line) => ({
+          operation: line.match(/operation=([^\s]+)/)?.[1],
+          admission_ms: milliseconds(line, "admission_ms"),
+          request_ms: milliseconds(line, "request_ms"),
+        }));
       const timing = {
         label: save.label,
         total_ms: save.milliseconds,
@@ -148,13 +156,19 @@ export async function printReportSaveTimings() {
       };
       timing.remainder_ms = timing.total_ms - timing.host_creation_ms - timing.transfer_ms - timing.write_ms;
       timing.observation_ms = timing.remainder_ms - timing.host_publication_ms - timing.native_picker_ms;
+      timing.native_admission_ms = calls.length ? calls.reduce((sum, call) => sum + call.admission_ms, 0) : null;
+      timing.native_rpc_overhead_ms = calls.length
+        ? calls.reduce((sum, call) => sum + call.request_ms, 0) - timing.host_creation_ms - timing.host_publication_ms
+        : null;
       process.stdout.write(`Report Save Timing: ${JSON.stringify(timing)}\n`);
       process.stdout.write(`Report Save Observation: ${JSON.stringify({ label: save.label, ...save.observation })}\n`);
+      process.stdout.write(`Report RPC Timing: ${JSON.stringify({ label: save.label, calls })}\n`);
       process.stdout.write(`Report Source Inventory: ${JSON.stringify({ label: save.label, ...save.inventory })}\n`);
       for (const event of save.events) process.stdout.write(`Report Host Timing: ${JSON.stringify(event)}\n`);
       await save.dump("report-save-timings", {
         timing,
         observation: save.observation,
+        calls,
         inventory: save.inventory,
         events: save.events,
         picker,
