@@ -55,7 +55,6 @@
 
 - [x] Python: Resolve Starter and Example SDK Dependencies from Nightly Git, Preserve Working-Tree Test Overrides and Reject Python Git Dependencies for Stable Releases.
 - [x] Python: Implement Product Exports, Typed Declarations, Generated Names, Plain Values and Visibility; Remove Raw Records and Sections.
-- [x] Python: Keep Authoring Exports at the Root, Remove Duplicate Plugin Exports and Pass the Repository Public-Surface Check.
 - [x] Python: Pass Strict Installed-Wheel Stubs and Typed Authoring Consumers, Including Plain Payloads and Decorators.
 - [ ] Python: Resolve the Root Dispatcher's Directory-Derived Unit Lane Against the Declared Integration/System Lane Inventory Before Root Unit Dispatch Can Run.
 - [x] Python: Migrate Every Python Example and README to the Locked Surface and Entrypoint Layout.
@@ -95,12 +94,11 @@
 
 - [x] Leave Python Starter Locks to the User's First `uv sync`, Remove Unused Repository Example Locks and Assert Both Created Inventories Contain No Lock.
 - [x] Give Every Buildable Plugin and Test Starter a Root Manifest, Applicable Mise Tasks, Ignore File and Line-Ending Attributes in All Four Languages.
-- [x] Keep the Python Operation Starter Serving With Closed Standard Input and Accept Its Manifest's Address Argument.
+- [x] Keep the Python Operation Starter Serving With Closed Standard Input.
 
 - [x] Pin the Launch-Capable Library Revision in the Workspace and Rust Consumer Manifests and Locks.
 - [x] Read Strict `dokime.toml` Plugin Manifests With One Native Executable or Launch Command and Confined Relative Paths.
-- [x] Build Manifest Projects Before Development or Bundling; Require Python Project and Lock Inputs Before Use.
-- [x] Bundle Native Executables With File or Folder Assets and Launch Projects With Their Git-Ignored File Inventory.
+- [x] Build Manifest Projects Before Development or Bundling; Require Python Project Inputs Before Use.
 - [x] Replace Executable Flags and Python-Folder Detection With Bundle or Manifest-Project Development Inputs.
 - [x] Attach the Sibling Packaged Desktop When Present and Close It With the Disposable Host.
 - [x] Add `dokime dev --no-desktop` to Skip Desktop Lookup and Use It in Every Automated Caller While Preserving Default Desktop Supervision.
@@ -130,3 +128,16 @@
 - [x] Replace the Native Bundle Encoder With the Pinned Library Builder After Native Manifest and Install/Start Equivalence Proof; Remove Encoder-Only Dependencies.
 - [x] Audit Standalone Product and Library Managed Process Supervision and Report the Required Library Surface Without Replacing Either Supervisor.
 - [x] Prove the Three Crates' Units, All CLI Stories, Plugin Runtime Stories, Rust/Python Starter Bundles, Formatting, Focused Compilation and Rust Lint on Native Windows.
+
+## Locked Python Shape
+
+- [ ] Rename the Python Import Package to `dokime_sdk` With `operations` and `templates` Submodules and Separate Contexts; Export No Root Context.
+- [ ] Implement Class-Based `Plugin`, `Suite` and `TestTemplate` With Class-Derived Identifiers and Labels, Label Overrides and Plain Function Operations With Annotated Payload Types.
+- [ ] Provide `plugin.serve()` as the Python Sidecar Entry Point.
+- [ ] Read `DOKIME_REMOTE` and `DOKIME_PLUGIN_ADDRESS` and Load Working-Directory `.env` in the SDK With Precedence Keyword Argument, Process Environment, `.env`, Default; Keep Secrets in Secret Storage.
+- [ ] Implement Bound Client Handles and Their Host-Operation Compositions per the Mapping Table in design.md, With Direct Values, Run/Start/Watch Primitives, Seal, Evidence, Notes, Artifacts and Explicit Client Close.
+- [ ] Implement the Manifest Schema (`[plugin]`, `dynamic`, `[compatibility]`, `[scripts]`, Bundled `assets/` Without an Assets Key) in the Command Line for Every Language's Starters.
+- [ ] Embed the Reshaped Python Starter in `dokime new`, Including the Single Source Package, Client and Plugin Module Entries, Mise Tasks, Banners, Ignore Rules and No Shipped Lock File or Argument Parsing.
+- [ ] Apply the Same Project and Client Shape to the Rust, C# and C++ Starters.
+- [ ] Replace Python `plugins.create` With `plugins.register` and `plugins.upload`, With Readiness Owned by the Host and Registered Plugins Unregistered on Client Close.
+- [ ] Prove End to End That the Created Starter's Client Flow Runs Against a Host and Passes the Type Checker.

@@ -6,17 +6,32 @@ Define product-owned registration through Dokime registrars over internal carrie
 
 ### Requirement: Dokime Owns the Author Registrar
 
-Dokime SHALL own the public registrar and registration contract in all four languages. Suites, templates, prompts, records and generic author declarations SHALL register through that product API, translated internally into Harmos carrier declarations and opaque product sections. Harmos types SHALL NOT leak to authors or be hidden by import aliases.
+Dokime SHALL own registration in all four languages. Native SDKs SHALL expose
+the product registrar and registration contract for suites, templates, prompts,
+records and generic author declarations. All registration SHALL translate
+internally into Harmos carrier declarations and opaque product sections. Harmos
+types SHALL NOT leak to authors or be hidden by import aliases.
 
 #### Scenario: Register a Suite Catalog
 
-- **WHEN** an author's register function registers the suites catalog
+- **WHEN** a native SDK author’s register function registers the suites catalog or a Python plugin class lists its suite classes
 - **THEN** the host lists every suite and template of that catalog with their operations, prompts and records
 
 #### Scenario: Author Uses Only Product Types
 
 - **WHEN** an author registers independent operations and suites together
 - **THEN** every public registration value and error uses Dokime API paths while shared carrier helpers remain internal
+
+### Requirement: Python Class Composition
+
+Python authors SHALL compose `dokime_sdk.Plugin` and `dokime_sdk.Suite` classes
+and `dokime_sdk.templates.TestTemplate` classes listing their contents, with
+plain function operations. The SDK SHALL aggregate these declarations internally.
+
+#### Scenario: Plugin Class Lists Its Contents
+
+- **WHEN** a Python plugin class lists suites and function operations
+- **THEN** the SDK registers their declarations without requiring an author-facing registrar or module catalog function
 
 ### Requirement: Inert Registration
 
@@ -29,11 +44,11 @@ Dokime registration SHALL declare only. Device construction, connections, prompt
 
 ### Requirement: Module and Suite Catalogs
 
-Each module that contributes declarations SHALL expose them through catalog (Catalog in C#). A suite's catalog SHALL include its templates and the prompts, records, observers and streams those templates own.
+Native SDK modules that contribute declarations SHALL expose them through catalog (Catalog in C#). Python plugin and suite classes SHALL list their contained declarations. A suite’s aggregated catalog SHALL include its templates and the prompts, records, observers and streams those templates own.
 
 #### Scenario: Suite Folder
 
-- **WHEN** the root register function registers a suite folder's catalog
+- **WHEN** a native SDK root register function registers a suite folder’s catalog or a Python plugin class lists the suite class
 - **THEN** every template of the suite and every prompt, record, observer and stream it owns are declared once
 
 ### Requirement: Template-Owned Prompts and Records

@@ -17,26 +17,31 @@ not in permissions.
 - Every connected client may call every operation the backend serves to
   clients. The network and the people on it are trusted, and misuse is the
   user's responsibility.
-- A client is configured through the environment. No client parses a `.env`
-  file itself; mise or any other tool supplies the environment.
+- The SDK reads `DOKIME_REMOTE` and `DOKIME_PLUGIN_ADDRESS` and loads `.env`
+  from the working directory itself. Precedence is keyword argument, process
+  environment, `.env`, default. `DOKIME_REMOTE` accepts an `http://host:port`
+  origin or a `.pair` file; `DOKIME_PLUGIN_ADDRESS` defaults to `127.0.0.1:0`.
+  `.env` contains addresses only; secrets stay in Secret Storage.
 
 ## Scope
 
-The pairing file is the only connection input. It carries the endpoints, one
-access key and the server certificate, and its extension is `.pair`.
+The connection input is an `http://host:port` origin or a `.pair` file. A pairing
+file carries the endpoints, one access key and the server certificate.
 
 ```sh
 DOKIME_REMOTE=./bench.pair
 ```
 
 ```python
-client = dokime.connect()                       # reads DOKIME_REMOTE
-client = dokime.connect("bench.pair")  # or names the file
+from dokime_sdk import connect
+
+client = await connect()                       # reads DOKIME_REMOTE
+client = await connect(target="bench.pair")     # keyword argument wins
 ```
 
 | Mechanism Today | Decision |
 | --- | --- |
-| Pairing file | Stays; the single source for a connection |
+| Pairing file | Stays as the portable connection input alongside a direct origin |
 | Access key and encrypted transport | Stay: one key per backend and one self-signed server certificate, both in the pairing file |
 | Remote listener and the local loopback listener | Stay |
 | Profile registry (`backends.json`) and `dokime backend` commands | Replaced by a folder of pairing files; listing known backends is listing that folder |
@@ -69,9 +74,9 @@ beyond the configured reconnect time.
   pairing file carries the backend's identifier and the client refuses any
   other; this catches a file used against the wrong machine after an address
   changes hands.
-- The server and the desktop read the environment like the clients. The
-  implicit search for a `.env` file is removed; an explicit `--env-file`
-  argument stays.
+- The server and the desktop read the process environment and retain an
+  explicit `--env-file` argument. SDK connection configuration follows the
+  keyword argument, environment, working-directory `.env`, default precedence.
 
 ## Open Points
 

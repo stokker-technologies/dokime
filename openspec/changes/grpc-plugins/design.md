@@ -212,39 +212,9 @@ revision conditions and draft-only visibility are specified by imported-executio
 
 ## Authoring
 
-```python
-import dokime
-
-
-@dokime.suite("thermal.cycle", label="Thermal Cycle")
-class ThermalCycle:
-    def initialize(self, ctx):
-        self.limit = ctx.parameters["limit"]
-        self.chamber = ctx.operation(OpenChamber())
-
-    @dokime.stream("Chamber Temperature [°C]", identifier="chamber.temperature")
-    @dokime.observer(interval_ms=1000)
-    def temperature(self, ctx) -> float:
-        return self.chamber.read()
-
-    @dokime.step("Ramp to Target", retries=2)
-    def ramp(self, ctx):
-        ctx.operation(SetTemperature(self.limit))
-
-    @dokime.step("Hold")
-    def hold(self, ctx):
-        answer = ctx.prompt("Door closed?", choices=["Yes", "No"])
-        ctx.record("door.check", closed=answer == "Yes")
-
-    @dokime.criterion("Temperature Within Limit")
-    def within_limit(self, ctx) -> bool:
-        stats = ctx.statistics("chamber.temperature", step="hold")
-        door = ctx.records("door.check").last()
-        return stats.max <= self.limit and door.closed
-
-    def cleanup(self, ctx):
-        ctx.operation(CloseChamber())
-```
+Python authoring uses the class-based plugin, suite and template declarations in
+[Python Project Shape and Client Surface](#python-project-shape-and-client-surface-locked-by-the-owner-2026-11-18).
+Steps, criteria, streams and observers stay with their template.
 
 ```rust
 use dokime::prelude::*;
@@ -285,7 +255,8 @@ fn main() -> Result<()> {
 - Rust authoring is derives for data and ordinary values for everything
   else. A template, a suite and a plugin are built and passed by value;
   there are no attribute macros for them. C# and C++ use the same shape, and
-  Python keeps decorators, which do the same registration.
+  Python composes `Plugin`, `Suite` and `TestTemplate` classes and uses
+  decorators for template handlers and plain operation functions.
 - A mistake such as a duplicate identifier is reported when the plugin
   starts, not at compile time.
 - Steps and criteria have one fixed signature per language: `ctx` in Rust,
@@ -294,7 +265,10 @@ fn main() -> Result<()> {
   streams. An author overrides it only when they depend on parameters:
 
 ```python
-    @dokime.materialize
+from dokime_sdk.templates import TestTemplate, materialize
+
+class ThermalCycleTestTemplate(TestTemplate):
+    @materialize
     def materialize(cls, case, parameters):
         for channel in parameters["channels"]:
             case.step(f"Measure Channel {channel}", cls.measure, channel=channel)
@@ -401,7 +375,7 @@ Each language has exactly one way to keep state for an execution.
 | Language | State Lives In | Why |
 | --- | --- | --- |
 | Rust | The resource store. The suite type has no fields and steps take only `ctx` | Observers run beside steps and criteria run without the instance, so neither can borrow fields |
-| Python | The suite instance (`self.chamber = ...`), which the SDK hands to steps, observers and criteria. There is no `ctx.set` or `ctx.get` | Attributes are the natural form and can be added at any time |
+| Python | The template instance (`self.chamber = ...`), which the SDK hands to steps, observers and criteria. There is no `ctx.set` or `ctx.get` | Attributes are the natural form and can be added at any time |
 
 ```rust
 struct Bench { charger: Charger, limit: f64 }
@@ -520,21 +494,8 @@ after the SDK ownership and operation-boundary storage cutovers.
 | Plugin | `harmos.v1` transport, `dokime.v1` messages and host calls | The Harmos SDK for the language |
 | Client | `dokime.v1` services | Generated stubs plus a thin hand-written layer |
 
-```python
-# main.py
-import dokime
-from suite import ThermalCycle
-
-plugin = await dokime.serve(ThermalCycle, address="127.0.0.1:7001")
-client = await dokime.connect("bench.pair")
-await client.plugins.add(plugin.url)
-cases = await client.templates.materialize("thermal.cycle", parameters={"limit": [70, 85]})
-cycle = await client.cycles.start(cases)
-async for progress in cycle.watch():
-    print(progress)
-await client.close()
-await plugin.close()
-```
+The Python client flow and its bound handles are defined in
+[Python Project Shape and Client Surface](#python-project-shape-and-client-surface-locked-by-the-owner-2026-11-18).
 
 - Every operation Dokime serves to clients appears in every language's client
   through generation; a check keeps the stubs in step with the protos.
@@ -558,14 +519,19 @@ await plugin.close()
 Each has both halves and builds on the Harmos SDK for the same language. Go
 is outside the pilot.
 
-A plugin project has a strict `dokime.toml` manifest with exactly one native
-`executable` or `launch` command, an optional `build` command and relative `assets`.
+A plugin project has a strict `dokime.toml` manifest with `[plugin]` metadata,
+`dynamic` project metadata, `[compatibility]` and `[scripts]`. `[scripts]` contains
+an optional `build` and exactly one native `executable` or `launch` command.
+The whole `assets/` folder is bundled; there is no `assets` key.
 Paths stay inside the project root. Native executable paths may omit the platform
 suffix; Windows resolves the corresponding `.exe` when the unsuffixed file is absent.
-`dokime plugin bundle` builds the project and freezes its description, then packages
-the executable and assets or the launch project's inventory after applying `.gitignore`.
-Python launch projects include `pyproject.toml`, a user-resolved `uv.lock` and `plugin.py`; the host
-runs their configured `uv` launch command. All four languages support managed bundles.
+`dokime plugin bundle` builds the project and freezes its catalog and manifest
+metadata, resolving `dynamic` fields from the language's project file and applying
+explicit manifest overrides. The plugin class name supplies its identifier.
+It packages the executable and `assets/` or the launch project's inventory after
+applying `.gitignore`. Python launch projects include `pyproject.toml` and
+`src/<package>/plugin/__main__.py`; the host runs their configured module launch
+command through `uv`. Python starters ship no lock file. All four languages support managed bundles.
 
 ```sh
 dokime plugin bundle ./thermal --out thermal.dokime
@@ -752,35 +718,6 @@ remote-access-simplification. Decoded-memory admission was an additive upstream
 follow-up, not a gate on adopting existing wire/queue-bounded clients. The final
 registry release pin and all required native proof remain open.
 
-### Canonical Plugin Project Structure (Proposed, Not Locked)
-
-The owner parked this discussion on 2026-11-18 as not yet clean enough. Nothing
-below is implemented or binding.
-
-```text
-my-project/
-  dokime.toml
-  pyproject.toml
-  main.py                      # client flow: connect, add the plugin, run, watch
-  src/my_project/
-    py.typed
-    plugin/
-      __main__.py              # sidecar entry
-      __init__.py              # the plugin value
-      settings.py
-      device.py
-      operations/<family>.py   # one file per operation family
-      streams.py  records.py  prompts.py
-      suites/<suite>/<template>.py
-    client/                    # only when the client side grows beyond main.py
-```
-
-Agreed so far: one file per operation family, and every language's example gets
-a client program in the same codebase (a second binary in compiled languages).
-Open: whether plugin and client share one package, where the sidecar entry
-lives relative to today's root `plugin.py`, and how the compiled-language
-layouts mirror this one.
-
 ## Current Implementation Evidence
 
 Protocol Origin/TestCase are in `proto/dokime/model/v1/execution.proto`; the host
@@ -826,77 +763,29 @@ historical Windows result establishes passing final native proof or push authori
 
 Applies to every SDK language; Python is the reference implementation, the others follow its shape.
 
-1. **Only the product package.** Every example, starter and consumer-facing snippet imports only from `dokime`. Nothing an author writes imports or names the underlying library. The SDK re-exports what authors need (operation decorator, context, visibility).
-2. **Short Prompt.** Examples and starters ask the operator with `ctx.prompt(text, choices=[...])`, which returns the chosen label. Its implicit local identifier is `question`, qualified by the bound template (`capture.question` or `accuracy.voltage.question`) in every language. The long host-operation form is not used in examples.
+1. **Only the Product Package.** Python examples, starters and consumer-facing snippets import SDK symbols only from `dokime_sdk`, `dokime_sdk.operations` and `dokime_sdk.templates`; the other languages use their product SDK namespaces. Nothing an author writes imports or names the underlying library. Each Python submodule owns its `Context`; the root exports none.
+2. **Short Prompt.** Examples and starters ask the operator with `ctx.prompt(text, choices=[...])`, which returns the chosen label. Its implicit local identifier is `question`, qualified by the bound template (`capture.confirmation.question` or `accuracy.voltage.question`) in every language. The long host-operation form is not used in examples.
 3. **Qualified Identifiers.** A template is `<suite>.<template>` (`accuracy.voltage`). Everything declared inside a template (records, streams, prompts, steps, criteria) is `<suite>.<template>.<name>` on the wire and in evidence. Authors write and pass only the local declaration; the SDK qualifies it.
-4. **Generated Identifiers.** An identifier the author does not give is generated from the code name, never from the label: class name minus a trailing `Template` or `Suite`, method or attribute name for members; all code-name word boundaries become `_`, and names are lowercased in every language. `ReadVoltage`, `readVoltage` and `read_voltage` all become `read_voltage`. For example, `VoltageAccuracy` becomes `voltage_accuracy`, `HTTPAccuracySuite` becomes `http_accuracy`, and `read_voltage` stays `read_voltage`. An explicit `identifier=` wins. The existing label-derived fallback for steps and criteria is replaced by this rule.
+4. **Generated Identifiers.** An identifier the author does not give is generated from the code name, never from the label: class name minus a trailing `Plugin`, `Suite` or `TestTemplate`, method or attribute name for members; all code-name word boundaries become `_`, and names are lowercased in every language. `ReadVoltage`, `readVoltage` and `read_voltage` all become `read_voltage`. For example, `VoltageAccuracy` becomes `voltage_accuracy`, `HTTPAccuracySuite` becomes `http_accuracy`, and `read_voltage` stays `read_voltage`. An explicit member `identifier=` wins. Class labels derive from class names; a `label` attribute overrides the label. The existing label-derived fallback for steps and criteria is replaced by this rule.
 5. **Declarations Live on the Template.** Records are declared on the template class (as streams already are with the stream decorator) and on observers. The plugin-level `records=` argument is removed.
 6. **Plain Values.** Records and simple operations accept `str`, `bool`, `int`, `float` (and the language's equivalents); the SDK wraps them in the well-known wrapper messages. Structured rows stay protobuf messages.
 7. **No `sections`.** The raw declaration-section list is removed from the author-facing plugin value; the SDK builds every section from typed declarations.
 8. **Visibility Is a Type.** `Visibility.PUBLIC` (an enum) replaces module constants.
 9. **`requires` Leaves the Author Surface.** Starters and examples never pass it. (Deleting the host-side requirement check is a separate decision pending an inventory; do not touch the host check.)
-10. **Python Project Layout.** `plugin.py` is the plugin entry point: it starts the sidecar and nothing else. `main.py` is the client-plus-plugin flow: it starts the plugin and drives it through the client. Suites live in their own module(s). A Python plugin project is a folder with `pyproject.toml` and `plugin.py`.
+10. **Python Project Layout.** One `pyproject.toml` project contains `src/<package>/__main__.py` for the client flow and `src/<package>/plugin/__main__.py` for `plugin.serve()`. The plugin and suite classes live in their packages’ `__init__.py`; operations have one module per family and templates one module each under their suite. No root entry scripts or argument parsing are shipped.
 11. **Running and Bundling.**
     - `dokime dev --plugin <path>` starts the application with console logging and a temporary data root and attaches one plugin. `<path>` is a bundle file or a project folder containing `dokime.toml`, for every language. A project runs its configured build before starting its executable or launch command. An installed sibling desktop attaches when present and closes with the disposable host; when absent, the host runs alone with a notice. `--no-desktop` starts only the host and plugin without looking for the desktop, and every automated caller passes it. A failing desktop remains an error that names `--no-desktop` as the way to run without it.
     - `dokime plugin dev --executable` is deleted.
-    - `dokime plugin bundle <folder> --out <bundle>` accepts a manifest project folder. The manifest's optional `build` command runs before description and packaging. Exactly one `executable` or `launch` is required; native `assets` may name files or folders. Launch projects apply `.gitignore` to their file inventory. Python projects require `pyproject.toml` and `uv.lock` after their build, and launch `plugin.py` with `uv`; Python and `uv` on the host are an accepted requirement.
+    - `dokime plugin bundle <folder> --out <bundle>` accepts a manifest project folder. The manifest's optional `[scripts].build` command runs before description and packaging. Exactly one `[scripts].executable` or `[scripts].launch` is required; the whole `assets/` folder is bundled without an `assets` key. Launch projects apply `.gitignore` to their file inventory. Python projects require `pyproject.toml` and launch their plugin module with `uv`; no lock file is shipped; Python and `uv` on the host are an accepted requirement.
     - Installing a plugin asks nothing; the user decides what to install.
-
-Target starter (Python):
-
-```python
-from dokime import Plugin, Context, suite, step, criterion, record
-
-@suite(label="Capture")
-class Capture:
-    confirmation = record(bool, label="Confirmation")
-
-    @step("Confirm")
-    async def confirm(self, ctx: Context) -> None:
-        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
-        await ctx.record(self.confirmation, answer == "Yes")
-
-    @criterion("Confirmed")
-    async def confirmed(self, ctx: Context) -> bool:
-        return await ctx.records(self.confirmation, step=self.confirm).last()
-
-plugin = Plugin("example", "0.1.0", suites=[Capture])
-```
 
 Qualified identifiers change the identifiers stored in evidence; existing roots need a fresh root (development storage policy).
 
-Single-class suites use the suite identifier for their sole template, and <suite>.<name> for members. Grouped templates use <suite>.<template> and <suite>.<template>.<name>.
-
-
 ### Python Reference Shape
 
-```python
-from dokime import Plugin, Context, Visibility, operation, suite, step, criterion, record, prompt
-from dokime.authoring import Suite, Template
+The locked project section below owns the class and function examples.
 
-@suite(label="Capture")
-class Capture:
-    confirmation = record(bool, label="Confirmation")
-    question = prompt("Continue?", choices=["Yes", "No"])
-
-    @step("Confirm")
-    async def confirm(self, ctx: Context) -> None:
-        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
-        await ctx.record(self.confirmation, answer == "Yes")
-
-    @criterion("Confirmed")
-    async def confirmed(self, ctx: Context) -> bool:
-        return await ctx.records(self.confirmation, step=self.confirm).last()
-
-plugin = Plugin("example", "0.1.0", suites=[Capture])
-
-class Operations:
-    @operation("example.echo", request=str, response=str, visibility=Visibility.PUBLIC)
-    async def echo(self, ctx: Context, request: str) -> str:
-        return request
-```
-
-`Context.prompt` accepts text or a template prompt declaration and returns a choice
+The template `Context.prompt` accepts text or a template prompt declaration and returns a choice
 label. `prompt` also accepts a full product `Prompt` message for structured fields,
 rules and actions. `Context.record(declaration, value)` accepts plain values or
 protobuf rows; `Context.records(declaration, step=bound_step).last()` returns the
@@ -906,9 +795,10 @@ takes the stream declaration or bound stream method and an optional bound step.
 payloads. Python `int` uses `Int64Value`; bool, str and float use BoolValue,
 StringValue and DoubleValue. Records and operations share the same conversion.
 
-A single-class `Capture` suite has template `capture`, step `capture.confirm` and
-record `capture.confirmation`. Grouped `Suite("accuracy", [Template(VoltageTemplate)])`
-has template `accuracy.voltage`; a `read_voltage` method becomes
+A `CaptureSuite` containing `ConfirmationTestTemplate` has template
+`capture.confirmation`, step `capture.confirmation.confirm` and record
+`capture.confirmation.confirmation`. An `AccuracySuite` containing
+`VoltageTestTemplate` has template `accuracy.voltage`; a `read_voltage` method becomes
 `accuracy.voltage.read_voltage`. Explicit `identifier="rms"` on that method gives
 `accuracy.voltage.rms`. Qualification is stored on the plugin's bound template;
 reusing a class in another suite never mutates its local declarations.
@@ -917,20 +807,22 @@ function and underscore rule to qualify distinct local instance identifiers ther
 both unbound and bound methods resolve to their declared handler.
 
 Rust, C#, C++ and command-line starters must follow the same imports/namespaces,
-short prompts, code-name identifiers and single-class versus grouped-template rule,
+short prompts, code-name identifiers and suite/template qualification,
 local record/prompt declarations, primitive wrappers, enum visibility, declaration
 references and removal of raw records/sections and example requirement lists.
-Python launchers must start `plugin.py`; `main.py` drives the plugin through a client.
+Python launchers start `<package>.plugin`; `<package>` drives the plugin through a client.
 Command-line running, bundling and trust behavior remains point 11's separate owner.
 
 Generated underscore identifiers satisfy the pinned carrier
 `crates/harmos-protocol/src/schema/identity.rs` segment grammar without a library
 change or a second identifier family. Explicit identifiers remain author supplied.
 
-The Python SDK generator owns `sdk/python/src/dokime/__init__.py`, composing model
-exports with product authoring exports. Shared generation owns the remaining
-descriptor projections and excludes this root barrel from publication and drift
-validation; product generation checks validate it through its SDK owner.
+The Python SDK generator owns `sdk/python/src/dokime_sdk/__init__.py`, composing
+client, `Plugin`, `Suite` and `ResultStatus` exports. Operations and templates have
+separate public submodules and separate contexts; the root exports no `Context`.
+Shared generation owns the remaining descriptor projections and excludes this
+root barrel from publication and drift validation; product generation checks
+validate it through its SDK owner.
 
 Rust runtime-defined plain operation calls remain an upstream decision: at the
 pinned carrier revision, `sdk/rust/src/message.rs:52` requires an
@@ -955,9 +847,9 @@ of a Watch is invalid; automatic requirements must not be narrowed to hide it.
   `sdk/cpp/examples/` adopt it; `sdk/tests/fixtures/cpp/` follows the same IDs.
 - Command line: `crates/dokime-cli/{build.rs,src/commands/new.rs}` embeds the new
   Python project files; `src/commands/plugin/` and the application development
-  command own point 11 and must invoke `plugin.py` for Python projects.
+  command own point 11 and must invoke the configured Python plugin module.
 - Native Python fixture launch: `crates/dokime-runtime/tests/support/mod.rs:91`
-  must launch `sdk/python/examples/thermal/plugin.py`.
+  must launch the thermal project’s plugin module through its manifest.
 - Thermal evidence selectors: `crates/dokime-runtime/tests/support/thermal.rs`
   and system stories `client_answers_operator_prompts.rs`,
   `client_browses_sealed_history.rs`, `client_runs_thermal_suite_over_grpc.rs`,
@@ -966,3 +858,218 @@ of a Watch is invalid; automatic requirements must not be narrowed to hide it.
   `python_plugin_matches_rust_thermal_evidence.rs` and
   `thermal_suite_survives_host_restart.rs` must use qualified template members
   and answer the prompt's actual action identifier.
+
+## Python Project Shape and Client Surface (Locked by the Owner, 2026-11-18)
+
+The owner iterated on a scratch project and locked it: "i like the python shape
+we have, for me we can lock it". This section is the contract. It supersedes
+the earlier Authoring Surface points it contradicts (root `plugin.py` and
+`main.py`, top-level `dokime.toml` keys, identity from the plugin's
+description alone, imports from `dokime`) and the proposed structure under
+Open Points. The other SDK languages take the same shape.
+
+### Project
+
+```text
+my-project/
+  pyproject.toml        # one project; uv; dev group: ruff, ty; rich for output
+  mise.toml             # uv and the dokime tool; build, check, format, dev, run
+  dokime.toml
+  .env.example
+  .gitignore            # full Python rules, *.pair, *.dokime, _input/, _output/
+  .gitattributes        # cross-platform Python rules
+  assets/               # always bundled; the icon lives here
+  src/my_project/
+    __init__.py  py.typed
+    __main__.py                 # client flow: python -m my_project
+    plugin/
+      __init__.py               # the plugin class
+      __main__.py               # sidecar entry: python -m my_project.plugin
+      operations/<family>.py    # one module per operation family
+      suites/<suite>/__init__.py      # the suite class
+      suites/<suite>/<template>.py    # one module per template
+```
+
+- No lock file is shipped. No argument parsing; no root `main.py` or `plugin.py`.
+- Every Python and TOML file carries the header banner and the section comments
+  the main project uses. No `__all__`.
+- Run artifacts are written to `_output/`; `_input/` is the conventional home for
+  local inputs. Both are ignored by git.
+
+### Manifest
+
+```toml
+[plugin]
+label = "My Project"
+tags = ["example"]
+# Read from pyproject.toml (or Cargo.toml); state a key here to override it.
+dynamic = ["version", "description", "authors", "license", "repository"]
+# Optional
+publisher = "your-organization"
+icon = "assets/icon.svg"
+readme = "README.md"
+
+[compatibility]
+dokime = ">=0.1.5"
+
+[scripts]
+build = ["uv", "sync"]
+launch = ["uv", "run", "python", "-m", "my_project.plugin"]
+```
+
+- Metadata uses the project vocabulary: identifier, label, description, tags.
+  The identifier comes from the plugin class name and is not repeated here.
+- `[scripts]` holds only what the product runs: `build`, and exactly one of
+  `launch` or `executable`. User tasks stay in `mise.toml`.
+- The whole `assets/` folder is bundled; there is no `assets` key.
+- `description`, `authors` and `license` are required for publication only.
+
+### Authoring
+
+```python
+# plugin/__init__.py
+from dokime_sdk import Plugin
+
+class ExamplePlugin(Plugin):
+    suites = [CaptureSuite]
+    operations = [echo]
+```
+
+```python
+# plugin/suites/capture/__init__.py
+from dokime_sdk import Suite
+
+class CaptureSuite(Suite):
+    templates = [ConfirmationTestTemplate]
+```
+
+```python
+# plugin/suites/capture/confirmation.py
+from dokime_sdk.templates import Context, TestTemplate, criterion, record, step
+
+class ConfirmationTestTemplate(TestTemplate):
+    confirmation = record(bool, label="Confirmation")
+
+    @step("Confirm")
+    async def confirm(self, ctx: Context) -> None:
+        answer = await ctx.prompt("Continue?", choices=["Yes", "No"])
+        await ctx.record(self.confirmation, answer == "Yes")
+
+    @criterion("Confirmed")
+    async def confirmed(self, ctx: Context) -> bool:
+        return await ctx.records(self.confirmation, step=self.confirm).last()
+```
+
+```python
+# plugin/operations/echo.py
+from dokime_sdk.operations import Context, Visibility, operation
+
+@operation("example.echo", visibility=Visibility.PUBLIC)
+async def echo(ctx: Context, request: str) -> str:
+    return request
+```
+
+```python
+# plugin/__main__.py
+plugin = ExamplePlugin()
+await plugin.serve()
+```
+
+- A plugin, a suite and a template are classes that list what they contain. A
+  plugin has operations; it never inherits them. Operations are plain functions
+  whose request and response types come from their annotations.
+- Identifiers and labels derive from class names: strip `Plugin`, `Suite` and
+  `TestTemplate`, then snake case. A `label` attribute overrides the label.
+- Three import homes: `dokime_sdk` (client, `Plugin`, `Suite`, `ResultStatus`),
+  `dokime_sdk.operations` and `dokime_sdk.templates`. Each submodule has its own
+  `Context`; the root exports none. Examples import nothing else from the SDK.
+- Plugin state is reached from handlers as `ctx.plugin`.
+
+### Client Flow
+
+```python
+from dokime_sdk import ResultStatus, connect
+
+async def main() -> None:
+    # Initialize Client
+    client = await connect()
+
+    # Initialize & Register Plugin
+    plugin = ExamplePlugin()
+    await client.plugins.register(plugin)
+
+    # Initialize Test Cycle
+    started = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cycle = await client.cycle(label=f"Capture {started}")
+
+    # Initialize Test Cases
+    cases = await client.cases.materialize(ConfirmationTestTemplate)
+
+    for case in cases:
+        # Initialize Test Execution
+        execution = await cycle.execution(case)
+
+        # Run Test Execution
+        async for progress in execution.run():
+            console.print(f"  {progress.phase}")
+
+        # Seal Test Execution & Report Outcome
+        outcome = await execution.seal()
+
+    # Seal Test Cycle
+    await cycle.seal()
+
+    # Save Evidence
+    evidence = await cycle.evidence()
+    (OUTPUT / f"{cycle.identifier}.zip").write_bytes(evidence)
+
+    # Close Client
+    await client.close()
+```
+
+- Calls return the value itself; no response unwrapping and no wire types in
+  user code. A noun on the parent creates the child: `client.cycle(...)`,
+  `cycle.execution(case)`, `execution.note(...)`, `execution.artifact(...)`.
+  Every handle is bound from creation.
+- `client.plugins.register(plugin)` serves the plugin, adds it and returns when
+  it is ready; `client.plugins.upload(bundle)` installs a bundle. They replace
+  `create`. `client.close()` unregisters what this client registered.
+- `execution.run()` is `start()` followed by `watch()`; both stay as primitives
+  for fire-and-forget and for re-attaching. It is not awaitable on its own.
+- `note` and `artifact` exist with the same signature on execution and cycle
+  handles and on the step context.
+- The client flow reads as commented, self-contained steps with no helpers. The
+  operator answers questions in the desktop; an unattended script may set one
+  handler before starting.
+- Seal semantics are owned by the change `seal-finality`.
+
+### Configuration
+
+- Well-known variables read by the SDK: `DOKIME_REMOTE` (an `http://host:port`
+  origin or a `.pair` file) and `DOKIME_PLUGIN_ADDRESS` (default `127.0.0.1:0`).
+- Precedence: keyword argument, process environment, `.env` in the working
+  directory, default. The SDK loads `.env` itself. This replaces the earlier
+  rule that no client parses a `.env` file.
+- `.env` holds addresses only; secrets stay in Secret Storage.
+- `connect(connect_timeout=30.0)` and the command line's `--connect-timeout`
+  share one name and unit.
+
+### How the Handles Map to Host Operations
+
+| Call | Host operations today |
+|---|---|
+| `client.plugins.register` | serve + `Plugins/Create` + watch until ready (composition; readiness should move into the host) |
+| `client.cycle` | `Cycles/Create` with automatic continuation off |
+| `client.cases.materialize` | `Cases/Create` from the class-derived suite and template identifiers |
+| `cycle.execution` | `Executions/Create` with one binding |
+| `execution.run` | `Executions/Start` + `executions.Progress/Watch` |
+| `execution.seal` | none yet; see `seal-finality` |
+| `execution.note` | `evidence.Notes/Create` |
+| `execution.artifact` | file upload + `content.Artifacts/Create` |
+| `cycle.seal` | `Cycles/Seal` |
+| `cycle.evidence` | `Evidence/Archive` + file read |
+| `client.close` | delete registered plugins + close the channel |
+
+Most handle methods compose several operations, so the Python handles are
+written by hand first; generating them from operation definitions is deferred
+until the other languages follow.
