@@ -6,7 +6,6 @@
 #
 # ***
 
-
 """Ordered Pairing Connections"""
 
 # === Imports === #
@@ -27,10 +26,10 @@ from grpc.aio import Channel, ServicerContext, UnaryStreamClientInterceptor, Una
 from harmos._wire.host.v1.status_pb2 import StatusGetRequest, StatusGetResponse
 
 # Local Imports
-from dokime_sdk.connection import connect
+from dokime_sdk._connection import connect
+from dokime_sdk._errors import SdkError
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -54,7 +53,7 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
             self.channels.append(channel)
             return channel
 
-        self.channel_patch = patch("dokime_sdk.connection.insecure_channel", side_effect=open_channel)
+        self.channel_patch = patch("dokime_sdk._connection.insecure_channel", side_effect=open_channel)
         self.channel_patch.start()
         self.addCleanup(self.channel_patch.stop)
 
@@ -98,17 +97,17 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
         refused = self.refused()
         accepted = await self.listening("intended-host")
         path = self.pairing([refused, accepted])
-        with patch("dokime_sdk.connection.wait_for", wraps=wait_for) as bounded:
+        with patch("dokime_sdk._connection.wait_for", wraps=wait_for) as bounded:
             client = await connect(path, connect_timeout=7.5)
         self.addAsyncCleanup(client.close)
         self.assertEqual([call.args[1] for call in bounded.call_args_list], [7.5, 7.5])
         self.assertEqual(self.channels[0].get_state(), ChannelConnectivity.SHUTDOWN)
-        self.assertEqual((await client.status.get()).status.identity.host_id, "intended-host")
+        self.assertEqual((await client._transport.status.get()).status.identity.host_id, "intended-host")
 
     async def test_all_refused_errors_follow_file_order(self) -> None:
         endpoints = [self.refused(), self.refused()]
         path = self.pairing(endpoints)
-        with self.assertRaises(ValueError) as failure:
+        with self.assertRaises(SdkError) as failure:
             await connect(path)
         message = str(failure.exception)
         self.assertLess(message.index(endpoints[0]), message.index(endpoints[1]))
@@ -122,15 +121,15 @@ class ConnectionStory(unittest.IsolatedAsyncioTestCase):
         client = await connect(self.pairing([wrong, right]))
         self.addAsyncCleanup(client.close)
         self.assertEqual(self.channels[0].get_state(), ChannelConnectivity.SHUTDOWN)
-        self.assertEqual((await client.status.get()).status.identity.host_id, "intended-host")
+        self.assertEqual((await client._transport.status.get()).status.identity.host_id, "intended-host")
 
     async def test_plain_url_uses_connection_budget(self) -> None:
         endpoint = await self.listening("intended-host")
-        with patch("dokime_sdk.connection.wait_for", wraps=wait_for) as bounded:
+        with patch("dokime_sdk._connection.wait_for", wraps=wait_for) as bounded:
             client = await connect(endpoint, connect_timeout=4.25)
         self.addAsyncCleanup(client.close)
         self.assertEqual(bounded.call_args.args[1], 4.25)
-        self.assertEqual((await client.status.get()).status.identity.host_id, "intended-host")
+        self.assertEqual((await client._transport.status.get()).status.identity.host_id, "intended-host")
 
     async def test_invalid_connection_budget(self) -> None:
         for value in (0.0, -1.0, float("inf"), float("nan")):

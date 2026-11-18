@@ -6,20 +6,18 @@
 #
 # ***
 
-
 """Own Async Connections to the Generated Client Tree."""
 
 # === Imports === #
 
 # Standard Library Imports
 import json
-import os
 from asyncio import wait_for
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from math import isfinite
 from pathlib import Path
 from typing import TypedDict
-from urllib.parse import urlsplit
+from urllib.parse import SplitResult, urlsplit
 
 # Third Party Imports
 from grpc import ssl_channel_credentials
@@ -37,10 +35,12 @@ from grpc.aio import (
 )
 
 # Local Imports
-from .client import ClientRoot
+from ._client import Client
+from ._configuration import load, resolve
+from ._errors import Failure, SdkError
+from ._generated.client import ClientRoot
 
 # Type Checking Imports
-
 
 # === Public Exports === #
 
@@ -112,10 +112,10 @@ async def connect(
     certificate_pem: str | None = None,
     access_key: str | None = None,
     expected_backend_id: str | None = None,
-) -> ClientRoot:
+) -> Client:
     if not isfinite(connect_timeout) or connect_timeout <= 0:
         raise ValueError("Connect: Supply a Positive Finite connect_timeout in Seconds")
-    selected = str(target or os.environ.get("DOKIME_REMOTE", ""))
+    selected = resolve("DOKIME_REMOTE", str(target) if target is not None else None, load())
     if not selected:
         raise ValueError("Connect: Name an Endpoint or .pair File, or Set DOKIME_REMOTE")
     endpoints = [selected]
@@ -125,6 +125,12 @@ async def connect(
         access_key = pairing["access_key"]
         expected_backend_id = pairing["backend_identifier"]
         endpoints = pairing["endpoints"]
+    else:
+        _endpoint(selected)
+        if not selected.startswith("http://"):
+            raise ValueError("Connect: Use a Direct HTTP Origin or a Pinned HTTPS Pairing File")
+    for selected in endpoints:
+        _endpoint(selected)
     failures = []
     for selected in endpoints:
         try:
@@ -132,7 +138,9 @@ async def connect(
         except (AioRpcError, TimeoutError, ValueError) as error:
             failure = str(error) or type(error).__name__
             failures.append(f"{selected}: {failure}")
-    raise ValueError(f"Connect: {'; '.join(failures)}; Check the Host Listener or Export a New Pairing")
+    raise SdkError(
+        Failure("Transient", "connection_failed", "; ".join(failures), "Check the Host Listener or Export a New Pairing", "connect")
+    )
 
 
 # === Private Functions === #
@@ -144,7 +152,30 @@ async def _connect_endpoint(
     certificate_pem: str | None,
     access_key: str | None,
     expected_backend_id: str | None,
-) -> ClientRoot:
+) -> Client:
+    endpoint = _endpoint(selected)
+    metadata = (("authorization", f"Bearer {access_key}"),) if access_key else ()
+    interceptors = [_UnaryMetadata(metadata), _StreamMetadata(metadata)]
+    if endpoint.scheme == "https":
+        if not certificate_pem:
+            raise ValueError("Connect: HTTPS Requires a Pinned Server Certificate")
+        channel = secure_channel(endpoint.netloc, ssl_channel_credentials(certificate_pem.encode()), interceptors=interceptors)
+    else:
+        if certificate_pem:
+            raise ValueError("Connect: HTTP Cannot Carry a Certificate")
+        channel = insecure_channel(endpoint.netloc, interceptors=interceptors)
+    wire = ClientRoot(channel)
+    wire._owned_channel = channel
+    client = Client(wire)
+    try:
+        await wait_for(_ready(channel, wire, expected_backend_id), connect_timeout)
+        return client
+    except BaseException:
+        await client.close()
+        raise
+
+
+def _endpoint(selected: str) -> SplitResult:
     endpoint = urlsplit(selected)
     if (
         endpoint.scheme not in ("http", "https")
@@ -157,24 +188,7 @@ async def _connect_endpoint(
         or endpoint.password
     ):
         raise ValueError("Connect: Supply an HTTP(S) Origin with an Explicit Port or Select a .pair File")
-    metadata = (("authorization", f"Bearer {access_key}"),) if access_key else ()
-    interceptors = [_UnaryMetadata(metadata), _StreamMetadata(metadata)]
-    if endpoint.scheme == "https":
-        if not certificate_pem:
-            raise ValueError("Connect: HTTPS Requires a Pinned Server Certificate")
-        channel = secure_channel(endpoint.netloc, ssl_channel_credentials(certificate_pem.encode()), interceptors=interceptors)
-    else:
-        if certificate_pem:
-            raise ValueError("Connect: HTTP Cannot Carry a Certificate")
-        channel = insecure_channel(endpoint.netloc, interceptors=interceptors)
-    client = ClientRoot(channel)
-    client._owned_channel = channel
-    try:
-        await wait_for(_ready(channel, client, expected_backend_id), connect_timeout)
-        return client
-    except BaseException:
-        await client.close()
-        raise
+    return endpoint
 
 
 async def _ready(channel: Channel, client: ClientRoot, expected_backend_id: str | None) -> None:

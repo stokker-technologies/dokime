@@ -1,6 +1,6 @@
 # ***
 #
-# Dokime
+# dokime-rust-workspace
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,16 +11,22 @@
 # === Imports === #
 
 # Standard Library Imports
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import IntEnum
 from fractions import Fraction
+from typing import TYPE_CHECKING
 
 # Third Party Imports
 from google.protobuf.timestamp_pb2 import Timestamp
 
+# Local Imports
 from ._generated.shared import ExactNumber, Null, Value, ValueList
 
-# Local Imports
 # Type Checking Imports
+if TYPE_CHECKING:
+    from ._payloads import Payload
 
 # === Public Exports === #
 
@@ -33,6 +39,101 @@ __all__ = ["decode", "encode"]
 type Scalar = None | bool | int | float | str | bytes | Fraction | datetime | list[Scalar] | tuple[Scalar, ...]
 
 # === Classes === #
+
+
+class ResultStatus(IntEnum):
+    UNSPECIFIED = 0
+    PENDING = 1
+    PASSED = 2
+    FAILED = 3
+    BLOCKED = 4
+    CANCELLED = 5
+
+
+class Termination(IntEnum):
+    UNSPECIFIED = 0
+    COMPLETED = 1
+    FAILED = 2
+    CANCELLED = 3
+    INTERRUPTED = 4
+
+
+@dataclass(frozen=True)
+class Outcome:
+    status: ResultStatus
+    attribution: str
+    reason: str
+    termination: Termination | None = None
+    importer: str | None = None
+
+
+@dataclass(frozen=True)
+class Progress:
+    phase: str
+    completed: int
+    total: int
+    label: str
+    sealed: bool
+
+
+@dataclass(frozen=True)
+class Note:
+    identifier: str
+    text: str
+    author: str | None
+    created_at: datetime
+    cycle: str
+    execution: str | None
+
+
+@dataclass(frozen=True)
+class Artifact:
+    identifier: str
+    name: str
+    mime: str
+    size_bytes: int
+    sha256: bytes
+    cycle: str | None
+    execution: str | None
+
+
+@dataclass(frozen=True)
+class PromptQuestion:
+    identifier: str
+    text: str
+    choices: tuple[str, ...]
+    execution: str
+
+
+@dataclass(frozen=True)
+class PromptAnswer:
+    choice: str
+
+
+@dataclass(frozen=True)
+class RecordRow[T: "Payload"]:
+    identifier: str
+    sequence: int
+    timestamp_ns: int
+    received_at_ns: int
+    record_type: str
+    schema_version: int
+    source: str
+    value: T
+
+
+@dataclass(frozen=True)
+class SampleRow[T: "Payload"]:
+    identifier: str
+    sequence: int
+    timestamp_ns: int
+    received_at_ns: int
+    stream: str
+    schema_version: int
+    source: str
+    value: T
+    values: Mapping[str, Scalar]
+
 
 # === Public Functions === #
 

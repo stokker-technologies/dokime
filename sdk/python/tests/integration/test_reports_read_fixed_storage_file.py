@@ -1,6 +1,6 @@
 # ***
 #
-# Dokime
+# dokime-rust-workspace
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -21,20 +21,21 @@ from typing import Never
 import grpc
 from grpc.aio import ServicerContext
 
+# Local Imports
+from dokime_sdk._connection import connect
+from dokime_sdk._errors import SdkError
+from dokime_sdk._generated.client_types import ReportsCreateResponse
+from dokime_sdk._transfers import download_report
 from dokime_sdk._wire.host.v1.files_pb2 import (
     FilesDeleteRequest,
     FilesGetRequest,
+    FilesGetResponse,
     FilesReadRequest,
     FilesReadResponse,
     FilesWatchRequest,
     FilesWatchResponse,
 )
 from dokime_sdk._wire.host.v1.reports_pb2 import ReportsCreateRequest, ReportsGetRequest, ReportsPublishRequest
-
-# Local Imports
-from dokime_sdk.client import ReportsCreateResponse
-from dokime_sdk.connection import connect
-from dokime_sdk.transfers import download_report
 
 # Type Checking Imports
 
@@ -69,8 +70,8 @@ class ReportStory(unittest.IsolatedAsyncioTestCase):
                 await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Publish Report: Unexpected Mutation")
 
         class Files(storage_rpc.FilesServicer):
-            async def Get(self, request: FilesGetRequest, context: ServicerContext) -> Never:
-                await context.abort(grpc.StatusCode.UNIMPLEMENTED, "Get Is Outside This Fixture")
+            async def Get(self, request: FilesGetRequest, context: ServicerContext) -> FilesGetResponse:
+                return FilesGetResponse(chunk_bytes=2)
 
             def Watch(self, request: FilesWatchRequest, context: ServicerContext) -> AsyncIterator[FilesWatchResponse]:
                 return super().Watch(request, context)
@@ -99,12 +100,12 @@ class ReportStory(unittest.IsolatedAsyncioTestCase):
         client = await connect(f"http://127.0.0.1:{port}")
         self.addAsyncCleanup(client.close)
 
-        self.assertEqual(await download_report(client, "execution", document="evidence", max_bytes=2), data)
+        self.assertEqual(await download_report(client._transport, "execution", document="evidence", max_bytes=2), data)
         self.assertEqual(offsets, [0, 2, 4, 6])
         for value in ("identity", "corrupt", "gap"):
             mode[0] = value
-            with self.assertRaises(ValueError):
-                await download_report(client, "execution", document="evidence", max_bytes=2)
+            with self.assertRaises(SdkError):
+                await download_report(client._transport, "execution", document="evidence", max_bytes=2)
         self.assertEqual(published, [])
 
 
