@@ -28,6 +28,7 @@ from time import perf_counter
 # Local Imports
 import dokime_tools.test.policy
 from dokime_tools.build import cargo, configuration, paths
+from dokime_tools.prepare import generated
 from dokime_tools.test import archive, policy
 
 from ...process import spawn_flags
@@ -50,6 +51,9 @@ def build(profile: str, *, timings: bool = False) -> list[str]:
     """Compile the Independent Canonical Test Archive and Its Metadata."""
     if profile not in dokime_tools.test.policy.PROFILES:
         raise ValueError("Build Tests: test archives require dev or release")
+
+    # Generate the Report Template Before Compiling Its Runtime Consumer.
+    generated.prepare()
 
     # Compile Test Targets Through The Shared Archive Owner.
     started = perf_counter()

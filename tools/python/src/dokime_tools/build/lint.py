@@ -23,6 +23,7 @@ from collections.abc import Sequence
 
 # Local Imports
 from dokime_tools.build import cargo
+from dokime_tools.prepare import generated
 
 from . import configuration
 
@@ -40,6 +41,7 @@ from . import configuration
 
 
 def desktop(arguments: Sequence[str]) -> None:
+    generated.prepare()
     cargo.clippy(configuration.ROOT, arguments)
 
 
