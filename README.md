@@ -139,18 +139,17 @@ dokime --version
 ### Create a Python Starter
 
 ```sh
-dokime new bench --lang python
-cd bench/test
+dokime new my-project --lang python
+cd my-project/test
 mise trust
-uv add "dokime-sdk @ https://github.com/stokker-technologies/dokime/releases/download/nightly/dokime_sdk-0.1.5-py3-none-any.whl"
 dokime dev --plugin .
 ```
 
-`dokime new` writes the `plugin` and `test` examples; `bench/test` holds the suite,
-its `plugin.py` entry point, the `main.py` client flow and `dokime.toml`. The `uv add`
-line takes the SDK wheel from the same Nightly. `dokime dev` starts a disposable host
+`dokime new` writes the `plugin` and `test` examples; `my-project/test` holds the suite,
+its `plugin.py` entry point, the `main.py` client flow and `dokime.toml`.
+`dokime dev` starts a disposable host
 with the plugin attached and prints its endpoint. Bundle the plugin for installation
-with `dokime plugin bundle . --out ../bench.dokime`.
+with `dokime plugin bundle . --out ../my-project.dokime`.
 
 ### From Source
 

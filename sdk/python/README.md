@@ -13,7 +13,15 @@ mise -C sdk/python run prepare
 
 Prepare synchronizes the repository's `.venv/`, then builds the wheel and installs it there.
 
-Consumers install the built wheel with `uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl`.
+Starters and examples resolve the Nightly SDK with `uv sync`:
+
+```toml
+dependencies = ["dokime-sdk @ git+https://github.com/stokker-technologies/dokime@nightly#subdirectory=sdk/python"]
+```
+
+The Git build uses committed generated sources and needs only `uv`; it does not run repository tooling or protoc.
+Repository tests install the wheel built from the working tree, and starter fixtures override the dependency with that wheel.
+Consumers can also install the built wheel with `uv add /path/to/dokime_sdk-0.1.5-py3-none-any.whl`.
 The wheel resolves its pinned transport dependencies automatically. Building it needs no Rust compiler.
 The `polars` and `pandas` extras add the optional dataframe helpers, for example
 `uv add "dokime-sdk[polars] @ file:///path/to/dokime_sdk-0.1.5-py3-none-any.whl"`.
