@@ -122,6 +122,8 @@ with `plugin-boundary` and `plugin-lifecycle`.
 
 - [x] 6.5b Share Visual Studio C++ discovery between native CI provisioning and the C++ SDK through the existing tooling package; retain their distinct environment setup and prove focused native setup tests and Python typing.
 
+- [x] 6.5c Remove duplicate generated-host compilation from the C++ generation test target and prove its focused Windows SDK test build without changing tracked generated output.
+
 ## Workflow Follow-Up
 
 - Delivery authorization governs push/review/merge; these slices do not grant it.
