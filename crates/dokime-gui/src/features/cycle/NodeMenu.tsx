@@ -19,7 +19,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-import { Archive, ArchiveRestore, Ellipsis, FileText, Plus, Repeat, RotateCcw, Settings2 } from "lucide-react";
+import { Archive, ArchiveRestore, Ellipsis, FileText, Play, Plus, Repeat, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 
 // Local Imports
@@ -66,6 +66,10 @@ export type CycleMenu = {
 /** The execution page's "…" menu. */
 export type ExecutionMenu = {
   kind: "execution";
+  onStart: (() => void) | null;
+  startRefusal?: string;
+  onDeleteCase: (() => void) | null;
+  deleteRefusal?: string;
   /** `null` for a case that has not run, which has no execution to archive. */
   archive: ArchiveAction | null;
   /** Opens the report the execution has now: current or sealed;
@@ -145,6 +149,27 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         <DropdownMenuItem disabled={!menu.onSettings} onSelect={() => menu.onSettings?.()}>
           <Settings2 />
           Settings
+        </DropdownMenuItem>
+      );
+    case "Start Execution":
+      if (menu.kind !== "execution") return null;
+      return (
+        <DropdownMenuItem disabled={!menu.onStart} onSelect={() => menu.onStart?.()} title={menu.startRefusal}>
+          <Play />
+          Start Execution
+        </DropdownMenuItem>
+      );
+    case "Delete Case":
+      if (menu.kind !== "execution") return null;
+      return (
+        <DropdownMenuItem
+          disabled={!menu.onDeleteCase}
+          onSelect={() => menu.onDeleteCase?.()}
+          title={menu.deleteRefusal}
+          variant="destructive"
+        >
+          <Trash2 />
+          Delete Case
         </DropdownMenuItem>
       );
     case "Re-Run":

@@ -11,13 +11,12 @@
  * its executions in cycle order.
  *
  * Every row is one line on one grid — chevron, status glyph, label, Run
- * Again, ordinal or progress, menu — with the same column widths on every
+ * Again, ordinal or progress — with the same column widths on every
  * row, so glyphs, ordinals and actions line up whatever the labels say. A row
  * is `--tree-row-height` tall (28px on a desk, 44px at touch). The label is
  * cut with an ellipsis and its full text is the row's tooltip and accessible
  * name; the status is a coloured glyph whose word is its tooltip and is also
- * read as text. The row menu appears on hover or focus, and on a long press at
- * touch.
+ * read as text. Entry actions live in the page header.
  *
  * It is a WAI-ARIA tree: arrow keys move between rows, left and right collapse
  * and expand the cycle node, Enter selects. Selecting the cycle node selects
@@ -48,14 +47,11 @@ import {
   ChevronDown,
   ChevronRight,
   Circle,
-  Ellipsis,
   LoaderCircle,
   type LucideIcon,
   Minus,
-  Play,
   RotateCcw,
   Square,
-  Trash2,
   TriangleAlert,
   Unplug,
   X,
@@ -66,14 +62,6 @@ import { toast } from "@/lib/notifications";
 // Local Imports
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type { TestCyclePlan, TestExecution } from "@/lib/types";
 import { useRowWindow } from "@/lib/use-row-window";
 import { cn } from "@/lib/utils";
@@ -84,7 +72,6 @@ import {
   type CycleExecutionRow,
   type CycleLifecycle,
   type CycleSelection,
-  caseActionTooltip,
   caseStatusLabel,
   cycleRowSelection,
   cycleState,
@@ -99,14 +86,12 @@ import {
 
 /* === Constants === */
 
-const GUI_LONG_PRESS_MS = 500;
-
 /**
- * The one row grid: chevron, glyph, label, Run Again, ordinal, menu. Every
+ * The one row grid: chevron, glyph, label, Run Again, ordinal. Every
  * row uses it, so every trailing column sits on the same x.
  */
 const ROW_GRID =
-  "grid h-[var(--tree-row-height)] min-w-0 grid-cols-[--spacing(5)_--spacing(5)_minmax(0,1fr)_var(--tree-action-width)_--spacing(11)_var(--tree-action-width)] items-center gap-x-1 rounded-lg pr-1";
+  "grid h-[var(--tree-row-height)] min-w-0 grid-cols-[--spacing(5)_--spacing(5)_minmax(0,1fr)_var(--tree-action-width)_--spacing(11)] items-center gap-x-1 rounded-lg pr-1";
 
 const TONE_CLASS: Record<GlyphTone, string> = {
   danger: "text-destructive",
@@ -115,9 +100,6 @@ const TONE_CLASS: Record<GlyphTone, string> = {
   success: "text-success",
   warning: "text-warning",
 };
-
-/** How long a touch must rest on a row before its menu opens. */
-const LONG_PRESS_MS = GUI_LONG_PRESS_MS;
 
 /* === Types === */
 
@@ -130,8 +112,6 @@ export type CycleSidebarState = {
 
 export type CycleSidebarActions = {
   rerunCase: (caseId: string) => Promise<string | null | undefined>;
-  startExecution: (executionId: string) => Promise<unknown>;
-  deleteCase: (caseId: string) => Promise<unknown>;
 };
 
 export type CycleSidebarCasesViewProps = {
@@ -160,7 +140,6 @@ export function CycleSidebarCasesView({
 }: CycleSidebarCasesViewProps) {
   const navigate = useNavigate();
   const followActive = useSelectionStore((state) => state.followActive);
-  const [pendingDelete, setPendingDelete] = useState<CycleExecutionRow | null>(null);
   const [expanded, setExpanded] = useState(true);
   const treeRef = useRef<HTMLUListElement>(null);
 
@@ -318,7 +297,6 @@ export function CycleSidebarCasesView({
               <span className="text-right text-xs text-muted-foreground tabular-nums" title={`${finished} of ${total} Cases Finished`}>
                 {finished}/{total}
               </span>
-              <span aria-hidden />
             </div>
 
             {expanded ? (
@@ -351,22 +329,12 @@ export function CycleSidebarCasesView({
                         inputNeeded={row.execution !== null && inputNeeded?.has(row.execution.test_execution_id) === true}
                         key={row.key}
                         live={live}
-                        onDelete={setPendingDelete}
                         onRerun={() =>
                           report({ done: "New Attempt Ready to Start", failed: "Case Re-Run Failed" }, async () => {
                             const created = await liveActions(actions).rerunCase(row.case.caseId);
                             if (created) {
                               select({ executionId: created });
                             }
-                          })
-                        }
-                        onRun={() =>
-                          report({ done: "Execution Started", failed: "Execution Could Not Start" }, () => {
-                            const execution = row.execution;
-                            if (!execution?.controls?.canStart) {
-                              throw new Error("Reload execution controls or select a new plugin execution before starting.");
-                            }
-                            return liveActions(actions).startExecution(execution.test_execution_id);
                           })
                         }
                         onSelect={() => select(cycleRowSelection(row))}
@@ -389,43 +357,6 @@ export function CycleSidebarCasesView({
           <TreeNotice message="Reading this cycle's cases." title="Loading" />
         )}
       </ul>
-
-      <Dialog onOpenChange={(open) => !open && setPendingDelete(null)} open={live && pendingDelete !== null}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Case</DialogTitle>
-            <DialogDescription>
-              {pendingDelete
-                ? `Deleting removes the case "${pendingDelete.case.label}" and its ${caseExecutionCount(rows, pendingDelete.case.caseId)} executions from this cycle. This cannot be undone.`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => setPendingDelete(null)} variant="outline">
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                const row = pendingDelete;
-                setPendingDelete(null);
-                if (!row) {
-                  return;
-                }
-                const selected = rows.find((candidate) => candidate.key === selectedKey);
-                if (selected?.case.caseId === row.case.caseId) {
-                  select({ view: "cycle" });
-                }
-                report({ done: "Case Deleted", failed: "The Case Could Not Be Deleted" }, () =>
-                  liveActions(actions).deleteCase(row.case.caseId),
-                );
-              }}
-              variant="danger"
-            >
-              Delete Case
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </li>
   );
 }
@@ -436,9 +367,7 @@ function ExecutionTreeRow({
   inputNeeded,
   windowIndex,
   live,
-  onDelete,
   onRerun,
-  onRun,
   onSelect,
   row,
   selected,
@@ -447,29 +376,15 @@ function ExecutionTreeRow({
   following: boolean;
   inputNeeded: boolean;
   live: boolean;
-  onDelete: (row: CycleExecutionRow) => void;
   onRerun: () => void;
-  onRun: () => void;
   onSelect: () => void;
   row: CycleExecutionRow;
   selected: boolean;
   /** The row's position in the whole list, which windowing reads back. */
   windowIndex: number;
 }) {
-  /* Eligibility is the runtime's, not a guess from the row's own status: the
-     projection computes it from the checks each mutation enforces, and its
-     reasons are the only honest thing to put on a disabled item. A projection
-     that states no eligibility at all offers every item, and the mutation
-     itself refuses. The case's actions live on its newest row: an earlier
-     execution is history, and acting on the case from it would be ambiguous. */
-  const actions = row.case.actions;
-  const reason = caseActionTooltip(row.case);
-  const deleteAllowed = actions === null || actions.delete;
   const glyph: Glyph = inputNeeded ? { icon: BellRing, label: "Waiting for Input", tone: "warning" } : rowGlyph(row);
   const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run of #${row.rerunOf}`;
-  const [menuOpen, setMenuOpen] = useState(false);
-  const press = useLongPress(() => setMenuOpen(true));
-  const menu = live && row.newest;
 
   return (
     <li
@@ -485,7 +400,6 @@ function ExecutionTreeRow({
       data-window-row={windowIndex}
       role="treeitem"
       tabIndex={selected ? 0 : -1}
-      {...(menu ? press : {})}
     >
       <div
         className={cn(ROW_GRID, "pl-[var(--tree-indent)]", rowTone(selected), following && "shadow-[inset_2px_0_0_var(--color-primary)]")}
@@ -529,44 +443,6 @@ function ExecutionTreeRow({
         >
           {row.execution ? `#${row.ordinal}` : ""}
         </span>
-        {menu ? (
-          <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                aria-label={`Actions for ${row.case.label}`}
-                data-tree-actions
-                className="size-[var(--tree-action-width)] opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [[data-density=touch]_&]:pointer-events-none"
-                size="icon-sm"
-                tabIndex={-1}
-                variant="ghost"
-              >
-                <Ellipsis />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48" side="right">
-              <DropdownMenuItem
-                disabled={!row.execution?.controls?.canStart}
-                onSelect={onRun}
-                title={row.execution?.controls?.canStart ? undefined : "Reload Execution Controls or Select a New Plugin Execution"}
-              >
-                <Play />
-                Start Execution
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={!deleteAllowed}
-                onSelect={() => onDelete(row)}
-                title={deleteAllowed ? undefined : reason}
-                variant="destructive"
-              >
-                <Trash2 />
-                Delete Case
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <span aria-hidden />
-        )}
       </div>
     </li>
   );
@@ -616,34 +492,6 @@ function TreeNotice({ action, message, title }: { action?: { label: string; onCl
 /** The selected row's ground, full width; otherwise a hover ground only. */
 function rowTone(selected: boolean): string {
   return selected ? "bg-primary/10 text-primary" : "text-foreground/90 hover:bg-muted hover:text-foreground";
-}
-
-/** Open a menu after a touch rests on the row; any movement cancels it. */
-function useLongPress(onLongPress: () => void) {
-  const timer = useRef<number | null>(null);
-  const cancel = () => {
-    if (timer.current !== null) {
-      window.clearTimeout(timer.current);
-    }
-    timer.current = null;
-  };
-  return {
-    onContextMenu: (event: { preventDefault: () => void }) => {
-      event.preventDefault();
-      onLongPress();
-    },
-    onPointerCancel: cancel,
-    onPointerDown: (event: { pointerType: string }) => {
-      if (event.pointerType !== "touch") {
-        return;
-      }
-      cancel();
-      timer.current = window.setTimeout(onLongPress, LONG_PRESS_MS);
-    },
-    onPointerLeave: cancel,
-    onPointerMove: cancel,
-    onPointerUp: cancel,
-  };
 }
 
 function rowGlyph(row: CycleExecutionRow): Glyph {
@@ -713,11 +561,6 @@ function cycleGlyph(phase: TestCyclePlan["test_cycle"]["phase"], status: CycleLi
     default:
       return { icon: Circle, label, tone: "muted" };
   }
-}
-
-/** How many executions of `caseId` the list holds. */
-function caseExecutionCount(rows: readonly CycleExecutionRow[], caseId: string): number {
-  return rows.filter((row) => row.case.caseId === caseId && row.execution !== null).length;
 }
 
 function liveActions(actions: CycleSidebarActions | undefined): CycleSidebarActions {

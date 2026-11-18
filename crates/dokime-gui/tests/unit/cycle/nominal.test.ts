@@ -231,11 +231,15 @@ test("Node Menus", () => {
   }
 
   // Execution Menu Offers Re-Run, Open Report, Settings and Archive
-  assert.deepEqual(nodeMenuGroups("execution", false), [["Re-Run"], ["Open Report", "Settings"], ["Archive"]]);
+  assert.deepEqual(nodeMenuGroups("execution", false), [
+    ["Start Execution", "Re-Run"],
+    ["Open Report", "Settings"],
+    ["Archive", "Delete Case"],
+  ]);
 
   // An Archived Node Offers Unarchive in Place of Archive
   assert.deepEqual(nodeMenuGroups("cycle", true).at(-1), ["Unarchive"]);
-  assert.deepEqual(nodeMenuGroups("execution", true).at(-1), ["Unarchive"]);
+  assert.deepEqual(nodeMenuGroups("execution", true).at(-1), ["Unarchive", "Delete Case"]);
 
   // Rerun Cycle Stays Offered Once a Cycle Is Sealed or Archived
   assert.ok(nodeMenuGroups("cycle", true).flat().includes("Rerun Cycle"));

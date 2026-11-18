@@ -28,6 +28,7 @@ import { test, vi } from "vitest";
 // Local Imports
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { type ExecutionActions, ExecutionControl, useExecutionActions } from "@/features/cycle/ExecutionControl";
+import { NodeMenu, type ExecutionMenu } from "@/features/cycle/NodeMenu";
 import type { CycleExecutionRow } from "@/features/cycle/cycle-workspace-model";
 import { mapNativeExecutionSummary } from "@/lib/api/native-planning-projection";
 
@@ -202,6 +203,50 @@ test("Leaving an Execution Cancels a Progress Watch That Opens Later", async () 
     assert.equal(cancel.mock.calls.length, 1);
   } finally {
     await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  }
+});
+
+test("Entry Header Menu Invokes Start and Delete and Respects Refusals", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const element = document.createElement("div");
+  document.body.append(element);
+  const root = createRoot(element);
+  const start = vi.fn();
+  const remove = vi.fn();
+  const menu: ExecutionMenu = {
+    kind: "execution",
+    archive: null,
+    onStart: start,
+    onDeleteCase: remove,
+    onRerun: null,
+    onSettings: null,
+    onOpenReport: null,
+  };
+  const open = async () => {
+    const trigger = element.querySelector("button")!;
+    await act(async () =>
+      trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerType: "mouse", ctrlKey: false })),
+    );
+  };
+  try {
+    await act(async () => root.render(createElement(NodeMenu, { menu })));
+    await open();
+    let items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    await act(async () => items.find((item) => item.textContent === "Start Execution")!.click());
+    assert.equal(start.mock.calls.length, 1);
+    await open();
+    items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    await act(async () => items.find((item) => item.textContent === "Delete Case")!.click());
+    assert.equal(remove.mock.calls.length, 1);
+    await act(async () => root.render(createElement(NodeMenu, { menu: { ...menu, onStart: null, onDeleteCase: null } })));
+    await open();
+    items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    assert.equal(items.find((item) => item.textContent === "Start Execution")!.getAttribute("aria-disabled"), "true");
+    assert.equal(items.find((item) => item.textContent === "Delete Case")!.getAttribute("aria-disabled"), "true");
+  } finally {
+    await act(async () => root.unmount());
+    element.remove();
     vi.unstubAllGlobals();
   }
 });

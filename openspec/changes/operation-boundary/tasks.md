@@ -180,3 +180,5 @@ with `plugin-boundary` and `plugin-lifecycle`.
 - Archive the change only after its obligations close, filling new capability Purposes.
 
 - Review the overlapping conditional-object replay paths in `backend/objects.rs::exchange` (position-keyed receipts, called by `StorageBackend::set_object`) and `backend/compound.rs::commit` (mutation-ID receipts, called by `StorageBackend::mutate`). Keep both until the owner decides whether the library ports can consolidate; the preferred eventual removal is the position-keyed exchange path.
+
+- [x] 6.5g Move sidebar execution overflow actions into the entry header menu, preserving host Start capability, case deletion confirmation and the visible Start control. Remove the row menu and long-press machinery; migrate desktop stories and prove focused cycle tests and TypeScript checking.

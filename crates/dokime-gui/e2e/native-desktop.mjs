@@ -203,10 +203,8 @@ async function exactBench() {
     executions: [{ executionId: benchExecution, caseId: plan.cases[0].caseId }],
   });
   await desktop.goto(`/cycles/${bench.cycleId}?executionId=${benchExecution}`, { reload: true });
-  await until("Registered Bench Execution Row", () =>
-    desktop.find("css selector", `li[data-execution-id="${benchExecution}"] button[data-tree-actions]`),
-  );
-  await desktop.clickCss(`li[data-execution-id="${benchExecution}"] button[data-tree-actions]`);
+  await until("Registered Bench Execution Row", () => desktop.find("css selector", 'button[aria-label="Execution Actions"]'));
+  await desktop.clickCss('button[aria-label="Execution Actions"]');
   await desktop.clickNamed("menuitem", "Start Execution");
   const prompt = await until("Bench Confirmation Prompt", async () => {
     const pending = await call(desktop, "Prompts", "List", { pendingOnly: true, executionId: benchExecution });

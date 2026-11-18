@@ -208,7 +208,7 @@ try {
     await until("Shared Execution Selected", () => gui.find("css selector", `li[data-execution-id="${executionId}"]`));
     await gui.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-select]`);
   }
-  await a.clickCss(`li[data-execution-id="${executionId}"] button[data-tree-actions]`);
+  await a.clickCss('button[aria-label="Execution Actions"]');
   await a.clickNamed("menuitem", "Start Execution");
   for (const gui of [a, b])
     await until("Remote Operator Prompt", () => gui.find("css selector", 'ol[aria-label="Pending Prompts"] li[data-prompt-state="open"]'));
