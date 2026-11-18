@@ -57,7 +57,7 @@ env:
   GIT_CONFIG_VALUE_0: 'true'
 jobs:
   test:
-    name: Test / ${{ inputs.work }} (${{ inputs.platform }})
+    name: ${{ startsWith(inputs.command, 'bench ') && 'Bench' || 'Test' }} / ${{ inputs.work == 'C++ / SDK' && 'SDK / C++' || inputs.work }} (${{ inputs.platform }})
     runs-on: ${{ inputs.runner }}
     timeout-minutes: ${{ inputs.minutes }}
     steps:

@@ -131,7 +131,7 @@ def github_validation_run(runs: list[dict], jobs_for: Callable[[int], list[dict]
         jobs = jobs_for(run["id"])
         gates = []
         for gates_job in jobs:
-            if gates_job.get("name") != "CI / Required":
+            if gates_job.get("name") != "Check / CI / Required":
                 continue
             gates.append(gates_job)
 

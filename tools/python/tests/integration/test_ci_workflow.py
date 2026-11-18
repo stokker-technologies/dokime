@@ -388,7 +388,10 @@ class WorkflowTests(unittest.TestCase):
             "status": "completed",
             "conclusion": "success",
         }
-        jobs = [{"name": "CI / Required", "conclusion": "success"}, {"name": registry.reviews.REHEARSAL_CHECK, "conclusion": "success"}]
+        jobs = [
+            {"name": "Check / CI / Required", "conclusion": "success"},
+            {"name": registry.reviews.REHEARSAL_CHECK, "conclusion": "success"},
+        ]
 
         def pages(settings: dict, endpoint: str, key: str | None = None) -> list[dict]:
             return [run] if "workflows/ci.yml" in endpoint else jobs

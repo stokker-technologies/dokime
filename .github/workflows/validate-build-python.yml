@@ -25,7 +25,7 @@ env:
   GIT_CONFIG_VALUE_0: 'true'
 jobs:
   build_python:
-    name: Build / Python (Any)
+    name: Build / SDK / Python (any)
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     steps:
