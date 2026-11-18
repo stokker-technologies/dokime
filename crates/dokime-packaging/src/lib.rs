@@ -10,12 +10,14 @@
 /* === Modules === */
 
 pub mod bundle;
+pub mod project;
 
 /* === Re-Exports === */
 
 /* === Imports === */
 
 // Standard Library Imports
+use std::{error, result};
 
 // Third Party Imports
 
@@ -27,7 +29,7 @@ pub mod bundle;
 
 /* === Type Aliases === */
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+pub type Result<T> = result::Result<T, Box<dyn error::Error + Send + Sync>>;
 
 /* === Structs === */
 

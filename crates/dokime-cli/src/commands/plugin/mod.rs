@@ -16,6 +16,7 @@ mod bundle;
 mod inspect;
 pub(super) mod install;
 mod list;
+pub(super) mod project;
 mod remove;
 mod secrets;
 
@@ -106,6 +107,7 @@ pub(super) fn require_trust(trust: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use clap::Parser;
+    use dokime_packaging::project::PluginProject;
 
     use crate::{cli::Cli, commands, error::Error, settings::Settings};
 
@@ -127,5 +129,32 @@ mod tests {
         assert!(Cli::try_parse_from(["dokime", "dev", "--plugin", "example.dokime"]).is_ok());
         assert!(Cli::try_parse_from(["dokime", "plugin", "dev", "--executable", "plugin"]).is_err());
         assert!(Cli::try_parse_from(["dokime", "dev"]).is_err());
+    }
+
+    #[test]
+    fn bundle_requires_a_project_folder_and_rejects_removed_flags() {
+        assert!(Cli::try_parse_from(["dokime", "plugin", "bundle", "project", "--out", "plugin.dokime"]).is_ok());
+        assert!(Cli::try_parse_from(["dokime", "plugin", "bundle", "--executable", "plugin", "--out", "plugin.dokime"]).is_err());
+        assert!(Cli::try_parse_from(["dokime", "plugin", "bundle", "project", "--asset", "asset", "--out", "plugin.dokime"]).is_err());
+    }
+
+    #[tokio::test]
+    async fn new_embeds_a_buildable_manifest_for_each_starter() -> crate::Result<()> {
+        let root = tempfile::tempdir()?;
+        for (language, folder) in [("python", "test"), ("rust", "test"), ("csharp", "Test"), ("cpp", "test")] {
+            let destination = root.path().join(language);
+            let mut arguments =
+                vec!["dokime".into(), "new".into(), destination.to_string_lossy().into_owned(), "--lang".into(), language.into()];
+            if language == "cpp" {
+                arguments.extend(["--sdk-url".into(), "fixture.tar.gz".into(), "--sdk-sha256".into(), "0".repeat(64)]);
+            }
+            let cli = Cli::try_parse_from(arguments).unwrap();
+            commands::run(cli.command, None, Settings::default()).await?;
+            let project = PluginProject::read(&destination.join(folder))?;
+            assert!(project.manifest.build.is_some());
+            assert_eq!(project.manifest.launch.is_some(), language == "python");
+            assert_eq!(project.manifest.executable.is_some(), language != "python");
+        }
+        Ok(())
     }
 }

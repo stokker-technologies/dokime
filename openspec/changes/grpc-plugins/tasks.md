@@ -67,8 +67,7 @@
 - [x] C++: Follow the Locked Authoring Surface.
 - [x] C++: Pass Native Windows SDK Build, SDK Tests, Format and Language Check, Including the Debug Thermal Fixture Target.
 - [x] C++: Complete the Prescribed Host-Fixture Producer Proof With This Task's Authorized Release Build.
-- [ ] Command Line: Implement Locked Point 11.
-
+- [x] Command Line: Implement Locked Point 11 With the Manifest-Project Amendment.
 
 - [x] Integration: Normalize Member Code Names and Qualify Short Prompts Across All Four SDKs.
 - [x] Integration: Give the Python SDK Sole Ownership of Its Authoring Root Exports.
@@ -76,4 +75,17 @@
 - [x] Integration: Add a Shared Four-Language Capture Description and Record Contract Story Under `sdk/tests`.
 - [ ] Integration: Prove Generation, Ordered Host Fixtures, Four SDKs, Shared Stories, Command-Line Development Stories and Migrated Runtime Stories on the Combined Tree.
 - [x] Integration: Complete Format and Focused Language Checks on the Combined Tree.
-- [x] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
+- [ ] Shared Generation: Preserve Watch Metadata in Rust `host.rs` Request Bindings; Resolve the Unary/Streaming Fingerprint Mismatch Before Host Admission Proof.
+
+## Plugin Project Manifests
+
+- [x] Pin the Launch-Capable Library Revision in the Workspace and Rust Consumer Manifests and Locks.
+- [x] Read Strict `dokime.toml` Plugin Manifests With One Native Executable or Launch Command and Confined Relative Paths.
+- [x] Build Manifest Projects Before Development or Bundling; Require Python Project and Lock Inputs Before Use.
+- [x] Bundle Native Executables With File or Folder Assets and Launch Projects With Their Git-Ignored File Inventory.
+- [x] Replace Executable Flags and Python-Folder Detection With Bundle or Manifest-Project Development Inputs.
+- [x] Attach the Sibling Packaged Desktop When Present and Close It With the Disposable Host.
+- [x] Embed Manifest Files in the Four Test Starters and Update README Command Examples.
+- [x] Complete Focused CLI, Packaging and Runtime Unit Proof, Owned-File Formatting, Locked Metadata and Three-Package Compilation With Tests.
+- [ ] Migrate Product and Desktop-Fixture Tooling From Retired `--executable` Calls to Manifest Projects in `tools/python/src/dokime_tools/{build/rust/__main__.py,build/desktop_fixtures.py,dev/desktop.py}`.
+
