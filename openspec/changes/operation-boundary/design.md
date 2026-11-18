@@ -513,6 +513,35 @@ than increasing a timeout. This changes the check's effective workflow bound and
 requires approval under the task's no-lengthening rule. Keep the existing bound
 until that decision; a prior successful capture does not replace final proof.
 
+## Browsing View Retention Ownership
+
+`crates/dokime-operations/src/host/views.rs::read` retains a native file index per
+resource/content digest and a separate `view-at` index per resource/evidence position.
+Both carry the supplied resource scope. `retain` removes only a newly produced file
+that lost a publication race; no normal read, page completion, disconnect or shutdown
+releases a published view or either index. Administration uses `ObjectRetention::All`.
+This explains growth during a desktop session and across restarts: viewport selections
+change resource keys, response changes create content revisions, and new evidence
+positions create additional cut indexes even for unchanged response bytes.
+
+The native backend's `backend/compound.rs::delete_scope` can tombstone scoped objects
+and files, but `host/executions/delete.rs` still calls the SQL ledger's
+`history.rs::delete_sealed_execution`, which deletes SQL `resource_values` and
+`resource_requests`, not native view indexes or native files. This is a lifecycle
+REWORK finding, not permission to add a second deletion path. Native scope deletion
+and SQL execution deletion coexist while the coupled storage cutover remains open;
+prefer deleting the SQL execution cleanup after migrating lifecycle, seal and archive
+callers to the native scope transaction.
+
+No request/session lifetime is defined for the durable cuts: `read` intentionally
+reopens indexed views and refuses unavailable cuts with a resynchronization error.
+The owner must choose between explicit client/session release (requiring ownership
+and cut invalidation semantics), request-only views with explicit durable captures,
+or durable resource views with an explicit release operation. Prefer explicit release
+of client-owned views while retaining separately owned report/evidence captures, as
+part of the coupled view cutover. No retention lifetime, expiry, bound or automatic
+deletion is introduced by the administration performance repair.
+
 ## Report Retention Ownership Review
 
 The report-creation performance task leaves the listed overlaps intact for the owner.
