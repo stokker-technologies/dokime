@@ -27,10 +27,13 @@ mod secrets;
 // Standard Library Imports
 
 // Third Party Imports
+use tonic::Status;
 
 // Local Imports
 
 use crate::{Result, settings::Settings};
+use dokime::Client;
+use dokime::client::{PluginEntry, PluginsGetOptions, PluginsWatchOptions};
 
 /* === Constants === */
 
@@ -86,6 +89,53 @@ pub(crate) async fn run(command: Command, endpoint: Option<String>, settings: Se
 }
 
 /* === Private Functions === */
+
+async fn await_ready(client: &Client, entry: PluginEntry, settings: &Settings, action: &str) -> Result<PluginEntry> {
+    let name = entry.name.clone();
+    let mut watch = client
+        .plugins
+        .watch_with(PluginsWatchOptions {
+            name: Some(name.clone()),
+            context: settings.context()?,
+            ..Default::default()
+        })
+        .await?;
+    let mut initial = Some(entry);
+    let result = dokime_runtime::await_plugin_ready(
+        async || {
+            if initial.is_some() {
+                return Ok(initial.take());
+            }
+            let response = client
+                .plugins
+                .get_with(
+                    name.clone(),
+                    PluginsGetOptions {
+                        context: settings.context()?,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let entry = response.entry.ok_or_else(|| format!("{action}: Plugin Entry Was Removed"))?;
+            Ok(Some(entry))
+        },
+        async || Ok(watch.next().await?.is_some()),
+        |entry| {
+            Some(
+                Status::failed_precondition(format!(
+                    "{action} {}: {}",
+                    entry.name,
+                    entry.failure.map_or_else(|| "Activation Stopped".into(), |failure| failure.message)
+                ))
+                .into(),
+            )
+        },
+        || format!("{action}: Plugin Watch Closed Before Readiness").into(),
+    )
+    .await;
+    drop(watch);
+    result
+}
 
 /* === Tests === */
 

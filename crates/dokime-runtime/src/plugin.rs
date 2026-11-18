@@ -23,11 +23,13 @@ use std::{
     num::{NonZeroU32, NonZeroUsize},
     path::Path,
     process::{Command, Stdio},
+    result,
     time::Duration,
 };
 
 // Third Party Imports
 use harmos_operations::plugins::Delete;
+use harmos_protocol::host::{PluginEntry, PluginState};
 use harmos_protocol::plugin::instance_client::InstanceClient;
 use harmos_protocol::plugin::{InstanceGetRequest, InstanceGetResponse, InstanceStopRequest};
 use harmos_runtime::bundle::validate_launch;
@@ -223,6 +225,29 @@ impl Drop for PluginProcess {
 
 /* === Public Functions === */
 
+/// Wait for an Entry to Become Ready Using the Caller's Existing Watch and Error Boundary.
+pub async fn await_plugin_ready<E>(
+    mut read: impl AsyncFnMut() -> result::Result<Option<PluginEntry>, E>, mut changed: impl AsyncFnMut() -> result::Result<bool, E>,
+    unavailable: impl Fn(PluginEntry) -> Option<E>, closed: impl Fn() -> E,
+) -> result::Result<PluginEntry, E> {
+    loop {
+        if let Some(entry) = read().await? {
+            match PluginState::try_from(entry.state) {
+                Ok(PluginState::Ready) => return Ok(entry),
+                Ok(PluginState::Unavailable | PluginState::Stopped) => {
+                    if let Some(error) = unavailable(entry) {
+                        return Err(error);
+                    }
+                }
+                _ => (),
+            }
+        }
+        if !changed().await? {
+            return Err(closed());
+        }
+    }
+}
+
 pub async fn describe_plugin(endpoint: &str, settings: &PlacementSettings) -> Result<InstanceGetResponse> {
     let mut client = connect(endpoint, settings).await?;
     let response = client
@@ -271,17 +296,91 @@ async fn connect(endpoint: &str, settings: &PlacementSettings) -> Result<Instanc
 
 #[cfg(test)]
 mod tests {
-    use std::{ffi::OsStr, fs};
+    use std::{cell::Cell, collections::VecDeque, ffi::OsStr, fs};
 
     use dokime_packaging::project::PluginProject;
+    use harmos_protocol::host::{PluginEntry, PluginState};
 
-    use super::{PluginProcess, announced_endpoint};
+    use super::{PluginProcess, announced_endpoint, await_plugin_ready};
+    use crate::{Error, Result};
+
+    #[tokio::test]
+    async fn entry_readiness_observes_transitions_and_returns_the_ready_entry() {
+        let states = [PluginState::Unspecified, PluginState::Connecting, PluginState::Ready];
+        let entries = states.map(|state| PluginEntry {
+            state: state as i32,
+            name: "fixture".into(),
+            ..Default::default()
+        });
+        let expected = entries[2].clone();
+        let mut entries = VecDeque::from(entries);
+        let changes = Cell::new(0);
+        let entry = await_plugin_ready(
+            async || Ok(entries.pop_front()),
+            async || {
+                changes.set(changes.get() + 1);
+                Ok(true)
+            },
+            |_| Some("unavailable"),
+            || "closed",
+        )
+        .await
+        .unwrap();
+        assert_eq!(entry, expected);
+        assert_eq!(changes.get(), 2);
+    }
+
+    #[tokio::test]
+    async fn entry_readiness_refuses_terminal_states_without_waiting() {
+        for state in [PluginState::Unavailable, PluginState::Stopped] {
+            let result = await_plugin_ready(
+                async || {
+                    Ok(Some(PluginEntry {
+                        state: state as i32,
+                        ..Default::default()
+                    }))
+                },
+                async || panic!("Terminal Entries Must Not Wait"),
+                |entry| Some(entry.state),
+                || -1,
+            )
+            .await;
+            assert_eq!(result, Err(state as i32));
+        }
+    }
+
+    #[tokio::test]
+    async fn entry_readiness_preserves_host_stopped_and_missing_entry_observation() {
+        let mut entries = VecDeque::from([
+            None,
+            Some(PluginEntry {
+                state: PluginState::Stopped as i32,
+                ..Default::default()
+            }),
+            Some(PluginEntry {
+                state: PluginState::Ready as i32,
+                ..Default::default()
+            }),
+        ]);
+        let result = await_plugin_ready(async || Ok(entries.pop_front().unwrap()), async || Ok(true), |_| None, || "closed").await;
+        assert_eq!(result.unwrap().state, PluginState::Ready as i32);
+    }
+
+    #[tokio::test]
+    async fn entry_readiness_propagates_read_watch_and_closed_errors() {
+        let result = await_plugin_ready(async || Err("read"), async || Ok(true), |_| None, || "closed").await;
+        assert_eq!(result, Err("read"));
+        let result = await_plugin_ready(async || Ok(None), async || Err("watch"), |_| None, || "closed").await;
+        assert_eq!(result, Err("watch"));
+        let result = await_plugin_ready(async || Ok(None), async || Ok(false), |_| None, || "closed").await;
+        assert_eq!(result, Err("closed"));
+    }
 
     #[test]
-    fn manifest_command_preserves_arguments_directory_and_environment() -> crate::Result<()> {
+    fn manifest_command_preserves_arguments_directory_and_environment() -> Result<()> {
         let root = tempfile::tempdir()?;
         fs::write(root.path().join("dokime.toml"), "launch = ['fixture', 'entry', 'argument with spaces']\n")?;
-        let project = PluginProject::read(root.path()).map_err(|source| crate::Error::Invalid(source.to_string()))?;
+        let project = PluginProject::read(root.path()).map_err(|source| Error::Invalid(source.to_string()))?;
         let command = PluginProcess::command(&project, project.manifest.launch.as_deref().unwrap())?;
         assert_eq!(command.get_program(), OsStr::new("fixture"));
         assert_eq!(command.get_current_dir(), Some(project.root.as_path()));
@@ -290,14 +389,14 @@ mod tests {
         assert!(command.get_envs().any(|(name, value)| name == "UV_PROJECT_ENVIRONMENT" && value.is_none()));
 
         fs::write(root.path().join("dokime.toml"), "launch = ['./bin/interpreter', 'entry']\n")?;
-        let project = PluginProject::read(root.path()).map_err(|source| crate::Error::Invalid(source.to_string()))?;
+        let project = PluginProject::read(root.path()).map_err(|source| Error::Invalid(source.to_string()))?;
         let command = PluginProcess::command(&project, project.manifest.launch.as_deref().unwrap())?;
         assert_eq!(command.get_program(), project.root.join("bin/interpreter").as_os_str());
         Ok(())
     }
 
     #[test]
-    fn readiness_accepts_native_and_launch_announcements() -> crate::Result<()> {
+    fn readiness_accepts_native_and_launch_announcements() -> Result<()> {
         assert_eq!(announced_endpoint("http://127.0.0.1:1234")?, "http://127.0.0.1:1234");
         assert_eq!(announced_endpoint("harmos listening 127.0.0.1:1234")?, "http://127.0.0.1:1234");
         assert!(announced_endpoint("startup log").is_err());
