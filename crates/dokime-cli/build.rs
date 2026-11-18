@@ -58,7 +58,7 @@ fn main() {
     }
     let manifest = env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest directory");
     let manifest = PathBuf::from(manifest);
-    // CI Names Its Clean Checkout; Local Builds Ask Git And Mark Uncommitted Tracked Changes.
+    // CI Names Its Clean Checkout; Local Builds Ask Git and Mark Uncommitted Tracked Changes.
     let declared = env::var("GITHUB_SHA").ok().filter(|value| commit(value));
     let revision = declared.or_else(|| checkout(&manifest)).unwrap_or_else(|| UNKNOWN.to_owned());
     println!("cargo:rustc-env=DOKIME_SOURCE_REVISION={revision}");
@@ -154,7 +154,7 @@ fn checkout(manifest: &Path) -> Option<String> {
     git(manifest, &["ls-files", "--error-unmatch", "Cargo.toml"])?;
     let head = git(manifest, &["rev-parse", "HEAD"]).filter(|value| commit(value))?;
     watch(manifest);
-    // Reads Without Refreshing The Index, So This Script Never Invalidates Its Own Run.
+    // Reads Without Refreshing the Index, so This Script Never Invalidates Its Own Run.
     let changes = git(manifest, &["--no-optional-locks", "status", "--porcelain", "--untracked-files=no"])?;
     Some(if changes.is_empty() { head } else { format!("{head}-dirty") })
 }

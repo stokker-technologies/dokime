@@ -56,7 +56,7 @@ use dokime_runtime::process;
 fn managed_installation_preserves_resolved_bundle_version() -> Result<(), Box<dyn Error>> {
     super::credentials::run(Box::pin(async {
         time::timeout(super::HANG_GUARD, async {
-            // Bundle a Native Starter With an Explicit Version Override.
+            // Bundle a Native Starter with an Explicit Version Override.
             let directory = super::credentials::tempdir()?;
             let project = directory.path().join("plugin");
             fs::create_dir(&project)?;
@@ -126,7 +126,7 @@ fn first_hour_from_rust_bundle_to_python_remote() -> Result<(), Box<dyn Error>> 
             assert_eq!(entrypoint.executable.as_ref().unwrap().facility, Facility::Sidecar);
             assert_eq!(packed.file(&entrypoint.path), Some(fs::read(&executable)?.as_slice()));
 
-            // Start a Host With an Explicit Endpoint and Controlled Clock
+            // Start a Host with an Explicit Endpoint and Controlled Clock
             let credentials = super::credentials::CredentialStore::start(directory.path()).await?;
             let storage = directory.path().join("storage");
             let mut host = super::command()
