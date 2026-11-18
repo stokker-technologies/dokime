@@ -120,6 +120,40 @@ mise -C sdk/cpp run test
 
 ## Quick Start
 
+### Install the Latest Nightly
+
+Add the command-line tool from the `nightly` release to a `mise.toml`:
+
+```toml
+[tools."github:stokker-technologies/dokime"]
+version = "nightly"
+platforms.windows-x64 = { asset_pattern = "dokime-cli-*-x86_64-pc-windows-msvc.zip" }
+platforms.linux-x64 = { asset_pattern = "dokime-cli-*-x86_64-unknown-linux-gnu.tar.gz" }
+```
+
+```sh
+mise install
+dokime --version
+```
+
+### Create a Python Starter
+
+```sh
+dokime new bench --lang python
+cd bench/test
+mise trust
+uv add "dokime-sdk @ https://github.com/stokker-technologies/dokime/releases/download/nightly/dokime_sdk-0.1.5-py3-none-any.whl"
+dokime dev --plugin .
+```
+
+`dokime new` writes the `plugin` and `test` examples; `bench/test` holds the suite,
+its `plugin.py` entry point, the `main.py` client flow and `dokime.toml`. The `uv add`
+line takes the SDK wheel from the same Nightly. `dokime dev` starts a disposable host
+with the plugin attached and prints its endpoint. Bundle the plugin for installation
+with `dokime plugin bundle . --out ../bench.dokime`.
+
+### From Source
+
 Build `dokime-cli`, create a project from the [SDK examples](docs/product-guide.md#examples), and
 start the host with an explicit endpoint and fresh storage directory. Install a
 managed `.dokime` bundle or add a remote plugin URL, materialize a case and run it.
