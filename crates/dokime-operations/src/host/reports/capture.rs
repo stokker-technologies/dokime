@@ -373,25 +373,7 @@ pub(super) async fn collect(
         }),
         include_context: false,
     });
-    let mut at = None;
-    let mut token = String::new();
-    loop {
-        let reply = crate::host::evidence::notes::list::handle(
-            context,
-            evidence::NotesListRequest {
-                selection: selection.clone(),
-                at: at.clone(),
-                page: Some(PageRequest { page_token: token, ..Default::default() }),
-            },
-        )
-        .await?;
-        at = reply.resolved_at.clone();
-        token = reply.next_page_token.clone();
-        capture.notes.push(reply);
-        if token.is_empty() {
-            break;
-        }
-    }
+    capture.notes = crate::host::evidence::notes::list::capture(context, selection.clone()).await?;
     tracing::debug!(phase = "notes", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
     let phase = Instant::now();
     let mut at = None;

@@ -567,6 +567,29 @@ of client-owned views while retaining separately owned report/evidence captures,
 part of the coupled view cutover. No retention lifetime, expiry, bound or automatic
 deletion is introduced by the administration performance repair.
 
+## Administration Reader Ownership Review
+
+The scan callers enumerate collections: `content/mod.rs::validate_root` checks legacy
+artifact presence; `artifact_payloads` lists committed artifacts; `execution_files`
+lists an execution's logical files; `evidence/notes/list.rs` selects notes; and
+`executions/commands/mod.rs::recover` examines interrupted command receipts.
+`reports/get.rs` scans prepared reports only to select the latest one for a cycle;
+its named prepared/published report reads already use keyed administration access.
+Report capture lists files/artifacts and then uses their existing keyed Get operations.
+None of these prefix scans is an exact-key lookup. File/artifact continuation reads
+reopen retained views without rescanning; note continuations previously rescanned the
+same prefix. Capture now selects notes once and pages that request-local image through
+the same page operation, without retaining a cache across Create requests.
+
+| Overlap | Callers and Purpose | Preferred Removal |
+| --- | --- | --- |
+| `crates/dokime-storage/src/administration.rs` and `crates/dokime-operations/src/host/storage/administration.rs` | SQL keyed protobuf administration serves runtime root claims/access credentials and the secret journal; native administration serves content, notes, commands, views and prepared reports. | Delete SQL administration after migrating its remaining root/security owners with their durable replay and cleanup semantics. Keep both pending the coupled storage cutover. |
+| `crates/dokime-storage/src/notes.rs` and `crates/dokime-operations/src/host/evidence/notes/{create,get,set,list,watch}.rs` | SQL note persistence has no current operation callers; native note operations own Create/Get/Set/List/Watch. Native Create/List still call SQL-backed `Store::note_owner` for owner validation. | Delete unused SQL note persistence after the owner's decision; preserve/migrate owner validation. |
+
+The storage benchmark's `main.rs` also prepares an unrelated 16,384-row export
+fixture even when Criterion selects only `reports/save`. Prefer lazy fixture setup
+in that benchmark owner; it is outside this worker's report-fixture ownership.
+
 ## Report Retention Ownership Review
 
 The report-creation performance task leaves the listed overlaps intact for the owner.
