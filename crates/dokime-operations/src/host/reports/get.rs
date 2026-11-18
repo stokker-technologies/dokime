@@ -55,7 +55,8 @@ pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<Rep
     crate::host::complete(ID, context.settings.read_timeout, async {
         let mut temporary = context.host.temporary_report(&request.name)?;
         if temporary.is_none() && !request.name.is_empty() {
-            temporary = administration::message::<PreparedReport>(context, &request.name).await?.0.file;
+            temporary =
+                administration::message::<PreparedReport>(context, &request.name).await?.0.response.and_then(|response| response.file);
         }
         if request.name.is_empty()
             && let Some(Kind::Cycle(cycle)) = request.subject.as_ref().and_then(|subject| subject.kind.as_ref())
@@ -64,7 +65,7 @@ pub async fn handle(context: &Context, request: ReportsGetRequest) -> Result<Rep
             let (entries, _) = administration::scan(context, "prepared-report/", None).await?;
             for entry in entries.into_iter().rev() {
                 if entry.scope == scope {
-                    temporary = PreparedReport::decode(entry.payload.as_slice())?.file;
+                    temporary = PreparedReport::decode(entry.payload.as_slice())?.response.and_then(|response| response.file);
                     break;
                 }
             }

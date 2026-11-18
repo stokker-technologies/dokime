@@ -103,7 +103,7 @@ This slice switches with slices 2, 3 and 5.
 
 - [ ] 4.4q Measure Reports/Create before and after request-scoped read reuse and concurrent independent plots, including stage timings, exact sample counts and plot distributions in release. The supplied OBC/thermal workstation roots were retired; measure replacement fixed fixtures separately and leave original-example comparison open until those recordings are available.
 - [x] 4.4r Reuse exact stream windows and plot computations within one Create request, preserve embedded response bytes and order, and run independent plots within existing admission settings. Prove deterministic equivalence and focused report/document reads without changing budgets or deadlines.
-- [ ] 4.4s Replay the retained Reports/Create response by request identifier before collecting evidence; prove the original metadata, cut, receipt and native file survive replay and restart.
+- [x] 4.4s Replay the retained Reports/Create response by request identifier before collecting evidence; prove the original metadata, cut, receipt and native file survive replay and restart.
 - [ ] 4.4t Review report reference retention and published HTML duplication, record every caller and the required removal work, and leave both mechanisms intact for the owner's decision.
 
 - [ ] 4.5 Join content metadata/events and execution-open admission to the native lifecycle/seal/deletion boundary; remove the old `execution_state::read` guard and evidence cut path. Archive execution/evidence/telemetry reads through operations and preserve original sample Arrow bytes, not reconstructed samples. Prove late-content refusal, retained reads, execution-content transfers and restart/archive fidelity.

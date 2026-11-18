@@ -25,7 +25,7 @@ use harmos_protocol::model::FileMetadata;
 use prost::Message;
 
 // Local Imports
-use super::capture;
+use super::{PreparedReport, capture};
 use crate::host::files::uploads::{append, create, delete, publish};
 use crate::host::storage::administration;
 use crate::{Error, Result, host::Context};
@@ -55,6 +55,16 @@ pub const ID: &str = "dokime.host.v1.Reports/Create";
 pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<ReportsCreateResponse> {
     crate::host::complete(ID, context.settings.mutation_timeout, async {
         let started = Instant::now();
+        if request.request_id.is_empty() {
+            return Err(Error::Invalid("Create Report: Supply a Nonempty Request ID".into()));
+        }
+        let name = format!("prepared-report/{}", request.request_id);
+        let (prepared, revision) = administration::message::<PreparedReport>(context, &name).await?;
+        if !revision.is_empty() {
+            return prepared.response.ok_or_else(|| {
+                Error::Precondition("Create Report: Use a New Request ID After Replacing Incompatible Prepared Data".into())
+            });
+        }
         let (capture, resolved_at, prepared) = capture::collect(context, &request).await?;
         let metadata = capture.report.clone().ok_or_else(|| Error::Invalid("Create Report: Capture Its Metadata".into()))?;
         let phase = Instant::now();
@@ -80,17 +90,17 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
         let phase = Instant::now();
         let digest =
             (0..digest.len()).step_by(2).map(|index| u8::from_str_radix(&digest[index..index + 2], 16).unwrap()).collect::<Vec<_>>();
-        let name = format!("prepared-report/{}", request.request_id);
         let scope = match &metadata.test_execution_id {
             Some(execution) => Scope::Execution(execution),
             None => Scope::Cycle(&metadata.test_cycle_id),
         };
+        let scope = scope.identifier()?;
         let created = create::handle(
             context,
             UploadsCreateRequest {
                 metadata: Some(FileMetadata {
                     id: name.clone(),
-                    scope: Some(scope.identifier()?.to_string()),
+                    scope: Some(scope.to_string()),
                     media_type: "text/html".into(),
                     expected_length: Some(length),
                     expected_sha256: Some(digest.clone()),
@@ -150,17 +160,22 @@ pub async fn handle(context: &Context, request: ReportsCreateRequest) -> Result<
         };
 
         let mut prepared = prepared.unwrap_or_default();
-        prepared.file = Some(reference.clone());
-        administration::retain(context, &name, scope.identifier()?, &prepared).await?;
-        context.host.retain_report(reference.clone())?;
-        tracing::info!(phase = "upload_retention", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
-        tracing::info!(report = %name, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Created");
-        Ok(ReportsCreateResponse {
+        prepared.response = Some(ReportsCreateResponse {
             report: Some(metadata),
             file: Some(reference),
             resolved_at: Some(resolved_at),
             receipt: Some(crate::host::views::receipt(context, &request.request_id)?),
-        })
+        });
+        let prepared = administration::retain(context, &name, scope, &prepared).await?;
+        let response = prepared
+            .response
+            .ok_or_else(|| Error::Precondition("Create Report: Use a New Request ID After Replacing Incompatible Prepared Data".into()))?;
+        let reference =
+            response.file.clone().ok_or_else(|| Error::Precondition("Create Report: Restore Its Retained File Reference".into()))?;
+        context.host.retain_report(reference)?;
+        tracing::info!(phase = "upload_retention", elapsed_ms = phase.elapsed().as_secs_f64() * 1000.0, "Report Stage");
+        tracing::info!(report = %name, creation_ms = started.elapsed().as_secs_f64() * 1000.0, "Report Created");
+        Ok(response)
     })
     .await
 }

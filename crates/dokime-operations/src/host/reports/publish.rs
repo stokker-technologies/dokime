@@ -58,7 +58,10 @@ pub async fn handle(context: &Context, request: ReportsPublishRequest) -> Result
         if revision.is_empty() {
             return Err(Error::NotFound("Publish Report: Create Its Prepared Report First".into()));
         }
-        let file = prepared.file.ok_or_else(|| Error::Precondition("Publish Report: Restore Its Prepared File Reference".into()))?;
+        let file = prepared
+            .response
+            .and_then(|response| response.file)
+            .ok_or_else(|| Error::Precondition("Publish Report: Restore Its Prepared File Reference".into()))?;
         if request.expected_revision != file.sha256 {
             return Err(Error::Conflict("Publish Report: Use the Prepared File Digest as Its Revision".into()));
         }

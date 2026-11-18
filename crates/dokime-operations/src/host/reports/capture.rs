@@ -187,7 +187,7 @@ pub(super) async fn collect(
                 execution: id.clone(),
                 execution_seal: cut.seal.clone(),
                 document: Some(document.clone()),
-                file: None,
+                ..Default::default()
             });
         }
         let phase = Instant::now();
