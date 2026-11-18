@@ -20,8 +20,9 @@ use std::collections::HashMap;
 use std::error::Error;
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use harmos_protocol::host::{PluginState, plugin_placement};
 use harmos_protocol::model::ReadCut;
+use tokio::time;
 use tonic::transport::Endpoint;
 
 // Local Imports
@@ -29,6 +30,7 @@ use super::client_runs_thermal_suite_over_grpc::HostProcess;
 use super::support;
 use dokime::Client;
 use dokime::MapValue;
+use dokime::Metadata;
 use dokime::client::CyclesCreateOptions;
 use dokime::client::ExecutionsGetOptions;
 use dokime::client::ExecutionsListOptions;
@@ -63,7 +65,7 @@ use dokime_runtime::PluginProcess;
 #[test]
 fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
-        tokio::time::timeout(support::SYSTEM_HANG_GUARD, async {
+        time::timeout(support::SYSTEM_HANG_GUARD, async {
             // Start the Product and Admit the Plugin Through Its Client API
             let root = support::tempdir()?;
             let credential_root = support::tempdir()?;
@@ -86,14 +88,14 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            super::support::plugin_state(&host.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&host.plugins, entry, PluginState::Ready).await?;
             let cases = super::support::materialize(&host, "content", "content.progress", HashMap::new()).await?;
             let cycle = Client::from_channel(channel.clone(), super::support::client_settings())?
                 .cycles
                 .clone()
                 .create_with(
                     cases.into_iter().map(|case| case.origin.unwrap()).collect(),
-                    dokime::Metadata {
+                    Metadata {
                         label: "Story Cycle".into(),
                         ..Default::default()
                     },
@@ -147,7 +149,7 @@ fn client_observes_revisioned_progress() -> Result<(), Box<dyn Error>> {
                 .await?;
             assert_eq!(first.value.as_ref().unwrap().completed, 1);
             let prompt = host.prompts.list(name.clone(), true).await?.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-            host.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
+            host.prompts.answers.create(prompt, "continue", MapValue::default(), true).await?;
             let mut finished = false;
             while let Some(response) = watch.next().await? {
                 finished |= response.finished;

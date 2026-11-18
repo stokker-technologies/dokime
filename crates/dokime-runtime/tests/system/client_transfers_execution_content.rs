@@ -18,14 +18,18 @@
 // Standard Library Imports
 use std::collections::{BTreeSet, HashMap};
 use std::error::Error;
+use std::io::{Cursor, Read};
 
 // Third Party Imports
-use harmos_protocol::host::plugin_placement;
+use harmos_protocol::host::{PluginState, plugin_placement};
 use harmos_protocol::model::FileMetadata;
 use harmos_protocol::model::PageRequest;
+use prost::Message;
 use sha2::Digest;
 use sha2::Sha256;
+use tokio::time;
 use tonic::transport::Endpoint;
+use zip::ZipArchive;
 
 // Local Imports
 use super::client_runs_thermal_suite_over_grpc::HostProcess;
@@ -77,10 +81,7 @@ use dokime_storage::CONTENT_CHUNK_BYTES;
 #[test]
 fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
-            use prost::Message;
-            use std::io::Read;
-
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Create Product Evidence and Publish Its File Through the Registered Backend
             let root = super::support::tempdir()?;
             let host = Host::open(root.path(), super::support::settings(), super::support::service_settings()).await?;
@@ -118,7 +119,7 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
                 bytes_out.extend(page.data);
             }
             assert_eq!(Sha256::digest(&bytes_out).as_slice(), archived.sha256);
-            let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes_out))?;
+            let mut archive = ZipArchive::new(Cursor::new(bytes_out))?;
             let manifest: serde_json::Value = serde_json::from_reader(archive.by_name("manifest.json")?)?;
             assert_eq!(manifest["version"], 1);
             let mut references = BTreeSet::new();
@@ -157,7 +158,7 @@ fn native_archive_preserves_file_bytes_and_history() -> Result<(), Box<dyn Error
 #[test]
 fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
     super::support::run(Box::pin(async {
-        tokio::time::timeout(super::support::SYSTEM_HANG_GUARD, async {
+        time::timeout(super::support::SYSTEM_HANG_GUARD, async {
             // Prepare Registered Files and an Independent Execution
             let root = super::support::tempdir()?;
             let credential_root = super::support::tempdir()?;
@@ -179,7 +180,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 .await?
                 .entry
                 .unwrap();
-            super::support::plugin_state(&client.plugins, entry, harmos_protocol::host::PluginState::Ready).await?;
+            super::support::plugin_state(&client.plugins, entry, PluginState::Ready).await?;
             let cases = super::support::materialize(&client, "content", "content.progress", HashMap::new()).await?;
             let executions = super::support::admit(&client, vec![cases[0].clone(), cases[0].clone()]).await?;
             let execution = executions[0].clone();
@@ -331,7 +332,7 @@ fn client_transfers_execution_content() -> Result<(), Box<dyn Error>> {
                 let mut progress = client.executions.progress.watch(id.clone()).await?;
                 let pending = client.prompts.list(id.clone(), true).await?;
                 let prompt = pending.prompts[0].prompt.as_ref().unwrap().prompt_id.clone();
-                client.prompts.answers.create(prompt, "0", MapValue::default(), true).await?;
+                client.prompts.answers.create(prompt, "continue", MapValue::default(), true).await?;
                 while progress.next().await?.is_some() {}
             }
 
